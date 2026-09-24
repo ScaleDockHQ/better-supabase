@@ -1,0 +1,77 @@
+---
+title: Live queries
+description: Keep any query fresh over Realtime, without sending row data over the socket.
+---
+
+A live query refetches when a table it reads changes. The database sends
+only "`customers` changed"; the client refetches through PostgREST, so RLS
+decides what each user sees, and includes and filters stay correct.
+
+## Setup
+
+1. List the tables in the config and regenerate:
+
+   ```ts title="better-supabase.config.ts"
+   export default defineConfig({ realtime: { tables: ['customers', 'notes'] } });
+   ```
+
+2. Add the SQL module. It installs a statement-level trigger per table
+   (one broadcast per statement, not per row) and a `realtime.messages`
+   policy for the topics:
+
+   ```bash
+   better-supabase gen
+   better-supabase sql add realtime-tables
+   ```
+
+With the [tenant plugin](/docs/plugins/tenant), tables that have the tenant
+column broadcast on a per-tenant topic (`bs:t:public.customers:<org>`), and
+the policy only lets a user join their own `org_id`. Tables without it use
+one topic.
+
+## React
+
+```tsx
+const spec = sb.spec.customers.findMany({ include: { notes: true }, limit: 50 });
+
+function Customers() {
+  const { data } = useQuery(browser.queries.$spec(spec));
+  useLiveQuery(spec); // refetches on changes to customers or notes
+  return <List rows={data} />;
+}
+```
+
+`useLiveQuery` needs `<BetterSupabaseProvider queryClient={queryClient}>`.
+The tenant defaults to the `org_id` claim; pass `{ tenant }` to override it.
+Changes are debounced (100 ms by default, `debounceMs`), so a bulk update
+causes one refetch. It returns the channel status.
+
+## Without React
+
+```ts
+import { liveQuery } from 'better-supabase/realtime';
+
+const live = liveQuery(sb, supabase, spec, {
+  tenant: orgId,
+  onChange: (tables) => queryClient.invalidateQueries(...),
+});
+await live.ready;
+live.unwatched; // tables the query reads that don't broadcast
+await live.unsubscribe();
+```
+
+Pass a list of table keys instead of a spec to watch tables directly.
+Channels are shared: ten live queries on `customers` open one channel.
+
+## Doctor
+
+- **BS305** flags a table in `realtime.tables` without the trigger.
+- **BS306** flags tables in the `supabase_realtime` publication whose replica
+  identity can't identify deleted rows.
+
+## Limits
+
+A change to a table outside `realtime.tables` doesn't refresh the query;
+`unwatched` lists those tables. A refetch costs one request per changed
+query, which suits dashboards and lists better than high-frequency streams.
+For cursors, presence or chat, use [Realtime topics](/docs/kits/realtime).

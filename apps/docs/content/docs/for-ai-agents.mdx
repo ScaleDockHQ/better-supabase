@@ -1,0 +1,37 @@
+---
+title: For AI agents
+description: Agent Skills, llms.txt and conventions that help coding agents use better-supabase correctly.
+---
+
+## Agent Skills
+
+The package ships [Agent Skills](https://agentskills.io) that teach coding
+agents the conventions in these docs:
+
+| Skill | Covers |
+| --- | --- |
+| `better-supabase` | Queries, writes, Results, and the codegen loop after a schema change |
+| `better-supabase-api` | Adapters, `allow`, REST resources, MCP tools, jobs, idempotency, webhooks |
+| `better-supabase-testing` | `asUser`, `localAuth`, typed seeds, pgTAP |
+
+```bash
+pnpm better-supabase skills install                 # into the agent folders the project has
+pnpm better-supabase skills install --agent cursor,claude
+pnpm better-supabase skills install --check         # in CI, after upgrading
+```
+
+Skills go to `.cursor/skills`, `.claude/skills` or `.agents/skills`, or to
+your home directory with `--global`. Reinstall after an upgrade, and
+`--check` tells you when they are stale.
+
+## llms.txt
+
+These docs publish [`/llms.txt`](/llms.txt) (an index) and
+[`/llms-full.txt`](/llms-full.txt) (every page as Markdown).
+
+## What agents should rely on
+
+- Types come from generated code. After a migration, run `better-supabase gen` and fix the errors instead of casting.
+- Repository calls return a `Result`. Check `result.ok` or return the Result from a handler.
+- Every JSON output of the CLI has a `$schema` URL, and `--check` flags exit
+  with 1 on drift, so agents can verify their own changes.

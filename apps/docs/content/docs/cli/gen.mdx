@@ -1,0 +1,102 @@
+---
+title: gen
+description: Generate database types, typed models, relation metadata and validators.
+---
+
+```bash
+better-supabase gen [--check] [--watch] [--snapshot <file>] [--db-url <url> | --project-ref <ref>]
+```
+
+`gen` introspects your database with
+[`@supabase/postgrest-typegen`](https://github.com/supabase/postgrest-typegen),
+the same generator behind `supabase gen types typescript`, and writes:
+
+1. `database.types.ts`, byte for byte what `supabase gen types` prints for the
+   same schema (CI checks this against the Supabase CLI), so
+   `createClient<Database>()` works as usual;
+2. the main module (`output`), with models in your casing, enum and CHECK
+   constants, typed constraint names, relation metadata with foreign key
+   actions, and the `schema` object;
+3. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`).
+
+It doesn't need Docker or the Supabase CLI: it only needs a way to run SQL.
+Files are only rewritten when their contents change, so watchers and bundlers
+don't rebuild for nothing.
+
+## Options
+
+| Option | Effect |
+| --- | --- |
+| `--check` | Writes nothing; exits 1 when a generated file is out of date. Use it in CI. |
+| `--watch` | Regenerates when the schema changes (polls every `--interval` ms, default 2000). |
+| `--snapshot <file>` | Reads a saved snapshot instead of connecting. |
+| `--db-url <url>` | Connection string; overrides the config and `$DATABASE_URL`. |
+| `--project-ref <ref>` | Reads a hosted project through the Management API. |
+
+## Where the schema comes from
+
+In order:
+
+1. `--db-url`, or `--project-ref`;
+2. `source.dbUrl` or `source.projectRef` in the config;
+3. `source.snapshot`, when neither flag is passed;
+4. `$DATABASE_URL`;
+5. the local stack, on the `[db] port` from `supabase/config.toml` (54322 by
+   default).
+
+### Hosted projects without a database password
+
+`source.projectRef` (or `--project-ref`) runs the introspection queries
+through the Management API's read-only SQL endpoint
+(`POST /v1/projects/{ref}/database/query/read-only`). You need a
+[personal access token](https://supabase.com/dashboard/account/tokens) in
+`SUPABASE_ACCESS_TOKEN`, not the database password, and the queries run as a
+read-only role.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  source: { projectRef: 'abcdefghijklmnopqrst' },
+});
+```
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... better-supabase gen --check
+```
+
+`SUPABASE_API_URL` points it at another Management API host.
+
+## What the metadata knows
+
+The generated `schema` carries what the runtime needs to stay correct without
+extra round trips:
+
+- **Read-only columns.** Generated columns, `identity always` columns and
+  view columns Postgres marks as not insertable or updatable are left out of
+  the `Insert` and `Update` types, and writes to them fail before a request is
+  sent.
+- **Unique keys and constraint names.** `findUnique` accepts the primary key
+  or any named unique key, and `UniqueConstraint`, `CheckConstraint` and
+  `ForeignKeyConstraint` types narrow `isConflict(error, 'customers_kvk_key')`.
+  See [unique keys and errors](/docs/repository/unique-and-errors).
+- **Foreign key actions.** `on delete cascade`, `set null` and `set default`
+  are recorded on relations, so a delete invalidates the tables it changes.
+  See [caching](/docs/concepts/caching).
+- **Codecs.** With `codecs` in the config, `int8`, `numeric` and
+  `timestamptz` columns are read exactly (as `bigint`, `string` or `Date`),
+  and the generated validators match.
+
+## Snapshots
+
+```bash
+better-supabase introspect --out supabase/snapshot.json
+better-supabase gen --snapshot supabase/snapshot.json
+```
+
+A committed snapshot lets CI and contributors generate without a database.
+The snapshot stores postgrest-typegen's own metadata plus the extras
+better-supabase reads (policies, indexes, triggers, buckets, realtime), and
+follows
+[`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
+`introspect --check` fails when it no longer matches the database.
+`introspect --format generator-metadata` prints only the postgrest-typegen
+part, for tools that consume it directly.

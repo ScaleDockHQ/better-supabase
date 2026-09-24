@@ -1,0 +1,8 @@
+{
+  "tables": 150,
+  "queried": 40,
+  "measurement": {
+    "types": 18785,
+    "instantiations": 44510
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "extends": "@better-supabase/typescript-config/library.json",
+  "include": ["src"]
+}

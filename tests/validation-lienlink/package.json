@@ -1,0 +1,21 @@
+{
+  "name": "@better-supabase/validation-lienlink",
+  "private": true,
+  "description": "lienlink's packages/supabase (env, request context, auth guard, storage, browser client) rewritten on better-supabase.",
+  "type": "module",
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

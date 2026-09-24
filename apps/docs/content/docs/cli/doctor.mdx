@@ -1,0 +1,191 @@
+---
+title: doctor
+description: Security, performance and drift checks for your database, config.toml and env files.
+---
+
+```bash
+pnpm better-supabase doctor
+```
+
+`doctor` introspects the database the same way [`gen`](/docs/cli/gen) does,
+then reads `supabase/config.toml`, your `.env*` files and `.gitignore`. Every
+finding has a code, a severity and a link to its section on this page. When a
+finding is about a table, function or policy, doctor points at the file that
+creates it: declarative schemas in `supabase/schemas` first, then the newest
+migration.
+
+It also runs Supabase's own [Security and Performance
+Advisors](https://supabase.com/docs/guides/database/database-advisors) (BS100
+and BS200), so the dashboard's findings show up locally and in CI. It exits
+with 1 when there are errors, or with any warning under `--strict`.
+
+| Option | Description |
+| --- | --- |
+| `--format <f>` | `text` (default), `json`, `sarif` or `github` |
+| `--out <file>` | Write the report to a file |
+| `--only <codes>` | Run only these checks, e.g. `--only BS100,BS304` |
+| `--ignore <codes>` | Skip checks. Adds to `doctor.ignore` in the config |
+| `--strict` | Fail on warnings. Same as `doctor.strict` |
+| `--snapshot <file>` | Check a saved snapshot instead of the database |
+| `--db-url <url>` | Database to introspect |
+| `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`) |
+
+Doctor never prints env values, only variable names and line numbers.
+
+## In CI
+
+`--format github` writes workflow annotations, so findings show up on the pull
+request diff:
+
+```yaml
+- run: pnpm better-supabase doctor --format github --strict
+```
+
+For GitHub code scanning, upload SARIF:
+
+```yaml
+- run: pnpm better-supabase doctor --format sarif --out doctor.sarif
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: doctor.sarif
+```
+
+`--format json` follows
+[`doctor-report-v1.json`](https://unpkg.com/better-supabase/schemas/doctor-report-v1.json).
+
+## Ignoring checks
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  doctor: { ignore: ['BS204'], strict: true },
+});
+```
+
+## Supabase advisors
+
+### BS100
+
+**Security Advisor findings.** Each finding keeps the advisor's own severity
+(error, warning or info), title and remediation link. The advisor covers RLS
+disabled in exposed schemas, RLS without policies, security definer functions
+anon or authenticated can call, mutable `search_path`, `auth.users` exposed
+through views, `user_metadata` in policies and more. The message ends with the
+lint name, for example `[rls_disabled_in_public]`.
+
+Where the findings come from depends on what doctor reads:
+
+- **Hosted projects** (`--project-ref` or `source.projectRef`): the Management
+  API's `GET /v1/projects/{ref}/advisors/security`, the same data the dashboard
+  shows.
+- **Local stack or `--db-url`:** [splinter](https://github.com/supabase/splinter),
+  the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
+  commit, checks its SHA-256, caches it in
+  `node_modules/.cache/better-supabase` and runs it in a read-only transaction
+  that is rolled back. splinter has no license, so it isn't bundled.
+- **Saved snapshots:** there is no database to lint, so doctor reports an info
+  finding saying the advisors were skipped.
+
+If the advisors can't run (offline, no access token), doctor reports a warning
+instead of failing silently.
+
+### BS200
+
+**Performance Advisor findings.** Same sources as BS100: unindexed foreign
+keys, `auth.uid()` re-evaluated per row in policies, multiple permissive
+policies, unused and duplicate indexes, tables without a primary key, table
+bloat and more.
+
+## Security
+
+### BS103
+
+**Error: policy allows anonymous writes.** A permissive `insert`, `update`,
+`delete` or `all` policy for `anon` or `public` uses `true`. Anyone can change
+rows. Restrict the policy to `authenticated` and check ownership.
+
+## Performance
+
+### BS204
+
+**Warning: tenant column without an index.** With the
+[tenant plugin](/docs/plugins), every query filters on the tenant column. Add
+an index that starts with it.
+
+## Drift
+
+### BS301
+
+**Warning: soft delete hidden by a select policy.** After an update, PostgREST
+reads the row back through the select policy. If that policy hides rows where
+the soft-delete column is set, `softDelete()` fails with an RLS error. Filter
+deleted rows in queries instead; the soft-delete plugin already does.
+
+### BS302
+
+**Warning: bucket differs from the config.** A bucket in `buckets` is missing
+from the database, or its `public`, file size limit or MIME types differ.
+Update the config or the bucket.
+
+### BS303
+
+**Error: generated code is out of date.** The generated module doesn't match
+the database, so types and metadata are wrong. Run `better-supabase gen`. This
+is the same check as `gen --check`.
+
+### BS304
+
+**Warning: SQL kit files are out of date.** A module in `sql.kit` differs from
+the version this release ships. Run `better-supabase sql sync`, then
+`supabase db diff` to create a migration.
+
+### BS305
+
+**Warning: live query table without change broadcasts.** A table in
+`realtime.tables` has no `bs_realtime` trigger, so
+[live queries](/docs/frontend/live-queries) never hear about its changes. Run
+`better-supabase sql add realtime-tables`, then `supabase db diff`.
+
+### BS306
+
+**Warning: Realtime delete events without keys.** A table in the
+`supabase_realtime` publication has replica identity `nothing`, or `default`
+without a primary key, so `postgres_changes` delete events carry no keys. Add a
+primary key, or run `alter table ... replica identity full`.
+
+## Auth config
+
+### BS401
+
+**Warning: refresh token reuse interval is 0.** With refresh token rotation,
+server instances that refresh the same session at the same time need a reuse
+interval, or all but one of them sign the user out. Use `10`, the Supabase
+default.
+
+### BS402
+
+**Info: long access token lifetime.** better-supabase verifies tokens locally
+instead of calling the auth server, so a revoked session stays valid until its
+token expires. Keep `jwt_expiry` at 3600 or less; the proxy refreshes sessions
+for you.
+
+### BS403
+
+**Info: local stack signs tokens with a shared secret.** Hosted projects sign
+with asymmetric keys. Run [`better-supabase keys`](/docs/cli/local#keys) so
+local tokens verify through JWKS, the same as in production.
+
+## Env files
+
+### BS501
+
+**Error: secret in a browser variable.** A variable with a public prefix
+(`NEXT_PUBLIC_`, `VITE_`, `EXPO_PUBLIC_`, `PUBLIC_`, `NUXT_PUBLIC_`) holds a
+secret key. Bundlers inline these into client code. Rename the variable and
+rotate the key.
+
+### BS502
+
+**Warning: env file with secrets isn't ignored by git.** An env file holds a
+secret key or database URL but no `.gitignore` pattern matches it. Add the
+file, for example `.env*.local`, to `.gitignore`. `.example` files are skipped.

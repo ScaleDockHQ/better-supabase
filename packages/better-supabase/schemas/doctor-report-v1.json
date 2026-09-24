@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/doctor-report-v1.json",
+  "title": "better-supabase doctor report",
+  "description": "Output of `better-supabase doctor --format json`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "version", "tool", "summary", "findings"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "better-supabase" },
+        "version": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errors", "warnings", "infos"],
+      "properties": {
+        "errors": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "infos": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "title", "message", "help"],
+        "properties": {
+          "code": {
+            "enum": [
+              "BS100",
+              "BS103",
+              "BS200",
+              "BS204",
+              "BS301",
+              "BS302",
+              "BS303",
+              "BS304",
+              "BS305",
+              "BS306",
+              "BS401",
+              "BS402",
+              "BS403",
+              "BS501",
+              "BS502"
+            ]
+          },
+          "severity": { "enum": ["error", "warning", "info"] },
+          "title": { "type": "string" },
+          "message": { "type": "string" },
+          "target": {
+            "type": "string",
+            "description": "What the finding is about, e.g. `public.customers` or `.env.local:SUPABASE_SECRET_KEY`."
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "line"],
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "Relative to the project root."
+              },
+              "line": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "object": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "schema", "name"],
+            "properties": {
+              "kind": { "enum": ["table", "function", "policy"] },
+              "schema": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "help": { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  }
+}

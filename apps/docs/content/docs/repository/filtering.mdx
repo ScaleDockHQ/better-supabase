@@ -1,0 +1,79 @@
+---
+title: Filtering
+description: Column operators, AND/OR/NOT, and filters through relations.
+---
+
+## Columns
+
+A value means equality; `null` means `is null`:
+
+```ts
+where: { status: 'active', kvk: null }
+```
+
+Operators depend on the column type:
+
+| Type | Operators |
+| --- | --- |
+| All | `eq`, `neq`, `in`, `notIn`, `isNull`, `not` |
+| Text, numbers, dates | `gt`, `gte`, `lt`, `lte` |
+| Text | `like`, `ilike`, `contains`, `startsWith`, `endsWith`, `search` |
+| Arrays | `has`, `hasSome`, `hasEvery`, `containedBy` |
+| jsonb | `contains` (`@>`) |
+
+`contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`
+and `_` in your input. Use `like` or `ilike` when you want wildcards.
+
+Enum and CHECK columns only accept their allowed values:
+
+```ts
+where: { status: { in: ['lead', 'active'] } }
+// @ts-expect-error: 'deleted' is not a CustomersStatus
+where: { status: 'deleted' }
+```
+
+## Combining
+
+```ts
+where: {
+  OR: [{ name: { contains: 'acme' } }, { kvk: '1001' }],
+  NOT: { status: 'archived' },
+}
+```
+
+Keys in one object are combined with AND. `AND` also accepts an array.
+
+## Relations
+
+To-many relations take `some`, `none` and `every`:
+
+```ts
+where: {
+  notes: { some: { kind: 'call' } },      // at least one call note
+  locations: { none: {} },                // no locations at all
+  customerTags: { every: { tag: { color: 'green' } } },
+}
+```
+
+To-one relations take a filter directly, `null` when the relation is
+nullable, or `is` and `isNot`:
+
+```ts
+where: { organization: { slug: 'acme' }, primaryContact: null }
+```
+
+Relation filters nest to any depth and work inside `OR` and `NOT`. They compile
+to filter-only embeds (`!inner` for `some`, anti-joins for `none` and
+`every`), so they run as a single request under the caller's RLS.
+
+<Callout title="every and NULL">
+  `every` is "no related row fails the condition", following SQL's three-valued
+  logic: a related row whose column is `NULL` does not fail `{ isPrimary: true }`.
+  Add `isPrimary: { not: null }` when nulls should count as failures.
+</Callout>
+
+## Limits of the PostgREST path
+
+`updateMany` and `deleteMany` cannot filter through relations over PostgREST,
+and return an `invalid_request` error. Use the direct Postgres executor for
+those, or select the ids first.

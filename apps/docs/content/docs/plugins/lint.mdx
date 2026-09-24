@@ -1,0 +1,59 @@
+---
+title: Lint rules
+description: Catch unbounded reads and unscoped deletes in the editor, with ESLint or oxlint.
+---
+
+`better-supabase/lint` is a lint plugin written against the ESLint rule API.
+It has no dependencies and loads in ESLint's flat config and in oxlint's JS
+plugins.
+
+## ESLint
+
+```js title="eslint.config.js"
+import betterSupabase from 'better-supabase/lint';
+
+export default [betterSupabase.configs.recommended];
+```
+
+## oxlint
+
+```json title=".oxlintrc.json"
+{
+  "jsPlugins": ["better-supabase/lint"],
+  "rules": {
+    "better-supabase/no-delete-many-without-where": "error",
+    "better-supabase/no-unbounded-find-many": "warn",
+    "better-supabase/max-limit": ["warn", { "max": 500 }],
+    "better-supabase/require-order-by": "warn"
+  }
+}
+```
+
+## Rules
+
+### no-unbounded-find-many
+
+`findMany()` or `findMany({ ... })` without `limit`. Recommended: `warn`.
+
+### no-delete-many-without-where
+
+`deleteMany()` without `where`. The repository refuses this at runtime too;
+the rule catches it before it ships. Recommended: `error`.
+
+### max-limit
+
+A literal `limit` above `max` (default 1000) in `findMany`, `findFirst` or
+`paginate`. Recommended: `warn`.
+
+### require-order-by
+
+`findMany` with `offset` but no `orderBy`, which returns pages in no stable
+order. Recommended: `warn`.
+
+## How calls are matched
+
+Rules match calls by method name with an inline object literal. When the
+argument is a variable or contains a spread, the rule skips it instead of
+guessing, so there are no false positives from code it can't see. The
+runtime [`rules()` plugin](/docs/plugins/rules) checks what the linter
+can't.

@@ -1,0 +1,97 @@
+---
+title: Overview
+description: One resolver for every caller, local verification, and refreshes only where they belong.
+---
+
+Every server entry point in better-supabase starts with the same question:
+who is calling? `resolveAuth(request)` answers it in this order:
+
+1. your own [`AuthResolver`s](#custom-credentials) (API keys, third-party auth);
+2. `Authorization: Bearer <jwt>`, for APIs, MCP servers and mobile apps;
+3. the `@supabase/ssr` session cookie, for browsers.
+
+```ts
+import { resolveAuth } from 'better-supabase/server';
+import { loadEnv } from 'better-supabase/env';
+
+const env = loadEnv();
+const { auth } = await resolveAuth(request, { env });
+
+switch (auth.kind) {
+  case 'user':    // auth.user.id, auth.claims, auth.token
+  case 'service': // a secret key, when `secret: true`
+  case 'anon':    // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
+  case 'invalid': // credentials were sent but did not verify: answer 401
+}
+```
+
+## No needless work
+
+- A valid token costs **no network call**. It is verified locally against
+  the project's JWKS (`<url>/auth/v1/.well-known/jwks.json`), which is
+  fetched once and cached.
+- Nothing is written while the token is valid: no cookie churn, no
+  `Set-Cookie` on every response.
+- A Bearer token that fails verification is `invalid`, never silently
+  downgraded to anonymous.
+
+## Refreshing
+
+An expiring cookie session is refreshed only when you pass `refresh: true`,
+which you should only do where cookies can be written: the proxy or
+middleware in front of page loads and server actions. Everywhere else an
+expired session reads as `{ kind: 'anon', reason: 'expired' }`.
+
+When it does refresh:
+
+- concurrent requests carrying the same refresh token share **one** request
+  to Supabase Auth, and a finished refresh is reused for ten seconds, so
+  parallel page loads and prefetches converge on one session instead of
+  tripping refresh-token reuse detection;
+- the new session is written in the exact `@supabase/ssr` format, stale
+  cookie chunks are expired, and the response gets `no-store` headers so no
+  CDN caches one user's session for another;
+- `requestCookies` holds the cookies the rest of the request should see, so
+  Server Components rendered after the proxy use the new token;
+- a rejected refresh token signs the user out (cookies cleared); a network
+  failure keeps the session so the next request can retry.
+
+```ts
+const resolution = await resolveAuth(request, { env, refresh: true });
+const response = await next(request, resolution.requestCookies);
+return resolution.apply(response); // Set-Cookie + Cache-Control
+```
+
+The `/next` adapter wires this up for you in `proxy()`.
+
+<Callout title="Refresh races across instances">
+  Single-flight works per server instance. Across instances Supabase Auth's
+  refresh-token reuse interval (10 seconds by default) makes concurrent
+  refreshes safe. Keep it enabled; `better-supabase doctor` checks it.
+</Callout>
+
+## Custom credentials
+
+`AuthResolver` is an extension point. Return an `AuthState` when the request
+carries something you understand, `undefined` otherwise:
+
+```ts
+const apiKeys: AuthResolver = {
+  name: 'partner-api-keys',
+  async resolve(request) {
+    const key = request.headers.get('x-api-key');
+    if (!key) return undefined;
+    const partner = await lookupPartner(key);
+    return partner ? { kind: 'service', keyName: partner.id } : undefined;
+  },
+};
+
+await resolveAuth(request, { env, resolvers: [apiKeys] });
+```
+
+## Identity for repositories
+
+`authContext(auth)` turns an auth state into the repository context: a typed
+`actor` (`user`, `service` or `anon`) and the JWT `claims`. The
+[`actor`](/docs/plugins/actor) and [`tenant`](/docs/plugins/tenant) plugins
+read it.

@@ -1,0 +1,100 @@
+---
+title: Configuration
+description: better-supabase.config.ts options and defaults.
+---
+
+The CLI looks for `better-supabase.config.{ts,mts,js,mjs,json}` in the
+working directory. TypeScript configs load natively on Node 24.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig, zod } from 'better-supabase/config';
+import { CustomerMetadata } from './src/types.ts';
+
+export default defineConfig({
+  source: { projectRef: 'abcdefghijklmnopqrst' },
+  schemas: ['public'],
+  casing: 'camel',
+  output: 'src/lib/supabase/generated.ts',
+  codecs: { int8: 'bigint', numeric: 'string', timestamptz: 'date' },
+  json: {
+    'customers.metadata': { import: './src/types.ts#CustomerMetadata', schema: CustomerMetadata },
+    'notes.attachments': { type: '{ files: { name: string; size: number }[] }' },
+  },
+  sensitive: ['contacts.email', 'contacts.phone'],
+  tables: {
+    customers: { relations: { primaryContact: 'contact' } },
+    internal_jobs: { exclude: true },
+  },
+  plugins: {
+    timestamps: true,
+    softDelete: { column: 'archived_at' },
+    tenant: { column: 'organization_id', claim: 'org_id' },
+    actor: true,
+  },
+  realtime: { tables: ['customers', 'notes'] },
+  generators: [zod()],
+});
+```
+
+## Options
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `source` | local stack | `dbUrl`, `projectRef` (+ `accessToken`, default `$SUPABASE_ACCESS_TOKEN`) or `snapshot`. See [gen](/docs/cli/gen#where-the-schema-comes-from) |
+| `schemas` | `['public']` | Tables in other schemas get prefixed keys |
+| `casing` | `'snake'` | `'camel'` maps columns in queries; see [casing](/docs/concepts/casing) |
+| `tables` | `{}` | Per-table `casing`, `exclude` and relation renames |
+| `output` | `src/lib/supabase/generated.ts` | `database.types.ts` is written next to it |
+| `postgrestVersion` | `'13'` | Written to `__InternalSupabase` in `database.types.ts` |
+| `codecs` | JSON types | `int8: 'bigint' \| 'string'`, `numeric: 'string'`, `timestamptz: 'date'` read values exactly |
+| `json` | `{}` | jsonb types, keyed by `table.column` (database names). `schema` adds a [database check](/docs/kits/sql#enforcing-jsonb-shapes) |
+| `sensitive` | `[]` | Columns the [`noSensitiveSelect` rule](/docs/plugins/rules) guards (`table.column`) |
+| `generators` | `[]` | `zod()`, `valibot()`, `jsonSchema()` or your own |
+| `plugins` | none | Flags for timestamps, soft delete, tenant and actor columns |
+| `buckets` | `{}` | Typed storage buckets; doctor compares them with the database and `config.toml` |
+| `topics` | `{}` | Realtime topic templates |
+| `realtime` | `{ tables: [] }` | Tables for [live queries](/docs/frontend/live-queries) |
+| `sql` | `supabase/schemas`, `900_better_supabase`, `supabase/tests` | Where generated SQL and pgTAP files go, and the [SQL kit](/docs/kits/sql) modules to keep in sync |
+| `seed` | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql` | Entry module and output of [`seed`](/docs/cli/local#seed) |
+| `openapi` | `src/lib/openapi.ts`, `openapi.json` | Entry module and output of [`openapi emit`](/docs/cli/local#openapi-emit) |
+| `doctor` | none | `ignore` finding codes, `strict` mode |
+
+## supabase/config.toml
+
+The CLI reads `supabase/config.toml` for the local database port, the auth
+settings [doctor](/docs/cli/doctor) checks and bucket drift. When
+[`@supabase/config`](https://www.npmjs.com/package/@supabase/config) is
+installed, it parses the file, with `env()` values filled in the same way the
+Supabase CLI does. It's an optional peer (it needs `effect` and
+`@effect/platform-node`). Without it, a built-in parser reads the subset of
+TOML that `supabase init` writes.
+
+## JSON configs
+
+```json title="better-supabase.config.json"
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/config-v1.json",
+  "casing": "camel",
+  "plugins": { "timestamps": true }
+}
+```
+
+The JSON Schema gives editor completion and validation. Generators and
+Standard Schema values in `json[...].schema` need a TypeScript or JavaScript
+config; a JSON config can use plain JSON Schema objects.
+
+## Custom generators
+
+```ts
+import type { Generator } from 'better-supabase/config';
+
+export const tableList: Generator = {
+  name: 'table-list',
+  generate: ({ meta }) => [
+    { path: 'src/lib/tables.json', contents: JSON.stringify(Object.keys(meta.tables)) },
+  ],
+};
+```
+
+A generator receives the schema metadata, the resolved config and an
+`importPath` helper, and returns files. `gen --check` covers its output too.

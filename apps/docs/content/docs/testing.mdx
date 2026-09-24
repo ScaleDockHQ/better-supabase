@@ -1,0 +1,81 @@
+---
+title: Testing
+description: Test RLS, APIs and SQL against the local stack as real users.
+---
+
+`better-supabase/testing` signs tokens with the local stack's JWT secret. The
+same user then works through PostgREST, direct Postgres and your API, so
+tests exercise the real RLS policies instead of mocks.
+
+## asUser
+
+```ts title="customers.test.ts"
+import { asUser } from 'better-supabase/testing';
+
+const alice = await asUser(sb, { sub: aliceId, org_id: acme }, { postgres });
+
+expect(await alice.db.customers.count().orThrow()).toBe(3);
+expect(await alice.sql!.customers.count().orThrow()).toBe(3);
+await alice.supabase.storage.from('customer-logos').list(acme);
+```
+
+`asUser` reads the URL, publishable key and `SUPABASE_JWT_SECRET` from the
+environment, with or without a framework prefix, just as
+[`better-supabase env`](/docs/cli/local#env) writes them. Without them it
+falls back to the CLI defaults. `db` goes through PostgREST, and `sql` goes through direct
+Postgres with the same claims, when you pass `postgres`.
+
+## Fixtures
+
+Share rows between `supabase db reset` and your tests with a
+[typed seed](/docs/cli/local#seed):
+
+```ts
+import { seed } from '../supabase/seed.ts';
+
+beforeAll(() => seed.insert(postgres.admin));
+
+const alice = await asUser(sb, { sub: aliceId, org_id: seed.rows.organizations.acme.id });
+```
+
+## APIs
+
+`localAuth(secret)` is an auth resolver that accepts those test tokens. Your
+[framework adapter](/docs/frameworks) then sees the same claims that RLS sees:
+
+```ts
+import { localAuth, LOCAL_JWT_SECRET } from 'better-supabase/testing';
+
+const bs = createHono(sb, { auth: { resolvers: [localAuth(LOCAL_JWT_SECRET)] } });
+await app.request('/api/customers', { headers: { authorization: `Bearer ${alice.token}` } });
+```
+
+Use it in tests only. In production, tokens are verified against your
+project's JWKS.
+
+## pgTAP
+
+`better-supabase sql add pgtap` writes
+`supabase/tests/000_better_supabase_pgtap.test.sql`. It runs first and
+installs helpers that later test files can use with `supabase test db`:
+
+```sql title="supabase/tests/customers.test.sql"
+begin;
+select plan(2);
+
+select tests.rls_enabled('public');
+
+select tests.authenticate_as(tests.create_user('alice@example.com'), '{"org_id": "00000000-0000-4000-8000-000000000001"}');
+select is((select count(*) from public.customers where organization_id <> '00000000-0000-4000-8000-000000000001'), 0::bigint, 'no cross-tenant rows');
+
+select * from finish();
+rollback;
+```
+
+| Helper | Does |
+| --- | --- |
+| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id |
+| `tests.authenticate_as(user_id, claims)` | Switches to `authenticated` with the user's claims for the rest of the transaction |
+| `tests.authenticate_as_anon()` | Switches to `anon` |
+| `tests.clear_authentication()` | Switches back to the test runner's role |
+| `tests.rls_enabled(schema)` | Fails and lists every table in the schema without row level security |

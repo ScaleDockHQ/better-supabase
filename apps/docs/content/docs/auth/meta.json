@@ -1,0 +1,12 @@
+{
+  "title": "Auth and server",
+  "pages": [
+    "index",
+    "env",
+    "sessions",
+    "server",
+    "middleware",
+    "postgres",
+    "problems"
+  ]
+}

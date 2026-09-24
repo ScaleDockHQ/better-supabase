@@ -1,0 +1,127 @@
+---
+title: Storage
+description: Typed bucket paths, generated policies, and the upload flows apps keep rewriting.
+---
+
+`defineBucket` turns a path template into typed path builders, bucket limits,
+`storage.objects` policies and a `config.toml` section. Its client wraps
+supabase-js Storage calls in the same `Result` as the repository.
+
+```ts title="lib/buckets.ts"
+import { defineBucket } from 'better-supabase/storage';
+
+export const logos = defineBucket({
+  id: 'customer-logos',
+  path: '{orgId}/{customerId}/logo/{version}.webp',
+  policy: 'tenant',
+  fileSizeLimit: '5MiB',
+  allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+});
+```
+
+Or declare it in `better-supabase.config.ts` under `buckets` and use the
+generated constant: `defineBucket(buckets.customerLogos)`. The path values
+stay typed either way.
+
+## Paths
+
+```ts
+logos.path({ orgId, customerId, version: 3 }); // 'o1/c1/logo/3.webp'
+logos.match('o1/c1/logo/3.webp'); // { orgId: 'o1', customerId: 'c1', version: '3' }
+logos.prefix({ orgId }); // 'o1', the folder to list
+```
+
+Missing values are type errors. At runtime every value is checked: it can't
+be empty, `.` or `..`, contain `/`, or use characters Storage rejects. A
+failed check is an `invalid_input` error, and no request is sent. Client methods
+accept values or an existing path string, and a path string must match the
+template.
+
+## Policies and config
+
+`logos.sql()` returns idempotent SQL. It upserts the bucket row and creates
+`storage.objects` policies for the `authenticated` role:
+
+| `policy` | Access                                                                                   |
+| -------- | ---------------------------------------------------------------------------------------- |
+| `tenant` | The `{orgId}` segment must equal the JWT `org_id` (or `app_metadata.org_id`)              |
+| `owner`  | The `{userId}` segment must equal `auth.uid()`                                            |
+| `public` | Anyone can read. Writes need the secret key                                               |
+| `none`   | No policies. Only the secret key has access                                               |
+
+Writes are also checked against the template's shape
+(`name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$'`), so users can't upload objects
+outside the paths your code builds. Use `tenant: { param, claim }` or
+`tenant: { sql }` to change which JWT claim or SQL expression is compared.
+
+`logos.toml()` gives the `[storage.buckets.customer-logos]` section for
+`supabase/config.toml`. `logos.drift(actual)` compares the bucket with what
+the database has. [`doctor`](/docs/cli) reports those differences.
+
+## Client
+
+```ts
+const storage = logos.connect(supabase); // user client: policies apply
+
+await storage.upload({ orgId, customerId, version }, file).orThrow();
+const url = await storage.signedUrl({ orgId, customerId, version }, { ttl: 'hour' }).orThrow();
+const thumb = await storage.renderUrl(path, { width: 128, height: 128, resize: 'cover' }).orThrow();
+```
+
+Uploads are checked against `fileSizeLimit` and `allowedMimeTypes` before any
+request. Failures become `DbError`s: `invalid_input` with status 413 or 415,
+`forbidden` for policy denials, `conflict` for existing objects, and `network`
+for 5xx responses. TTL presets are `minute`, `hour`, `day` and `week`, or pass
+a number of seconds. `renderUrl` gives a public transform URL for public
+buckets and a signed one otherwise.
+
+### Replace
+
+Swapping an avatar or logo takes three steps, and each can fail: upload the
+new file, point the row at it, delete the old file. `replace` runs them in
+that order and cleans up after a failure:
+
+```ts
+const { path } = await storage
+  .replace({ orgId, customerId, version: crypto.randomUUID() }, file, {
+    previous: customer.logoPath,
+    commit: (path) => db.customers.update(customer.id, { logoPath: path }),
+  })
+  .orThrow();
+```
+
+If `commit` throws or returns an error `Result`, the new object is removed and
+the old one is kept. If removing the old object fails, the result is still ok,
+with `cleanup` set to the error.
+
+### Signed uploads
+
+Let the browser upload directly with a server-issued reservation:
+
+```ts
+// server
+const reservation = await logos.connect(supabase).reserve({ orgId, customerId, version }).orThrow();
+// browser
+await logos.connect(supabase).uploadReserved(reservation, file).orThrow();
+```
+
+### Orphan sweep
+
+Run it from a job to remove objects nothing references anymore:
+
+```ts
+const { removed } = await logos
+  .connect(adminClient)
+  .sweep({
+    within: { orgId },
+    olderThan: 24 * 60 * 60 * 1000, // skip uploads that may still be committing
+    referenced: async (paths) =>
+      (await db.customers.findMany({ where: { logoPath: { in: paths } }, select: ['logoPath'] }).orThrow()).map(
+        (row) => row.logoPath!,
+      ),
+  })
+  .orThrow();
+```
+
+Only objects that match the template are candidates. Use `dryRun: true` to see
+the `orphans` without deleting them.

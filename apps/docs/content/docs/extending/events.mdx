@@ -1,0 +1,32 @@
+---
+title: Events
+description: Observe queries, mutations, errors, auth and refreshes with sb.on.
+---
+
+```ts
+const off = sb.on('mutation', ({ table, kind, rows, context }) => {
+  metrics.increment(`db.${table}.${kind}`, rows.length);
+});
+
+off();
+```
+
+`sb.on` returns a function that unsubscribes. Handlers are observers: they
+can't change a result, and an error they throw goes to the
+[`Logger`](/docs/extending/interfaces#logger) instead of the caller.
+
+| Event | Payload |
+| --- | --- |
+| `query` | `table`, `operation`, `ok`, `durationMs`, `rows` |
+| `mutation` | `table`, `kind` (`insert`, `upsert`, `update`, `delete`), app-cased `rows`, `context` |
+| `error` | `table`, the `DbError` |
+| `auth` | `source` (`bearer`, `cookie`, `none`), `ok`, `userId` |
+| `refresh` | `ok`, `shared` (joined an in-flight refresh), `durationMs` |
+
+`mutation` rows are what the database returned. `delete(id)` returns the
+primary key, so row-level cache tags and `row.deleted` CloudEvents work for
+deletes too.
+
+Listeners are per runtime: register them once, next to `defineSupabase`, not
+per request. Cache invalidation (`sb.cache`), CloudEvents
+(`forwardMutations`) and OpenTelemetry metrics are built on these events.

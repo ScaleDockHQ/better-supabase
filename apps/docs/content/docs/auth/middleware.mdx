@@ -1,0 +1,39 @@
+---
+title: '@supabase/server pipelines'
+description: ctx.db and ctx.sql as @supabase/middleware entries.
+---
+
+better-supabase builds on `@supabase/server` and `@supabase/middleware`
+directly. `withBetterSupabase(sb)` and `withBetterPostgres(sb)` are
+`defineMiddleware` entries, so they compose by position with everything else
+in a pipeline, and the type checker verifies the order.
+
+```ts
+import { withSupabase } from '@supabase/server';
+import { withPostgresClient } from '@supabase/server/middleware/postgres';
+import { pipeline } from '@supabase/middleware';
+import { withBetterPostgres, withBetterSupabase } from 'better-supabase/server';
+
+export default {
+  fetch: pipeline(
+    [
+      withSupabase({ auth: 'user' }),
+      withBetterSupabase(sb)(), // ctx.db, needs ctx.supabase
+      withPostgresClient(),
+      withBetterPostgres(sb)(), // ctx.sql, needs ctx.postgres
+    ],
+    async (req, ctx) => {
+      const customers = await ctx.db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+      return Response.json(customers);
+    },
+  ),
+};
+```
+
+The repository context comes from the `withSupabase` context: `authMode:
+'user'` becomes a `user` actor with the JWT claims, `secret` becomes
+`service`, anything else `anon`. `contextFromSupabase(ctx)` exposes that
+mapping for your own middleware.
+
+`ctx.sql` runs on `withPostgresClient`'s connection, which sets the caller's
+claims and role per query, so RLS applies exactly as over PostgREST.

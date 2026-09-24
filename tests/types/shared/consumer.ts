@@ -1,0 +1,160 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { QueryClient } from '@tanstack/react-query';
+import {
+  type AsyncResult,
+  type CacheAdapter,
+  type DbError,
+  defineRepository,
+  defineSupabase,
+  type Executor,
+  type Logger,
+  memoryCache,
+  type Result,
+  silentLogger,
+} from 'better-supabase';
+import { createBrowser } from 'better-supabase/client';
+import { defineConfig, zod } from 'better-supabase/config';
+import { createEdge } from 'better-supabase/edge';
+import { parseEnv } from 'better-supabase/env';
+import { forwardMutations, httpSink } from 'better-supabase/events';
+import { createHono } from 'better-supabase/hono';
+import { defineListQuery } from 'better-supabase/list';
+import { createNext, nextCache } from 'better-supabase/next';
+import { createOpenApi } from 'better-supabase/openapi';
+import { createOrpc } from 'better-supabase/orpc';
+import { otel } from 'better-supabase/otel';
+import { softDelete } from 'better-supabase/plugins/soft-delete';
+import { tenant } from 'better-supabase/plugins/tenant';
+import { timestamps } from 'better-supabase/plugins/timestamps';
+import { createPostgres, postgresExecutor } from 'better-supabase/postgres';
+import { createQueries, queryCache } from 'better-supabase/query';
+import { createHooks } from 'better-supabase/react';
+import { defineTopic } from 'better-supabase/realtime';
+import { createServer } from 'better-supabase/server';
+import { defineBucket } from 'better-supabase/storage';
+import { defineSeed, testExecutor } from 'better-supabase/testing';
+import { verifyWebhook } from 'better-supabase/webhooks';
+
+import {
+  type Database,
+  type Functions,
+  type Models,
+  schema,
+} from './generated.ts';
+
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+const assert = <T extends true>(): T => true as T;
+
+declare const client: SupabaseClient;
+
+const logger: Logger = silentLogger;
+const base = defineSupabase(schema, { logger })
+  .use(timestamps())
+  .use(softDelete())
+  .use(tenant())
+  .use(otel());
+
+const customers = defineRepository(base, 'customers', (repo) => ({
+  active: () =>
+    repo.findMany({ where: { status: 'active' }, select: ['id', 'name'] }),
+}));
+export const sb = base.use(customers);
+
+const db = sb.connect(client, { tenant: 'org' });
+
+export async function reads(): Promise<void> {
+  const rows = await db.customers
+    .findMany({ select: ['id', 'status', 'createdAt'] })
+    .orThrow();
+  assert<
+    Equal<
+      (typeof rows)[number],
+      { id: string; status: 'lead' | 'active' | 'archived'; createdAt: string }
+    >
+  >();
+
+  const active = db.customers.active();
+  assert<Equal<typeof active, AsyncResult<{ id: string; name: string }[]>>>();
+
+  const withTags = await db.customers
+    .findFirst({
+      select: ['id'],
+      include: { customerTags: { select: ['tagId'] } },
+    })
+    .orThrow();
+  assert<
+    Equal<
+      typeof withTags,
+      { id: string; customerTags: { tagId: string }[] } | null
+    >
+  >();
+
+  const result: Result<unknown> = await db.tags.count();
+  if (!result.ok) {
+    const error: DbError = result.error;
+    void error.kind;
+  }
+
+  // @ts-expect-error unknown column
+  await db.customers.findMany({ select: ['nope'] });
+  // @ts-expect-error the method exists on customers only
+  db.tags.active();
+  await db.customers.restore('id');
+}
+
+export function integrations(): unknown[] {
+  const env = parseEnv({});
+  const server = createServer(sb);
+  const cache: CacheAdapter = memoryCache();
+  sb.cache(cache);
+  sb.cache(nextCache());
+  sb.cache(queryCache(new QueryClient()));
+  forwardMutations(sb, httpSink('https://example.com/events'), {
+    source: '/crm',
+  });
+  const executor: Executor = postgresExecutor(
+    createPostgres({ connectionString: 'postgres://x' }).admin,
+  );
+  const list = defineListQuery(sb, 'customers', {
+    search: ['name'],
+    facets: { status: 'status' },
+    sorts: { name: [{ name: 'asc' }] },
+    defaultSort: 'name',
+  });
+  const logos = defineBucket({
+    id: 'customer-logos',
+    path: '{orgId}/{customerId}/logo.webp',
+  });
+  const topic = defineTopic('org:{orgId}:customers');
+  const seed = defineSeed(sb, {
+    tags: { urgent: { organizationId: 'org', name: 'Urgent' } },
+  });
+  return [
+    env,
+    server,
+    createNext(sb),
+    createHono(sb),
+    createOrpc(sb),
+    createEdge(sb),
+    createBrowser(sb),
+    createHooks<
+      ReturnType<typeof createBrowser<Models, Database, Functions, unknown>>
+    >(),
+    createQueries(sb, db),
+    createOpenApi(sb, {
+      info: { title: 'CRM', version: '1' },
+      resources: { customers: true },
+    }),
+    defineConfig({ generators: [zod()] }),
+    list,
+    logos.path({ orgId: 'o', customerId: 'c' }),
+    topic,
+    seed.sql(),
+    verifyWebhook,
+    testExecutor(executor, { sb }),
+  ];
+}

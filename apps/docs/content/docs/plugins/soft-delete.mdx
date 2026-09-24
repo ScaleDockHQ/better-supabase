@@ -1,0 +1,41 @@
+---
+title: softDelete
+description: Hide deleted rows everywhere, restore them, and avoid the RLS returning trap.
+---
+
+```ts
+import { softDelete } from 'better-supabase/plugins/soft-delete';
+
+const db = defineSupabase(schema).use(softDelete()).connect(supabase);
+
+await db.customers.delete(id);                  // sets archived_at
+await db.customers.findById(id);                // not_found
+await db.customers.findMany({ withDeleted: true });
+await db.customers.findMany({ onlyDeleted: true });
+await db.customers.restore(id);                 // clears archived_at
+await db.customers.delete(id, { hard: true });  // really deletes
+```
+
+## Where deleted rows are hidden
+
+- Reads, counts, `exists` and pagination on the table.
+- Updates: an update never touches a deleted row, so `update` returns
+  `not_found`.
+- Includes: `organizations.findMany({ include: { customers: true } })` leaves
+  out deleted customers.
+- Relation filters: `{ customers: { some: {...} } }` only considers live rows.
+  `every` is rewritten so deleted rows neither satisfy nor fail it.
+
+`withDeleted` and `onlyDeleted` change the queried table only; nested
+includes stay filtered.
+
+## Deletes and RLS
+
+A soft delete is an `UPDATE ... SET archived_at = now()` without
+`RETURNING`. That matters: a common policy hides deleted rows from `SELECT`,
+and PostgREST checks returned rows against it, so an update that returns the
+row fails with `forbidden`. The plugin never asks for the row back.
+`better-supabase doctor` flags soft-delete tables where this would bite.
+
+Deleting a row that is already deleted returns `not_found`. `{ hard: true }`
+deletes regardless of the column.

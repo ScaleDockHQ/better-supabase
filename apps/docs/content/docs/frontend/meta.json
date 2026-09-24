@@ -1,0 +1,4 @@
+{
+  "title": "Frontend",
+  "pages": ["client", "react", "query", "live-queries"]
+}

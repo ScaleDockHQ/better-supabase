@@ -1,0 +1,75 @@
+---
+title: oRPC
+description: A middleware that adds the caller's repositories to the oRPC context.
+---
+
+```ts title="src/router.ts"
+import { os } from '@orpc/server';
+import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
+import { z } from 'zod';
+import { sb } from './supabase';
+
+export const bs = createOrpc(sb);
+
+const base = os.$context<OrpcRequestContext>();
+const authed = base.use(bs.middleware());
+const open = base.use(bs.middleware({ allow: ['user', 'anon'] }));
+
+export const router = {
+  customers: {
+    list: authed.handler(({ context }) =>
+      bs.unwrap(context.db.customers.findMany({ select: ['id', 'name'] })),
+    ),
+    rename: authed
+      .input(z.object({ id: z.string(), name: z.string().min(2) }))
+      .handler(({ input, context }) =>
+        bs.unwrap(context.db.customers.update(input.id, { name: input.name })),
+      ),
+  },
+  health: open.handler(() => ({ ok: true })),
+};
+```
+
+Pass the request as the initial context:
+
+```ts
+import { RPCHandler } from '@orpc/server/fetch';
+
+const handler = new RPCHandler(router);
+
+export default {
+  async fetch(request: Request) {
+    const { response } = await handler.handle(request, { prefix: '/rpc', context: { request } });
+    return response ?? new Response('Not found', { status: 404 });
+  },
+};
+```
+
+## Context
+
+`bs.middleware()` resolves the caller and rejects anyone not in `allow`
+(default `['user']`). It adds:
+
+- `context.db`: repositories bound to the caller, so RLS applies.
+- `context.auth`: the resolved `AuthState`.
+- `context.bs`: the full server context.
+
+## Errors
+
+`bs.unwrap(result)` returns the data, or throws an `ORPCError` when the
+`Result` failed. It accepts a `Result`, an `AsyncResult` or a promise of
+either, and the procedure's output type is the data type. The middleware also
+converts thrown `DbException`s.
+
+The error code comes from the error's HTTP status. For example `not_found`
+becomes `NOT_FOUND`, `conflict` becomes `CONFLICT`, `validation` becomes
+`UNPROCESSABLE_CONTENT` and `stale` becomes `PRECONDITION_FAILED`. The
+error's `data` is the RFC 9457 Problem Details, so clients get the same
+`kind`, `code`, `constraint` and `issues` fields as the HTTP adapters send.
+
+```ts
+import { safe } from '@orpc/client';
+
+const [error, data] = await safe(client.customers.rename({ id, name }));
+if (error?.data?.kind === 'conflict') showTaken(error.data.constraint);
+```

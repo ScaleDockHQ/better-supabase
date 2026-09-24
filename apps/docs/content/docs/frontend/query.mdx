@@ -1,0 +1,92 @@
+---
+title: TanStack Query
+description: Typed query and mutation options for every table.
+---
+
+`createQueries(sb, db)` gives every table option factories for TanStack
+Query. The payload type of your `select`/`include` flows into `useQuery`,
+`useSuspenseQuery` and `queryClient.getQueryData`.
+
+```ts
+const q = browser.queries; // or createQueries(sb, () => db)
+
+useQuery(q.customers.findMany({ select: ['id', 'name'], where: { status: 'active' } }));
+useSuspenseQuery(q.customers.findById(id, { include: { notes: true } }));
+useQuery(q.customers.paginate({ page, size: 20, count: 'exact' }));
+useInfiniteQuery(q.customers.infinite({ size: 50, orderBy: { createdAt: 'desc' } })); // cursor
+useInfiniteQuery(q.customers.infinitePages({ size: 50 })); // offset
+```
+
+The options are built on `@tanstack/query-core`, so they work with the
+React, Vue, Solid, Svelte and Angular adapters alike.
+
+Pass `skipToken` to disable a query until its input exists:
+`q.customers.findById(id ?? skipToken)`.
+
+## Keys and invalidation
+
+Keys are `['bs', table, operation, args]`. Arguments are part of the key, so
+different filters are different cache entries.
+
+Every query also carries `meta: { bsTables }`, the tables it read, includes
+and relation filters too. Invalidation matches on that meta, so a write to
+`notes` refetches a `customers.findMany` that included notes. Invalidate by
+hand with `invalidateTables(queryClient, ['notes'])`. See
+[Caching](/docs/concepts/caching).
+
+## Mutations
+
+```ts
+const create = useMutation(q.customers.create({ select: ['id'] }));
+const update = useMutation(q.customers.update());
+update.mutate({ id, patch: { status: 'active' } });
+```
+
+Mutation options invalidate every query that read a changed table on
+success, including tables changed by cascading deletes. If you pass your own
+`onSuccess`, it replaces that behavior; call `invalidateOnMutation(sb,
+queryClient)` once instead to invalidate after every write the client makes.
+It attaches the `queryCache(client)` [cache adapter](/docs/extending/interfaces#cacheadapter).
+
+## Specs and RPCs
+
+```ts
+const spec = sb.spec.customers.findMany({ select: ['id', 'name'], limit: 20 });
+useQuery(q.$spec(spec));
+
+useQuery(q.$rpc('customer_stats', { orgId }, { tables: ['customers', 'notes'] }));
+const archive = useMutation(q.$rpcMutation('archive_customer'));
+```
+
+`tables` lists what the function reads, so writes to those tables refetch
+it. `$rpcMutation` invalidates the tables declared with
+`sb.defineRpc(name, { invalidates })`.
+
+## Errors
+
+Failed queries reject with `DbException` (its `error` is the plain
+`DbError`). Tell TanStack Query about it once to type `error` everywhere:
+
+```ts
+import type { DbException } from 'better-supabase';
+
+declare module '@tanstack/react-query' {
+  interface Register {
+    defaultError: DbException;
+  }
+}
+```
+
+## Server prefetching
+
+The same factories work on the server with the request-scoped `db`:
+
+```tsx
+const { db } = await next.server();
+const q = createQueries(sb, db);
+await queryClient.prefetchQuery(q.customers.findMany({ select: ['id', 'name'] }));
+```
+
+`q.$prefetch(queryClient, spec)` prefetches a spec; dehydrate and hydrate the
+client as usual. Keep live pages fresh with
+[`useLiveQuery`](/docs/frontend/live-queries).

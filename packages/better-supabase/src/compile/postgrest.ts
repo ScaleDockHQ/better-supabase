@@ -1,0 +1,496 @@
+import type {
+  Condition,
+  Include,
+  Operation,
+  OrderTerm,
+  SelectColumn,
+  Selection,
+} from '../ir/types.ts';
+import type { RelationMeta, TableMeta } from '../schema/types.ts';
+
+import { invalidRequest } from '../ir/build.ts';
+import { simplifyOrFalse } from '../ir/simplify.ts';
+
+/**
+ * A compiled PostgREST request, expressed as calls on the public
+ * postgrest-js builder so it works with any supabase-js client.
+ */
+export interface PostgrestPlan {
+  /** `select` parameter, or `undefined` for mutations without returning. */
+  readonly select: string | undefined;
+  readonly filters: readonly PlanFilter[];
+  readonly orders: readonly PlanOrder[];
+  readonly limits: readonly PlanLimit[];
+  readonly range: { readonly from: number; readonly to: number } | undefined;
+  /** The condition can never match; skip the request. */
+  readonly never: boolean;
+}
+
+export type PlanFilter =
+  | {
+      readonly kind: 'filter';
+      readonly path: string;
+      readonly operator: string;
+      readonly value: string;
+    }
+  | {
+      readonly kind: 'or';
+      readonly expression: string;
+      readonly referencedTable: string | undefined;
+    };
+
+export interface PlanOrder {
+  readonly column: string;
+  readonly ascending: boolean;
+  readonly nullsFirst: boolean | undefined;
+  readonly referencedTable: string | undefined;
+}
+
+export interface PlanLimit {
+  readonly count: number;
+  readonly referencedTable: string | undefined;
+}
+
+interface EmbedNode {
+  readonly alias: string;
+  readonly target: TableMeta;
+  readonly relation: RelationMeta;
+  readonly inner: boolean;
+  readonly columns: readonly SelectColumn[];
+  readonly children: EmbedNode[];
+  /** Render `count` instead of columns (`_count` includes). */
+  readonly count?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Value formatting
+
+function scalar(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return value;
+  if (
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean'
+  ) {
+    return String(value);
+  }
+  if (value === null) return 'null';
+  return JSON.stringify(value);
+}
+
+/** Double-quotes a value for PostgREST lists and logic trees. */
+export function quote(value: unknown): string {
+  const text = scalar(value);
+  return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function list(values: readonly unknown[], open: string, close: string): string {
+  return `${open}${values.map(quote).join(',')}${close}`;
+}
+
+function isBoolLike(value: unknown): value is null | boolean {
+  return value === null || typeof value === 'boolean';
+}
+
+function operatorAndValue(
+  condition: Extract<Condition, { kind: 'column' }>,
+  inLogic: boolean,
+): { operator: string; value: string } {
+  const { op, value } = condition;
+  const plain = (text: unknown): string =>
+    inLogic ? quote(text) : scalar(text);
+  switch (op) {
+    case 'eq':
+    case 'neq':
+    case 'gt':
+    case 'gte':
+    case 'lt':
+    case 'lte':
+    case 'like':
+    case 'ilike':
+      return { operator: op, value: plain(value) };
+    case 'in':
+      if (!Array.isArray(value)) invalidRequest('"in" needs an array');
+      return { operator: 'in', value: list(value, '(', ')') };
+    case 'is':
+      if (!isBoolLike(value)) invalidRequest('"is" needs null, true or false');
+      return { operator: 'is', value: String(value) };
+    case 'contains':
+    case 'containedBy':
+    case 'overlaps': {
+      const operator =
+        op === 'contains' ? 'cs' : op === 'containedBy' ? 'cd' : 'ov';
+      if (Array.isArray(value)) {
+        return { operator, value: list(value, '{', '}') };
+      }
+      const json = JSON.stringify(value);
+      return { operator, value: inLogic ? quote(json) : json };
+    }
+    case 'fts': {
+      const operator = condition.config ? `wfts(${condition.config})` : 'wfts';
+      return { operator, value: plain(value) };
+    }
+    default: {
+      const exhaustive: never = op;
+      return exhaustive;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Compiler
+
+class PostgrestCompiler {
+  readonly filters: PlanFilter[] = [];
+  readonly orders: PlanOrder[] = [];
+  readonly limits: PlanLimit[] = [];
+  #counter = 0;
+
+  nextAlias(): string {
+    this.#counter += 1;
+    return `_bs${this.#counter}`;
+  }
+
+  /** Compiles a condition at `path` where top-level items are ANDed. */
+  andContext(
+    condition: Condition,
+    path: string | undefined,
+    embeds: EmbedNode[],
+  ): void {
+    switch (condition.kind) {
+      case 'and':
+        for (const item of condition.items) this.andContext(item, path, embeds);
+        return;
+      case 'column': {
+        const { operator, value } = operatorAndValue(condition, false);
+        this.filters.push({
+          kind: 'filter',
+          path: path ? `${path}.${condition.column}` : condition.column,
+          operator,
+          value,
+        });
+        return;
+      }
+      case 'not': {
+        const inner = condition.item;
+        if (inner.kind === 'column') {
+          const { operator, value } = operatorAndValue(inner, false);
+          this.filters.push({
+            kind: 'filter',
+            path: path ? `${path}.${inner.column}` : inner.column,
+            operator: `not.${operator}`,
+            value,
+          });
+          return;
+        }
+        if (inner.kind === 'relation') {
+          this.relationAnd(negateRelation(inner), path, embeds);
+          return;
+        }
+        if (inner.kind === 'not') {
+          this.andContext(inner.item, path, embeds);
+          return;
+        }
+        this.filters.push({
+          kind: 'or',
+          expression: this.logic(condition, embeds),
+          referencedTable: path,
+        });
+        return;
+      }
+      case 'or':
+        this.filters.push({
+          kind: 'or',
+          expression: this.logic(condition, embeds)
+            .replace(/^or\(/, '')
+            .replace(/\)$/, ''),
+          referencedTable: path,
+        });
+        return;
+      case 'relation':
+        this.relationAnd(condition, path, embeds);
+        return;
+      default: {
+        const exhaustive: never = condition;
+        return exhaustive;
+      }
+    }
+  }
+
+  private relationAnd(
+    condition: Extract<Condition, { kind: 'relation' }>,
+    path: string | undefined,
+    embeds: EmbedNode[],
+  ): void {
+    if (condition.quantifier === 'every' && !condition.where) return;
+    const alias = this.nextAlias();
+    const aliasPath = path ? `${path}.${alias}` : alias;
+    const node = filterEmbed(alias, condition, condition.quantifier === 'some');
+    this.withPath(node.children, aliasPath);
+    embeds.push(node);
+
+    const where =
+      condition.quantifier === 'every' && condition.where
+        ? ({ kind: 'not', item: condition.where } as const)
+        : condition.where;
+    if (where) this.andContext(where, aliasPath, node.children);
+    if (condition.quantifier !== 'some') {
+      this.filters.push({
+        kind: 'filter',
+        path: aliasPath,
+        operator: 'is',
+        value: 'null',
+      });
+    }
+  }
+
+  /** Compiles a condition into a PostgREST logic-tree term. */
+  logic(condition: Condition, embeds: EmbedNode[]): string {
+    switch (condition.kind) {
+      case 'and':
+      case 'or':
+        return `${condition.kind}(${condition.items
+          .map((item) => this.logic(item, embeds))
+          .join(',')})`;
+      case 'not': {
+        const inner = condition.item;
+        if (inner.kind === 'column') {
+          const { operator, value } = operatorAndValue(inner, true);
+          return `${inner.column}.not.${operator}.${value}`;
+        }
+        if (inner.kind === 'relation') {
+          return this.logic(negateRelation(inner), embeds);
+        }
+        if (inner.kind === 'not') return this.logic(inner.item, embeds);
+        return `not.${this.logic(inner, embeds)}`;
+      }
+      case 'column': {
+        const { operator, value } = operatorAndValue(condition, true);
+        return `${condition.column}.${operator}.${value}`;
+      }
+      case 'relation': {
+        if (condition.quantifier === 'every' && !condition.where) {
+          invalidRequest('every({}) must be simplified before compiling');
+        }
+        const alias = this.nextAlias();
+        const node = filterEmbed(alias, condition, false);
+        const nodePath = this.pathOf(alias, embeds);
+        this.withPath(node.children, nodePath);
+        embeds.push(node);
+        const where =
+          condition.quantifier === 'every' && condition.where
+            ? ({ kind: 'not', item: condition.where } as const)
+            : condition.where;
+        // The embed's own filters are request parameters under the embed
+        // path; only the null check goes in the logic tree.
+        if (where) this.andContext(where, nodePath, node.children);
+        return condition.quantifier === 'some'
+          ? `${alias}.not.is.null`
+          : `${alias}.is.null`;
+      }
+      default: {
+        const exhaustive: never = condition;
+        return exhaustive;
+      }
+    }
+  }
+
+  // Filter embeds created from a logic tree hang off the current embed list;
+  // their path is resolved by the caller that owns the list.
+  #paths = new WeakMap<EmbedNode[], string | undefined>();
+
+  withPath(embeds: EmbedNode[], path: string | undefined): EmbedNode[] {
+    this.#paths.set(embeds, path);
+    return embeds;
+  }
+
+  private pathOf(alias: string, embeds: EmbedNode[]): string {
+    const parent = this.#paths.get(embeds);
+    return parent ? `${parent}.${alias}` : alias;
+  }
+
+  include(
+    include: Include,
+    path: string | undefined,
+    embeds: EmbedNode[],
+  ): void {
+    const aliasPath = path ? `${path}.${include.alias}` : include.alias;
+    const node: EmbedNode = {
+      alias: include.alias,
+      target: include.target,
+      relation: include.relation,
+      inner: include.required,
+      columns: include.selection.columns,
+      children: this.withPath([], aliasPath),
+      ...(include.count === undefined ? {} : { count: true }),
+    };
+    embeds.push(node);
+    for (const child of include.selection.includes) {
+      this.include(child, aliasPath, node.children);
+    }
+    const where = simplifyOrFalse(include.where);
+    if (where.never) {
+      // No related row can match: an impossible filter keeps the embed empty.
+      const [first] = include.target.primaryKey;
+      const column = first ? include.target.columns[first]?.db : undefined;
+      if (!column)
+        invalidRequest(`Cannot filter "${include.alias}" to nothing`);
+      this.filters.push({
+        kind: 'filter',
+        path: `${aliasPath}.${column}`,
+        operator: 'is',
+        value: 'null',
+      });
+      this.filters.push({
+        kind: 'filter',
+        path: `${aliasPath}.${column}`,
+        operator: 'not.is',
+        value: 'null',
+      });
+    } else if (where.condition) {
+      this.andContext(where.condition, aliasPath, node.children);
+    }
+    for (const term of include.orderBy) this.order(term, aliasPath);
+    if (include.limit !== undefined) {
+      this.limits.push({ count: include.limit, referencedTable: aliasPath });
+    }
+  }
+
+  order(term: OrderTerm, referencedTable: string | undefined): void {
+    this.orders.push({
+      column: term.column,
+      ascending: term.direction === 'asc',
+      nullsFirst: term.nulls === undefined ? undefined : term.nulls === 'first',
+      referencedTable,
+    });
+  }
+}
+
+function negateRelation(
+  condition: Extract<Condition, { kind: 'relation' }>,
+): Extract<Condition, { kind: 'relation' }> {
+  switch (condition.quantifier) {
+    case 'some':
+      return { ...condition, quantifier: 'none' };
+    case 'none':
+      return { ...condition, quantifier: 'some' };
+    case 'every':
+      return {
+        ...condition,
+        quantifier: 'some',
+        where: condition.where
+          ? { kind: 'not', item: condition.where }
+          : undefined,
+      };
+    default: {
+      const exhaustive: never = condition.quantifier;
+      return exhaustive;
+    }
+  }
+}
+
+function filterEmbed(
+  alias: string,
+  condition: Extract<Condition, { kind: 'relation' }>,
+  inner: boolean,
+): EmbedNode {
+  return {
+    alias,
+    target: condition.target,
+    relation: condition.relation,
+    inner,
+    columns: [],
+    children: [],
+  };
+}
+
+function columnList(columns: readonly SelectColumn[]): string[] {
+  return columns.map(({ alias, column, cast }) => {
+    const source = cast ? `${column}::${cast}` : column;
+    return alias === column ? source : `${alias}:${source}`;
+  });
+}
+
+function renderEmbeds(embeds: readonly EmbedNode[]): string[] {
+  return embeds.map((node) => {
+    const hint = `${node.target.name}!${node.relation.foreignKey}${node.inner ? '!inner' : ''}`;
+    if (node.count) return `${node.alias}:${hint}(count)`;
+    const inside = [
+      ...columnList(node.columns),
+      ...renderEmbeds(node.children),
+    ];
+    return `${node.alias}:${hint}(${inside.join(',')})`;
+  });
+}
+
+function renderSelect(
+  selection: Selection,
+  embeds: readonly EmbedNode[],
+): string {
+  const parts = [...columnList(selection.columns), ...renderEmbeds(embeds)];
+  return parts.length > 0 ? parts.join(',') : '*';
+}
+
+function applyWhere(
+  compiler: PostgrestCompiler,
+  condition: Condition | undefined,
+  embeds: EmbedNode[],
+): boolean {
+  const where = simplifyOrFalse(condition);
+  if (where.never) return false;
+  if (where.condition) compiler.andContext(where.condition, undefined, embeds);
+  return true;
+}
+
+/** Compiles an operation into a PostgREST plan. */
+export function compilePostgrest(op: Operation): PostgrestPlan {
+  const compiler = new PostgrestCompiler();
+  const embeds = compiler.withPath([], undefined);
+
+  const selection =
+    op.kind === 'select'
+      ? op.selection
+      : op.kind === 'insert'
+        ? op.returning
+        : op.returning;
+
+  if (selection) {
+    for (const include of selection.includes)
+      compiler.include(include, undefined, embeds);
+  }
+
+  let matches = true;
+  if (op.kind === 'select' || op.kind === 'update' || op.kind === 'delete') {
+    const before = embeds.length;
+    matches = applyWhere(compiler, op.where, embeds);
+    if (op.kind !== 'select' && embeds.length > before) {
+      invalidRequest(
+        `Relation filters are not supported in ${op.kind} on PostgREST; filter by key instead`,
+        op.table.key,
+      );
+    }
+  }
+
+  let range: PostgrestPlan['range'];
+  if (op.kind === 'select') {
+    for (const term of op.orderBy) compiler.order(term, undefined);
+    if (op.offset !== undefined) {
+      const from = op.offset;
+      const to =
+        op.limit === undefined ? Number.MAX_SAFE_INTEGER : from + op.limit - 1;
+      range = { from, to };
+    } else if (op.limit !== undefined) {
+      compiler.limits.push({ count: op.limit, referencedTable: undefined });
+    }
+  }
+
+  return {
+    select: selection ? renderSelect(selection, embeds) : undefined,
+    filters: compiler.filters,
+    orders: compiler.orders,
+    limits: compiler.limits,
+    range,
+    never: !matches,
+  };
+}

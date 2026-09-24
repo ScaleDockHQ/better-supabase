@@ -1,0 +1,20 @@
+{
+  "name": "@better-supabase/types-shared",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@opentelemetry/api": "catalog:",
+    "@orpc/server": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/react": "catalog:",
+    "better-supabase": "workspace:*",
+    "hono": "catalog:",
+    "next": "catalog:",
+    "pg": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

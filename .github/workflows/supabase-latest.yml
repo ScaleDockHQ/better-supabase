@@ -1,0 +1,38 @@
+name: Supabase latest
+
+# better-supabase builds directly on @supabase/server and @supabase/middleware,
+# which still ship breaking changes in minor releases. This job runs the full
+# test suite against their newest versions every night, so a break shows up
+# here before users hit it.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          cache: true
+
+      - name: Install latest Supabase packages
+        run: |
+          pnpm --filter better-supabase add -D \
+            @supabase/server@latest @supabase/middleware@latest \
+            @supabase/ssr@latest @supabase/supabase-js@latest \
+            --config.catalogMode=manual --config.minimumReleaseAge=0
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm run test

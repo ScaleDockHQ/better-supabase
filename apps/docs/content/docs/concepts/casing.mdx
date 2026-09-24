@@ -1,0 +1,41 @@
+---
+title: Casing
+description: snake_case or camelCase models, mapped at the edge of the database.
+---
+
+Set `casing` in the config. The default is `'snake'`, which keeps database
+names as they are.
+
+```ts
+export default defineConfig({ casing: 'camel' });
+```
+
+With `'camel'`, models, filters, includes and returned rows use camelCase.
+The mapping happens in the query itself, not in a post-processing pass:
+
+```ts
+await db.customers.findMany({ select: ['id', 'organizationId'] });
+// GET /customers?select=id,organizationId:organization_id
+```
+
+PostgREST renames the columns in its response, so rows need no transform and
+nested includes keep their shape.
+
+## Per-table overrides
+
+```ts
+export default defineConfig({
+  casing: 'camel',
+  tables: { legacy_events: { casing: 'snake' } },
+});
+```
+
+## What stays in database names
+
+- Constraint names (`onConflict: 'customers_organization_id_kvk_key'`).
+- Plugin config columns (`softDelete: { column: 'archived_at' }`): these name
+  database columns, and the generated flags hold the app names.
+- Raw SQL and RPC argument names.
+
+Error details keep the database name in `constraint` and `columns`, since
+they come from Postgres.

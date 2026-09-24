@@ -1,0 +1,19 @@
+{
+  "name": "@better-supabase/validation-centrakit",
+  "private": true,
+  "description": "CentraKit's customers service (packages/supabase-crm) rewritten on better-supabase, against CentraKit's real schema.",
+  "type": "module",
+  "scripts": {
+    "gen:check": "better-supabase gen --check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

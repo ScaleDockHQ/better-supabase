@@ -1,0 +1,24 @@
+export { createTestSigner, localAuth, signTestJwt } from './jwt.ts';
+export type { TestJwtClaims, TestSigner } from './jwt.ts';
+export { asUser, LOCAL_JWT_SECRET } from './as-user.ts';
+export type { LocalStack, TestUser } from './as-user.ts';
+export { defineSeed, isSeed } from './seed.ts';
+export type { ExactSeed, Seed, SeedFixtures } from './seed.ts';
+export {
+  ConformanceError,
+  testAuthResolver,
+  testCacheAdapter,
+  testEventSink,
+  testExecutor,
+  testGenerator,
+  testPlugin,
+} from './conformance.ts';
+export type {
+  ConformanceCheck,
+  ConformanceReport,
+  TestAuthResolverOptions,
+  TestEventSinkOptions,
+  TestExecutorOptions,
+  TestGeneratorOptions,
+  TestPluginOptions,
+} from './conformance.ts';

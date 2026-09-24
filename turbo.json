@@ -1,0 +1,31 @@
+{
+  "$schema": "https://v2-10-12.turborepo.dev/schema.json",
+  "futureFlags": {
+    "globalConfiguration": true
+  },
+  "global": {
+    "env": ["CI", "NODE_ENV"],
+    "envMode": "strict",
+    "inputs": ["tsconfig.json"],
+    "passThroughEnv": ["LEFTHOOK", "DOCKER_HOST", "TESTCONTAINERS_*"]
+  },
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["build", "^build"]
+    },
+    "check:publish": {
+      "dependsOn": ["build", "^build"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

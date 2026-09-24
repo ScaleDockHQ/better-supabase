@@ -1,0 +1,53 @@
+---
+title: init and add
+description: Scaffold the config, the data layer and framework glue for your project.
+---
+
+```bash
+pnpm better-supabase init
+```
+
+`init` reads your `package.json` and writes:
+
+- `better-supabase.config.ts` (`--casing camel|snake`, camel by default)
+- `src/lib/supabase.ts`, which exports `sb` and the `Models` and `Functions` types
+- glue for every framework it finds, the same files `add` writes
+
+It then prints the next steps: the install command for your package manager,
+`supabase start`, `better-supabase env` and `better-supabase gen`. Files that
+already exist are never overwritten unless you pass `--force`, and
+`--dry-run` shows what would be written.
+
+| Found in `package.json` | Integrations |
+| --- | --- |
+| `next` | `next` (and `client`) |
+| `hono` | `hono` |
+| `@orpc/server` | `orpc` |
+| `vite`, `expo` | `client` |
+| `@tanstack/react-query` | `react` (and `client`) |
+
+Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
+`src/lib/supabase.ts`: Edge Functions import `sb` from
+`supabase/functions/_shared/supabase.ts`.
+
+## add
+
+```bash
+pnpm better-supabase add hono mcp
+```
+
+| Integration | Writes |
+| --- | --- |
+| `client` | `lib/supabase.browser.ts` with the framework's public env variables |
+| `next` | `lib/supabase.server.ts` and `proxy.ts` |
+| `react` | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts` |
+| `hono` | `server.ts` with the middleware and error handler |
+| `orpc` | `router.ts` with the auth middleware |
+| `edge` | `supabase/functions/api` plus `supabase/functions/_shared/supabase.ts` |
+| `mcp` | `supabase/functions/mcp`, an MCP server as an Edge Function |
+
+Relative imports follow your `tsconfig.json`: they keep `.ts` when
+`allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.
+Edge Functions always use `.ts` and get a `deno.json` import map. CI
+typechecks every template against the library, so the files compile as
+written.

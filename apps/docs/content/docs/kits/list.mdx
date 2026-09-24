@@ -1,0 +1,120 @@
+---
+title: List queries
+description: Search, facets, sorting and pagination from one definition, safe from the URL to SQL.
+---
+
+Most apps have a lot of list pages that each hand-roll the same things: read
+`?q=&status=&page=`, validate it, escape the search text, turn "no value" into
+`is null`, and document the endpoint. `defineListQuery` does all of that once
+per table.
+
+```ts title="lib/lists.ts"
+import { defineListQuery } from 'better-supabase/list';
+import { sb } from './sb';
+
+export const customerList = defineListQuery(sb, 'customers', {
+  search: ['name', 'kvk'],
+  facets: { status: 'status', kvk: 'kvk' },
+  sorts: {
+    name: [{ name: 'asc' }, { id: 'asc' }],
+    newest: [{ createdAt: 'desc' }, { id: 'asc' }],
+  },
+  defaultSort: 'newest',
+  pageSize: 25, // default 50, capped by maxPageSize (default 200)
+});
+```
+
+Column names, sort keys and facet keys are all typed. `search` only accepts
+text columns. `defaultSort` must be one of the `sorts`.
+
+## Parse and run
+
+`parse` accepts `URLSearchParams`, a Next.js `searchParams` record, or typed
+input. Facet values can be comma-separated or repeated
+(`?status=active,lead` or `?status=active&status=lead`).
+
+```ts title="app/customers/page.tsx"
+export default async function Page({ searchParams }: PageProps<'/customers'>) {
+  const { db } = await next.server();
+  const query = customerList.parse(await searchParams);
+  if (!query.ok) return <InvalidFilters issues={query.issues} />;
+
+  const page = await customerList
+    .run(db, query.value, { select: ['id', 'name', 'status'], where: { archivedAt: null } })
+    .orThrow();
+  // page.items: { id: string; name: string; status: CustomerStatus }[]
+}
+```
+
+`run` calls `paginate` with `count: 'exact'` and ANDs your own `where` with the
+list filters. Plugins such as tenant scoping and soft delete still apply. If
+you only want the arguments, use `customerList.args(query)`.
+
+## What it compiles to
+
+| Input                       | Filter                                          |
+| --------------------------- | ----------------------------------------------- |
+| `q=road`                    | `name ilike '%road%' or kvk ilike '%road%'`     |
+| `status=active,lead`        | `status in ('active', 'lead')`                  |
+| `kvk=__unset__`             | `kvk is null`                                   |
+| `kvk=__unset__,1001`        | `kvk in ('1001') or kvk is null`                |
+
+Search text is trimmed, capped at `maxSearchLength` (200) and escaped: `%`,
+`_` and `\` match literally, and commas, parentheses and quotes can't break out
+of a PostgREST `or=(...)` filter. The same query gives identical results
+through PostgREST and the direct [Postgres executor](/docs/auth/postgres).
+
+For full-text search, point `search` at a `tsvector` or text column:
+
+```ts
+search: { fts: 'searchVector', config: 'dutch' } // websearch_to_tsquery
+```
+
+## Validation
+
+Facet values are checked against enum and CHECK-constraint values from the
+generated schema. `__unset__` (exported as `UNSET`) is only allowed on
+nullable columns. Every problem is reported with a path:
+
+```ts
+customerList.parse(new URLSearchParams('sort=oldest&page=0&status=bogus')).issues;
+// [{ path: ['sort'], ... }, { path: ['page'], ... }, { path: ['facets', 'status'], ... }]
+```
+
+`customerList.schema` is a [Standard Schema](/docs/standards), so it plugs into
+any router or form library that accepts one. Pass it to `next.action({ input })`
+or an oRPC procedure without writing a validator.
+
+## URLs and nuqs
+
+`toSearchParams` writes a query back to the URL, leaving out defaults, so
+links stay short and round-trip exactly:
+
+```ts
+customerList.toSearchParams({ ...query, page: 2 }).toString(); // 'q=road&page=2'
+```
+
+For client-side state with [nuqs](https://nuqs.dev), pass its `createParser`.
+better-supabase does not depend on nuqs:
+
+```ts
+'use client';
+import { createParser, useQueryStates } from 'nuqs';
+
+const parsers = customerList.nuqs(createParser);
+const [state, setState] = useQueryStates(parsers);
+```
+
+`customerList.parsers` exposes the same `{ parse, serialize }` pairs for
+other routers.
+
+## OpenAPI, MCP and filter UIs
+
+The definition describes itself:
+
+- `customerList.openapi`: OpenAPI 3.1 query parameters, with facets as
+  `style: form, explode: false` string arrays that list their enum values.
+- `customerList.jsonSchema`: JSON Schema for the typed input. Use it for MCP
+  tool arguments or JSON APIs.
+- `customerList.facets`: `{ key, column, nullable, values? }` for rendering
+  filter menus.

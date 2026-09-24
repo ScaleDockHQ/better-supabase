@@ -1,0 +1,115 @@
+---
+title: Next.js
+description: Proxy, Server Components, route handlers, server actions and cache tags.
+---
+
+```ts title="src/lib/supabase.server.ts"
+import { createNext } from 'better-supabase/next';
+import { sb } from './supabase';
+
+export const next = createNext(sb);
+```
+
+`createNext(sb)` is [`createServer`](/docs/auth/server) plus the Next.js
+pieces below, so `next.admin()` and `next.actingAs()` work too.
+
+## Proxy
+
+```ts title="src/proxy.ts"
+import { next } from '@/lib/supabase.server';
+
+export const proxy = (request) => next.proxy(request);
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)'],
+};
+```
+
+The proxy is the only place sessions are refreshed, and only for page
+loads, client navigations and server actions, never for prefetches. With a
+valid token it does nothing: no auth request, no cookie write. When it does
+refresh, the new cookie is forwarded to the Server Components rendering the
+same request, and the response gets `no-store` headers.
+
+Protect routes with `protect`. Refreshed or cleared cookies are kept on the
+response you return:
+
+```ts
+export const proxy = (request: NextRequest) =>
+  next.proxy(request, {
+    protect: (auth, req) =>
+      auth.kind !== 'user' && req.nextUrl.pathname.startsWith('/app')
+        ? NextResponse.redirect(new URL('/login', req.url))
+        : undefined,
+  });
+```
+
+## Server Components
+
+```tsx
+export default async function Customers() {
+  const { db } = await next.server();
+  const customers = await db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+  return <CustomerList customers={customers} />;
+}
+```
+
+`next.server()` is memoized per request with React `cache()`, so layouts and
+pages share one context. It verifies the token locally and builds a
+stateless client; no auth call happens during rendering.
+
+## Route handlers
+
+```ts title="src/app/api/customers/[id]/route.ts"
+export const GET = next.route<{ id: string }>((request, { db, params }) =>
+  db.customers.findById(params.id, { select: ['id', 'name'] }),
+);
+```
+
+- `allow` controls who gets in; the default is `['user']`. Use
+  `['user', 'anon']` for public routes or `['service']` for machine callers.
+- Return a `Result` or `AsyncResult` (as above, no `await` needed), a plain
+  value, or a `Response`. Errors,
+  thrown `DbException`s and rejected callers become
+  [Problem Details](/docs/auth/problems) responses; a 401 carries a
+  `WWW-Authenticate` challenge.
+
+## Server actions
+
+```ts title="src/app/customers/actions.ts"
+'use server';
+
+export const createCustomer = next.action(
+  { input: customerInput }, // any Standard Schema: zod, valibot, arktype
+  (input, { db }) => db.customers.create(input, { select: ['id'] }),
+);
+```
+
+The action accepts a plain object or `FormData`, validates it, and returns a
+serializable `ActionResult`: `{ ok: true, data }` or `{ ok: false, error }`,
+where `error` is a plain `DbError` your form can render (`validation`
+errors carry `issues` with paths).
+
+## Cache tags
+
+Every mutation invalidates `bs:<table>` and `bs:<table>:<id>`: with
+`updateTag` inside server actions (read-your-writes), with `revalidateTag`
+elsewhere. Tag your cached reads to match:
+
+```ts
+async function publicPlans() {
+  'use cache';
+  next.cacheTag('plans');
+  return next.admin().plans.findMany({ where: { public: true } }).orThrow();
+}
+```
+
+<Callout title="Caching user data">
+  `"use cache"` functions cannot read cookies or headers. Cache public or
+  service-level reads, and keep per-user reads on `next.server()`, which is
+  already deduplicated per request.
+</Callout>
+
+Turn invalidation off with `createNext(sb, { cacheTags: false })`. The
+invalidation is the `nextCache()` [cache adapter](/docs/extending/interfaces#cacheadapter);
+attach others with `sb.cache(adapter)`.

@@ -1,0 +1,15 @@
+{
+  "name": "@better-supabase/types-perf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "node bench.ts",
+    "update": "BENCH_UPDATE=1 node bench.ts"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "typescript": "catalog:ts6"
+  }
+}

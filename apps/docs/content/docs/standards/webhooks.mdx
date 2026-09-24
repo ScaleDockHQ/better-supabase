@@ -1,0 +1,58 @@
+---
+title: Webhooks
+description: Standard Webhooks verification, typed Supabase Auth hooks and database webhook payloads.
+---
+
+## Supabase Auth hooks
+
+Supabase signs HTTP Auth hooks with [Standard Webhooks](https://www.standardwebhooks.com).
+`authHook` verifies the signature, types the payload for the hook and
+serializes the answer:
+
+```ts title="app/api/hooks/access-token/route.ts"
+import { authHook, hookError } from 'better-supabase/webhooks';
+
+export const POST = authHook('custom_access_token', process.env.AUTH_HOOK_SECRET!, async ({ user_id, claims }) => {
+  const membership = await admin.memberships.findFirst({ where: { userId: user_id } }).orThrow();
+  if (!membership) return hookError(403, 'No organization');
+  return { claims: { ...claims, org_id: membership.organizationId } };
+});
+```
+
+The hooks are `custom_access_token`, `send_email`, `send_sms`,
+`mfa_verification_attempt`, `password_verification_attempt` and
+`before_user_created`. Pass the secret as the dashboard shows it
+(`v1,whsec_…`). Invalid signatures get a 401 before your handler runs.
+
+The `org_id` claim this example adds is the one the
+[tenant plugin](/docs/plugins/tenant) and the generated storage and realtime
+policies read.
+
+## Any Standard Webhook
+
+```ts
+import { verifyWebhook, signWebhook } from 'better-supabase/webhooks';
+
+const result = await verifyWebhook<MyPayload>(request, [currentSecret, previousSecret]);
+if (!result.ok) return problemResponse(result.error); // 401 with a WEBHOOK_* code
+```
+
+It checks `webhook-id`, `webhook-timestamp` (5 minutes of tolerance by
+default) and every `v1` signature against each secret, in constant time. Pass
+several secrets while rotating. `signWebhook(secret, { id, body })` gives the
+headers for sending, and is useful in tests.
+
+## Database webhooks
+
+Database webhooks (`pg_net`) aren't signed. Add a secret header when you
+create them and check it with `verifySharedSecret(request, secret)`. Then
+read the payload with `databaseChange`:
+
+```ts
+const change = databaseChange(sb, 'customers', await request.json());
+if (change?.type === 'INSERT') await welcome(change.record!.email);
+```
+
+`record` and `oldRecord` are app-cased and typed. `databaseChange` returns
+`null` for other tables. Pair it with the SQL kit's webhook inbox to handle
+each delivery once.

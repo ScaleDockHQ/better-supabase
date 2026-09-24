@@ -1,0 +1,25 @@
+{
+  "name": "@better-supabase/example-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An MCP server (Streamable HTTP) exposing tables as tools, as an Edge Function.",
+  "type": "module",
+  "exports": {
+    "./server": "./supabase/functions/mcp/server.ts"
+  },
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/server": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "better-supabase": "workspace:*"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

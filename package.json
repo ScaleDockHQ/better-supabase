@@ -1,0 +1,44 @@
+{
+  "name": "@better-supabase/monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "better-supabase": "better-supabase",
+    "build": "turbo run build",
+    "changeset": "changeset",
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck",
+    "check:publish": "turbo run check:publish",
+    "docs:dev": "turbo run dev --filter=docs",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "prepare": "node -e \"process.env.CI || process.env.VERCEL ? process.exit(0) : require('node:child_process').execSync('lefthook install', { stdio: 'inherit' })\"",
+    "size": "pnpm --filter @better-supabase/bundle test",
+    "test": "turbo run test",
+    "test:e2e": "pnpm --filter @better-supabase/e2e test:e2e",
+    "test:integration": "pnpm --filter better-supabase exec vitest run --project integration",
+    "typecheck": "turbo run typecheck",
+    "typecheck:matrix": "pnpm --filter './tests/types/*' run typecheck:matrix",
+    "typecheck:perf": "pnpm --filter @better-supabase/types-perf run bench"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@commitlint/config-conventional": "catalog:",
+    "@commitlint/types": "catalog:",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "lefthook": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.21.0"
+}

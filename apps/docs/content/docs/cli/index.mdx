@@ -1,0 +1,40 @@
+---
+title: CLI
+description: Codegen, SQL and diagnostics for better-supabase projects.
+---
+
+```bash
+pnpm better-supabase <command> [options]
+```
+
+| Command | What it does |
+| --- | --- |
+| [`init`](/docs/cli/init) | Writes the config, `lib/supabase.ts` and glue for the frameworks it finds |
+| [`add`](/docs/cli/init#add) | Adds an integration: `next`, `hono`, `orpc`, `edge`, `mcp`, `client`, `react` |
+| [`gen`](/docs/cli/gen) | Generates types, metadata and validators from your database |
+| `introspect` | Saves a schema snapshot, for codegen without a database |
+| [`env`](/docs/cli/local#env) | Writes the local stack's URL and keys to `.env.local` |
+| [`keys`](/docs/cli/local#keys) | Creates or rotates an ES256 signing key for the local stack |
+| [`seed`](/docs/cli/local#seed) | Renders typed fixtures to seed SQL |
+| [`openapi emit`](/docs/cli/local#openapi-emit) | Writes `openapi.json` from your `createOpenApi` module |
+| [`sql`](/docs/kits/sql) | Lists, adds, syncs and prints SQL kit modules |
+| [`doctor`](/docs/cli/doctor) | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations |
+| [`skills`](/docs/for-ai-agents) | Installs the Agent Skills that ship with the package |
+
+Every command takes `--help`. Commands that write files accept `--check`
+(exit 1 on drift) or `--dry-run`.
+
+Global options: `--cwd <dir>`, `--config <file>`, `--help`, `--version`.
+
+## Programmatic use
+
+The CLI never calls `process.exit`. `run` returns the exit code and output,
+which is how the tests drive it:
+
+```ts
+import { run } from 'better-supabase/cli';
+
+const { code, stdout, stderr } = await run(['gen', '--check']);
+```
+
+Register your own commands with `registerCommand(name, command)`.

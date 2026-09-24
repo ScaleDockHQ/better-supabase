@@ -1,0 +1,94 @@
+---
+title: Writing plugins
+description: Plugin API v1, its hooks, and typed repository extensions.
+---
+
+```ts
+import { column, definePlugin, and } from 'better-supabase';
+
+export const onlyPublished = definePlugin({
+  name: 'onlyPublished',
+  transformQuery(op) {
+    if (op.kind !== 'select' || !('published' in op.table.columns)) return op;
+    return { ...op, where: and(op.where, column('published', 'eq', true)) };
+  },
+});
+```
+
+`definePlugin` fixes `apiVersion: 1`. `use()` rejects plugins built for
+another version, and installing two plugins with the same name.
+
+## Hooks
+
+| Hook | Level | Use it to |
+| --- | --- | --- |
+| `transformQuery(op, args)` | IR | Add filters, rewrite selections |
+| `beforeMutation(op, args)` | Mutation | Fill columns, reject writes, change the kind (delete → update) |
+| `afterMutation(event)` | Mutation | Audit, cache invalidation, outbox. Cannot change the result |
+| `wrapExecutor(executor)` | Execution | Tracing, retries, caching |
+| `mapError(raw, fallback)` | Errors | Map `RAISE` hint codes or custom SQLSTATEs to `DbError`s |
+| `repository(api)` | Repository | Add methods to matching tables |
+
+Hooks receive `args` with the table metadata, the request context, the
+per-call options (any argument the repository does not know, like
+`withDeleted`) and the clock. Throw a `DbException` to fail the call with a
+typed error; nothing is sent.
+
+`enforce: 'pre' | 'post'` moves a plugin to the start or end of the chain.
+
+## Scoping helpers
+
+Filters that should apply to related rows too (tenancy, soft delete,
+visibility) should go through `scopeOperation`. It applies a condition to the
+root table, every include and every relation filter, and keeps `every()`
+correct:
+
+```ts
+import { column, scopeOperation } from 'better-supabase';
+
+transformQuery: (op) =>
+  scopeOperation(op, (table) =>
+    table.columns.visibility ? column('visibility', 'eq', 'public') : undefined,
+  ),
+```
+
+Column names in the IR are database names; `table.columns[app].db` maps
+app names.
+
+## Typed extensions
+
+A plugin can add methods and call options to tables whose generated flags
+match. Declare the types as an interface that reads `this['M']` (the models)
+and `this['T']` (the table):
+
+```ts
+import type { AsyncResult, HasFlag, Plugin, RepositoryExtension } from 'better-supabase';
+
+interface ArchiveExtension extends RepositoryExtension {
+  readonly methods: HasFlag<this['M'], this['T'], 'softDelete'> extends true
+    ? { readonly archiveAll: () => AsyncResult<{ count: number }> }
+    : unknown;
+  readonly findArgs: unknown;
+  readonly deleteArgs: unknown;
+}
+
+export function archive(): Plugin<'archive', ArchiveExtension> {
+  return definePlugin<'archive', ArchiveExtension>({
+    name: 'archive',
+    repository: ({ table, base }) => (table.flags.softDelete ? { archiveAll: () => /* ... */ } : undefined),
+  });
+}
+```
+
+`findArgs` extends the read arguments and `deleteArgs` the delete arguments.
+Each `use()` intersects the extension into the Db type, so several plugins
+compose.
+
+## Invariants
+
+- Hooks never see or return app-cased rows in the IR; convert with the table
+  metadata.
+- `afterMutation` and event handlers cannot change results. Errors they throw
+  go to the [`Logger`](/docs/extending/interfaces#logger), not the caller.
+- Prove a plugin with [`testPlugin`](/docs/extending/conformance).
+- A plugin must leave tables without its flag untouched.

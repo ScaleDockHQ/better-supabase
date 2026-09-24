@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../packages/better-supabase/schemas/config-v1.json",
+  "source": { "snapshot": "../../../supabase/snapshot.json" },
+  "casing": "camel",
+  "output": "generated.ts",
+  "json": {
+    "customers.metadata": {
+      "type": "{ source?: string; tier?: 'free' | 'pro' }"
+    }
+  },
+  "plugins": {
+    "timestamps": true,
+    "softDelete": { "column": "archived_at" },
+    "tenant": { "column": "organization_id", "claim": "org_id" },
+    "actor": true
+  },
+  "buckets": {
+    "customerLogos": {
+      "path": "{orgId}/{customerId}/logo/{version}.webp",
+      "policy": "tenant",
+      "fileSizeLimit": "5MiB",
+      "allowedMimeTypes": ["image/png", "image/jpeg", "image/webp"]
+    }
+  },
+  "topics": {
+    "notifications": "org:{orgId}:notifications:{userId}",
+    "customers": "org:{orgId}:customers"
+  }
+}

@@ -1,0 +1,72 @@
+---
+title: Limitations
+description: What PostgREST can't do, and what better-supabase does instead.
+---
+
+Most apps talk to Supabase over PostgREST. It's the right default, and the
+reason some things you'd expect from an ORM aren't available there. When
+they matter, use a direct connection from `better-supabase/postgres`; the
+repository API stays the same.
+
+## No transactions over PostgREST
+
+Every PostgREST request is its own transaction. Two calls can't commit
+together, and a nested write (`create` with related rows) is several
+requests.
+
+Instead:
+
+- Put multi-step writes in a database function and call it with
+  `db.$rpc()`. Declare what it changes with
+  [`sb.defineRpc`](/docs/concepts/caching#writes-invalidation-targets) so
+  caches refresh.
+- On the server, use `postgres.transaction()` with
+  [`postgresExecutor`](/docs/auth/postgres). The same `db` calls then run in
+  one transaction, as the user or as admin.
+
+## Relation filters on writes
+
+`where: { notes: { some: ... } }` works on reads. PostgREST can't filter an
+`update` or `delete` by a related table, so those fail with
+`invalid_request` before a request is sent. Read the keys first, or use a
+database function or a direct connection, where the same `where` compiles
+to `exists (...)`.
+
+## `every` on to-many relations
+
+`every` compiles to "no row that fails the condition", which is correct for
+empty relations too. `every: {}` is always true and is dropped. Over
+PostgREST it costs an embedded anti-join per condition; for large relations,
+prefer a column or a view that stores the answer.
+
+## Counts
+
+`_count` includes and `count: 'exact'` run `count(*)` under RLS. On large
+tables use `count: 'estimated'` for pagination, and only count the
+relations you show.
+
+## Jobs over PostgREST
+
+The [jobs kit](/docs/kits/jobs) prefers a direct connection. Its PostgREST
+transport uses the `pgmq_public` functions, which can send, read and
+archive. It can't:
+
+- deduplicate: `dedupeKey` fails with `invalid_request`,
+- schedule or unschedule cron jobs: both fail with `invalid_request`,
+- extend a lease: `extend` returns `false`, so heartbeats do nothing,
+- record `lastError` or back off: a failed job reappears when its lease
+  runs out, and is archived as dead after `maxAttempts`.
+
+Workers that need these run on the server with `createPostgres()`.
+
+## Live queries
+
+[Live queries](/docs/frontend/live-queries) refetch the whole query on a
+change, one request per affected query. They don't patch rows in place and
+don't see tables outside `realtime.tables`.
+
+## Generated types
+
+`gen` needs the database: a local connection, or the Management API for a
+hosted project. It can't infer types from migrations alone. Commit the
+snapshot and run `better-supabase gen --check` in CI.

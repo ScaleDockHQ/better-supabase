@@ -1,0 +1,27 @@
+{
+  "name": "@better-supabase/example-orpc-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An oRPC router with typed context and ORPCError mapping.",
+  "type": "module",
+  "exports": {
+    "./router": "./src/router.ts"
+  },
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orpc/server": "catalog:",
+    "@supabase/server": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "better-supabase": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@better-supabase/example-hono-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Hono REST API with RLS-scoped repositories and Problem Details.",
+  "type": "module",
+  "exports": {
+    "./app": "./src/server.ts"
+  },
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/server": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "better-supabase": "workspace:*",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

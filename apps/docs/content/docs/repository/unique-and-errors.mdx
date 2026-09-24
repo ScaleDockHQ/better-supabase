@@ -1,0 +1,85 @@
+---
+title: Unique keys and errors
+description: findUnique by any unique key, typed constraint names, and narrowing database errors.
+---
+
+## findUnique
+
+`findUnique` takes the primary key or any unique key, as columns in your
+casing. `gen` reads the unique constraints and indexes, so a `where` that
+isn't a complete key is a type error.
+
+```ts
+await db.customers.findUnique({ where: { id } });
+await db.customers.findUnique({ where: { organizationId, kvk } }); // customers_organization_id_kvk_key
+// @ts-expect-error kvk alone is not unique
+await db.customers.findUnique({ where: { kvk } });
+```
+
+It returns the row or `null`. `findById(id)` is the primary key shortcut and
+fails with `not_found` instead.
+
+## Constraint names
+
+The generated module exports the names of your constraints:
+
+```ts
+import type { CheckConstraint, ForeignKeyConstraint, UniqueConstraint } from './generated';
+```
+
+Pass them to the error guards to narrow an error to one constraint, with a
+type error on typos:
+
+```ts
+import { isCheck, isConflict, isForeignKey } from 'better-supabase';
+
+const result = await db.customers.create({ organizationId, name, kvk });
+if (isConflict<UniqueConstraint>(result.error, 'customers_organization_id_kvk_key')) {
+  return { field: 'kvk', message: 'This KvK number is already registered' };
+}
+if (isCheck<CheckConstraint>(result.error)) {
+  return { message: `Invalid value (${result.error.constraint})` };
+}
+if (isForeignKey<ForeignKeyConstraint>(result.error, 'customers_primary_contact_id_fkey')) {
+  return { field: 'primaryContactId', message: 'Pick an existing contact' };
+}
+```
+
+The guards accept a `DbError`, a `DbException` or anything else (they
+return `false`), so they also work in a `catch` block.
+
+## Error kinds
+
+Every failure is a `DbError` with a `kind`:
+
+| Kind | Cause |
+| --- | --- |
+| `conflict` | Unique violation (`constraint` is set) |
+| `check` | CHECK violation (`constraint` is set) |
+| `foreign_key` | Foreign key violation (`constraint` is set) |
+| `not_null` | Missing required value |
+| `not_found` | `findById`, `update(id)` or `delete(id)` matched no row |
+| `forbidden` | RLS or a missing grant |
+| `validation` | A validator plugin rejected the input (`issues` is set) |
+| `invalid_request` | Caught before the request: a read-only column, an unknown field, a broken rule |
+
+See [Results](/docs/concepts/results) for the full list and how errors map
+to HTTP Problem Details.
+
+## Throwing your own errors
+
+`.orThrow()` throws a `DbException`. Pass a factory to throw something your
+framework understands instead:
+
+```ts
+const customer = await db.customers
+  .findById(id)
+  .orThrow((error) => (error.kind === 'not_found' ? notFound() : new Error(error.message)));
+```
+
+## Read-only columns
+
+Generated columns, `identity always` columns and view columns Postgres
+marks as not insertable or updatable are missing from the `Insert` and
+`Update` types. Writing one anyway (through `as any` or a spread) fails with
+`invalid_request` before a request is sent, instead of a database error.

@@ -1,0 +1,56 @@
+---
+title: From supabase-cache-helpers
+description: Map @supabase-cache-helpers/postgrest-react-query hooks to better-supabase.
+---
+
+supabase-cache-helpers parses your PostgREST query at runtime to find cache
+keys and patches cached rows after mutations. better-supabase knows every
+table a query touches from the schema instead, and refetches the queries
+that overlap a write. There's nothing to parse, and results stay correct
+under RLS, includes and cascading deletes. See [Caching](/docs/concepts/caching).
+
+## Setup
+
+```ts
+import { createQueries, invalidateOnMutation } from 'better-supabase/query';
+
+export const q = createQueries(sb, db);
+invalidateOnMutation(sb, queryClient); // every write through db invalidates
+```
+
+## Hooks
+
+| supabase-cache-helpers | better-supabase |
+| --- | --- |
+| `useQuery(supabase.from('customers').select('id, name'))` | `useQuery(q.customers.findMany({ select: ['id', 'name'] }))` |
+| `.select('*, notes(*)')` | `include: { notes: true }` |
+| `.select('..., notes(count)')` | `include: { _count: { notes: true } }` |
+| `.single()` / `.maybeSingle()` | `findById(id)` / `findUnique({ where })` |
+| `useInsertMutation(from, ['id'], 'id')` | `useMutation(q.customers.create({ select: ['id'] }))` |
+| `useUpdateMutation` | `useMutation(q.customers.update())` |
+| `useUpsertMutation` | `useMutation(q.customers.upsert())` |
+| `useDeleteMutation` | `useMutation(q.customers.delete())` |
+| `useCursorInfiniteScrollQuery` | `useInfiniteQuery(q.customers.infinite({ size, orderBy }))` |
+| `useOffsetInfiniteScrollQuery`, `useInfiniteOffsetPaginationQuery` | `useInfiniteQuery(q.customers.infinitePages({ size }))` |
+| `usePaginationQuery` | `useQuery(q.customers.paginate({ page, size }))` |
+| `useSubscription`, `useSubscriptionQuery` | [`useLiveQuery(spec)`](/docs/frontend/live-queries) |
+| `useRevalidateTables([{ table: 'customers' }])` | `invalidateTables(queryClient, ['customers'])` |
+| `prefetchQuery(queryClient, query)` | `q.$prefetch(queryClient, spec)` |
+| `fetchQueryInitialData` | `queryClient.fetchQuery(q.$spec(spec))` |
+| `useQuery(supabase.rpc('fn', args))` | `useQuery(q.$rpc('fn', args))` |
+| Storage `useUpload`, `useFileUrl`, `useDirectory` | The [storage kit](/docs/kits/storage)'s typed buckets |
+
+## Differences to expect
+
+- **Refetch instead of cache patching.** After a mutation the affected
+  queries refetch. Use `onMutate` for optimistic UI on the screens that
+  need it.
+- **Filters are objects.** `.eq('status', 'active')` becomes
+  `where: { status: 'active' }`, with types for every column and relation.
+- **Errors are typed.** Failed queries reject with `DbException`; use
+  [`isConflict`](/docs/repository/unique-and-errors) and friends instead of
+  matching error codes.
+- **Disabled queries** use TanStack's `skipToken`:
+  `q.customers.findById(id ?? skipToken)`.
+- **RPCs that write** need `sb.defineRpc(name, { invalidates })` so their
+  mutation invalidates the right tables.

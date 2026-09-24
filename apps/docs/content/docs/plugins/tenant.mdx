@@ -1,0 +1,40 @@
+---
+title: tenant
+description: Scope every query to the request's tenant, on top of RLS.
+---
+
+```ts
+import { tenant } from 'better-supabase/plugins/tenant';
+
+const sb = defineSupabase(schema).use(tenant({ claim: 'org_id' }));
+const db = sb.connect(supabase, { claims }); // or { tenant: orgId }
+```
+
+For tables with the tenant flag:
+
+- reads, updates and deletes get `organization_id = <tenant>`, including
+  includes and relation filters;
+- inserts get the tenant column filled in;
+- writing a row for another tenant, or moving a row to one, fails with
+  `forbidden` before anything is sent.
+
+The tenant comes from `context.tenant`, then the JWT claim, or from your own
+`resolve(context)`. `claim` takes one or more dotted paths and defaults to
+`['org_id', 'app_metadata.org_id']`: a top-level claim from a custom access
+token hook, or `app_metadata` set through the Auth admin API. Server
+adapters fill the context from the verified JWT.
+
+## Missing tenant
+
+By default a query on a tenant table without a tenant fails with
+`forbidden`: the plugin fails closed. Use `onMissing: 'skip'` to leave it
+to RLS, or `{ allTenants: true }` per call for admin tooling:
+
+```ts
+await adminDb.customers.count({ allTenants: true });
+```
+
+<Callout title="Not a replacement for RLS">
+  The plugin makes queries correct and indexes usable; RLS makes them safe.
+  Keep a tenant policy on every table. `better-supabase doctor` checks both.
+</Callout>

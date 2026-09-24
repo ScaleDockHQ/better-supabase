@@ -1,0 +1,81 @@
+---
+title: Schema and codegen
+description: What better-supabase generates on top of supabase gen types, and why.
+---
+
+`supabase gen types` gives you row shapes. It leaves out what a typed query
+layer needs:
+
+| Missing piece | What better-supabase generates |
+| --- | --- |
+| Relationship cardinality | `Relations` with `kind: 'one' \| 'many'` and nullability |
+| Unique keys | `UniqueKeys`, used by typed `upsert({ onConflict })` |
+| CHECK unions | `status: 'lead' \| 'active'` instead of `string` |
+| jsonb shapes | Types from `json` in your config |
+| App casing | Column maps for `camelCase` models |
+| Table flags | Soft delete, timestamps, tenant and actor columns |
+
+The CLI reads `pg_catalog` directly, so the metadata always matches the
+database, including views, composite keys and reverse relations.
+
+## The generated module
+
+```ts title="generated.ts (excerpt)"
+export const customersStatusValues = ['lead', 'active', 'archived'] as const;
+export type CustomersStatus = (typeof customersStatusValues)[number];
+
+export type Models = {
+  customers: {
+    Row: { id: string; status: CustomersStatus; primaryContactId: string | null /* ... */ };
+    Insert: { id?: string; name: string /* ... */ };
+    Update: { name?: string /* ... */ };
+    Relations: {
+      organization: { table: 'organizations'; kind: 'one'; nullable: false };
+      primaryContact: { table: 'contacts'; kind: 'one'; nullable: true };
+      notes: { table: 'notes'; kind: 'many'; nullable: true };
+    };
+    PrimaryKey: 'id';
+    UniqueKeys: { customers_organization_id_kvk_key: ['organizationId', 'kvk'] };
+    Flags: { softDelete: 'archivedAt'; timestamps: true };
+  };
+};
+
+export type RowOf<T extends TableName> = Models[T]['Row'];
+export const schema: Schema<Models, Database, Functions> = defineSchema({ /* runtime metadata */ });
+```
+
+Everything the runtime needs (column maps, foreign key names used as embed
+hints, primary keys) lives in the `schema` object. Types and metadata come
+from the same run, so they cannot drift.
+
+## Relation names
+
+- A forward relation (this table holds the foreign key) is named after the
+  column without `_id`: `primary_contact_id` becomes `primaryContact`.
+- A reverse relation is named after the source table: `notes`. One-to-one
+  reverse relations use the singular.
+- Collisions get a `_by_<column>` suffix. Rename any relation in the config:
+  `tables: { customers: { relations: { primaryContact: 'contact' } } }`.
+
+## Validators
+
+Generators turn the same metadata into validators and documents:
+
+```ts
+import { defineConfig, jsonSchema, valibot, zod } from 'better-supabase/config';
+
+export default defineConfig({ generators: [zod(), valibot(), jsonSchema()] });
+```
+
+`zod()` writes `generated.zod.ts` with `customersRow`, `customersInsert`
+and `customersUpdate`. Each is annotated with the generated type
+(`z.ZodType<InsertOf<'customers'>>`), so a validator that drifts from the
+table fails to compile. Generated identity columns are left out of inserts,
+CHECK unions become `z.enum`, and typed jsonb columns can use your own schema:
+
+```ts
+zod({ json: { 'customers.metadata': './src/schemas.ts#customerMetadata' } });
+```
+
+All generated validators implement [Standard Schema](/docs/standards), so the
+validation plugin, forms and MCP inputs accept them as they are.

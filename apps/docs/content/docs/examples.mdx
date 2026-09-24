@@ -1,0 +1,42 @@
+---
+title: Examples
+description: Runnable apps for every integration, tested end to end against a local stack.
+---
+
+Each example in [`apps/examples`](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples)
+was set up with `better-supabase init`, generates its types from the same
+schema, and has end-to-end tests in `tests/e2e` that sign in real users.
+
+| Example | Shows |
+| --- | --- |
+| `nextjs` | Proxy session refresh, a Server Component, route handlers and a server action |
+| `hono-api` | `createHono`, `bs.resource` with a list query, and a custom route |
+| `orpc-api` | An oRPC router with zod inputs and `bs.unwrap` |
+| `edge` | An Edge Function with `createEdge` and `bs.resources` |
+| `mcp` | An MCP server as an Edge Function, exposing tables as tools |
+| `vite-react` | An SPA with `createBrowser`, TanStack Query and sign-in |
+
+## Run them
+
+```bash
+supabase start
+pnpm build
+pnpm test:e2e
+```
+
+The tests use the stack from `supabase/config.toml` (API on port 55421).
+To use another stack, set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and
+`SUPABASE_SECRET_KEY`.
+
+## Real-world ports
+
+`tests/validation-centrakit` and `tests/validation-lienlink` rewrite code
+from two production apps on better-supabase:
+
+- **CentraKit customers service**: the customer list, which has status,
+  tag, assignee and nested contact search filters plus four includes, becomes
+  one `paginate` call that sends a single request. It is generated from and
+  typechecked against a 263-table schema.
+- **lienlink's Supabase package**: env validation, request headers, a
+  user-auth guard, a cron guard with a named secret key, avatar storage and
+  the browser client. Its request-context tests run against the local stack.

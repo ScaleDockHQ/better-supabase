@@ -1,0 +1,96 @@
+---
+title: MCP servers
+description: Tools from your tables and your own code, running as the signed-in user.
+---
+
+```ts title="supabase/functions/mcp/index.ts"
+import { createMcp } from 'better-supabase/mcp';
+import { z } from 'zod';
+import { customerList, sb } from '../_shared/supabase.ts';
+
+const mcp = createMcp(sb, {
+  name: 'crm',
+  version: '1.0.0',
+  instructions: 'Customers and notes of the signed-in user’s organization.',
+  resources: {
+    customers: { list: customerList, select: ['id', 'name', 'status'] },
+    notes: { operations: ['list', 'get', 'create'] },
+  },
+}).tool({
+  name: 'archive_customer',
+  description: 'Archive a customer and everything attached to it.',
+  input: z.object({ id: z.uuid() }),
+  annotations: { destructiveHint: true, idempotentHint: true },
+  run: ({ id }, { db }) => db.customers.update(id, { status: 'archived' }),
+});
+
+Deno.serve(mcp.fetch);
+```
+
+`mcp.fetch` serves the MCP endpoint (Streamable HTTP, stateless JSON
+responses) and the RFC 9728 metadata at
+`/.well-known/oauth-protected-resource/...`.
+
+## Running as the caller
+
+MCP clients send a Supabase access token as a Bearer header. It is verified
+locally against the JWKS, and every tool call goes through repositories bound
+to that user, so RLS decides what the model can see and change. Without a
+valid token the server answers:
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="https://<host>/.well-known/oauth-protected-resource/mcp"
+```
+
+The metadata names Supabase Auth (`<SUPABASE_URL>/auth/v1`) as the
+authorization server. Clients that support MCP authorization then sign the
+user in through Supabase's OAuth server and retry. These helpers come from
+`@supabase/server/oauth-protected-resource`. Override them with `resource`
+and `authorizationServers` when the server sits behind a proxy.
+
+## Table tools
+
+Each table in `resources` gets one tool per operation:
+
+| Tool | Input | Annotations |
+| --- | --- | --- |
+| `<table>_list` | the list query's JSON Schema, or `page`/`size` | `readOnlyHint` |
+| `<table>_get` | the key | `readOnlyHint` |
+| `<table>_create` | the `Insert` JSON Schema | `destructiveHint: false` |
+| `<table>_update` | the key and `patch` (the `Update` schema) | `destructiveHint`, `idempotentHint` |
+| `<table>_delete` | the key | `destructiveHint`, `idempotentHint` |
+
+The schemas are generated from your database metadata, the same ones
+`createOpenApi` publishes. Rows come back as `structuredContent` with a
+matching `outputSchema`.
+
+## Custom tools
+
+`mcp.tool(...)` is typed against your repositories. Its input can be any
+Standard Schema: the tool's JSON Schema comes from Standard JSON Schema
+(zod 4, ArkType, Valibot), or from `inputSchema` if you pass one. The
+arguments are validated before `run`.
+
+`run` gets the same context as the other adapters (`db`, `auth`, `supabase`,
+`sql`) plus the `request` and an abort `signal`. `defineTool` builds a tool
+outside the server, so it can go in `createMcp({ tools: [...] })`.
+
+## Errors
+
+Failures are reported as tool results with `isError: true`, so the model can
+read them and correct itself:
+
+- A failed `Result`.
+- Invalid arguments.
+- A thrown `DbException`.
+- Unexpected errors, whose messages are hidden unless `exposeErrors`.
+
+The error text is the RFC 9457 Problem Details: `kind`, `detail`, and
+validation `issues` with paths. Protocol problems use JSON-RPC errors: an
+unknown method, an unknown tool, a malformed message, or an unsupported
+`MCP-Protocol-Version`.
+
+Set `allowedOrigins` to reject browser requests from other origins, which
+protects against DNS rebinding. The protocol revision is pinned in
+`SPEC_PINS.mcp`.

@@ -1,0 +1,8 @@
+{
+  "$schema": "../../packages/better-supabase/schemas/config-v1.json",
+  "source": {
+    "snapshot": "snapshot.json"
+  },
+  "casing": "camel",
+  "output": "src/generated.ts"
+}

@@ -1,0 +1,862 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/snapshot-v2.json",
+  "title": "better-supabase schema snapshot",
+  "description": "Output of `better-supabase introspect`: @supabase/postgrest-typegen GeneratorMetadata plus the catalog details it leaves out. Codegen and doctor read it instead of a database.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schemas", "generator", "extras"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 2
+    },
+    "schemas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "generator": {
+      "$ref": "#/$defs/generator"
+    },
+    "extras": {
+      "$ref": "#/$defs/extras"
+    }
+  },
+  "$defs": {
+    "generator": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "check": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "data_type": {
+                "type": "string"
+              },
+              "default_value": {},
+              "enums": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "format": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "identity_generation": {
+                "anyOf": [
+                  {
+                    "const": "ALWAYS"
+                  },
+                  {
+                    "const": "BY DEFAULT"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "is_generated": {
+                "type": "boolean"
+              },
+              "is_identity": {
+                "type": "boolean"
+              },
+              "is_nullable": {
+                "type": "boolean"
+              },
+              "is_unique": {
+                "type": "boolean"
+              },
+              "is_updatable": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "ordinal_position": {
+                "type": "number"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "table": {
+                "type": "string"
+              },
+              "table_id": {
+                "type": "number"
+              },
+              "type_schema": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "check",
+              "comment",
+              "data_type",
+              "default_value",
+              "enums",
+              "format",
+              "id",
+              "identity_generation",
+              "is_generated",
+              "is_identity",
+              "is_nullable",
+              "is_unique",
+              "is_updatable",
+              "name",
+              "ordinal_position",
+              "schema",
+              "table",
+              "table_id",
+              "type_schema"
+            ]
+          }
+        },
+        "foreignTables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "required": ["comment", "id", "name", "schema"]
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "has_default": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mode": {
+                      "enum": ["in", "inout", "out", "table", "variadic"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type_id": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["has_default", "mode", "name", "type_id"]
+                }
+              },
+              "argument_types": {
+                "type": "string"
+              },
+              "behavior": {
+                "enum": ["IMMUTABLE", "STABLE", "VOLATILE"]
+              },
+              "complete_statement": {
+                "type": "string"
+              },
+              "config_params": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "definition": {
+                "type": "string"
+              },
+              "id": {
+                "type": "number"
+              },
+              "identity_argument_types": {
+                "type": "string"
+              },
+              "is_set_returning_function": {
+                "type": "boolean"
+              },
+              "language": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "prorows": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "return_type": {
+                "type": "string"
+              },
+              "return_type_id": {
+                "type": "number"
+              },
+              "return_type_relation_id": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "schema": {
+                "type": "string"
+              },
+              "security_definer": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "args",
+              "argument_types",
+              "behavior",
+              "complete_statement",
+              "config_params",
+              "definition",
+              "id",
+              "identity_argument_types",
+              "is_set_returning_function",
+              "language",
+              "name",
+              "prorows",
+              "return_type",
+              "return_type_id",
+              "return_type_relation_id",
+              "schema",
+              "security_definer"
+            ]
+          }
+        },
+        "materializedViews": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "number"
+              },
+              "is_populated": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "required": ["comment", "id", "is_populated", "name", "schema"]
+          }
+        },
+        "primaryKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "table_id": {
+                "type": "number"
+              },
+              "table_name": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "schema", "table_id", "table_name"]
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "foreign_key_name": {
+                "type": "string"
+              },
+              "is_one_to_one": {
+                "type": "boolean"
+              },
+              "referenced_columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "referenced_relation": {
+                "type": "string"
+              },
+              "referenced_schema": {
+                "type": "string"
+              },
+              "relation": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "columns",
+              "foreign_key_name",
+              "is_one_to_one",
+              "referenced_columns",
+              "referenced_relation",
+              "referenced_schema",
+              "relation",
+              "schema"
+            ]
+          }
+        },
+        "schemas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name", "owner"]
+          }
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bytes": {
+                "type": "number"
+              },
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dead_rows_estimate": {
+                "type": "number"
+              },
+              "id": {
+                "type": "number"
+              },
+              "live_rows_estimate": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "replica_identity": {
+                "enum": ["DEFAULT", "FULL", "INDEX", "NOTHING"]
+              },
+              "rls_enabled": {
+                "type": "boolean"
+              },
+              "rls_forced": {
+                "type": "boolean"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "size": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bytes",
+              "comment",
+              "dead_rows_estimate",
+              "id",
+              "live_rows_estimate",
+              "name",
+              "replica_identity",
+              "rls_enabled",
+              "rls_forced",
+              "schema",
+              "size"
+            ]
+          }
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "attributes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type_id": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["name", "type_id"]
+                }
+              },
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enums": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "format": {
+                "type": "string"
+              },
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "type_relation_id": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "attributes",
+              "comment",
+              "enums",
+              "format",
+              "id",
+              "name",
+              "schema",
+              "type_relation_id"
+            ]
+          }
+        },
+        "version": {
+          "const": 1
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "comment": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "number"
+              },
+              "is_updatable": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "is_insert_enabled": {
+                "type": "boolean"
+              },
+              "is_update_enabled": {
+                "type": "boolean"
+              }
+            },
+            "required": ["comment", "id", "is_updatable", "name", "schema"]
+          }
+        }
+      },
+      "required": [
+        "columns",
+        "foreignTables",
+        "functions",
+        "materializedViews",
+        "primaryKeys",
+        "relationships",
+        "schemas",
+        "tables",
+        "types",
+        "version",
+        "views"
+      ]
+    },
+    "extras": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tables", "buckets", "realtime"],
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/extrasTable"
+          }
+        },
+        "buckets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "public", "fileSizeLimit", "allowedMimeTypes"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "public": {
+                "type": "boolean"
+              },
+              "fileSizeLimit": {
+                "type": ["integer", "null"]
+              },
+              "allowedMimeTypes": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "realtime": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "extrasTable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "schema",
+        "name",
+        "primaryKey",
+        "uniques",
+        "foreignKeys",
+        "checks",
+        "indexes",
+        "policies",
+        "triggers",
+        "grants"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "primaryKey": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uniques": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "columns"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "foreignKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "onDelete", "onUpdate"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "onDelete": {
+                "enum": [
+                  "no action",
+                  "restrict",
+                  "cascade",
+                  "set null",
+                  "set default"
+                ]
+              },
+              "onUpdate": {
+                "enum": [
+                  "no action",
+                  "restrict",
+                  "cascade",
+                  "set null",
+                  "set default"
+                ]
+              }
+            }
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "definition"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "definition": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "columns", "unique", "primary", "partial"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unique": {
+                "type": "boolean"
+              },
+              "primary": {
+                "type": "boolean"
+              },
+              "partial": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "command",
+              "roles",
+              "permissive",
+              "using",
+              "check"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "enum": ["all", "select", "insert", "update", "delete"]
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "permissive": {
+                "type": "boolean"
+              },
+              "using": {
+                "type": ["string", "null"]
+              },
+              "check": {
+                "type": ["string", "null"]
+              }
+            }
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "timing", "events", "level", "function"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "timing": {
+                "enum": ["before", "after", "instead of"]
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "enum": ["insert", "update", "delete", "truncate"]
+                }
+              },
+              "level": {
+                "enum": ["row", "statement"]
+              },
+              "function": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "grants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "privileges"],
+            "properties": {
+              "role": {
+                "type": "string"
+              },
+              "privileges": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

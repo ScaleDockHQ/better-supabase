@@ -1,0 +1,816 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "contactsRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "email",
+        "fullName",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "contactsInsert": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "organizationId",
+        "email"
+      ],
+      "additionalProperties": false
+    },
+    "contactsUpdate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "customersRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kvk": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "lead",
+            "active",
+            "archived"
+          ]
+        },
+        "primaryContactId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "metadata": {},
+        "createdBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "name",
+        "kvk",
+        "status",
+        "primaryContactId",
+        "metadata",
+        "createdBy",
+        "updatedBy",
+        "archivedAt",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "customersInsert": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kvk": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "lead",
+            "active",
+            "archived"
+          ]
+        },
+        "primaryContactId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "metadata": {},
+        "createdBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "organizationId",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "customersUpdate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kvk": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "lead",
+            "active",
+            "archived"
+          ]
+        },
+        "primaryContactId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "metadata": {},
+        "createdBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "updatedBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "customerTagsRow": {
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tagId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "customerId",
+        "tagId",
+        "organizationId"
+      ],
+      "additionalProperties": false
+    },
+    "customerTagsInsert": {
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tagId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "customerId",
+        "tagId",
+        "organizationId"
+      ],
+      "additionalProperties": false
+    },
+    "customerTagsUpdate": {
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tagId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false
+    },
+    "locationsRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "city": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isPrimary": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "customerId",
+        "label",
+        "city",
+        "isPrimary",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "locationsInsert": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "city": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isPrimary": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "organizationId",
+        "customerId",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "locationsUpdate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "label": {
+          "type": "string"
+        },
+        "city": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isPrimary": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notesRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
+        },
+        "body": {
+          "type": "string"
+        },
+        "attachments": {},
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "customerId",
+        "kind",
+        "body",
+        "attachments",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "notesInsert": {
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
+        },
+        "body": {
+          "type": "string"
+        },
+        "attachments": {},
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "organizationId",
+        "customerId",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "notesUpdate": {
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
+        },
+        "body": {
+          "type": "string"
+        },
+        "attachments": {},
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "organizationsRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "slug",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "organizationsInsert": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "name",
+        "slug"
+      ],
+      "additionalProperties": false
+    },
+    "organizationsUpdate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tagsRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "gray",
+            "red",
+            "green",
+            "blue"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "name",
+        "color"
+      ],
+      "additionalProperties": false
+    },
+    "tagsInsert": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "gray",
+            "red",
+            "green",
+            "blue"
+          ]
+        }
+      },
+      "required": [
+        "organizationId",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "tagsUpdate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string",
+          "enum": [
+            "gray",
+            "red",
+            "green",
+            "blue"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

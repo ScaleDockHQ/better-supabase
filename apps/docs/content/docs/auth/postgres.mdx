@@ -1,0 +1,58 @@
+---
+title: Direct Postgres
+description: The same repositories over SQL, with the same results and RLS.
+---
+
+The repository IR compiles to SQL as well as to PostgREST. Any client with
+`queryRaw(text, params)` can run it: `ctx.postgres` from `@supabase/server`,
+or a pool from `createPostgres()`.
+
+```ts
+import { createPostgres, postgresExecutor } from 'better-supabase/postgres';
+
+const postgres = createPostgres(); // SUPABASE_DB_URL or DATABASE_URL
+
+const asUser = sb.connect(postgresExecutor(postgres.asUser({ sub: userId, org_id })));
+const asAdmin = sb.connect(postgresExecutor(postgres.admin));
+```
+
+Results match PostgREST exactly: same row shapes, nested includes, relation
+filters, pagination and error kinds. The test suite runs the same queries
+through both and compares them.
+
+## Identities
+
+| Client                | Runs as                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `postgres.admin`      | the connection-string role (bypasses RLS on Supabase)            |
+| `postgres.asUser(c)`  | `authenticated`, with `request.jwt.claims` set, so RLS applies   |
+| `postgres.anon`       | `anon`                                                           |
+
+Claims and role are transaction-local (`set_config(…, true)`, `set local
+role`), so nothing leaks back into the pool. Only `authenticated` and `anon`
+can be assumed this way.
+
+## Transactions
+
+```ts
+await postgres.transaction(
+  async (tx) => {
+    const db = sb.connect(postgresExecutor(tx), { claims });
+    const invoice = await db.invoices.create(data).orThrow();
+    await db.invoiceLines.createMany(lines(invoice.id)).orThrow();
+  },
+  { claims },
+);
+```
+
+A thrown error rolls everything back. Plugins run as usual inside the
+transaction.
+
+## When to use it
+
+- jobs, scripts and webhook handlers (with `actingAs` for user-scoped work);
+- several writes that must commit together;
+- when PostgREST is not reachable from the runtime.
+
+For browser-facing request handling, PostgREST remains the default: it pools
+connections for you and needs no database credentials.

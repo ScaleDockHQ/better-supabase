@@ -1,0 +1,17 @@
+{
+  "name": "@better-supabase/bundle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "update": "BUNDLE_UPDATE=1 vitest run"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

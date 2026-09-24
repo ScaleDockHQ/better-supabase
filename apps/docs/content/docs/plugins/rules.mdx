@@ -1,0 +1,74 @@
+---
+title: Query rules
+description: Runtime checks that catch unbounded reads, missing tenants, sensitive columns and admin keys in the browser.
+---
+
+`rules()` checks every query before it's sent and reports what looks wrong.
+It runs first (`enforce: 'pre'`), so it sees the query you wrote, before the
+tenant or soft-delete plugins add their filters.
+
+```ts
+import { recommended, rules } from 'better-supabase/plugins/rules';
+
+export const sb = defineSupabase(schema).use(rules({ rules: recommended() }));
+```
+
+A `warn` violation goes to `console.warn` and the query runs. An `error`
+violation fails the call with `invalid_request`, and nothing is sent.
+
+## Presets
+
+| Preset | Contents |
+| --- | --- |
+| `safe()` | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteManyWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
+| `recommended()` | `safe()` plus the performance rules as warnings (the default) |
+| `strict()` | Everything as an error |
+
+Spread a preset to change single rules:
+
+```ts
+rules({ rules: { ...recommended(), maxLimit: ['error', 200], noUnboundedFindMany: 'off' } });
+```
+
+## Rules
+
+| Rule | Flags | Option |
+| --- | --- | --- |
+| `noUnboundedFindMany` | `findMany` without `limit` | |
+| `maxLimit` | `limit` above the maximum | maximum, default `1000` |
+| `requireOrderByForCursor` | `offset`, or `limit` above 1, without `orderBy`: pages overlap or skip rows | |
+| `maxIncludeDepth` | Includes nested deeper than the maximum | maximum depth, default `3` |
+| `requireTenantContext` | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt | claim, default `'org_id'` |
+| `noAdminInBrowser` | A service-role connection where `window` and `document` exist | |
+| `noSensitiveSelect` | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call | |
+| `noDeleteManyWithoutWhere` | A delete without `where` | |
+
+`noSensitiveSelect` looks at the columns actually selected, includes too. A
+`select` that leaves the column out passes; to read it on purpose:
+
+```ts
+await db.contacts.findMany({ select: ['id', 'email'], limit: 50, sensitive: true });
+```
+
+The repository already refuses `deleteMany` without `where` on its own, so
+`noDeleteManyWithoutWhere` only catches deletes built by other plugins. The
+[lint rule](/docs/plugins/lint) of the same name catches the call in your
+editor.
+
+## Reporting
+
+```ts
+rules({
+  rules: recommended(),
+  report: (violation) => logger.warn(violation),
+});
+```
+
+A violation has `rule`, `level`, `table`, `operation` and `message`.
+Errors still fail the call after `report` runs.
+
+## Skipping plugins
+
+`db.$withoutPlugins()` returns the same connection with no plugins at all:
+no rules, tenant scoping, soft-delete filters or executor wrappers. Use it for
+migrations and admin scripts, never for user requests.

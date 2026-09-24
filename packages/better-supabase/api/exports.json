@@ -1,0 +1,746 @@
+{
+  ".": {
+    "values": [
+      "and",
+      "AsyncResult",
+      "BetterSupabase",
+      "cacheTargetOf",
+      "column",
+      "compilePostgrest",
+      "consoleLogger",
+      "dbError",
+      "DbException",
+      "decodeCursor",
+      "decodeRows",
+      "definePlugin",
+      "defineRepository",
+      "defineSchema",
+      "defineSupabase",
+      "encodeCursor",
+      "encodeValue",
+      "err",
+      "escapeLike",
+      "EventHub",
+      "explainPostgrest",
+      "fromProblem",
+      "invalidationTargets",
+      "isCheck",
+      "isConflict",
+      "isDbError",
+      "isForeignKey",
+      "isProblem",
+      "isQuerySpec",
+      "mapDbError",
+      "memoryCache",
+      "not",
+      "ok",
+      "or",
+      "PLUGIN_API_VERSION",
+      "postgrestCompiler",
+      "postgrestExecutor",
+      "PROBLEM_CONTENT_TYPE",
+      "PROBLEM_TYPE_BASE",
+      "problemResponse",
+      "rowKey",
+      "rpcCacheTargets",
+      "scopeCondition",
+      "scopeOperation",
+      "scopeSelection",
+      "silentLogger",
+      "simplify",
+      "SPEC_PINS",
+      "specTables",
+      "statusOf",
+      "tableMeta",
+      "toCamel",
+      "toDbError",
+      "toProblem",
+      "toSnake",
+      "touchedTables",
+      "validate"
+    ],
+    "types": [
+      "* from ./ir/args.ts",
+      "* from ./ir/types.ts",
+      "* from ./schema/types.ts",
+      "Actor",
+      "AnyPlugin",
+      "ApplyExtension",
+      "AuthEvent",
+      "BetterSupabaseEvents",
+      "CacheAdapter",
+      "CacheTarget",
+      "CallOptions",
+      "Compiler",
+      "ConflictTarget",
+      "CursorPage",
+      "CursorPageArgs",
+      "Db",
+      "DbError",
+      "DbErrorKind",
+      "DbErrorKinds",
+      "DbErrorOf",
+      "DbHelpers",
+      "DefineSupabaseOptions",
+      "DeleteArgs",
+      "DeleteExt",
+      "EnrichDatabase",
+      "Err",
+      "ErrorEvent",
+      "ErrorMapper",
+      "EventHandler",
+      "EventName",
+      "ExecuteContext",
+      "ExecuteResult",
+      "Executor",
+      "ExtensionOf",
+      "FindExt",
+      "HasFlag",
+      "HookArgs",
+      "InferResult",
+      "LogFields",
+      "Logger",
+      "MemoryCache",
+      "MutationEvent",
+      "MutationKind",
+      "MutationNotice",
+      "NoExtension",
+      "OffsetPage",
+      "OffsetPageArgs",
+      "Ok",
+      "PageOf",
+      "PlanFilter",
+      "PlanLimit",
+      "PlanOrder",
+      "Plugin",
+      "PostgrestClientLike",
+      "PostgrestPlan",
+      "ProblemDetails",
+      "ProblemOptions",
+      "ProblemResponseOptions",
+      "QueryEvent",
+      "QuerySpec",
+      "RawDbError",
+      "ReadMethod",
+      "RefreshEvent",
+      "Repository",
+      "RepositoryApi",
+      "RepositoryExtension",
+      "RepositoryOf",
+      "RequestContext",
+      "Result",
+      "Returned",
+      "RpcDefinition",
+      "RpcNotice",
+      "RpcOptions",
+      "ScopeFor",
+      "Specs",
+      "StandardSchemaV1",
+      "TableRepositoryExtension",
+      "TableSpecs",
+      "UpdateArgs",
+      "UpsertArgs",
+      "ValidationIssue",
+      "WithExtension",
+      "WriteArgs"
+    ]
+  },
+  "./config": {
+    "values": [
+      "buildJsonSchema",
+      "CONFIG_SCHEMA_URL",
+      "defineConfig",
+      "jsonSchema",
+      "resolveConfig",
+      "resolveJsonSchema",
+      "valibot",
+      "zod"
+    ],
+    "types": [
+      "ActorConfig",
+      "BetterSupabaseConfig",
+      "BucketConfig",
+      "Casing",
+      "CodecsConfig",
+      "DoctorConfig",
+      "GeneratedFile",
+      "Generator",
+      "GeneratorInput",
+      "JsonSchemaGeneratorOptions",
+      "JsonSchemaSource",
+      "JsonTypeConfig",
+      "OpenApiConfig",
+      "PluginFlagsConfig",
+      "RealtimeConfig",
+      "ResolvedConfig",
+      "SeedConfig",
+      "SoftDeleteConfig",
+      "SourceConfig",
+      "SqlConfig",
+      "TableConfig",
+      "TenantConfig",
+      "TimestampsConfig",
+      "ValibotGeneratorOptions",
+      "ZodGeneratorOptions"
+    ]
+  },
+  "./client": {
+    "values": [
+      "createBrowser"
+    ],
+    "types": [
+      "AuthSnapshot",
+      "AuthUser",
+      "BetterBrowser",
+      "BrowserAuth",
+      "BrowserOptions"
+    ]
+  },
+  "./react": {
+    "values": [
+      "BetterSupabaseProvider",
+      "createHooks",
+      "useAuth",
+      "useBroadcast",
+      "useLiveQuery",
+      "useSupabase"
+    ],
+    "types": [
+      "BetterHooks",
+      "BetterSupabaseProviderProps",
+      "BroadcastOptions",
+      "BrowserLike",
+      "LiveQueryHookOptions"
+    ]
+  },
+  "./query": {
+    "values": [
+      "createQueries",
+      "invalidateOnMutation",
+      "invalidateTables",
+      "queryCache"
+    ],
+    "types": [
+      "BetterQueryMeta",
+      "CreateQueriesOptions",
+      "InfiniteOptionsOf",
+      "MutationOptionsOf",
+      "Queries",
+      "QueryHelpers",
+      "QueryKeyOf",
+      "QueryOptionsOf",
+      "TableQueries"
+    ]
+  },
+  "./server": {
+    "values": [
+      "AUTH_CACHE_HEADERS",
+      "authContext",
+      "contextFromSupabase",
+      "createServer",
+      "defineResource",
+      "fromProblem",
+      "guard",
+      "isProblem",
+      "isResult",
+      "PROBLEM_CONTENT_TYPE",
+      "PROBLEM_TYPE_BASE",
+      "problemResponse",
+      "readSession",
+      "refreshSession",
+      "resolveAuth",
+      "respond",
+      "sessionCookieName",
+      "settle",
+      "toProblem",
+      "withBetterPostgres",
+      "withBetterSupabase",
+      "writeSession"
+    ],
+    "types": [
+      "AuthKind",
+      "AuthResolution",
+      "AuthResolver",
+      "AuthState",
+      "BetterServer",
+      "CookieOptions",
+      "CookieRecord",
+      "CookieWrite",
+      "GuardOptions",
+      "ProblemDetails",
+      "ProblemOptions",
+      "ProblemResponseOptions",
+      "RefreshOutcome",
+      "ResolveAuthOptions",
+      "ResourceHandler",
+      "ResourceInput",
+      "ResourceList",
+      "ResourceRouteOptions",
+      "RespondOptions",
+      "ServerContext",
+      "ServerOptions",
+      "Settled",
+      "StoredSession",
+      "SupabaseAuthContext"
+    ]
+  },
+  "./postgres": {
+    "values": [
+      "compileSql",
+      "createPostgres",
+      "fromPgError",
+      "postgresExecutor",
+      "quoteIdent",
+      "sqlCompiler"
+    ],
+    "types": [
+      "Postgres",
+      "PostgresOptions",
+      "SqlClaims",
+      "SqlClient",
+      "SqlPlan",
+      "SqlQuery"
+    ]
+  },
+  "./ssr": {
+    "values": [
+      "applyCookieWrites",
+      "AUTH_CACHE_HEADERS",
+      "authContext",
+      "parseCookies",
+      "readSession",
+      "refreshSession",
+      "resolveAuth",
+      "serializeCookie",
+      "sessionCookieName",
+      "writeSession"
+    ],
+    "types": [
+      "AuthResolution",
+      "AuthResolver",
+      "AuthState",
+      "CookieOptions",
+      "CookieRecord",
+      "CookieWrite",
+      "RefreshOptions",
+      "RefreshOutcome",
+      "ResolveAuthOptions",
+      "StoredSession"
+    ]
+  },
+  "./next": {
+    "values": [
+      "createNext",
+      "nextCache",
+      "shouldRefresh",
+      "tagFor"
+    ],
+    "types": [
+      "ActionOptions",
+      "ActionResult",
+      "AuthKind",
+      "BetterNext",
+      "GuardOptions",
+      "NextOptions",
+      "ProxyOptions"
+    ]
+  },
+  "./hono": {
+    "values": [
+      "createHono"
+    ],
+    "types": [
+      "BetterEnv",
+      "BetterHono",
+      "GuardOptions",
+      "HonoOptions",
+      "MiddlewareOptions",
+      "ResourceRouteOptions"
+    ]
+  },
+  "./orpc": {
+    "values": [
+      "createOrpc",
+      "orpcCode"
+    ],
+    "types": [
+      "BetterOrpc",
+      "GuardOptions",
+      "MiddlewareOptions",
+      "OrpcContext",
+      "OrpcMiddleware",
+      "OrpcOptions",
+      "OrpcRequestContext"
+    ]
+  },
+  "./edge": {
+    "values": [
+      "createEdge",
+      "SUPABASE_CORS_HEADERS"
+    ],
+    "types": [
+      "BetterEdge",
+      "CorsOptions",
+      "EdgeHandler",
+      "EdgeOptions",
+      "GuardOptions",
+      "HandlerOptions",
+      "ResourceMap",
+      "ResourceRouteOptions",
+      "ResourcesOptions"
+    ]
+  },
+  "./mcp": {
+    "values": [
+      "createMcp",
+      "defineTool",
+      "MCP_PROTOCOL_VERSION"
+    ],
+    "types": [
+      "BetterMcp",
+      "GuardOptions",
+      "McpOptions",
+      "McpTool",
+      "ResourceRouteOptions",
+      "ToolAnnotations",
+      "ToolContext",
+      "ToolDefinition",
+      "ToolInfo",
+      "ToolResources",
+      "ToolResult"
+    ]
+  },
+  "./jobs": {
+    "values": [
+      "createIdempotency",
+      "createInbox",
+      "createJobs"
+    ],
+    "types": [
+      "ClaimOptions",
+      "DrainResult",
+      "EnqueueOptions",
+      "FailOptions",
+      "Idempotency",
+      "IdempotencyOptions",
+      "IdempotencyState",
+      "Inbox",
+      "InboxMessage",
+      "InboxOptions",
+      "Job",
+      "JobHandler",
+      "Jobs",
+      "QueueRpcClient",
+      "QueueSchemas",
+      "SqlClient",
+      "WorkOptions"
+    ]
+  },
+  "./env": {
+    "values": [
+      "ENV_VARIABLES",
+      "envSchema",
+      "EnvValidationError",
+      "loadEnv",
+      "parseEnv",
+      "publicEnv",
+      "toServerEnv"
+    ],
+    "types": [
+      "BetterSupabaseEnv",
+      "EnvIssue",
+      "EnvOptions",
+      "EnvResult",
+      "EnvSource",
+      "PublicEnv"
+    ]
+  },
+  "./list": {
+    "values": [
+      "defineListQuery",
+      "UNSET"
+    ],
+    "types": [
+      "FacetInfo",
+      "ListDefinition",
+      "ListExtra",
+      "ListParseResult",
+      "ListParsers",
+      "ListQuery",
+      "ListQueryConfig",
+      "ListQueryInput",
+      "ListSearchParams",
+      "OpenApiParameter",
+      "ParserSpec"
+    ]
+  },
+  "./storage": {
+    "values": [
+      "defineBucket",
+      "fromStorageError",
+      "parseSize",
+      "TTL"
+    ],
+    "types": [
+      "ActualBucket",
+      "Bucket",
+      "BucketClient",
+      "BucketConfig",
+      "BucketDrift",
+      "BucketPolicy",
+      "ObjectTarget",
+      "ReplaceOptions",
+      "ReplaceResult",
+      "Reservation",
+      "StorageClient",
+      "StoredObject",
+      "SweepOptions",
+      "SweepResult",
+      "TemplateParams",
+      "TemplateValues",
+      "TransformOptions",
+      "TtlPreset",
+      "UploadBody",
+      "UploadOptions",
+      "UrlOptions"
+    ]
+  },
+  "./realtime": {
+    "values": [
+      "defineTopic",
+      "liveQuery",
+      "liveTopic",
+      "rowChange"
+    ],
+    "types": [
+      "EventSchemas",
+      "LiveQueryOptions",
+      "LiveSource",
+      "LiveSubscription",
+      "RealtimeClient",
+      "RowChange",
+      "SubscribeOptions",
+      "Subscription",
+      "SubscriptionStatus",
+      "TemplateParams",
+      "TemplateValues",
+      "Topic",
+      "TopicEvent",
+      "TopicHandlers",
+      "TopicMessage",
+      "TopicOptions",
+      "TopicPayload",
+      "TriggerOptions"
+    ]
+  },
+  "./events": {
+    "values": [
+      "forwardMutations",
+      "fromHttp",
+      "httpSink",
+      "isCloudEvent",
+      "ROW_EVENT_TYPES",
+      "toCloudEvents",
+      "toHttp"
+    ],
+    "types": [
+      "CloudEvent",
+      "CloudEventOptions",
+      "EventSink",
+      "ForwardOptions",
+      "HttpMode",
+      "HttpSinkOptions",
+      "RowEventData"
+    ]
+  },
+  "./webhooks": {
+    "values": [
+      "authHook",
+      "databaseChange",
+      "hookError",
+      "isDatabaseWebhook",
+      "signWebhook",
+      "timingSafeEqual",
+      "verifySharedSecret",
+      "verifyWebhook"
+    ],
+    "types": [
+      "AuthHookError",
+      "AuthHookKind",
+      "AuthHooks",
+      "DatabaseChange",
+      "DatabaseWebhookPayload",
+      "VerifiedWebhook",
+      "VerifyOptions",
+      "WebhookInput"
+    ]
+  },
+  "./openapi": {
+    "values": [
+      "createOpenApi",
+      "PROBLEM_SCHEMA"
+    ],
+    "types": [
+      "OpenApiDocument",
+      "OpenApiOptions",
+      "ResourceOperation",
+      "ResourceOptions"
+    ]
+  },
+  "./otel": {
+    "values": [
+      "INSTRUMENTATION_NAME",
+      "otel",
+      "SEMCONV_VERSION",
+      "traceAuth",
+      "tracedFetch"
+    ],
+    "types": [
+      "OtelOptions"
+    ]
+  },
+  "./plugins/timestamps": {
+    "values": [
+      "timestamps"
+    ],
+    "types": []
+  },
+  "./lint": {
+    "values": [
+      "default",
+      "plugin",
+      "rules"
+    ],
+    "types": [
+      "CallExpression",
+      "RuleContext",
+      "RuleId",
+      "RuleModule"
+    ]
+  },
+  "./plugins/rules": {
+    "values": [
+      "recommended",
+      "rules",
+      "safe",
+      "strict"
+    ],
+    "types": [
+      "RuleLevel",
+      "RuleName",
+      "RuleSet",
+      "RuleSetting",
+      "RulesExtension",
+      "RulesFindArgs",
+      "RulesOptions",
+      "RuleViolation"
+    ]
+  },
+  "./plugins/soft-delete": {
+    "values": [
+      "softDelete"
+    ],
+    "types": [
+      "SoftDeleteDeleteArgs",
+      "SoftDeleteExtension",
+      "SoftDeleteFindArgs",
+      "SoftDeleteMethods"
+    ]
+  },
+  "./plugins/tenant": {
+    "values": [
+      "resolveTenant",
+      "tenant"
+    ],
+    "types": [
+      "TenantExtension",
+      "TenantFindArgs",
+      "TenantOptions"
+    ]
+  },
+  "./plugins/actor": {
+    "values": [
+      "actor"
+    ],
+    "types": [
+      "ActorOptions"
+    ]
+  },
+  "./plugins/validation": {
+    "values": [
+      "validation"
+    ],
+    "types": [
+      "TableValidators",
+      "ValidationOptions"
+    ]
+  },
+  "./testing": {
+    "values": [
+      "asUser",
+      "ConformanceError",
+      "createTestSigner",
+      "defineSeed",
+      "isSeed",
+      "LOCAL_JWT_SECRET",
+      "localAuth",
+      "signTestJwt",
+      "testAuthResolver",
+      "testCacheAdapter",
+      "testEventSink",
+      "testExecutor",
+      "testGenerator",
+      "testPlugin"
+    ],
+    "types": [
+      "ConformanceCheck",
+      "ConformanceReport",
+      "ExactSeed",
+      "LocalStack",
+      "Seed",
+      "SeedFixtures",
+      "TestAuthResolverOptions",
+      "TestEventSinkOptions",
+      "TestExecutorOptions",
+      "TestGeneratorOptions",
+      "TestJwtClaims",
+      "TestPluginOptions",
+      "TestSigner",
+      "TestUser"
+    ]
+  },
+  "./cli": {
+    "values": [
+      "buildModel",
+      "emitModule",
+      "fromCatalog",
+      "GENERATED_HEADER",
+      "HELP",
+      "introspect",
+      "loadConfig",
+      "loadSnapshot",
+      "managementSource",
+      "parseSnapshot",
+      "pgSource",
+      "registerCommand",
+      "renderFiles",
+      "run",
+      "runGen",
+      "serializeSnapshot",
+      "toCatalog",
+      "VERSION"
+    ],
+    "types": [
+      "* from ./introspect/types.ts",
+      "CliIo",
+      "Command",
+      "CommandContext",
+      "CommandResult",
+      "IntrospectionSource",
+      "ManagementSourceOptions",
+      "Queryable",
+      "RunOptions",
+      "RunResult"
+    ]
+  }
+}

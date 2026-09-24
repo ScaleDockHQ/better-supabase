@@ -1,0 +1,106 @@
+---
+title: Caching
+description: How reads know which tables they touched, and how writes invalidate exactly those reads.
+---
+
+better-supabase never patches cached rows. Every read records the tables it
+touched, every write reports the tables it changed, and caches refetch the
+reads that overlap. It's simpler than normalized caching and stays correct
+with RLS, includes, relation filters and cascading deletes, because the
+database does the work again instead of the client guessing.
+
+## Reads: touched tables
+
+A read touches its table, every table it `include`s (nested includes too,
+and `_count` includes), and every table named in a relation filter:
+
+```ts
+db.customers.findMany({
+  where: { notes: { some: { kind: 'call' } } },
+  include: { organization: true, _count: { locations: true } },
+});
+// touches customers, notes, organizations, locations
+```
+
+`sb.tablesOf(spec)` returns that list for a [query spec](#query-specs), and
+`touchedTables(op)` returns it for a built operation.
+
+## Writes: invalidation targets
+
+A mutation invalidates its own table. A delete also invalidates tables whose
+rows change because of it: foreign keys with `on delete cascade`, `set null`
+or `set default`, followed through further cascades. `gen` records those
+actions from the database, so there's nothing to configure.
+
+```ts
+invalidationTargets(sb.meta, 'customers');
+// ['customers', 'contacts', 'locations', 'notes', 'customerTags', ...]
+```
+
+Database functions don't say what they change. Declare it once:
+
+```ts
+export const sb = defineSupabase(schema).defineRpc('archive_customer', {
+  invalidates: ['customers', 'notes'],
+});
+```
+
+`db.$rpc('archive_customer', ...)` then invalidates those tables like any
+mutation.
+
+## Cache adapters
+
+`sb.cache(adapter)` subscribes a [`CacheAdapter`](/docs/extending/interfaces#cacheadapter)
+to every mutation and declared RPC. Each call gets a `CacheTarget` with the
+table, the changed row ids, and `tables`, the full list to invalidate.
+
+| Adapter | What it invalidates |
+| --- | --- |
+| `queryCache(queryClient)` from `better-supabase/query` | TanStack queries whose `meta.bsTables` overlaps `tables` |
+| `nextCache()` from `better-supabase/next` | `tagFor(table)` for each table and `tagFor(table, id)` per row, via `revalidateTag` |
+
+Your own adapter implements one method, and `testCacheAdapter` from
+`better-supabase/testing` checks it against the same cases.
+
+## TanStack Query
+
+Query options from `createQueries` carry `meta: { bsTables }`. Invalidation
+is a predicate over that meta, so a write to `notes` refetches a
+`customers.findMany` that included notes, and nothing else. Keys stay
+`['bs', table, method, ...args]` for devtools and manual invalidation. See
+[TanStack Query](/docs/frontend/query).
+
+## Next.js
+
+In a cached server component, tag the data with what it touched:
+
+```ts
+'use cache';
+const spec = sb.spec.customers.findMany({ include: { notes: true } });
+next.cacheTags(spec); // tags customers and notes
+const customers = await db.$run(spec).orThrow();
+```
+
+Server actions and route handlers that write through `db` revalidate those
+tags automatically (`cacheTags: false` turns it off).
+
+## Query specs
+
+A `QuerySpec` is a read described as plain JSON:
+`{ v: 1, table, method, args }`. `sb.spec.<table>.<method>(...)` builds one
+with full types, `db.$run(spec)` runs it, and `InferResult<typeof spec>` is
+its result type. Because it serializes, the same spec can be built on the
+server, sent to the client, used as a query key and passed to
+[`useLiveQuery`](/docs/frontend/live-queries).
+
+```ts
+const spec = sb.spec.customers.findMany({ select: ['id', 'name'], limit: 20 });
+type Rows = InferResult<typeof spec>; // { id: string; name: string }[]
+await queryClient.prefetchQuery(q.$spec(spec));
+```
+
+## Live updates
+
+[Live queries](/docs/frontend/live-queries) reuse the same model: a trigger
+broadcasts "table changed" (no row data) and the client invalidates the
+queries that touched that table, which then refetch through RLS.

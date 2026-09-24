@@ -1,0 +1,26 @@
+{
+  "name": "@better-supabase/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/example-edge": "workspace:*",
+    "@better-supabase/example-hono-api": "workspace:*",
+    "@better-supabase/example-mcp": "workspace:*",
+    "@better-supabase/example-nextjs": "workspace:*",
+    "@better-supabase/example-orpc-api": "workspace:*",
+    "@better-supabase/example-vite-react": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@orpc/server": "catalog:",
+    "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

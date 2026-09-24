@@ -1,0 +1,127 @@
+---
+title: Hono
+description: Middleware, Result-aware handlers and REST resources matching your OpenAPI document.
+---
+
+```ts title="src/server.ts"
+import { Hono } from 'hono';
+import { createHono, type BetterEnv } from 'better-supabase/hono';
+import { sb, type Functions, type Models } from './supabase';
+
+const bs = createHono(sb);
+
+const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+  .onError(bs.onError)
+  .use('/api/*', bs.middleware())
+  .get('/api/me', (c) => c.json({ kind: c.var.auth.kind }));
+
+export default app;
+```
+
+`createHono(sb)` is [`createServer`](/docs/auth/server) plus the pieces
+below, so `bs.admin()` and `bs.actingAs()` work too.
+
+## Middleware
+
+`bs.middleware()` resolves the caller (Bearer header first, then the session
+cookie), rejects anyone not in `allow` with Problem Details, and sets:
+
+| Variable | Value |
+| --- | --- |
+| `c.var.db` | Repositories bound to the caller; RLS applies |
+| `c.var.auth` | The resolved `AuthState` |
+| `c.var.bs` | The full server context, including `supabase` and `sql` |
+
+```ts
+app.use('/public/*', bs.middleware({ allow: ['user', 'anon'] }));
+app.use('/app/*', bs.middleware({ refresh: true })); // browser routes with cookies
+```
+
+Tokens are verified locally against the cached JWKS, so the middleware makes
+no network call. `refresh: true` refreshes an expiring cookie session and
+adds the new cookies to the response. It is for routes browsers call with
+cookies; bearer tokens never refresh.
+
+## Handlers
+
+`bs.handle` unwraps what the handler returns:
+
+- A `Result` or `AsyncResult` becomes JSON on success, or Problem Details on
+  failure.
+- `undefined` becomes `204`.
+- A `Response` is sent as is.
+- A thrown `DbException` becomes its Problem Details.
+
+```ts
+app.get(
+  '/api/customers/:id',
+  bs.handle((c, { db }) => db.customers.findById(c.req.param('id'))),
+);
+app.post(
+  '/api/customers',
+  bs.handle(async (c, { db }) => db.customers.create(await c.req.json()), { status: 201 }),
+);
+```
+
+`bs.onError` handles errors thrown outside `bs.handle`. It sends a
+`DbException` as its Problem Details, and anything else as a 500 without
+internal details (unless `exposeErrors`).
+
+## Resources
+
+`bs.resource(table)` mounts REST routes that match what
+[`createOpenApi`](/docs/standards/openapi) documents: the same paths, status
+codes and bodies.
+
+```ts
+import { defineListQuery } from 'better-supabase/list';
+
+const customerList = defineListQuery(sb, 'customers', {
+  search: ['name'],
+  facets: ['status'],
+  sorts: { name: { name: 'asc' }, newest: { createdAt: 'desc' } },
+  defaultSort: 'newest',
+});
+
+app.route(
+  '/api/customers',
+  bs.resource('customers', {
+    list: customerList,
+    select: ['id', 'name', 'status'],
+    input: { create: CustomerInput, update: CustomerPatch },
+  }),
+);
+```
+
+| Route | Operation | Success |
+| --- | --- | --- |
+| `GET /` | `list`: the list query, or `page`/`size` | `200` page |
+| `POST /` | `create` | `201` row |
+| `GET /:id` | `get` | `200` row, `404` when RLS hides it |
+| `PATCH /:id` | `update` | `200` row |
+| `DELETE /:id` | `delete` | `204` |
+
+Views get `list` and `get` only. Limit operations with `operations`; other
+methods answer `405` with an `Allow` header. Integer keys are parsed and
+validated. `input` schemas (any Standard Schema) validate bodies before they
+reach the repository.
+
+Pass the same `list` to `createOpenApi({ resources: { customers: { list: customerList } } })`
+and the document describes exactly these routes.
+
+## Testing against the local stack
+
+The local stack signs test tokens with a shared HS256 secret. `localAuth`
+from `better-supabase/testing` accepts those tokens, so your API sees the
+same claims that PostgREST and RLS see:
+
+```ts
+import { localAuth, signTestJwt } from 'better-supabase/testing';
+
+const bs = createHono(sb, { auth: { resolvers: [localAuth(process.env.SUPABASE_JWT_SECRET!)] } });
+const token = await signTestJwt(process.env.SUPABASE_JWT_SECRET!, { sub: userId, org_id: orgId });
+await app.request('/api/customers', { headers: { authorization: `Bearer ${token}` } });
+```
+
+Use it in tests only; production tokens are verified against your project's
+JWKS.

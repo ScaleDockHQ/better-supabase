@@ -1,0 +1,57 @@
+---
+title: Repository
+description: A typed repository per table, compiled to one PostgREST request.
+---
+
+```ts
+const sb = defineSupabase(schema);
+const db = sb.connect(supabase); // any SupabaseClient, or an Executor
+```
+
+`db.<table>` is created lazily for every table and view in the schema. Views
+get the read methods only.
+
+## Reading
+
+| Method | Returns |
+| --- | --- |
+| `findMany(args?)` | `Row[]` |
+| `findFirst(args?)` | `Row \| null` |
+| `findById(key, args?)` | `Row`, or a `not_found` error |
+| `count({ where? })` | `number` (a `HEAD` request) |
+| `exists({ where? })` | `boolean` |
+| `findUnique({ where })` | `Row \| null`, by the primary key or any unique key; see [unique keys](/docs/repository/unique-and-errors) |
+| `paginate(args)` | A page; see [pagination](/docs/repository/pagination) |
+
+Every read takes `select`, `where`, `include`, `orderBy`, `limit`, `offset`
+and `signal`. The result type follows `select` and `include`:
+
+```ts
+const row = await db.customers
+  .findById(id, { select: ['name'], include: { notes: { select: ['body'], limit: 3 } } })
+  .orThrow();
+// { name: string; notes: { body: string }[] }
+```
+
+Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`.
+
+## Escape hatches
+
+- `db.$client` is the client you passed in.
+- `db.$rpc('fn', args, { returns })` calls a typed Postgres function, and can
+  validate the result with a Standard Schema.
+- `db.$with({ signal })` returns a Db bound to a new request context.
+- `db.$table(name)` returns the repository for a table key known only at
+  runtime, and throws a `TypeError` for unknown names.
+- `db.$withoutPlugins()` returns the same connection without any plugins,
+  for migrations and admin scripts.
+- `db.$run(spec)` runs a serializable [query spec](/docs/concepts/caching#query-specs).
+- `explainPostgrest(op)` shows the compiled request for debugging.
+
+## How queries compile
+
+A call compiles to an intermediate representation, which a compiler turns
+into a PostgREST request. Nothing runs through string templates you write:
+values are quoted, and LIKE input used by `contains`, `startsWith` and
+`endsWith` is escaped. A filter that can never match (`{ in: [] }`) skips
+the request.

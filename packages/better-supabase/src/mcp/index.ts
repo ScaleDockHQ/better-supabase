@@ -1,0 +1,625 @@
+import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec';
+
+import {
+  fromSupabaseUrl,
+  resourceMetadataResponse,
+  unauthorizedResponse,
+} from '@supabase/server/oauth-protected-resource';
+
+import type { BetterSupabase } from '../core/define.ts';
+import type { ResourceOperation } from '../openapi/index.ts';
+import type { AnyFunctions, AnyModels, TableKey } from '../schema/types.ts';
+import type {
+  BetterServer,
+  ServerContext,
+  ServerOptions,
+} from '../server/server.ts';
+
+import { type DbError, dbError } from '../core/errors.ts';
+import { toProblem } from '../core/problem.ts';
+import { SPEC_PINS } from '../core/spec-pins.ts';
+import { validate } from '../core/standard.ts';
+import { buildJsonSchema } from '../generators/json-schema.ts';
+import {
+  defineResource,
+  type ResourceHandler,
+  type ResourceRouteOptions,
+} from '../server/resource.ts';
+import {
+  defaultExpose,
+  guard,
+  type GuardOptions,
+  settle,
+} from '../server/respond.ts';
+import { createServer, extendServer } from '../server/server.ts';
+
+export type { GuardOptions } from '../server/respond.ts';
+export type { ResourceRouteOptions } from '../server/resource.ts';
+
+export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
+const WELL_KNOWN = '/.well-known/oauth-protected-resource';
+const SUPPORTED_VERSIONS = new Set([MCP_PROTOCOL_VERSION, '2025-03-26']);
+
+type Json = Readonly<Record<string, unknown>>;
+
+/** MCP tool annotations (hints for clients, not guarantees). */
+export interface ToolAnnotations {
+  readonly title?: string;
+  readonly readOnlyHint?: boolean;
+  readonly destructiveHint?: boolean;
+  readonly idempotentHint?: boolean;
+  readonly openWorldHint?: boolean;
+}
+
+/** A tool as listed by `tools/list`. */
+export interface ToolInfo {
+  readonly name: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly inputSchema: Json;
+  readonly outputSchema?: Json;
+  readonly annotations?: ToolAnnotations;
+}
+
+export interface ToolContext<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+> extends ServerContext<M, F, E> {
+  readonly request: Request;
+  readonly signal: AbortSignal;
+}
+
+export interface McpTool<M extends AnyModels, F extends AnyFunctions, E> {
+  readonly info: ToolInfo;
+  /** Validates arguments; its output is what `run` receives. */
+  readonly input?: StandardSchemaV1;
+  run(args: never, ctx: ToolContext<M, F, E>): unknown;
+}
+
+export interface ToolDefinition<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  I,
+> {
+  readonly name: string;
+  readonly title?: string;
+  readonly description: string;
+  /**
+   * Validator for the arguments. Its JSON Schema comes from Standard JSON
+   * Schema (zod 4, arktype, valibot) unless `inputSchema` is given.
+   */
+  readonly input?: StandardSchemaV1<unknown, I>;
+  readonly inputSchema?: Json;
+  readonly outputSchema?: Json;
+  readonly annotations?: ToolAnnotations;
+  run(args: I, ctx: ToolContext<M, F, E>): unknown;
+}
+
+export type ToolResources<M extends AnyModels> = {
+  readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
+};
+
+export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
+  extends ServerOptions, GuardOptions {
+  readonly name: string;
+  readonly version: string;
+  readonly title?: string;
+  /** Sent to clients on `initialize`, e.g. how the tools fit together. */
+  readonly instructions?: string;
+  /** Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`, `_delete`. */
+  readonly resources?: ToolResources<M>;
+  readonly tools?: readonly McpTool<M, F, E>[];
+  /**
+   * Canonical URL of this MCP server (RFC 9728 `resource`). Defaults to the
+   * request URL without query.
+   */
+  readonly resource?: string | ((request: Request) => string);
+  /** Defaults to Supabase Auth of `env.url` (`<url>/auth/v1`). */
+  readonly authorizationServers?: readonly string[];
+  /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
+  readonly allowedOrigins?: readonly string[];
+  /** Custom jsonb types, as in `createOpenApi`. */
+  readonly json?: Readonly<Record<string, unknown>>;
+  /** Include internal error messages in tool results. Defaults to `NODE_ENV === 'development'`. */
+  readonly exposeErrors?: boolean;
+}
+
+export interface BetterMcp<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+> extends BetterServer<M, F, E> {
+  /** Everything in one handler: the MCP endpoint and `/.well-known/oauth-protected-resource`. */
+  readonly fetch: (request: Request) => Promise<Response>;
+  /** The Streamable HTTP endpoint (POST JSON-RPC). */
+  readonly handler: (request: Request) => Promise<Response>;
+  /** RFC 9728 protected resource metadata. */
+  metadata(request: Request): Response;
+  readonly tools: readonly ToolInfo[];
+  /** Adds a tool typed against this app's repositories. */
+  tool<I = Record<string, unknown>>(
+    definition: ToolDefinition<M, F, E, I>,
+  ): this;
+  /** Calls a tool directly, e.g. from tests or another transport. */
+  call(
+    name: string,
+    args: unknown,
+    ctx: ToolContext<M, F, E>,
+  ): Promise<ToolResult>;
+}
+
+export interface ToolResult {
+  readonly content: readonly { readonly type: 'text'; readonly text: string }[];
+  readonly structuredContent?: Json;
+  readonly isError?: boolean;
+}
+
+/** A custom tool. Pass it in `createMcp({ tools: [...] })`. */
+export function defineTool<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  I = Record<string, unknown>,
+>(definition: ToolDefinition<M, F, E, I>): McpTool<M, F, E> {
+  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(definition.name)) {
+    throw new TypeError(
+      `Invalid tool name "${definition.name}": use 1-64 letters, digits, "_", "-" or "."`,
+    );
+  }
+  const standard = definition.input?.['~standard'] as
+    | Partial<StandardJSONSchemaV1.Props>
+    | undefined;
+  const inputSchema =
+    definition.inputSchema ??
+    standard?.jsonSchema?.input({ target: 'draft-2020-12' }) ??
+    (definition.input ? undefined : { type: 'object', properties: {} });
+  if (!inputSchema) {
+    throw new TypeError(
+      `Tool "${definition.name}": the input schema has no JSON Schema; pass inputSchema`,
+    );
+  }
+  const { $schema: _, ...schema } = inputSchema;
+  return {
+    info: {
+      name: definition.name,
+      ...(definition.title ? { title: definition.title } : {}),
+      description: definition.description,
+      inputSchema: schema,
+      ...(definition.outputSchema
+        ? { outputSchema: definition.outputSchema }
+        : {}),
+      ...(definition.annotations
+        ? { annotations: definition.annotations }
+        : {}),
+    },
+    ...(definition.input ? { input: definition.input } : {}),
+    run: (args: never, ctx) => definition.run(args, ctx),
+  };
+}
+
+const ANNOTATIONS: { readonly [K in ResourceOperation]: ToolAnnotations } = {
+  list: { readOnlyHint: true, openWorldHint: false },
+  get: { readOnlyHint: true, openWorldHint: false },
+  create: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  update: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  delete: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+};
+
+function pageSchema(max: number): Json {
+  return {
+    type: 'object',
+    properties: {
+      page: { type: 'integer', minimum: 1, default: 1 },
+      size: { type: 'integer', minimum: 1, maximum: max, default: 50 },
+    },
+    additionalProperties: false,
+  };
+}
+
+function tableTools(
+  resource: ResourceHandler,
+  defs: Readonly<Record<string, Json>>,
+): { info: ToolInfo; operation: ResourceOperation }[] {
+  const { table, keyParam } = resource;
+  const row = defs[`${table}Row`] ?? { type: 'object' };
+  const key: Json | undefined = keyParam
+    ? ((row['properties'] as Record<string, Json> | undefined)?.[keyParam] ?? {
+        type: 'string',
+      })
+    : undefined;
+  const keyInput = (more: Json = {}): Json => ({
+    type: 'object',
+    properties: { [keyParam!]: key, ...more },
+    required: [keyParam!, ...Object.keys(more)],
+    additionalProperties: false,
+  });
+  const page: Json = {
+    type: 'object',
+    properties: {
+      items: { type: 'array', items: row },
+      page: { type: 'object' },
+    },
+    required: ['items', 'page'],
+  };
+  const tools: { info: ToolInfo; operation: ResourceOperation }[] = [];
+  const add = (
+    operation: ResourceOperation,
+    description: string,
+    inputSchema: Json,
+    outputSchema?: Json,
+  ): void => {
+    tools.push({
+      operation,
+      info: {
+        name: `${table}_${operation}`,
+        title: `${operation[0]!.toUpperCase()}${operation.slice(1)} ${table}`,
+        description,
+        inputSchema,
+        ...(outputSchema ? { outputSchema } : {}),
+        annotations: ANNOTATIONS[operation],
+      },
+    });
+  };
+  for (const operation of resource.operations) {
+    switch (operation) {
+      case 'list': {
+        const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
+          pageSchema(resource.maxPageSize)) as Record<string, unknown>;
+        add(
+          'list',
+          `List ${table} rows visible to the caller, one page at a time.`,
+          listSchema,
+          page,
+        );
+        break;
+      }
+      case 'get':
+        if (keyParam)
+          add('get', `Get one ${table} row by ${keyParam}.`, keyInput(), row);
+        break;
+      case 'create':
+        add(
+          'create',
+          `Create a ${table} row. Returns the created row.`,
+          defs[`${table}Insert`] ?? { type: 'object' },
+          row,
+        );
+        break;
+      case 'update':
+        if (keyParam) {
+          add(
+            'update',
+            `Update the columns in "patch" on one ${table} row.`,
+            keyInput({ patch: defs[`${table}Update`] ?? { type: 'object' } }),
+            row,
+          );
+        }
+        break;
+      case 'delete':
+        if (keyParam)
+          add('delete', `Delete one ${table} row by ${keyParam}.`, keyInput());
+        break;
+      default: {
+        const unknown: never = operation;
+        throw new TypeError(`Unknown operation ${String(unknown)}`);
+      }
+    }
+  }
+  return tools;
+}
+
+interface JsonRpcRequest {
+  readonly jsonrpc: '2.0';
+  readonly id?: string | number | null;
+  readonly method: string;
+  readonly params?: Json;
+}
+
+const PARSE_ERROR = -32700;
+const INVALID_REQUEST = -32600;
+const METHOD_NOT_FOUND = -32601;
+const INVALID_PARAMS = -32602;
+
+function rpcError(
+  id: JsonRpcRequest['id'],
+  code: number,
+  message: string,
+  status = 200,
+): Response {
+  return Response.json(
+    { jsonrpc: '2.0', id: id ?? null, error: { code, message } },
+    { status },
+  );
+}
+
+function isRpcRequest(value: unknown): value is JsonRpcRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Json)['jsonrpc'] === '2.0' &&
+    typeof (value as Json)['method'] === 'string'
+  );
+}
+
+function textResult(value: unknown, isError = false): ToolResult {
+  const structured =
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? (value as Json)
+      : undefined;
+  return {
+    content: [
+      {
+        type: 'text',
+        text: typeof value === 'string' ? value : JSON.stringify(value ?? null),
+      },
+    ],
+    ...(structured ? { structuredContent: structured } : {}),
+    ...(isError ? { isError: true } : {}),
+  };
+}
+
+function canonical(request: Request): string {
+  const url = new URL(request.url);
+  return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+}
+
+/**
+ * An MCP server (Streamable HTTP, stateless) whose tools run as the caller:
+ * the Bearer token from the MCP client is verified and every query goes
+ * through RLS. Answers 401 with RFC 9728 metadata so clients can sign in with
+ * Supabase Auth's OAuth server.
+ */
+export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
+  sb: BetterSupabase<M, D, F, E>,
+  options: McpOptions<M, F, E>,
+): BetterMcp<M, F, E> {
+  const server = createServer(sb, options);
+  const expose = options.exposeErrors ?? defaultExpose();
+  const defs = buildJsonSchema({
+    meta: sb.meta,
+    config: { json: options.json ?? {} },
+  })['$defs'] as Record<string, Json>;
+
+  const registry = new Map<
+    string,
+    {
+      info: ToolInfo;
+      call: (args: unknown, ctx: ToolContext<M, F, E>) => Promise<ToolResult>;
+    }
+  >();
+  const register = (
+    info: ToolInfo,
+    call: (args: unknown, ctx: ToolContext<M, F, E>) => Promise<ToolResult>,
+  ): void => {
+    if (registry.has(info.name)) {
+      throw new TypeError(`Duplicate MCP tool "${info.name}"`);
+    }
+    registry.set(info.name, { info, call });
+  };
+  const failure = (error: DbError): ToolResult =>
+    textResult(toProblem(error, { expose }), true);
+
+  for (const [table, raw] of Object.entries(options.resources ?? {})) {
+    if (!raw) continue;
+    const resource = defineResource(
+      sb,
+      table as TableKey<M>,
+      raw === true ? {} : (raw as ResourceRouteOptions<M, TableKey<M>>),
+    );
+    for (const { info, operation } of tableTools(resource, defs)) {
+      register(info, async (args, ctx) => {
+        const input = (args ?? {}) as Record<string, unknown>;
+        const id = resource.keyParam ? input[resource.keyParam] : undefined;
+        const result = await resource.execute(ctx.db, operation, {
+          id,
+          query: input,
+          data: operation === 'update' ? input['patch'] : input,
+        });
+        if (!result.ok) return failure(result.error);
+        return textResult(
+          operation === 'delete' ? { deleted: true } : result.data,
+        );
+      });
+    }
+  }
+
+  const addTool = (tool: McpTool<M, F, E>): void => {
+    register(tool.info, async (args, ctx) => {
+      let value: unknown = args ?? {};
+      if (tool.input) {
+        const parsed = await validate(tool.input, value, 'arguments');
+        if (!parsed.ok) return failure(parsed.error);
+        value = parsed.data;
+      }
+      const outcome = await settle(() => tool.run(value as never, ctx));
+      return outcome.ok ? textResult(outcome.data) : failure(outcome.error);
+    });
+  };
+  for (const tool of options.tools ?? []) addTool(tool);
+
+  const listTools = (): ToolInfo[] =>
+    [...registry.values()].map((entry) => entry.info);
+  const authorizationServers = (): readonly string[] =>
+    options.authorizationServers ?? [fromSupabaseUrl(server.env.url)];
+  const resourceOf = (request: Request): string => {
+    if (typeof options.resource === 'function')
+      return options.resource(request);
+    if (options.resource) return options.resource;
+    const url = new URL(canonical(request));
+    return url.pathname.startsWith(WELL_KNOWN)
+      ? `${url.origin}${url.pathname.slice(WELL_KNOWN.length)}`
+      : url.href.replace(/\/$/, '');
+  };
+  const metadataUrl = (request: Request): string => {
+    const resource = new URL(resourceOf(request));
+    return `${resource.origin}${WELL_KNOWN}${resource.pathname.replace(/\/$/, '')}`;
+  };
+
+  const call: BetterMcp<M, F, E>['call'] = async (name, args, ctx) => {
+    const entry = registry.get(name);
+    if (!entry) return failure(dbError('not_found', `Unknown tool "${name}"`));
+    try {
+      return await entry.call(args, ctx);
+    } catch (cause) {
+      return failure(
+        dbError(
+          'unexpected',
+          expose && cause instanceof Error ? cause.message : 'The tool failed',
+        ),
+      );
+    }
+  };
+
+  const handler = async (request: Request): Promise<Response> => {
+    const origin = request.headers.get('origin');
+    if (
+      origin &&
+      options.allowedOrigins &&
+      !options.allowedOrigins.includes(origin)
+    ) {
+      return rpcError(null, INVALID_REQUEST, 'Origin not allowed', 403);
+    }
+    if (request.method !== 'POST') {
+      return new Response(null, { status: 405, headers: { allow: 'POST' } });
+    }
+    const version = request.headers.get('mcp-protocol-version');
+    if (version && !SUPPORTED_VERSIONS.has(version)) {
+      return rpcError(
+        null,
+        INVALID_REQUEST,
+        `Unsupported MCP-Protocol-Version ${version}`,
+        400,
+      );
+    }
+
+    const ctx = await server.context(request);
+    const denied = guard(ctx.auth, options.allow);
+    if (denied) {
+      if (denied.kind === 'unauthorized') {
+        return unauthorizedResponse(request, {
+          resourceMetadataUrl: metadataUrl(request),
+        });
+      }
+      return rpcError(null, INVALID_REQUEST, denied.message, 403);
+    }
+
+    let message: unknown;
+    try {
+      message = await request.json();
+    } catch {
+      return rpcError(null, PARSE_ERROR, 'Parse error', 400);
+    }
+    if (!isRpcRequest(message)) {
+      return rpcError(
+        null,
+        INVALID_REQUEST,
+        'Expected one JSON-RPC 2.0 message',
+        400,
+      );
+    }
+    if (message.id === undefined) return new Response(null, { status: 202 });
+
+    const reply = (result: unknown): Response =>
+      Response.json({ jsonrpc: '2.0', id: message.id, result });
+
+    switch (message.method) {
+      case 'initialize': {
+        const requested = message.params?.['protocolVersion'];
+        return reply({
+          protocolVersion:
+            typeof requested === 'string' && SUPPORTED_VERSIONS.has(requested)
+              ? requested
+              : MCP_PROTOCOL_VERSION,
+          capabilities: { tools: { listChanged: false } },
+          serverInfo: {
+            name: options.name,
+            version: options.version,
+            ...(options.title ? { title: options.title } : {}),
+          },
+          ...(options.instructions
+            ? { instructions: options.instructions }
+            : {}),
+        });
+      }
+      case 'ping':
+        return reply({});
+      case 'tools/list':
+        return reply({ tools: listTools() });
+      case 'tools/call': {
+        const name = message.params?.['name'];
+        if (typeof name !== 'string' || !registry.has(name)) {
+          return rpcError(
+            message.id,
+            INVALID_PARAMS,
+            `Unknown tool ${JSON.stringify(name)}`,
+          );
+        }
+        return reply(
+          await call(name, message.params?.['arguments'], {
+            ...ctx,
+            request,
+            signal: request.signal,
+          }),
+        );
+      }
+      default:
+        return rpcError(
+          message.id,
+          METHOD_NOT_FOUND,
+          `Method not found: ${message.method}`,
+        );
+    }
+  };
+
+  const metadata = (request: Request): Response =>
+    resourceMetadataResponse(request, {
+      resource: resourceOf(request),
+      authorizationServers: [...authorizationServers()],
+    });
+
+  const mcp: BetterMcp<M, F, E> = extendServer<BetterMcp<M, F, E>>(server, {
+    get tools() {
+      return listTools();
+    },
+    tool(definition) {
+      addTool(defineTool(definition));
+      return mcp;
+    },
+    call,
+    handler,
+    metadata,
+    fetch(request) {
+      const { pathname } = new URL(request.url);
+      if (pathname.startsWith(WELL_KNOWN)) {
+        return Promise.resolve(
+          request.method === 'OPTIONS'
+            ? new Response(null, {
+                status: 204,
+                headers: {
+                  'access-control-allow-origin': '*',
+                  'access-control-allow-methods': 'GET',
+                },
+              })
+            : metadata(request),
+        );
+      }
+      return handler(request);
+    },
+  });
+  return mcp;
+}

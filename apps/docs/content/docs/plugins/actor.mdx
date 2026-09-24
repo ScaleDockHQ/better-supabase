@@ -1,0 +1,25 @@
+---
+title: actor
+description: Record who created, changed and deleted each row.
+---
+
+```ts
+import { actor } from 'better-supabase/plugins/actor';
+
+const db = defineSupabase(schema)
+  .use(actor())
+  .connect(supabase, { actor: { id: user.id, kind: 'user' } });
+```
+
+- Inserts get `createdBy` and `updatedBy`.
+- Updates get `updatedBy`. With `softDelete()`, the delete is an update, so
+  `updatedBy` records who deleted the row.
+- Upserts that may update only get `updatedBy`.
+- Anonymous requests set nothing.
+
+Server adapters fill `actor` from the verified JWT; jobs use
+`sb.actingAs(userId)` or a service actor. Pass `resolve(context)` to read the
+id from somewhere else.
+
+For a tamper-proof trail, add the `actor` and `audit` SQL kit triggers, which
+read `auth.uid()` inside the database.

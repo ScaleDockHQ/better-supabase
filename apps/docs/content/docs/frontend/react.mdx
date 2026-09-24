@@ -1,0 +1,53 @@
+---
+title: React
+description: Provider and typed hooks.
+---
+
+```tsx title="src/app/providers.tsx"
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BetterSupabaseProvider } from 'better-supabase/react';
+import { browser } from '@/lib/supabase.browser';
+
+const queryClient = new QueryClient();
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BetterSupabaseProvider browser={browser} queryClient={queryClient}>
+        {children}
+      </BetterSupabaseProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+Create hooks typed for your schema once:
+
+```ts title="src/lib/hooks.ts"
+import { createHooks } from 'better-supabase/react';
+import type { browser } from './supabase.browser';
+
+export const { useDb, useQueries, useAuth, useSupabase } = createHooks<typeof browser>();
+```
+
+```tsx
+function CustomerList() {
+  const q = useQueries();
+  const { data } = useQuery(q.customers.findMany({ select: ['id', 'name'] }));
+  const auth = useAuth();
+  if (auth.status === 'signed-out') return <SignIn />;
+  return <ul>{data?.map((c) => <li key={c.id}>{c.name}</li>)}</ul>;
+}
+```
+
+- `useAuth()` renders `loading` on the server and during hydration, then the
+  real state. It uses `useSyncExternalStore`, so it never tears.
+- `useDb()` and `useQueries()` re-render when the user changes.
+- With `queryClient`, the provider removes all better-supabase queries when
+  the user signs out or switches accounts, so one user's data never shows up
+  for the next.
+- `useBroadcast(topic, values, handlers, { invalidate })` subscribes to a
+  [Realtime topic](/docs/kits/realtime) while mounted and refetches the
+  listed tables after each message.

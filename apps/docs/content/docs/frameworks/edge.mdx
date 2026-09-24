@@ -1,0 +1,61 @@
+---
+title: Edge Functions
+description: Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers.
+---
+
+```ts title="supabase/functions/api/index.ts"
+import { createEdge } from 'better-supabase/edge';
+import { sb } from '../_shared/supabase.ts';
+
+const bs = createEdge(sb, { cors: true });
+
+Deno.serve(
+  bs.handler(async (request, { db }) => {
+    const { name } = await request.json();
+    return db.customers.create({ name, organizationId: '...' });
+  }),
+);
+```
+
+`bs.handler(fn)` returns a plain `(request) => Promise<Response>`. The handler
+runs as the caller, so RLS applies, and its return value is converted the
+same way as in the other adapters:
+
+- A `Result` becomes JSON on success, or Problem Details on failure.
+- `undefined` becomes `204`.
+- A `Response` is sent as is.
+- A thrown `DbException` becomes its Problem Details, and any other error a
+  500.
+
+Anyone not in `allow` (default `['user']`) gets a 401 or 403 before your code
+runs.
+
+## REST resources
+
+`bs.resources` serves the same REST routes as [Hono resources](/docs/frameworks/hono#resources)
+without a router:
+
+```ts
+Deno.serve(
+  bs.resources(
+    { customers: { list: customerList }, tags: { operations: ['list', 'get'] } },
+    { basePath: '/api' },
+  ),
+);
+```
+
+On Supabase, the function name is the first path segment, so `basePath` is
+`/<function-name>`.
+
+## CORS
+
+`cors: true` answers preflights and adds the headers supabase-js sends
+(`authorization`, `x-client-info`, `apikey`, `content-type`) for any origin.
+Restrict it with an allow-list:
+
+```ts
+createEdge(sb, { cors: { origin: ['https://app.example.com'], maxAge: 600 } });
+```
+
+A request from an origin that isn't listed gets no CORS headers, and error
+responses get the same headers as successful ones.

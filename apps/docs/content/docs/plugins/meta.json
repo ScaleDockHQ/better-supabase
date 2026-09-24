@@ -1,0 +1,13 @@
+{
+  "title": "Plugins",
+  "pages": [
+    "index",
+    "timestamps",
+    "soft-delete",
+    "tenant",
+    "actor",
+    "validation",
+    "rules",
+    "lint"
+  ]
+}

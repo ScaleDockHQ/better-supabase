@@ -1,0 +1,98 @@
+---
+title: Extension interfaces
+description: The interfaces better-supabase is built on, their first-party implementations and how to plug in your own.
+---
+
+Every integration point is a small interface. The built-in behavior is one
+implementation of it, and yours can replace or sit next to it. Each interface
+has a [conformance kit](/docs/extending/conformance).
+
+| Interface | Built in | Plug in with |
+| --- | --- | --- |
+| [`Executor`](#executor) | `postgrestExecutor`, `postgresExecutor` | `sb.connect(executor)` |
+| [`Compiler`](#compiler) | `postgrestCompiler`, `sqlCompiler` | your executor |
+| [`CacheAdapter`](#cacheadapter) | `nextCache()`, `queryCache(client)`, `memoryCache()` | `sb.cache(adapter)` |
+| [`EventSink`](#eventsink) | `httpSink()` | `forwardMutations(sb, sink, { source })` |
+| [`AuthResolver`](#authresolver) | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(sb, { auth: { resolvers } })` |
+| [`Generator`](#generator) | `zod()`, `valibot()`, `jsonSchema()` | `generators` in the config |
+| [`Logger`](#logger) | `consoleLogger`, `silentLogger` | `defineSupabase(schema, { logger })` |
+| `EnvSource` | `process.env`, `Deno.env.toObject()` | `parseEnv(source)` |
+| [`Plugin`](/docs/extending/plugins) | timestamps, soft delete, tenant, actor, validation | `sb.use(plugin)` |
+
+## Executor
+
+Runs IR operations and returns a `Result`. It never throws for database
+errors, returns `aborted` when the signal is aborted, and keys rows by the
+selection's aliases (the configured casing).
+
+```ts
+import type { Executor } from 'better-supabase';
+
+export function kyselyExecutor(db: Kysely<Database>): Executor {
+  return {
+    name: 'kysely',
+    async execute(op, { signal, errorMappers }) {
+      // compile op, run it, map errors with mapDbError(raw, errorMappers)
+    },
+  };
+}
+
+const db = sb.connect(kyselyExecutor(kysely), { claims });
+```
+
+## Compiler
+
+`Compiler<TTarget>` turns an operation into what a backend runs:
+`postgrestCompiler.compile(op)` returns the PostgREST plan and
+`sqlCompiler.compile(op)` (from `better-supabase/postgres`) returns
+parameterized SQL. Build a new executor on top of either, or write your own
+compiler for another query builder.
+
+## CacheAdapter
+
+Invalidates cached reads after mutations. `sb.cache(adapter)` calls it with the
+table key, the primary keys of the changed rows and the tenant, and returns a
+function that detaches it.
+
+```ts
+import type { CacheAdapter } from 'better-supabase';
+
+const redis: CacheAdapter = {
+  name: 'redis',
+  invalidate: ({ table, ids, tenant }) =>
+    redisClient.del([`${tenant}:${table}`, ...ids.map((id) => `${tenant}:${table}:${id}`)]),
+};
+
+sb.cache(redis);
+```
+
+`createNext` attaches `nextCache()` for you, and `invalidateOnMutation(sb,
+client)` attaches `queryCache(client)`. Adapter errors are logged, never
+returned from the mutation.
+
+## EventSink
+
+Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for
+`toCloudEvents` and `forwardMutations`.
+
+## AuthResolver
+
+Resolves credentials the built-in Bearer and cookie resolution doesn't know:
+API keys, third-party tokens, signed links. Return `undefined` when the request
+has none of your credentials, and `{ kind: 'invalid', error }` when it has bad
+ones, so the request fails with 401 instead of running as anonymous.
+
+## Generator
+
+Adds files at codegen time. Return paths relative to the project root; output
+must be deterministic so `gen --check` works.
+
+## Logger
+
+Where better-supabase reports errors it swallows on purpose: event handlers,
+`afterMutation` hooks, sinks and cache adapters that throw. Pass a structured
+logger (pino, consola) or `silentLogger` in tests.
+
+```ts
+export const sb = defineSupabase(schema, { logger: pino() });
+```

@@ -1,0 +1,30 @@
+---
+title: Session cookies
+description: Read and write the @supabase/ssr cookie format from any framework.
+---
+
+The browser session lives in `sb-<project>-auth-token`, exactly as
+`@supabase/ssr` writes it: `base64-` prefixed JSON, split into `.0`, `.1`, …
+chunks when it is larger than 3180 characters. better-supabase uses the
+chunker and encoders from `@supabase/ssr` itself, so both read each other's
+cookies.
+
+The primitives in `better-supabase/ssr` are framework-agnostic; adapters for
+SvelteKit, Nuxt, TanStack Start and React Router build on them.
+
+```ts
+import { parseCookies, readSession, sessionCookieName, writeSession } from 'better-supabase/ssr';
+
+const name = sessionCookieName(env.url);
+const cookies = parseCookies(request.headers.get('cookie'));
+const session = readSession(cookies, name); // null when absent or corrupted
+
+const writes = writeSession(cookies, name, nextSession); // or null to sign out
+```
+
+`writeSession` returns every cookie to set, including expiries for chunks
+the new value no longer needs. Chunks left over from a partial write (a mix
+of two generations) read as no session rather than as a broken one.
+
+Whenever you send session cookies, send `AUTH_CACHE_HEADERS` too.
+`resolution.apply(response)` does both.

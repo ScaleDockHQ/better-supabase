@@ -1,0 +1,33 @@
+{
+  "name": "@better-supabase/example-nextjs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Next.js App Router app: proxy session refresh, Server Components, route handlers and actions.",
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev -p 3100",
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "start": "next start -p 3100",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/server": "catalog:",
+    "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "better-supabase": "workspace:*",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:ts6"
+  }
+}

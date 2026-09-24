@@ -1,0 +1,36 @@
+---
+title: Pagination
+description: Page numbers with totals, or keyset cursors for infinite lists.
+---
+
+## Page numbers
+
+```ts
+const { items, page } = await db.customers
+  .paginate({ page: 2, size: 25, count: 'exact', orderBy: { name: 'asc' } })
+  .orThrow();
+// page: { number: 2, size: 25, total: 81, pages: 4, hasMore: true }
+```
+
+Without `count`, `total` and `pages` are `null`. `hasMore` comes from fetching
+one extra row, so it never needs a count.
+
+## Cursors
+
+```ts
+const first = await db.customers
+  .paginate({ after: null, size: 25, orderBy: { name: 'asc' } })
+  .orThrow();
+
+const next = await db.customers
+  .paginate({ after: first.nextCursor, size: 25, orderBy: { name: 'asc' } })
+  .orThrow();
+```
+
+Cursors use keyset pagination: the next page is "rows after the last one",
+not an offset, so inserts do not shift pages and deep pages stay fast. The
+primary key is added as a tiebreaker, so rows with equal sort values are
+never skipped or repeated.
+
+A cursor is an opaque base64url string. Pass it back with the same `orderBy`
+and `where`.

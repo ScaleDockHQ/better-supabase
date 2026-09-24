@@ -1,0 +1,25 @@
+{
+  "title": "better-supabase",
+  "pages": [
+    "index",
+    "---Getting started---",
+    "getting-started",
+    "---Guides---",
+    "concepts",
+    "repository",
+    "auth",
+    "frameworks",
+    "frontend",
+    "kits",
+    "plugins",
+    "testing",
+    "examples",
+    "guides",
+    "migration",
+    "---Reference---",
+    "cli",
+    "standards",
+    "extending",
+    "for-ai-agents"
+  ]
+}

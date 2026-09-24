@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/config-v1.json",
+  "title": "better-supabase config",
+  "description": "Configuration for better-supabase.config.ts (or .json).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "source": {
+      "description": "Where codegen reads the database from. Without any of these, $DATABASE_URL and then the local stack are used.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dbUrl": {
+          "type": "string",
+          "description": "Postgres connection string."
+        },
+        "projectRef": {
+          "type": "string",
+          "description": "Hosted project ref, read through the Management API read-only SQL endpoint."
+        },
+        "accessToken": {
+          "type": "string",
+          "description": "Management API token for projectRef. Defaults to $SUPABASE_ACCESS_TOKEN."
+        },
+        "snapshot": {
+          "type": "string",
+          "description": "Read a saved introspection snapshot instead of connecting."
+        }
+      }
+    },
+    "schemas": {
+      "description": "Postgres schemas to generate.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["public"]
+    },
+    "casing": { "$ref": "#/$defs/casing", "default": "snake" },
+    "tables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "casing": { "$ref": "#/$defs/casing" },
+          "exclude": { "type": "boolean" },
+          "relations": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "string",
+      "description": "Main generated module.",
+      "default": "src/lib/supabase/generated.ts"
+    },
+    "postgrestVersion": {
+      "type": "string",
+      "description": "PostgREST major version written to database.types.ts.",
+      "default": "13"
+    },
+    "codecs": {
+      "description": "Runtime types for timestamps, int8 and numeric columns.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timestamptz": { "enum": ["string", "date"], "default": "string" },
+        "int8": { "enum": ["number", "string", "bigint"], "default": "number" },
+        "numeric": { "enum": ["number", "string"], "default": "number" }
+      }
+    },
+    "json": {
+      "description": "Types for jsonb columns, keyed by `table.column`.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["import"],
+            "additionalProperties": false,
+            "properties": {
+              "import": {
+                "type": "string",
+                "description": "`./path.ts#TypeName`"
+              },
+              "schema": {
+                "type": "object",
+                "description": "JSON Schema enforced by `sql add jsonb-schemas` (pg_jsonschema)."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Inline TypeScript type."
+              },
+              "schema": {
+                "type": "object",
+                "description": "JSON Schema enforced by `sql add jsonb-schemas` (pg_jsonschema)."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "generators": {
+      "description": "Generator plugins. Only available in better-supabase.config.ts.",
+      "type": "array"
+    },
+    "plugins": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timestamps": {
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "createdAt": { "type": "string" },
+                "updatedAt": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "softDelete": {
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "column": { "type": "string" } }
+            }
+          ]
+        },
+        "tenant": {
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "column": { "type": "string" },
+                "claim": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "actor": {
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "createdBy": { "type": "string" },
+                "updatedBy": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "buckets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["path"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "public": { "type": "boolean" },
+          "path": {
+            "type": "string",
+            "description": "Path template, e.g. `{orgId}/{customerId}/logo.webp`."
+          },
+          "policy": { "enum": ["tenant", "owner", "public", "none"] },
+          "fileSizeLimit": { "type": "string" },
+          "allowedMimeTypes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "topics": {
+      "description": "Realtime topic templates.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "sensitive": {
+      "description": "Columns guarded by the noSensitiveSelect rule (`table.column` or `schema.table.column`).",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "realtime": {
+      "description": "Live query change broadcasts.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tables": {
+          "description": "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase sql add realtime-tables`.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "sql": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string", "default": "supabase/schemas" },
+        "prefix": { "type": "string", "default": "900_better_supabase" },
+        "testsDir": { "type": "string", "default": "supabase/tests" },
+        "kit": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "seed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry": { "type": "string", "default": "supabase/seed.ts" },
+        "output": {
+          "type": "string",
+          "default": "supabase/seeds/000_better_supabase.sql"
+        }
+      }
+    },
+    "openapi": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry": { "type": "string", "default": "src/lib/openapi.ts" },
+        "output": { "type": "string", "default": "openapi.json" }
+      }
+    },
+    "doctor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ignore": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^BS\\d{3}$" }
+        },
+        "strict": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "casing": { "enum": ["snake", "camel"] }
+  }
+}

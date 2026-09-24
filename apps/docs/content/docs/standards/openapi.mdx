@@ -1,0 +1,51 @@
+---
+title: OpenAPI
+description: An OpenAPI 3.1 document for your tables, built from the generated schema.
+---
+
+`createOpenApi` describes REST resources over your tables. Schemas come from
+the same metadata as the repository, so the document can't drift from the
+database types.
+
+```ts title="lib/openapi.ts"
+import { createOpenApi } from 'better-supabase/openapi';
+import { customerList } from './lists';
+import { sb } from './sb';
+
+export const openapi = createOpenApi(sb, {
+  info: { title: 'CRM API', version: '1.0.0' },
+  servers: [{ url: 'https://crm.example.com' }],
+  basePath: '/api',
+  resources: {
+    customers: { list: customerList },
+    notes: { operations: ['list', 'get'] },
+  },
+  security: ['bearer', 'oauth2'],
+  supabaseUrl: process.env.SUPABASE_URL,
+});
+```
+
+Serve it from a route (`Response.json(openapi)`), or write it to disk and
+check it in CI with `better-supabase openapi emit --check`.
+
+## What's in it
+
+- **Paths:** `GET /customers` (list), `POST /customers`,
+  `GET|PATCH|DELETE /customers/{id}`. Views get `list` and `get` only. Item
+  paths need a single-column primary key.
+- **Schemas:** `CustomersRow`, `CustomersInsert`, `CustomersUpdate` and
+  `CustomersPage`, as JSON Schema 2020-12 (the OpenAPI 3.1 dialect). Enums and
+  CHECK unions become `enum`; nullable columns become `["string", "null"]`.
+- **List parameters:** pass a [list query](/docs/kits/list) and its search,
+  sort, page, size and facet parameters are used as they are. Otherwise
+  `page`/`size`.
+- **Errors:** `400`–`422` responses use `application/problem+json` with a
+  shared `Problem` schema that matches what [route handlers](/docs/auth/problems)
+  send.
+- **Security:** `supabaseJwt` (HTTP bearer with a Supabase access token) and
+  `supabaseOAuth` (authorization code flow against the Supabase OAuth server).
+- **Extensions:** each operation has `x-better-supabase-table` and
+  `x-better-supabase-operation`. The [Hono and oRPC adapters](/docs/frameworks)
+  use them to implement the same routes.
+
+The `openapi` version comes from `SPEC_PINS.openapi`.

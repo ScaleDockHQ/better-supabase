@@ -1,0 +1,104 @@
+---
+title: Quickstart
+description: Install better-supabase, generate your schema and run your first typed query.
+---
+
+<Steps>
+
+<Step>
+
+### Install
+
+```bash
+pnpm add better-supabase @supabase/supabase-js
+pnpm add -D pg
+```
+
+`pg` is only used by the CLI to read your database schema. TypeScript 5.9, 6
+and 7 are supported, with `nodenext` or `bundler` module resolution.
+
+</Step>
+
+<Step>
+
+### Configure
+
+Run `pnpm better-supabase init` to write the config, `src/lib/supabase.ts`,
+and glue for the frameworks it finds (see [init](/docs/cli/init)). Or create
+`better-supabase.config.ts` in your project root yourself:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig, zod } from 'better-supabase/config';
+
+export default defineConfig({
+  casing: 'camel',
+  output: 'src/lib/supabase/generated.ts',
+  plugins: { timestamps: true, softDelete: true },
+  generators: [zod()],
+});
+```
+
+Every option has a default, so an empty config works too. A JSON config
+(`better-supabase.config.json`) is also supported and validated by
+[`schemas/config-v1.json`](/docs/cli/config).
+
+</Step>
+
+<Step>
+
+### Generate
+
+Start your local stack and generate:
+
+```bash
+supabase start
+pnpm better-supabase env   # URL and keys into .env.local
+pnpm better-supabase gen
+```
+
+This writes `database.types.ts` (from `supabase gen types`) and
+`generated.ts` with models, relation metadata and the `schema` object. Run
+`better-supabase gen --check` in CI to fail on drift.
+
+</Step>
+
+<Step>
+
+### Query
+
+```ts
+import { createClient } from '@supabase/supabase-js';
+import { defineSupabase } from 'better-supabase';
+
+import { schema } from './lib/supabase/generated.ts';
+
+export const sb = defineSupabase(schema);
+
+const db = sb.connect(createClient(url, publishableKey));
+
+const customers = await db.customers
+  .findMany({
+    select: ['id', 'name'],
+    where: { status: 'active', notes: { some: { kind: 'call' } } },
+    include: { organization: { select: ['name'] } },
+    orderBy: { name: 'asc' },
+    limit: 20,
+  })
+  .orThrow();
+// { id: string; name: string; organization: { name: string } }[]
+```
+
+`defineSupabase` holds no secrets and no connection. Call `connect()` per
+request with the client for the current user, so RLS always applies.
+
+</Step>
+
+</Steps>
+
+## Next steps
+
+<Cards>
+  <Card title="How codegen works" href="/docs/concepts" />
+  <Card title="Filtering" href="/docs/repository/filtering" />
+  <Card title="Results and errors" href="/docs/concepts/results" />
+</Cards>

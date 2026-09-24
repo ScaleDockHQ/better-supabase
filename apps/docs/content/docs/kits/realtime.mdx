@@ -1,0 +1,93 @@
+---
+title: Realtime
+description: Typed broadcast topics with generated authorization, row-change triggers and disposable subscriptions.
+---
+
+`defineTopic` describes a private Realtime broadcast topic once. The same
+definition names the channel, authorizes it in SQL, validates payloads, and
+subscribes.
+
+```ts title="lib/topics.ts"
+import { defineTopic } from 'better-supabase/realtime';
+import * as v from 'valibot';
+
+export const customersTopic = defineTopic('org:{orgId}:customers');
+
+export const notifications = defineTopic('org:{orgId}:notifications:{userId}', {
+  events: { created: v.object({ id: v.string(), title: v.string() }) },
+  send: true,
+});
+```
+
+Or declare templates under `topics` in `better-supabase.config.ts` and pass
+the generated constant: `defineTopic(topics.notifications)`.
+
+## Authorization
+
+Topics are private by default: Realtime checks `realtime.messages` policies
+when a client joins. `topic.sql()` generates them:
+
+- The topic must match the template (`^org:[^:]+:notifications:[^:]+$`).
+- `{orgId}` must equal the JWT `org_id` (or `app_metadata.org_id`).
+- `{userId}` must equal `auth.uid()`.
+
+Both checks switch on automatically when the template has those placeholders.
+Configure them with `tenant: { param, claim | sql }` and `owner: { param }`,
+or turn them off with `false`. `send: true` adds an insert policy so clients
+can broadcast too, and `presence: true` authorizes presence.
+
+## Row changes
+
+`triggerSql` writes a trigger that sends row changes with
+`realtime.broadcast_changes`. Placeholders map to columns by their app names:
+
+```ts
+customersTopic.triggerSql(sb, 'customers', { values: { orgId: 'organizationId' } });
+```
+
+On the client, `rowChange` turns a message into an app-cased change, or `null`
+for other tables:
+
+```ts
+const change = rowChange(sb, 'customers', message);
+// { operation: 'UPDATE', table: 'customers', record: Customer | null, oldRecord: Partial<Customer> | null }
+```
+
+## Subscribe
+
+```ts
+using sub = notifications.subscribe(supabase, { orgId, userId }, {
+  created: (n) => toast(n.title), // typed from the schema
+  '*': (payload, message) => console.log(message.event, payload),
+});
+await sub.ready; // rejects when the join is refused
+```
+
+`using` removes the channel at the end of the scope. `await using` waits for
+the removal, and you can also call `sub.unsubscribe()`. For private topics,
+`subscribe` calls `realtime.setAuth()` first. Payloads that fail their schema
+skip the handler and go to `onInvalid`.
+
+## Send
+
+```ts
+await notifications.send(supabase, { orgId, userId }, 'created', { id, title }).orThrow();
+```
+
+The payload is validated first (a `validation` error on failure) and sent over
+HTTP without joining the channel. Policy denials come back as `unauthorized`
+or `forbidden`.
+
+## React
+
+```tsx
+import { useBroadcast } from 'better-supabase/react';
+
+const status = useBroadcast(customersTopic, orgId ? { orgId } : null, {}, { invalidate: ['customers'] });
+```
+
+The hook subscribes while mounted and resubscribes when the topic or the
+signed-in user changes. `invalidate` refetches the table's
+[TanStack queries](/docs/frontend/query) after each message. It needs
+`queryClient` on `BetterSupabaseProvider`. The hook returns `joining`,
+`subscribed`, `closed` or `error`.

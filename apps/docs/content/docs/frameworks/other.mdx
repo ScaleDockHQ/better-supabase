@@ -1,0 +1,28 @@
+---
+title: h3, Elysia and NestJS
+description: Use @supabase/server's adapters with withBetterSupabase.
+---
+
+`@supabase/server` ships adapters for h3, Elysia and NestJS. They run
+`@supabase/middleware` pipelines, so [`withBetterSupabase`](/docs/auth/middleware)
+adds `ctx.db` there too, without a separate integration:
+
+```ts
+import { withSupabase } from '@supabase/server';
+import { withBetterSupabase } from 'better-supabase/server';
+
+const middleware = [withSupabase({ auth: 'user' }), withBetterSupabase(sb)()];
+```
+
+Pass `middleware` to the adapter you use (`@supabase/server/adapters/h3`,
+`/elysia` or `/nestjs`); see the `@supabase/server` docs for each adapter's
+signature.
+
+The pieces are also available without an adapter:
+
+- `createServer(sb).context(request)` gives the caller's `db`, `auth` and
+  `supabase` in any framework.
+- `problemResponse(error)` sends a `DbError` as Problem Details.
+- `defineResource(sb, table)` from `better-supabase/server` serves the REST
+  resource routes from any router: call
+  `resource.handle(request, ctx.db, id)`.

@@ -1,0 +1,44 @@
+---
+title: Introduction
+description: A strongly typed layer over Supabase for apps, APIs, MCP servers and jobs.
+---
+
+`better-supabase` is one package that removes the glue code every Supabase app
+rewrites: auth wiring, typed repositories, pagination, includes, nested
+filters, soft delete, timestamps, upserts, cache invalidation, list pages,
+storage paths and realtime topics.
+
+It is built directly on the new Supabase packages:
+
+- [`@supabase/server`](https://github.com/supabase/server) for per-request
+  clients, auth modes and the admin client,
+- [`@supabase/middleware`](https://github.com/supabase/middleware) for
+  composable context (`ctx.supabase`, `ctx.postgres`),
+- [`@supabase/ssr`](https://github.com/supabase/ssr) for cookie sessions.
+
+## What you get
+
+- **A CLI that generates stronger types.** `better-supabase gen` wraps
+  `supabase gen types` and adds what it leaves out: relationship cardinality,
+  unique keys, CHECK-constraint unions, typed jsonb, column maps for
+  `camelCase` apps and per-table flags.
+- **A typed repository.** `db.customers.findMany({ where, include, orderBy })`
+  compiles to a single PostgREST request, or to SQL on the direct-Postgres
+  path. Every call returns a `Result`; `.orThrow()` is opt-in.
+- **Auth glue that avoids network calls.** Valid access tokens never touch the
+  Auth server. Refresh happens once, in the proxy, and is single-flighted.
+- **Framework adapters.** Next.js, Hono, oRPC, Supabase Edge Functions and a
+  minimal MCP server.
+- **Frontend helpers.** TanStack Query options derived from the query, with
+  table-based invalidation and optimistic updates.
+- **Standards on request.** Standard Schema, JSON Schema, OpenAPI, RFC 9457
+  problem details, OpenTelemetry, CloudEvents, Standard Webhooks and more.
+
+## Next steps
+
+<Cards>
+  <Card title="Quickstart" href="/docs/getting-started" />
+  <Card title="Repository API" href="/docs/repository" />
+  <Card title="Auth and sessions" href="/docs/auth" />
+  <Card title="Standards" href="/docs/standards" />
+</Cards>

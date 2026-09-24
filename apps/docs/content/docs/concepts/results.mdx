@@ -1,0 +1,71 @@
+---
+title: Results and errors
+description: Every call returns a Result with a typed, serializable DbError.
+---
+
+Repository methods never throw for database errors. They return an
+`AsyncResult`, which you can await for a `Result` or unwrap:
+
+```ts
+const result = await db.customers.findById(id);
+if (!result.ok) {
+  if (result.error.kind === 'not_found') return notFound();
+  throw result.error;
+}
+result.data.name;
+
+// Or throw a DbException on error:
+const customer = await db.customers.findById(id).orThrow();
+
+// Or chain:
+const name = await db.customers
+  .findById(id)
+  .map((row) => row.name)
+  .unwrapOr('Unknown');
+```
+
+`AsyncResult` has `orThrow`, `unwrapOr`, `map`, `mapError` and `andThen`.
+
+## Error kinds
+
+`DbError` is plain data, safe to return from server actions and RPC handlers.
+
+| kind | status | From |
+| --- | --- | --- |
+| `not_found` | 404 | `findById`, `update`, `delete` with no row, `PGRST116` |
+| `unauthorized` | 401 | Missing or expired JWT |
+| `forbidden` | 403 | `42501`, RLS `WITH CHECK` failures |
+| `conflict` | 409 | `23505` unique violation, with `constraint` and `columns` |
+| `foreign_key` | 409 | `23503` |
+| `check` | 422 | `23514`, with `constraint` |
+| `not_null` | 422 | `23502`, with `column` |
+| `exclusion` | 409 | `23P01` |
+| `invalid_input` | 400 | `22*` data exceptions |
+| `raised` | 400 | `RAISE EXCEPTION` (`P0001`); `hint` carries your app code |
+| `timeout` | 504 | `57014` statement timeout |
+| `serialization` | 409 | `40001`, safe to retry |
+| `network` | 503 | Fetch failures, `08*` |
+| `aborted` | 499 | The `AbortSignal` fired |
+| `invalid_request` | 400 | A query the backend cannot express |
+| `validation` | 422 | Standard Schema issues from the validation plugin |
+| `multiple_rows` | 409 | A single-row call matched several rows |
+| `stale` | 412 | `update(..., { expect })` found a newer row |
+| `unexpected` | 500 | Anything else |
+
+The `status` field feeds the [RFC 9457](/docs/standards) problem details
+mapping in the server adapters.
+
+## Custom kinds and mappers
+
+Add mappers for your own `RAISE` codes:
+
+```ts
+const sb = defineSupabase(schema, {
+  errors: [
+    (raw, fallback) =>
+      raw.hint === 'quota_exceeded' ? dbError('forbidden', fallback.message) : undefined,
+  ],
+});
+```
+
+Plugins can also contribute a `mapError`.

@@ -1,0 +1,36 @@
+{
+  "name": "@better-supabase/example-vite-react",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Vite + React SPA with cookie sessions and TanStack Query hooks.",
+  "type": "module",
+  "exports": {
+    "./queries": "./src/queries.ts",
+    "./supabase": "./src/lib/supabase.ts"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "better-supabase": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

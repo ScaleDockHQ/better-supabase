@@ -1,0 +1,62 @@
+---
+title: Stability
+description: What counts as public API, how it is kept stable and how deprecations work.
+---
+
+## Public API
+
+The public API is every export of every subpath in `package.json`, the CLI
+commands and flags, the config file, the JSON Schemas in `schemas/`, the
+doctor codes and the generated module's shape.
+
+Two tests guard it:
+
+- **Export snapshot.** `api/exports.json` lists the value and type exports of
+  every subpath. A change shows up in review as a diff of that file.
+- **Type tests** for every extension interface check that the first-party
+  implementations still satisfy it.
+
+## Versioning
+
+better-supabase follows semver. Until 1.0, breaking changes ship in minor
+versions and are called out in the changelog.
+
+Plugins and extension interfaces carry `apiVersion: 1`. A breaking change to
+their contract needs a new `apiVersion`; `use()` rejects plugins built for a
+version it doesn't support, so the failure is immediate instead of subtle.
+
+## Deprecations
+
+1. The API is marked `@deprecated` in its TSDoc, with the replacement. Editors
+   strike it through.
+2. It keeps working for at least one minor release (after 1.0: until the next
+   major).
+3. The changelog and this site's migration notes describe the replacement.
+4. It is removed, and `api/exports.json` shows the removal.
+
+Doctor codes are never reused: a retired check keeps its code reserved.
+BS101, BS102, BS104, BS105, BS201, BS202 and BS203 are retired; Supabase's
+own advisors report those problems now, as BS100 and BS200.
+
+## Subpaths
+
+Every subpath is public API with the same guarantees, including
+`better-supabase/plugins/rules` (the `rules()` plugin, its rule names and
+presets) and `better-supabase/lint` (lint rule ids and their options).
+Adding a rule to a preset can make a passing app report new violations, so
+it ships in a minor release with a changelog entry.
+
+## Pinned upstreams
+
+Some output depends on Supabase projects. They're pinned so an upstream
+release never changes your generated code or doctor report by itself:
+
+- **`@supabase/postgrest-typegen`** is an exact dependency of the CLI.
+  `database.types.ts` matches `supabase gen types` for that version; a CI
+  test checks it. Bumping it is a changelog entry.
+- **splinter** (the advisor lints) is fetched at a pinned commit and
+  checked against a SHA-256 hash when doctor runs locally. It's never
+  bundled.
+- **`@supabase/config`** is an optional peer with a version range. Without
+  it, `config.toml` is read with a built-in parser that supports what
+  better-supabase needs.

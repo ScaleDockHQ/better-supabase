@@ -1,0 +1,46 @@
+---
+title: Problem Details
+description: DbError as RFC 9457 application/problem+json, with RFC 6750 challenges.
+---
+
+Server adapters answer errors with [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
+Problem Details. The `DbError` fields become extension members, so clients
+keep the structured error:
+
+```http
+HTTP/1.1 409 Conflict
+Content-Type: application/problem+json
+
+{
+  "type": "https://better-supabase.dev/problems/conflict",
+  "title": "Conflict",
+  "status": 409,
+  "kind": "conflict",
+  "detail": "duplicate key value violates unique constraint …",
+  "instance": "/customers",
+  "code": "23505",
+  "constraint": "customers_organization_id_kvk_key",
+  "columns": ["organization_id", "kvk"]
+}
+```
+
+```ts
+import { fromProblem, problemResponse } from 'better-supabase';
+
+if (!result.ok) return problemResponse(result.error, { instance: url.pathname });
+
+// client side
+const error = fromProblem(await response.json()); // back to a DbError
+```
+
+## Safe by default
+
+Messages of `unexpected`, `network` and `invalid_request` errors can contain
+SQL or hostnames, so they are left out unless you pass `expose: true` (for
+example in development). Validation errors keep their `issues`.
+
+## 401 responses
+
+A 401 carries an [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750)
+challenge: `WWW-Authenticate: Bearer realm="supabase", error="invalid_token"`,
+without `error` when no credentials were sent. Set the realm with `realm`.

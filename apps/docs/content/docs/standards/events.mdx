@@ -1,0 +1,49 @@
+---
+title: CloudEvents
+description: Mutations as CloudEvents 1.0, for queues, buses and webhooks.
+---
+
+`better-supabase/events` turns repository mutations into
+[CloudEvents](https://cloudevents.io) and sends them to an `EventSink`.
+
+```ts
+import { forwardMutations, httpSink } from 'better-supabase/events';
+
+const stop = forwardMutations(sb, httpSink('https://events.example.com/ingest'), {
+  source: 'https://crm.example.com',
+  filter: (notice) => notice.table !== 'auditLog',
+});
+```
+
+Each mutated row becomes one event:
+
+```json
+{
+  "specversion": "1.0",
+  "id": "5f0c…",
+  "source": "https://crm.example.com",
+  "type": "dev.better-supabase.row.created",
+  "subject": "customers/5f0c…",
+  "time": "2026-01-01T00:00:00.000Z",
+  "datacontenttype": "application/json",
+  "data": { "table": "customers", "row": { "id": "5f0c…", "name": "Acme" } },
+  "partitionkey": "org-1",
+  "actorid": "user-1"
+}
+```
+
+The types are `row.created`, `row.updated`, `row.upserted` and `row.deleted`.
+Use `typePrefix: 'com.acme.crm'` to use your own namespace. `subject` is the
+primary key, `partitionkey` the tenant and `actorid` the acting user.
+
+## Sinks
+
+`EventSink` has one method, `send(events)`. Implement it for SQS, Pub/Sub,
+Inngest or an outbox table. Sink failures go to `onError` and never fail
+the mutation. Events are forwarded after the write, so use the SQL kit's
+outbox when every event must arrive.
+
+`httpSink(url, { mode })` POSTs in the HTTP binding's `batch` (default),
+`structured` or `binary` mode. On the receiving side, `fromHttp(request)`
+reads all three modes, and `isCloudEvent` validates the required attributes.
+`toCloudEvents(notice, options)` builds events without a sink.

@@ -1,32 +1,44 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnp
 .pnp.js
 
+# turbo
+.turbo/
+
+# build output
+dist/
+
 # testing
-/coverage
+coverage/
+playwright-report/
+test-results/
+blob-report/
+tmp/
+packages/better-supabase/tmp/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
+apps/docs/AGENTS.md
+apps/docs/CLAUDE.md
+apps/examples/nextjs/AGENTS.md
+apps/examples/nextjs/CLAUDE.md
 
-# production
-/build
+# fumadocs-mdx
+.source/
 
-# misc
-.DS_Store
-*.pem
+# packed tarballs
+*.tgz
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
+# env
 .env
+.env*.local
+!.env.example
+
+# supabase local state
+supabase/.branches/
+supabase/.temp/
 
 # vercel
 .vercel
@@ -34,3 +46,25 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ox
+.oxlintcache
+
+# testcontainers
+.testcontainers/
+
+# debug
+npm-debug.log*
+pnpm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+*.pem
+
+# editors
+.idea/
+*.swp
+
+# doctor output
+doctor.sarif
