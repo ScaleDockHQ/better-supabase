@@ -31,6 +31,10 @@ import type { LiveSource } from '../realtime/live.ts';
 import { invalidateTables } from '../query/invalidate.ts';
 import { liveQuery } from '../realtime/live.ts';
 
+export { SessionProvider, useSession } from './session.ts';
+export type { SessionProviderProps } from './session.ts';
+export type { AuthSession } from '../auth/view.ts';
+
 /** The parts of `createBrowser()` the provider needs. */
 export interface BrowserLike {
   readonly sb: LiveSource;

@@ -94,6 +94,9 @@ jobs:
       - name: Integration
         run: pnpm run test:integration
 
+      - name: Install Chromium (instant navigation tests)
+        run: pnpm --filter @better-supabase/e2e exec playwright install --with-deps chromium
+
       - name: End-to-end
         run: pnpm run test:e2e
 

@@ -279,6 +279,38 @@ describe('createNext', () => {
     });
   });
 
+  it('reads the session as serializable data without the token', async () => {
+    expect(await next.session()).toEqual({ kind: 'anon', reason: 'none' });
+
+    const token = await signer.sign({
+      sub: USER,
+      email: 'ada@example.com',
+      user_role: 'admin',
+    });
+    mocks.headers = new Headers({ authorization: `Bearer ${token}` });
+    const session = await next.session();
+    expect(session).toMatchObject({
+      kind: 'user',
+      user: { id: USER, email: 'ada@example.com' },
+      claims: { sub: USER, user_role: 'admin' },
+    });
+    expect(JSON.stringify(session)).not.toContain(token);
+    expect(structuredClone(session)).toEqual(session);
+
+    mocks.headers = new Headers({ authorization: 'Bearer not-a-jwt' });
+    expect(await next.session()).toMatchObject({
+      kind: 'invalid',
+      error: { kind: 'unauthorized' },
+    });
+  });
+
+  it('never refreshes an expiring cookie session', async () => {
+    const token = await signer.sign({ sub: USER });
+    mocks.headers = new Headers({ cookie: cookieFor(token, 'refresh-1') });
+    expect(await next.session()).toEqual({ kind: 'anon', reason: 'expired' });
+    expect(fresh).not.toHaveBeenCalled();
+  });
+
   it('invalidates table and row tags after mutations', async () => {
     const executor: Executor = {
       name: 'fake',

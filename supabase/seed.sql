@@ -21,3 +21,27 @@ insert into public.locations (organization_id, customer_id, label, city, is_prim
 
 insert into public.notes (organization_id, customer_id, kind, body) values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'meeting', 'Kickoff');
+
+-- Two local users for the Next.js example (password: `password123`). Both
+-- belong to Acme; the admin gets a row in rbac.user_roles, so the custom
+-- access token hook adds `user_role: "admin"` to their tokens.
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+) values
+  ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-0000000000a1', 'authenticated', 'authenticated',
+   'admin@acme.test', extensions.crypt('password123', extensions.gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"],"org_id":"00000000-0000-4000-8000-000000000001"}', '{}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-0000000000a2', 'authenticated', 'authenticated',
+   'member@acme.test', extensions.crypt('password123', extensions.gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"],"org_id":"00000000-0000-4000-8000-000000000001"}', '{}', now(), now(), '', '', '', '');
+
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+select gen_random_uuid(), u.id, u.id::text, jsonb_build_object('sub', u.id::text, 'email', u.email), 'email', now(), now(), now()
+from auth.users u
+where u.id in ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a2');
+
+insert into rbac.user_roles (user_id, role) values
+  ('00000000-0000-4000-8000-0000000000a1', 'admin'),
+  ('00000000-0000-4000-8000-0000000000a2', 'member');

@@ -1,0 +1,299 @@
+---
+title: Cache Components
+description: Instant navigations, prefetching and role-aware UI with Next.js 16.3 Cache Components.
+---
+
+With `cacheComponents`, a page is a static shell that prerenders at build
+time plus dynamic holes that stream in. Auth is dynamic: it reads the request
+cookie. The pattern below keeps every layout synchronous, puts each session
+read behind `<Suspense>`, and caches it per browser session, so:
+
+- the first load shows the shell immediately and streams the user in;
+- every later navigation is instant, because the session (and data derived
+  from it) is part of the per-session App Shell that Next.js prefetches;
+- the Auth server is never called during rendering. Tokens are verified
+  locally against the JWKS, and only the proxy refreshes them.
+
+The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs)
+implements all of it: ten menu items, five of which only admins see.
+
+```ts title="next.config.ts"
+const config: NextConfig = {
+  cacheComponents: true,
+  partialPrefetching: true,
+};
+```
+
+## 1. Read the session once, privately cached
+
+`next.session()` returns the verified caller as plain data: `user`, the raw
+JWT `claims` (including your custom access token hook claims) and
+`expiresAt`, or `anon` / `invalid`. It never contains the token or a client,
+so it can leave a `'use cache: private'` function and cross into Client
+Components.
+
+```ts title="src/features/user/user-queries.ts"
+import 'server-only';
+import type { AuthSession } from 'better-supabase/next';
+import { cacheLife } from 'next/cache';
+import { next } from '@/lib/supabase.server';
+
+export async function getSession(): Promise<AuthSession> {
+  'use cache: private';
+  const session = await next.session();
+  cacheLife({ stale: staleFor(session) });
+  return session;
+}
+
+// 5 minutes joins the App Shell; never keep a view past the token's expiry.
+function staleFor(session: AuthSession): number {
+  if (session.kind !== 'user' || session.expiresAt === null) return 300;
+  const remaining = session.expiresAt - Math.floor(Date.now() / 1000);
+  return Math.min(300, Math.max(30, remaining));
+}
+```
+
+`stale` decides where the result can be reused:
+
+| `stale` | Effect |
+| --- | --- |
+| under 30 s | Not prefetched. The navigation waits for the server. |
+| 30 s to 5 min | Available to per-link prefetching (`<Link prefetch={true}>`). |
+| 5 min or more | Part of the route's App Shell: navigations are instant. |
+
+A private cache never stores anything on the server across requests. The
+result only lives in that browser's router cache.
+
+## 2. Keep layouts synchronous
+
+A layout that awaits the session holds the whole segment, `children`
+included, behind the request. Keep the layout synchronous and give each
+session-dependent piece its own boundary:
+
+```tsx title="src/app/(app)/layout.tsx"
+export default function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="app">
+      <header>
+        <Suspense fallback={<UserMenuSkeleton />}>
+          <UserMenu />
+        </Suspense>
+      </header>
+      <aside>
+        <Suspense fallback={<SideNavSkeleton />}>
+          <AppNav />
+        </Suspense>
+      </aside>
+      <main>{children}</main>
+    </div>
+  );
+}
+```
+
+Pages follow the same rule and export `instant = true`, so Next.js flags
+anything that would block the navigation in development:
+
+```tsx title="src/app/(app)/customers/page.tsx"
+export const instant = true;
+
+export default function CustomersPage() {
+  return (
+    <>
+      <h1>Customers</h1>
+      <Suspense fallback={<CustomerListSkeleton />}>
+        <PermissionGate permission="customers.read">
+          <CustomerList />
+        </PermissionGate>
+      </Suspense>
+    </>
+  );
+}
+```
+
+## 3. Share the session with Client Components
+
+`SessionProvider` takes the unresolved promise and `useSession()` unwraps it
+with `use()`. Create the promise **inside** the boundary, never at the top of
+a layout:
+
+```tsx title="src/features/navigation/components/app-nav.tsx"
+import { SessionProvider } from 'better-supabase/react';
+
+export function AppNav() {
+  return (
+    <SessionProvider sessionPromise={getSession()}>
+      <SideNav />
+    </SessionProvider>
+  );
+}
+```
+
+```tsx title="src/features/navigation/components/side-nav.tsx"
+'use client';
+
+import { useSession } from 'better-supabase/react';
+
+export function SideNav() {
+  const session = useSession();
+  const visible = navItems.filter((item) => !item.requires || can(session, item.requires));
+  return <nav aria-label="Main">{/* links */}</nav>;
+}
+```
+
+`SessionProvider` can be rendered straight from a Server Component: the
+`react-server` build of `better-supabase/react` exports it as a client
+reference. Server Components that need the session call `getSession()`
+directly. Within a request that hits the same private cache entry.
+
+## 4. Roles and permissions
+
+Put roles in the token, not in a query. A [custom access token
+hook](https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook)
+copies the user's role into a `user_role` claim every time Auth issues a
+token, so the proxy's refresh is also what picks up role changes:
+
+```sql title="supabase/migrations/…_rbac.sql"
+create function rbac.custom_access_token_hook(event jsonb)
+returns jsonb language plpgsql stable set search_path = '' as $$
+declare
+  claims jsonb := event -> 'claims';
+  user_role rbac.app_role;
+begin
+  select ur.role into user_role from rbac.user_roles ur
+  where ur.user_id = (event ->> 'user_id')::uuid;
+  if user_role is not null then
+    claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));
+  end if;
+  return jsonb_set(event, '{claims}', claims);
+end;
+$$;
+```
+
+```toml title="supabase/config.toml"
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/rbac/custom_access_token_hook"
+```
+
+Map roles to permissions in code, so the check is a pure, synchronous
+function that runs in the proxy, Server Components and Client Components
+alike:
+
+```ts title="src/features/user/user-permissions.ts"
+const grants = {
+  admin: ['customers.read', 'customers.write', 'users.manage' /* … */],
+  member: ['customers.read'],
+} as const satisfies Record<Role, readonly Permission[]>;
+
+export function can(session: AuthSession, permission: Permission): boolean {
+  if (session.kind !== 'user') return false;
+  return rolesOf(session.claims).some((role) => grants[role].includes(permission));
+}
+```
+
+Read `user_role` from the top-level claim, falling back to `app_metadata`,
+and never from `user_metadata`, which users can edit. Hiding a menu item is
+UX, not security: re-check in every Server Action (`can(toSession(auth), …)`)
+and enforce it in the database with an `authorize(permission)` RLS helper.
+
+<Callout title="Using PermDock">
+  For more than a handful of roles, use
+  [PermDock](https://github.com/ScaleDockHQ/PermDock). It reads the same
+  claim: `subjectFromSupabase(session.claims)`. `permdock rls generate
+  --rbac supabase` emits the hook, `authorize()` and the RLS policies, and
+  `permdock/next` and `permdock/react` replace the hand-written `can()`.
+</Callout>
+
+## 5. Optimistic redirects in the proxy
+
+The proxy verifies the token locally anyway, so it can redirect before
+rendering at no extra cost:
+
+```ts title="src/proxy.ts"
+const protect: NonNullable<ProxyOptions['protect']> = (auth, request) => {
+  const { pathname } = request.nextUrl;
+  if (pathname === '/login' || pathname.startsWith('/api/')) return undefined;
+  // Prefetches never refresh: let the page render its own signed-out state.
+  if (auth.kind === 'anon' && auth.reason === 'expired') return undefined;
+  const session = toSession(auth);
+  if (session.kind !== 'user') return NextResponse.redirect(new URL('/login', request.url));
+  const permission = requiredPermission(pathname);
+  if (permission && !can(session, permission)) return NextResponse.redirect(new URL('/', request.url));
+  return undefined;
+};
+
+export const proxy = (request: NextRequest) => next.proxy(request, { protect });
+```
+
+## 6. Data derived from the session
+
+Per-user rows go through `next.server()` inside a private cache, so the
+query runs with the user's token and RLS decides what comes back:
+
+```ts title="src/features/customers/customer-queries.ts"
+export async function getCustomers() {
+  'use cache: private';
+  cacheLife('minutes');
+  const { db } = await next.server();
+  return db.customers.findMany({ select: ['id', 'name', 'status'] }).orThrow();
+}
+```
+
+Data that is the same for every user belongs in a plain `'use cache'` with
+`next.cacheTag()` and `next.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
+Don't pass a user id into a shared `'use cache'` function that uses
+`next.admin()`: that bypasses RLS.
+
+Mutations through `next.action()` call `updateTag`, which also clears the
+client router cache, so the user sees their own write.
+
+## 7. Signing in and out
+
+The browser client writes the session cookie, and the router cache still
+holds the old private session. Call a Server Action that runs `refresh()`
+after signing in or out:
+
+```ts title="src/features/user/user-actions.ts"
+'use server';
+import { refresh } from 'next/cache';
+
+export async function sessionChanged(): Promise<void> {
+  refresh();
+}
+```
+
+```ts
+await supabase.auth.signInWithPassword({ email, password });
+await sessionChanged();
+router.push('/');
+```
+
+## Asymmetric signing keys
+
+All of this depends on verifying tokens locally. With asymmetric JWT signing
+keys (ES256 or RS256) the JWKS is public and cached, so the proxy, every
+`next.session()` and every `next.server()` verify without a network call.
+Hosted projects use them by default. Locally, `better-supabase doctor` warns
+when `[auth] signing_keys_path` is missing; `better-supabase keys` creates
+one.
+
+## Testing instant navigations
+
+`@next/playwright`'s `instant()` holds back dynamic content while its
+callback runs, so you can assert on exactly what the shell or prefetch
+contains. Against `next start`, enable the testing API for the test build
+only:
+
+```ts title="next.config.ts"
+experimental: {
+  exposeTestingApiInProductionBuild: process.env.NEXT_E2E === '1',
+},
+```
+
+```ts
+await instant(page, async () => {
+  await page.getByRole('link', { name: 'Customers' }).click();
+  await page.waitForURL((url) => url.pathname === '/customers');
+  await page.getByText('Road Runner Inc').waitFor(); // from the per-session App Shell
+});
+```

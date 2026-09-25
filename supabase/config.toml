@@ -40,6 +40,11 @@ enable_signup = true
 enable_signup = true
 enable_confirmations = false
 
+# Adds the `user_role` claim (supabase/migrations/*_rbac.sql).
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/rbac/custom_access_token_hook"
+
 [studio]
 enabled = false
 port = 55423

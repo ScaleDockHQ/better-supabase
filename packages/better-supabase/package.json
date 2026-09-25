@@ -15,7 +15,7 @@
     "tanstack-query",
     "typescript"
   ],
-  "homepage": "https://better-supabase.dev",
+  "homepage": "https://bettersupabase.com",
   "bugs": {
     "url": "https://github.com/ScaleDockHQ/better-supabase/issues"
   },

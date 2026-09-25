@@ -1,5 +1,6 @@
+import { instant } from '@next/playwright';
+import { type Browser, chromium, type Page } from '@playwright/test';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -22,6 +23,7 @@ const env = {
   NEXT_PUBLIC_SUPABASE_URL: stack.url,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: stack.publishableKey,
   NEXT_TELEMETRY_DISABLED: '1',
+  NEXT_E2E: '1',
 };
 
 async function freePort(): Promise<number> {
@@ -52,22 +54,28 @@ async function waitFor(url: string, server: ChildProcess): Promise<void> {
   throw new Error(`${url} did not come up`);
 }
 
+/** The links in the main menu of a rendered page. */
+function menu(html: string): string[] {
+  const nav = /<nav aria-label="Main">([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? '';
+  return [...nav.matchAll(/<a [^>]*>([^<]*)<\/a>/g)].map((match) => match[1]!);
+}
+
 describe.skipIf(!(await reachable()))('nextjs example', () => {
   let server: ChildProcess;
   let base: string;
   let acme: TestUser;
+  let member: TestUser;
   let other: TestUser;
   const name = `Next e2e ${crypto.randomUUID()}`;
   let id: string;
 
   beforeAll(async () => {
-    if (!existsSync(`${app}.next/BUILD_ID`)) {
-      execFileSync('pnpm', ['exec', 'next', 'build'], {
-        cwd: app,
-        env,
-        stdio: 'ignore',
-      });
-    }
+    // Always rebuild: the e2e build exposes the instant-navigation testing API.
+    execFileSync('pnpm', ['exec', 'next', 'build'], {
+      cwd: app,
+      env,
+      stdio: 'ignore',
+    });
     const port = await freePort();
     base = `http://127.0.0.1:${String(port)}`;
     server = spawn(
@@ -79,7 +87,11 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
         stdio: 'ignore',
       },
     );
-    [acme, other] = await Promise.all([createUser(ACME), createUser(OTHER)]);
+    [acme, member, other] = await Promise.all([
+      createUser(ACME, { role: 'admin' }),
+      createUser(ACME, { role: 'member' }),
+      createUser(OTHER, { role: 'admin' }),
+    ]);
     const { data, error } = await admin
       .from('customers')
       .insert({ name, organization_id: ACME })
@@ -93,21 +105,62 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
   afterAll(async () => {
     server?.kill();
     if (id) await admin.from('customers').delete().eq('id', id);
-    await Promise.all([acme?.remove(), other?.remove()]);
+    await Promise.all([acme?.remove(), member?.remove(), other?.remove()]);
   });
 
-  const get = (path: string, headers: Record<string, string> = {}) =>
-    fetch(`${base}${path}`, { headers });
+  const get = (
+    path: string,
+    headers: Record<string, string> = {},
+    init: RequestInit = {},
+  ) => fetch(`${base}${path}`, { headers, ...init });
+
+  it('sends signed-out visitors to the login page', async () => {
+    const response = await get('/customers', {}, { redirect: 'manual' });
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('/login');
+    expect(await (await get('/')).text()).toContain('Sign in');
+  });
 
   it('renders the signed-in user’s customers in a Server Component', async () => {
-    const anonymous = await (await get('/')).text();
-    expect(anonymous).toContain('Sign in');
-    const page = await get('/', { cookie: await acme.cookie() });
+    const page = await get('/customers', { cookie: await acme.cookie() });
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain(name);
+    const html = await page.text();
+    expect(html).toContain(name);
+    expect(html).toContain('New customer');
     expect(
-      await (await get('/', { cookie: await other.cookie() })).text(),
+      await (await get('/customers', { cookie: await other.cookie() })).text(),
     ).not.toContain(name);
+  });
+
+  it('shows each role only the menu items and pages it may open', async () => {
+    const adminMenu = menu(
+      await (await get('/', { cookie: await acme.cookie() })).text(),
+    );
+    expect(adminMenu).toHaveLength(10);
+
+    const memberCookie = await member.cookie();
+    const memberHtml = await (await get('/', { cookie: memberCookie })).text();
+    expect(menu(memberHtml)).toEqual([
+      'Dashboard',
+      'Customers',
+      'Inbox',
+      'Calendar',
+      'Profile',
+    ]);
+
+    const customers = await (
+      await get('/customers', { cookie: memberCookie })
+    ).text();
+    expect(customers).toContain(name);
+    expect(customers).not.toContain('New customer');
+
+    const users = await get(
+      '/users',
+      { cookie: memberCookie },
+      { redirect: 'manual' },
+    );
+    expect(users.status).toBe(307);
+    expect(users.headers.get('location')).toBe('/');
   });
 
   it('serves route handlers with bearer tokens and Problem Details', async () => {
@@ -128,5 +181,63 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
 
     const anonymous = await get('/api/customers');
     expect(anonymous.status).toBe(401);
+  });
+
+  describe('instant navigation', () => {
+    let browser: Browser;
+    let page: Page;
+
+    beforeAll(async () => {
+      browser = await chromium.launch();
+      const context = await browser.newContext();
+      await context.addCookies(
+        (await member.cookie()).split('; ').map((pair) => {
+          const at = pair.indexOf('=');
+          return {
+            name: pair.slice(0, at),
+            value: pair.slice(at + 1),
+            url: base,
+          };
+        }),
+      );
+      page = await context.newPage();
+    });
+
+    afterAll(async () => {
+      await browser?.close();
+    });
+
+    it('serves a static shell on a cold load, auth streams in after', async () => {
+      await instant(
+        page,
+        async () => {
+          await page.goto(`${base}/inbox`);
+          await page.getByRole('heading', { name: 'Inbox' }).waitFor();
+          expect(
+            await page
+              .locator('nav[aria-label="Main"][aria-busy="true"]')
+              .count(),
+          ).toBe(1);
+          expect(await page.getByText(member.email).count()).toBe(0);
+        },
+        { baseURL: base },
+      );
+      const nav = page.getByRole('navigation', { name: 'Main' });
+      await nav.getByRole('link', { name: 'Customers' }).waitFor();
+      expect(await nav.getByRole('link').count()).toBe(5);
+      await page.getByText(member.email).waitFor();
+    });
+
+    it('navigates instantly into session data from the per-session App Shell', async () => {
+      const nav = page.getByRole('navigation', { name: 'Main' });
+      // Let the prefetch of /customers land before the click.
+      await page.waitForLoadState('networkidle');
+      await instant(page, async () => {
+        await nav.getByRole('link', { name: 'Customers' }).click();
+        await page.waitForURL((url) => url.pathname === '/customers');
+        await page.getByRole('heading', { name: 'Customers' }).waitFor();
+        await page.getByText(name).waitFor({ timeout: 5000 });
+      });
+    });
   });
 });

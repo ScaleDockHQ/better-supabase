@@ -35,6 +35,16 @@ switch (auth.kind) {
 - A Bearer token that fails verification is `invalid`, never silently
   downgraded to anonymous.
 
+<Callout title="Use asymmetric signing keys">
+  Local verification needs asymmetric JWT signing keys (ES256 or RS256), whose
+  public half is in the JWKS. Hosted projects use them by default; for the
+  local stack, `better-supabase keys` creates `signing_keys_path` and
+  `better-supabase doctor` warns when it is missing. With a legacy HS256
+  secret there is no public key to check against. This is what lets the
+  Next.js proxy, Server Components and `'use cache: private'` session reads
+  stay free of network calls ([Cache Components](/docs/frameworks/next-cache-components)).
+</Callout>
+
 ## Refreshing
 
 An expiring cookie session is refreshed only when you pass `refresh: true`,

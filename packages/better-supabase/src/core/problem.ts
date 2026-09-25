@@ -23,7 +23,7 @@ export interface ProblemDetails {
   readonly issues?: readonly ValidationIssue[];
 }
 
-export const PROBLEM_TYPE_BASE = 'https://better-supabase.dev/problems/';
+export const PROBLEM_TYPE_BASE = 'https://bettersupabase.com/problems/';
 export const PROBLEM_CONTENT_TYPE = 'application/problem+json';
 
 const TITLES: { readonly [K in DbErrorKind]: string } = {

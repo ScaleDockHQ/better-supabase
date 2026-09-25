@@ -58,6 +58,23 @@ export default async function Customers() {
 pages share one context. It verifies the token locally and builds a
 stateless client; no auth call happens during rendering.
 
+## Session
+
+```ts
+const session = await next.session();
+if (session.kind === 'user') session.claims.user_role;
+```
+
+`next.session()` is the same verification without the clients: an
+`AuthSession` of `user` (with `user`, `claims` and `expiresAt`), `service`,
+`anon` or `invalid`. It never includes the token, so it is safe to return
+from `'use cache: private'` and to pass to Client Components through
+[`SessionProvider`](/docs/frontend/react#server-session). `toSession(auth)`
+converts any `AuthState` the same way, for example inside `next.action()`.
+
+With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
+for instant navigations and role-aware menus.
+
 ## Route handlers
 
 ```ts title="src/app/api/customers/[id]/route.ts"
@@ -106,8 +123,9 @@ async function publicPlans() {
 
 <Callout title="Caching user data">
   `"use cache"` functions cannot read cookies or headers. Cache public or
-  service-level reads, and keep per-user reads on `next.server()`, which is
-  already deduplicated per request.
+  service-level reads there. Per-user reads stay on `next.server()`, which is
+  already deduplicated per request; with Cache Components, wrap them in
+  `"use cache: private"` ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).
 </Callout>
 
 Turn invalidation off with `createNext(sb, { cacheTags: false })`. The

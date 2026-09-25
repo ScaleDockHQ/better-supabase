@@ -34,15 +34,24 @@ export interface TestUser {
   readonly remove: () => Promise<void>;
 }
 
-/** A confirmed user in `orgId` (via `app_metadata.org_id`), signed in with a password. */
-export async function createUser(orgId: string): Promise<TestUser> {
+/**
+ * A confirmed user in `orgId` (via `app_metadata.org_id`), signed in with a
+ * password. `role` lands in `app_metadata.user_role`.
+ */
+export async function createUser(
+  orgId: string,
+  options: { readonly role?: 'admin' | 'member' } = {},
+): Promise<TestUser> {
   const email = `e2e-${crypto.randomUUID()}@example.com`;
   const password = 'correct horse battery staple';
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    app_metadata: { org_id: orgId },
+    app_metadata: {
+      org_id: orgId,
+      ...(options.role ? { user_role: options.role } : {}),
+    },
   });
   if (error) throw error;
   const client = createClient(stack.url, stack.publishableKey, {

@@ -71,7 +71,7 @@ export interface RuleModule {
   };
 }
 
-const DOCS = 'https://better-supabase.dev/docs/plugins/lint';
+const DOCS = 'https://bettersupabase.com/docs/plugins/lint';
 
 function methodName(node: CallExpression): string | undefined {
   const callee = node.callee;

@@ -10,6 +10,8 @@ export default defineConfig({
     '.claude/**',
     '**/*.generated.ts',
     '**/database.types.ts',
+    'apps/marketing/components/ui/**',
+    'apps/marketing/components/reui/**',
   ],
   options: {
     typeAware: true,

@@ -81,7 +81,7 @@ export interface Rule {
   ) => FindingInput[] | Promise<FindingInput[]>;
 }
 
-export const DOCS_URL = 'https://better-supabase.dev/docs/cli/doctor';
+export const DOCS_URL = 'https://bettersupabase.com/docs/cli/doctor';
 
 const catalogs = new WeakMap<Snapshot, Catalog>();
 

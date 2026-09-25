@@ -1,0 +1,11 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
+    },
+    "test": {
+      "dependsOn": []
+    }
+  }
+}

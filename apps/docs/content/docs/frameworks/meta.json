@@ -1,4 +1,12 @@
 {
   "title": "Frameworks",
-  "pages": ["next", "hono", "orpc", "edge", "mcp", "other"]
+  "pages": [
+    "next",
+    "next-cache-components",
+    "hono",
+    "orpc",
+    "edge",
+    "mcp",
+    "other"
+  ]
 }

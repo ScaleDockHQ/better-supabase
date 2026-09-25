@@ -10,6 +10,8 @@ export default oxfmt({
     'packages/better-supabase/src/fixtures/generated*',
     'apps/examples/**/lib/supabase/generated.ts',
     'packages/better-supabase/api/**',
+    'apps/marketing/components/ui/**',
+    'apps/marketing/components/reui/**',
     '**/*.md',
     'CHANGELOG.md',
     'pnpm-lock.yaml',

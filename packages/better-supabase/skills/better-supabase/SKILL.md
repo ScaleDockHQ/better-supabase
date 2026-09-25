@@ -21,6 +21,7 @@ The data layer is `sb = defineSupabase(schema)` in `src/lib/supabase.ts`.
 Get `db` from the request context, never from a global client, so RLS applies:
 
 - Next.js: `const { db } = await next.server()`, `next.route(...)`, `next.action(...)`
+- Next.js Cache Components: keep layouts synchronous; read `next.session()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
 - Hono: `c.var.db` after `bs.middleware()`
 - oRPC: `context.db` after `bs.middleware()`
 - Edge Functions: `bs.handler((request, { db }) => ...)`
@@ -50,4 +51,4 @@ const customers = result.value;
 - Don't add `declare module` augmentation for types; everything comes from `schema`.
 - Don't catch and swallow `DbError`; return it, or map it with `mapDbError`.
 
-Docs: https://better-supabase.dev/docs (each page is also at `/llms.txt`).
+Docs: https://bettersupabase.com/docs (each page is also at `/llms.txt`).

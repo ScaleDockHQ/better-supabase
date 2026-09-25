@@ -1,10 +1,12 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 
-import { appName, gitConfig } from './shared';
+import { NavTitle } from '@/components/nav-title';
+
+import { gitConfig } from './shared';
 
 export function baseOptions(): BaseLayoutProps {
   return {
-    nav: { title: appName },
+    nav: { title: NavTitle, url: '/' },
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   };
 }

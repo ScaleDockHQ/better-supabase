@@ -433,7 +433,7 @@ describe('problem details', () => {
     );
     const body = await response.json();
     expect(body).toEqual({
-      type: 'https://better-supabase.dev/problems/conflict',
+      type: 'https://bettersupabase.com/problems/conflict',
       title: 'Conflict',
       status: 409,
       kind: 'conflict',

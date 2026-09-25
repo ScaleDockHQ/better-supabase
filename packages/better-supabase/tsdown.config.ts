@@ -6,6 +6,7 @@ const entries = [
   'client/index',
   'react/index',
   'react/server',
+  'react/session',
   'query/index',
   'server/index',
   'postgres/index',
@@ -43,12 +44,28 @@ export default defineConfig({
   dts: true,
   clean: true,
   exports: false,
+  plugins: [
+    {
+      // The react-server build imports the provider from the built
+      // `react/session.js` entry, so it stays a "use client" reference.
+      name: 'react-session-reference',
+      resolveId(source, importer) {
+        if (
+          source === './session.js' &&
+          importer?.endsWith('src/react/server.ts')
+        )
+          return { id: './session.js', external: true };
+        return null;
+      },
+    },
+  ],
   inputOptions: {
     onLog(level, log, handler) {
-      // Rolldown keeps "use client" on the react entry chunk; tests/bundle asserts it.
+      // Rolldown keeps "use client" on the react entry chunks; tests/bundle asserts it.
       if (
         log.code === 'MODULE_LEVEL_DIRECTIVE' &&
-        log.id?.endsWith('src/react/index.ts')
+        (log.id?.endsWith('src/react/index.ts') ||
+          log.id?.endsWith('src/react/session.ts'))
       )
         return;
       handler(level, log);

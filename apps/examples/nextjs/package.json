@@ -2,7 +2,7 @@
   "name": "@better-supabase/example-nextjs",
   "version": "0.0.0",
   "private": true,
-  "description": "A Next.js App Router app: proxy session refresh, Server Components, route handlers and actions.",
+  "description": "A Next.js App Router app: Cache Components, instant navigation, role-aware menus, proxy session refresh, route handlers and actions.",
   "type": "module",
   "scripts": {
     "build": "next build",
@@ -21,6 +21,7 @@
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "server-only": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

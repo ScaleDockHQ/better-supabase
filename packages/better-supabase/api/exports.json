@@ -200,17 +200,21 @@
     "values": [
       "BetterSupabaseProvider",
       "createHooks",
+      "SessionProvider",
       "useAuth",
       "useBroadcast",
       "useLiveQuery",
+      "useSession",
       "useSupabase"
     ],
     "types": [
+      "AuthSession",
       "BetterHooks",
       "BetterSupabaseProviderProps",
       "BroadcastOptions",
       "BrowserLike",
-      "LiveQueryHookOptions"
+      "LiveQueryHookOptions",
+      "SessionProviderProps"
     ]
   },
   "./query": {
@@ -313,11 +317,13 @@
       "resolveAuth",
       "serializeCookie",
       "sessionCookieName",
+      "toSession",
       "writeSession"
     ],
     "types": [
       "AuthResolution",
       "AuthResolver",
+      "AuthSession",
       "AuthState",
       "CookieOptions",
       "CookieRecord",
@@ -333,12 +339,14 @@
       "createNext",
       "nextCache",
       "shouldRefresh",
-      "tagFor"
+      "tagFor",
+      "toSession"
     ],
     "types": [
       "ActionOptions",
       "ActionResult",
       "AuthKind",
+      "AuthSession",
       "BetterNext",
       "GuardOptions",
       "NextOptions",

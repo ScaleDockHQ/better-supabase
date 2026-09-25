@@ -129,7 +129,7 @@ describe('doctor rules', () => {
     expect(finding).toMatchObject({
       target: 'public.notes.anyone',
       object: { kind: 'policy', schema: 'public', name: 'anyone' },
-      help: 'https://better-supabase.dev/docs/cli/doctor#bs103',
+      help: 'https://bettersupabase.com/docs/cli/doctor#bs103',
     });
   });
 
@@ -376,14 +376,14 @@ describe('doctor formats', () => {
       message: 'public.x has RLS disabled, really: 100%',
       target: 'public.x',
       location: { file: 'supabase/schemas/x.sql', line: 3 },
-      help: 'https://better-supabase.dev/docs/cli/doctor#bs103',
+      help: 'https://bettersupabase.com/docs/cli/doctor#bs103',
     },
     {
       code: 'BS403',
       severity: 'info' as const,
       title: 'Local stack signs tokens with a shared secret',
       message: 'No signing keys.',
-      help: 'https://better-supabase.dev/docs/cli/doctor#bs403',
+      help: 'https://bettersupabase.com/docs/cli/doctor#bs403',
     },
   ];
   const options = {
@@ -440,7 +440,7 @@ describe('doctor formats', () => {
       format: 'github',
     }).split('\n');
     expect(github[0]).toBe(
-      '::error file=supabase/schemas/x.sql,line=3,title=BS103 Policy allows anonymous writes::public.x has RLS disabled, really: 100%25 (https://better-supabase.dev/docs/cli/doctor#bs103)',
+      '::error file=supabase/schemas/x.sql,line=3,title=BS103 Policy allows anonymous writes::public.x has RLS disabled, really: 100%25 (https://bettersupabase.com/docs/cli/doctor#bs103)',
     );
     expect(github[1]).toMatch(/^::notice title=BS403/);
     const json = JSON.parse(

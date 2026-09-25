@@ -1,6 +1,6 @@
 ---
 title: React
-description: Provider and typed hooks.
+description: Provider, typed hooks and the server session.
 ---
 
 ```tsx title="src/app/providers.tsx"
@@ -51,3 +51,38 @@ function CustomerList() {
 - `useBroadcast(topic, values, handlers, { invalidate })` subscribes to a
   [Realtime topic](/docs/kits/realtime) while mounted and refetches the
   listed tables after each message.
+
+## Server session
+
+`useAuth()` reads the browser client, so it is `loading` during server
+rendering. To render signed-in UI on the server, hand Client Components the
+server-verified session instead: pass a `next.session()` promise to
+`SessionProvider` and read it with `useSession()`.
+
+```tsx title="Server Component, inside <Suspense>"
+import { SessionProvider } from 'better-supabase/react';
+
+<SessionProvider sessionPromise={getSession()}>
+  <SideNav />
+</SessionProvider>
+```
+
+```tsx title="Client Component"
+'use client';
+import { useSession } from 'better-supabase/react';
+
+export function SideNav() {
+  const session = useSession(); // suspends until the promise resolves
+  return session.kind === 'user' ? <Menu claims={session.claims} /> : null;
+}
+```
+
+- `SessionProvider` renders from Server Components: the `react-server` build
+  exports it as a client reference.
+- `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
+  create the promise inside that boundary.
+- The session is a plain `AuthSession` (no token), the same type
+  `next.session()` returns.
+
+See [Cache Components](/docs/frameworks/next-cache-components) for the full
+pattern, including role-filtered menus.

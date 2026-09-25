@@ -7,6 +7,8 @@ export type {
   AuthState,
   ResolveAuthOptions,
 } from './resolve.ts';
+export { toSession } from './view.ts';
+export type { AuthSession } from './view.ts';
 export {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,

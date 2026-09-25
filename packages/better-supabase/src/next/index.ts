@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server.js';
 import { cache } from 'react';
 
 import type { AuthState } from '../auth/resolve.ts';
+import type { AuthSession } from '../auth/view.ts';
 import type { CacheAdapter } from '../core/cache.ts';
 import type { BetterSupabase } from '../core/define.ts';
 import type { DbError } from '../core/errors.ts';
@@ -13,6 +14,7 @@ import type { QuerySpec } from '../core/spec.ts';
 import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
 import { serializeCookie } from '../auth/session.ts';
+import { toSession } from '../auth/view.ts';
 import { problemResponse } from '../core/problem.ts';
 import { validate } from '../core/standard.ts';
 import {
@@ -38,6 +40,8 @@ export interface NextOptions extends ServerOptions {
 }
 
 export type { AuthKind, GuardOptions } from '../server/respond.ts';
+export type { AuthSession } from '../auth/view.ts';
+export { toSession } from '../auth/view.ts';
 
 export interface ProxyOptions {
   /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
@@ -79,6 +83,12 @@ export interface BetterNext<
   proxy(request: NextRequest, options?: ProxyOptions): Promise<Response>;
   /** Server Components and actions: the caller's context, memoized per request. */
   server(): Promise<ServerContext<M, F, E>>;
+  /**
+   * The verified caller as serializable data (no token, no clients), memoized
+   * per request. Wrap it in a `'use cache: private'` function with Cache
+   * Components and pass the promise to `<SessionProvider>`.
+   */
+  session(): Promise<AuthSession>;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
   route<P = Record<string, string | string[]>>(
     handler: (
@@ -180,15 +190,25 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   if (options.cacheTags !== false) sb.cache(nextCache());
 
-  const server = cache(async (): Promise<ServerContext<M, F, E>> => {
-    const incoming = await headers();
-    return base.context(
-      new Request('http://next.local/', { headers: new Headers(incoming) }),
-    );
+  const incomingRequest = async (): Promise<Request> =>
+    new Request('http://next.local/', {
+      headers: new Headers(await headers()),
+    });
+
+  const server = cache(async (): Promise<ServerContext<M, F, E>> =>
+    base.context(await incomingRequest()),
+  );
+
+  const session = cache(async (): Promise<AuthSession> => {
+    const resolution = await base.resolve(await incomingRequest(), {
+      refresh: false,
+    });
+    return toSession(resolution.auth);
   });
 
   return extendServer<BetterNext<M, F, E>>(base, {
     server,
+    session,
 
     async proxy(request, proxyOptions = {}) {
       const resolution = await base.resolve(request, {

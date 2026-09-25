@@ -104,6 +104,19 @@ describe('bundle', () => {
     expect(source.includes('"use client"')).toBe(false);
   });
 
+  it('renders SessionProvider from the react-server build as a client reference', async () => {
+    const server = await readFile(
+      join(PACKAGE, 'dist/react/server.js'),
+      'utf8',
+    );
+    expect(server).toContain('from "./session.js"');
+    const session = await readFile(
+      join(PACKAGE, 'dist/react/session.js'),
+      'utf8',
+    );
+    expect(session.startsWith('"use client";')).toBe(true);
+  });
+
   it('keeps /query framework-neutral', () => {
     const externals = closures.get('./query')?.externals ?? [];
     expect(
