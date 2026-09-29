@@ -35,7 +35,16 @@ export function SiteFooter() {
       </div>
       <div className="border-border text-muted-foreground mx-auto flex w-full max-w-6xl justify-between border-t px-6 py-4 text-xs md:px-8">
         <span>MIT License</span>
-        <span>Not affiliated with Supabase, Inc. Built by ScaleDockHQ.</span>
+        <span>
+          Not affiliated with Supabase, Inc. Built by{' '}
+          <SiteLink
+            href={site.company.url}
+            className="hover:text-foreground underline-offset-4 hover:underline"
+          >
+            {site.company.name}
+          </SiteLink>
+          .
+        </span>
       </div>
     </footer>
   );

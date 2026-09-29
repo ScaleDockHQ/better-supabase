@@ -139,4 +139,4 @@ Report vulnerabilities privately; see [`SECURITY.md`](./SECURITY.md).
 
 ## License
 
-[MIT](./LICENSE) © 2026 ScaleDockHQ
+[MIT](./LICENSE) © 2026 ScaleDock
