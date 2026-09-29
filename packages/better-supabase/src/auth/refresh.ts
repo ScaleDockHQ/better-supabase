@@ -3,6 +3,11 @@ import type { StoredSession } from './session.ts';
 export interface RefreshOptions {
   readonly url: string;
   readonly publishableKey: string;
+  /**
+   * Sends `Sb-Forwarded-For: ip` with the secret key, so Auth rate-limits the
+   * refresh by the user's IP (when IP forwarding is on for the project).
+   */
+  readonly forwardedFor?: { readonly ip: string; readonly secretKey: string };
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
 }
@@ -58,8 +63,11 @@ async function request(
       {
         method: 'POST',
         headers: {
-          apikey: options.publishableKey,
+          apikey: options.forwardedFor?.secretKey ?? options.publishableKey,
           'content-type': 'application/json',
+          ...(options.forwardedFor
+            ? { 'sb-forwarded-for': options.forwardedFor.ip }
+            : {}),
         },
         body: JSON.stringify({ refresh_token: refreshToken }),
       },

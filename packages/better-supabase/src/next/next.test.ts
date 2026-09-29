@@ -169,6 +169,165 @@ describe('createNext', () => {
     ).toBe(true);
   });
 
+  describe('proxy composition', () => {
+    const stale = () => signer.sign({ sub: USER, expiresIn: 20 });
+    const renew = async () => {
+      fresh.mockResolvedValue(
+        Response.json({
+          access_token: await signer.sign({ sub: USER }),
+          refresh_token: 'next-3',
+          expires_in: 3600,
+        }),
+      );
+    };
+
+    it('merges refreshed cookies into a before() rewrite, keeping its request headers', async () => {
+      await renew();
+      const before = vi.fn((request: NextRequest) => {
+        const headers = new Headers(request.headers);
+        headers.set('x-next-intl-locale', 'nl');
+        return NextResponse.rewrite(new URL('/nl/dashboard', request.url), {
+          request: { headers },
+        });
+      });
+      const request = page({
+        cookie: cookieFor(await stale(), 'compose-1'),
+        headers: { 'accept-language': 'nl' },
+      });
+      const response = await next.proxy(request, { before });
+      expect(before).toHaveBeenCalledWith(request);
+      expect(response.headers.get('x-middleware-rewrite')).toBe(
+        'https://app.test/nl/dashboard',
+      );
+      expect(response.headers.getSetCookie()[0]).toMatch(
+        new RegExp(`^${NAME}=base64-`),
+      );
+      const listed = response.headers
+        .get('x-middleware-override-headers')!
+        .split(',');
+      expect(listed).toEqual(
+        expect.arrayContaining([
+          'cookie',
+          'x-next-intl-locale',
+          'accept-language',
+        ]),
+      );
+      expect(
+        response.headers.get('x-middleware-request-x-next-intl-locale'),
+      ).toBe('nl');
+      expect(response.headers.get('x-middleware-request-cookie')).toContain(
+        NAME,
+      );
+    });
+
+    it('keeps before() redirects and adds cookies to them', async () => {
+      await renew();
+      const response = await next.proxy(
+        page({ cookie: cookieFor(await stale(), 'compose-2') }),
+        {
+          before: (request) =>
+            Response.redirect(new URL('/nl', request.url), 307),
+        },
+      );
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('https://app.test/nl');
+      expect(response.headers.getSetCookie()).toHaveLength(1);
+      expect(response.headers.has('x-middleware-override-headers')).toBe(false);
+    });
+
+    it('never refreshes a prefetch, whatever before() does', async () => {
+      const response = await next.proxy(
+        page({
+          cookie: cookieFor(await stale(), 'compose-3'),
+          headers: { 'next-router-prefetch': '1', rsc: '1' },
+        }),
+        {
+          before: (request) =>
+            NextResponse.rewrite(new URL('/nl', request.url)),
+        },
+      );
+      expect(fresh).not.toHaveBeenCalled();
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(response.headers.get('x-middleware-rewrite')).toBe(
+        'https://app.test/nl',
+      );
+    });
+
+    it('lets after() edit or replace the response and adds Server-Timing', async () => {
+      const token = await signer.sign({ sub: USER });
+      const cookie = writeSession([], NAME, {
+        access_token: token,
+        refresh_token: 'r',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      })
+        .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+        .join('; ');
+      const edited = await next.proxy(page({ cookie }), {
+        after: (response, auth) => {
+          response.headers.set(
+            'x-user',
+            auth.kind === 'user' ? auth.user.id : '',
+          );
+        },
+        serverTiming: true,
+      });
+      expect(edited.headers.get('x-user')).toBe(USER);
+      expect(edited.headers.get('x-middleware-next')).toBe('1');
+      expect(edited.headers.get('server-timing')).toMatch(
+        /^bs-proxy;dur=\d+\.\d, bs-verify;dur=\d+\.\d$/,
+      );
+      const replaced = await next.proxy(page(), {
+        after: () => new Response('maintenance', { status: 503 }),
+      });
+      expect(replaced.status).toBe(503);
+    });
+  });
+
+  it('forwards the client IP on refresh with a secret key', async () => {
+    const withSecret = createNext(defineSupabase(schema), {
+      env: { ...env, secretKey: 'sb_secret_test' },
+      auth: { jwks: signer.jwks as never, fetch: fresh },
+    });
+    fresh.mockResolvedValue(
+      Response.json({
+        access_token: await signer.sign({ sub: USER }),
+        refresh_token: 'ip-2',
+        expires_in: 3600,
+      }),
+    );
+    await withSecret.proxy(
+      page({
+        cookie: cookieFor(
+          await signer.sign({ sub: USER, expiresIn: 20 }),
+          'ip-1',
+        ),
+        headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' },
+      }),
+    );
+    const init = fresh.mock.calls[0]![1]!;
+    expect(init.headers).toMatchObject({
+      apikey: 'sb_secret_test',
+      'sb-forwarded-for': '203.0.113.7',
+    });
+
+    fresh.mockClear();
+    await next.proxy(
+      page({
+        cookie: cookieFor(
+          await signer.sign({ sub: USER, expiresIn: 20 }),
+          'ip-3',
+        ),
+        headers: { 'x-forwarded-for': '203.0.113.7' },
+      }),
+    );
+    expect(fresh.mock.calls[0]![1]!.headers).toMatchObject({
+      apikey: 'sb_publishable_test',
+    });
+    expect(fresh.mock.calls[0]![1]!.headers).not.toHaveProperty(
+      'sb-forwarded-for',
+    );
+  });
+
   it('guards route handlers and answers with Problem Details', async () => {
     const handler = next.route<{ id: string }>(async (_request, ctx) => {
       if (ctx.params.id === 'missing')

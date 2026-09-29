@@ -23,7 +23,15 @@ const protect: NonNullable<ProxyOptions['protect']> = (auth, request) => {
   return undefined;
 };
 
-export const proxy = (request: NextRequest) => next.proxy(request, { protect });
+export const proxy = (request: NextRequest) =>
+  next.proxy(request, {
+    protect,
+    after: (response, auth) => {
+      // Shared caches must never store a signed-in response.
+      if (auth.kind === 'user') response.headers.append('vary', 'cookie');
+    },
+    serverTiming: process.env.NODE_ENV !== 'production',
+  });
 
 export const config = {
   matcher: [

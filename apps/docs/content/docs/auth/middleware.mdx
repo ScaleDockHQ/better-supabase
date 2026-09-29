@@ -1,7 +1,9 @@
 ---
-title: '@supabase/server pipelines'
-description: ctx.db and ctx.sql as @supabase/middleware entries.
+title: Middleware and proxy
+description: ctx.db and ctx.sql as @supabase/middleware entries, and composing the Next.js proxy with i18n, rewrites and Server-Timing.
 ---
+
+## @supabase/server pipelines
 
 better-supabase builds on `@supabase/server` and `@supabase/middleware`
 directly. `withBetterSupabase(sb)` and `withBetterPostgres(sb)` are
@@ -37,3 +39,117 @@ mapping for your own middleware.
 
 `ctx.sql` runs on `withPostgresClient`'s connection, which sets the caller's
 claims and role per query, so RLS applies exactly as over PostgREST.
+
+## Next.js proxy composition
+
+`next.proxy(request, options)` owns the session refresh. Other middleware
+(i18n, rewrites, A/B buckets) goes in `before` and `after` instead of
+wrapping the proxy, so cookies and forwarded request headers are merged once
+and in the right order:
+
+```ts title="src/proxy.ts"
+import createMiddleware from 'next-intl/middleware';
+import type { NextRequest } from 'next/server';
+import { next } from '@/lib/supabase.server';
+import { routing } from '@/i18n/routing';
+
+const intl = createMiddleware(routing);
+
+export const proxy = (request: NextRequest) =>
+  next.proxy(request, {
+    before: intl,
+    protect: (auth, req) => (auth.kind === 'user' ? undefined : toLogin(req)),
+    after: (response, auth) => {
+      if (auth.kind === 'user') response.headers.set('x-user-id', auth.user.id);
+    },
+    serverTiming: true,
+  });
+```
+
+The order is:
+
+1. `before(request)` and the session check run in parallel. The session is
+   always resolved on the original request, and `shouldRefresh` decides
+   exactly as without `before`: prefetches never refresh.
+2. `protect(auth, request)` runs. A response it returns wins over `before`'s.
+3. Refreshed or cleared cookies are added to the chosen response (`before`'s
+   rewrite, `protect`'s redirect or a plain `NextResponse.next()`).
+4. For rewrites and pass-throughs, the new `cookie` header is forwarded to
+   Server Components through `x-middleware-override-headers`. Request headers
+   `before` already overrides (next-intl's locale header, for example) are
+   kept, and the list is rebuilt, not replaced. Redirects get only
+   `Set-Cookie`.
+5. `after(response, auth)` edits the response in place or returns a new one.
+
+With a valid token and nothing to merge, the proxy still returns
+`NextResponse.next()` without touching headers.
+
+### next-intl with `localePrefix: 'never'`
+
+When the locale lives in a cookie instead of the path, every URL is the same
+for every locale and next-intl rewrites internally to `/[locale]/...`. Use
+`before: intl` as above; the rewrite keeps the refreshed session cookie, and
+the `[locale]` segment reads the locale from next-intl's request header. Don't
+put the locale in `searchParams`: pages that read them lose instant
+navigation.
+
+### What a prefetch costs
+
+The matcher decides which requests pay for the proxy at all. On a request it
+does match, a prefetch costs one memoized local JWT verification (a JWKS
+lookup cached for the process, no network) and whatever `before` does. It
+never refreshes and never writes cookies. A page load with an expired token
+costs one Auth request, done once per request and shared with the Server
+Components that render it.
+
+Keep static assets out of the matcher:
+
+```ts
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)'],
+};
+```
+
+Leave `/api` routes in if their handlers read the session. Route handlers
+don't refresh, so a user whose token expired on a pure API call gets 401
+until the next page load or action.
+
+### Server-Timing
+
+`serverTiming: true` appends a
+[Server-Timing](https://www.w3.org/TR/2026/WD-server-timing-20260407/) header
+(pinned in `SPEC_PINS.serverTiming`):
+
+```http
+Server-Timing: bs-proxy;dur=1.4, bs-verify;dur=0.6
+```
+
+`bs-verify` is the session check (including a refresh when one ran),
+`bs-proxy` the whole proxy including `before`, `protect` and `after`. Browsers
+show both in the network panel. The header reveals timings only, never
+claims; leave it off in production if even that is too much.
+
+### Client IP on refresh
+
+Auth rate limits token refreshes per IP. Called from your server, every
+refresh looks like it came from one IP. When the server has a secret key
+(`SUPABASE_SECRET_KEY`), refresh requests send the client IP as
+`Sb-Forwarded-For` and authenticate with the secret key, so Auth rate-limits
+per user instead.
+
+The IP comes from `clientIp(request)`, the first `x-forwarded-for` hop, which
+is right on Vercel and behind most proxies. Pass your own reader or turn it
+off:
+
+```ts
+createNext(sb, {
+  auth: {
+    clientIp: (request) => request.headers.get('cf-connecting-ip') ?? undefined,
+    // clientIp: false,
+  },
+});
+```
+
+Auth only honours the header when **IP Address Forwarding** is enabled in
+the dashboard (Authentication, Attack Protection). Without it the header is
+ignored and refreshes are rate-limited by your server's IP, as before.

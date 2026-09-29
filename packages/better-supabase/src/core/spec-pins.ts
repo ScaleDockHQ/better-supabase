@@ -11,6 +11,7 @@ export const SPEC_PINS: {
   readonly sarif: '2.1.0';
   readonly jsonSchema: '2020-12';
   readonly postgrestAggregates: '12';
+  readonly serverTiming: 'WD-20260407';
 } = {
   otelSemconv: '1.37.0',
   mcp: '2025-06-18',
@@ -20,4 +21,5 @@ export const SPEC_PINS: {
   sarif: '2.1.0',
   jsonSchema: '2020-12',
   postgrestAggregates: '12',
+  serverTiming: 'WD-20260407',
 };

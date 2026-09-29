@@ -44,6 +44,11 @@ export const proxy = (request: NextRequest) =>
   });
 ```
 
+To combine the proxy with next-intl or other middleware, use `before` and
+`after` ([composition](/docs/auth/middleware#nextjs-proxy-composition)).
+`serverTiming: true` adds a `Server-Timing` header with the verify and proxy
+durations.
+
 ## Server Components
 
 ```tsx

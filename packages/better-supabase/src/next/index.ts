@@ -13,7 +13,6 @@ import type { DbError } from '../core/errors.ts';
 import type { QuerySpec } from '../core/spec.ts';
 import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
-import { serializeCookie } from '../auth/session.ts';
 import { toSession } from '../auth/view.ts';
 import { dbError } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
@@ -42,6 +41,12 @@ import {
   REQUEST_ID_HEADER,
   sharedCollector,
 } from './collector.ts';
+import {
+  isRedirect,
+  mutableResponse,
+  overrideRequestHeaders,
+  serverTimingValue,
+} from './proxy.ts';
 
 export interface NextOptions extends ServerOptions {
   /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
@@ -74,11 +79,29 @@ export type { AuthSession } from '../auth/view.ts';
 export { toSession } from '../auth/view.ts';
 
 export interface ProxyOptions<C = unknown> {
+  /**
+   * Another middleware to compose with, such as next-intl's. It runs on the
+   * original request, alongside auth; its rewrite, redirect or request
+   * headers are kept, and refreshed cookies are merged into its response.
+   */
+  readonly before?: (
+    request: NextRequest,
+  ) => Response | undefined | Promise<Response | undefined>;
   /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
   readonly protect?: (
     auth: AuthState<C>,
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
+  /** Post-processes the final response; return a new one to replace it. */
+  readonly after?: (
+    response: Response,
+    auth: AuthState<C>,
+  ) => Response | undefined | void | Promise<Response | undefined | void>;
+  /**
+   * Adds `Server-Timing: bs-proxy;dur=..., bs-verify;dur=...` (ms): the whole
+   * proxy, and resolving the session (a local verify, or a refresh).
+   */
+  readonly serverTiming?: boolean;
 }
 
 export type ActionResult<T> =
@@ -391,42 +414,66 @@ export function createNext<
     },
 
     async proxy(request, proxyOptions = {}) {
+      const started = performance.now();
       const id = collector ? crypto.randomUUID() : undefined;
-      const tagged = (response: Response): Response => {
-        if (!id) return response;
-        try {
-          response.headers.set(REQUEST_ID_HEADER, id);
-          response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
-        } catch {
-          // Immutable headers (Response.redirect): the redirect target renders with its own id.
-        }
-        return response;
-      };
-      const resolution = await base.resolve(request, {
-        refresh: shouldRefresh(request),
-      });
+      let verifyMs = 0;
+      // `before` (i18n rewrites, redirects) and auth run on the original request.
+      const [early, resolution] = await Promise.all([
+        proxyOptions.before?.(request),
+        base
+          .resolve(request, { refresh: shouldRefresh(request) })
+          .then((resolved) => {
+            verifyMs = performance.now() - started;
+            return resolved;
+          }),
+      ]);
       const custom = await proxyOptions.protect?.(resolution.auth, request);
-      if (custom) return tagged(resolution.apply(custom));
-      if (resolution.cookies.length === 0 && !id) return NextResponse.next();
+      const initial = custom ?? early;
+      if (
+        !initial &&
+        resolution.cookies.length === 0 &&
+        !id &&
+        !proxyOptions.after &&
+        !proxyOptions.serverTiming
+      ) {
+        return NextResponse.next();
+      }
 
-      const forwarded = new Headers(request.headers);
-      if (resolution.cookies.length > 0) {
-        forwarded.set(
-          'cookie',
-          resolution.requestCookies
+      let response = resolution.apply(
+        mutableResponse(initial ?? NextResponse.next()),
+      );
+      if (!custom && !isRedirect(response)) {
+        const forwarded: Record<string, string> = {};
+        if (resolution.cookies.length > 0) {
+          forwarded['cookie'] = resolution.requestCookies
             .map(
               (cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`,
             )
-            .join('; '),
+            .join('; ');
+        }
+        if (id) forwarded[REQUEST_ID_HEADER] = id;
+        if (Object.keys(forwarded).length > 0 || early) {
+          overrideRequestHeaders(response, request, forwarded);
+        }
+      }
+      if (id) {
+        response.headers.set(REQUEST_ID_HEADER, id);
+        response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
+      }
+      if (proxyOptions.after) {
+        const replaced = await proxyOptions.after(response, resolution.auth);
+        if (replaced) response = mutableResponse(replaced);
+      }
+      if (proxyOptions.serverTiming) {
+        response.headers.append(
+          'server-timing',
+          serverTimingValue({
+            'bs-proxy': performance.now() - started,
+            'bs-verify': verifyMs,
+          }),
         );
       }
-      if (id) forwarded.set(REQUEST_ID_HEADER, id);
-      const response = NextResponse.next({ request: { headers: forwarded } });
-      for (const write of resolution.cookies)
-        response.headers.append('set-cookie', serializeCookie(write));
-      for (const [name, value] of Object.entries(resolution.headers))
-        response.headers.set(name, value);
-      return tagged(response);
+      return response;
     },
 
     route(handler, guardOptions = {}) {

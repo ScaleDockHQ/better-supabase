@@ -14,6 +14,7 @@ export type { SupabaseAuthContext } from './middleware.ts';
 export {
   AUTH_CACHE_HEADERS,
   authContext,
+  clientIp,
   readSession,
   refreshSession,
   resolveAuth,

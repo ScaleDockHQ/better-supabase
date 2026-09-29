@@ -8,6 +8,7 @@ import { envSchema, parseEnv, toServerEnv } from '../env/index.ts';
 import { createTestSigner } from '../testing/jwt.ts';
 import {
   authContext,
+  clientIp,
   resolveAuth,
   type ResolveAuthOptions,
 } from './resolve.ts';
@@ -305,6 +306,47 @@ describe('resolveAuth', async () => {
     );
     expect(offline.auth).toEqual({ kind: 'anon', reason: 'refresh_failed' });
     expect(offline.cookies).toEqual([]);
+  });
+
+  it('forwards the client IP on refresh only with a secret key', async () => {
+    const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+    const fetchSpy = vi.fn<typeof fetch>(async () =>
+      Response.json({ msg: 'Invalid Refresh Token' }, { status: 400 }),
+    );
+    const request = (refresh: string) =>
+      cookieRequest(sessionFor(stale, refresh), {
+        'x-forwarded-for': '2001:db8::1, 10.0.0.1',
+      });
+    const secretEnv = { ...options, env, refresh: true, fetch: fetchSpy };
+    await resolveAuth(request('ip-a'), secretEnv);
+    expect(fetchSpy.mock.calls[0]![1]!.headers).toMatchObject({
+      apikey: 'sb_secret_test',
+      'sb-forwarded-for': '2001:db8::1',
+    });
+    await resolveAuth(request('ip-b'), { ...secretEnv, clientIp: false });
+    expect(fetchSpy.mock.calls[1]![1]!.headers).toEqual({
+      apikey: 'sb_publishable_test',
+      'content-type': 'application/json',
+    });
+    await resolveAuth(request('ip-c'), {
+      ...secretEnv,
+      clientIp: (req) => req.headers.get('x-real-ip') ?? undefined,
+    });
+    expect(fetchSpy.mock.calls[2]![1]!.headers).not.toHaveProperty(
+      'sb-forwarded-for',
+    );
+  });
+
+  it('reads the first x-forwarded-for hop and ignores junk', () => {
+    const ip = (value: string) =>
+      clientIp(
+        new Request('https://a.test/', {
+          headers: { 'x-forwarded-for': value },
+        }),
+      );
+    expect(ip(' 203.0.113.7 , 10.0.0.1')).toBe('203.0.113.7');
+    expect(ip('unknown')).toBeUndefined();
+    expect(clientIp(new Request('https://a.test/'))).toBeUndefined();
   });
 
   it('runs custom resolvers first', async () => {

@@ -109,6 +109,13 @@ export interface ResolveAuthOptions {
    */
   readonly claims?: StandardSchemaV1;
   readonly resolvers?: readonly AuthResolver[];
+  /**
+   * The caller's IP, sent to Auth as `Sb-Forwarded-For` on refreshes so its
+   * per-IP rate limit counts users, not your server. Only with a secret key
+   * (`env.secretKey`), which Auth requires for the header. Defaults to
+   * `clientIp` (the first `x-forwarded-for` hop); `false` turns it off.
+   */
+  readonly clientIp?: ((request: Request) => string | undefined) | false;
   /** Called after every refresh attempt (metrics, logging). */
   readonly onRefresh?: (event: RefreshEvent) => void;
   readonly fetch?: typeof fetch;
@@ -354,6 +361,14 @@ function resolution(
   };
 }
 
+const IP = /^[0-9a-f:.]+$/i;
+
+/** The first `x-forwarded-for` hop, the client as your edge saw it. */
+export function clientIp(request: Request): string | undefined {
+  const first = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  return first && IP.test(first) ? first : undefined;
+}
+
 /**
  * Resolves who is calling: custom resolvers, then `Authorization: Bearer`
  * (APIs, MCP, mobile), then the `@supabase/ssr` session cookie (browsers).
@@ -450,10 +465,16 @@ export async function resolveAuth(
     return resolution({ kind: 'anon', reason: 'expired' }, cookies);
   }
 
+  const secretKey = options.env.secretKey;
+  const ip =
+    secretKey && options.clientIp !== false
+      ? (options.clientIp ?? clientIp)(request)
+      : undefined;
   const started = performance.now();
   const outcome = await refreshSession(session.refresh_token, {
     url: options.env.url,
     publishableKey: options.env.publishableKey,
+    ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
     ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(options.now ? { now: options.now } : {}),
   });

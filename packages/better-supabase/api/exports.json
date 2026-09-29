@@ -261,6 +261,7 @@
     "values": [
       "AUTH_CACHE_HEADERS",
       "authContext",
+      "clientIp",
       "contextFromSupabase",
       "createServer",
       "defineResource",
