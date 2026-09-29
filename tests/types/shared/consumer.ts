@@ -45,7 +45,12 @@ import {
   useLiveCount,
 } from 'better-supabase/react';
 import { defineTopic, liveCount } from 'better-supabase/realtime';
-import { type Aal, checkAal, createServer } from 'better-supabase/server';
+import {
+  type Aal,
+  checkAal,
+  createServer,
+  PRIMARY_COOKIE,
+} from 'better-supabase/server';
 import { defineBucket, type StoragePath } from 'better-supabase/storage';
 import {
   defineSeed,
@@ -208,6 +213,13 @@ export function integrations(): unknown[] {
     server
       .deleteAccount('u1', { buckets: [logos], cascades: ['customers'] })
       .map(({ removed }) => removed['customer-logos']),
+    createServer(sb, { readUrl: false, replicas: { pinMs: 1000 } })
+      .context(new Request('https://app.test/'))
+      .then((ctx) => {
+        ctx.replica?.pin();
+        return ctx.replica?.wrote satisfies boolean | undefined;
+      }),
+    PRIMARY_COOKIE satisfies string,
     createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
       LiveCountSeed<'customers'>
     >,

@@ -14,6 +14,8 @@ export interface BetterSupabaseEnv {
   readonly dbUrl?: string;
   /** Project ref for hosted projects (`<ref>.supabase.co`). */
   readonly projectRef?: string;
+  /** `SUPABASE_READ_URL`: a read replica or the `<ref>-all` load balancer, for reads. */
+  readonly readUrl?: string;
 }
 
 export interface PublicEnv {
@@ -61,6 +63,7 @@ export const ENV_VARIABLES: {
   readonly secretKey: readonly string[];
   readonly dbUrl: readonly string[];
   readonly jwksUrl: readonly string[];
+  readonly readUrl: readonly string[];
 } = {
   url: PREFIXES.map((prefix) => `${prefix}SUPABASE_URL`),
   publishableKey: PREFIXES.flatMap((prefix) => [
@@ -70,6 +73,7 @@ export const ENV_VARIABLES: {
   secretKey: ['SUPABASE_SECRET_KEY'],
   dbUrl: ['SUPABASE_DB_URL', 'DATABASE_URL'],
   jwksUrl: ['SUPABASE_JWKS_URL'],
+  readUrl: ['SUPABASE_READ_URL'],
 };
 
 const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
@@ -253,6 +257,11 @@ export function parseEnv(
     ? checkUrl(rawJwks, ENV_VARIABLES.jwksUrl, issues)
     : undefined;
 
+  const rawRead = first(source, ENV_VARIABLES.readUrl);
+  const readUrl = rawRead
+    ? checkUrl(rawRead, ENV_VARIABLES.readUrl, issues)
+    : undefined;
+
   if (issues.length > 0 || !url || !publishableKey)
     return { ok: false, issues };
 
@@ -272,6 +281,7 @@ export function parseEnv(
         : {}),
       ...(dbUrl ? { dbUrl } : {}),
       ...(projectRef ? { projectRef } : {}),
+      ...(readUrl ? { readUrl: readUrl.href.replace(/\/+$/, '') } : {}),
     },
   };
 }

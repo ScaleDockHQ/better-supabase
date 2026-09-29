@@ -18,10 +18,12 @@ const mocks = vi.hoisted(() => ({
   updateTag: vi.fn<(tag: string) => void>(),
   revalidateTag: vi.fn<(tag: string, profile: string) => void>(),
   cacheTag: vi.fn<(...tags: string[]) => void>(),
+  setCookie: vi.fn<(name: string, value: string, options: unknown) => void>(),
 }));
 
 vi.mock('next/headers.js', () => ({
   headers: () => Promise.resolve(mocks.headers),
+  cookies: () => Promise.resolve({ set: mocks.setCookie }),
 }));
 vi.mock('next/cache.js', () => ({
   updateTag: mocks.updateTag,
@@ -677,5 +679,76 @@ describe('next.liveCount', () => {
       $run: () => AsyncResult.err(dbError('forbidden', 'no')),
     });
     expect(seed.count).toBeNull();
+  });
+});
+
+describe('read replicas', () => {
+  const READ_URL = 'https://abcdefghijklmnopqrst-all.supabase.co';
+
+  it('keeps the next requests on the primary after a write', async () => {
+    const seen: string[] = [];
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input, init) => {
+        seen.push(`${init?.method ?? 'GET'} ${new URL(String(input)).host}`);
+        return Promise.resolve(
+          Response.json(init?.method === 'POST' ? [{ id: 'c1' }] : []),
+        );
+      });
+    const token = await signer.sign({ sub: USER });
+    const next = createNext(defineSupabase(schema), {
+      env: { ...env, readUrl: READ_URL },
+      auth: { jwks: signer.jwks as never },
+      cacheTags: false,
+      replicas: { pinMs: 2000 },
+    });
+    const request = (method: string) =>
+      new NextRequest('https://app.test/api/customers', {
+        method,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    const segment = { params: Promise.resolve({}) };
+    try {
+      const read = next.route((_request, { db }) =>
+        db.customers.findMany({ select: ['id'] }),
+      );
+      const write = next.route((_request, { db }) =>
+        db.customers.create(
+          { name: 'Acme', organizationId: 'o1' },
+          { select: ['id'] },
+        ),
+      );
+      expect(
+        (await read(request('GET'), segment)).headers.get('set-cookie'),
+      ).toBeNull();
+      const cookie = (await write(request('POST'), segment)).headers.get(
+        'set-cookie',
+      );
+      expect(cookie).toMatch(
+        /^bs-primary-until=\d+; Path=\/; Max-Age=2; HttpOnly; SameSite=Lax$/,
+      );
+
+      mocks.headers = new Headers({ authorization: `Bearer ${token}` });
+      mocks.setCookie.mockReset();
+      const action = next.action({}, (_input, { db }) =>
+        db.customers.create(
+          { name: 'Acme', organizationId: 'o1' },
+          { select: ['id'] },
+        ),
+      );
+      expect(await action(undefined)).toMatchObject({ ok: true });
+      expect(mocks.setCookie).toHaveBeenCalledWith(
+        'bs-primary-until',
+        expect.stringMatching(/^\d+$/),
+        { path: '/', maxAge: 2, httpOnly: true, sameSite: 'lax' },
+      );
+      expect(seen).toEqual([
+        'GET abcdefghijklmnopqrst-all.supabase.co',
+        'POST abcdefghijklmnopqrst.supabase.co',
+        'POST abcdefghijklmnopqrst.supabase.co',
+      ]);
+    } finally {
+      fetch.mockRestore();
+    }
   });
 });

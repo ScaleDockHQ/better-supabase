@@ -1,0 +1,81 @@
+---
+title: Read replicas
+description: Send reads to a Supabase read replica and keep read-your-writes after a mutation.
+---
+
+A [read replica](https://supabase.com/docs/guides/platform/read-replicas) has
+its own API URL. Point `SUPABASE_READ_URL` at it and the server sends each
+request's reads there and its writes to the primary:
+
+```bash title=".env"
+SUPABASE_URL=https://abc.supabase.co
+SUPABASE_READ_URL=https://abc-rr-eu-west-1-xyz.supabase.co
+```
+
+Or pass it in code, where `readUrl: false` turns an env value off:
+
+```ts title="lib/supabase.server.ts"
+export const next = createNext(sb, {
+  readUrl: process.env.REPLICA_URL,
+  replicas: { pinMs: 5000 },
+});
+```
+
+Nothing else changes: `ctx.db` routes each call.
+
+| Call                                               | Goes to                    |
+| -------------------------------------------------- | -------------------------- |
+| `findMany`, `findById`, `count`, `aggregate`, ...  | replica                    |
+| `create`, `update`, `upsert`, `delete`             | primary                    |
+| `stable` RPCs and [read sets](/docs/repository/read-sets) (sent as GET) | replica |
+| other RPCs                                         | primary                    |
+| anything after a write in the same request         | primary                    |
+| `admin()`, `dbFor(userId)`                         | primary, always            |
+
+## Read your own writes
+
+A replica lags the primary by milliseconds to seconds. A page that reads
+right after saving could miss the row it just wrote. So a successful write
+_pins_ the request to the primary: every later read in that request goes
+there too.
+
+The pin also crosses the redirect. When a Next.js action or route writes, it
+sets an `HttpOnly` cookie `bs-primary-until` that holds a timestamp
+`replicas.pinMs` (5 s by default) ahead. Every request with that cookie reads
+from the primary until then, so the page you redirect to shows the new data.
+
+Writes through `db.$client` or `db.$sql` bypass the router. Pin by hand after
+them:
+
+```ts
+await ctx.db.$client.rpc('import_customers', { rows });
+ctx.replica?.pin();
+```
+
+`ctx.replica` is `undefined` when no read URL is set.
+
+## Other adapters
+
+`server.context(request)` reads the cookie for every adapter, so Hono, oRPC
+and edge functions honor a pin set by Next.js. Only `next.action` and
+`next.route` set it. Elsewhere, set it yourself when `ctx.replica?.wrote` is
+true:
+
+```ts
+import { PRIMARY_COOKIE } from 'better-supabase/server';
+
+if (ctx.replica?.wrote) {
+  response.headers.append(
+    'set-cookie',
+    `${PRIMARY_COOKIE}=${Date.now() + 5000}; Path=/; Max-Age=5; HttpOnly; SameSite=Lax`,
+  );
+}
+```
+
+## Caveats
+
+- Realtime, Storage and Auth always use the primary URL.
+- A replica rejects writes. A `volatile` function called with `get: true`
+  fails there, so mark only read-only functions `stable`.
+- The pin is per browser. Another user can still read stale rows for up to
+  the replica lag.

@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import { cacheLife, cacheTag, revalidateTag, updateTag } from 'next/cache.js';
-import { headers } from 'next/headers.js';
+import { cookies, headers } from 'next/headers.js';
 import { type NextRequest, NextResponse } from 'next/server.js';
 import { cache } from 'react';
 
@@ -21,6 +21,11 @@ import { problemResponse } from '../core/problem.ts';
 import { isReadSet, type ReadSet } from '../core/read-set.ts';
 import { validate } from '../core/standard.ts';
 import { EMPTY_STATS } from '../core/stats.ts';
+import {
+  DEFAULT_PIN_MS,
+  PRIMARY_COOKIE,
+  primaryCookie,
+} from '../server/replicas.ts';
 import {
   defaultExpose,
   guard,
@@ -385,6 +390,7 @@ export function createNext<
   options: NextOptions = {},
 ): BetterNext<M, F, E, C> {
   const base = createServer(sb, options);
+  const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
   const expose = options.exposeErrors ?? defaultExpose();
 
   if (options.cacheTags !== false) sb.cache(nextCache());
@@ -562,6 +568,13 @@ export function createNext<
           () => handler(request, withExtra(ctx, { params })),
           { instance, expose },
         );
+        if (ctx.replica?.wrote) {
+          try {
+            response.headers.append('set-cookie', primaryCookie(pinMs));
+          } catch {
+            // A handler returned a Response with immutable headers.
+          }
+        }
         if (collector) {
           try {
             response.headers.set(statsHeader, formatStats(ctx.stats()));
@@ -608,6 +621,14 @@ export function createNext<
           parsed = checked.data;
         }
         const settled = await settle(() => fn(parsed as never, ctx));
+        if (ctx.replica?.wrote) {
+          (await cookies()).set(PRIMARY_COOKIE, String(Date.now() + pinMs), {
+            path: '/',
+            maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
+            httpOnly: true,
+            sameSite: 'lax',
+          });
+        }
         return (
           settled.ok
             ? { ok: true, data: settled.data, error: null }

@@ -80,6 +80,11 @@ export interface DefineSupabaseOptions {
 export interface ConnectOptions {
   /** Also records this connection's calls into a request-wide recorder. */
   readonly stats?: StatsRecorder;
+  /**
+   * Runs operations instead of the client's own executor, while `$client`
+   * stays the client (e.g. routing reads to a replica).
+   */
+  readonly executor?: Executor;
 }
 
 export interface RpcDefinition {
@@ -295,7 +300,9 @@ export class BetterSupabase<
     options: ConnectOptions = {},
   ): unknown {
     const client = isExecutor(source) ? undefined : source;
-    const base = isExecutor(source) ? source : postgrestExecutor(source);
+    const base =
+      options.executor ??
+      (isExecutor(source) ? source : postgrestExecutor(source));
     const recorder = new StatsRecorder(options.stats);
     return this.#db(client, base, context, this.plugins, recorder);
   }

@@ -1,4 +1,4 @@
 {
   "title": "Production notes",
-  "pages": ["data-api-grants", "limitations"]
+  "pages": ["data-api-grants", "read-replicas", "limitations"]
 }

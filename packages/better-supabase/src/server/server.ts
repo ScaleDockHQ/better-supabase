@@ -14,6 +14,7 @@ import {
   resolveAuth,
   type ResolveAuthOptions,
 } from '../auth/resolve.ts';
+import { postgrestExecutor } from '../core/postgrest-executor.ts';
 import { type DbStats, StatsRecorder } from '../core/stats.ts';
 import { type BetterSupabaseEnv, loadEnv } from '../env/index.ts';
 import { postgresExecutor } from '../postgres/executor.ts';
@@ -22,6 +23,12 @@ import {
   type DeleteAccountOptions,
   type DeleteAccountResult,
 } from './delete-account.ts';
+import {
+  pinnedUntil,
+  type ReplicaState,
+  replicaState,
+  routedExecutor,
+} from './replicas.ts';
 
 export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
@@ -34,6 +41,16 @@ export interface ServerOptions {
    * `current_setting('request.headers')` (channel, request id, client IP for audit).
    */
   readonly headers?: (request: Request) => Readonly<Record<string, string>>;
+  /**
+   * PostgREST URL for the caller's reads: a read replica or the `<ref>-all`
+   * load balancer. Defaults to `SUPABASE_READ_URL`; `false` reads from the
+   * primary.
+   */
+  readonly readUrl?: string | false;
+  readonly replicas?: {
+    /** How long the next requests read from the primary after a write. Defaults to 5 s. */
+    readonly pinMs?: number;
+  };
 }
 
 export interface ServerContext<
@@ -52,10 +69,14 @@ export interface ServerContext<
   readonly sql: Db<M, F, E, undefined> | undefined;
   /** Calls, waves, tables and time for `db` and `sql` together. */
   stats(): DbStats;
+  /** Where `db` reads go, when a read URL is configured. */
+  readonly replica: ReplicaState | undefined;
 }
 
 export interface ContextOptions {
   readonly refresh?: boolean;
+  /** Epoch ms until which `db` reads from the primary (the `bs-primary-until` cookie). */
+  readonly pinnedUntil?: number;
   /** Also records this context's calls into a request-wide recorder. */
   readonly stats?: StatsRecorder;
 }
@@ -176,31 +197,39 @@ export function createServer<
     return adminClient;
   };
 
-  const supabaseFor = (
+  const readUrl = (): string | undefined =>
+    options.readUrl === false
+      ? undefined
+      : (options.readUrl?.replace(/\/+$/, '') ?? env().readUrl);
+
+  /** Clients for the primary share the service and anon clients; others don't. */
+  const supabaseAt = (
+    url: string,
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
   ): SupabaseClient => {
     const global =
       Object.keys(headers).length > 0 ? { global: { headers } } : undefined;
+    const shared = !global && url === env().url;
     switch (auth.kind) {
       case 'user':
-        return createClient(env().url, env().publishableKey, {
+        return createClient(url, env().publishableKey, {
           accessToken: () => Promise.resolve(auth.token),
           ...global,
         });
       case 'service':
-        return global
-          ? createClient(env().url, secretKey(), { auth: STATELESS, ...global })
-          : serviceClient();
+        return shared
+          ? serviceClient()
+          : createClient(url, secretKey(), { auth: STATELESS, ...global });
       case 'anon':
       case 'invalid':
-        if (global) {
-          return createClient(env().url, env().publishableKey, {
+        if (!shared) {
+          return createClient(url, env().publishableKey, {
             auth: STATELESS,
             ...global,
           });
         }
-        anonClient ??= createClient(env().url, env().publishableKey, {
+        anonClient ??= createClient(url, env().publishableKey, {
           auth: STATELESS,
         });
         return anonClient;
@@ -210,6 +239,11 @@ export function createServer<
       }
     }
   };
+
+  const supabaseFor = (
+    auth: AuthState,
+    headers: Readonly<Record<string, string>> = {},
+  ): SupabaseClient => supabaseAt(env().url, auth, headers);
 
   const dbFor = (
     auth: AuthState,
@@ -239,6 +273,7 @@ export function createServer<
     resolution: AuthResolution<C>,
     headers: Readonly<Record<string, string>>,
     parent: StatsRecorder | undefined,
+    until = 0,
   ): ServerContext<M, F, E, C> => {
     const { auth } = resolution;
     const context = authContext(auth);
@@ -254,6 +289,12 @@ export function createServer<
           : undefined;
     const client = (): SupabaseClient =>
       (supabase ??= supabaseFor(auth, headers));
+    let replica: ReplicaState | undefined;
+    const replicaUrl = (): string | undefined => {
+      const url = readUrl();
+      if (url) replica ??= replicaState(until);
+      return url;
+    };
     return {
       auth,
       resolution,
@@ -261,8 +302,25 @@ export function createServer<
         return client();
       },
       get db() {
-        db ??= sb.connect(client(), context, { stats: recorder });
+        if (db) return db;
+        const url = replicaUrl();
+        db = sb.connect(client(), context, {
+          stats: recorder,
+          ...(url && replica
+            ? {
+                executor: routedExecutor(
+                  postgrestExecutor(client()),
+                  postgrestExecutor(supabaseAt(url, auth, headers)),
+                  replica,
+                ),
+              }
+            : {}),
+        });
         return db;
+      },
+      get replica() {
+        replicaUrl();
+        return replica;
       },
       get sql() {
         if (!options.postgres || !sqlClaims) return undefined;
@@ -328,6 +386,7 @@ export function createServer<
         },
         {},
         contextOptions.stats,
+        contextOptions.pinnedUntil,
       ),
     async context(request, contextOptions = {}) {
       const resolution = await resolve(request, {
@@ -337,6 +396,8 @@ export function createServer<
         resolution,
         options.headers?.(request) ?? {},
         contextOptions.stats,
+        contextOptions.pinnedUntil ??
+          pinnedUntil(request.headers.get('cookie')),
       );
     },
     admin: (context = {}) =>
