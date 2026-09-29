@@ -348,6 +348,8 @@
       "createNext",
       "nextCache",
       "REQUEST_ID_HEADER",
+      "sessionStale",
+      "sessionTag",
       "shouldRefresh",
       "STATS_URL_HEADER",
       "tagFor",
@@ -359,12 +361,15 @@
       "AuthKind",
       "AuthSession",
       "BetterNext",
+      "CachedContext",
+      "CachedOptions",
       "DbBudget",
       "DbStats",
       "GuardOptions",
       "NextDebugOptions",
       "NextOptions",
-      "ProxyOptions"
+      "ProxyOptions",
+      "SessionStaleOptions"
     ]
   },
   "./hono": {

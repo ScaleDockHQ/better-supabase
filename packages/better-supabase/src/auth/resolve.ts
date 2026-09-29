@@ -127,7 +127,90 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
   };
 }
 
+type VerifiedUser = Omit<Extract<AuthState, { kind: 'user' }>, 'source'>;
+
+const MEMO_SIZE = 256;
+const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
+let memoByJwks = new WeakMap<object, Map<string, VerifiedUser>>();
+
+/**
+ * Tokens that already verified, until they expire. Every private-cache scope
+ * and island resolves the same token again; this skips the signature check.
+ */
+function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
+  const jwks = options.jwks;
+  if (jwks && typeof jwks === 'object' && !(jwks instanceof URL)) {
+    let memo = memoByJwks.get(jwks);
+    if (!memo) memoByJwks.set(jwks, (memo = new Map()));
+    return memo;
+  }
+  const key = JSON.stringify([
+    String(jwks ?? options.env.jwksUrl),
+    options.env.url,
+    options.audience ?? null,
+    options.issuer ?? null,
+  ]);
+  let memo = memoByUrl.get(key);
+  if (!memo) memoByUrl.set(key, (memo = new Map()));
+  return memo;
+}
+
+/** Forgets every verified token. For benchmarks and tests. */
+export function clearVerifiedTokens(): void {
+  memoByUrl.clear();
+  memoByJwks = new WeakMap();
+}
+
+function remembered(
+  memo: Map<string, VerifiedUser>,
+  token: string,
+  now: number,
+): VerifiedUser | undefined {
+  const hit = memo.get(token);
+  if (!hit) return undefined;
+  memo.delete(token);
+  if (hit.expiresAt === null || hit.expiresAt <= now) return undefined;
+  memo.set(token, hit);
+  return hit;
+}
+
+function remember(
+  memo: Map<string, VerifiedUser>,
+  token: string,
+  user: VerifiedUser,
+): void {
+  if (user.expiresAt === null) return;
+  memo.set(token, user);
+  if (memo.size > MEMO_SIZE) memo.delete(memo.keys().next().value!);
+}
+
 async function verify(
+  credentials: { token: string | null; apikey: string | null },
+  modes: AuthModeWithKey[],
+  options: ResolveAuthOptions,
+  source: 'bearer' | 'cookie',
+): Promise<AuthState> {
+  const token = modes.length === 1 && modes[0] === 'user' && credentials.token;
+  const memo = token ? memoFor(options) : undefined;
+  if (token && memo) {
+    const now = Math.floor((options.now ?? Date.now)() / 1000);
+    const hit = remembered(memo, token, now);
+    if (hit) return { ...hit, source };
+  }
+  const state = await verifyOnce(credentials, modes, options, source);
+  if (token && memo && state.kind === 'user') {
+    remember(memo, token, {
+      kind: 'user',
+      token: state.token,
+      claims: state.claims,
+      user: state.user,
+      expiresAt: state.expiresAt,
+    });
+  }
+  return state;
+}
+
+async function verifyOnce(
   credentials: { token: string | null; apikey: string | null },
   modes: AuthModeWithKey[],
   options: ResolveAuthOptions,

@@ -63,6 +63,8 @@ export interface BetterServer<M extends AnyModels, F extends AnyFunctions, E> {
     request: Request,
     options?: ContextOptions,
   ): Promise<ServerContext<M, F, E>>;
+  /** The context for an auth state resolved elsewhere (the proxy, a queue message). */
+  contextFor(auth: AuthState, options?: ContextOptions): ServerContext<M, F, E>;
   /** A stateless supabase-js client for an auth state, optionally with extra request headers. */
   supabaseFor(
     auth: AuthState,
@@ -99,6 +101,20 @@ export function extendServer<R extends object>(
       ...Object.getOwnPropertyDescriptors(extra),
     },
   ) as R;
+}
+
+/** `{ ...base, ...extra }` that keeps lazy getters lazy. */
+export function withExtra<T extends object, X extends object>(
+  base: T,
+  extra: X,
+): T & X {
+  return Object.defineProperties(
+    {},
+    {
+      ...Object.getOwnPropertyDescriptors(base),
+      ...Object.getOwnPropertyDescriptors(extra),
+    },
+  ) as T & X;
 }
 
 /**
@@ -184,6 +200,45 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
     );
   };
 
+  /** Clients and repositories are built on first access: most scopes use one of them. */
+  const contextFor = (
+    resolution: AuthResolution,
+    headers: Readonly<Record<string, string>>,
+    parent: StatsRecorder | undefined,
+  ): ServerContext<M, F, E> => {
+    const { auth } = resolution;
+    const context = authContext(auth);
+    const recorder = new StatsRecorder(parent);
+    let supabase: SupabaseClient | undefined;
+    let db: Db<M, F, E, SupabaseClient> | undefined;
+    let sql: Db<M, F, E, undefined> | undefined;
+    const sqlClaims: SqlClaims | undefined =
+      auth.kind === 'user'
+        ? auth.claims
+        : auth.kind === 'anon'
+          ? { role: 'anon' }
+          : undefined;
+    const client = (): SupabaseClient =>
+      (supabase ??= supabaseFor(auth, headers));
+    return {
+      auth,
+      resolution,
+      get supabase() {
+        return client();
+      },
+      get db() {
+        db ??= sb.connect(client(), context, { stats: recorder });
+        return db;
+      },
+      get sql() {
+        if (!options.postgres || !sqlClaims) return undefined;
+        sql ??= sqlFor(sqlClaims, context, recorder);
+        return sql;
+      },
+      stats: () => recorder.snapshot(),
+    };
+  };
+
   const resolve = async (
     request: Request,
     resolveOptions: { readonly refresh?: boolean } = {},
@@ -224,31 +279,27 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
     resolve,
     supabaseFor,
     dbFor,
+    contextFor: (auth, contextOptions = {}) =>
+      contextFor(
+        {
+          auth,
+          cookies: [],
+          headers: {},
+          requestCookies: [],
+          apply: (response) => response,
+        },
+        {},
+        contextOptions.stats,
+      ),
     async context(request, contextOptions = {}) {
       const resolution = await resolve(request, {
         refresh: contextOptions.refresh ?? false,
       });
-      const { auth } = resolution;
-      const context = authContext(auth);
-      const supabase = supabaseFor(auth, options.headers?.(request));
-      const sqlClaims: SqlClaims | undefined =
-        auth.kind === 'user'
-          ? auth.claims
-          : auth.kind === 'anon'
-            ? { role: 'anon' }
-            : undefined;
-      const recorder = new StatsRecorder(contextOptions.stats);
-      return {
-        auth,
+      return contextFor(
         resolution,
-        supabase,
-        db: sb.connect(supabase, context, { stats: recorder }),
-        sql:
-          options.postgres && sqlClaims
-            ? sqlFor(sqlClaims, context, recorder)
-            : undefined,
-        stats: () => recorder.snapshot(),
-      };
+        options.headers?.(request) ?? {},
+        contextOptions.stats,
+      );
     },
     admin: (context = {}) =>
       sb.connect(serviceClient(), {

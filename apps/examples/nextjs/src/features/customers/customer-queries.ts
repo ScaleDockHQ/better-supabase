@@ -1,16 +1,14 @@
 import 'server-only';
-import { cacheLife } from 'next/cache';
-
 import { next } from '@/lib/supabase.server';
 
 /**
- * The caller's customers. `next.server()` queries with the user's token, so
- * RLS decides the rows; the private cache keeps them in this browser only.
+ * The caller's customers. `next.cached()` queries with the user's token, so
+ * RLS decides the rows; the private cache keeps them in this browser only,
+ * for as long as the session view may be reused.
  */
 export async function getCustomers() {
   'use cache: private';
-  cacheLife('minutes');
-  const { db } = await next.server();
+  const { db } = await next.cached();
   return db.customers
     .findMany({
       select: ['id', 'name', 'status'],

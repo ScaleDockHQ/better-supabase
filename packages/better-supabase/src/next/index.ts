@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
-import { cacheTag, revalidateTag, updateTag } from 'next/cache.js';
+import { cacheLife, cacheTag, revalidateTag, updateTag } from 'next/cache.js';
 import { headers } from 'next/headers.js';
 import { type NextRequest, NextResponse } from 'next/server.js';
 import { cache } from 'react';
@@ -15,6 +15,7 @@ import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
 import { serializeCookie } from '../auth/session.ts';
 import { toSession } from '../auth/view.ts';
+import { dbError } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
 import { validate } from '../core/standard.ts';
 import { EMPTY_STATS } from '../core/stats.ts';
@@ -32,6 +33,7 @@ import {
   extendServer,
   type ServerContext,
   type ServerOptions,
+  withExtra,
 } from '../server/server.ts';
 import {
   type DbBudget,
@@ -116,6 +118,31 @@ export interface BetterNext<
    * Components and pass the promise to `<SessionProvider>`.
    */
   session(): Promise<AuthSession>;
+  /**
+   * The context for a session and its token, without reading the request.
+   * The token is verified again (memoized, no network call); a token for
+   * another user than `session` gives an `invalid` context.
+   */
+  serverFor(
+    session: AuthSession,
+    options: { readonly token: string | null },
+  ): Promise<ServerContext<M, F, E>>;
+  /**
+   * First statement of an app-authored `'use cache: private'` function: sets
+   * `cacheLife` from the session's expiry (`sessionStale`), tags the entry
+   * `bs:session:<user id>` and returns the caller's context plus `session`.
+   *
+   * ```ts
+   * async function getCustomers() {
+   *   'use cache: private';
+   *   const { db } = await next.cached();
+   *   return db.customers.findMany().orThrow();
+   * }
+   * ```
+   */
+  cached(options?: CachedOptions): Promise<CachedContext<M, F, E>>;
+  /** Drops every `next.cached()` entry of a user, e.g. after a role change. */
+  invalidateSession(userId: string): void;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
   route<P = Record<string, string | string[]>>(
     handler: (
@@ -144,6 +171,48 @@ export interface BetterNext<
    * `expectDbBudget`. Answers 404 unless `debug` is on.
    */
   debugRoute(): (request: Request) => Promise<Response>;
+}
+
+export interface SessionStaleOptions {
+  /** Below this, the result would not be prefetched anyway. Defaults to 30. */
+  readonly min?: number;
+  /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
+  readonly max?: number;
+}
+
+/**
+ * `cacheLife` `stale` seconds for a view of `session`: `max`, but never past
+ * the token's expiry, and at least `min`.
+ */
+export function sessionStale(
+  session: AuthSession,
+  options: SessionStaleOptions = {},
+  now: number = Date.now(),
+): number {
+  const min = options.min ?? 30;
+  const max = options.max ?? 300;
+  if (session.kind !== 'user' || session.expiresAt === null) return max;
+  const remaining = session.expiresAt - Math.floor(now / 1000);
+  return Math.min(max, Math.max(min, remaining));
+}
+
+export interface CachedOptions {
+  /** `cacheLife` for the entry. `stale` comes from `sessionStale`. */
+  readonly life?: SessionStaleOptions & {
+    readonly revalidate?: number;
+    readonly expire?: number;
+  };
+}
+
+export type CachedContext<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+> = ServerContext<M, F, E> & { readonly session: AuthSession };
+
+/** The tag `next.cached()` puts on a user's entries. */
+export function sessionTag(userId: string): string {
+  return `bs:session:${userId}`;
 }
 
 /** `bs:<table>` or `bs:<table>:<id>`. Mutations invalidate both. */
@@ -257,9 +326,50 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
     return toSession(resolution.auth);
   });
 
+  const serverFor = async (
+    view: AuthSession,
+    { token }: { readonly token: string | null },
+  ): Promise<ServerContext<M, F, E>> => {
+    const request = new Request('http://next.local/', {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    const ctx = await base.context(request);
+    const matches =
+      ctx.auth.kind === 'user'
+        ? view.kind === 'user' && view.user.id === ctx.auth.user.id
+        : view.kind !== 'user';
+    if (matches) return ctx;
+    return base.contextFor({
+      kind: 'invalid',
+      error: dbError(
+        'unauthorized',
+        'The token does not belong to the session passed to serverFor()',
+      ),
+    });
+  };
+
   return extendServer<BetterNext<M, F, E>>(base, {
     server,
     session,
+    serverFor,
+
+    async cached(cachedOptions = {}) {
+      const [view, ctx] = await Promise.all([session(), server()]);
+      const life = cachedOptions.life;
+      cacheLife({
+        stale: sessionStale(view, life),
+        ...(life?.revalidate === undefined
+          ? {}
+          : { revalidate: life.revalidate }),
+        ...(life?.expire === undefined ? {} : { expire: life.expire }),
+      });
+      if (view.kind === 'user') cacheTag(sessionTag(view.user.id));
+      return withExtra(ctx, { session: view });
+    },
+
+    invalidateSession(userId) {
+      invalidate(sessionTag(userId));
+    },
 
     async proxy(request, proxyOptions = {}) {
       const id = collector ? crypto.randomUUID() : undefined;
@@ -308,7 +418,7 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
         if (denied) return problemResponse(denied, { instance, expose });
         const params = await segment.params;
         const response = await respond(
-          () => handler(request, { ...ctx, params }),
+          () => handler(request, withExtra(ctx, { params })),
           { instance, expose },
         );
         if (collector) {

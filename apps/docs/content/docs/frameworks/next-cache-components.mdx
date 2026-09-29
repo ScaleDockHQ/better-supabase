@@ -34,26 +34,22 @@ Components.
 
 ```ts title="src/features/user/user-queries.ts"
 import 'server-only';
-import type { AuthSession } from 'better-supabase/next';
+import { type AuthSession, sessionStale } from 'better-supabase/next';
 import { cacheLife } from 'next/cache';
 import { next } from '@/lib/supabase.server';
 
 export async function getSession(): Promise<AuthSession> {
   'use cache: private';
   const session = await next.session();
-  cacheLife({ stale: staleFor(session) });
+  cacheLife({ stale: sessionStale(session) });
   return session;
-}
-
-// 5 minutes joins the App Shell; never keep a view past the token's expiry.
-function staleFor(session: AuthSession): number {
-  if (session.kind !== 'user' || session.expiresAt === null) return 300;
-  const remaining = session.expiresAt - Math.floor(Date.now() / 1000);
-  return Math.min(300, Math.max(30, remaining));
 }
 ```
 
-`stale` decides where the result can be reused:
+`sessionStale(session, { min: 30, max: 300 })` returns `max`, but never
+more than the seconds left on the token and never less than `min`, so a
+signed-in view is not reused after its token expired. `stale` decides where
+the result can be reused:
 
 | `stale` | Effect |
 | --- | --- |
@@ -227,17 +223,50 @@ export const proxy = (request: NextRequest) => next.proxy(request, { protect });
 
 ## 6. Data derived from the session
 
-Per-user rows go through `next.server()` inside a private cache, so the
+Per-user rows go through `next.cached()` inside a private cache, so the
 query runs with the user's token and RLS decides what comes back:
 
 ```ts title="src/features/customers/customer-queries.ts"
 export async function getCustomers() {
   'use cache: private';
-  cacheLife('minutes');
-  const { db } = await next.server();
+  const { db } = await next.cached();
   return db.customers.findMany({ select: ['id', 'name', 'status'] }).orThrow();
 }
 ```
+
+`next.cached()` must be called inside your own `'use cache: private'`
+function: the directive has to be in app code, and Next.js keys the entry on
+that function's arguments. It:
+
+- calls `cacheLife({ stale: sessionStale(session) })`. Pass
+  `{ life: { min, max, revalidate, expire } }` to change it;
+- tags the entry `bs:session:<user id>`, so `next.invalidateSession(userId)`
+  drops every cached view of that user, for example after an admin changes
+  their role;
+- returns the caller's context plus `session`. `db`, `supabase` and `sql` are
+  built on first access.
+
+Outside a request, `next.serverFor(session, { token })` builds the same
+context from a session you already have. The token is verified again, and a
+token for another user gives an `invalid` context.
+
+### What one scope costs
+
+Each island that misses its private cache resolves the caller again. A
+verified token is remembered until it expires (up to 256 tokens per
+process), so only the first scope checks the signature, and none of them
+calls the Auth server. The context builds its supabase-js client and
+repositories on first use, so islands that only read `auth` build none.
+Twelve islands in one render, four of which query (`pnpm --filter
+better-supabase bench`, Apple M5 Max, ES256):
+
+| | Signature checks | Clients built | Time per render |
+| --- | --- | --- | --- |
+| Before | 12 | 12 | 1.42 ms |
+| After | 1 | 4 | 0.10 ms |
+
+The database calls themselves are what's left; count them with the
+[budget](#budget).
 
 Data that is the same for every user belongs in a plain `'use cache'` with
 `next.cacheTag()` and `next.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).

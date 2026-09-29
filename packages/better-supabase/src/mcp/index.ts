@@ -34,7 +34,7 @@ import {
   type GuardOptions,
   settle,
 } from '../server/respond.ts';
-import { createServer, extendServer } from '../server/server.ts';
+import { createServer, extendServer, withExtra } from '../server/server.ts';
 
 export type { GuardOptions } from '../server/respond.ts';
 export type { ResourceRouteOptions } from '../server/resource.ts';
@@ -570,11 +570,11 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
           );
         }
         return reply(
-          await call(name, message.params?.['arguments'], {
-            ...ctx,
-            request,
-            signal: request.signal,
-          }),
+          await call(
+            name,
+            message.params?.['arguments'],
+            withExtra(ctx, { request, signal: request.signal }),
+          ),
         );
       }
       default:
