@@ -104,7 +104,7 @@ scripts/               repo checks that run with Node type stripping
   functions have explicit return types.
 - Deploys use Vercel Services from `vercel.json` (docs and marketing on one
   domain). It stays JSON until `@vercel/config` types `services` and
-  per-service rewrites; `turbo-ignore` skips deploys neither app is affected by.
+  per-service rewrites; each service's `turbo-ignore` skips its build when its app is unaffected.
 
 ## Docs conventions (`apps/docs/content/docs`)
 
