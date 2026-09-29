@@ -167,21 +167,24 @@ describe.skipIf(!live)('Realtime kit', async () => {
       issues: [{ path: ['title'] }],
     });
 
+    let retry: ReturnType<typeof setInterval> | undefined;
+    const send = () =>
+      notifications.send(acme, values, 'created', { title: 'Hello' }).orThrow();
     const message = await waitFor<{ title: string }>((resolve) => {
       const sub = notifications.subscribe(acme, values, {
         created: (payload) => resolve(payload),
       });
-      void sub.ready.then(() =>
-        notifications
-          .send(acme, values, 'created', { title: 'Hello' })
-          .orThrow(),
-      );
-    });
+      // Same cold-server gap as the row broadcast above.
+      void sub.ready.then(async () => {
+        await send();
+        retry = setInterval(() => void send(), 3000);
+      });
+    }, 15_000).finally(() => clearInterval(retry));
     expect(message).toEqual({ title: 'Hello' });
 
     const denied = await notifications.send(other, values, 'created', {
       title: 'Hi',
     });
     expect(denied.ok).toBe(false);
-  });
+  }, 20_000);
 });
