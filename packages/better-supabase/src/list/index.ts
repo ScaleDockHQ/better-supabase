@@ -10,12 +10,13 @@ import type {
 } from '../core/repository-types.ts';
 import type { AsyncResult } from '../core/result.ts';
 import type {
-  IncludeArgs,
+  IncludeArg,
   OrderByArg,
   Payload,
   SelectArg,
   WhereInput,
 } from '../ir/args.ts';
+import type { CountMode } from '../ir/types.ts';
 import type {
   AnyFunctions,
   AnyModels,
@@ -40,7 +41,15 @@ export interface ListQueryConfig<
   T extends keyof M,
   S extends string,
   F extends string,
+  C extends boolean = boolean,
 > {
+  /**
+   * Also count rows per facet value, with one grouped aggregate that runs
+   * next to the page: 2 calls, 1 wave. Needs PostgREST aggregates.
+   */
+  readonly facetCounts?: C;
+  /** How the page total is counted. Defaults to `'exact'`. */
+  readonly count?: CountMode;
   /** Text columns matched case-insensitively (OR), or a full-text column. */
   readonly search?:
     | readonly TextColumn<M, T>[]
@@ -116,12 +125,26 @@ export interface FacetInfo {
   readonly values?: readonly string[];
 }
 
+/** Rows per facet value, keyed by facet and then by value (`UNSET` for empty). */
+export type FacetCounts<F extends string> = {
+  readonly [K in F]: Readonly<Record<string, number>>;
+};
+
+/** A page of a list; with `facetCounts: true`, also the counts per facet value. */
+export type ListPage<R, F extends string, C extends boolean> = OffsetPage<R> &
+  ([C] extends [true]
+    ? { readonly facetCounts: FacetCounts<F> }
+    : [C] extends [false]
+      ? unknown
+      : { readonly facetCounts?: FacetCounts<F> });
+
 export interface ListDefinition<
   M extends AnyModels,
   T extends TableKey<M>,
   E,
   S extends string,
   F extends string,
+  C extends boolean = false,
 > {
   readonly table: T;
   readonly defaults: ListQuery<S, F>;
@@ -143,12 +166,15 @@ export interface ListDefinition<
   };
   /** Repository arguments: `where`, `orderBy`, `page`, `size`, `count`. */
   args(query: ListQuery<S, F>): OffsetPageArgs<M, T>;
-  /** Runs the list against a table, merging your `select`, `include` and `where`. */
+  /**
+   * Runs the list against a table, merging your `select`, `include`, `where`
+   * and `count`. One request, plus one for `facetCounts`, always one wave.
+   */
   run<const A extends ListExtra<M, T> & FindExt<E, M, T>>(
     db: { readonly [K in T]: RepositoryOf<M, K, E> },
     query: ListQuery<S, F>,
     extra?: A,
-  ): AsyncResult<OffsetPage<Payload<M, T, A>>>;
+  ): AsyncResult<ListPage<Payload<M, T, A>, F, C>>;
   /** OpenAPI 3.1 query parameters. */
   readonly openapi: readonly OpenApiParameter[];
   /** JSON Schema of the typed input, e.g. for MCP tool arguments. */
@@ -157,8 +183,10 @@ export interface ListDefinition<
 
 export interface ListExtra<M extends AnyModels, T extends keyof M> {
   readonly select?: SelectArg<M, T>;
-  readonly include?: IncludeArgs<M, T>;
+  readonly include?: IncludeArg<M, T>;
   readonly where?: WhereInput<M, T>;
+  /** Overrides the config's `count` for this run. */
+  readonly count?: CountMode;
 }
 
 export type ListParsers<S extends string, F extends string> = {
@@ -231,11 +259,12 @@ export function defineListQuery<
   T extends TableKey<M>,
   const S extends string,
   const F extends string = never,
+  const C extends boolean = false,
 >(
   sb: BetterSupabase<M, D, Fn, E>,
   table: T,
-  config: ListQueryConfig<M, T, S, F>,
-): ListDefinition<M, T, E, S, F> {
+  config: ListQueryConfig<M, T, S, F, C>,
+): ListDefinition<M, T, E, S, F, C> {
   const meta: TableMeta | undefined = sb.meta.tables[table];
   if (!meta) throw new TypeError(`defineListQuery: unknown table "${table}"`);
   const pageSize = config.pageSize ?? 50;
@@ -408,40 +437,48 @@ export function defineListQuery<
     });
   }
 
-  function where(query: ListQuery<S, F>): Record<string, unknown> | undefined {
-    const parts: Record<string, unknown>[] = [];
-    if (query.q && config.search) {
-      if (Array.isArray(config.search)) {
-        const columns = config.search as readonly string[];
-        if (columns.length > 0)
-          parts.push({
-            OR: columns.map((column) => ({ [column]: { contains: query.q } })),
-          });
-      } else {
-        const fts = config.search as { fts: string; config?: string };
-        parts.push({
-          [fts.fts]: {
-            search: fts.config
-              ? { query: query.q, config: fts.config }
-              : query.q,
-          },
-        });
-      }
+  type Where = Record<string, unknown>;
+
+  function searchWhere(query: ListQuery<S, F>): Where | undefined {
+    if (!query.q || !config.search) return undefined;
+    if (Array.isArray(config.search)) {
+      const columns = config.search as readonly string[];
+      if (columns.length === 0) return undefined;
+      return {
+        OR: columns.map((column) => ({ [column]: { contains: query.q } })),
+      };
     }
-    for (const facet of facets) {
-      const values = query.facets[facet.key as F];
-      if (!values || values.length === 0) continue;
-      const unset = values.includes(UNSET);
-      const set = values.filter((value) => value !== UNSET);
-      if (unset && set.length === 0) parts.push({ [facet.column]: null });
-      else if (!unset) parts.push({ [facet.column]: { in: set } });
-      else
-        parts.push({
-          OR: [{ [facet.column]: { in: set } }, { [facet.column]: null }],
-        });
-    }
-    if (parts.length === 0) return undefined;
-    return parts.length === 1 ? parts[0] : { AND: parts };
+    const fts = config.search as { fts: string; config?: string };
+    return {
+      [fts.fts]: {
+        search: fts.config ? { query: query.q, config: fts.config } : query.q,
+      },
+    };
+  }
+
+  function facetWhere(
+    facet: FacetInfo,
+    values: readonly string[] | undefined,
+  ): Where | undefined {
+    if (!values || values.length === 0) return undefined;
+    const unset = values.includes(UNSET);
+    const set = values.filter((value) => value !== UNSET);
+    if (unset && set.length === 0) return { [facet.column]: null };
+    if (!unset) return { [facet.column]: { in: set } };
+    return { OR: [{ [facet.column]: { in: set } }, { [facet.column]: null }] };
+  }
+
+  function and(parts: readonly (Where | undefined)[]): Where | undefined {
+    const present = parts.filter((part): part is Where => part !== undefined);
+    if (present.length === 0) return undefined;
+    return present.length === 1 ? present[0] : { AND: present };
+  }
+
+  function where(query: ListQuery<S, F>): Where | undefined {
+    return and([
+      searchWhere(query),
+      ...facets.map((facet) => facetWhere(facet, query.facets[facet.key as F])),
+    ]);
   }
 
   function args(query: ListQuery<S, F>): OffsetPageArgs<M, T> {
@@ -451,8 +488,48 @@ export function defineListQuery<
       orderBy: config.sorts[query.sort],
       page: query.page,
       size: query.size,
-      count: 'exact',
+      count: config.count ?? 'exact',
     } as OffsetPageArgs<M, T>;
+  }
+
+  /** Whether a group's value passes the facet's selected values. */
+  function selects(
+    value: unknown,
+    selected: readonly string[] | undefined,
+  ): boolean {
+    if (!selected || selected.length === 0) return true;
+    return value === null || value === undefined
+      ? selected.includes(UNSET)
+      : selected.includes(String(value));
+  }
+
+  /**
+   * Per facet, rows per value under every other facet's selection: the
+   * usual faceted-search counts, where picking a value doesn't zero the
+   * other values of the same facet.
+   */
+  function marginals(
+    groups: readonly Record<string, unknown>[],
+    query: ListQuery<S, F>,
+  ): FacetCounts<F> {
+    const out: Record<string, Record<string, number>> = {};
+    for (const facet of facets) {
+      const counts: Record<string, number> = {};
+      for (const value of facet.values ?? []) counts[value] = 0;
+      for (const group of groups) {
+        const others = facets.every(
+          (other) =>
+            other === facet ||
+            selects(group[other.column], query.facets[other.key as F]),
+        );
+        if (!others) continue;
+        const raw = group[facet.column];
+        const key = raw === null || raw === undefined ? UNSET : String(raw);
+        counts[key] = (counts[key] ?? 0) + Number(group['_count'] ?? 0);
+      }
+      out[facet.key] = counts;
+    }
+    return out as FacetCounts<F>;
   }
 
   const listParser: ParserSpec<readonly string[]> = {
@@ -627,19 +704,50 @@ export function defineListQuery<
     args,
     run(db, query, extra) {
       const base = args(query) as Record<string, unknown>;
-      const extraWhere = extra?.where;
-      const combined =
-        base['where'] && extraWhere
-          ? { AND: [extraWhere, base['where']] }
-          : (extraWhere ?? base['where']);
+      const {
+        where: extraWhere,
+        count,
+        select: _select,
+        include: _include,
+        ...options
+      } = (extra ?? {}) as ListExtra<M, T> & Record<string, unknown>;
+      const combined = and([
+        extraWhere as Where | undefined,
+        base['where'] as Where | undefined,
+      ]);
       const repository = db[table] as unknown as {
         paginate: (input: Record<string, unknown>) => AsyncResult<unknown>;
+        aggregate: (input: Record<string, unknown>) => AsyncResult<unknown>;
       };
-      return repository.paginate({
+      const page = repository.paginate({
         ...extra,
         ...base,
+        count: count ?? base['count'],
         ...(combined ? { where: combined } : {}),
-      }) as AsyncResult<never>;
+      });
+      if (!config.facetCounts) return page as AsyncResult<never>;
+      if (facets.length === 0) {
+        return page.map((data) => ({
+          ...(data as object),
+          facetCounts: {},
+        })) as AsyncResult<never>;
+      }
+      const facetFilter = and([
+        extraWhere as Where | undefined,
+        searchWhere(query),
+      ]);
+      const groups = repository.aggregate({
+        ...options,
+        ...(facetFilter ? { where: facetFilter } : {}),
+        groupBy: [...new Set(facets.map((facet) => facet.column))],
+        _count: true,
+      });
+      return page.andThen((data) =>
+        groups.map((rows) => ({
+          ...(data as object),
+          facetCounts: marginals(rows as Record<string, unknown>[], query),
+        })),
+      ) as AsyncResult<never>;
     },
     openapi,
     jsonSchema,

@@ -14,7 +14,7 @@
   "./mcp": 35049,
   "./jobs": 24136,
   "./env": 2610,
-  "./list": 3395,
+  "./list": 3934,
   "./storage": 10245,
   "./realtime": 10561,
   "./events": 2207,
@@ -29,5 +29,5 @@
   "./plugins/actor": 4042,
   "./plugins/validation": 5601,
   "./testing": 32685,
-  "./cli": 84834
+  "./cli": 84869
 }

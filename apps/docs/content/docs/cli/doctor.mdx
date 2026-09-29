@@ -129,8 +129,8 @@ an index that starts with it.
 ### BS210
 
 **Warning: aggregates used while PostgREST disables them.** PostgREST
-answers `aggregate()` and `_sum`, `_avg`, `_min` and `_max` includes with
-PGRST123 unless `pgrst.db_aggregates_enabled` is on for the `authenticator`
+answers `aggregate()`, `_sum`, `_avg`, `_min` and `_max` includes and list
+[`facetCounts`](/docs/kits/list#facet-counts) with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the `authenticator`
 role. Doctor reads the role's settings from the database and scans the files
 in `doctor.sources` (default `src/**/*.{ts,tsx}`) for those calls. Turn
 aggregates on in a migration:

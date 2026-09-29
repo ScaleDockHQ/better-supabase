@@ -112,6 +112,74 @@ describe('defineListQuery', () => {
     expect(params.get('limit')).toBe('26');
   });
 
+  it('counts facet values next to the page in one wave', async () => {
+    const faceted = defineListQuery(sb, 'customers', {
+      search: ['name'],
+      facets: { status: 'status', kvk: 'kvk' },
+      sorts: { name: { name: 'asc' } },
+      defaultSort: 'name',
+      facetCounts: true,
+      count: 'planned',
+    });
+    const { client, requests } = capturingClient((request) =>
+      request.params.get('select')?.includes('count()')
+        ? {
+            body: [
+              { status: 'active', kvk: '1001', _count: 3 },
+              { status: 'active', kvk: null, _count: 2 },
+              { status: 'lead', kvk: '1001', _count: 4 },
+              { status: 'lead', kvk: '2002', _count: 5 },
+            ],
+          }
+        : { body: [{ id: 'c1' }], headers: { 'content-range': '0-0/1' } },
+    );
+    const db = sb.connect(client);
+    const query = faceted.parse({
+      q: 'acme',
+      facets: { status: ['active'] },
+    }).value!;
+    const page = await faceted
+      .run(db, query, { select: ['id'], where: { organizationId: 'org-1' } })
+      .orThrow();
+    expect(page.facetCounts).toEqual({
+      status: { active: 5, lead: 9, archived: 0 },
+      kvk: { '1001': 3, [UNSET]: 2 },
+    });
+    expect(db.$stats()).toMatchObject({ calls: 2, waves: 1 });
+
+    const [pageRequest, groupRequest] = requests;
+    expect(pageRequest!.headers.get('prefer')).toContain('count=planned');
+    expect(pageRequest!.params.get('status')).toBe('in.("active")');
+    expect(groupRequest!.params.get('status')).toBeNull();
+    expect(groupRequest!.params.get('organization_id')).toBe('eq.org-1');
+    expect(groupRequest!.params.toString()).toContain('acme');
+
+    await faceted.run(db, query, { count: 'estimated' }).orThrow();
+    expect(requests[2]!.headers.get('prefer')).toContain('count=estimated');
+  });
+
+  it('fails the run when the facet counts fail', async () => {
+    const faceted = defineListQuery(sb, 'customers', {
+      facets: { status: 'status' },
+      sorts: { name: { name: 'asc' } },
+      defaultSort: 'name',
+      facetCounts: true,
+    });
+    const { client } = capturingClient((request) =>
+      request.params.get('select')?.includes('count()')
+        ? {
+            status: 400,
+            body: {
+              code: 'PGRST123',
+              message: 'Use of aggregate functions is not allowed',
+            },
+          }
+        : { body: [] },
+    );
+    const result = await faceted.run(sb.connect(client), faceted.defaults);
+    expect(result.ok).toBe(false);
+  });
+
   it('describes itself for OpenAPI, JSON Schema and UIs', () => {
     expect(list.openapi.map((parameter) => parameter.name)).toEqual([
       'q',

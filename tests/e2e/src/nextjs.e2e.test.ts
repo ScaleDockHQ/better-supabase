@@ -187,6 +187,27 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
     expect(anonymous.status).toBe(401);
   });
 
+  it('lists with facet counts in two calls and one wave', async () => {
+    const response = await get('/api/customers/list?status=archived', {
+      authorization: `Bearer ${acme.accessToken}`,
+    });
+    expect(response.status).toBe(200);
+    const [calls, waves] = response.headers.get('x-bs-db-calls')!.split(';');
+    expect([calls, waves]).toEqual(['2', '1']);
+    const page = (await response.json()) as {
+      items: { id: string }[];
+      facetCounts: { status: Record<string, number> };
+    };
+    // The status filter hides the new lead, but its facet count stays.
+    expect(page.items.map((item) => item.id)).not.toContain(id);
+    expect(page.facetCounts.status['lead']).toBeGreaterThan(0);
+
+    const invalid = await get('/api/customers/list?status=bogus', {
+      authorization: `Bearer ${acme.accessToken}`,
+    });
+    expect(invalid.status).toBe(400);
+  });
+
   describe('instant navigation', () => {
     let browser: Browser;
     let page: Page;

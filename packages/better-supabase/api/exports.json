@@ -500,9 +500,11 @@
       "UNSET"
     ],
     "types": [
+      "FacetCounts",
       "FacetInfo",
       "ListDefinition",
       "ListExtra",
+      "ListPage",
       "ListParseResult",
       "ListParsers",
       "ListQuery",

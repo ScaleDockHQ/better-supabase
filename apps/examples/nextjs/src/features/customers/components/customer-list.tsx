@@ -1,22 +1,20 @@
 import { can } from '@/features/user/user-permissions';
 import { getSession } from '@/features/user/user-queries';
 
-import { getCustomers, getStatusCounts } from '../customer-queries';
+import { getCustomers } from '../customer-queries';
 import { CreateCustomerForm } from './create-customer-form';
 
 export async function CustomerList() {
-  const [session, customers, statuses] = await Promise.all([
-    getSession(),
-    getCustomers(),
-    getStatusCounts(),
-  ]);
+  const [session, page] = await Promise.all([getSession(), getCustomers()]);
   return (
     <>
-      <p>
-        {statuses.map((group) => `${group._count} ${group.status}`).join(' · ')}
+      <p data-testid="status-facets">
+        {Object.entries(page.facetCounts.status)
+          .map(([status, count]) => `${count} ${status}`)
+          .join(' · ')}
       </p>
       <ul>
-        {customers.map((customer) => (
+        {page.items.map((customer) => (
           <li key={customer.id}>
             {customer.name} <small>{customer.status}</small>{' '}
             <small>

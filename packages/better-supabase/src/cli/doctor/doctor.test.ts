@@ -297,6 +297,10 @@ describe('doctor rules', () => {
     expect(
       await codes(context(withSettings({}), { sources: include }), 'BS210'),
     ).toEqual(['BS210']);
+    const lists = [{ path: 'src/d.ts', text: 'facetCounts: true,' }];
+    expect(
+      await codes(context(withSettings({}), { sources: lists }), 'BS210'),
+    ).toEqual(['BS210']);
     const on = withSettings({ 'pgrst.db_aggregates_enabled': 'true' });
     expect(await codes(context(on, { sources }), 'BS210')).toEqual([]);
     // Older snapshots carry no role settings, so there is nothing to check.

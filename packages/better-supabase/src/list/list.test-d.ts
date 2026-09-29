@@ -30,6 +30,25 @@ describe('list types', () => {
     >();
   });
 
+  it('types facet counts and relation includes', async () => {
+    const list = defineListQuery(sb, 'customers', {
+      facets: { status: 'status' },
+      sorts: { name: { name: 'asc' } },
+      defaultSort: 'name',
+      facetCounts: true,
+      count: 'planned',
+    });
+    const page = await list
+      .run(db, list.defaults, { include: { notes: true }, count: 'exact' })
+      .orThrow();
+    expectTypeOf(page.facetCounts).toEqualTypeOf<{
+      readonly status: Readonly<Record<string, number>>;
+    }>();
+    expectTypeOf(page.items[0]!.notes).toBeArray();
+    // @ts-expect-error include takes relation names
+    void list.run(db, list.defaults, { include: { select: ['id'] } });
+  });
+
   it('checks columns', () => {
     defineListQuery(sb, 'customers', {
       // @ts-expect-error search only takes text columns

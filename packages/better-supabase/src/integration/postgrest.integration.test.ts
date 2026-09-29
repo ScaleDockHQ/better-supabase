@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { defineSupabase } from '../core/define.ts';
 import { schema } from '../fixtures/generated-camel.ts';
+import { defineListQuery } from '../list/index.ts';
 import { actor } from '../plugins/actor/index.ts';
 import { softDelete } from '../plugins/soft-delete/index.ts';
 import { tenant } from '../plugins/tenant/index.ts';
@@ -305,6 +306,30 @@ describe.skipIf(!live)('PostgREST integration', () => {
       { returning: false },
     );
     expect(blocked.error?.kind).toBe('forbidden');
+  });
+
+  it('lists with facet counts in two calls and one wave under RLS', async () => {
+    const list = defineListQuery(sb, 'customers', {
+      facets: { status: 'status' },
+      sorts: { name: { name: 'asc' } },
+      defaultSort: 'name',
+      facetCounts: true,
+    });
+    const acme = await asOrgMember(ACME);
+    const query = list.parse({ facets: { status: ['active'] } }).value!;
+    const page = await list.run(acme, query, { select: ['id'] }).orThrow();
+    expect(acme.$stats()).toMatchObject({ calls: 2, waves: 1 });
+
+    const all = await acme.customers.findMany({ select: ['status'] }).orThrow();
+    const expected: Record<string, number> = {};
+    for (const row of all)
+      expected[row.status] = (expected[row.status] ?? 0) + 1;
+    expect(
+      Object.fromEntries(
+        Object.entries(page.facetCounts.status).filter(([, n]) => n > 0),
+      ),
+    ).toEqual(expected);
+    expect(page.page.total).toBe(expected['active'] ?? 0);
   });
 
   it('db.$many runs ad-hoc specs in one wave as an authenticated member', async () => {

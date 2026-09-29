@@ -243,8 +243,12 @@ function advisorRule(
   };
 }
 
-/** `db.x.aggregate(` or an `_sum:`/`_avg:`/`_min:`/`_max:` include. */
-const AGGREGATE_USE = /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{/;
+/**
+ * `db.x.aggregate(`, an `_sum:`/`_avg:`/`_min:`/`_max:` include or a list
+ * with `facetCounts: true`.
+ */
+const AGGREGATE_USE =
+  /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{|\bfacetCounts\s*:\s*true\b/;
 
 export const RULES: readonly Rule[] = [
   advisorRule(
@@ -360,7 +364,7 @@ export const RULES: readonly Rule[] = [
     severity: 'warning',
     title: 'Aggregates used while PostgREST disables them',
     description:
-      'PostgREST rejects `count()`, `sum()` and the other aggregates with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the authenticator role. `aggregate()` and `_sum`/`_avg`/`_min`/`_max` includes need it; `better-supabase/postgres` does not.',
+      'PostgREST rejects `count()`, `sum()` and the other aggregates with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the authenticator role. `aggregate()`, `_sum`/`_avg`/`_min`/`_max` includes and list `facetCounts` need it; `better-supabase/postgres` does not.',
     check: (context) => {
       const settings = context.snapshot.extras.roleSettings;
       if (!settings) return [];
