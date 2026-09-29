@@ -345,6 +345,34 @@ Hosted projects use them by default. Locally, `better-supabase doctor` warns
 when `[auth] signing_keys_path` is missing; `better-supabase keys` creates
 one.
 
+## Render stages
+
+A page renders in up to four stages. Each database read belongs to the
+earliest stage that can hold it; a read that lands later than it has to
+turns an instant navigation into a spinner.
+
+| Stage | Rendered | Holds | APIs |
+| --- | --- | --- | --- |
+| 1. Static shell | At build time, once for everyone | Layout, headings, skeletons, public data | `next.admin()` inside `'use cache'` |
+| 2. App Shell | Once per browser session, prefetched | The session and data derived from it | `next.cached()`, `next.session()`, `next.liveCount(spec, db)` |
+| 3. Link prefetch | When a link enters the viewport | The data behind that link | `next.cacheTags()`, read sets through `db.$many` |
+| 4. Navigation | On click, not prefetched | Per-request and uncached data | `next.server()`, `next.route()` |
+
+- **Stage 1** can't read the request. `next.admin()` bypasses RLS, so only
+  use it for data every visitor may see, and tag the entry with
+  `next.cacheTags()` so mutations revalidate it.
+- **Stage 2** runs once and is reused until `sessionStale` expires or
+  `next.invalidateSession()` drops it. Keep it small: the menu, the
+  session, a few counts. Pass the `db` from `next.cached()` to
+  `next.liveCount` here; without it, `liveCount` reads the request and
+  moves to stage 4.
+- **Stage 3** is where most page data goes. One read set per page keeps it
+  to one call, and `next.cacheTags(readSet)` revalidates it on any mutation
+  of a table it reads.
+- **Stage 4** is anything that reads `searchParams`, headers or the request
+  body, plus route handlers and actions. It is never prefetched, so budget
+  it strictly.
+
 ## Budget
 
 Cache Components make it easy to spread one page over many islands, each

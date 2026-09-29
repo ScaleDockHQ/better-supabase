@@ -4,5 +4,9 @@
     "snapshot": "snapshot.json"
   },
   "casing": "camel",
-  "output": "src/generated.ts"
+  "output": "src/generated.ts",
+  "readSets": ["src/latency.ts"],
+  "sql": {
+    "kit": ["read-sets"]
+  }
 }

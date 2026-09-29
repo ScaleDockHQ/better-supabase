@@ -14,6 +14,7 @@
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }
