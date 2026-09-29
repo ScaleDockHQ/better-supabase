@@ -757,6 +757,30 @@ const OWN_RULES: readonly Rule[] = [
     },
   },
   {
+    code: 'BS406',
+    severity: 'warning',
+    title: 'Foreign key to auth.users blocks account deletion',
+    description:
+      'A foreign key to `auth.users` with `no action` or `restrict` makes `auth.admin.deleteUser` (and `deleteAccount`) fail with "Database error deleting user" while the user has rows. Use `on delete cascade` for data the user owns, or `on delete set null` for records that outlive them.',
+    check: (context) =>
+      catalogOf(context).tables.flatMap((table) =>
+        table.schema === 'auth'
+          ? []
+          : table.foreignKeys
+              .filter(
+                (key) =>
+                  key.refSchema === 'auth' &&
+                  key.refTable === 'users' &&
+                  (key.onDelete === 'no action' || key.onDelete === 'restrict'),
+              )
+              .map((key) => ({
+                message: `${qualified(table)}.${key.name} (${key.columns.join(', ')}) references auth.users with on delete ${key.onDelete}. Deleting the user fails while rows point at it; use on delete cascade or set null.`,
+                target: `${qualified(table)}.${key.name}`,
+                object: tableObject(table),
+              })),
+      ),
+  },
+  {
     code: 'BS501',
     severity: 'error',
     title: 'Secret in a browser variable',

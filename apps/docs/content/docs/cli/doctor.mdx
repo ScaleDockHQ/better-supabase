@@ -364,6 +364,15 @@ claims, in a transaction that is rolled back. It warns when the returned
 claims are over 2 KB. Keep ids and roles in the token and look everything
 else up. This needs a direct connection (local stack or `--db-url`).
 
+### BS406
+
+**Warning: foreign key to `auth.users` blocks account deletion.** A key with
+`no action` or `restrict` makes `auth.admin.deleteUser`, and
+[`deleteAccount`](/docs/auth/account-deletion), fail with "Database error
+deleting user" while the user still has rows. Use `on delete cascade` for data
+the user owns (profiles, memberships, notifications) and `on delete set null`
+for records that outlive them (`created_by` on shared documents, audit rows).
+
 ## Env files
 
 ### BS501

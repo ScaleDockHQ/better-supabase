@@ -1,0 +1,105 @@
+---
+title: Account deletion
+description: Delete a user with their Storage objects and cached sessions, and keep foreign keys from blocking it.
+---
+
+Deleting an account touches three systems: Storage objects the user
+uploaded, the Auth user, and every row that points at `auth.users`.
+`deleteAccount` does them in that order and returns a `Result`, like every
+repository call.
+
+```ts title="src/features/user/user-actions.ts"
+'use server';
+
+import { dbError, err } from 'better-supabase';
+
+import { avatars, documents } from '@/lib/buckets';
+import { next } from '@/lib/supabase.server';
+
+export const deleteMyAccount = next.action({ aal: 'aal2' }, async (_input, { auth }) => {
+  if (auth.kind !== 'user') {
+    return err(dbError('unauthorized', 'Sign in to delete your account'));
+  }
+  return next.deleteAccount(auth.user.id, {
+    buckets: [avatars, documents],
+    cascades: ['notifications', 'memberships'],
+  });
+});
+```
+
+```ts
+// { ok: true, data: { userId, removed: { avatars: 1, documents: 14 } } }
+```
+
+It is on every server (`createServer`, `createNext`, Hono, oRPC, edge, MCP) and
+needs `SUPABASE_SECRET_KEY`. Without one it returns an `unexpected` error.
+
+## What it does
+
+1. **Storage.** For each bucket in `buckets` with an owner placeholder, it
+   lists the objects that placeholder fills with the user id and removes them
+   in batches of 1,000. The owner placeholder is `owner.param` for `owner`
+   buckets and `{userId}` for any other template that has one. Buckets
+   without one (tenant logos, say) are skipped. Put `{userId}` first in the
+   path when you can: a template like `{orgId}/{userId}/{file}` has to list the
+   whole bucket to find the user's objects.
+2. **Auth.** `auth.admin.deleteUser(userId)`. Postgres then applies the
+   foreign keys to `auth.users`: `on delete cascade` rows go, `set null`
+   columns clear.
+3. **Events.** A `mutation` notice for `auth.users` (`kind: 'delete'`, the
+   user id as the row), then a table-wide delete notice for each table in
+   `cascades`, so [cache adapters](/docs/concepts/caching) drop the reads the database
+   changed behind their back. Sinks and audit forwarders see the delete too.
+4. **Sessions.** `next.deleteAccount` also calls
+   `next.invalidateSession(userId)`, so `next.cached()` entries for the user
+   are gone.
+
+Objects are removed before the user. If Storage fails, the user still exists
+and the call can be retried; objects already removed stay removed.
+
+## Errors
+
+| kind | When |
+| --- | --- |
+| `conflict` | A foreign key to `auth.users` blocks the delete (`hint` points at BS406) |
+| `not_found` | No user with that id |
+| `network` | Auth or Storage is unreachable |
+| Storage kinds | A list or remove failed, with `table` set to the bucket id |
+
+## Foreign keys
+
+A foreign key to `auth.users` without `on delete` defaults to `no action`,
+and Auth answers every delete with "Database error deleting user" while such
+rows exist. [`doctor`](/docs/cli/doctor#bs406) reports these keys as BS406.
+
+```sql
+-- Data that belongs to the user goes with them.
+user_id uuid not null references auth.users (id) on delete cascade,
+-- Shared records keep their row and lose the author.
+created_by uuid references auth.users (id) on delete set null,
+```
+
+## Tokens stay valid until they expire
+
+Deleting the Auth user revokes their refresh tokens, but access tokens are
+verified locally and stay valid until `exp`, one hour by default. Requests in
+that window still carry the old `sub`. RLS policies on rows that were
+cascaded find nothing, and a policy that joins `auth.users` or a profile
+table denies them. If that window matters, shorten `jwt_expiry` or check the
+user in the policies that guard sensitive writes.
+
+In the browser, sign out locally after the action succeeds. A normal
+`signOut()` would call Auth for a user that no longer exists:
+
+```ts
+await supabase.auth.signOut({ scope: 'local' });
+```
+
+## Exports and retention
+
+Deletion is often the last step of a GDPR request that starts with an export.
+Run the export first with `server.admin()` (it bypasses RLS), store it where
+the user can download it, then call `deleteAccount`. Rows kept for legal
+reasons (invoices, audit logs) should reference the user with
+`on delete set null` and keep a copy of what they need, such as the email at
+the time of purchase.

@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 
+import { DeleteAccountButton } from '@/features/user/components/delete-account-button';
 import {
   ProfileDetails,
   ProfileDetailsSkeleton,
@@ -14,6 +15,7 @@ export default function ProfilePage() {
       <Suspense fallback={<ProfileDetailsSkeleton />}>
         <ProfileDetails />
       </Suspense>
+      <DeleteAccountButton />
     </>
   );
 }

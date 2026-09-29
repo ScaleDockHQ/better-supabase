@@ -76,6 +76,11 @@ bucket path is written to a `*_url` column.
 | `public` | Anyone can read. Writes need the secret key                                               |
 | `none`   | No policies. Only the secret key has access                                               |
 
+`bucket.owner` names the placeholder that holds the owning user's id: the
+`owner` param for `owner` buckets, otherwise `userId` when the template has
+it. [`deleteAccount`](/docs/auth/account-deletion) removes the objects it
+fills.
+
 Writes are also checked against the template's shape
 (`name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$'`), so users can't upload objects
 outside the paths your code builds. Use `tenant: { param, claim }` or

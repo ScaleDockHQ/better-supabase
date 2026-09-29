@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { BetterSupabase } from '../core/define.ts';
 import type { RequestContext } from '../core/plugin.ts';
 import type { Db } from '../core/repository-types.ts';
+import type { AsyncResult } from '../core/result.ts';
 import type { Postgres, SqlClaims } from '../postgres/pool.ts';
 import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
@@ -16,6 +17,11 @@ import {
 import { type DbStats, StatsRecorder } from '../core/stats.ts';
 import { type BetterSupabaseEnv, loadEnv } from '../env/index.ts';
 import { postgresExecutor } from '../postgres/executor.ts';
+import {
+  deleteAccount,
+  type DeleteAccountOptions,
+  type DeleteAccountResult,
+} from './delete-account.ts';
 
 export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
@@ -87,6 +93,15 @@ export interface BetterServer<
   dbFor(auth: AuthState, context?: RequestContext): Db<M, F, E, SupabaseClient>;
   /** Service-role repositories. Bypasses RLS; the actor is `service`. */
   admin(context?: RequestContext): Db<M, F, E, SupabaseClient>;
+  /**
+   * Deletes a user: their objects in `buckets`, then the Auth user, then a
+   * `mutation` notice for `auth.users`. Needs the secret key. Access tokens
+   * already issued stay valid until they expire.
+   */
+  deleteAccount(
+    userId: string,
+    options?: DeleteAccountOptions,
+  ): AsyncResult<DeleteAccountResult>;
   /** Repositories running as a user, with RLS, over direct Postgres. */
   actingAs(
     userId: string,
@@ -330,6 +345,8 @@ export function createServer<
         claims: { role: 'service_role' },
         ...context,
       }),
+    deleteAccount: (userId, deleteOptions) =>
+      deleteAccount(sb, serviceClient, userId, deleteOptions),
     actingAs: (userId, claims = {}) => {
       const full: SqlClaims = { role: 'authenticated', ...claims, sub: userId };
       return sqlFor(full, {

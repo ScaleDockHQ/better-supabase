@@ -445,7 +445,15 @@ export function createNext<
     });
   };
 
-  return extendServer<BetterNext<M, F, E, C>>(base, {
+  const withAccounts = withExtra(base, {
+    deleteAccount: ((userId, deleteOptions) =>
+      base.deleteAccount(userId, deleteOptions).map((result) => {
+        invalidate(sessionTag(userId));
+        return result;
+      })) satisfies BetterServer<M, F, E, C>['deleteAccount'],
+  });
+
+  return extendServer<BetterNext<M, F, E, C>>(withAccounts, {
     server,
     session,
     serverFor,

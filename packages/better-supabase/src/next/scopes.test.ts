@@ -136,6 +136,41 @@ describe('private-cache scopes', () => {
     );
     expect(anon.auth.kind).toBe('anon');
   });
+
+  it('drops the cached session after deleting the account', async () => {
+    const calls: string[] = [];
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input, init) => {
+        calls.push(`${init?.method ?? 'GET'} ${String(input)}`);
+        return Promise.resolve(Response.json({}));
+      });
+    const admin = createNext(sb, {
+      env: { ...env, secretKey: 'sb_secret_test' },
+      cacheTags: false,
+    });
+    mocks.updateTag.mockReset();
+    try {
+      const result = await admin.deleteAccount(USER);
+      expect(result).toMatchObject({
+        ok: true,
+        data: { userId: USER, removed: {} },
+      });
+      expect(calls).toEqual([
+        `DELETE ${PROJECT_URL}/auth/v1/admin/users/${USER}`,
+      ]);
+      expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
+
+      mocks.updateTag.mockReset();
+      expect(await next.deleteAccount(USER)).toMatchObject({
+        ok: false,
+        error: { kind: 'unexpected' },
+      });
+      expect(mocks.updateTag).not.toHaveBeenCalled();
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
 });
 
 describe('sessionStale', () => {

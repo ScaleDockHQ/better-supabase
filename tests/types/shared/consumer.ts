@@ -197,6 +197,9 @@ export function integrations(): unknown[] {
         session.kind === 'user' ? (session.aal satisfies Aal) : undefined,
       ),
     checkAal,
+    server
+      .deleteAccount('u1', { buckets: [logos], cascades: ['customers'] })
+      .map(({ removed }) => removed['customer-logos']),
     createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
       LiveCountSeed<'customers'>
     >,

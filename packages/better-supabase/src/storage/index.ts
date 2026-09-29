@@ -239,6 +239,12 @@ export interface Bucket<P extends string, Id extends string = string> {
   readonly params: readonly TemplateParams<P>[];
   readonly public: boolean;
   readonly policy: BucketPolicy;
+  /**
+   * Placeholder holding the owning user's id: `owner.param` for `owner`
+   * buckets, otherwise `userId` when the template has it. Account deletion
+   * removes the objects it fills.
+   */
+  readonly owner: string | undefined;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
   path(values: TemplateValues<P>): StoragePath<Id>;
@@ -482,6 +488,12 @@ export function defineBucket<
     id: config.id,
     template: config.path,
     params: template.params as TemplateParams<P>[],
+    owner:
+      policy === 'owner'
+        ? (config.owner?.param ?? 'userId')
+        : template.params.includes('userId')
+          ? 'userId'
+          : undefined,
     public: config.public ?? false,
     policy,
     fileSizeLimit,

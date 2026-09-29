@@ -307,6 +307,8 @@
       "CookieOptions",
       "CookieRecord",
       "CookieWrite",
+      "DeleteAccountOptions",
+      "DeleteAccountResult",
       "GuardOptions",
       "InvalidReason",
       "ProblemDetails",

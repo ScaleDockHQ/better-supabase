@@ -238,6 +238,35 @@ describe('doctor rules', () => {
     ]);
   });
 
+  it('flags foreign keys to auth.users that block deleting the user', async () => {
+    const snap = snapshot((tables) => {
+      const key = {
+        columns: ['created_by'],
+        refSchema: 'auth',
+        refTable: 'users',
+        refColumns: ['id'],
+        oneToOne: false,
+        onUpdate: 'no action',
+      } as const;
+      edit(table(tables, 'notes').foreignKeys).push(
+        { ...key, name: 'notes_created_by_fkey', onDelete: 'no action' },
+        { ...key, name: 'notes_updated_by_fkey', onDelete: 'set null' },
+      );
+    });
+    const findings = await runRules(
+      context(snap),
+      RULES.filter((rule) => rule.code === 'BS406'),
+    );
+    expect(findings).toMatchObject([
+      {
+        code: 'BS406',
+        severity: 'warning',
+        target: 'public.notes.notes_created_by_fkey',
+        message: expect.stringContaining('on delete no action'),
+      },
+    ]);
+  });
+
   it('reports Supabase advisor lints with their own severity and links', async () => {
     const lint = (overrides: Partial<Lint>): Lint => ({
       name: 'rls_disabled_in_public',

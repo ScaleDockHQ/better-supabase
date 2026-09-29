@@ -1,3 +1,7 @@
+export type {
+  DeleteAccountOptions,
+  DeleteAccountResult,
+} from './delete-account.ts';
 export { createServer } from './server.ts';
 export type {
   BetterServer,

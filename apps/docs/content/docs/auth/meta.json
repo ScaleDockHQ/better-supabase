@@ -5,6 +5,7 @@
     "env",
     "sessions",
     "mfa-sso",
+    "account-deletion",
     "server",
     "middleware",
     "postgres",
