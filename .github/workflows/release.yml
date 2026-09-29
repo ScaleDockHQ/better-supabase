@@ -4,20 +4,25 @@ on:
   push:
     branches: [main]
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
-permissions:
-  contents: write
-  id-token: write
-  pull-requests: write
+permissions: {}
 
 jobs:
-  release:
+  select-mode:
+    name: Select mode
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/setup@v3
         with:
@@ -34,13 +39,79 @@ jobs:
       - name: Test
         run: pnpm run test
 
-      - name: Create release pull request or publish
-        uses: changesets/action@v2
+      - name: Select mode
+        id: select-mode
+        uses: changesets/action/select-mode@v2
+
+  version:
+    name: Version
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
         with:
-          publish-script: pnpm exec changeset publish
+          fetch-depth: 0
+
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          cache: true
+          require-lockfile: true
+
+      - name: Create or update the release pull request
+        uses: changesets/action/version@v2
+        with:
           pr-title: 'chore: version packages'
           commit-message: 'chore: version packages'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # npm trusted publishing: the registry trusts this workflow file and the `npm`
+  # environment through OIDC, so no npm token exists anywhere. Publishing stays
+  # off until the repository variable NPM_PUBLISH is 'true'.
+  publish:
+    name: Publish to npm
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'publish' && vars.NPM_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Require a public repository
+        if: github.event.repository.private
+        run: |
+          echo "::error::npm only accepts provenance from public repositories. Make ${{ github.repository }} public before publishing."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # No store cache in the job that can mint npm credentials.
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          cache: false
+          require-lockfile: true
+
+      # The pnpm runtime ships no npm; trusted publishing needs npm >= 11.5.1.
+      - name: Install npm 11
+        run: |
+          pnpm add --global npm@11.20.0
+          npm --version
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Publish
+        uses: changesets/action/publish@v2
+        with:
+          script: pnpm exec changeset publish
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PNPM_CONFIG_PROVENANCE: 'true'
           NPM_CONFIG_PROVENANCE: 'true'
