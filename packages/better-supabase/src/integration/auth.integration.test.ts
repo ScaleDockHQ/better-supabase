@@ -4,7 +4,7 @@ import { withPostgresClient } from '@supabase/server/middleware/postgres';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { QueryClient } from '@tanstack/react-query';
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { resolveAuth } from '../auth/resolve.ts';
 import {
@@ -51,7 +51,7 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-describe.skipIf(!live)('auth against the local stack', async () => {
+describe.skipIf(!live)('auth against the local stack', () => {
   const env = parseEnv({
     SUPABASE_URL: url,
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
@@ -63,15 +63,21 @@ describe.skipIf(!live)('auth against the local stack', async () => {
   });
   const email = `auth-${crypto.randomUUID()}@example.com`;
   const password = 'correct horse battery staple';
-  const { data: created, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    app_metadata: { org_id: ACME },
+  let userId: string;
+  let postgres: ReturnType<typeof createPostgres>;
+
+  // Vitest still runs the body of a skipped suite, so nothing here may touch the stack.
+  beforeAll(async () => {
+    const { data: created, error } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      app_metadata: { org_id: ACME },
+    });
+    if (error) throw error;
+    userId = created.user.id;
+    postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   });
-  if (error) throw error;
-  const userId = created.user.id;
-  const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
 
   afterAll(async () => {
     await admin.auth.admin.deleteUser(userId);

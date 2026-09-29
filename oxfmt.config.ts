@@ -9,6 +9,7 @@ export default oxfmt({
     '**/database.types.ts',
     'packages/better-supabase/src/fixtures/generated*',
     'apps/examples/**/lib/supabase/generated.ts',
+    'tests/validation-*/src/generated.ts',
     'packages/better-supabase/api/**',
     'apps/marketing/components/ui/**',
     'apps/marketing/components/reui/**',

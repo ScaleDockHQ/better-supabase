@@ -26,9 +26,10 @@
     "directory": "packages/better-supabase"
   },
   "bin": {
-    "better-supabase": "./dist/cli/bin.js"
+    "better-supabase": "./bin/better-supabase.js"
   },
   "files": [
+    "bin",
     "dist",
     "schemas",
     "skills",
@@ -202,6 +203,7 @@
     "effect": "catalog:",
     "hono": "catalog:",
     "next": "catalog:",
+    "oxfmt": "catalog:",
     "pg": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",

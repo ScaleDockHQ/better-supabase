@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { format } from 'oxfmt';
 import { Pool } from 'pg';
 import { describe, expect, it } from 'vitest';
 
@@ -31,12 +32,19 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 /**
- * Differences that come from the CLI bundling an older postgres-meta, not
- * from better-supabase: `--local` omits `__InternalSupabase`, newer typegen
- * writes `NonNullable<Json>` for non-null json columns.
+ * Differences that come from the CLI, not from better-supabase. Since 2.118
+ * the CLI prints the typegen output unformatted, so both sides go through
+ * the typegen's formatter settings first. Older CLIs bundle an older
+ * postgres-meta: `--local` omits `__InternalSupabase`, newer typegen writes
+ * `NonNullable<Json>` for non-null json columns.
  */
-function normalize(source: string): string {
-  return source
+async function normalize(source: string): Promise<string> {
+  const { code, errors } = await format('database.types.ts', source, {
+    semi: false,
+    printWidth: 80,
+  });
+  expect(errors).toEqual([]);
+  return code
     .replace(
       /\n {2}\/\/ Allows to automatically[^\n]*\n[^\n]*\n {2}__InternalSupabase: \{\n[^\n]*\n {2}\}\n/,
       '\n',
@@ -65,6 +73,6 @@ describe.skipIf(!live)('database.types.ts parity', () => {
     } finally {
       await db.close();
     }
-    expect(normalize(ours)).toBe(normalize(cli.stdout));
+    expect(await normalize(ours)).toBe(await normalize(cli.stdout));
   }, 120_000);
 });
