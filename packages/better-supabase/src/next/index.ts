@@ -11,6 +11,7 @@ import type { CacheAdapter } from '../core/cache.ts';
 import type { BetterSupabase } from '../core/define.ts';
 import type { DbError } from '../core/errors.ts';
 import type { QuerySpec } from '../core/spec.ts';
+import type { CountRunner, LiveCountSeed } from '../realtime/live.ts';
 import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
 import { toSession } from '../auth/view.ts';
@@ -168,6 +169,17 @@ export interface BetterNext<
   cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C>>;
   /** Drops every `next.cached()` entry of a user, e.g. after a role change. */
   invalidateSession(userId: string): void;
+  /**
+   * Counts on the server and returns a serializable seed for
+   * `useLiveCount(seed)`, so the badge renders with a number and the client
+   * only refetches on changes. Pass `db` inside `'use cache: private'`
+   * (from `next.cached()`); otherwise it uses `next.server()`. A failed
+   * count gives `count: null` instead of throwing.
+   */
+  liveCount<T extends Extract<keyof M, string>>(
+    spec: QuerySpec<T, 'count', number>,
+    db?: CountRunner,
+  ): Promise<LiveCountSeed<T>>;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
   route<P = Record<string, string | string[]>>(
     handler: (
@@ -411,6 +423,16 @@ export function createNext<
 
     invalidateSession(userId) {
       invalidate(sessionTag(userId));
+    },
+
+    async liveCount(spec, db) {
+      const runner = db ?? (await server()).db;
+      const result = await runner.$run(spec);
+      return {
+        spec,
+        count:
+          result.ok && typeof result.data === 'number' ? result.data : null,
+      };
     },
 
     async proxy(request, proxyOptions = {}) {

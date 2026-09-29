@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Suspense } from 'react';
 
+import { UnreadBadge } from '@/features/inbox/components/unread-badge';
 import { AppNav } from '@/features/navigation/components/app-nav';
 import { SideNavSkeleton } from '@/features/navigation/components/side-nav';
 import {
@@ -20,6 +21,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="app">
       <header>
         <Link href="/">better-supabase</Link>
+        <UnreadBadge />
         <Suspense fallback={<UserMenuSkeleton />}>
           <UserMenu />
         </Suspense>

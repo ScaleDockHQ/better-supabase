@@ -228,6 +228,7 @@
       "SessionProvider",
       "useAuth",
       "useBroadcast",
+      "useLiveCount",
       "useLiveQuery",
       "useSession",
       "useSupabase"
@@ -239,6 +240,9 @@
       "BroadcastOptions",
       "BrowserLike",
       "ClaimsOf",
+      "LiveCount",
+      "LiveCountHookOptions",
+      "LiveCountSeed",
       "LiveQueryHookOptions",
       "SessionProviderProps"
     ]
@@ -570,12 +574,16 @@
   "./realtime": {
     "values": [
       "defineTopic",
+      "liveCount",
       "liveQuery",
       "liveTopic",
       "rowChange"
     ],
     "types": [
+      "CountRunner",
       "EventSchemas",
+      "LiveCountOptions",
+      "LiveCountSeed",
       "LiveQueryOptions",
       "LiveSource",
       "LiveSubscription",

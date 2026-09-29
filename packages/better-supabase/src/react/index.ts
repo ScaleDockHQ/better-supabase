@@ -18,6 +18,7 @@ import {
 
 import type { AuthSession } from '../auth/view.ts';
 import type { AuthSnapshot, BrowserAuth } from '../client/index.ts';
+import type { DbError } from '../core/errors.ts';
 import type { QuerySpec } from '../core/spec.ts';
 import type {
   EventSchemas,
@@ -28,15 +29,20 @@ import type {
   TopicHandlers,
   TopicMessage,
 } from '../realtime/index.ts';
-import type { LiveSource } from '../realtime/live.ts';
+import type {
+  CountRunner,
+  LiveCountSeed,
+  LiveSource,
+} from '../realtime/live.ts';
 
 import { invalidateTables } from '../query/invalidate.ts';
-import { liveQuery } from '../realtime/live.ts';
+import { liveCount, liveQuery } from '../realtime/live.ts';
 import { useSession } from './session.ts';
 
 export { SessionProvider, useSession } from './session.ts';
 export type { SessionProviderProps } from './session.ts';
 export type { AuthSession } from '../auth/view.ts';
+export type { LiveCountSeed } from '../realtime/live.ts';
 
 /** The parts of `createBrowser()` the provider needs. */
 export interface BrowserLike {
@@ -313,4 +319,82 @@ export function useLiveQuery(
   }, [browser, queryClient, key, tenant, userId, auth.status, debounceMs]);
 
   return status;
+}
+
+export interface LiveCountHookOptions extends LiveQueryHookOptions {
+  /** The count to show before the first fetch, e.g. from the server. */
+  readonly initial?: number;
+}
+
+export interface LiveCount {
+  /** `undefined` until the first count arrives. */
+  readonly count: number | undefined;
+  readonly status: SubscriptionStatus;
+  /** The last failed refetch; the previous count stays. */
+  readonly error: DbError | undefined;
+}
+
+/**
+ * A count that stays current: refetches only the `count` spec (a HEAD
+ * request) after each debounced change to a table it reads, and after the
+ * channel rejoins. Takes a spec or a `next.liveCount()` seed; pass `null` to
+ * pause. Doesn't need a `QueryClient`.
+ *
+ * ```tsx
+ * const { count } = useLiveCount(seed); // seed = await next.liveCount(spec)
+ * ```
+ */
+export function useLiveCount(
+  source: QuerySpec<string, 'count', number> | LiveCountSeed | null | undefined,
+  options: LiveCountHookOptions = {},
+): LiveCount {
+  const { browser } = useBrowserContext();
+  const auth = useAuth();
+  const seed = source && 'spec' in source ? source : undefined;
+  const spec = seed ? seed.spec : (source as QuerySpec | null | undefined);
+  const initial = seed?.count ?? options.initial;
+  const [state, setState] = useState<{
+    readonly key: string | null;
+    readonly count: number | undefined;
+    readonly error: DbError | undefined;
+  }>({ key: null, count: undefined, error: undefined });
+  const [status, setStatus] = useState<SubscriptionStatus>('closed');
+  const key = spec ? JSON.stringify(spec) : null;
+  const tenant = options.tenant ?? claimedTenant(auth);
+  const userId = auth.user?.id ?? null;
+  const debounceMs = options.debounceMs;
+  const hasInitial = initial !== undefined;
+
+  useEffect(() => {
+    if (!key || auth.status === 'loading') return undefined;
+    const live = liveCount(
+      browser.sb,
+      browser.supabase,
+      browser.db as CountRunner,
+      JSON.parse(key) as QuerySpec<string, 'count', number>,
+      {
+        immediate: !hasInitial,
+        onCount: (count) => setState({ key, count, error: undefined }),
+        onError: (error) =>
+          setState((previous) => ({
+            key,
+            count: previous.key === key ? previous.count : undefined,
+            error,
+          })),
+        onStatus: setStatus,
+        ...(tenant === undefined ? {} : { tenant }),
+        ...(debounceMs === undefined ? {} : { debounceMs }),
+      },
+    );
+    return () => {
+      void live.unsubscribe();
+    };
+  }, [browser, key, tenant, userId, auth.status, debounceMs, hasInitial]);
+
+  const fresh = state.key === key;
+  return {
+    count: fresh && state.count !== undefined ? state.count : initial,
+    status,
+    error: fresh ? state.error : undefined,
+  };
 }

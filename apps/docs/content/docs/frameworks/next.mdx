@@ -63,6 +63,11 @@ export default async function Customers() {
 pages share one context. It verifies the token locally and builds a
 stateless client; no auth call happens during rendering.
 
+`next.liveCount(spec)` counts on the server and returns a serializable
+`{ spec, count }` seed for `useLiveCount`, so a badge renders with its
+number and then stays current over Realtime. See
+[live queries](/docs/frontend/live-queries#counts).
+
 ## Session
 
 ```ts

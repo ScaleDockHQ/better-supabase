@@ -29,8 +29,15 @@ import {
 import { toApp } from '../plugins/shared.ts';
 
 export type { TemplateParams, TemplateValues } from '../core/template.ts';
-export { liveQuery, liveTopic } from './live.ts';
-export type { LiveQueryOptions, LiveSource, LiveSubscription } from './live.ts';
+export { liveCount, liveQuery, liveTopic } from './live.ts';
+export type {
+  CountRunner,
+  LiveCountOptions,
+  LiveCountSeed,
+  LiveQueryOptions,
+  LiveSource,
+  LiveSubscription,
+} from './live.ts';
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 

@@ -54,6 +54,12 @@ nav [aria-current='page'] {
   min-height: 4rem;
 }
 
+.unread {
+  margin-left: auto;
+  margin-right: 1rem;
+  min-width: 4rem;
+}
+
 .skeleton {
   min-height: 1.25rem;
   border-radius: 0.25rem;

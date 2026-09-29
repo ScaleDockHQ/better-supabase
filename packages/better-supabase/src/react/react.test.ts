@@ -13,6 +13,7 @@ import {
   createHooks,
   SessionProvider,
   useAuth,
+  useLiveCount,
   useSession,
 } from './index.ts';
 
@@ -36,6 +37,27 @@ describe('react', () => {
       createElement(BetterSupabaseProvider, { browser }, createElement(Status)),
     );
     expect(html).toBe('<p>loading:anon</p>');
+  });
+
+  it('renders a live count seed on the server without fetching', () => {
+    const { client, requests } = capturingClient();
+    const seeded = createBrowser(sb, { client });
+    function Badge() {
+      const { count, status } = useLiveCount({
+        spec: sb.spec.notes.count(),
+        count: 3,
+      });
+      return createElement('span', null, `${String(count)}:${status}`);
+    }
+    const html = renderToString(
+      createElement(
+        BetterSupabaseProvider,
+        { browser: seeded },
+        createElement(Badge),
+      ),
+    );
+    expect(html).toBe('<span>3:closed</span>');
+    expect(requests).toHaveLength(0);
   });
 
   it('explains a missing provider', () => {

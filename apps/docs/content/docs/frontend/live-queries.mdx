@@ -46,6 +46,44 @@ The tenant defaults to the `org_id` claim; pass `{ tenant }` to override it.
 Changes are debounced (100 ms by default, `debounceMs`), so a bulk update
 causes one refetch. It returns the channel status.
 
+## Counts
+
+Badges (unread messages, open tasks) only need a number. `useLiveCount`
+runs a `count` spec, which is a HEAD request with no rows, and reruns only
+that after each debounced change. It needs no `QueryClient`:
+
+```tsx
+const unread = sb.spec.notifications.count({ where: { readAt: null } });
+
+function UnreadBadge() {
+  const { count, status, error } = useLiveCount(unread);
+  return <Link href="/inbox">Inbox {count ?? '–'}</Link>;
+}
+```
+
+To render the number on first paint, count on the server and pass the
+seed. The client then skips its first request:
+
+```tsx
+// Server Component, inside <Suspense>
+const seed = await next.liveCount(unread); // { spec, count }
+return <UnreadSummary seed={seed} />;
+
+// Client Component
+const { count } = useLiveCount(seed);
+```
+
+`next.liveCount` uses `next.server()`; inside `'use cache: private'`,
+pass the `db` from `next.cached()` as the second argument. A failed count
+gives `count: null`, and the client fetches it instead. Don't seed from a
+cache entry that can outlive changes made by other users: changes made
+before the client joins the channel aren't broadcast to it.
+
+A seed costs a database call in the render that makes it. For a badge in
+the layout, which is part of every page, skip the seed and let the
+browser count. The [Next.js example](/docs/examples) does both: the
+header badge counts in the browser, and the inbox page seeds its count.
+
 ## Without React
 
 ```ts
@@ -62,6 +100,29 @@ await live.unsubscribe();
 
 Pass a list of table keys instead of a spec to watch tables directly.
 Channels are shared: ten live queries on `customers` open one channel.
+
+`liveCount` is the same for a count spec, with the result:
+
+```ts
+import { liveCount } from 'better-supabase/realtime';
+
+using live = liveCount(sb, supabase, db, unread, {
+  tenant: orgId,
+  onCount: (count) => render(count),
+  onError: (error) => report(error), // the previous count stays valid
+  immediate: true, // pass false when you already have a count
+});
+```
+
+Out-of-order responses are dropped, so a slow request can't overwrite a
+newer count.
+
+## Reconnects
+
+Broadcast is best effort: changes sent while a client is disconnected are
+lost. When a channel rejoins after `CHANNEL_ERROR`, `TIMED_OUT` or
+`CLOSED`, every live query and live count on it refetches once, as if its
+tables had changed.
 
 ## Doctor
 

@@ -3,6 +3,8 @@ import {
   REALTIME_SUBSCRIBE_STATES,
 } from '@supabase/supabase-js';
 
+import type { DbError } from '../core/errors.ts';
+import type { Result } from '../core/result.ts';
 import type { QuerySpec } from '../core/spec.ts';
 import type { SchemaMeta } from '../schema/types.ts';
 import type { RealtimeClient, SubscriptionStatus } from './index.ts';
@@ -30,6 +32,16 @@ export interface LiveSubscription extends Disposable, AsyncDisposable {
   readonly unwatched: readonly string[];
   readonly ready: Promise<void>;
   unsubscribe(): Promise<void>;
+}
+
+/**
+ * A count from the server plus the spec to keep it live on the client:
+ * `next.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count`
+ * is `null` when the server read failed; the client then fetches it.
+ */
+export interface LiveCountSeed<T extends string = string> {
+  readonly spec: QuerySpec<T, 'count', number>;
+  readonly count: number | null;
 }
 
 /** Topic a `realtime-tables` trigger broadcasts on: `bs:t:<schema>.<table>[:<tenant>]`. */
@@ -75,12 +87,18 @@ function join(
     channel.on('broadcast', { event: 'change' }, () => {
       for (const notify of listeners) notify();
     });
+    let joined = false;
     const ready = (async () => {
       await client.realtime.setAuth();
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((status, error) => {
           switch (status) {
             case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
+              // Broadcasts sent while disconnected are lost: a rejoin counts as a change.
+              if (joined) for (const notify of listeners) notify();
+              joined = true;
+              resolve();
+              return;
             case REALTIME_SUBSCRIBE_STATES.CLOSED:
               resolve();
               return;
@@ -186,6 +204,68 @@ export function liveQuery(
     tables,
     unwatched,
     ready,
+    unsubscribe,
+    [Symbol.dispose]: () => void unsubscribe(),
+    [Symbol.asyncDispose]: unsubscribe,
+  };
+}
+
+/** What `liveCount` runs the spec with: a `db` from `sb.connect()` or `createBrowser()`. */
+export interface CountRunner {
+  $run(spec: QuerySpec): PromiseLike<Result<unknown>>;
+}
+
+export interface LiveCountOptions extends Omit<LiveQueryOptions, 'onChange'> {
+  readonly onCount: (count: number) => void;
+  /** A failed refetch; the previous count stays valid. */
+  readonly onError?: (error: DbError) => void;
+  /** Count right away. Defaults to `true`; pass `false` when you have a seed. */
+  readonly immediate?: boolean;
+}
+
+/**
+ * Keeps a count current: runs the `count` spec (a HEAD request) now, after
+ * each debounced change to a table it reads, and after the channel rejoins.
+ * Responses that arrive out of order are dropped.
+ *
+ * ```ts
+ * using live = liveCount(sb, supabase, db, sb.spec.notes.count(), {
+ *   onCount: (count) => render(count),
+ * });
+ * ```
+ */
+export function liveCount(
+  sb: LiveSource,
+  client: RealtimeClient,
+  db: CountRunner,
+  spec: QuerySpec<string, 'count', number>,
+  options: LiveCountOptions,
+): LiveSubscription {
+  let latest = 0;
+  let closed = false;
+  const refetch = (): void => {
+    const call = ++latest;
+    void Promise.resolve(db.$run(spec)).then((result) => {
+      if (closed || call !== latest) return;
+      if (result.ok) options.onCount(result.data as number);
+      else options.onError?.(result.error);
+    });
+  };
+  const live = liveQuery(sb, client, spec, {
+    onChange: refetch,
+    ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
+    ...(options.debounceMs === undefined
+      ? {}
+      : { debounceMs: options.debounceMs }),
+    ...(options.onStatus ? { onStatus: options.onStatus } : {}),
+  });
+  if (options.immediate ?? true) refetch();
+  const unsubscribe = async (): Promise<void> => {
+    closed = true;
+    await live.unsubscribe();
+  };
+  return {
+    ...live,
     unsubscribe,
     [Symbol.dispose]: () => void unsubscribe(),
     [Symbol.asyncDispose]: unsubscribe,

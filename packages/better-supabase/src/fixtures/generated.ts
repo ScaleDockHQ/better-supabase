@@ -253,6 +253,43 @@ export type Models = {
       tenant: "organization_id";
     };
   };
+  notifications: {
+    Row: {
+      id: number;
+      organization_id: string;
+      user_id: string;
+      title: string;
+      read_at: string | null;
+      created_at: string;
+    };
+    Insert: {
+      id?: never;
+      organization_id: string;
+      user_id?: string;
+      title: string;
+      read_at?: string | null;
+      created_at?: string;
+    };
+    Update: {
+      id?: never;
+      organization_id?: string;
+      user_id?: string;
+      title?: string;
+      read_at?: string | null;
+      created_at?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "notifications_organization_id_fkey" | "notifications_user_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organization_id";
+    };
+  };
   organizations: {
     Row: {
       id: string;
@@ -281,6 +318,7 @@ export type Models = {
       customers: { table: "customers"; kind: "many"; nullable: true };
       locations: { table: "locations"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
+      notifications: { table: "notifications"; kind: "many"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -916,6 +954,78 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         "tenant": "organization_id"
       }
     },
+    "notifications": {
+      "key": "notifications",
+      "name": "notifications",
+      "schema": "public",
+      "kind": "table",
+      "columns": {
+        "id": {
+          "db": "id",
+          "type": "int8",
+          "nullable": false,
+          "hasDefault": true,
+          "generated": true,
+          "identity": "always"
+        },
+        "organization_id": {
+          "db": "organization_id",
+          "type": "uuid",
+          "nullable": false,
+          "hasDefault": false
+        },
+        "user_id": {
+          "db": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "hasDefault": true
+        },
+        "title": {
+          "db": "title",
+          "type": "text",
+          "nullable": false,
+          "hasDefault": false
+        },
+        "read_at": {
+          "db": "read_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "hasDefault": false
+        },
+        "created_at": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "uniqueKeys": {},
+      "relations": {
+        "organization": {
+          "table": "organizations",
+          "kind": "one",
+          "nullable": false,
+          "foreignKey": "notifications_organization_id_fkey",
+          "columns": [
+            "organization_id"
+          ],
+          "references": [
+            "id"
+          ],
+          "direction": "forward",
+          "onDelete": "cascade"
+        }
+      },
+      "flags": {
+        "timestamps": {
+          "createdAt": "created_at"
+        },
+        "tenant": "organization_id"
+      }
+    },
     "organizations": {
       "key": "organizations",
       "name": "organizations",
@@ -1023,6 +1133,20 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "kind": "many",
           "nullable": true,
           "foreignKey": "notes_organization_id_fkey",
+          "columns": [
+            "id"
+          ],
+          "references": [
+            "organization_id"
+          ],
+          "direction": "reverse",
+          "onDelete": "cascade"
+        },
+        "notifications": {
+          "table": "notifications",
+          "kind": "many",
+          "nullable": true,
+          "foreignKey": "notifications_organization_id_fkey",
           "columns": [
             "id"
           ],

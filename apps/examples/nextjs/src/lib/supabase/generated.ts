@@ -64,7 +64,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "contacts_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   customerTags: {
     Row: {
@@ -91,7 +93,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   customers: {
     Row: {
@@ -152,7 +156,9 @@ export type Models = {
     };
     Checks: "customers_status_check";
     ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   locations: {
     Row: {
@@ -193,7 +199,9 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   notes: {
     Row: {
@@ -234,7 +242,45 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "notes_customer_id_fkey" | "notes_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
+  };
+  notifications: {
+    Row: {
+      id: number;
+      organizationId: string;
+      userId: string;
+      title: string;
+      readAt: string | null;
+      createdAt: string;
+    };
+    Insert: {
+      id?: never;
+      organizationId: string;
+      userId?: string;
+      title: string;
+      readAt?: string | null;
+      createdAt?: string;
+    };
+    Update: {
+      id?: never;
+      organizationId?: string;
+      userId?: string;
+      title?: string;
+      readAt?: string | null;
+      createdAt?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "notifications_organization_id_fkey" | "notifications_user_id_fkey";
+    Flags: {
+      tenant: "organizationId";
+    };
   };
   organizations: {
     Row: {
@@ -264,6 +310,7 @@ export type Models = {
       customers: { table: "customers"; kind: "many"; nullable: true };
       locations: { table: "locations"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
+      notifications: { table: "notifications"; kind: "many"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -303,7 +350,9 @@ export type Models = {
     };
     Checks: "tags_color_check";
     ForeignKeys: "tags_organization_id_fkey";
-    Flags: Record<never, never>;
+    Flags: {
+      tenant: "organizationId";
+    };
   };
 };
 
@@ -415,7 +464,9 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "onDelete": "set null"
         }
       },
-      "flags": {}
+      "flags": {
+        "tenant": "organizationId"
+      }
     },
     "customerTags": {
       "key": "customerTags",
@@ -491,7 +542,9 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "onDelete": "cascade"
         }
       },
-      "flags": {}
+      "flags": {
+        "tenant": "organizationId"
+      }
     },
     "customers": {
       "key": "customers",
@@ -666,7 +719,9 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "onDelete": "cascade"
         }
       },
-      "flags": {}
+      "flags": {
+        "tenant": "organizationId"
+      }
     },
     "locations": {
       "key": "locations",
@@ -757,7 +812,9 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "onDelete": "cascade"
         }
       },
-      "flags": {}
+      "flags": {
+        "tenant": "organizationId"
+      }
     },
     "notes": {
       "key": "notes",
@@ -856,7 +913,78 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "onDelete": "cascade"
         }
       },
-      "flags": {}
+      "flags": {
+        "tenant": "organizationId"
+      }
+    },
+    "notifications": {
+      "key": "notifications",
+      "name": "notifications",
+      "schema": "public",
+      "kind": "table",
+      "columns": {
+        "id": {
+          "db": "id",
+          "type": "int8",
+          "nullable": false,
+          "hasDefault": true,
+          "generated": true,
+          "identity": "always"
+        },
+        "organizationId": {
+          "db": "organization_id",
+          "type": "uuid",
+          "nullable": false,
+          "hasDefault": false
+        },
+        "userId": {
+          "db": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "hasDefault": true
+        },
+        "title": {
+          "db": "title",
+          "type": "text",
+          "nullable": false,
+          "hasDefault": false
+        },
+        "readAt": {
+          "db": "read_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "hasDefault": false
+        },
+        "createdAt": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "uniqueKeys": {},
+      "relations": {
+        "organization": {
+          "table": "organizations",
+          "kind": "one",
+          "nullable": false,
+          "foreignKey": "notifications_organization_id_fkey",
+          "columns": [
+            "organizationId"
+          ],
+          "references": [
+            "id"
+          ],
+          "direction": "forward",
+          "onDelete": "cascade"
+        }
+      },
+      "flags": {
+        "tenant": "organizationId"
+      }
     },
     "organizations": {
       "key": "organizations",
@@ -974,6 +1102,20 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
+        "notifications": {
+          "table": "notifications",
+          "kind": "many",
+          "nullable": true,
+          "foreignKey": "notifications_organization_id_fkey",
+          "columns": [
+            "id"
+          ],
+          "references": [
+            "organizationId"
+          ],
+          "direction": "reverse",
+          "onDelete": "cascade"
+        },
         "tags": {
           "table": "tags",
           "kind": "many",
@@ -1067,7 +1209,9 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "onDelete": "cascade"
         }
       },
-      "flags": {}
+      "flags": {
+        "tenant": "organizationId"
+      }
     }
   },
   "enums": {
@@ -1090,6 +1234,11 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         "image/jpeg",
         "image/webp"
       ]
+    }
+  },
+  "realtime": {
+    "notifications": {
+      "tenant": "organizationId"
     }
   }
 });

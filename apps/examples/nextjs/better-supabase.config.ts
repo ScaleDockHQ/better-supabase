@@ -17,8 +17,12 @@ export default defineConfig({
     notes: crud,
     tags: crud,
     customer_tags: crud,
+    notifications: crud,
     organizations: ['select'],
   },
+  // Topics per organization: `bs:t:public.notifications:<org id>`.
+  plugins: { tenant: { column: 'organization_id' } },
+  realtime: { tables: ['notifications'] },
   buckets: {
     customerLogos: {
       path: '{orgId}/{customerId}/logo/{version}.webp',
@@ -31,5 +35,5 @@ export default defineConfig({
   // Rows store the object path; URLs are built when rendering.
   storagePaths: { 'customers.logo_path': 'customerLogos' },
   readSets: ['src/lib/read-sets.ts'],
-  sql: { kit: ['read-sets'] },
+  sql: { kit: ['read-sets', 'realtime-tables'] },
 });

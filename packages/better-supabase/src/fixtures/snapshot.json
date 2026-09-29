@@ -189,7 +189,7 @@
       {
         "id": 1000013,
         "schema": "public",
-        "name": "organizations",
+        "name": "notifications",
         "rls_enabled": true,
         "rls_forced": false,
         "replica_identity": "DEFAULT",
@@ -201,6 +201,19 @@
       },
       {
         "id": 1000014,
+        "schema": "public",
+        "name": "organizations",
+        "rls_enabled": true,
+        "rls_forced": false,
+        "replica_identity": "DEFAULT",
+        "bytes": 0,
+        "size": "0 bytes",
+        "live_rows_estimate": 0,
+        "dead_rows_estimate": 0,
+        "comment": null
+      },
+      {
+        "id": 1000015,
         "schema": "public",
         "name": "tags",
         "rls_enabled": true,
@@ -1922,6 +1935,27 @@
         "table_id": 1000010,
         "schema": "public",
         "table": "customers",
+        "id": "1000010.13",
+        "ordinal_position": 13,
+        "name": "logo_path",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000010,
+        "schema": "public",
+        "table": "customers",
         "id": "1000010.7",
         "ordinal_position": 7,
         "name": "metadata",
@@ -2054,27 +2088,6 @@
         "default_value": null,
         "data_type": "uuid",
         "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
-        "table": "customers",
-        "id": "1000010.13",
-        "ordinal_position": 13,
-        "name": "logo_path",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -2425,9 +2438,9 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "organizations",
-        "id": "1000013.4",
-        "ordinal_position": 4,
+        "table": "notifications",
+        "id": "1000013.6",
+        "ordinal_position": 6,
         "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -2446,11 +2459,32 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "organizations",
+        "table": "notifications",
         "id": "1000013.1",
         "ordinal_position": 1,
         "name": "id",
-        "default_value": "gen_random_uuid()",
+        "default_value": null,
+        "data_type": "bigint",
+        "format": "int8",
+        "type_schema": "pg_catalog",
+        "is_identity": true,
+        "identity_generation": "ALWAYS",
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
+        "table": "notifications",
+        "id": "1000013.2",
+        "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
         "data_type": "uuid",
         "format": "uuid",
         "type_schema": "pg_catalog",
@@ -2467,10 +2501,31 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "organizations",
-        "id": "1000013.2",
-        "ordinal_position": 2,
-        "name": "name",
+        "table": "notifications",
+        "id": "1000013.5",
+        "ordinal_position": 5,
+        "name": "read_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
+        "table": "notifications",
+        "id": "1000013.4",
+        "ordinal_position": 4,
+        "name": "title",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -2488,31 +2543,31 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "organizations",
+        "table": "notifications",
         "id": "1000013.3",
         "ordinal_position": 3,
-        "name": "slug",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
+        "name": "user_id",
+        "default_value": "auth.uid()",
+        "data_type": "uuid",
+        "format": "uuid",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
         "is_generated": false,
         "is_nullable": false,
         "is_updatable": true,
-        "is_unique": true,
+        "is_unique": false,
         "check": null,
         "enums": [],
         "comment": null
       },
       {
-        "table_id": 1000013,
+        "table_id": 1000014,
         "schema": "public",
         "table": "organizations",
-        "id": "1000013.5",
-        "ordinal_position": 5,
-        "name": "updated_at",
+        "id": "1000014.4",
+        "ordinal_position": 4,
+        "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
         "format": "timestamptz",
@@ -2530,28 +2585,7 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "tags",
-        "id": "1000014.4",
-        "ordinal_position": 4,
-        "name": "color",
-        "default_value": "'gray'::text",
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "color = ANY (ARRAY['gray'::text, 'red'::text, 'green'::text, 'blue'::text])",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000014,
-        "schema": "public",
-        "table": "tags",
+        "table": "organizations",
         "id": "1000014.1",
         "ordinal_position": 1,
         "name": "id",
@@ -2572,9 +2606,9 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "tags",
-        "id": "1000014.3",
-        "ordinal_position": 3,
+        "table": "organizations",
+        "id": "1000014.2",
+        "ordinal_position": 2,
         "name": "name",
         "default_value": null,
         "data_type": "text",
@@ -2593,8 +2627,113 @@
       {
         "table_id": 1000014,
         "schema": "public",
+        "table": "organizations",
+        "id": "1000014.3",
+        "ordinal_position": 3,
+        "name": "slug",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": true,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000014,
+        "schema": "public",
+        "table": "organizations",
+        "id": "1000014.5",
+        "ordinal_position": 5,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000015,
+        "schema": "public",
         "table": "tags",
-        "id": "1000014.2",
+        "id": "1000015.4",
+        "ordinal_position": 4,
+        "name": "color",
+        "default_value": "'gray'::text",
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": "color = ANY (ARRAY['gray'::text, 'red'::text, 'green'::text, 'blue'::text])",
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000015,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000015.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": "gen_random_uuid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000015,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000015.3",
+        "ordinal_position": 3,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000015,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000015.2",
         "ordinal_position": 2,
         "name": "organization_id",
         "default_value": null,
@@ -2712,11 +2851,17 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table_name": "organizations",
+        "table_name": "notifications",
         "name": "id"
       },
       {
         "table_id": 1000014,
+        "schema": "public",
+        "table_name": "organizations",
+        "name": "id"
+      },
+      {
+        "table_id": 1000015,
         "schema": "public",
         "table_name": "tags",
         "name": "id"
@@ -2850,6 +2995,26 @@
         "columns": ["organization_id"],
         "referenced_schema": "public",
         "referenced_relation": "organizations",
+        "referenced_columns": ["id"],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "notifications_organization_id_fkey",
+        "schema": "public",
+        "relation": "notifications",
+        "columns": ["organization_id"],
+        "referenced_schema": "public",
+        "referenced_relation": "organizations",
+        "referenced_columns": ["id"],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "notifications_user_id_fkey",
+        "schema": "public",
+        "relation": "notifications",
+        "columns": ["user_id"],
+        "referenced_schema": "auth",
+        "referenced_relation": "users",
         "referenced_columns": ["id"],
         "is_one_to_one": false
       },
@@ -4121,6 +4286,16 @@
       },
       {
         "id": 2000034,
+        "name": "_notifications",
+        "schema": "public",
+        "format": "notifications[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
+        "id": 2000035,
         "name": "_organizations",
         "schema": "public",
         "format": "organizations[]",
@@ -4130,7 +4305,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000035,
+        "id": 2000036,
         "name": "_tags",
         "schema": "public",
         "format": "tags[]",
@@ -4140,7 +4315,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000036,
+        "id": 2000037,
         "name": "contacts",
         "schema": "public",
         "format": "contacts",
@@ -4150,7 +4325,7 @@
         "type_relation_id": 1000008
       },
       {
-        "id": 2000037,
+        "id": 2000038,
         "name": "customer_tags",
         "schema": "public",
         "format": "customer_tags",
@@ -4160,7 +4335,7 @@
         "type_relation_id": 1000009
       },
       {
-        "id": 2000038,
+        "id": 2000039,
         "name": "customers",
         "schema": "public",
         "format": "customers",
@@ -4170,7 +4345,7 @@
         "type_relation_id": 1000010
       },
       {
-        "id": 2000039,
+        "id": 2000040,
         "name": "locations",
         "schema": "public",
         "format": "locations",
@@ -4180,7 +4355,7 @@
         "type_relation_id": 1000011
       },
       {
-        "id": 2000040,
+        "id": 2000041,
         "name": "note_kind",
         "schema": "public",
         "format": "note_kind",
@@ -4190,7 +4365,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000041,
+        "id": 2000042,
         "name": "notes",
         "schema": "public",
         "format": "notes",
@@ -4200,24 +4375,34 @@
         "type_relation_id": 1000012
       },
       {
-        "id": 2000042,
-        "name": "organizations",
+        "id": 2000043,
+        "name": "notifications",
         "schema": "public",
-        "format": "organizations",
+        "format": "notifications",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000013
       },
       {
-        "id": 2000043,
+        "id": 2000044,
+        "name": "organizations",
+        "schema": "public",
+        "format": "organizations",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000014
+      },
+      {
+        "id": 2000045,
         "name": "tags",
         "schema": "public",
         "format": "tags",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000014
+        "type_relation_id": 1000015
       }
     ]
   },
@@ -5049,7 +5234,7 @@
         ]
       },
       {
-        "id": 1000013,
+        "id": 1000014,
         "schema": "public",
         "name": "organizations",
         "primaryKey": ["id"],
@@ -5117,7 +5302,7 @@
         ]
       },
       {
-        "id": 1000014,
+        "id": 1000015,
         "schema": "public",
         "name": "tags",
         "primaryKey": ["id"],
@@ -5179,6 +5364,99 @@
           {
             "role": "authenticated",
             "privileges": ["DELETE", "INSERT", "SELECT", "UPDATE"]
+          },
+          {
+            "role": "service_role",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE",
+              "UPDATE"
+            ]
+          }
+        ]
+      },
+      {
+        "id": 1000013,
+        "schema": "public",
+        "name": "notifications",
+        "primaryKey": ["id"],
+        "uniques": [],
+        "foreignKeys": [
+          {
+            "name": "notifications_organization_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          },
+          {
+            "name": "notifications_user_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          }
+        ],
+        "checks": [],
+        "indexes": [
+          {
+            "name": "notifications_organization_id_idx",
+            "columns": ["organization_id"],
+            "unique": false,
+            "primary": false,
+            "partial": false
+          },
+          {
+            "name": "notifications_pkey",
+            "columns": ["id"],
+            "unique": true,
+            "primary": true,
+            "partial": false
+          },
+          {
+            "name": "notifications_unread_idx",
+            "columns": ["user_id", "created_at"],
+            "unique": false,
+            "primary": false,
+            "partial": true
+          }
+        ],
+        "policies": [
+          {
+            "name": "notifications_own",
+            "command": "all",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id)))",
+            "check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id)))",
+            "functions": ["auth.uid", "better_supabase.current_org_id"]
+          }
+        ],
+        "triggers": [],
+        "grants": [
+          {
+            "role": "anon",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE",
+              "UPDATE"
+            ]
+          },
+          {
+            "role": "authenticated",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE",
+              "UPDATE"
+            ]
           },
           {
             "role": "service_role",

@@ -155,6 +155,29 @@ export const notesUpdate: v.GenericSchema<UpdateOf<'notes'>> = v.object({
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 
+export const notificationsRow: v.GenericSchema<RowOf<'notifications'>> = v.object({
+  id: v.pipe(v.number(), v.integer()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  userId: v.pipe(v.string(), v.uuid()),
+  title: v.string(),
+  readAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+});
+export const notificationsInsert: v.GenericSchema<InsertOf<'notifications'>> = v.object({
+  organizationId: v.pipe(v.string(), v.uuid()),
+  userId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  title: v.string(),
+  readAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+});
+export const notificationsUpdate: v.GenericSchema<UpdateOf<'notifications'>> = v.object({
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  userId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  title: v.exactOptional(v.string()),
+  readAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+});
+
 export const organizationsRow: v.GenericSchema<RowOf<'organizations'>> = v.object({
   id: v.pipe(v.string(), v.uuid()),
   name: v.string(),
@@ -203,6 +226,7 @@ export const validators: {
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
+  readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
@@ -211,6 +235,7 @@ export const validators: {
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   locations: { insert: locationsInsert, update: locationsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
+  notifications: { insert: notificationsInsert, update: notificationsUpdate },
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };

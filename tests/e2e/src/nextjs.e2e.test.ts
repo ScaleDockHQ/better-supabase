@@ -282,5 +282,36 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
       });
       await page.getByTestId('workspace-summary').waitFor();
     });
+
+    it('keeps the unread badge live over Realtime', async () => {
+      await page.goto(`${base}/inbox`);
+      const summary = page.getByTestId('unread-summary');
+      await summary.getByText(/^\d+ unread$/).waitFor();
+      await page
+        .locator('[data-testid="unread-badge"][data-status="subscribed"]')
+        .waitFor({ timeout: 10_000 });
+      const badge = page.getByTestId('unread-count');
+      await expect.poll(() => badge.textContent()).toMatch(/^\d+$/);
+      const before = Number(await badge.textContent());
+
+      // Written outside the app: only Realtime can tell the page.
+      const { error } = await admin.from('notifications').insert({
+        organization_id: ACME,
+        user_id: member.id,
+        title: 'e2e',
+      });
+      if (error) throw error;
+      await expect
+        .poll(() => badge.textContent(), { timeout: 10_000 })
+        .toBe(String(before + 1));
+      await expect
+        .poll(() => summary.textContent(), { timeout: 10_000 })
+        .toBe(`${String(before + 1)} unread`);
+
+      await page.getByRole('button', { name: 'Mark all read' }).click();
+      await expect
+        .poll(() => badge.textContent(), { timeout: 10_000 })
+        .toBe('0');
+    });
   });
 });

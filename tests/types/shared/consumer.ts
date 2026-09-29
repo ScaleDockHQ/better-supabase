@@ -33,8 +33,12 @@ import { tenant } from 'better-supabase/plugins/tenant';
 import { timestamps } from 'better-supabase/plugins/timestamps';
 import { createPostgres, postgresExecutor } from 'better-supabase/postgres';
 import { createQueries, queryCache } from 'better-supabase/query';
-import { createHooks } from 'better-supabase/react';
-import { defineTopic } from 'better-supabase/realtime';
+import {
+  createHooks,
+  type LiveCountSeed,
+  useLiveCount,
+} from 'better-supabase/react';
+import { defineTopic, liveCount } from 'better-supabase/realtime';
 import { createServer } from 'better-supabase/server';
 import { defineBucket, type StoragePath } from 'better-supabase/storage';
 import { defineSeed, testExecutor } from 'better-supabase/testing';
@@ -168,6 +172,11 @@ export function integrations(): unknown[] {
     verifyWebhook,
     testExecutor(executor, { sb }),
     sb.mapError((error) => new Error(error.message, { cause: error })),
+    createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
+      LiveCountSeed<'customers'>
+    >,
+    liveCount,
+    useLiveCount,
     fromBetterResult(
       toBetterResult(
         { ok: true, data: 1, error: null },

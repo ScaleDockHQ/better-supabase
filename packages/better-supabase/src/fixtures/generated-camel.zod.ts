@@ -151,6 +151,29 @@ export const notesUpdate: z.ZodType<UpdateOf<'notes'>> = z.object({
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 });
 
+export const notificationsRow: z.ZodType<RowOf<'notifications'>> = z.object({
+  id: z.int(),
+  organizationId: z.guid(),
+  userId: z.guid(),
+  title: z.string(),
+  readAt: z.iso.datetime({ offset: true }).nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export const notificationsInsert: z.ZodType<InsertOf<'notifications'>> = z.object({
+  organizationId: z.guid(),
+  userId: z.guid().exactOptional(),
+  title: z.string(),
+  readAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+});
+export const notificationsUpdate: z.ZodType<UpdateOf<'notifications'>> = z.object({
+  organizationId: z.guid().exactOptional(),
+  userId: z.guid().exactOptional(),
+  title: z.string().exactOptional(),
+  readAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+});
+
 export const organizationsRow: z.ZodType<RowOf<'organizations'>> = z.object({
   id: z.guid(),
   name: z.string(),
@@ -199,6 +222,7 @@ export const validators: {
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
+  readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
@@ -207,6 +231,7 @@ export const validators: {
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   locations: { insert: locationsInsert, update: locationsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
+  notifications: { insert: notificationsInsert, update: notificationsUpdate },
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };

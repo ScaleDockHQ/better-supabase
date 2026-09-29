@@ -581,3 +581,24 @@ describe('createNext', () => {
     expect(mocks.cacheTag).toHaveBeenLastCalledWith('bs:customers', 'bs:notes');
   });
 });
+
+describe('next.liveCount', () => {
+  const sb = defineSupabase(schema);
+  const next = createNext(sb, { env, auth: { jwks: signer.jwks as never } });
+  const spec = sb.spec.notes.count({ where: { body: { contains: 'x' } } });
+
+  it('returns a serializable seed from the db passed in', async () => {
+    const run = vi.fn(() => AsyncResult.ok(4));
+    const seed = await next.liveCount(spec, { $run: run });
+    expect(seed).toEqual({ spec, count: 4 });
+    expect(JSON.parse(JSON.stringify(seed))).toEqual(seed);
+    expect(run).toHaveBeenCalledWith(spec);
+  });
+
+  it('gives count null instead of throwing', async () => {
+    const seed = await next.liveCount(spec, {
+      $run: () => AsyncResult.err(dbError('forbidden', 'no')),
+    });
+    expect(seed.count).toBeNull();
+  });
+});
