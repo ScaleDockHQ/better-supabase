@@ -6,7 +6,13 @@ import { defineSupabase } from '../core/define.ts';
 import { mapDbError, type RawDbError } from '../core/errors.ts';
 import { defineReadSet } from '../core/read-set.ts';
 import { schema } from '../fixtures/generated-camel.ts';
-import { createIdempotency, createInbox, createJobs } from '../jobs/index.ts';
+import {
+  createIdempotency,
+  createInbox,
+  createJobs,
+  ENTITLEMENTS_UPDATED,
+  entitlementMembers,
+} from '../jobs/index.ts';
 import { createPostgres } from '../postgres/pool.ts';
 import { renderKit, SQL_MODULES } from '../sql/kit.ts';
 import { compileReadSet } from '../sql/read-sets.ts';
@@ -304,6 +310,119 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     } finally {
       await pool.query(`drop table if exists ${secrets}`);
       await pool.query('delete from auth.users where id = $1', [sub]);
+    }
+  });
+
+  it('puts Stripe entitlements in the memberships claim and RLS', async () => {
+    const billing = `bs_billing_${RUN}`;
+    const hook = `public.bs_hook_${RUN}`;
+    const org = crypto.randomUUID();
+    const customer = `cus_${RUN}`;
+    const users = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email)
+       select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', e
+       from unnest($1::text[]) e returning id`,
+      [[`ent-a-${RUN}@example.com`, `ent-b-${RUN}@example.com`]],
+    );
+    const [member, outsider] = users.rows.map((row) => row.id) as [
+      string,
+      string,
+    ];
+    const { rows: existing } = await pool.query(
+      "select to_regclass('stripe.active_entitlements') as t",
+    );
+    const ownsStripe = existing[0].t === null;
+    const kit = renderKit(['entitlements'], {
+      entitlements: { table: billing, column: 'customer_id', key: 'org_id' },
+    }).find((file) => file.module === 'entitlements');
+    try {
+      if (ownsStripe) {
+        // Stripe Sync Engine 0.48.5, migration 0038.
+        await pool.query(`
+          create schema if not exists stripe;
+          create table stripe.active_entitlements (
+            id text primary key, object text, livemode boolean, feature text,
+            customer text, lookup_key text,
+            updated_at timestamptz not null default now(), last_synced_at timestamptz
+          );`);
+      }
+      await pool.query(`
+        create table public.${billing} (org_id uuid primary key, customer_id text unique);
+        insert into public.${billing} values ('${org}', '${customer}');
+        insert into better_supabase.memberships (org_id, user_id, role) values ('${org}', '${member}', 'admin');
+        insert into stripe.active_entitlements (id, customer, lookup_key) values
+          ('ent_b_${RUN}', '${customer}', 'sso'), ('ent_a_${RUN}', '${customer}', 'exports'),
+          ('ent_c_${RUN}', 'cus_other_${RUN}', 'audit');
+      `);
+      await pool.query(kit!.contents);
+      await pool.query(`
+        create function ${hook}(event jsonb) returns jsonb language plpgsql stable set search_path = '' as $$
+        begin
+          return jsonb_set(event, '{claims,memberships}',
+            better_supabase.membership_claims((event ->> 'user_id')::uuid));
+        end $$;
+        grant execute on function ${hook}(jsonb) to supabase_auth_admin;
+      `);
+
+      // `postgres` can't become supabase_auth_admin locally: check its grants.
+      const { rows: grants } = await pool.query(
+        `select has_schema_privilege('supabase_auth_admin', 'better_supabase', 'usage') as schema,
+          has_function_privilege('supabase_auth_admin', 'better_supabase.membership_claims(uuid)', 'execute') as fn`,
+      );
+      expect(grants[0]).toEqual({ schema: true, fn: true });
+      const { rows } = await pool.query<{ event: { claims: unknown } }>(
+        `select ${hook}(jsonb_build_object('user_id', $1::text, 'claims', '{}'::jsonb)) as event`,
+        [member],
+      );
+      expect(rows[0]!.event.claims).toEqual({
+        memberships: [
+          {
+            tenant_id: org,
+            roles: ['admin'],
+            entitlements: ['exports', 'sso'],
+          },
+        ],
+      });
+
+      const has = async (sub: string, key: string) =>
+        (
+          await postgres
+            .asUser({ sub })
+            .queryRaw<{ ok: boolean }>(
+              'select better_supabase.has_entitlement($1, $2) as ok',
+              [org, key],
+            )
+        )[0]!.ok;
+      expect(await has(member, 'exports')).toBe(true);
+      expect(await has(member, 'audit')).toBe(false);
+      expect(await has(outsider, 'exports')).toBe(false);
+      await expect(
+        postgres
+          .asUser({ sub: member })
+          .queryRaw('select better_supabase.membership_claims($1)', [member]),
+      ).rejects.toMatchObject({ code: '42501' });
+
+      const invalidate = await entitlementMembers(postgres.admin, {
+        type: ENTITLEMENTS_UPDATED,
+        data: { object: { customer } },
+      }).orThrow();
+      expect(invalidate).toEqual([member]);
+    } finally {
+      await pool.query(`
+        drop function if exists ${hook}(jsonb);
+        drop function if exists better_supabase.entitlement_members(text);
+        drop function if exists better_supabase.stripe_customer_tenants(text);
+        drop function if exists better_supabase.tenant_stripe_customer(uuid);
+        drop table if exists public.${billing};
+      `);
+      await pool.query(
+        ownsStripe
+          ? 'drop schema stripe cascade'
+          : `delete from stripe.active_entitlements where id like '%_${RUN}'`,
+      );
+      await pool.query('delete from auth.users where id = any($1)', [
+        [member, outsider],
+      ]);
     }
   });
 

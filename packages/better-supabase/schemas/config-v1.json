@@ -225,6 +225,23 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "entitlements": {
+      "description": "Where the `entitlements` SQL kit module finds each tenant's Stripe customer.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "customer": {
+          "description": "`table.column` or `schema.table.column` holding the Stripe customer id.",
+          "type": "string",
+          "default": "organizations.stripe_customer_id"
+        },
+        "key": {
+          "description": "The tenant id column of that table.",
+          "type": "string",
+          "default": "id"
+        }
+      }
+    },
     "realtime": {
       "description": "Live query change broadcasts.",
       "type": "object",

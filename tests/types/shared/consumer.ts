@@ -24,7 +24,12 @@ import { parseEnv } from 'better-supabase/env';
 import { forwardMutations, httpSink } from 'better-supabase/events';
 import { createHono } from 'better-supabase/hono';
 import { defineListQuery } from 'better-supabase/list';
-import { createNext, nextCache, requireAal } from 'better-supabase/next';
+import {
+  createNext,
+  hasEntitlement,
+  nextCache,
+  requireAal,
+} from 'better-supabase/next';
 import { createImageLoader } from 'better-supabase/next/image';
 import { createOpenApi } from 'better-supabase/openapi';
 import { createOrpc } from 'better-supabase/orpc';
@@ -197,6 +202,9 @@ export function integrations(): unknown[] {
         session.kind === 'user' ? (session.aal satisfies Aal) : undefined,
       ),
     checkAal,
+    createNext(sb)
+      .session()
+      .then((session) => hasEntitlement(session, 'org', 'exports')),
     server
       .deleteAccount('u1', { buckets: [logos], cascades: ['customers'] })
       .map(({ removed }) => removed['customer-logos']),

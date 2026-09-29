@@ -43,6 +43,7 @@ export function kitLayout(
     version: VERSION,
     readSets,
     realtimeTables: config.realtime.tables,
+    entitlements: config.entitlements,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: 'anon' as const, privileges: roles.anon },
       {

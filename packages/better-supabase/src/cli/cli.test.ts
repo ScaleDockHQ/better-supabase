@@ -107,6 +107,7 @@ describe('config JSON Schema', () => {
       buckets: true,
       topics: true,
       realtime: true,
+      entitlements: true,
       sensitive: true,
       storagePaths: true,
       expose: true,

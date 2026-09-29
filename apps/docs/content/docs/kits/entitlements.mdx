@@ -1,0 +1,173 @@
+---
+title: Entitlements
+description: Stripe entitlements per tenant in the access token, in RLS, and fresh again after a plan change.
+---
+
+[Stripe Entitlements](https://docs.stripe.com/billing/entitlements) attach
+features (`exports`, `sso`) to products; a customer's active entitlements
+follow their subscriptions. The
+[Stripe Sync Engine](https://github.com/supabase/stripe-sync-engine)
+mirrors them into `stripe.active_entitlements`. The `entitlements` kit module
+reads that table per tenant, so the UI can hide what a plan doesn't include
+and RLS can refuse it.
+
+```bash
+better-supabase sql add entitlements   # adds tenant as well
+```
+
+## Configuration
+
+Each tenant needs its Stripe customer id somewhere. Point the module at it:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  entitlements: {
+    customer: 'organizations.stripe_customer_id', // the default
+    key: 'id', // the tenant id column, the default
+  },
+});
+```
+
+`sql add` writes `tenant_stripe_customer(tenant)` for that column, so the
+file fails to apply if the column doesn't exist, rather than failing on every
+request later. The module reads the tables of Stripe Sync Engine 0.48.5
+(`SPEC_PINS.stripeSyncEngine`). Before the engine is installed, every tenant
+has no entitlements.
+
+## SQL
+
+| Function | Grants | Returns |
+| --- | --- | --- |
+| `tenant_entitlements(tenant)` | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer |
+| `has_entitlement(tenant, key)` | `authenticated` | `true` when the caller is a member of `tenant` and it has `key` |
+| `membership_claims(user_id)` | `service_role`, `supabase_auth_admin` | The `memberships` claim for the user |
+| `entitlement_members(customer)` | `service_role` | Members of the tenants billed to `customer` |
+
+RLS reads the live table, so a downgrade takes effect on the next query:
+
+```sql
+create policy exports_need_plan on public.exports as restrictive
+  for insert to authenticated
+  with check ((select better_supabase.has_entitlement(organization_id, 'exports')));
+```
+
+## In the access token
+
+`membership_claims` builds the `memberships` claim of the
+[claims contract](/docs/frameworks/next-cache-components#who-owns-what), with
+entitlements per tenant:
+
+```json
+{
+  "memberships": [
+    { "tenant_id": "4f1c…", "roles": ["admin"], "entitlements": ["exports", "sso"] }
+  ]
+}
+```
+
+Call it from your custom access token hook:
+
+```sql
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return jsonb_set(event, '{claims,memberships}',
+    better_supabase.membership_claims((event ->> 'user_id')::uuid));
+end
+$$;
+
+grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
+```
+
+Declare the shape in `sb.claims()` to type it, with `z.enum` for the keys you
+sell:
+
+```ts title="src/lib/supabase.ts"
+const Claims = z.object({
+  memberships: z
+    .array(
+      z.object({
+        tenant_id: z.uuid(),
+        roles: z.array(z.string()),
+        entitlements: z.array(z.enum(['exports', 'sso', 'audit'])).default([]),
+      }),
+    )
+    .default([]),
+});
+
+export const sb = defineSupabase(schema).claims(Claims);
+```
+
+Every key travels in every request, so keep the list to lookup keys.
+[`doctor --as <user id>`](/docs/cli/doctor#bs405) warns when the hook's
+claims pass 2 KB.
+
+## In components
+
+`hasEntitlement(session, tenantId, key)` reads the claim, from
+`better-supabase/next`, `better-supabase/react` or `better-supabase/ssr`.
+With a typed claims schema, `key` only accepts its lookup keys:
+
+```tsx
+import { hasEntitlement } from 'better-supabase/next';
+
+const session = await next.session();
+if (!hasEntitlement(session, orgId, 'exports')) return <UpgradePrompt />;
+```
+
+This is UX: the policy above still decides.
+
+## Keeping claims fresh
+
+A token keeps the entitlements it was issued with until it is refreshed.
+Two things close the gap:
+
+1. **After checkout,** call `supabase.auth.refreshSession()` in the browser
+   once the success page loads. The new token runs the hook again.
+2. **On plan changes Stripe initiates** (renewal failures, cancellations at
+   period end), handle `entitlements.active_entitlement_summary.updated` in
+   the [webhook inbox](/docs/kits/jobs#webhook-inbox) and drop the members'
+   cached sessions:
+
+```ts title="src/app/api/stripe/entitlements/route.ts"
+import { dbError, err, ok } from 'better-supabase';
+import { createInbox, ENTITLEMENTS_UPDATED, entitlementMembers } from 'better-supabase/jobs';
+
+const inbox = createInbox(postgres.admin, {
+  source: 'stripe-entitlements',
+  verify: async (request, body) => {
+    try {
+      const event = await stripe.webhooks.constructEventAsync(
+        body,
+        request.headers.get('stripe-signature') ?? '',
+        process.env.STRIPE_ENTITLEMENTS_SECRET!,
+      );
+      return ok({ id: event.id, payload: event });
+    } catch (cause) {
+      return err(dbError('unauthorized', String(cause)));
+    }
+  },
+});
+
+export const POST = (request: Request) => inbox.receive(request);
+```
+
+```ts title="src/app/api/cron/inbox/route.ts"
+export const GET = async () => {
+  const result = await inbox.process(async (message) => {
+    if (message.type !== ENTITLEMENTS_UPDATED) return;
+    const members = await entitlementMembers(postgres.admin, message.payload).orThrow();
+    for (const userId of members) next.invalidateSession(userId);
+  });
+  return Response.json(result);
+};
+```
+
+`invalidateSession` drops `next.cached()` entries, so the next render asks
+for the session again. The token itself only changes on refresh, which the
+proxy does when it expires. Send the event to its own endpoint: the Stripe
+Sync Engine keeps its webhook for syncing the tables.

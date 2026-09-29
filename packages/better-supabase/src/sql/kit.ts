@@ -315,6 +315,82 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
+const ENTITLEMENTS: SqlModule = {
+  name: 'entitlements',
+  title: 'Stripe entitlements',
+  description:
+    'Active Stripe entitlements per tenant from the Stripe Sync Engine, membership claims for the access token hook, and has_entitlement() for RLS.',
+  requires: ['tenant'],
+  target: 'schema',
+  sql: `${SCHEMA}
+grant usage on schema better_supabase to supabase_auth_admin;
+
+-- Lookup keys of the tenant's active entitlements, from the Stripe Sync
+-- Engine's stripe.active_entitlements. Empty before the engine is installed.
+create or replace function better_supabase.tenant_entitlements(tenant uuid)
+returns text[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  customer_id text := better_supabase.tenant_stripe_customer(tenant);
+begin
+  if customer_id is null or to_regclass('stripe.active_entitlements') is null then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(distinct e.lookup_key order by e.lookup_key)
+    from stripe.active_entitlements e
+    where e.customer = customer_id
+      and e.lookup_key is not null
+  ), '{}');
+end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlements(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlements(uuid) to service_role, supabase_auth_admin;
+
+-- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
+create or replace function better_supabase.has_entitlement(tenant uuid, key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select better_supabase.has_org_role(tenant)
+    and key = any (better_supabase.tenant_entitlements(tenant))
+$$;
+
+revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
+grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+
+-- The memberships claim: [{ tenant_id, roles, entitlements }]. Call it from
+-- your custom access token hook:
+--   return jsonb_set(event, '{claims,memberships}',
+--     better_supabase.membership_claims((event ->> 'user_id')::uuid));
+create or replace function better_supabase.membership_claims(user_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'tenant_id', m.org_id,
+      'roles', jsonb_build_array(m.role),
+      'entitlements', to_jsonb(better_supabase.tenant_entitlements(m.org_id))
+    ) order by m.created_at, m.org_id), '[]'::jsonb)
+  from better_supabase.memberships m
+  where m.user_id = membership_claims.user_id
+$$;
+
+revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`,
+};
+
 const INVITATIONS: SqlModule = {
   name: 'invitations',
   title: 'Invitations',
@@ -1240,6 +1316,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       GRANTS,
       READ_SETS,
       MFA,
+      ENTITLEMENTS,
     ].map((module) => [module.name, module]),
   );
 
@@ -1291,6 +1368,18 @@ export interface KitLayout {
     readonly name: string;
     readonly sql: string;
   }[];
+  /** `config.entitlements`: where the `entitlements` module finds each tenant's Stripe customer. */
+  readonly entitlements?: EntitlementsSource;
+}
+
+/** The table holding each tenant's Stripe customer id. */
+export interface EntitlementsSource {
+  /** `table` or `schema.table`. */
+  readonly table: string;
+  /** Column with the Stripe customer id (`cus_...`). */
+  readonly column: string;
+  /** Column with the tenant id. */
+  readonly key: string;
 }
 
 /** Privileges one Data API role gets on a table or view. */
@@ -1339,7 +1428,58 @@ function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
   return `\n-- config.json schemas\n${statements.join('\n\n')}\n`;
 }
 
+function entitlementsSource(source: EntitlementsSource): string {
+  const [schema, table] = source.table.includes('.')
+    ? source.table.split('.', 2)
+    : ['public', source.table];
+  const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
+  const key = `t.${sqlIdent(source.key)}`;
+  const column = `t.${sqlIdent(source.column)}`;
+  const definer =
+    "language sql\nstable\nsecurity definer\nset search_path = ''";
+  return `
+-- config.entitlements: ${source.table}.${source.column}
+create or replace function better_supabase.tenant_stripe_customer(tenant uuid)
+returns text
+${definer}
+as $$
+  select ${column} from ${target} t where ${key} = tenant
+$$;
+
+create or replace function better_supabase.stripe_customer_tenants(customer text)
+returns setof uuid
+${definer}
+as $$
+  select ${key} from ${target} t where ${column} = customer
+$$;
+
+-- Users whose memberships claim carries the customer's entitlements, for
+-- invalidating their sessions after entitlements.active_entitlement_summary.updated.
+create or replace function better_supabase.entitlement_members(customer text)
+returns setof uuid
+${definer}
+as $$
+  select distinct m.user_id
+  from better_supabase.memberships m
+  where m.org_id in (select better_supabase.stripe_customer_tenants(customer))
+$$;
+
+revoke execute on function better_supabase.tenant_stripe_customer(uuid) from public, anon, authenticated;
+revoke execute on function better_supabase.stripe_customer_tenants(text) from public, anon, authenticated;
+revoke execute on function better_supabase.entitlement_members(text) from public, anon, authenticated;
+grant execute on function better_supabase.entitlement_members(text) to service_role;
+`;
+}
+
 function moduleExtras(module: SqlModule, layout: KitLayout): string {
+  if (module.name === 'entitlements')
+    return entitlementsSource(
+      layout.entitlements ?? {
+        table: 'organizations',
+        column: 'stripe_customer_id',
+        key: 'id',
+      },
+    );
   if (module.name === 'realtime-tables')
     return realtimeRegistrations(
       layout.realtimeTables ?? [],

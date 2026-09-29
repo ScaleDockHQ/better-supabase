@@ -222,6 +222,17 @@ export interface RealtimeConfig {
   readonly tables?: readonly string[];
 }
 
+export interface EntitlementsConfig {
+  /**
+   * `table.column` (or `schema.table.column`) holding each tenant's Stripe
+   * customer id, read by the `entitlements` SQL kit module. Defaults to
+   * `organizations.stripe_customer_id`.
+   */
+  readonly customer?: string;
+  /** The tenant id column of that table. Defaults to `id`. */
+  readonly key?: string;
+}
+
 /** A privilege the Data API roles can be granted on a table or view. */
 export type Privilege = 'select' | 'insert' | 'update' | 'delete';
 
@@ -297,10 +308,28 @@ export interface BetterSupabaseConfig {
   /** Realtime topic templates: `{ notifications: 'org:{orgId}:notifications' }`. */
   readonly topics?: Readonly<Record<string, string>>;
   readonly realtime?: RealtimeConfig;
+  readonly entitlements?: EntitlementsConfig;
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
   readonly openapi?: OpenApiConfig;
   readonly doctor?: DoctorConfig;
+}
+
+function entitlementsOf(
+  config: EntitlementsConfig = {},
+): ResolvedConfig['entitlements'] {
+  const customer = config.customer ?? 'organizations.stripe_customer_id';
+  const dot = customer.lastIndexOf('.');
+  if (dot <= 0) {
+    throw new TypeError(
+      `entitlements.customer must be "table.column", got "${customer}"`,
+    );
+  }
+  return {
+    table: customer.slice(0, dot),
+    column: customer.slice(dot + 1),
+    key: config.key ?? 'id',
+  };
 }
 
 /** The config with defaults applied. */
@@ -328,6 +357,11 @@ export interface ResolvedConfig {
     readonly actor: Required<ActorConfig> | undefined;
   };
   readonly buckets: Readonly<Record<string, BucketConfig>>;
+  readonly entitlements: {
+    readonly table: string;
+    readonly column: string;
+    readonly key: string;
+  };
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<RealtimeConfig>;
   readonly sql: Required<SqlConfig>;
@@ -410,6 +444,7 @@ export function resolveConfig(
     buckets: config.buckets ?? {},
     topics: config.topics ?? {},
     realtime: { tables: config.realtime?.tables ?? [] },
+    entitlements: entitlementsOf(config.entitlements),
     sql: {
       dir: config.sql?.dir ?? 'supabase/schemas',
       prefix: config.sql?.prefix ?? '900_better_supabase',

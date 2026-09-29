@@ -1,4 +1,4 @@
 {
   "title": "Kits",
-  "pages": ["list", "storage", "realtime", "sql", "jobs"]
+  "pages": ["list", "storage", "realtime", "sql", "jobs", "entitlements"]
 }

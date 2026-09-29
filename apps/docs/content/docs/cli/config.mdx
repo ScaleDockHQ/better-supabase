@@ -55,6 +55,7 @@ export default defineConfig({
 | `storagePaths` | `{}` | Text columns that hold object paths, keyed by `table.column`, with a `buckets` key or bucket id as the value. They're typed as [`StoragePath<'bucket-id'>`](/docs/kits/storage#path-columns) |
 | `topics` | `{}` | Realtime topic templates |
 | `realtime` | `{ tables: [] }` | Tables for [live queries](/docs/frontend/live-queries) |
+| `entitlements` | `{ customer: 'organizations.stripe_customer_id', key: 'id' }` | Where the [`entitlements` kit module](/docs/kits/entitlements) finds each tenant's Stripe customer |
 | `readSets` | `[]` | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL kit module |
 | `sql` | `supabase/schemas`, `900_better_supabase`, `supabase/tests` | Where generated SQL and pgTAP files go, and the [SQL kit](/docs/kits/sql) modules to keep in sync |
 | `seed` | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql` | Entry module and output of [`seed`](/docs/cli/local#seed) |

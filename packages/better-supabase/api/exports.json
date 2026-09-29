@@ -185,6 +185,7 @@
       "Casing",
       "CodecsConfig",
       "DoctorConfig",
+      "EntitlementsConfig",
       "ExposeConfig",
       "GeneratedFile",
       "Generator",
@@ -225,6 +226,7 @@
     "values": [
       "BetterSupabaseProvider",
       "createHooks",
+      "hasEntitlement",
       "SessionProvider",
       "useAuth",
       "useBroadcast",
@@ -240,6 +242,7 @@
       "BroadcastOptions",
       "BrowserLike",
       "ClaimsOf",
+      "EntitlementKey",
       "LiveCount",
       "LiveCountHookOptions",
       "LiveCountSeed",
@@ -352,6 +355,7 @@
       "applyCookieWrites",
       "AUTH_CACHE_HEADERS",
       "authContext",
+      "hasEntitlement",
       "parseCookies",
       "readSession",
       "refreshSession",
@@ -369,6 +373,7 @@
       "CookieOptions",
       "CookieRecord",
       "CookieWrite",
+      "EntitlementKey",
       "RefreshOptions",
       "RefreshOutcome",
       "ResolveAuthOptions",
@@ -378,6 +383,7 @@
   "./next": {
     "values": [
       "createNext",
+      "hasEntitlement",
       "nextCache",
       "REQUEST_ID_HEADER",
       "requireAal",
@@ -400,6 +406,7 @@
       "CachedOptions",
       "DbBudget",
       "DbStats",
+      "EntitlementKey",
       "GuardOptions",
       "NextDebugOptions",
       "NextOptions",
@@ -487,7 +494,9 @@
     "values": [
       "createIdempotency",
       "createInbox",
-      "createJobs"
+      "createJobs",
+      "entitlementMembers",
+      "ENTITLEMENTS_UPDATED"
     ],
     "types": [
       "ClaimOptions",

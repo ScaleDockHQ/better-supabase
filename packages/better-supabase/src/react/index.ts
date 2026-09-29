@@ -42,6 +42,8 @@ import { useSession } from './session.ts';
 export { SessionProvider, useSession } from './session.ts';
 export type { SessionProviderProps } from './session.ts';
 export type { AuthSession } from '../auth/view.ts';
+export { hasEntitlement } from '../auth/entitlements.ts';
+export type { EntitlementKey } from '../auth/entitlements.ts';
 export type { LiveCountSeed } from '../realtime/live.ts';
 
 /** The parts of `createBrowser()` the provider needs. */

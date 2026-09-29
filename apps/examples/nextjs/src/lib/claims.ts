@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 const Role = z.enum(['admin', 'member']);
+/** Stripe entitlement lookup keys the app sells. */
+export const Entitlement = z.enum(['exports', 'sso', 'audit']);
 
 /**
  * The claims the servers validate on every request (`sb.claims(Claims)`).
@@ -17,7 +19,19 @@ export const Claims = z.object({
       user_role: Role.optional().catch(undefined),
     })
     .optional(),
+  // `better_supabase.membership_claims()` in the hook (entitlements kit module).
+  memberships: z
+    .array(
+      z.object({
+        tenant_id: z.uuid(),
+        roles: z.array(z.string()).default([]),
+        entitlements: z.array(Entitlement).default([]),
+      }),
+    )
+    .optional()
+    .catch(undefined),
 });
 
 export type Claims = z.infer<typeof Claims>;
 export type Role = z.infer<typeof Role>;
+export type Entitlement = z.infer<typeof Entitlement>;

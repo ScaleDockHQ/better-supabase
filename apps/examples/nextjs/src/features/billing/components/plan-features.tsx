@@ -1,0 +1,33 @@
+import { hasEntitlement } from 'better-supabase/next';
+
+import { getSession } from '@/features/user/user-queries';
+import { type Entitlement } from '@/lib/claims';
+
+const FEATURES: Record<Entitlement, string> = {
+  exports: 'CSV exports',
+  sso: 'Single sign-on',
+  audit: 'Audit log',
+};
+
+/**
+ * The plan's features from the token's `memberships` claim. UX only:
+ * `better_supabase.has_entitlement()` enforces them in RLS.
+ */
+export async function PlanFeatures() {
+  const session = await getSession();
+  const orgId =
+    session.kind === 'user' ? session.claims.app_metadata?.org_id : undefined;
+  if (!orgId) return null;
+  return (
+    <ul aria-label="Plan features">
+      {Object.entries(FEATURES).map(([key, label]) => (
+        <li key={key}>
+          {label}:{' '}
+          {hasEntitlement(session, orgId, key as Entitlement)
+            ? 'included'
+            : 'not in your plan'}
+        </li>
+      ))}
+    </ul>
+  );
+}

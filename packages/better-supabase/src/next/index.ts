@@ -80,6 +80,8 @@ export type { AuthKind, GuardOptions } from '../server/respond.ts';
 export type { AuthSession } from '../auth/view.ts';
 export type { Aal, AmrEntry } from '../auth/mfa.ts';
 export { toSession } from '../auth/view.ts';
+export { hasEntitlement } from '../auth/entitlements.ts';
+export type { EntitlementKey } from '../auth/entitlements.ts';
 
 export interface ProxyOptions<C = unknown> {
   /**
