@@ -1,5 +1,6 @@
 import type { AuthState } from '../auth/resolve.ts';
 
+import { type Aal, checkAal } from '../auth/mfa.ts';
 import { type DbError, dbError, dbErrorOf, isDbError } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
 import { toDbError } from '../core/result.ts';
@@ -9,15 +10,22 @@ export type AuthKind = AuthState['kind'];
 export interface GuardOptions {
   /** Auth kinds allowed through. Defaults to `['user']`. */
   readonly allow?: readonly Exclude<AuthKind, 'invalid'>[];
+  /**
+   * Assurance level user sessions need. `aal2` answers 403 with
+   * `required: 'aal2'` until the user verifies a second factor.
+   */
+  readonly aal?: Aal;
 }
 
 /** `undefined` when `auth` may pass; otherwise the 401/403 error to send. */
 export function guard(
   auth: AuthState,
   allow: GuardOptions['allow'] = ['user'],
+  aal: Aal = 'aal1',
 ): DbError | undefined {
   if (auth.kind === 'invalid') return auth.error;
-  if ((allow as readonly AuthKind[]).includes(auth.kind)) return undefined;
+  if ((allow as readonly AuthKind[]).includes(auth.kind))
+    return checkAal(auth, aal);
   return auth.kind === 'anon'
     ? dbError('unauthorized', 'Sign in to continue', {
         code: 'MISSING_CREDENTIALS',

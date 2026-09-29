@@ -187,6 +187,22 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
     expect(anonymous.status).toBe(401);
   });
 
+  it('requires a second factor to delete through the route handler', async () => {
+    const response = await get(
+      `/api/customers/${id}`,
+      { authorization: `Bearer ${acme.accessToken}` },
+      { method: 'DELETE' },
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      kind: 'forbidden',
+      code: 'INSUFFICIENT_AAL',
+      required: 'aal2',
+    });
+    const { data } = await admin.from('customers').select('id').eq('id', id);
+    expect(data).toHaveLength(1);
+  });
+
   it('lists with facet counts in two calls and one wave', async () => {
     const response = await get('/api/customers/list?status=archived', {
       authorization: `Bearer ${acme.accessToken}`,

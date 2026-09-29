@@ -33,6 +33,10 @@ if (!result.ok) return problemResponse(result.error, { instance: url.pathname })
 const error = fromProblem(await response.json()); // back to a DbError
 ```
 
+Kind-specific details become extension members next to `code`: `constraint`
+and `columns` for conflicts, `column` for `not_null`, and `required` (`aal1` or
+`aal2`) when a guard's [`aal`](/docs/auth/mfa-sso) rejects the session.
+
 ## Safe by default
 
 Messages of `unexpected`, `network` and `invalid_request` errors can contain

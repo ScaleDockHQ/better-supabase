@@ -1,0 +1,151 @@
+---
+title: MFA and SSO
+description: Require a second factor on routes, actions, pages and RLS policies, and scope SSO users to their tenant.
+---
+
+Supabase Auth puts the session's assurance level in the access token: `aal`
+is `aal1` after a password, magic link or OAuth sign-in, and `aal2` once the
+user verified a TOTP, phone or WebAuthn factor in this session. `amr` lists
+how the user signed in. better-supabase reads both locally, like every other
+claim, so enforcing MFA costs no Auth server call.
+
+## The session
+
+```ts
+const session = await next.session();
+if (session.kind === 'user') {
+  session.aal; // 'aal1' | 'aal2'
+  session.amr; // [{ method: 'totp', timestamp: 1767225600 }, { method: 'password', ... }]
+}
+```
+
+`aal` reads as `aal1` for any value other than `aal2`. `amr` keeps well-formed
+entries only; SSO entries carry the `provider` id.
+
+## Routes and actions
+
+Every adapter's guard options take `aal`. A user session below it gets `403`
+with `code: 'INSUFFICIENT_AAL'` and `required: 'aal2'`, so the client knows to
+start a challenge rather than show a generic error:
+
+```ts title="src/app/api/billing/route.ts"
+export const POST = next.route(
+  async (request, { db }) => db.invoices.create(await request.json()),
+  { aal: 'aal2' },
+);
+```
+
+```ts title="src/features/security/security-actions.ts"
+export const rotateApiKey = next.action({ aal: 'aal2' }, async (_input, { db }) =>
+  db.$rpc('rotate_api_key'),
+);
+```
+
+```json title="403 response"
+{
+  "type": "https://bettersupabase.com/problems/forbidden",
+  "title": "Forbidden",
+  "status": 403,
+  "kind": "forbidden",
+  "code": "INSUFFICIENT_AAL",
+  "required": "aal2",
+  "detail": "Verify a second factor to continue"
+}
+```
+
+Hono, oRPC, the edge handler and MCP accept the same `aal` option. Outside an
+adapter, `checkAal(auth, 'aal2')` from `better-supabase/server` returns the
+same error or `undefined`.
+
+## Pages
+
+`requireAal` is a `protect` for the proxy. Signed-in users below the level are
+redirected to your MFA page with `?next=<path>`:
+
+```ts title="src/proxy.ts"
+import { requireAal } from 'better-supabase/next';
+
+const mfa = requireAal('aal2', {
+  redirect: '/mfa',
+  match: (path) => path.startsWith('/settings/security'),
+});
+
+export function proxy(request: NextRequest) {
+  return next.proxy(request, { protect: mfa });
+}
+```
+
+The token carries no list of factors, so a user without one lands on the MFA
+page too: enroll there with `supabase.auth.mfa.enroll()`, or challenge with
+`supabase.auth.mfa.challengeAndVerify()`. After verifying, the client holds
+an `aal2` session and the redirect back to `next` passes. Without
+`redirect`, `requireAal` answers with the 403 Problem Details above.
+
+## Row-level security
+
+Guards protect your server code; RLS protects the data from every client,
+including direct PostgREST calls with the user's token. The `mfa` kit module
+adds `better_supabase.mfa_satisfied()`:
+
+```bash
+better-supabase sql add mfa
+```
+
+```sql
+create policy mfa_required on public.invoices as restrictive
+  for all to authenticated
+  using ((select better_supabase.mfa_satisfied()))
+  with check ((select better_supabase.mfa_satisfied()));
+```
+
+- It is true when the caller has no verified factor, or the token is `aal2`.
+  Users who never enrolled keep working; users who did must verify it in
+  each session. To require MFA for everyone, check `auth.jwt() ->> 'aal'`
+  directly instead.
+- `restrictive` means it applies on top of the table's other policies
+  instead of widening them.
+- It is `security definer` because `authenticated` can't read
+  `auth.mfa_factors`. A policy that reads that table directly fails every
+  request with `42501`; [`doctor`](/docs/cli/doctor#bs108) reports it as
+  BS108.
+- Execute is granted to `authenticated` only.
+
+## SSO tenants
+
+With SAML SSO, the first `amr` entry of an SSO session is
+`{ method: 'sso/saml', provider: '<sso provider id>' }`. When each tenant signs
+in through its own identity provider, scope reads by the provider:
+
+```ts title="src/lib/supabase.ts"
+export const sb = defineSupabase(schema).use(
+  tenant({ claim: ['org_id', 'amr.0.provider'] }),
+);
+```
+
+When tenant ids are not provider ids, map them with `resolve`, and back it
+with a restrictive policy so a user from another identity provider can't
+read the tenant's rows through PostgREST:
+
+```ts
+tenant({
+  resolve: (context) =>
+    providers.get(amrOf(context.claims ?? {})[0]?.provider ?? ''),
+});
+```
+
+```sql
+alter table public.organizations add column sso_provider_id uuid unique;
+
+create policy sso_tenant on public.projects as restrictive
+  for all to authenticated
+  using (
+    organization_id in (
+      select id from public.organizations
+      where sso_provider_id is null
+         or sso_provider_id::text = (select auth.jwt() -> 'amr' -> 0 ->> 'provider')
+    )
+  );
+```
+
+Organizations without `sso_provider_id` keep password and OAuth sign-ins;
+the others only accept sessions from their provider.

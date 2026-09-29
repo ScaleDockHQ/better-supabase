@@ -211,6 +211,33 @@ describe('doctor rules', () => {
     expect(findings[0]!.message).toContain('no update, delete policy');
   });
 
+  it('flags policies that read auth.mfa_factors directly', async () => {
+    const snap = snapshot((tables) => {
+      edit(table(tables, 'notes').policies).push({
+        name: 'notes_mfa',
+        command: 'select',
+        roles: ['authenticated'],
+        permissive: false,
+        using:
+          'EXISTS ( SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = auth.uid())',
+        check: null,
+        functions: [],
+      });
+    });
+    const findings = await runRules(
+      context(snap),
+      RULES.filter((rule) => rule.code === 'BS108'),
+    );
+    expect(findings).toMatchObject([
+      {
+        code: 'BS108',
+        severity: 'error',
+        target: 'public.notes.notes_mfa',
+        message: expect.stringContaining('better_supabase.mfa_satisfied()'),
+      },
+    ]);
+  });
+
   it('reports Supabase advisor lints with their own severity and links', async () => {
     const lint = (overrides: Partial<Lint>): Lint => ({
       name: 'rls_disabled_in_public',

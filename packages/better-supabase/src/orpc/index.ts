@@ -120,7 +120,11 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
           const ctx = await server.context(context.request, {
             refresh: middlewareOptions.refresh ?? false,
           });
-          const denied = guard(ctx.auth, middlewareOptions.allow);
+          const denied = guard(
+            ctx.auth,
+            middlewareOptions.allow,
+            middlewareOptions.aal,
+          );
           if (denied) throw toORPCError(denied);
           try {
             return await next({

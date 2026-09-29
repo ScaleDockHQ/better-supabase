@@ -97,6 +97,8 @@ describe('react', () => {
         user: { id: 'u1', email: 'ada@example.com' },
         claims: { sub: 'u1' },
         expiresAt: null,
+        aal: 'aal1',
+        amr: [],
       }),
     ).toContain('<p>ada@example.com</p>');
     expect(await render({ kind: 'anon', reason: 'none' })).toContain(

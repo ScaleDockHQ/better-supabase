@@ -137,6 +137,14 @@ make a read-only table explicit, and cover the table with
 [`expectTenantIsolation`](/docs/testing#tenant-isolation). The tenant table
 itself (the one the tenant column references) is skipped.
 
+### BS108
+
+**Error: policy reads `auth.mfa_factors` directly.** `authenticated` can't
+select from `auth.mfa_factors`, so the policy fails every request with
+`42501`. Use `(select better_supabase.mfa_satisfied())` from
+`better-supabase sql add mfa`, a `security definer` function. See
+[MFA and SSO](/docs/auth/mfa-sso).
+
 ## Performance
 
 ### BS204

@@ -268,8 +268,11 @@
   },
   "./server": {
     "values": [
+      "aalOf",
+      "amrOf",
       "AUTH_CACHE_HEADERS",
       "authContext",
+      "checkAal",
       "clientIp",
       "contextFromSupabase",
       "createServer",
@@ -293,6 +296,8 @@
       "writeSession"
     ],
     "types": [
+      "Aal",
+      "AmrEntry",
       "AuthKind",
       "AuthResolution",
       "AuthResolver",
@@ -373,6 +378,7 @@
       "createNext",
       "nextCache",
       "REQUEST_ID_HEADER",
+      "requireAal",
       "sessionStale",
       "sessionTag",
       "shouldRefresh",
@@ -381,8 +387,10 @@
       "toSession"
     ],
     "types": [
+      "Aal",
       "ActionOptions",
       "ActionResult",
+      "AmrEntry",
       "AuthKind",
       "AuthSession",
       "BetterNext",
@@ -394,6 +402,7 @@
       "NextDebugOptions",
       "NextOptions",
       "ProxyOptions",
+      "RequireAalOptions",
       "SessionStaleOptions"
     ]
   },

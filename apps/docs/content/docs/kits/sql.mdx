@@ -33,6 +33,7 @@ supabase db diff -f better_supabase_kit
 | `pgtap` | Test helpers for `supabase test db`. See [Testing](/docs/testing) |
 | `grants` | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants) |
 | `read-sets` | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets) |
+| `mfa` | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso) |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. The
 `tenant` module is a template: edit the roles and policies to fit your app.

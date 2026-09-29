@@ -249,6 +249,64 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     }
   });
 
+  it('mfa_satisfied gates restrictive policies on aal2 once a factor is verified', async () => {
+    const user = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
+      [`mfa-${RUN}@example.com`],
+    );
+    const sub = user.rows[0]!.id;
+    const secrets = `public.bs_mfa_${RUN}`;
+    const satisfied = async (aal: 'aal1' | 'aal2'): Promise<boolean> => {
+      const [row] = await postgres
+        .asUser({ sub, aal })
+        .queryRaw<{ ok: boolean }>(
+          'select better_supabase.mfa_satisfied() as ok',
+        );
+      return row!.ok;
+    };
+    try {
+      await pool.query(`
+        create table ${secrets} (id int primary key);
+        insert into ${secrets} values (1);
+        alter table ${secrets} enable row level security;
+        create policy read on ${secrets} for select to authenticated using (true);
+        create policy mfa_required on ${secrets} as restrictive
+          for all to authenticated
+          using ((select better_supabase.mfa_satisfied()));
+        grant select on ${secrets} to authenticated;
+      `);
+      expect(await satisfied('aal1')).toBe(true);
+
+      await pool.query(
+        `insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, 'phone', 'totp', 'verified', now(), now())`,
+        [sub],
+      );
+      expect(await satisfied('aal1')).toBe(false);
+      expect(await satisfied('aal2')).toBe(true);
+
+      const visible = async (aal: 'aal1' | 'aal2') =>
+        (
+          await postgres
+            .asUser({ sub, aal })
+            .queryRaw<{ n: number }>(
+              `select count(*)::int as n from ${secrets}`,
+            )
+        )[0]!.n;
+      expect(await visible('aal1')).toBe(0);
+      expect(await visible('aal2')).toBe(1);
+
+      await expect(
+        postgres
+          .asUser({ sub, role: 'anon' })
+          .queryRaw('select better_supabase.mfa_satisfied()'),
+      ).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await pool.query(`drop table if exists ${secrets}`);
+      await pool.query('delete from auth.users where id = $1', [sub]);
+    }
+  });
+
   it('queues, retries, dedupes and dead-letters jobs on pgmq', async () => {
     const queue = `kit_${RUN}`;
     const jobs = createJobs(postgres.admin, {

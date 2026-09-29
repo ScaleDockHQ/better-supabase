@@ -4,6 +4,7 @@
     "index",
     "env",
     "sessions",
+    "mfa-sso",
     "server",
     "middleware",
     "postgres",

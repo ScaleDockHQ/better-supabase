@@ -3,6 +3,8 @@ import type { JWTClaims, UserClaims } from '@supabase/server';
 import type { DbError } from '../core/errors.ts';
 import type { AuthState, InvalidReason } from './resolve.ts';
 
+import { type Aal, aalOf, type AmrEntry, amrOf } from './mfa.ts';
+
 /**
  * The verified caller as plain data: no token, no clients. Safe to return
  * from a `'use cache: private'` function and to pass to Client Components.
@@ -18,6 +20,10 @@ export type AuthSession<C = unknown> =
       readonly claims: JWTClaims & C;
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
+      /** `aal2` once the user verified a second factor in this session. */
+      readonly aal: Aal;
+      /** How the user signed in (`password`, `totp`, `sso/saml`, ...). */
+      readonly amr: readonly AmrEntry[];
     }
   | { readonly kind: 'service'; readonly keyName: string }
   | { readonly kind: 'anon'; readonly reason: AnonReason }
@@ -38,6 +44,8 @@ export function toSession<C>(auth: AuthState<C>): AuthSession<C> {
         user: auth.user,
         claims: auth.claims,
         expiresAt: auth.expiresAt,
+        aal: aalOf(auth.claims),
+        amr: amrOf(auth.claims),
       };
     case 'service':
       return { kind: 'service', keyName: auth.keyName };

@@ -11,7 +11,7 @@ import { defineReadSet } from '../core/read-set.ts';
 import { AsyncResult, ok } from '../core/result.ts';
 import { schema } from '../fixtures/generated-camel.ts';
 import { createTestSigner } from '../testing/jwt.ts';
-import { createNext, shouldRefresh, tagFor } from './index.ts';
+import { createNext, requireAal, shouldRefresh, tagFor } from './index.ts';
 
 const mocks = vi.hoisted(() => ({
   headers: new Headers(),
@@ -462,6 +462,83 @@ describe('createNext', () => {
       kind: 'invalid',
       error: { kind: 'unauthorized' },
     });
+  });
+
+  it('requires a second factor on routes, actions and proxied pages', async () => {
+    const aal1 = await signer.sign({
+      sub: USER,
+      aal: 'aal1',
+      amr: [{ method: 'password', timestamp: 1 }],
+    });
+    const aal2 = await signer.sign({
+      sub: USER,
+      aal: 'aal2',
+      amr: [
+        { method: 'totp', timestamp: 2 },
+        { method: 'password', timestamp: 1 },
+      ],
+    });
+
+    mocks.headers = new Headers({ authorization: `Bearer ${aal2}` });
+    expect(await next.session()).toMatchObject({
+      aal: 'aal2',
+      amr: [{ method: 'totp' }, { method: 'password' }],
+    });
+
+    const handler = next.route(() => ({ ok: true }), { aal: 'aal2' });
+    const call = (token: string) =>
+      handler(
+        new NextRequest('https://app.test/api/billing', {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+        { params: Promise.resolve({}) },
+      );
+    const denied = await call(aal1);
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({
+      kind: 'forbidden',
+      code: 'INSUFFICIENT_AAL',
+      required: 'aal2',
+    });
+    expect((await call(aal2)).status).toBe(200);
+
+    const rotate = next.action({ aal: 'aal2' }, () => 'rotated');
+    mocks.headers = new Headers({ authorization: `Bearer ${aal1}` });
+    expect(await rotate(undefined)).toMatchObject({
+      ok: false,
+      error: { kind: 'forbidden', required: 'aal2' },
+    });
+    mocks.headers = new Headers({ authorization: `Bearer ${aal2}` });
+    expect(await rotate(undefined)).toEqual({
+      ok: true,
+      data: 'rotated',
+      error: null,
+    });
+
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const cookie = (token: string) =>
+      writeSession([], NAME, {
+        access_token: token,
+        refresh_token: 'r',
+        expires_at: exp,
+      })
+        .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+        .join('; ');
+    const protect = requireAal('aal2', {
+      redirect: '/mfa',
+      match: (path) => path.startsWith('/dashboard'),
+    });
+    const redirected = await next.proxy(page({ cookie: cookie(aal1) }), {
+      protect,
+    });
+    expect(redirected.status).toBe(307);
+    expect(redirected.headers.get('location')).toBe(
+      'https://app.test/mfa?next=%2Fdashboard',
+    );
+    const passed = await next.proxy(page({ cookie: cookie(aal2) }), {
+      protect,
+    });
+    expect(passed.headers.get('x-middleware-next')).toBe('1');
   });
 
   it('never refreshes an expiring cookie session', async () => {

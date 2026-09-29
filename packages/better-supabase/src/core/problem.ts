@@ -21,6 +21,8 @@ export interface ProblemDetails {
   readonly columns?: readonly string[];
   readonly column?: string;
   readonly issues?: readonly ValidationIssue[];
+  /** The assurance level a `forbidden` answer needs (`aal2`). */
+  readonly required?: 'aal1' | 'aal2';
 }
 
 export const PROBLEM_TYPE_BASE = 'https://bettersupabase.com/problems/';
@@ -89,6 +91,8 @@ export function toProblem(
   if ('columns' in error && error.columns) problem['columns'] = error.columns;
   if ('column' in error && error.column) problem['column'] = error.column;
   if ('issues' in error) problem['issues'] = error.issues;
+  if ('required' in error && error.required)
+    problem['required'] = error.required;
   return problem as unknown as ProblemDetails;
 }
 
@@ -138,6 +142,7 @@ export function fromProblem(problem: ProblemDetails): DbError {
     'constraint',
     'columns',
     'column',
+    'required',
   ] as const) {
     if (problem[key] !== undefined) extra[key] = problem[key];
   }

@@ -11,6 +11,8 @@ export type {
 } from './resolve.ts';
 export { toSession } from './view.ts';
 export type { AuthSession } from './view.ts';
+export { aalOf, amrOf, checkAal } from './mfa.ts';
+export type { Aal, AmrEntry } from './mfa.ts';
 export {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,

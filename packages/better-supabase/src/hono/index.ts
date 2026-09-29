@@ -119,7 +119,11 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
         const ctx = await server.context(c.req.raw, {
           refresh: middlewareOptions.refresh ?? false,
         });
-        const denied = guard(ctx.auth, middlewareOptions.allow);
+        const denied = guard(
+          ctx.auth,
+          middlewareOptions.allow,
+          middlewareOptions.aal,
+        );
         if (denied) {
           return ctx.resolution.apply(
             problemResponse(denied, {

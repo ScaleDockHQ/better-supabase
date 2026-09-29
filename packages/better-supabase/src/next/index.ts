@@ -14,6 +14,7 @@ import type { QuerySpec } from '../core/spec.ts';
 import type { CountRunner, LiveCountSeed } from '../realtime/live.ts';
 import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
+import { type Aal, checkAal } from '../auth/mfa.ts';
 import { toSession } from '../auth/view.ts';
 import { dbError } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
@@ -77,6 +78,7 @@ export type { DbStats } from '../core/stats.ts';
 
 export type { AuthKind, GuardOptions } from '../server/respond.ts';
 export type { AuthSession } from '../auth/view.ts';
+export type { Aal, AmrEntry } from '../auth/mfa.ts';
 export { toSession } from '../auth/view.ts';
 
 export interface ProxyOptions<C = unknown> {
@@ -303,6 +305,47 @@ function formDataObject(form: FormData): Record<string, unknown> {
   return out;
 }
 
+export interface RequireAalOptions {
+  /**
+   * Page that enrolls or challenges a second factor. Signed-in users below
+   * the level are redirected there with `?next=<path>`; without it they get
+   * a 403 Problem Details response.
+   */
+  readonly redirect?: string;
+  /** Paths that need the level. Defaults to every path but `redirect`. */
+  readonly match?: (pathname: string) => boolean;
+}
+
+/**
+ * A `proxy` `protect` that keeps signed-in users below `level` out of the
+ * matched paths. The JWT carries no factor list, so this also sends users
+ * without a factor to `redirect` to enroll one. Anonymous callers pass;
+ * combine it with your sign-in redirect.
+ *
+ * ```ts
+ * next.proxy(request, {
+ *   protect: requireAal('aal2', { redirect: '/mfa', match: (path) => path.startsWith('/settings') }),
+ * });
+ * ```
+ */
+export function requireAal(
+  level: Aal,
+  options: RequireAalOptions = {},
+): (auth: AuthState, request: NextRequest) => Response | undefined {
+  return (auth, request) => {
+    const { pathname, search } = request.nextUrl;
+    if (options.redirect !== undefined && pathname === options.redirect)
+      return undefined;
+    if (options.match && !options.match(pathname)) return undefined;
+    const denied = checkAal(auth, level);
+    if (!denied) return undefined;
+    if (options.redirect === undefined) return problemResponse(denied);
+    const target = new URL(options.redirect, request.url);
+    target.searchParams.set('next', `${pathname}${search}`);
+    return NextResponse.redirect(target);
+  };
+}
+
 /** Page loads, client navigations and server actions; never prefetches or assets. */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
@@ -501,7 +544,7 @@ export function createNext<
     route(handler, guardOptions = {}) {
       return async (request, segment) => {
         const ctx = await base.context(request, statsFor(request));
-        const denied = guard(ctx.auth, guardOptions.allow);
+        const denied = guard(ctx.auth, guardOptions.allow, guardOptions.aal);
         const instance = request.nextUrl.pathname;
         if (denied) return problemResponse(denied, { instance, expose });
         const params = await segment.params;
@@ -544,7 +587,7 @@ export function createNext<
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
       return async (input) => {
         const ctx = await server();
-        const denied = guard(ctx.auth, actionOptions.allow);
+        const denied = guard(ctx.auth, actionOptions.allow, actionOptions.aal);
         if (denied) return { ok: false, data: null, error: denied } as Out;
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;

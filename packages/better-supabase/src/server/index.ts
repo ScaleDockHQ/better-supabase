@@ -12,8 +12,11 @@ export {
 } from './middleware.ts';
 export type { SupabaseAuthContext } from './middleware.ts';
 export {
+  aalOf,
+  amrOf,
   AUTH_CACHE_HEADERS,
   authContext,
+  checkAal,
   clientIp,
   readSession,
   refreshSession,
@@ -22,6 +25,8 @@ export {
   writeSession,
 } from '../auth/index.ts';
 export type {
+  Aal,
+  AmrEntry,
   AuthResolution,
   AuthResolver,
   AuthState,

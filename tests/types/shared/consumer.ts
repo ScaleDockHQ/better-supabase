@@ -12,6 +12,7 @@ import {
   fromBetterResult,
   type Logger,
   memoryCache,
+  ok,
   type Result,
   silentLogger,
   toBetterResult,
@@ -23,7 +24,7 @@ import { parseEnv } from 'better-supabase/env';
 import { forwardMutations, httpSink } from 'better-supabase/events';
 import { createHono } from 'better-supabase/hono';
 import { defineListQuery } from 'better-supabase/list';
-import { createNext, nextCache } from 'better-supabase/next';
+import { createNext, nextCache, requireAal } from 'better-supabase/next';
 import { createImageLoader } from 'better-supabase/next/image';
 import { createOpenApi } from 'better-supabase/openapi';
 import { createOrpc } from 'better-supabase/orpc';
@@ -39,7 +40,7 @@ import {
   useLiveCount,
 } from 'better-supabase/react';
 import { defineTopic, liveCount } from 'better-supabase/realtime';
-import { createServer } from 'better-supabase/server';
+import { type Aal, checkAal, createServer } from 'better-supabase/server';
 import { defineBucket, type StoragePath } from 'better-supabase/storage';
 import {
   defineSeed,
@@ -188,6 +189,14 @@ export function integrations(): unknown[] {
       },
     }),
     sb.mapError((error) => new Error(error.message, { cause: error })),
+    requireAal('aal2', { redirect: '/mfa' }),
+    createNext(sb).route(() => Promise.resolve(ok(null)), { aal: 'aal2' }),
+    createNext(sb)
+      .session()
+      .then((session) =>
+        session.kind === 'user' ? (session.aal satisfies Aal) : undefined,
+      ),
+    checkAal,
     createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
       LiveCountSeed<'customers'>
     >,

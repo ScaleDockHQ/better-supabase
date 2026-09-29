@@ -252,6 +252,8 @@ const TENANT_COLUMN = /^(?:org|organization|tenant|team|workspace|account)_id$/;
 
 const COMMANDS = ['select', 'insert', 'update', 'delete'] as const;
 
+const MFA_FACTORS = /\bauth\.\s*"?mfa_factors\b/i;
+
 const OWN_RULES: readonly Rule[] = [
   advisorRule(
     'BS100',
@@ -394,6 +396,25 @@ const OWN_RULES: readonly Rule[] = [
         ];
       });
     },
+  },
+  {
+    code: 'BS108',
+    severity: 'error',
+    title: 'Policy reads auth.mfa_factors directly',
+    description:
+      '`authenticated` has no access to `auth.mfa_factors`, so a policy that reads it fails every request with 42501. Check the factor in a `security definer` function such as `better_supabase.mfa_satisfied()` from the `mfa` kit module.',
+    check: (context) =>
+      exposed(context).flatMap((table) =>
+        table.policies
+          .filter((policy) =>
+            MFA_FACTORS.test(`${policy.using ?? ''} ${policy.check ?? ''}`),
+          )
+          .map((policy) => ({
+            message: `Policy "${policy.name}" on ${qualified(table)} reads auth.mfa_factors, which authenticated can't select, so every request fails with 42501. Use \`(select better_supabase.mfa_satisfied())\` from \`better-supabase sql add mfa\` instead.`,
+            target: `${qualified(table)}.${policy.name}`,
+            object: policyObject(table, policy),
+          })),
+      ),
   },
   advisorRule(
     'BS200',

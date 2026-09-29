@@ -508,7 +508,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     }
 
     const ctx = await server.context(request);
-    const denied = guard(ctx.auth, options.allow);
+    const denied = guard(ctx.auth, options.allow, options.aal);
     if (denied) {
       if (denied.kind === 'unauthorized') {
         return unauthorizedResponse(request, {
