@@ -53,6 +53,29 @@ await app.request('/api/customers', { headers: { authorization: `Bearer ${alice.
 Use it in tests only. In production, tokens are verified against your
 project's JWKS.
 
+## Database budget
+
+`expectDbBudget(page, { maxCalls, maxWaves, during })` fails a Playwright
+test when one render makes more database calls or sequential waves than
+allowed. It reads the request id from every document and `_rsc` response
+during `during` (a reload by default) and fetches each render's totals from
+[`next.debugRoute()`](/docs/frameworks/next-cache-components#budget):
+
+```ts
+import { expectDbBudget } from 'better-supabase/testing';
+
+const renders = await expectDbBudget(page, {
+  maxCalls: 8,
+  maxWaves: 2,
+  during: () => page.goto('/customers'),
+});
+```
+
+The failure lists each render over budget with its tables, so the diff that
+added a query shows up in the message. The page type is structural, so
+Playwright stays your dependency, not better-supabase's. The app needs
+`createNext(sb, { debug: { enabled: true } })` for the test build.
+
 ## pgTAP
 
 `better-supabase sql add pgtap` writes

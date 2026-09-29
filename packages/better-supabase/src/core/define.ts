@@ -39,6 +39,7 @@ import {
   specTables,
 } from './spec.ts';
 import { type StandardSchemaV1, validate } from './standard.ts';
+import { recordStats, StatsRecorder } from './stats.ts';
 
 export interface DefineSupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
@@ -49,6 +50,11 @@ export interface DefineSupabaseOptions {
   readonly logger?: Logger;
   /** RPCs that change tables, keyed by function name. Prefer `sb.defineRpc()`. */
   readonly rpc?: Readonly<Record<string, RpcDefinition>>;
+}
+
+export interface ConnectOptions {
+  /** Also records this connection's calls into a request-wide recorder. */
+  readonly stats?: StatsRecorder;
 }
 
 export interface RpcDefinition {
@@ -206,15 +212,22 @@ export class BetterSupabase<
   connect<C extends PostgrestClientLike>(
     client: C,
     context?: RequestContext,
+    options?: ConnectOptions,
   ): Db<M, F, E, C>;
-  connect(executor: Executor, context?: RequestContext): Db<M, F, E, undefined>;
+  connect(
+    executor: Executor,
+    context?: RequestContext,
+    options?: ConnectOptions,
+  ): Db<M, F, E, undefined>;
   connect(
     source: PostgrestClientLike | Executor,
     context: RequestContext = {},
+    options: ConnectOptions = {},
   ): unknown {
     const client = isExecutor(source) ? undefined : source;
     const base = isExecutor(source) ? source : postgrestExecutor(source);
-    return this.#db(client, base, context, this.plugins);
+    const recorder = new StatsRecorder(options.stats);
+    return this.#db(client, base, context, this.plugins, recorder);
   }
 
   #db(
@@ -222,11 +235,13 @@ export class BetterSupabase<
     base: Executor,
     context: RequestContext,
     plugins: readonly AnyPlugin[],
+    recorder: StatsRecorder,
   ): object {
     let executor = base;
     for (const plugin of plugins) {
       if (plugin.wrapExecutor) executor = plugin.wrapExecutor(executor);
     }
+    executor = recordStats(executor, recorder);
     const errorMappers = [
       ...(this.options.errors ?? []),
       ...plugins.flatMap((plugin) =>
@@ -261,8 +276,9 @@ export class BetterSupabase<
           return data;
         }),
       $with: (extra: RequestContext) =>
-        this.#db(client, base, { ...context, ...extra }, plugins),
-      $withoutPlugins: () => this.#db(client, base, context, []),
+        this.#db(client, base, { ...context, ...extra }, plugins, recorder),
+      $withoutPlugins: () => this.#db(client, base, context, [], recorder),
+      $stats: () => recorder.snapshot(),
       $table: (name: string) => {
         if (!Object.hasOwn(this.meta.tables, name)) {
           throw new TypeError(

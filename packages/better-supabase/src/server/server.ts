@@ -13,6 +13,7 @@ import {
   resolveAuth,
   type ResolveAuthOptions,
 } from '../auth/resolve.ts';
+import { type DbStats, StatsRecorder } from '../core/stats.ts';
 import { type BetterSupabaseEnv, loadEnv } from '../env/index.ts';
 import { postgresExecutor } from '../postgres/executor.ts';
 
@@ -38,6 +39,14 @@ export interface ServerContext<M extends AnyModels, F extends AnyFunctions, E> {
   readonly db: Db<M, F, E, SupabaseClient>;
   /** Repositories over direct Postgres as the caller, when `postgres` is configured. */
   readonly sql: Db<M, F, E, undefined> | undefined;
+  /** Calls, waves, tables and time for `db` and `sql` together. */
+  stats(): DbStats;
+}
+
+export interface ContextOptions {
+  readonly refresh?: boolean;
+  /** Also records this context's calls into a request-wide recorder. */
+  readonly stats?: StatsRecorder;
 }
 
 export interface BetterServer<M extends AnyModels, F extends AnyFunctions, E> {
@@ -52,7 +61,7 @@ export interface BetterServer<M extends AnyModels, F extends AnyFunctions, E> {
    */
   context(
     request: Request,
-    options?: { readonly refresh?: boolean },
+    options?: ContextOptions,
   ): Promise<ServerContext<M, F, E>>;
   /** A stateless supabase-js client for an auth state, optionally with extra request headers. */
   supabaseFor(
@@ -161,6 +170,7 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
   const sqlFor = (
     claims: SqlClaims,
     context: RequestContext,
+    stats?: StatsRecorder,
   ): Db<M, F, E, undefined> => {
     if (!options.postgres) {
       throw new TypeError(
@@ -170,6 +180,7 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
     return sb.connect(
       postgresExecutor(options.postgres.asUser(claims)),
       context,
+      stats ? { stats } : {},
     );
   };
 
@@ -226,15 +237,17 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
           : auth.kind === 'anon'
             ? { role: 'anon' }
             : undefined;
+      const recorder = new StatsRecorder(contextOptions.stats);
       return {
         auth,
         resolution,
         supabase,
-        db: sb.connect(supabase, context),
+        db: sb.connect(supabase, context, { stats: recorder }),
         sql:
           options.postgres && sqlClaims
-            ? sqlFor(sqlClaims, context)
+            ? sqlFor(sqlClaims, context, recorder)
             : undefined,
+        stats: () => recorder.snapshot(),
       };
     },
     admin: (context = {}) =>

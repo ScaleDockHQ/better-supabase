@@ -277,6 +277,53 @@ Hosted projects use them by default. Locally, `better-supabase doctor` warns
 when `[auth] signing_keys_path` is missing; `better-supabase keys` creates
 one.
 
+## Budget
+
+Cache Components make it easy to spread one page over many islands, each
+with its own `'use cache: private'` read. Every island that misses the cache
+is a PostgREST request, and islands that wait on each other add up to
+sequential round trips. Count them instead of guessing:
+
+```ts title="src/lib/supabase.server.ts"
+export const next = createNext(sb, {
+  debug: { budget: { calls: 8, waves: 2 } },
+});
+```
+
+```ts title="src/app/api/bs-stats/route.ts"
+export const GET = next.debugRoute();
+```
+
+- **calls** are repository operations and RPCs. **waves** are sequential
+  rounds: a call that starts while another is in flight joins its wave, so
+  `Promise.all` of three reads is one wave.
+- The proxy gives every render a request id (`x-bs-request-id`, forwarded to
+  Server Components and sent back on the document and `_rsc` responses).
+  `next.server()` records into it, across all the scopes of that render.
+- In development, a render that goes over `budget` logs a warning once its
+  calls have been idle for 250 ms. A private-cache hit makes no call, so
+  warm navigations cost 0.
+- `next.route()` responses carry `x-bs-db-calls: calls;waves;ms` directly.
+  Pages stream, so their headers leave before the render finishes; their
+  totals are served by `next.debugRoute()` at the URL in the `x-bs-stats`
+  response header.
+- Outside development, collecting is off and the debug route answers 404.
+  Set `debug.enabled` for e2e runs against `next start`.
+
+In code, `ctx.stats()` and `db.$stats()` return the same numbers for one
+context: `{ calls, waves, tables, ms }`.
+
+Fail CI when a page gets chattier with
+[`expectDbBudget`](/docs/testing#database-budget):
+
+```ts
+await expectDbBudget(page, {
+  maxCalls: 8,
+  maxWaves: 2,
+  during: () => page.goto('/customers'),
+});
+```
+
 ## Testing instant navigations
 
 `@next/playwright`'s `instant()` holds back dynamic content while its

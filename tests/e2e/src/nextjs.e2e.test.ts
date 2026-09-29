@@ -1,5 +1,6 @@
 import { instant } from '@next/playwright';
 import { type Browser, chromium, type Page } from '@playwright/test';
+import { expectDbBudget } from 'better-supabase/testing';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -238,6 +239,15 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
         await page.getByRole('heading', { name: 'Customers' }).waitFor();
         await page.getByText(name).waitFor({ timeout: 5000 });
       });
+    });
+
+    it('renders the customers page within its database budget', async () => {
+      const renders = await expectDbBudget(page, {
+        maxCalls: 8,
+        maxWaves: 2,
+        during: () => page.goto(`${base}/customers`),
+      });
+      expect(renders[0]!.stats.calls).toBeGreaterThan(0);
     });
   });
 });

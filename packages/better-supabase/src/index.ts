@@ -1,5 +1,11 @@
 export { BetterSupabase, defineSupabase } from './core/define.ts';
-export type { DefineSupabaseOptions, RpcDefinition } from './core/define.ts';
+export type {
+  ConnectOptions,
+  DefineSupabaseOptions,
+  RpcDefinition,
+} from './core/define.ts';
+export { EMPTY_STATS, recordStats, StatsRecorder } from './core/stats.ts';
+export type { DbStats } from './core/stats.ts';
 export { AsyncResult, err, ok, toDbError } from './core/result.ts';
 export type { Err, Ok, Result } from './core/result.ts';
 export {

@@ -24,6 +24,7 @@ import type { ApplyExtension, RequestContext } from './plugin.ts';
 import type { AsyncResult } from './result.ts';
 import type { InferResult, QuerySpec } from './spec.ts';
 import type { StandardSchemaV1 } from './standard.ts';
+import type { DbStats } from './stats.ts';
 
 export type FindExt<E, M extends AnyModels, T extends keyof M> = ApplyExtension<
   E,
@@ -265,6 +266,8 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
    * Throws a `TypeError` for unknown names.
    */
   $table<T extends TableKey<M>>(name: T): RepositoryOf<M, T, E>;
+  /** Calls, waves, tables and time for everything run through this `db`. */
+  $stats(): DbStats;
   /** Runs a `QuerySpec` built with `sb.spec`. */
   $run<S extends QuerySpec<TableKey<M>>>(
     spec: S,

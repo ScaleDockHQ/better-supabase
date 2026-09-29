@@ -46,6 +46,10 @@ Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`
 - `db.$withoutPlugins()` returns the same connection without any plugins,
   for migrations and admin scripts.
 - `db.$run(spec)` runs a serializable [query spec](/docs/concepts/caching#query-specs).
+- `db.$stats()` returns `{ calls, waves, tables, ms }` for everything this
+  `db` (and its `$with` copies) ran. `sb.connect(client, context, { stats })`
+  also reports into a shared `StatsRecorder`. See
+  [Budget](/docs/frameworks/next-cache-components#budget).
 - `explainPostgrest(op)` shows the compiled request for debugging.
 
 ## How queries compile

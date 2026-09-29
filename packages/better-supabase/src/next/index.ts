@@ -17,6 +17,7 @@ import { serializeCookie } from '../auth/session.ts';
 import { toSession } from '../auth/view.ts';
 import { problemResponse } from '../core/problem.ts';
 import { validate } from '../core/standard.ts';
+import { EMPTY_STATS } from '../core/stats.ts';
 import {
   defaultExpose,
   guard,
@@ -26,18 +27,44 @@ import {
 } from '../server/respond.ts';
 import {
   type BetterServer,
+  type ContextOptions,
   createServer,
   extendServer,
   type ServerContext,
   type ServerOptions,
 } from '../server/server.ts';
+import {
+  type DbBudget,
+  formatStats,
+  REQUEST_ID_HEADER,
+  sharedCollector,
+} from './collector.ts';
 
 export interface NextOptions extends ServerOptions {
   /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
   readonly cacheTags?: boolean;
   /** Include internal error messages in Problem Details. Defaults to development only. */
   readonly exposeErrors?: boolean;
+  /** Per-request database call counts. See the Budget docs. */
+  readonly debug?: NextDebugOptions;
 }
+
+export interface NextDebugOptions {
+  /** Collect outside development too, e.g. for e2e runs against `next start`. */
+  readonly enabled?: boolean;
+  /** Header with `calls;waves;ms` on route handler responses. Defaults to `x-bs-db-calls`. */
+  readonly header?: string;
+  /** Warns in development when one render goes over it. */
+  readonly budget?: DbBudget;
+  /** Where `next.debugRoute()` is mounted. Defaults to `/api/bs-stats`. */
+  readonly route?: string;
+}
+
+/** Response header with the URL of the request's totals on `next.debugRoute()`. */
+export const STATS_URL_HEADER = 'x-bs-stats';
+
+export { REQUEST_ID_HEADER, type DbBudget } from './collector.ts';
+export type { DbStats } from '../core/stats.ts';
 
 export type { AuthKind, GuardOptions } from '../server/respond.ts';
 export type { AuthSession } from '../auth/view.ts';
@@ -112,6 +139,11 @@ export interface BetterNext<
    * the row of a `findById`), so any mutation that changes one revalidates it.
    */
   cacheTags(spec: QuerySpec<Extract<keyof M, string>>): void;
+  /**
+   * GET handler serving a request's database totals (`?id=<request id>`) for
+   * `expectDbBudget`. Answers 404 unless `debug` is on.
+   */
+  debugRoute(): (request: Request) => Promise<Response>;
 }
 
 /** `bs:<table>` or `bs:<table>:<id>`. Mutations invalidate both. */
@@ -190,14 +222,33 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   if (options.cacheTags !== false) sb.cache(nextCache());
 
+  const debug = options.debug;
+  const statsHeader = debug?.header ?? 'x-bs-db-calls';
+  const statsRoute = debug?.route ?? '/api/bs-stats';
+  const development =
+    typeof process !== 'undefined' && process.env['NODE_ENV'] === 'development';
+  const collector =
+    debug && (debug.enabled ?? development)
+      ? sharedCollector({
+          logger: sb.events.logger,
+          warn: development,
+          ...(debug.budget ? { budget: debug.budget } : {}),
+        })
+      : undefined;
+  const statsFor = (request: Request): ContextOptions => {
+    const id = collector && request.headers.get(REQUEST_ID_HEADER);
+    return id ? { stats: collector.recorderFor(id) } : {};
+  };
+
   const incomingRequest = async (): Promise<Request> =>
     new Request('http://next.local/', {
       headers: new Headers(await headers()),
     });
 
-  const server = cache(async (): Promise<ServerContext<M, F, E>> =>
-    base.context(await incomingRequest()),
-  );
+  const server = cache(async (): Promise<ServerContext<M, F, E>> => {
+    const request = await incomingRequest();
+    return base.context(request, statsFor(request));
+  });
 
   const session = cache(async (): Promise<AuthSession> => {
     const resolution = await base.resolve(await incomingRequest(), {
@@ -211,38 +262,82 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
     session,
 
     async proxy(request, proxyOptions = {}) {
+      const id = collector ? crypto.randomUUID() : undefined;
+      const tagged = (response: Response): Response => {
+        if (!id) return response;
+        try {
+          response.headers.set(REQUEST_ID_HEADER, id);
+          response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
+        } catch {
+          // Immutable headers (Response.redirect): the redirect target renders with its own id.
+        }
+        return response;
+      };
       const resolution = await base.resolve(request, {
         refresh: shouldRefresh(request),
       });
       const custom = await proxyOptions.protect?.(resolution.auth, request);
-      if (custom) return resolution.apply(custom);
-      if (resolution.cookies.length === 0) return NextResponse.next();
+      if (custom) return tagged(resolution.apply(custom));
+      if (resolution.cookies.length === 0 && !id) return NextResponse.next();
 
       const forwarded = new Headers(request.headers);
-      forwarded.set(
-        'cookie',
-        resolution.requestCookies
-          .map((cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`)
-          .join('; '),
-      );
+      if (resolution.cookies.length > 0) {
+        forwarded.set(
+          'cookie',
+          resolution.requestCookies
+            .map(
+              (cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`,
+            )
+            .join('; '),
+        );
+      }
+      if (id) forwarded.set(REQUEST_ID_HEADER, id);
       const response = NextResponse.next({ request: { headers: forwarded } });
       for (const write of resolution.cookies)
         response.headers.append('set-cookie', serializeCookie(write));
       for (const [name, value] of Object.entries(resolution.headers))
         response.headers.set(name, value);
-      return response;
+      return tagged(response);
     },
 
     route(handler, guardOptions = {}) {
       return async (request, segment) => {
-        const ctx = await base.context(request);
+        const ctx = await base.context(request, statsFor(request));
         const denied = guard(ctx.auth, guardOptions.allow);
         const instance = request.nextUrl.pathname;
         if (denied) return problemResponse(denied, { instance, expose });
         const params = await segment.params;
-        return respond(() => handler(request, { ...ctx, params }), {
-          instance,
-          expose,
+        const response = await respond(
+          () => handler(request, { ...ctx, params }),
+          { instance, expose },
+        );
+        if (collector) {
+          try {
+            response.headers.set(statsHeader, formatStats(ctx.stats()));
+          } catch {
+            // A handler returned a Response with immutable headers.
+          }
+        }
+        return response;
+      };
+    },
+
+    debugRoute() {
+      return async (request) => {
+        const id = new URL(request.url).searchParams.get('id');
+        if (!collector || !id) {
+          return Response.json(
+            { error: collector ? 'missing ?id=' : 'debug is off' },
+            { status: 404, headers: { 'cache-control': 'no-store' } },
+          );
+        }
+        // A render served from private caches never records: it made no calls.
+        const stats = collector.get(id) ?? EMPTY_STATS;
+        return Response.json(stats, {
+          headers: {
+            [statsHeader]: formatStats(stats),
+            'cache-control': 'no-store',
+          },
         });
       };
     },

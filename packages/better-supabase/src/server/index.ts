@@ -1,5 +1,10 @@
 export { createServer } from './server.ts';
-export type { BetterServer, ServerContext, ServerOptions } from './server.ts';
+export type {
+  BetterServer,
+  ContextOptions,
+  ServerContext,
+  ServerOptions,
+} from './server.ts';
 export {
   contextFromSupabase,
   withBetterPostgres,

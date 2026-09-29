@@ -311,6 +311,71 @@ describe('createNext', () => {
     expect(fresh).not.toHaveBeenCalled();
   });
 
+  it('collects database calls per request id when debug is on', async () => {
+    const rest = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(Response.json([])));
+    try {
+      const debugged = createNext(defineSupabase(schema), {
+        env,
+        cacheTags: false,
+        auth: { jwks: signer.jwks as never, fetch: fresh },
+        debug: { enabled: true },
+      });
+      const proxied = await debugged.proxy(page());
+      const id = proxied.headers.get('x-bs-request-id')!;
+      expect(id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(proxied.headers.get('x-bs-stats')).toBe(`/api/bs-stats?id=${id}`);
+      expect(proxied.headers.get('x-middleware-request-x-bs-request-id')).toBe(
+        id,
+      );
+
+      mocks.headers = new Headers({ 'x-bs-request-id': id });
+      const ctx = await debugged.server();
+      await Promise.all([ctx.db.customers.findMany(), ctx.db.notes.findMany()]);
+      await ctx.db.tags.findMany();
+
+      const stats = await debugged.debugRoute()(
+        new Request(`https://app.test/api/bs-stats?id=${id}`),
+      );
+      expect(stats.headers.get('x-bs-db-calls')).toMatch(/^3;2;/);
+      expect(await stats.json()).toMatchObject({
+        calls: 3,
+        waves: 2,
+        tables: ['customers', 'notes', 'tags'],
+      });
+      const cached = await debugged.debugRoute()(
+        new Request('https://app.test/api/bs-stats?id=nope'),
+      );
+      expect(await cached.json()).toMatchObject({ calls: 0, waves: 0 });
+
+      const handler = debugged.route(async (_request, routeCtx) => {
+        await routeCtx.db.customers.findMany();
+        return { ok: true };
+      });
+      const routed = await handler(
+        new NextRequest('https://app.test/api/x', {
+          headers: {
+            authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          },
+        }),
+        { params: Promise.resolve({}) },
+      );
+      expect(routed.headers.get('x-bs-db-calls')).toMatch(/^1;1;/);
+    } finally {
+      rest.mockRestore();
+    }
+  });
+
+  it('collects nothing without debug', async () => {
+    const proxied = await next.proxy(page());
+    expect(proxied.headers.get('x-bs-request-id')).toBeNull();
+    const reply = await next.debugRoute()(
+      new Request('https://app.test/api/bs-stats?id=x'),
+    );
+    expect(reply.status).toBe(404);
+  });
+
   it('invalidates table and row tags after mutations', async () => {
     const executor: Executor = {
       name: 'fake',

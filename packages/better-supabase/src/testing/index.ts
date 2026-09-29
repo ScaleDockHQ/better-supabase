@@ -2,6 +2,13 @@ export { createTestSigner, localAuth, signTestJwt } from './jwt.ts';
 export type { TestJwtClaims, TestSigner } from './jwt.ts';
 export { asUser, LOCAL_JWT_SECRET } from './as-user.ts';
 export type { LocalStack, TestUser } from './as-user.ts';
+export { expectDbBudget } from './budget.ts';
+export type {
+  BudgetPage,
+  BudgetResponse,
+  DbBudgetExpectation,
+  MeasuredRender,
+} from './budget.ts';
 export { defineSeed, isSeed } from './seed.ts';
 export type { ExactSeed, Seed, SeedFixtures } from './seed.ts';
 export {
