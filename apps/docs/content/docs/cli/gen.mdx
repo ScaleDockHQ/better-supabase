@@ -101,5 +101,8 @@ better-supabase reads (policies, indexes, triggers, buckets, realtime), and
 follows
 [`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
 `introspect --check` fails when it no longer matches the database.
+Row counts are left out so the file stays stable; tables Postgres estimates
+at 10,000 rows or more only get `large: true`, which the
+[`unbounded-read`](/docs/plugins/lint#unbounded-read) lint rule reads.
 `introspect --format generator-metadata` prints only the postgrest-typegen
 part, for tools that consume it directly.

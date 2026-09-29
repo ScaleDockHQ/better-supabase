@@ -1,5 +1,5 @@
 {
-  ".": 32542,
+  ".": 32780,
   "./config": 5347,
   "./client": 9321,
   "./react": 5433,
@@ -23,12 +23,12 @@
   "./openapi": 9318,
   "./otel": 2881,
   "./plugins/timestamps": 4040,
-  "./lint": 1403,
+  "./lint": 1911,
   "./plugins/rules": 5525,
   "./plugins/soft-delete": 7050,
   "./plugins/tenant": 5830,
   "./plugins/actor": 4113,
   "./plugins/validation": 6217,
   "./testing": 33531,
-  "./cli": 96437
+  "./cli": 96512
 }

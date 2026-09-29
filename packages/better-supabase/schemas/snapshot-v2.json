@@ -991,6 +991,10 @@
               }
             }
           }
+        },
+        "large": {
+          "description": "Postgres estimates at least 10,000 rows; the unbounded-read lint rule reads it.",
+          "const": true
         }
       }
     }

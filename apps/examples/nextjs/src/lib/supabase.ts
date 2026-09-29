@@ -6,5 +6,10 @@ import { schema } from './supabase/generated.ts';
 
 export type { Functions, Models } from './supabase/generated.ts';
 
-/** `.orThrow()` throws an `AppError`; results keep their `DbError`. */
-export const sb = defineSupabase(schema).claims(Claims).mapError(toAppError);
+/**
+ * `.orThrow()` throws an `AppError`; results keep their `DbError`.
+ * `maxRows` matches `[api] max_rows` in `supabase/config.toml`.
+ */
+export const sb = defineSupabase(schema, { maxRows: 1000 })
+  .claims(Claims)
+  .mapError(toAppError);

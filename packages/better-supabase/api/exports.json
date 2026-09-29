@@ -678,11 +678,13 @@
   "./lint": {
     "values": [
       "default",
+      "largeTables",
       "plugin",
       "rules"
     ],
     "types": [
       "CallExpression",
+      "LintSnapshot",
       "RuleContext",
       "RuleId",
       "RuleModule"

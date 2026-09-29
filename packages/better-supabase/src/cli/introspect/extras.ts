@@ -22,8 +22,12 @@ import type {
 const literalArray = (values: readonly string[]): string =>
   `array[${values.map((value) => `'${value.replace(/'/g, "''")}'`).join(', ')}]::text[]`;
 
+/** Row estimate from which a table counts as large in the snapshot. */
+export const LARGE_TABLE_ROWS = 10_000;
+
 const RELATIONS = (schemas: string) => `
-select c.oid::int8 as id, n.nspname as schema, c.relname as name
+select c.oid::int8 as id, n.nspname as schema, c.relname as name,
+  c.reltuples >= ${LARGE_TABLE_ROWS} as large
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = any(${schemas}) and c.relkind in ('r', 'p', 'v', 'm', 'f')
@@ -352,6 +356,7 @@ export async function readExtras(
     id: number | string;
     schema: string;
     name: string;
+    large: boolean;
   }>(db, RELATIONS(list));
   const constraints = groupById(
     await rows<ConstraintRow>(db, CONSTRAINTS(list)),
@@ -436,6 +441,7 @@ export async function readExtras(
         role: grant.role,
         privileges: grant.privileges,
       })),
+      ...(relation.large ? { large: true as const } : {}),
     };
   });
 

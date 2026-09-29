@@ -17,7 +17,7 @@ can't change a result, and an error they throw goes to the
 
 | Event | Payload |
 | --- | --- |
-| `query` | `table`, `operation`, `ok`, `durationMs`, `rows` |
+| `query` | `table`, `operation`, `ok`, `durationMs`, `rows`, `truncated` (an unbounded read hit [`maxRows`](/docs/repository/pagination#row-caps)) |
 | `mutation` | `table`, `kind` (`insert`, `upsert`, `update`, `delete`), app-cased `rows`, `context` |
 | `error` | `table`, the `DbError` |
 | `auth` | `source` (`bearer`, `cookie`, `none`), `ok`, `userId` |

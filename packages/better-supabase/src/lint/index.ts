@@ -40,6 +40,7 @@ interface ObjectExpression extends Node {
 
 interface MemberExpression extends Node {
   readonly type: 'MemberExpression';
+  readonly object: Node;
   readonly property: Node;
   readonly computed: boolean;
 }
@@ -81,6 +82,20 @@ function methodName(node: CallExpression): string | undefined {
     return undefined;
   return (member.property as Identifier).name;
 }
+
+/** `users` in `db.users.findMany(...)`. */
+function receiverName(node: CallExpression): string | undefined {
+  const callee = node.callee as MemberExpression;
+  if (callee.object.type !== 'MemberExpression') return undefined;
+  const receiver = callee.object as MemberExpression;
+  if (receiver.computed || receiver.property.type !== 'Identifier')
+    return undefined;
+  return (receiver.property as Identifier).name;
+}
+
+/** Matches `order_items`, `orderItems` and `public.order_items` alike. */
+const tableKey = (name: string): string =>
+  (name.split('.').at(-1) ?? name).replace(/_/g, '').toLowerCase();
 
 function keyName(property: Property): string | undefined {
   if (property.computed) return undefined;
@@ -141,7 +156,29 @@ export type RuleId =
   | 'no-unbounded-find-many'
   | 'no-delete-many-without-where'
   | 'max-limit'
-  | 'require-order-by';
+  | 'require-order-by'
+  | 'unbounded-read';
+
+/** The part of `supabase/snapshot.json` that `largeTables` reads. */
+export interface LintSnapshot {
+  readonly extras: {
+    readonly tables: readonly {
+      readonly schema: string;
+      readonly name: string;
+      readonly large?: boolean;
+    }[];
+  };
+}
+
+/**
+ * The tables `gen` marked as large (an estimated 10,000 rows or more), as
+ * `schema.name`, for the `unbounded-read` rule's `tables` option.
+ */
+export function largeTables(snapshot: LintSnapshot): string[] {
+  return snapshot.extras.tables
+    .filter((table) => table.large === true)
+    .map((table) => `${table.schema}.${table.name}`);
+}
 
 export const rules: Readonly<Record<RuleId, RuleModule>> = {
   'no-unbounded-find-many': rule(
@@ -213,6 +250,41 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       },
     }),
   ),
+  'unbounded-read': rule(
+    'Require limit or paginate on large tables',
+    'unbounded-read',
+    {
+      unbounded:
+        'findMany on {{table}} without limit returns at most db-max-rows rows and drops the rest; add limit or use paginate().',
+    },
+    (context) => {
+      const option = context.options[0] as
+        | { tables?: readonly string[]; strict?: boolean }
+        | undefined;
+      const large = new Set((option?.tables ?? []).map(tableKey));
+      return {
+        CallExpression(node) {
+          if (methodName(node) !== 'findMany') return;
+          const table = receiverName(node);
+          if (table === undefined) return;
+          if (!option?.strict && !large.has(tableKey(table))) return;
+          const args = argsOf(node);
+          if (args && !args.has('limit'))
+            context.report({ node, messageId: 'unbounded', data: { table } });
+        },
+      };
+    },
+    [
+      {
+        type: 'object',
+        properties: {
+          tables: { type: 'array', items: { type: 'string' } },
+          strict: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    ],
+  ),
 };
 
 export const plugin: {
@@ -237,6 +309,7 @@ export const plugin: {
         'better-supabase/no-unbounded-find-many': 'warn',
         'better-supabase/max-limit': 'warn',
         'better-supabase/require-order-by': 'warn',
+        'better-supabase/unbounded-read': 'warn',
       },
     },
   },

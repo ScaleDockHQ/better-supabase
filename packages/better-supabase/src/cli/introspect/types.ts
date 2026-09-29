@@ -97,6 +97,8 @@ export interface ExtrasTable {
   readonly policies: readonly CatalogPolicy[];
   readonly triggers: readonly CatalogTrigger[];
   readonly grants: readonly CatalogGrant[];
+  /** Postgres estimates at least `LARGE_TABLE_ROWS` rows; the `unbounded-read` lint reads it. */
+  readonly large?: true;
 }
 
 export type ForeignKeyAction =

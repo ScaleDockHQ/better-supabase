@@ -43,6 +43,10 @@ export interface Runtime {
   readonly events: EventHub;
   readonly errorMappers: readonly ErrorMapper[];
   readonly now: () => Date;
+  /** Rows PostgREST returns at most for one read (`db-max-rows`). */
+  readonly maxRows: number;
+  /** Tables already warned about truncated reads, shared across connections. */
+  readonly truncatedTables: Set<string>;
 }
 
 type Args = Readonly<Record<string, unknown>>;
@@ -152,13 +156,28 @@ export class OperationRunner {
           })
         : executed;
 
+    const rows = result.ok ? result.data.rows.length : 0;
+    const truncated =
+      current.kind === 'select' &&
+      current.limit === undefined &&
+      current.single === undefined &&
+      !current.head &&
+      rows >= runtime.maxRows;
+    if (truncated && !runtime.truncatedTables.has(op.table.key)) {
+      runtime.truncatedTables.add(op.table.key);
+      runtime.events.logger.warn(
+        `a read on ${op.table.key} returned ${rows} rows, the maxRows cap; add a limit or use paginate()`,
+        { table: op.table.key, maxRows: runtime.maxRows },
+      );
+    }
     if (runtime.events.has('query')) {
       runtime.events.emit('query', {
         table: op.table.key,
         operation: current.kind,
         ok: result.ok,
         durationMs: performance.now() - started,
-        rows: result.ok ? result.data.rows.length : 0,
+        rows,
+        truncated,
       });
     }
     if (!result.ok) return this.fail(op.table, result.error);
@@ -255,7 +274,18 @@ export function createRepository(
 
     findMany(args?: Args) {
       return AsyncResult.from(async () => {
-        const result = await run(selectOp(args), args);
+        const op = selectOp(args);
+        const ordered =
+          op.orderBy.length > 0 || table.primaryKey.length === 0
+            ? op
+            : {
+                ...op,
+                orderBy: table.primaryKey.map((column): OrderTerm => ({
+                  column,
+                  direction: 'asc',
+                })),
+              };
+        const result = await run(ordered, args);
         return result.ok ? ok(result.data.rows) : result;
       });
     },

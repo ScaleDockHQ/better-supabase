@@ -34,3 +34,39 @@ never skipped or repeated.
 
 A cursor is an opaque base64url string. Pass it back with the same `orderBy`
 and `where`.
+
+## Row caps
+
+PostgREST returns at most `db-max-rows` rows for one read (1000 on hosted
+projects, `[api] max_rows` in `config.toml`) and drops the rest without an
+error. A `findMany` without `limit` can therefore look complete when it isn't.
+
+```ts
+export const sb = defineSupabase(schema, { maxRows: 1000 });
+
+sb.on('query', ({ table, truncated }) => {
+  if (truncated) metrics.increment(`db.${table}.truncated`);
+});
+```
+
+- `maxRows` tells better-supabase the cap. It defaults to 1000; set it to
+  what your project uses.
+- A read without `limit` that returns exactly `maxRows` rows sets
+  `truncated: true` on the [`query` event](/docs/extending/events) and logs
+  a warning once per table. The result itself is unchanged.
+- The fix is `limit` for a bounded list, `paginate` for everything else, or
+  an [aggregate](/docs/repository/aggregates) when you only need a number.
+
+## Default order
+
+`findMany` without `orderBy` orders by the primary key. Postgres has no
+default row order, so without it two identical reads can return rows in a
+different order after an update or a `VACUUM`, and `limit` picks arbitrary
+rows. Pass `orderBy` to choose another order. Views and tables without a
+primary key keep the database's order.
+
+## Lint
+
+The [`unbounded-read`](/docs/plugins/lint#unbounded-read) rule flags
+`findMany` without `limit` on the tables `gen` marked as large in
+`supabase/snapshot.json`, before they reach production.

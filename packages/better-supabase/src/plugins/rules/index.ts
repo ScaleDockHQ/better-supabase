@@ -23,7 +23,9 @@ export interface RuleSet {
   readonly maxLimit?: RuleSetting<number>;
   /**
    * Paging (`offset`, or `limit` above 1) without `orderBy`: Postgres returns
-   * rows in no particular order, so pages overlap or skip rows.
+   * rows in no particular order, so pages overlap or skip rows. `findMany`
+   * orders by the primary key by default, so this only fires on views and
+   * tables without one.
    */
   readonly requireOrderByForCursor?: RuleSetting;
   /** Includes nested deeper than the given depth (default 3). */

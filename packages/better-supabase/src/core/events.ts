@@ -10,6 +10,11 @@ export interface QueryEvent {
   readonly ok: boolean;
   readonly durationMs: number;
   readonly rows: number;
+  /**
+   * An unbounded read returned `maxRows` rows: PostgREST's `db-max-rows`
+   * probably cut it short. Add `limit` or use `paginate`.
+   */
+  readonly truncated: boolean;
 }
 
 export interface MutationNotice {

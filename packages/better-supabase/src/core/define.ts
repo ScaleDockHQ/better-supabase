@@ -69,6 +69,12 @@ export interface DefineSupabaseOptions {
   readonly throwAs?: ThrowMapper;
   /** Validates verified JWT claims on the server. Prefer `sb.claims()`, which also types them. */
   readonly claims?: StandardSchemaV1;
+  /**
+   * PostgREST's `db-max-rows`: the most rows one read returns. An unbounded
+   * `findMany` that returns this many sets `truncated` on the `query` event
+   * and logs a warning once per table. Defaults to 1000, the hosted default.
+   */
+  readonly maxRows?: number;
 }
 
 export interface ConnectOptions {
@@ -166,6 +172,7 @@ export class BetterSupabase<
   }
 
   #specs: Specs<M, E> | undefined;
+  readonly #truncatedTables = new Set<string>();
 
   /**
    * Builds serializable `QuerySpec`s with the same arguments and result types
@@ -321,6 +328,8 @@ export class BetterSupabase<
       events,
       errorMappers,
       now: this.options.now ?? (() => new Date()),
+      maxRows: this.options.maxRows ?? 1000,
+      truncatedTables: this.#truncatedTables,
     });
 
     const db: Record<string, unknown> = {

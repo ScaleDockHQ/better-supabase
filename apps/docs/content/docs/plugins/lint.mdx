@@ -24,7 +24,8 @@ export default [betterSupabase.configs.recommended];
     "better-supabase/no-delete-many-without-where": "error",
     "better-supabase/no-unbounded-find-many": "warn",
     "better-supabase/max-limit": ["warn", { "max": 500 }],
-    "better-supabase/require-order-by": "warn"
+    "better-supabase/require-order-by": "warn",
+    "better-supabase/unbounded-read": ["warn", { "tables": ["public.events"] }]
   }
 }
 ```
@@ -49,6 +50,39 @@ A literal `limit` above `max` (default 1000) in `findMany`, `findFirst` or
 
 `findMany` with `offset` but no `orderBy`, which returns pages in no stable
 order. Recommended: `warn`.
+
+### unbounded-read
+
+`db.<table>.findMany` without `limit` on a large table. PostgREST cuts such a
+read off at `db-max-rows` without an error (see
+[row caps](/docs/repository/pagination#row-caps)). Recommended: `warn`, but
+it only reports once it knows which tables are large:
+
+- `tables`: the large tables. `largeTables(snapshot)` reads them from
+  `supabase/snapshot.json`, where `gen` marks every table Postgres estimates
+  at 10,000 rows or more. Re-run `gen` against a database with realistic
+  data (or production) to update the marks.
+- `strict: true`: report on every table, like `no-unbounded-find-many`.
+
+```js title="eslint.config.js"
+import betterSupabase, { largeTables } from 'better-supabase/lint';
+import snapshot from './supabase/snapshot.json' with { type: 'json' };
+
+export default [
+  betterSupabase.configs.recommended,
+  {
+    rules: {
+      'better-supabase/unbounded-read': [
+        'warn',
+        { tables: largeTables(snapshot) },
+      ],
+    },
+  },
+];
+```
+
+Table names match regardless of casing: `order_items`, `orderItems` and
+`public.order_items` are the same table.
 
 ## How calls are matched
 

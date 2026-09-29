@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe('rules()', () => {
-  it('fails unbounded, oversized, unordered and deep reads under strict()', async () => {
+  it('fails unbounded, oversized and deep reads under strict()', async () => {
     const { plugin, violations } = withReport();
     const { client, requests } = capturingClient();
     const db = defineSupabase(schema).use(plugin).connect(client, context);
@@ -40,7 +40,6 @@ describe('rules()', () => {
       message: expect.stringContaining('noUnboundedFindMany'),
     });
     await db.customers.findMany({ limit: 5000, orderBy: { name: 'asc' } });
-    await db.customers.findMany({ limit: 10 });
     await db.customers.findMany({
       limit: 1,
       include: {
@@ -54,7 +53,6 @@ describe('rules()', () => {
     expect(violations.map((v) => v.rule)).toEqual([
       'noUnboundedFindMany',
       'maxLimit',
-      'requireOrderByForCursor',
       'maxIncludeDepth',
     ]);
     expect(requests).toHaveLength(0);
@@ -66,7 +64,7 @@ describe('rules()', () => {
     expect(fine.error).toBeNull();
     await db.customers.findById('c1');
     await db.customers.count();
-    expect(violations).toHaveLength(4);
+    expect(violations).toHaveLength(3);
   });
 
   it('reports warnings without failing the call', async () => {

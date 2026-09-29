@@ -72,9 +72,9 @@ describe('softDelete', () => {
     await db.customers.findMany({ select: ['id'], withDeleted: true });
     await db.customers.findMany({ select: ['id'], onlyDeleted: true });
     expect(requests.map(query)).toEqual([
-      ['select=id', 'archived_at=is.null'],
-      ['select=id'],
-      ['select=id', 'archived_at=not.is.null'],
+      ['select=id', 'archived_at=is.null', 'order=id.asc'],
+      ['select=id', 'order=id.asc'],
+      ['select=id', 'archived_at=not.is.null', 'order=id.asc'],
     ]);
   });
 
@@ -92,6 +92,7 @@ describe('softDelete', () => {
       '_bs1.archived_at=is.null',
       '_bs1.status=not.eq.active',
       '_bs1=is.null',
+      'order=id.asc',
     ]);
   });
 
@@ -157,10 +158,12 @@ describe('tenant', () => {
     expect(query(requests[0] ?? (undefined as never))).toEqual([
       'select=id',
       `organization_id=eq.${ORG}`,
+      'order=id.asc',
     ]);
     expect(query(requests[1] ?? (undefined as never))).toEqual([
       'select=id',
       `organization_id=eq.${ORG}`,
+      'order=id.asc',
     ]);
   });
 
@@ -182,7 +185,7 @@ describe('tenant', () => {
     await sb
       .connect(client)
       .customers.findMany({ select: ['id'], allTenants: true });
-    expect(query(last())).toEqual(['select=id']);
+    expect(query(last())).toEqual(['select=id', 'order=id.asc']);
   });
 });
 

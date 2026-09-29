@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { capturingClient, query } from '../fixtures/client.ts';
 import { schema as camel } from '../fixtures/generated-camel.ts';
@@ -19,6 +19,7 @@ describe('reads', () => {
     expect(last().path).toBe('/rest/v1/customers');
     expect(query(last())).toEqual([
       'select=id,organizationId:organization_id,primaryContactId:primary_contact_id',
+      'order=id.asc',
     ]);
   });
 
@@ -26,7 +27,10 @@ describe('reads', () => {
     const { client, last } = capturingClient();
     const db = sbSnake.connect(client);
     await db.customers.findMany({ select: ['id', 'organization_id'] });
-    expect(query(last())).toEqual(['select=id,organization_id']);
+    expect(query(last())).toEqual([
+      'select=id,organization_id',
+      'order=id.asc',
+    ]);
   });
 
   it('compiles column filters and escapes LIKE input', async () => {
@@ -75,6 +79,7 @@ describe('reads', () => {
       'select=id',
       'or=(name.eq."a,b",and(status.eq."lead",kvk.not.is.null))',
       'status=not.eq.archived',
+      'order=id.asc',
     ]);
   });
 
@@ -95,6 +100,7 @@ describe('reads', () => {
       '_bs2=is.null',
       '_bs3.is_primary=not.eq.true',
       '_bs3=is.null',
+      'order=id.asc',
     ]);
   });
 
@@ -109,6 +115,7 @@ describe('reads', () => {
       'select=id,_bs1:organizations!customers_organization_id_fkey!inner(),_bs2:contacts!customers_primary_contact_id_fkey()',
       '_bs1.slug=eq.acme',
       '_bs2=is.null',
+      'order=id.asc',
     ]);
   });
 
@@ -123,6 +130,7 @@ describe('reads', () => {
       'select=id,_bs1:notes!notes_customer_id_fkey()',
       '_bs1.kind=eq.email',
       'or=(name.eq."x",_bs1.not.is.null)',
+      'order=id.asc',
     ]);
   });
 
@@ -149,6 +157,7 @@ describe('reads', () => {
       'select=id,name,organization:organizations!customers_organization_id_fkey(name),notes:notes!notes_customer_id_fkey(id,body),customerTags:customer_tags!customer_tags_customer_id_fkey(tagId:tag_id,tag:tags!customer_tags_tag_id_fkey(name,color))',
       'notes.kind=eq.call',
       'notes.order=created_at.desc',
+      'order=id.asc',
       'notes.limit=3',
     ]);
   });
@@ -407,5 +416,43 @@ describe('events', () => {
     off();
     expect(result.ok).toBe(true);
     expect(seen).toEqual(['query:insert', 'tags:insert']);
+  });
+});
+
+describe('row caps and default order', () => {
+  it('orders findMany by the primary key unless orderBy is given', async () => {
+    const { client, requests } = capturingClient();
+    const db = sbCamel.connect(client);
+    await db.customers.findMany({ select: ['id'] });
+    await db.customers.findMany({ select: ['id'], orderBy: { name: 'desc' } });
+    await db.customers.findFirst({ select: ['id'] });
+    expect(requests.map(query)).toEqual([
+      ['select=id', 'order=id.asc'],
+      ['select=id', 'order=name.desc'],
+      ['select=id', 'limit=1'],
+    ]);
+  });
+
+  it('flags unbounded reads that hit maxRows and warns once per table', async () => {
+    const rows = [{ id: 'a' }, { id: 'b' }];
+    const { client } = capturingClient(() => ({ body: rows }));
+    const warn = vi.fn();
+    const logger = { debug() {}, info() {}, warn, error() {} };
+    const sb = defineSupabase(camel, { maxRows: 2, logger });
+    const truncated: boolean[] = [];
+    sb.on('query', (event) => truncated.push(event.truncated));
+    const db = sb.connect(client);
+
+    const all = await db.customers.findMany({ select: ['id'] });
+    await db.customers.findMany({ select: ['id'] });
+    await db.customers.findMany({ select: ['id'], limit: 2 });
+
+    expect(all.data).toEqual(rows);
+    expect(truncated).toEqual([true, true, false]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('customers returned 2 rows'),
+      { table: 'customers', maxRows: 2 },
+    );
   });
 });
