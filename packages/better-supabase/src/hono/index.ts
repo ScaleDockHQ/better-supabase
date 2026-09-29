@@ -11,7 +11,7 @@ import type {
   ServerOptions,
 } from '../server/server.ts';
 
-import { DbException, dbError } from '../core/errors.ts';
+import { dbError, dbErrorOf } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
 import {
   defineResource,
@@ -67,7 +67,7 @@ export interface BetterHono<
     ) => unknown,
     options?: { readonly status?: number },
   ): (c: Context<BetterEnv<M, F, E>>) => Promise<Response>;
-  /** `app.onError(bs.onError)`: `DbException`s become Problem Details, others a 500. */
+  /** `app.onError(bs.onError)`: `DbException`s (and errors caused by a `DbError`) become Problem Details, others a 500. */
   readonly onError: ErrorHandler<BetterEnv<M, F, E>>;
   /**
    * REST routes for a table matching `createOpenApi`. Mount with
@@ -101,9 +101,8 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   const onError: ErrorHandler<BetterEnv<M, F, E>> = (cause, c) => {
     const instance = new URL(c.req.url).pathname;
-    if (cause instanceof DbException) {
-      return problemResponse(cause.error, { instance, expose });
-    }
+    const thrown = dbErrorOf(cause);
+    if (thrown) return problemResponse(thrown, { instance, expose });
     const error = dbError(
       'unexpected',
       expose ? cause.message : 'Internal server error',

@@ -1,10 +1,11 @@
 'use server';
 
-import { dbError, err } from 'better-supabase';
+import { dbError, err, fromBetterResult } from 'better-supabase';
 import { toSession } from 'better-supabase/next';
 import { z } from 'zod';
 
 import { can } from '@/features/user/user-permissions';
+import { toAppResult } from '@/lib/app-error';
 import { logos } from '@/lib/buckets';
 import { next } from '@/lib/supabase.server';
 
@@ -47,15 +48,16 @@ export const uploadCustomerLogo = next.action(
     if (!orgId) {
       return err(dbError('forbidden', 'Your account has no organization'));
     }
-    const customer = await db.customers.findById(customerId, {
-      select: ['id', 'logoPath'],
-    });
-    if (!customer.ok) return customer;
+    // A better-result value with an AppError, converted back for the action.
+    const customer = toAppResult(
+      await db.customers.findById(customerId, { select: ['id', 'logoPath'] }),
+    );
+    if (customer.isErr()) return fromBetterResult(customer);
     return logos
       .connect(supabase)
       .replace({ orgId, customerId, version: crypto.randomUUID() }, logo, {
         contentType: logo.type,
-        previous: customer.data.logoPath,
+        previous: customer.value.logoPath,
         commit: (path) => db.customers.update(customerId, { logoPath: path }),
       });
   },

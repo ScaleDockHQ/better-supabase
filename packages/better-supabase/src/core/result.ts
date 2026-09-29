@@ -1,4 +1,27 @@
-import { type DbError, DbException, dbError } from './errors.ts';
+import { type DbError, DbException, dbError, dbErrorOf } from './errors.ts';
+
+/** Turns a `DbError` into the error `.orThrow()` throws; set with `sb.mapError()`. */
+export type ThrowMapper = (error: DbError) => unknown;
+
+const throwMappers = new WeakMap<AsyncResult<unknown>, ThrowMapper>();
+
+function inherit<T>(
+  from: AsyncResult<unknown>,
+  next: AsyncResult<T>,
+): AsyncResult<T> {
+  const mapper = throwMappers.get(from);
+  if (mapper) throwMappers.set(next, mapper);
+  return next;
+}
+
+/** Marks `result` so its `.orThrow()` throws `mapper(error)`; returns it. */
+export function withErrorMapper<T>(
+  result: AsyncResult<T>,
+  mapper: ThrowMapper,
+): AsyncResult<T> {
+  throwMappers.set(result, mapper);
+  return result;
+}
 
 export type Ok<T> = {
   readonly ok: true;
@@ -53,12 +76,14 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
 
   /**
    * Resolves with the data, or rejects with a `DbException`. Pass `factory`
-   * to throw your own error instead, e.g. an HTTP error for your framework.
+   * to throw your own error instead, e.g. an HTTP error for your framework;
+   * without it, the mapper from `sb.mapError()` applies when one is set.
    */
   async orThrow(factory?: (error: DbError) => unknown): Promise<T> {
     const result = await this.#promise;
     if (result.ok) return result.data;
-    throw factory ? factory(result.error) : new DbException(result.error);
+    const mapper = factory ?? throwMappers.get(this);
+    throw mapper ? mapper(result.error) : new DbException(result.error);
   }
 
   /** Resolves with the data, or `fallback` when the result is an error. */
@@ -68,25 +93,115 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   }
 
   map<U>(fn: (data: T) => U): AsyncResult<U> {
-    return new AsyncResult(
-      this.#promise.then((result) =>
-        result.ok ? ok(fn(result.data)) : result,
+    return inherit(
+      this,
+      new AsyncResult(
+        this.#promise.then((result) =>
+          result.ok ? ok(fn(result.data)) : result,
+        ),
       ),
     );
   }
 
   mapError(fn: (error: DbError) => DbError): AsyncResult<T> {
-    return new AsyncResult(
-      this.#promise.then((result) =>
-        result.ok ? result : err(fn(result.error)),
+    return inherit(
+      this,
+      new AsyncResult(
+        this.#promise.then((result) =>
+          result.ok ? result : err(fn(result.error)),
+        ),
       ),
     );
   }
 
   andThen<U>(fn: (data: T) => PromiseLike<Result<U>>): AsyncResult<U> {
-    return new AsyncResult(
-      this.#promise.then((result) => (result.ok ? fn(result.data) : result)),
+    return inherit(
+      this,
+      new AsyncResult(
+        this.#promise.then((result) => (result.ok ? fn(result.data) : result)),
+      ),
     );
+  }
+}
+
+/** What `toBetterResult` returns: the `status`/`value`/`error` fields every better-result value has. */
+export type BetterResultShape<T, E> =
+  | { readonly status: 'ok'; readonly value: T }
+  | { readonly status: 'error'; readonly error: E };
+
+/** The part of better-result's `Result` namespace `toBetterResult` calls. */
+export interface BetterResultApi<T, E> {
+  ok(value: NoInfer<T>): unknown;
+  err(error: NoInfer<E>): unknown;
+}
+
+/**
+ * Builds a better-result value with the `Result` namespace you pass, so
+ * better-result stays your dependency. Errors go through `mapError`, or, for a
+ * result from a `db` of `sb.mapError(fn)`, through `fn` (typed `unknown`).
+ * The value is a real `Ok`/`Err`: cast it (`as Result<T, E>`) for its
+ * methods in types; the cast itself is not checked against `T`.
+ *
+ * ```ts
+ * import { Result } from 'better-result';
+ * const customer = toBetterResult(await db.customers.findById(id), Result, toAppError);
+ * ```
+ */
+export function toBetterResult<T, E>(
+  result: Result<T>,
+  api: BetterResultApi<T, E>,
+  mapError: (error: DbError) => E,
+): BetterResultShape<T, E>;
+export function toBetterResult<T>(
+  result: Result<T>,
+  api: BetterResultApi<T, DbError>,
+): BetterResultShape<T, DbError>;
+export function toBetterResult<T, E>(
+  result: AsyncResult<T>,
+  api: BetterResultApi<T, E>,
+  mapError: (error: DbError) => E,
+): Promise<BetterResultShape<T, E>>;
+export function toBetterResult<T>(
+  result: AsyncResult<T>,
+  api: BetterResultApi<T, unknown>,
+): Promise<BetterResultShape<T, unknown>>;
+export function toBetterResult(
+  result: Result<unknown> | AsyncResult<unknown>,
+  api: BetterResultApi<unknown, unknown>,
+  mapError?: ThrowMapper,
+): unknown {
+  const build = (settled: Result<unknown>, mapper?: ThrowMapper): unknown =>
+    settled.ok
+      ? api.ok(settled.data)
+      : api.err(mapper ? mapper(settled.error) : settled.error);
+  if (result instanceof AsyncResult) {
+    const mapper = mapError ?? throwMappers.get(result);
+    return result.then((settled) => build(settled, mapper));
+  }
+  return build(result, mapError);
+}
+
+/**
+ * Converts a better-result value back into a `Result`, by its `status`
+ * field, so it works across better-result versions. A `DbError`, or an
+ * error whose `cause` is one, is kept; others go through `mapError`
+ * (default `toDbError`).
+ */
+export function fromBetterResult<T>(
+  result: BetterResultShape<T, unknown>,
+  mapError: (error: unknown) => DbError = toDbError,
+): Result<T> {
+  switch (result.status) {
+    case 'ok':
+      return ok(result.value);
+    case 'error':
+      return err(dbErrorOf(result.error) ?? mapError(result.error));
+    default: {
+      const never: never = result;
+      throw new TypeError(
+        `better-supabase: fromBetterResult() expects a better-result value, got ${String(never)}`,
+      );
+    }
   }
 }
 

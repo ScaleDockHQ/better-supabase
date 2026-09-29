@@ -6,8 +6,21 @@ export type {
 } from './core/define.ts';
 export { EMPTY_STATS, recordStats, StatsRecorder } from './core/stats.ts';
 export type { DbStats } from './core/stats.ts';
-export { AsyncResult, err, ok, toDbError } from './core/result.ts';
-export type { Err, Ok, Result } from './core/result.ts';
+export {
+  AsyncResult,
+  err,
+  fromBetterResult,
+  ok,
+  toBetterResult,
+  toDbError,
+} from './core/result.ts';
+export type {
+  BetterResultApi,
+  BetterResultShape,
+  Err,
+  Ok,
+  Result,
+} from './core/result.ts';
 export {
   DbException,
   dbError,

@@ -116,8 +116,13 @@ export function isDbError(value: unknown): value is DbError {
   );
 }
 
-function errorOf(value: unknown): DbError | undefined {
+/**
+ * The `DbError` in a `DbError`, a `DbException`, or an error whose `cause`
+ * is a `DbError` (what `sb.mapError()` mappers should set).
+ */
+export function dbErrorOf(value: unknown): DbError | undefined {
   if (value instanceof DbException) return value.error;
+  if (value instanceof Error && isDbError(value.cause)) return value.cause;
   return isDbError(value) ? value : undefined;
 }
 
@@ -128,7 +133,7 @@ function constraintGuard<K extends 'conflict' | 'check' | 'foreign_key'>(
     error: unknown,
     constraint?: NoInfer<C>,
   ): error is DbErrorOf<K> & { readonly constraint: C } => {
-    const found = errorOf(error);
+    const found = dbErrorOf(error);
     if (found?.kind !== kind) return false;
     return (
       constraint === undefined ||

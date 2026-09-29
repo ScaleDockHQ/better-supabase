@@ -25,6 +25,8 @@ const name = await db.customers
 ```
 
 `AsyncResult` has `orThrow`, `unwrapOr`, `map`, `mapError` and `andThen`.
+`mapError` here rewrites the `DbError` inside one result; `sb.mapError()`
+([below](#domain-errors-for-orthrow)) changes what `.orThrow()` throws.
 
 ## Error kinds
 
@@ -68,4 +70,65 @@ const sb = defineSupabase(schema, {
 });
 ```
 
-Plugins can also contribute a `mapError`.
+Plugins can also contribute a `mapError`. These mappers turn a raw
+Postgres or PostgREST error into a `DbError`; the next section turns a
+`DbError` into your own error.
+
+## Domain errors for `.orThrow()`
+
+`sb.mapError(fn)` sets the error `.orThrow()` throws for every `db` it
+connects, instead of a `DbException`:
+
+```ts
+export class AppError extends Error {
+  constructor(readonly error: DbError) {
+    super(error.message, { cause: error });
+  }
+}
+
+export const toAppError = (error: DbError) => new AppError(error);
+export const sb = defineSupabase(schema).mapError(toAppError);
+
+await db.customers.findById(id).orThrow(); // throws AppError
+```
+
+Results themselves keep their `DbError`, so they stay serializable. The
+mapper survives `map`, `mapError` and `andThen`; a factory passed to
+`.orThrow(factory)` takes precedence.
+
+Set the `DbError` as the error's `cause`. The server, Next.js, Hono and
+oRPC adapters then still answer with Problem Details, and `isConflict`,
+`isCheck` and `isForeignKey` still match. TanStack Query hooks always see a
+`DbException`, whatever the mapper.
+
+## better-result
+
+If your services return [better-result](https://github.com/dmmulroy/better-result)
+values, convert at the boundary. You pass better-result's `Result`
+namespace, so better-supabase doesn't depend on it:
+
+```ts
+import { Result } from 'better-result';
+import { fromBetterResult, toBetterResult } from 'better-supabase';
+
+// Result<T> -> better-result, with your error type
+const found = toBetterResult(await db.customers.findById(id), Result, toAppError);
+if (found.status === 'error') return found.error; // AppError
+
+// An AsyncResult works too, and awaits it
+const listed = await toBetterResult(db.customers.findMany(), Result, toAppError);
+
+// And back: DbErrors pass through, other errors become `unexpected`
+const result = fromBetterResult(Result.ok(42)); // Result<number>
+```
+
+`toBetterResult` returns the real `Ok` or `Err`, typed by its `status`,
+`value` and `error` fields. Cast it for better-result's methods in types:
+`found as Result<Customer, AppError>`. The cast is not checked against the
+row type, so keep it next to the call.
+
+Without the third argument, a result from a `db` of `sb.mapError(fn)`
+goes through `fn`, and its error is typed `unknown`; pass the mapper to
+type it. `fromBetterResult` reads the `status` field, so it works across
+better-result versions; pass a second argument to map non-`DbError`
+errors yourself.

@@ -38,7 +38,14 @@ import {
   type ReadSet,
 } from './read-set.ts';
 import { createRepository, OperationRunner } from './repository.ts';
-import { AsyncResult, err, ok, type Result } from './result.ts';
+import {
+  AsyncResult,
+  err,
+  ok,
+  type Result,
+  type ThrowMapper,
+  withErrorMapper,
+} from './result.ts';
 import {
   createSpecs,
   isQuerySpec,
@@ -58,6 +65,8 @@ export interface DefineSupabaseOptions {
   readonly logger?: Logger;
   /** RPCs that change tables, keyed by function name. Prefer `sb.defineRpc()`. */
   readonly rpc?: Readonly<Record<string, RpcDefinition>>;
+  /** Builds the error `.orThrow()` throws. Prefer `sb.mapError()`. */
+  readonly throwAs?: ThrowMapper;
   /** Validates verified JWT claims on the server. Prefer `sb.claims()`, which also types them. */
   readonly claims?: StandardSchemaV1;
 }
@@ -134,6 +143,24 @@ export class BetterSupabase<
       this.schema,
       this.plugins,
       { ...this.options, claims: schema },
+      this.events,
+    );
+  }
+
+  /**
+   * Returns a new instance whose `.orThrow()` throws `mapper(error)` instead
+   * of a `DbException`, and whose results `toBetterResult` maps the same way.
+   * Results themselves keep their `DbError`.
+   *
+   * ```ts
+   * const sb = defineSupabase(schema).mapError((error) => new AppError(error));
+   * ```
+   */
+  mapError(mapper: (error: DbError) => unknown): BetterSupabase<M, D, F, E, C> {
+    return new BetterSupabase(
+      this.schema,
+      this.plugins,
+      { ...this.options, throwAs: mapper },
       this.events,
     );
   }
@@ -434,12 +461,27 @@ export class BetterSupabase<
         return this.#decodeReadSet(client, context, set, bound, called.data);
       });
 
+    const throwAs = this.options.throwAs;
+    if (throwAs) {
+      for (const name of ['$rpc', '$run', '$many']) {
+        db[name] = mapThrows(db[name] as AnyMethod, throwAs);
+      }
+    }
     for (const [key, table] of Object.entries(this.meta.tables)) {
       let repository: Record<string, unknown> | undefined;
       Object.defineProperty(db, key, {
         enumerable: true,
         get: () => {
-          repository ??= this.#repository(runner, key, table, plugins);
+          if (!repository) {
+            repository = this.#repository(runner, key, table, plugins);
+            if (throwAs) {
+              for (const [name, method] of Object.entries(repository)) {
+                if (typeof method === 'function' && name !== 'extend') {
+                  repository[name] = mapThrows(method as AnyMethod, throwAs);
+                }
+              }
+            }
+          }
           return repository;
         },
       });
@@ -538,6 +580,17 @@ export class BetterSupabase<
     });
     return repository;
   }
+}
+
+type AnyMethod = (...args: unknown[]) => unknown;
+
+function mapThrows(method: AnyMethod, throwAs: ThrowMapper): AnyMethod {
+  return function (this: unknown, ...args) {
+    const value = method.apply(this, args);
+    return value instanceof AsyncResult
+      ? withErrorMapper(value, throwAs)
+      : value;
+  };
 }
 
 function runSpec(

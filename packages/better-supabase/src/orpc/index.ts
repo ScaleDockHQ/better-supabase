@@ -15,7 +15,7 @@ import type {
   ServerOptions,
 } from '../server/server.ts';
 
-import { type DbError, DbException } from '../core/errors.ts';
+import { type DbError, dbErrorOf } from '../core/errors.ts';
 import { type ProblemDetails, toProblem } from '../core/problem.ts';
 import {
   defaultExpose,
@@ -68,7 +68,8 @@ export interface BetterOrpc<
 > extends BetterServer<M, F, E> {
   /**
    * Resolves the caller, enforces `allow` and adds `context.db`, `context.auth`
-   * and `context.bs`. Thrown `DbException`s become `ORPCError`s.
+   * and `context.bs`. Thrown `DbException`s, and errors caused by a
+   * `DbError`, become `ORPCError`s.
    */
   middleware(options?: MiddlewareOptions): OrpcMiddleware<M, F, E>;
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
@@ -126,7 +127,8 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
               context: { bs: ctx, db: ctx.db, auth: ctx.auth },
             });
           } catch (cause) {
-            if (cause instanceof DbException) throw toORPCError(cause.error);
+            const thrown = dbErrorOf(cause);
+            if (thrown) throw toORPCError(thrown);
             throw cause;
           }
         }) as OrpcMiddleware<M, F, E>;

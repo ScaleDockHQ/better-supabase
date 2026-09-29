@@ -19,6 +19,7 @@
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "better-result": "catalog:",
     "better-supabase": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",

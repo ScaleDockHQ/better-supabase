@@ -7,7 +7,6 @@ import type {
 
 import type { CacheAdapter } from '../core/cache.ts';
 import type { BetterSupabase } from '../core/define.ts';
-import type { DbException } from '../core/errors.ts';
 import type {
   CursorPage,
   CursorPageArgs,
@@ -44,8 +43,12 @@ import type {
   Update,
 } from '../schema/types.ts';
 
+import { type DbError, DbException } from '../core/errors.ts';
 import { invalidationTargets } from '../ir/tables.ts';
 import { type BetterQueryMeta, invalidateTables } from './invalidate.ts';
+
+/** Query errors stay `DbException`s, even for an `sb` with `mapError()`. */
+const asException = (error: DbError) => new DbException(error);
 
 export { invalidateTables };
 export type { BetterQueryMeta };
@@ -244,7 +247,7 @@ function specQuery(
   return {
     queryKey: key ?? ['bs', spec.table, spec.method, ...spec.args],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      runtime.db().$run(spec, { signal }).orThrow(),
+      runtime.db().$run(spec, { signal }).orThrow(asException),
     meta: { bsTables: runtime.sb.tablesOf(spec) },
     ...stale,
   };
@@ -289,7 +292,7 @@ function tableQueries(
     tables: readonly string[],
   ) => ({
     mutationKey: [...key, op],
-    mutationFn: (variables: never) => run(variables).orThrow(),
+    mutationFn: (variables: never) => run(variables).orThrow(asException),
     onSuccess: (
       _data: unknown,
       _variables: unknown,
@@ -325,7 +328,7 @@ function tableQueries(
           runtime
             .db()
             .$run(specs['paginate']!({ ...base, after: pageParam }), { signal })
-            .orThrow(),
+            .orThrow(asException),
         initialPageParam: null,
         getNextPageParam: (last: { nextCursor: string | null }) =>
           last.nextCursor ?? undefined,
@@ -351,7 +354,7 @@ function tableQueries(
           runtime
             .db()
             .$run(specs['paginate']!({ ...base, page: pageParam }), { signal })
-            .orThrow(),
+            .orThrow(asException),
         initialPageParam: base.page ?? 1,
         getNextPageParam: (last: OffsetPage<unknown>) =>
           last.page.hasMore ? last.page.number + 1 : undefined,
@@ -425,7 +428,7 @@ export function createQueries<
             runtime
               .db()
               .$rpc(name, args ?? {}, { signal })
-              .orThrow(),
+              .orThrow(asException),
       meta: { bsTables: rpcOptions.tables ?? [] },
       ...stale,
     }),
@@ -435,7 +438,7 @@ export function createQueries<
         runtime
           .db()
           .$rpc(name, args ?? {})
-          .orThrow(),
+          .orThrow(asException),
       onSuccess: (
         _data: unknown,
         _variables: unknown,

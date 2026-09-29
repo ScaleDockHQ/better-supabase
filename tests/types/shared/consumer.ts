@@ -3,15 +3,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { QueryClient } from '@tanstack/react-query';
 import {
   type AsyncResult,
+  type BetterResultShape,
   type CacheAdapter,
   type DbError,
   defineRepository,
   defineSupabase,
   type Executor,
+  fromBetterResult,
   type Logger,
   memoryCache,
   type Result,
   silentLogger,
+  toBetterResult,
 } from 'better-supabase';
 import { createBrowser } from 'better-supabase/client';
 import { defineConfig, zod } from 'better-supabase/config';
@@ -164,5 +167,12 @@ export function integrations(): unknown[] {
     seed.sql(),
     verifyWebhook,
     testExecutor(executor, { sb }),
+    sb.mapError((error) => new Error(error.message, { cause: error })),
+    fromBetterResult(
+      toBetterResult(
+        { ok: true, data: 1, error: null },
+        { ok: (value) => ({ status: 'ok', value }), err: (error) => error },
+      ) satisfies BetterResultShape<number, DbError>,
+    ) satisfies Result<number>,
   ];
 }

@@ -1,11 +1,6 @@
 import type { AuthState } from '../auth/resolve.ts';
 
-import {
-  type DbError,
-  DbException,
-  dbError,
-  isDbError,
-} from '../core/errors.ts';
+import { type DbError, dbError, dbErrorOf, isDbError } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
 import { toDbError } from '../core/result.ts';
 
@@ -48,7 +43,8 @@ export type Settled =
 
 /**
  * Settles a handler's return value: `Result`s and `AsyncResult`s unwrap,
- * thrown `DbException`s become errors, anything else is data. Other thrown
+ * thrown `DbException`s (or errors whose `cause` is a `DbError`) become
+ * errors, anything else is data. Other thrown
  * errors propagate.
  */
 export async function settle(run: () => unknown): Promise<Settled> {
@@ -61,7 +57,8 @@ export async function settle(run: () => unknown): Promise<Settled> {
       error: isDbError(value.error) ? value.error : toDbError(value.error),
     };
   } catch (cause) {
-    if (cause instanceof DbException) return { ok: false, error: cause.error };
+    const thrown = dbErrorOf(cause);
+    if (thrown) return { ok: false, error: thrown };
     throw cause;
   }
 }
