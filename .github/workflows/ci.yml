@@ -143,5 +143,5 @@ jobs:
       - name: End-to-end
         run: pnpm run test:e2e
 
-      - name: Validation (lienlink on the stack)
-        run: pnpm --filter @better-supabase/validation-lienlink test
+      - name: Validation (request context on the stack)
+        run: pnpm --filter @better-supabase/validation-request-context test

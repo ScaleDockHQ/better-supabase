@@ -7,7 +7,7 @@ import { appChrome, customerOverview, portal, sb } from './latency.ts';
 
 const ORG = '00000000-0000-4000-8000-0000000000aa';
 const USER = '11111111-1111-4111-8111-111111111111';
-const PROJECT_URL = 'https://centrakit.supabase.co';
+const PROJECT_URL = 'https://crm.supabase.co';
 
 type Answer = (url: URL) => unknown;
 
@@ -27,7 +27,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('CentraKit latency ports', () => {
+describe('CRM latency ports', () => {
   it('lists customers with facet counts and aggregates in two parallel calls', async () => {
     const { fetch, urls } = capture((url) =>
       url.searchParams.get('select')?.includes('count()')

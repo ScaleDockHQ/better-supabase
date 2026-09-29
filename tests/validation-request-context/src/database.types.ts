@@ -96,6 +96,7 @@ export type Database = {
           created_by: string | null
           id: string
           kvk: string | null
+          logo_path: string | null
           metadata: NonNullable<Json>
           name: string
           organization_id: string
@@ -110,6 +111,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           kvk?: string | null
+          logo_path?: string | null
           metadata?: NonNullable<Json>
           name: string
           organization_id: string
@@ -124,6 +126,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           kvk?: string | null
+          logo_path?: string | null
           metadata?: NonNullable<Json>
           name?: string
           organization_id?: string
@@ -203,6 +206,7 @@ export type Database = {
           body: string
           created_at: string
           customer_id: string
+          embedding: string | null
           id: number
           kind: Database["public"]["Enums"]["note_kind"]
           organization_id: string
@@ -213,6 +217,7 @@ export type Database = {
           body: string
           created_at?: string
           customer_id: string
+          embedding?: string | null
           id?: never
           kind?: Database["public"]["Enums"]["note_kind"]
           organization_id: string
@@ -223,6 +228,7 @@ export type Database = {
           body?: string
           created_at?: string
           customer_id?: string
+          embedding?: string | null
           id?: never
           kind?: Database["public"]["Enums"]["note_kind"]
           organization_id?: string
@@ -238,6 +244,41 @@ export type Database = {
           },
           {
             foreignKeyName: "notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: number
+          organization_id: string
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          organization_id: string
+          read_at?: string | null
+          title: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          organization_id?: string
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -303,7 +344,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_notes: {
+        Args: { k?: number; query: string }
+        Returns: {
+          attachments: Json | null
+          body: string
+          created_at: string
+          customer_id: string
+          embedding: string | null
+          id: number
+          kind: Database["public"]["Enums"]["note_kind"]
+          organization_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notes"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       note_kind: "call" | "meeting" | "email"

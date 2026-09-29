@@ -1,7 +1,7 @@
 {
-  "name": "@better-supabase/validation-centrakit",
+  "name": "@better-supabase/validation-crm",
   "private": true,
-  "description": "CentraKit's customers service (packages/supabase-crm) rewritten on better-supabase, against CentraKit's real schema.",
+  "description": "A CRM customers service rewritten on better-supabase, against a production CRM schema.",
   "type": "module",
   "scripts": {
     "gen:check": "better-supabase gen --check",

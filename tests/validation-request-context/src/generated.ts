@@ -106,6 +106,7 @@ export type Models = {
       archivedAt: string | null;
       createdAt: string;
       updatedAt: string;
+      logoPath: string | null;
     };
     Insert: {
       id?: string;
@@ -120,6 +121,7 @@ export type Models = {
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: string | null;
     };
     Update: {
       id?: string;
@@ -134,6 +136,7 @@ export type Models = {
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -201,6 +204,7 @@ export type Models = {
       attachments: Json | null;
       createdAt: string;
       updatedAt: string;
+      embedding: string | null;
     };
     Insert: {
       id?: never;
@@ -211,6 +215,7 @@ export type Models = {
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
+      embedding?: string | null;
     };
     Update: {
       id?: never;
@@ -221,6 +226,7 @@ export type Models = {
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
+      embedding?: string | null;
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -230,6 +236,40 @@ export type Models = {
     UniqueKeys: Record<never, never>;
     Checks: never;
     ForeignKeys: "notes_customer_id_fkey" | "notes_organization_id_fkey";
+    Flags: Record<never, never>;
+  };
+  notifications: {
+    Row: {
+      id: number;
+      organizationId: string;
+      userId: string;
+      title: string;
+      readAt: string | null;
+      createdAt: string;
+    };
+    Insert: {
+      id?: never;
+      organizationId: string;
+      userId?: string;
+      title: string;
+      readAt?: string | null;
+      createdAt?: string;
+    };
+    Update: {
+      id?: never;
+      organizationId?: string;
+      userId?: string;
+      title?: string;
+      readAt?: string | null;
+      createdAt?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "notifications_organization_id_fkey" | "notifications_user_id_fkey";
     Flags: Record<never, never>;
   };
   organizations: {
@@ -260,6 +300,7 @@ export type Models = {
       customers: { table: "customers"; kind: "many"; nullable: true };
       locations: { table: "locations"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
+      notifications: { table: "notifications"; kind: "many"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -303,7 +344,15 @@ export type Models = {
   };
 };
 
-export type Functions = Record<never, never>;
+export type Functions = {
+  search_notes: {
+    Args: {
+      k?: number;
+      query: string;
+    };
+    Returns: (Database["public"]['Tables']["notes"]['Row'])[];
+  };
+};
 
 export type TableName = keyof Models;
 /** Constraint names for `isConflict`, `isCheck` and `isForeignKey`. */
@@ -556,6 +605,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "logoPath": {
+          "db": "logo_path",
+          "type": "text",
+          "nullable": true,
+          "hasDefault": false
         }
       },
       "primaryKey": [
@@ -793,6 +848,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "embedding": {
+          "db": "embedding",
+          "type": "vector",
+          "nullable": true,
+          "hasDefault": false
         }
       },
       "primaryKey": [
@@ -819,6 +880,73 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "kind": "one",
           "nullable": false,
           "foreignKey": "notes_organization_id_fkey",
+          "columns": [
+            "organizationId"
+          ],
+          "references": [
+            "id"
+          ],
+          "direction": "forward",
+          "onDelete": "cascade"
+        }
+      },
+      "flags": {}
+    },
+    "notifications": {
+      "key": "notifications",
+      "name": "notifications",
+      "schema": "public",
+      "kind": "table",
+      "columns": {
+        "id": {
+          "db": "id",
+          "type": "int8",
+          "nullable": false,
+          "hasDefault": true,
+          "generated": true,
+          "identity": "always"
+        },
+        "organizationId": {
+          "db": "organization_id",
+          "type": "uuid",
+          "nullable": false,
+          "hasDefault": false
+        },
+        "userId": {
+          "db": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "hasDefault": true
+        },
+        "title": {
+          "db": "title",
+          "type": "text",
+          "nullable": false,
+          "hasDefault": false
+        },
+        "readAt": {
+          "db": "read_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "hasDefault": false
+        },
+        "createdAt": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
+        }
+      },
+      "primaryKey": [
+        "id"
+      ],
+      "uniqueKeys": {},
+      "relations": {
+        "organization": {
+          "table": "organizations",
+          "kind": "one",
+          "nullable": false,
+          "foreignKey": "notifications_organization_id_fkey",
           "columns": [
             "organizationId"
           ],
@@ -947,6 +1075,20 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
+        "notifications": {
+          "table": "notifications",
+          "kind": "many",
+          "nullable": true,
+          "foreignKey": "notifications_organization_id_fkey",
+          "columns": [
+            "id"
+          ],
+          "references": [
+            "organizationId"
+          ],
+          "direction": "reverse",
+          "onDelete": "cascade"
+        },
         "tags": {
           "table": "tags",
           "kind": "many",
@@ -1050,5 +1192,23 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       "email"
     ]
   },
-  "functions": {}
+  "functions": {
+    "search_notes": {
+      "name": "search_notes",
+      "schema": "public",
+      "args": [
+        {
+          "name": "k",
+          "type": "int4"
+        },
+        {
+          "name": "query",
+          "type": "vector"
+        }
+      ],
+      "returns": "notes",
+      "returnsSet": true,
+      "volatility": "stable"
+    }
+  }
 });

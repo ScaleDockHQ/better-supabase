@@ -104,34 +104,49 @@ describe.skipIf(!live)('Realtime kit', async () => {
     );
   });
   afterAll(async () => {
-    await pool.query('delete from public.customers where kvk = $1', [kvk]);
+    await pool.query('delete from public.customers where kvk like $1', [
+      `${kvk}%`,
+    ]);
     acme.removeAllChannels();
     other.removeAllChannels();
     await pool.end();
   });
 
   it('broadcasts row changes to the tenant topic', async () => {
-    let received: TopicMessage | undefined;
+    let retry: ReturnType<typeof setInterval> | undefined;
+    let attempt = 0;
+    const insert = () =>
+      sb
+        .connect(acme, { claims: { org_id: ACME } })
+        .customers.create({
+          organizationId: ACME,
+          name: 'Realtime Co',
+          kvk: `${kvk}-${String((attempt += 1))}`,
+        })
+        .orThrow();
     const got = waitFor<TopicMessage>((resolve) => {
-      received = undefined;
       const sub = customers.subscribe(
         acme,
         { orgId: ACME },
         { INSERT: (_payload, message) => resolve(message) },
       );
+      // A cold Realtime server acknowledges the join before it relays database
+      // broadcasts, and a message sent in that gap is never delivered.
       void sub.ready.then(async () => {
-        await sb
-          .connect(acme, { claims: { org_id: ACME } })
-          .customers.create({ organizationId: ACME, name: 'Realtime Co', kvk })
-          .orThrow();
+        await insert();
+        retry = setInterval(() => void insert(), 3000);
       });
-    }, 15_000);
-    received = await got;
+    }, 15_000).finally(() => clearInterval(retry));
+    const received = await got;
     const change = rowChange(sb, 'customers', received);
     expect(change).toMatchObject({
       operation: 'INSERT',
       table: 'customers',
-      record: { name: 'Realtime Co', organizationId: ACME, kvk },
+      record: {
+        name: 'Realtime Co',
+        organizationId: ACME,
+        kvk: expect.stringMatching(new RegExp(`^${kvk}-\\d+$`)),
+      },
     });
     expect(rowChange(sb, 'notes', received)).toBeNull();
   }, 20_000);

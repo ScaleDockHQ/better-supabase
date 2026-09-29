@@ -1,7 +1,7 @@
 {
-  "name": "@better-supabase/validation-lienlink",
+  "name": "@better-supabase/validation-request-context",
   "private": true,
-  "description": "lienlink's packages/supabase (env, request context, auth guard, storage, browser client) rewritten on better-supabase.",
+  "description": "An app Supabase package (env, request context, auth guard, storage, browser client) rewritten on better-supabase.",
   "type": "module",
   "scripts": {
     "gen": "better-supabase gen",

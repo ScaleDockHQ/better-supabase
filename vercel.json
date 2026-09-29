@@ -4,8 +4,9 @@
     "docs": {
       "root": "apps/docs",
       "framework": "nextjs",
-      "installCommand": "corepack enable && corepack pnpm@11.21.0 install",
-      "buildCommand": "cd ../.. && corepack pnpm@11.21.0 exec turbo run build --filter=docs",
+      "installCommand": "pnpm install",
+      "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=docs",
+      "ignoreCommand": "npx turbo-ignore@2.11.5 docs --fallback=HEAD^1",
       "rewrites": [
         {
           "source": "/docs/_next/:path*",
@@ -16,8 +17,9 @@
     "marketing": {
       "root": "apps/marketing",
       "framework": "nextjs",
-      "installCommand": "corepack enable && corepack pnpm@11.21.0 install",
-      "buildCommand": "cd ../.. && corepack pnpm@11.21.0 exec turbo run build --filter=marketing"
+      "installCommand": "pnpm install",
+      "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=marketing",
+      "ignoreCommand": "npx turbo-ignore@2.11.5 marketing --fallback=HEAD^1"
     }
   },
   "rewrites": [
@@ -75,6 +77,5 @@
         "service": "marketing"
       }
     }
-  ],
-  "ignoreCommand": "npx turbo-ignore@2.11.5 docs --fallback=HEAD^1 && npx turbo-ignore@2.11.5 marketing --fallback=HEAD^1"
+  ]
 }

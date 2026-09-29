@@ -8,8 +8,8 @@ import { noWidenThenAssertRule } from './rules/no-widen-then-assert.ts';
 import { requireSafetyCommentForTypeAssertionRule } from './rules/require-safety-comment-for-type-assertion.ts';
 
 /**
- * Oxlint rules that reject low-evidence type and test patterns, ported from
- * CentraKit. Only the rules that fit a published library are included.
+ * Oxlint rules that reject low-evidence type and test patterns. Only the
+ * rules that fit a published library are included.
  */
 const antiSlopPlugin: Plugin = eslintCompatPlugin({
   meta: { name: 'anti-slop' },

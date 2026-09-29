@@ -25,7 +25,7 @@ tests/
   bundle/              size baselines, export snapshot, WinterTC import check
   types/*              TypeScript 5.9, 6 and 7 matrix, and the type-performance benchmark
   e2e/                 the examples against a running stack
-  validation-*/        CentraKit and lienlink code ported to better-supabase
+  validation-*/        code from two production apps ported to better-supabase
 supabase/              the local stack every example and integration test uses
 scripts/               repo checks that run with Node type stripping
 .claude-plugin/        plugin and marketplace manifests that expose the skills
@@ -43,7 +43,7 @@ scripts/               repo checks that run with Node type stripping
 - `pnpm test:integration`: integration suite against a running `supabase start` stack (API on 55421, Postgres on 55422; override with `SUPABASE_URL` and `SUPABASE_DB_URL`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema; fails on >10% growth (`update` rewrites the baseline).
 - `pnpm test:e2e`: the `apps/examples` apps against a running `supabase start` stack.
-- `tests/validation-*`: CentraKit and lienlink code ported to better-supabase; run with `pnpm test`.
+- `tests/validation-*`: code from two production apps (a CRM and a request-context package) ported to better-supabase; run with `pnpm test`.
 
 ## Invariants
 
@@ -104,7 +104,7 @@ scripts/               repo checks that run with Node type stripping
   functions have explicit return types.
 - Deploys use Vercel Services from `vercel.json` (docs and marketing on one
   domain). It stays JSON until `@vercel/config` types `services` and
-  per-service rewrites; `turbo-ignore` skips deploys neither app is affected by.
+  per-service rewrites; each service's `turbo-ignore` skips its build when its app is unaffected.
 
 ## Docs conventions (`apps/docs/content/docs`)
 

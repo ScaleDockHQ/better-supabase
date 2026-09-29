@@ -9,12 +9,12 @@ import {
 
 import type { Functions, Models } from './generated.ts';
 
-export type CentraDb = Db<Models, Functions, unknown, SupabaseClient>;
+export type CrmDb = Db<Models, Functions, unknown, SupabaseClient>;
 
 type CustomerWhere = WhereInput<Models, 'customers'>;
 type CustomerStatus = Models['customers']['Row']['status'];
 
-/** CentraKit's `CustomerListFilter`. */
+/** The filter of the customer list page. */
 export interface CustomerListFilter {
   readonly q?: string;
   readonly statuses?: readonly CustomerStatus[];
@@ -54,7 +54,7 @@ const LIST_COLUMNS = [
 const escapeLike = (term: string): string =>
   term.replaceAll(/[%_\\]/g, (match) => `\\${match}`);
 
-/** The overview filter: CentraKit runs up to four queries for ids before this one. */
+/** The overview filter: the original service ran up to four queries for ids before this one. */
 function listWhere(
   organizationId: string,
   filter: CustomerListFilter,
@@ -111,7 +111,7 @@ function listWhere(
   return { AND: where };
 }
 
-export function createCustomersService(db: CentraDb) {
+export function createCustomersService(db: CrmDb) {
   return {
     /** One request: filters, sort, page, count, assignees, tags, primary contact and location. */
     listCustomers(organizationId: string, filter: CustomerListFilter = {}) {
@@ -203,7 +203,7 @@ export function createCustomersService(db: CentraDb) {
         .map(() => undefined);
     },
 
-    /** CentraKit's `CustomerInUseError`: a foreign key still points at the customer. */
+    /** `CustomerInUseError`: a foreign key still points at the customer. */
     deleteCustomer(customerId: number): AsyncResult<void> {
       return db.customers
         .delete(customerId)

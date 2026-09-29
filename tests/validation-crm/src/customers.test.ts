@@ -13,7 +13,7 @@ function service(body: unknown = []) {
       Response.json(body, { headers: { 'content-range': '0-0/1' } }),
     ),
   );
-  const client = createClient('https://centrakit.test', 'sb_publishable_test', {
+  const client = createClient('https://crm.test', 'sb_publishable_test', {
     global: { fetch },
   });
   const requests = () =>
@@ -31,7 +31,7 @@ function service(body: unknown = []) {
   };
 }
 
-describe('CentraKit customers on better-supabase', () => {
+describe('CRM customers on better-supabase', () => {
   it('lists customers with every filter in a single request', async () => {
     const { customers, requests } = service();
     await customers
@@ -100,11 +100,9 @@ describe('CentraKit customers on better-supabase', () => {
         ),
       ),
     );
-    const client = createClient(
-      'https://centrakit.test',
-      'sb_publishable_test',
-      { global: { fetch } },
-    );
+    const client = createClient('https://crm.test', 'sb_publishable_test', {
+      global: { fetch },
+    });
     const customers = createCustomersService(
       defineSupabase(schema).connect(client),
     );
