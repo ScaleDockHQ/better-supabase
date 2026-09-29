@@ -1,6 +1,6 @@
 ---
 title: For AI agents
-description: Agent Skills, llms.txt and conventions that help coding agents use better-supabase correctly.
+description: Agent Skills, llms.txt, Markdown pages and a docs MCP server that help coding agents use better-supabase correctly.
 ---
 
 ## Agent Skills
@@ -14,6 +14,17 @@ agents the conventions in these docs:
 | `better-supabase-api` | Adapters, `allow`, REST resources, MCP tools, jobs, idempotency, webhooks |
 | `better-supabase-testing` | `asUser`, `localAuth`, typed seeds, pgTAP |
 
+Install them with the [`skills`](https://skills.sh) CLI, which supports
+Cursor, Claude Code, Codex, OpenCode and most other agents:
+
+```bash
+npx skills add ScaleDockHQ/better-supabase
+npx skills add ScaleDockHQ/better-supabase --skill better-supabase -a cursor
+```
+
+That installs the skills from the `main` branch. To install the ones that
+match the version in your lockfile, use the CLI:
+
 ```bash
 pnpm better-supabase skills install                 # into the agent folders the project has
 pnpm better-supabase skills install --agent cursor,claude
@@ -24,10 +35,42 @@ Skills go to `.cursor/skills`, `.claude/skills` or `.agents/skills`, or to
 your home directory with `--global`. Reinstall after an upgrade, and
 `--check` tells you when they are stale.
 
-## llms.txt
+In Claude Code, the repository is also a plugin marketplace. The plugin
+installs the same skills and connects the [docs MCP server](#docs-mcp-server):
 
-These docs publish [`/llms.txt`](/llms.txt) (an index) and
-[`/llms-full.txt`](/llms-full.txt) (every page as Markdown).
+```bash
+/plugin marketplace add ScaleDockHQ/better-supabase
+/plugin install better-supabase@better-supabase
+```
+
+The repository has a Cursor plugin manifest (`.cursor-plugin/plugin.json`)
+with the same skills and server.
+
+## Docs as Markdown
+
+- [`/llms.txt`](/llms.txt) is an index of every page, and
+  [`/llms-full.txt`](/llms-full.txt) is every page as one Markdown file.
+- Every page is also Markdown at its own URL plus `.md`, for example
+  [`/docs/repository/filtering.md`](/docs/repository/filtering.md). Requests
+  with `Accept: text/markdown` get the same content at the normal URL.
+
+## Docs MCP server
+
+`https://bettersupabase.com/mcp` is a read-only MCP server (Streamable HTTP)
+with two tools: `search_docs` finds pages by title, description and path, and
+`get_page` returns one page as Markdown. It takes no token and never sees
+your project. Add it to Cursor:
+
+```json title=".cursor/mcp.json"
+{
+  "mcpServers": {
+    "better-supabase-docs": { "url": "https://bettersupabase.com/mcp" }
+  }
+}
+```
+
+or to Claude Code with
+`claude mcp add --transport http better-supabase-docs https://bettersupabase.com/mcp`.
 
 ## What agents should rely on
 
@@ -35,3 +78,5 @@ These docs publish [`/llms.txt`](/llms.txt) (an index) and
 - Repository calls return a `Result`. Check `result.ok` or return the Result from a handler.
 - Every JSON output of the CLI has a `$schema` URL, and `--check` flags exit
   with 1 on drift, so agents can verify their own changes.
+- `better-supabase doctor` reports security and performance findings with
+  stable codes, so an agent can fix them one by one and rerun it.

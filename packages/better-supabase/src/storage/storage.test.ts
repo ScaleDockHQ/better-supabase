@@ -233,11 +233,11 @@ describe('StoragePath', () => {
   it('brands paths with the bucket id', () => {
     const path = logos.path({ orgId: 'o1', customerId: 'c1', version: 1 });
     expectTypeOf(path).toEqualTypeOf<StoragePath<'customer-logos'>>();
-    expectTypeOf(path).toMatchTypeOf<string>();
+    expectTypeOf(path).toExtend<string>();
     const bucket = logos.connect({} as never);
     type Target = Parameters<typeof bucket.exists>[0];
-    expectTypeOf(path).toMatchTypeOf<Target>();
-    expectTypeOf('o1/c1/logo/1.webp').toMatchTypeOf<Target>();
+    expectTypeOf(path).toExtend<Target>();
+    expectTypeOf('o1/c1/logo/1.webp').toExtend<Target>();
     const avatar = '' as StoragePath<'avatars'>;
     const wrongBucket = () =>
       // @ts-expect-error a path from another bucket

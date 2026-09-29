@@ -8,6 +8,20 @@ description: Test Supabase RLS policies, APIs and SQL against the local stack wi
 Test against the local stack (`supabase start`) as real users. Don't mock
 supabase-js, and don't use the service role for anything a user does.
 
+## Workflow: test a table or policy
+
+1. Start the stack (`supabase start`) and write `.env.local` with
+   `better-supabase env`.
+2. Add the rows the test needs to `supabase/seed.ts`, including one row
+   owned by another tenant, then `supabase db reset`.
+3. Write the RLS test with `asUser` for each role that matters.
+4. Assert both directions: the user sees and changes their own rows, and
+   another tenant's rows come back as `not_found` or `forbidden`.
+5. Run `supabase test db` if the project has pgTAP tests.
+
+Done when the test fails after you drop or loosen the policy, and passes
+again once you restore it.
+
 ## Setup
 
 - `better-supabase env` writes the URL and keys to `.env.local`; load it in the test setup.

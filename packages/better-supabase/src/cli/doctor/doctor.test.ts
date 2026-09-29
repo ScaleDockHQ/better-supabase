@@ -51,8 +51,7 @@ function snapshot(
   return fromCatalog(copy);
 }
 
-const edit = <T>(value: T): { -readonly [K in keyof T]: T[K] } =>
-  value as never;
+const edit = <T>(value: T): { -readonly [K in keyof T]: T[K] } => value;
 const table = (tables: CatalogTable[], name: string) =>
   edit(tables.find((entry) => entry.name === name)!);
 

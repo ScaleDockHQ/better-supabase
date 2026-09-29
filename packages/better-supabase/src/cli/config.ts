@@ -3,11 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import {
-  type BetterSupabaseConfig,
-  type ResolvedConfig,
-  resolveConfig,
-} from '../config/index.ts';
+import { type ResolvedConfig, resolveConfig } from '../config/index.ts';
 import { readSupabaseToml, tomlNumber } from './supabase-toml.ts';
 
 export const CONFIG_FILES = [
@@ -70,7 +66,7 @@ export async function loadConfig(
       `${path} must export a config object (export default defineConfig({...}))`,
     );
   }
-  return resolveConfig(config as BetterSupabaseConfig, cwd);
+  return resolveConfig(config, cwd);
 }
 
 /** `[db] port` or `[api] port` from `supabase/config.toml`. */

@@ -10,17 +10,21 @@
   "type": "module",
   "exports": {
     "./oxlint": "./src/oxlint.ts",
-    "./oxfmt": "./src/oxfmt.ts"
+    "./oxfmt": "./src/oxfmt.ts",
+    "./anti-slop": "./src/anti-slop/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --checkers 4"
   },
   "dependencies": {
+    "@oxlint/plugins": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

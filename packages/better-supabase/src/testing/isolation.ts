@@ -129,6 +129,7 @@ export async function expectTenantIsolation<
       'expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.',
     );
   }
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the harness indexes repositories by table name for any schema.
   const admin = bare.connect(
     createClient(url, secretKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -140,6 +141,7 @@ export async function expectTenantIsolation<
   const users = await Promise.all(
     tenants.map(
       async (tenant) =>
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the harness indexes repositories by table name for any schema.
         (await asUser(bare, tenant.claims, stack))
           .db as unknown as Repositories,
     ),
@@ -173,8 +175,8 @@ export async function expectTenantIsolation<
         [1, 0],
       ] as const) {
         const user = users[self]![key]!;
-        const who = label(tenants[self]!);
-        const whose = `${label(tenants[other]!)}'s`;
+        const who = label(tenants[self]);
+        const whose = `${label(tenants[other])}'s`;
         const own = keyOf(table, seeded[self]!);
         const target = keyOf(table, seeded[other]!);
         const current = async (): Promise<Row | undefined> =>
@@ -201,7 +203,7 @@ export async function expectTenantIsolation<
           [
             `${key}: ${who} can't insert ${whose} rows`,
             async () => {
-              const row = spec.row(tenants[other]!, 1) as Row;
+              const row = spec.row(tenants[other], 1) as Row;
               const result = await user.create(row, { returning: false });
               if (result.ok) {
                 const where = Object.fromEntries(

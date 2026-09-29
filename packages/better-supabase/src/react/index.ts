@@ -158,12 +158,12 @@ export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
     useDb() {
       const browser = useBrowser();
       useAuth();
-      return browser.db as B['db'];
+      return browser.db;
     },
     useQueries() {
       const browser = useBrowser();
       useAuth();
-      return browser.queries as B['queries'];
+      return browser.queries;
     },
     useSupabase,
     useAuth,
@@ -236,7 +236,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
     const subscription = topic.subscribe(
       browser.supabase,
       matched,
-      { '*': forward } as TopicHandlers<E>,
+      { '*': forward },
       {
         ...(latest.current.options?.self === undefined
           ? {}

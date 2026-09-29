@@ -21,3 +21,7 @@ pre-push:
   commands:
     check:
       run: pnpm run check
+    test:
+      env:
+        TURBO_SCM_BASE: origin/main
+      run: pnpm exec turbo run test --affected

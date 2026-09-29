@@ -215,10 +215,7 @@ function all(value: string | readonly string[] | undefined): string[] {
 function isSearchParams(value: object): value is ListSearchParams {
   return (
     value instanceof URLSearchParams ||
-    !(
-      'facets' in value &&
-      typeof (value as { facets: unknown }).facets === 'object'
-    )
+    !('facets' in value && typeof value.facets === 'object')
   );
 }
 
@@ -413,7 +410,7 @@ export function defineListQuery<
         facets: facetValues,
       });
     }
-    const typed = input as ListQueryInput<S, F>;
+    const typed = input;
     const rawFacets = (typed.facets ?? {}) as Partial<Record<string, unknown>>;
     for (const [key, value] of Object.entries(rawFacets)) {
       if (
@@ -711,10 +708,8 @@ export function defineListQuery<
         include: _include,
         ...options
       } = (extra ?? {}) as ListExtra<M, T> & Record<string, unknown>;
-      const combined = and([
-        extraWhere as Where | undefined,
-        base['where'] as Where | undefined,
-      ]);
+      const combined = and([extraWhere, base['where'] as Where | undefined]);
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs paginate and aggregate.
       const repository = db[table] as unknown as {
         paginate: (input: Record<string, unknown>) => AsyncResult<unknown>;
         aggregate: (input: Record<string, unknown>) => AsyncResult<unknown>;
@@ -732,10 +727,7 @@ export function defineListQuery<
           facetCounts: {},
         })) as AsyncResult<never>;
       }
-      const facetFilter = and([
-        extraWhere as Where | undefined,
-        searchWhere(query),
-      ]);
+      const facetFilter = and([extraWhere, searchWhere(query)]);
       const groups = repository.aggregate({
         ...options,
         ...(facetFilter ? { where: facetFilter } : {}),

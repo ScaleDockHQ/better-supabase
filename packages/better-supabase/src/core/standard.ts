@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
-import { type DbError, dbError, type ValidationIssue } from './errors.ts';
+import { dbError, type ValidationIssue } from './errors.ts';
 import { err, ok, type Result } from './result.ts';
 
 export type { StandardSchemaV1 };
@@ -10,7 +10,7 @@ export async function validate<S extends StandardSchemaV1>(
   schema: S,
   value: unknown,
   label = 'value',
-): Promise<Result<StandardSchemaV1.InferOutput<S>, DbError>> {
+): Promise<Result<StandardSchemaV1.InferOutput<S>>> {
   let outcome = schema['~standard'].validate(value);
   if (outcome instanceof Promise) outcome = await outcome;
   if (outcome.issues) {

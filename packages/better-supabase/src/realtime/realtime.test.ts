@@ -185,7 +185,7 @@ describe('defineTopic', () => {
       client,
       { orgId: 'o1', userId: 'u1' },
       'created',
-      {} as never,
+      {},
     );
     expect(invalid.error?.kind).toBe('validation');
     expect(channel.httpSend).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { type FormEvent, useState } from 'react';
+import { type SubmitEvent, useState } from 'react';
 
 import { useAuth, useQueries, useSupabase } from './lib/hooks';
 import { createCustomer, customerList } from './queries';
@@ -16,7 +16,7 @@ function organizationOf(
 function SignIn() {
   const supabase = useSupabase();
   const [error, setError] = useState<string>();
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -40,7 +40,7 @@ function Customers({ organizationId }: { organizationId: string }) {
   const [search, setSearch] = useState('');
   const list = useQuery(customerList(queries, search));
   const create = useMutation(createCustomer(queries));
-  const add = (event: FormEvent<HTMLFormElement>) => {
+  const add = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const name = String(new FormData(form).get('name'));

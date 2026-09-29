@@ -305,7 +305,7 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
     if (error) {
       const message =
         typeof error === 'object' && error !== null && 'message' in error
-          ? String((error as { message: unknown }).message)
+          ? String(error.message)
           : String(error);
       throw new Error(`pgmq_public.${fn}: ${message}`, { cause: error });
     }
@@ -374,7 +374,7 @@ function toJob(queue: string, row: MessageRow): Job {
 function errorText(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    return String((error as { message: unknown }).message);
+    return String(error.message);
   }
   return String(error);
 }
@@ -554,7 +554,7 @@ export function createJobs<const Q extends QueueSchemas>(
         );
       });
     },
-    claim: claim as Jobs<Q>['claim'],
+    claim: claim,
     complete,
     fail,
     extend: (job, lease) => run(() => transport.extend(job, lease)),
@@ -567,9 +567,9 @@ export function createJobs<const Q extends QueueSchemas>(
     },
     unschedule: (name) => run(() => transport.unschedule(name)),
     drain: (queue, handler, drainOptions = {}) =>
-      loop(queue, handler as JobHandler<unknown>, drainOptions, false),
+      loop(queue, handler, drainOptions, false),
     work: (queue, handler, workOptions = {}) =>
-      loop(queue, handler as JobHandler<unknown>, workOptions, true),
+      loop(queue, handler, workOptions, true),
   };
 }
 

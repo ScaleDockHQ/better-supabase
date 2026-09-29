@@ -15,15 +15,14 @@ interface Claims {
   }[];
 }
 
-const session = (claims: Claims): AuthSession<Claims> =>
-  ({
-    kind: 'user',
-    user: { id: 'u1' },
-    claims: { sub: 'u1', ...claims },
-    expiresAt: null,
-    aal: 'aal1',
-    amr: [],
-  }) as AuthSession<Claims>;
+const session = (claims: Claims): AuthSession<Claims> => ({
+  kind: 'user',
+  user: { id: 'u1' },
+  claims: { sub: 'u1', ...claims },
+  expiresAt: null,
+  aal: 'aal1',
+  amr: [],
+});
 
 describe('hasEntitlement', () => {
   const user = session({
@@ -44,9 +43,7 @@ describe('hasEntitlement', () => {
     expect(
       hasEntitlement({ kind: 'anon', reason: 'none' }, ACME, 'exports'),
     ).toBe(false);
-    expect(
-      hasEntitlement(session({} as Claims), ACME, 'exports' as never),
-    ).toBe(false);
+    expect(hasEntitlement(session({} as Claims), ACME, 'exports')).toBe(false);
   });
 
   it('types keys from the claims schema', () => {

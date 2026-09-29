@@ -14,7 +14,7 @@ export interface DeleteAccountOptions {
    * or `owner.param` for `owner` buckets) is the user are removed; buckets
    * without one are skipped.
    */
-  readonly buckets?: readonly Bucket<string, string>[];
+  readonly buckets?: readonly Bucket<string>[];
   /**
    * App keys of tables whose rows the database deletes or updates with the
    * user (`on delete cascade` or `set null` to `auth.users`). They get a

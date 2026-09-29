@@ -6,7 +6,7 @@
   "scripts": {
     "gen:check": "better-supabase gen --check",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --checkers 4"
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",

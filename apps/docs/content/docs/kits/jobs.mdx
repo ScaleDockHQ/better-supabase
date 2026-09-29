@@ -79,7 +79,7 @@ await jobs.unschedule('nightly-digest');
 
 Where there's no direct connection, such as an Edge Function without a pooler
 URL, pass a service-role Supabase client instead. Jobs then go through the
-`pgmq_public` RPCs, which you turn on under Integrations → Queues → "Expose
+`pgmq_public` RPCs, which you turn on in the dashboard under Integrations, Queues, "Expose
 Queues via PostgREST".
 
 ```ts

@@ -189,7 +189,7 @@ describe.skipIf(!live)('auth against the local stack', () => {
     expect(acting).toBe(viaRest.length);
     const all = await server
       .admin({ tenant: ACME })
-      .customers.count({ allTenants: true } as never)
+      .customers.count({ allTenants: true })
       .orThrow();
     expect(all).toBeGreaterThanOrEqual(acting);
   });
@@ -270,7 +270,7 @@ describe.skipIf(!live)('auth against the local stack', () => {
     });
 
     const queryClient = new QueryClient();
-    const customers = await queryClient.fetchQuery(
+    const customers = await queryClient.query(
       browser.queries.customers.findMany({ select: ['name'] }),
     );
     expect(customers.length).toBeGreaterThan(0);

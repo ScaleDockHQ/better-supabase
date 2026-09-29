@@ -723,7 +723,7 @@ function rpc(
   ];
   return AsyncResult.from(async () => {
     if (!executor.rpc) {
-      return err<DbError>(
+      return err(
         dbError(
           'invalid_request',
           `Executor "${executor.name}" does not support rpc()`,

@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SchemaMeta } from '../../schema/types.ts';
-
 import { defineSupabase } from '../../core/define.ts';
 import { definePlugin } from '../../core/plugin.ts';
 import { capturingClient } from '../../fixtures/client.ts';
@@ -120,7 +118,7 @@ describe('rules()', () => {
   });
 
   it('guards sensitive columns unless the call opts in', async () => {
-    const meta = schema.meta as SchemaMeta;
+    const meta = schema.meta;
     const contacts = meta.tables['contacts']!;
     const marked = defineSchema({
       ...meta,
@@ -149,7 +147,7 @@ describe('rules()', () => {
   });
 
   it('flags storage objects written to *_url columns', async () => {
-    const meta = schema.meta as SchemaMeta;
+    const meta = schema.meta;
     const customers = meta.tables['customers']!;
     const text = { type: 'text', nullable: true, hasDefault: false } as const;
     const marked = defineSchema({
@@ -172,7 +170,7 @@ describe('rules()', () => {
       .use(plugin)
       .connect(client, context);
     const write = (set: Record<string, string>) =>
-      db.customers.update('c1', set as never);
+      db.customers.update('c1', set);
     await write({ logoUrl: 'o1/c1/logo/1.webp' });
     await write({
       logoUrl:

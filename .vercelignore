@@ -1,0 +1,9 @@
+# Workspace folders (tests/, apps/examples/) stay: the frozen lockfile lists
+# them. .git stays for turbo-ignore.
+tmp/
+supabase/.temp/
+.cursor/
+.claude/
+.agents/
+**/.turbo/
+**/coverage/

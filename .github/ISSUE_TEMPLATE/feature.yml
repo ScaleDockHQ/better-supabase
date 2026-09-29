@@ -1,0 +1,29 @@
+name: Feature
+description: Propose a new API, adapter, kit module or CLI command
+title: 'feat: '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What problem does this solve, and who hits it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The API or CLI change. Name identifiers exactly.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What you do today, and what else you considered.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Breaking changes, invariants it touches (AGENTS.md), and docs pages to update.

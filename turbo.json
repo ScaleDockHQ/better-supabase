@@ -1,13 +1,17 @@
 {
-  "$schema": "https://v2-10-12.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-5.turborepo.dev/schema.json",
   "futureFlags": {
     "globalConfiguration": true
   },
   "global": {
     "env": ["CI", "NODE_ENV"],
     "envMode": "strict",
-    "inputs": ["tsconfig.json"],
-    "passThroughEnv": ["LEFTHOOK", "DOCKER_HOST"]
+    "inputs": ["tsconfig.json", "packages/typescript-config/*.json"],
+    "passThroughEnv": ["LEFTHOOK"],
+    "remoteCache": {
+      "teamSlug": "scaledock",
+      "signature": false
+    }
   },
   "tasks": {
     "build": {

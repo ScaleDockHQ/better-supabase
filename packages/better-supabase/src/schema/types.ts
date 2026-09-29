@@ -172,10 +172,8 @@ export interface Schema<
   };
 }
 
-export type ModelsOf<S> =
-  S extends Schema<infer M, unknown, AnyFunctions> ? M : never;
-export type DatabaseOf<S> =
-  S extends Schema<AnyModels, infer D, AnyFunctions> ? D : never;
+export type ModelsOf<S> = S extends Schema<infer M> ? M : never;
+export type DatabaseOf<S> = S extends Schema<AnyModels, infer D> ? D : never;
 export type FunctionsOf<S> =
   S extends Schema<AnyModels, unknown, infer F> ? F : never;
 

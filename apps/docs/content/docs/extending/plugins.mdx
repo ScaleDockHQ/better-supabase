@@ -23,7 +23,7 @@ another version, and installing two plugins with the same name.
 | Hook | Level | Use it to |
 | --- | --- | --- |
 | `transformQuery(op, args)` | IR | Add filters, rewrite selections |
-| `beforeMutation(op, args)` | Mutation | Fill columns, reject writes, change the kind (delete → update) |
+| `beforeMutation(op, args)` | Mutation | Fill columns, reject writes, change the kind (turn a delete into an update) |
 | `afterMutation(event)` | Mutation | Audit, cache invalidation, outbox. Cannot change the result |
 | `wrapExecutor(executor)` | Execution | Tracing, retries, caching |
 | `mapError(raw, fallback)` | Errors | Map `RAISE` hint codes or custom SQLSTATEs to `DbError`s |

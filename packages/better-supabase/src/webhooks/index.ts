@@ -305,8 +305,7 @@ export function authHook<K extends AuthHookKind>(
       );
     try {
       const answer = await handler(verified.data.payload, verified.data);
-      const status =
-        'error' in answer ? (answer as AuthHookError).error.http_code : 200;
+      const status = 'error' in answer ? answer.error.http_code : 200;
       return Response.json(answer, { status });
     } catch (cause) {
       console.error('better-supabase: auth hook failed', cause);
@@ -373,9 +372,7 @@ export function databaseChange<
   return {
     type: payload.type,
     table,
-    record: payload.record ? (toApp(meta, payload.record) as Row<M, T>) : null,
-    oldRecord: payload.old_record
-      ? (toApp(meta, payload.old_record) as Partial<Row<M, T>>)
-      : null,
+    record: payload.record ? toApp(meta, payload.record) : null,
+    oldRecord: payload.old_record ? toApp(meta, payload.old_record) : null,
   };
 }

@@ -39,6 +39,9 @@ jobs:
       - name: Test
         run: pnpm run test
 
+      - name: Publish checks
+        run: pnpm run check:publish
+
       - name: Select mode
         id: select-mode
         uses: changesets/action/select-mode@v2

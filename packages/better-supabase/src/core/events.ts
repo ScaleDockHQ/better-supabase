@@ -81,9 +81,9 @@ export class EventHub {
       set = new Set();
       this.#handlers.set(name, set);
     }
-    set.add(handler as (event: never) => void);
+    set.add(handler);
     return () => {
-      set.delete(handler as (event: never) => void);
+      set.delete(handler);
     };
   }
 

@@ -91,12 +91,9 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
     token,
     claims: full,
     supabase,
-    db: sb.connect(supabase, context) as Db<M, F, E, SupabaseClient>,
+    db: sb.connect(supabase, context),
     sql: stack.postgres
-      ? (sb.connect(
-          postgresExecutor(stack.postgres.asUser(full)),
-          context,
-        ) as Db<M, F, E, unknown>)
+      ? sb.connect(postgresExecutor(stack.postgres.asUser(full)), context)
       : undefined,
   };
 }

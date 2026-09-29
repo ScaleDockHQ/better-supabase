@@ -98,6 +98,7 @@ export function toProblem(
     problem['required'] = error.required;
   if ('retryAfter' in error && error.retryAfter !== undefined)
     problem['retryAfter'] = error.retryAfter;
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
   return problem as unknown as ProblemDetails;
 }
 

@@ -241,20 +241,16 @@ export function createOpenApi(
     for (const operation of operations) {
       switch (operation) {
         case 'list':
-          ((paths[collection] ??= {}) as Json)['get'] = op(
-            'list',
-            `List ${key}`,
-            {
-              parameters: resource.list?.openapi ?? pageParameters(),
-              responses: {
-                '200': jsonBody(ref(`${name}Page`), `A page of ${key}.`),
-                ...errorResponses([400, 401, 403]),
-              },
+          (paths[collection] ??= {})['get'] = op('list', `List ${key}`, {
+            parameters: resource.list?.openapi ?? pageParameters(),
+            responses: {
+              '200': jsonBody(ref(`${name}Page`), `A page of ${key}.`),
+              ...errorResponses([400, 401, 403]),
             },
-          );
+          });
           break;
         case 'create':
-          ((paths[collection] ??= {}) as Json)['post'] = op(
+          (paths[collection] ??= {})['post'] = op(
             'create',
             `Create a ${key} row`,
             {
@@ -275,7 +271,7 @@ export function createOpenApi(
         case 'update':
         case 'delete': {
           if (!item) break;
-          const path = (paths[item] ??= { parameters: idParameter }) as Json;
+          const path = (paths[item] ??= { parameters: idParameter });
           if (operation === 'get') {
             path['get'] = op('get', `Get a ${key} row`, {
               responses: {

@@ -156,8 +156,7 @@ export const RLS_RULES: readonly Rule[] = [
               .map((args) => columnArgument(args, table))
               .find((found) => found !== undefined);
             if (!column) continue;
-            const kind =
-              slow.language === 'sql' ? 'volatile' : `${slow.language}`;
+            const kind = slow.language === 'sql' ? 'volatile' : slow.language;
             return [
               {
                 message: `Policy "${policy.name}" on ${qualified(table)} calls ${name}(${column}), a ${kind} function, with a column of the row, so it runs once per row and can't be inlined. Make it \`language sql stable\`, or have a helper return the allowed values once and compare: \`${column} in (select <helper>())\`.`,

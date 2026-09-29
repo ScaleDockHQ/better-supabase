@@ -612,13 +612,13 @@ export function createNext<
       return async (input) => {
         const ctx = await server();
         const denied = guard(ctx.auth, actionOptions.allow, actionOptions.aal);
-        if (denied) return { ok: false, data: null, error: denied } as Out;
+        if (denied) return { ok: false, data: null, error: denied };
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;
         if (actionOptions.input) {
           const checked = await validate(actionOptions.input, parsed, 'input');
           if (!checked.ok)
-            return { ok: false, data: null, error: checked.error } as Out;
+            return { ok: false, data: null, error: checked.error };
           parsed = checked.data;
         }
         const settled = await settle(() => fn(parsed as never, ctx));

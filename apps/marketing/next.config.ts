@@ -9,10 +9,14 @@ const docsPaths = [
   '/llms.txt',
   '/llms-full.txt',
   '/llms.mdx/:path*',
+  '/mcp',
 ];
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // `next build` needs the TypeScript 6 compiler API; the Turbo `typecheck`
+  // task runs TypeScript 7 instead.
+  typescript: { ignoreBuildErrors: true },
   allowedDevOrigins: ['127.0.0.1'],
   redirects() {
     return Promise.resolve([

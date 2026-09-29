@@ -7,8 +7,8 @@ export interface BetterQueryMeta {
 }
 
 function queryTables(query: Query): readonly string[] | undefined {
-  const tables = (query.meta as Partial<BetterQueryMeta> | undefined)?.bsTables;
-  if (tables) return tables;
+  const tables = query.meta?.['bsTables'];
+  if (Array.isArray(tables)) return tables.filter((t) => typeof t === 'string');
   const [prefix, table] = query.queryKey;
   return prefix === 'bs' && typeof table === 'string' ? [table] : undefined;
 }

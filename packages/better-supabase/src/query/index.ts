@@ -224,7 +224,7 @@ function withoutSignal(value: unknown): unknown {
 }
 
 interface Runtime {
-  readonly sb: BetterSupabase<AnyModels, unknown, AnyFunctions, unknown>;
+  readonly sb: BetterSupabase;
   readonly db: () => AnyDb;
   readonly staleTime: number | undefined;
 }
@@ -253,17 +253,19 @@ function specQuery(
   };
 }
 
+type SpecTables = Record<
+  string,
+  Record<string, (...args: unknown[]) => QuerySpec>
+>;
+
 function tableQueries(
   runtime: Runtime,
   table: string,
 ): Record<string, unknown> {
   const key = ['bs', table] as const;
-  const specs = (
-    runtime.sb.spec as unknown as Record<
-      string,
-      Record<string, (...args: unknown[]) => QuerySpec>
-    >
-  )[table]!;
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `spec` is generic over the schema; entries are looked up by table name.
+  const tables = runtime.sb.spec as unknown as SpecTables;
+  const specs = tables[table]!;
   const stale =
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
   const read =
@@ -405,7 +407,9 @@ export function createQueries<
   options: CreateQueriesOptions = {},
 ): Queries<M, E, F> {
   const runtime: Runtime = {
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
     sb: sb as unknown as Runtime['sb'],
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
     db: (typeof db === 'function' ? db : () => db) as unknown as () => AnyDb,
     staleTime: options.staleTime,
   };
@@ -415,6 +419,7 @@ export function createQueries<
     key: ['bs'],
     $spec: (spec: QuerySpec | SkipToken) => specQuery(runtime, spec),
     $prefetch: (client: QueryClient, spec: QuerySpec) =>
+      // oxlint-disable-next-line typescript/no-deprecated -- `query()` needs @tanstack/query-core 5.104; the peer range is ^5.
       client.prefetchQuery(specQuery(runtime, spec) as never),
     $rpc: (
       name: string,

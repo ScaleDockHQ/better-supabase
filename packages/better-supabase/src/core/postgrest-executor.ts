@@ -80,6 +80,7 @@ interface LooseClient extends ScopedClient {
 }
 
 function scope(client: PostgrestClientLike, schema: string): ScopedClient {
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PostgrestClientLike is structural and `schema()` is optional at runtime.
   const loose = client as unknown as LooseClient;
   return schema !== 'public' && loose.schema ? loose.schema(schema) : loose;
 }

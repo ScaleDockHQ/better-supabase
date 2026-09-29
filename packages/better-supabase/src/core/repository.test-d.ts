@@ -78,10 +78,12 @@ describe('payload inference', () => {
   it('returns a Result that carries a DbError', () => {
     const pending = db.tags.create({ organizationId: 'o', name: 'n' });
     expectTypeOf(pending).resolves.toEqualTypeOf<
-      Result<
-        { id: string; organizationId: string; name: string; color: TagsColor },
-        DbError
-      >
+      Result<{
+        id: string;
+        organizationId: string;
+        name: string;
+        color: TagsColor;
+      }>
     >();
   });
 });

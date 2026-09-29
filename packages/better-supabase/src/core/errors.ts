@@ -107,6 +107,7 @@ export function dbError<K extends DbErrorKind>(
       if (value !== undefined) error[key] = value;
     }
   }
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from the detail map for K above.
   return error as unknown as DbErrorOf<K>;
 }
 

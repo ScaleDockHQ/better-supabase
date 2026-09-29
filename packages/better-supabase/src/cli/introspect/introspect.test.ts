@@ -38,10 +38,10 @@ describe('managementSource', () => {
     const source = managementSource({
       projectRef: 'abc',
       accessToken: 'bad',
-      fetch: (async () =>
+      fetch: async () =>
         new Response('{"message":"Unauthorized"}', {
           status: 401,
-        })) as typeof fetch,
+        }),
     });
     await expect(source.queryable.query('select 1')).rejects.toThrow(
       /\(401\) for project abc/,

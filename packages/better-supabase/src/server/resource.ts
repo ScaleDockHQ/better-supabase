@@ -13,7 +13,7 @@ import type {
   Update,
 } from '../schema/types.ts';
 
-import { type DbError, dbError, type ValidationIssue } from '../core/errors.ts';
+import { dbError, type ValidationIssue } from '../core/errors.ts';
 import { err, ok, type Result } from '../core/result.ts';
 import { validate } from '../core/standard.ts';
 import { respond, type RespondOptions } from './respond.ts';
@@ -72,7 +72,7 @@ export interface ResourceHandler {
     db: object,
     operation: ResourceOperation,
     input?: ResourceInput,
-  ): Promise<Result<unknown, DbError>>;
+  ): Promise<Result<unknown>>;
   /** Serves a collection request (`id` undefined) or an item request. */
   handle(
     request: Request,
@@ -86,7 +86,7 @@ type AnyRepository = RepositoryOf<AnyModels, string, unknown>;
 
 const INTEGER = new Set(['int2', 'int4', 'int8']);
 
-function keyValue(table: TableMeta, raw: unknown): Result<unknown, DbError> {
+function keyValue(table: TableMeta, raw: unknown): Result<unknown> {
   const invalid = err(
     dbError(
       'invalid_request',
@@ -103,7 +103,7 @@ function keyValue(table: TableMeta, raw: unknown): Result<unknown, DbError> {
   return typeof raw === 'string' && raw !== '' ? ok(raw) : invalid;
 }
 
-async function readBody(request: Request): Promise<Result<unknown, DbError>> {
+async function readBody(request: Request): Promise<Result<unknown>> {
   try {
     const body: unknown = await request.json();
     if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
@@ -120,7 +120,7 @@ async function readBody(request: Request): Promise<Result<unknown, DbError>> {
 function pageArgs(
   query: ResourceInput['query'],
   max: number,
-): Result<{ page: number; size: number }, DbError> {
+): Result<{ page: number; size: number }> {
   const read = (name: string, fallback: number): number | undefined => {
     const raw: unknown =
       query instanceof URLSearchParams ? query.get(name) : query?.[name];
@@ -147,14 +147,14 @@ function pageArgs(
   return ok({ page, size });
 }
 
-function asObject(value: unknown): Result<unknown, DbError> {
+function asObject(value: unknown): Result<unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? ok(value)
     : err(dbError('invalid_request', 'Expected an object of column values'));
 }
 
-async function settled(value: unknown): Promise<Result<unknown, DbError>> {
-  return (await value) as Result<unknown, DbError>;
+async function settled(value: unknown): Promise<Result<unknown>> {
+  return (await value) as Result<unknown>;
 }
 
 function notAllowed(allowed: readonly string[]): Response {
@@ -204,7 +204,7 @@ export function defineResource<
     db: object,
     operation: ResourceOperation,
     input: ResourceInput = {},
-  ): Promise<Result<unknown, DbError>> => {
+  ): Promise<Result<unknown>> => {
     const repository = (db as Record<string, AnyRepository>)[table];
     if (!repository) throw new TypeError(`The db has no "${table}" repository`);
     if (!has(operation)) {
@@ -212,7 +212,7 @@ export function defineResource<
         dbError('forbidden', `${operation} is not enabled for ${table}`),
       );
     }
-    const key = (): Result<unknown, DbError> =>
+    const key = (): Result<unknown> =>
       keyParam
         ? keyValue(meta, input.id)
         : err(dbError('invalid_request', `${table} has no single-column key`));

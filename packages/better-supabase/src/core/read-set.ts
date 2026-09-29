@@ -74,7 +74,7 @@ export interface ReadSet<
   readonly roles: readonly ReadSetRole[];
   /** The reads, with placeholders where parameters go. */
   readonly specs: S;
-  readonly definition: BetterSupabase<AnyModels, unknown, AnyFunctions>;
+  readonly definition: BetterSupabase;
 }
 
 /** What `db.$many(readSet, params)` resolves to. */
@@ -180,6 +180,7 @@ export function defineReadSet<
     params,
     roles: options.roles ?? ['authenticated'],
     specs,
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
     definition: sb as unknown as ReadSet['definition'],
   };
 }

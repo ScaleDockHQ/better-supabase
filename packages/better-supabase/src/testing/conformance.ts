@@ -117,7 +117,7 @@ async function captureOp(
   run: (db: AnyDb) => PromiseLike<unknown>,
 ): Promise<Operation> {
   const ops: Operation[] = [];
-  await run(sb.connect(recorder(ops)) as unknown as AnyDb);
+  await run(sb.connect(recorder(ops)));
   const [op] = ops;
   if (!op) throw new Error('the repository call did not reach the executor');
   return op;
@@ -313,6 +313,7 @@ export function testExecutor(
     create && [
       'round-trips a write',
       async () => {
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
         const repository = (sb.connect(executor) as unknown as AnyDb)[table]!;
         const created = await repository.create!(create);
         expect(created.ok, `create failed: ${JSON.stringify(created.error)}`);
@@ -658,6 +659,7 @@ export function testPlugin(
     [
       'installs and builds repositories',
       () => {
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
         const db = sb
           .use(plugin)
           .connect(recorder([]), context) as unknown as AnyDb;

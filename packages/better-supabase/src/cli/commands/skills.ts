@@ -15,6 +15,8 @@ export const SKILLS_HELP = `Usage: better-supabase skills <list|install> [--agen
 
 Installs the Agent Skills that ship with better-supabase, so coding agents
 use the typed repositories, adapters and tests the way the docs describe.
+The installed skills match the installed package version. For any other
+agent, \`npx skills add ScaleDockHQ/better-supabase\` installs them from GitHub.
 
 Options
   --agent <names>   cursor (.cursor/skills), claude (.claude/skills), agents (.agents/skills).
@@ -51,10 +53,31 @@ export function skillsRoot(
   }
 }
 
+interface SkillFile {
+  /** Relative to the skill folder, with `/` separators. */
+  readonly path: string;
+  readonly contents: string;
+}
+
 interface Skill {
   readonly name: string;
   readonly description: string;
+  /** The `SKILL.md` contents. */
   readonly contents: string;
+  /** `SKILL.md` first, then its reference files. */
+  readonly files: readonly SkillFile[];
+}
+
+async function readTree(root: string, prefix = ''): Promise<SkillFile[]> {
+  const files: SkillFile[] = [];
+  const entries = await readdir(join(root, prefix), { withFileTypes: true });
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) files.push(...(await readTree(root, path)));
+    else if (entry.isFile())
+      files.push({ path, contents: await readFile(join(root, path), 'utf8') });
+  }
+  return files;
 }
 
 export async function loadSkills(
@@ -64,11 +87,18 @@ export async function loadSkills(
   for (const entry of (await readdir(root, { withFileTypes: true })).filter(
     (item) => item.isDirectory(),
   )) {
-    const path = join(root, entry.name, 'SKILL.md');
-    if (!existsSync(path)) continue;
-    const contents = await readFile(path, 'utf8');
-    const description = /^description:\s*(.+)$/m.exec(contents)?.[1] ?? '';
-    skills.push({ name: entry.name, description, contents });
+    const folder = join(root, entry.name);
+    if (!existsSync(join(folder, 'SKILL.md'))) continue;
+    const tree = await readTree(folder);
+    const main = tree.find((file) => file.path === 'SKILL.md')!;
+    const files = [main, ...tree.filter((file) => file !== main)];
+    const description = /^description:\s*(.+)$/m.exec(main.contents)?.[1] ?? '';
+    skills.push({
+      name: entry.name,
+      description,
+      contents: main.contents,
+      files,
+    });
   }
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -123,21 +153,23 @@ export async function runSkills(
   const stale: string[] = [];
   for (const agent of agents) {
     for (const skill of skills) {
-      const relativePath = join(AGENT_DIRS[agent], skill.name, 'SKILL.md');
-      const path = resolve(base, relativePath);
-      const shown = global
-        ? `~/${relativePath}`
-        : display(config.root, relativePath);
-      if (check) {
-        const current = existsSync(path)
-          ? await readFile(path, 'utf8')
-          : undefined;
-        if (current !== skill.contents) stale.push(shown);
-        continue;
+      for (const file of skill.files) {
+        const relativePath = join(AGENT_DIRS[agent], skill.name, file.path);
+        const path = resolve(base, relativePath);
+        const shown = global
+          ? `~/${relativePath}`
+          : display(config.root, relativePath);
+        if (check) {
+          const current = existsSync(path)
+            ? await readFile(path, 'utf8')
+            : undefined;
+          if (current !== file.contents) stale.push(shown);
+          continue;
+        }
+        lines.push(
+          `${(await writeIfChanged(path, file.contents)) ? 'Wrote' : 'Unchanged'} ${shown}`,
+        );
       }
-      lines.push(
-        `${(await writeIfChanged(path, skill.contents)) ? 'Wrote' : 'Unchanged'} ${shown}`,
-      );
     }
   }
   if (check) {

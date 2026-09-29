@@ -8,6 +8,22 @@ description: Build HTTP APIs, Edge Functions and MCP servers on Supabase with be
 Every adapter resolves the caller once and hands you `{ auth, db, supabase }`.
 `auth.kind` is `user`, `anon`, `service` or `invalid`.
 
+## Workflow: add an endpoint
+
+1. Pick the adapter for the runtime (table below). Setup code for each is in
+   [references/adapters.md](references/adapters.md).
+2. Decide who may call it with `allow` (see below).
+3. Use `db` from the handler context and return its `Result`, a plain value
+   or a `Response`.
+4. For a table exposed as REST, prefer `bs.resource(...)` over hand-written
+   routes, and regenerate `openapi.json` with `better-supabase openapi emit`.
+5. Add an API test that calls the endpoint as a user and as another tenant
+   (the `better-supabase-testing` skill).
+
+Done when the endpoint rejects callers outside `allow`, errors come back as
+Problem Details (no hand-built error JSON), and `openapi emit --check` passes
+if the project has an OpenAPI file.
+
 ## Who gets in
 
 `allow` defaults to `['user']`. Use `['user', 'anon']` for public endpoints
@@ -24,8 +40,7 @@ and `['service']` for machine callers. Rejected callers get a 401 with a
 | Edge Functions | `createEdge(sb, { cors: true })` | `Deno.serve(bs.handler((req, { db }) => ...))` |
 | MCP | `createMcp(sb, { name, version, resources })` | `.tool({ name, input, run: (args, { db }) => ... })` |
 
-Return a `Result`, a plain value or a `Response`. Don't build error JSON by
-hand; errors become Problem Details.
+Don't build error JSON by hand; errors become Problem Details.
 
 ## REST resources
 
@@ -40,7 +55,13 @@ list, get, create, update and delete, with validation and paging (`{ items, page
 - `createIdempotency(postgres.admin).handle(request, handler)` for POST endpoints that clients retry.
 - `createInbox(postgres.admin, { source, secrets }).receive(request)` for webhooks; `process(handler)` later.
 
+Done when a failing job is retried and then archived after `maxAttempts`,
+and a replayed webhook or POST doesn't run twice.
+
 ## Testing
 
 Use `localAuth(secret)` as a resolver and `signTestJwt` / `asUser` from
 `better-supabase/testing`. See the `better-supabase-testing` skill.
+
+Docs: https://bettersupabase.com/docs/frameworks/hono.md (and `next`,
+`orpc`, `edge`, `mcp` under `/docs/frameworks/`).

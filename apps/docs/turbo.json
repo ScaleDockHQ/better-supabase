@@ -1,8 +1,12 @@
 {
+  "$schema": "https://v2-11-5.turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": [".next/**", "!.next/cache/**", ".source/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", ".source/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
     }
   }
 }

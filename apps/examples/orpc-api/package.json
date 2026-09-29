@@ -10,7 +10,7 @@
   "scripts": {
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --checkers 4"
   },
   "dependencies": {
     "@orpc/server": "catalog:",

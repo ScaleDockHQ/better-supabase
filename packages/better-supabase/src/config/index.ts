@@ -65,8 +65,7 @@ export function resolveJsonSchema(
   source: JsonSchemaSource,
 ): Readonly<Record<string, unknown>> {
   const standard = (source as { '~standard'?: unknown })['~standard'];
-  if (standard === undefined)
-    return source as Readonly<Record<string, unknown>>;
+  if (standard === undefined) return source;
   const jsonSchema = (standard as { jsonSchema?: unknown }).jsonSchema as
     | { input?: (options: { target: string }) => Record<string, unknown> }
     | undefined;
@@ -415,7 +414,7 @@ function pick<T extends object>(
 ): Required<T> | undefined {
   if (value === undefined || value === false) return undefined;
   if (value === true) return defaults;
-  return { ...defaults, ...value } as Required<T>;
+  return { ...defaults, ...value };
 }
 
 function resolveExpose(entry: ExposeConfig): ResolvedExpose {

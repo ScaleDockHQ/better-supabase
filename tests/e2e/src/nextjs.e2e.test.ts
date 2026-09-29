@@ -99,7 +99,7 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
       .select('id')
       .single();
     if (error) throw error;
-    id = (data as { id: string }).id;
+    id = data.id;
     await waitFor(base, server);
   });
 

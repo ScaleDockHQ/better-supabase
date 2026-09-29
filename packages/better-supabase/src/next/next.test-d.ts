@@ -61,7 +61,7 @@ describe('sb.claims(schema)', () => {
   });
 
   it('keeps an untyped session for untyped definitions', () => {
-    expectTypeOf(next.session()).resolves.toEqualTypeOf<AuthSession<unknown>>();
+    expectTypeOf(next.session()).resolves.toEqualTypeOf<AuthSession>();
   });
 
   it('distinguishes token from claims failures', () => {

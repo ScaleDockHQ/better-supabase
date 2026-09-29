@@ -135,7 +135,7 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
             if (thrown) throw toORPCError(thrown);
             throw cause;
           }
-        }) as OrpcMiddleware<M, F, E>;
+        });
     },
 
     async unwrap(value: unknown): Promise<never> {

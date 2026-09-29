@@ -235,7 +235,7 @@ describe('batchingExecutor', () => {
       executor as Executor & { batch: NonNullable<Executor['batch']> },
       2,
     );
-    const op = (await captureOp()) as Operation;
+    const op = await captureOp();
     const context = { errorMappers: [] };
     const first = (async () => {
       await batcher.executor.execute(op, context);

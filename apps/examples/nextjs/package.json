@@ -12,7 +12,7 @@
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
     "start": "next start -p 3100",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit --checkers 4"
   },
   "dependencies": {
     "@supabase/server": "catalog:",
@@ -32,6 +32,6 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "typescript": "catalog:ts6"
+    "typescript": "catalog:"
   }
 }

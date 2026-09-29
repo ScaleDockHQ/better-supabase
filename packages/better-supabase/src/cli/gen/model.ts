@@ -7,7 +7,6 @@ import type {
   RealtimeTableMeta,
   RelationMeta,
   SchemaMeta,
-  TableFlags,
   TableMeta,
 } from '../../schema/types.ts';
 import type {
@@ -458,7 +457,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         primaryKey: table.primaryKey.map(app),
         uniqueKeys,
         relations: relationMeta,
-        flags: flags as TableFlags,
+        flags: flags,
       },
     };
   });

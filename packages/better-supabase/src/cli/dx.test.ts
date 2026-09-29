@@ -471,6 +471,9 @@ describe('skills', () => {
     expect(install.stdout).toContain(
       'Wrote .claude/skills/better-supabase-testing/SKILL.md',
     );
+    expect(install.stdout).toContain(
+      'Wrote .cursor/skills/better-supabase/references/troubleshooting.md',
+    );
     expect(install.stdout).not.toContain('.agents');
     expect(
       (await run(['skills', 'install', '--check', '--cwd', dir])).code,

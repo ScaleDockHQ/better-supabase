@@ -32,7 +32,7 @@ function validate(
   errors: string[],
 ): void {
   if (typeof schema['$ref'] === 'string') {
-    const target = (schema['$ref'] as string)
+    const target = schema['$ref']
       .replace(/^#\//, '')
       .split('/')
       .reduce<unknown>((node, key) => (node as Schema)[key], root) as Schema;

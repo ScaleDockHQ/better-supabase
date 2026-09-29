@@ -500,11 +500,7 @@ export function defineBucket<
     allowedMimeTypes,
     path: (values) => template.build(values) as StoragePath<Id>,
     match: (path) => template.match(path) as TemplateValues<P> | null,
-    prefix: (values = {}) =>
-      template.prefix(
-        values as Record<string, string | number | undefined>,
-        template.segments - 1,
-      ),
+    prefix: (values = {}) => template.prefix(values, template.segments - 1),
     check,
     sql() {
       const id = sqlString(config.id);
@@ -841,7 +837,7 @@ function connectBucket<P extends string, Id extends string>(
           const outcome: unknown = await options.commit?.(path);
           if (isErrorResult(outcome)) return await undo(outcome.error);
         } catch (cause) {
-          return await undo(fromStorageError(cause, bucket.id));
+          return undo(fromStorageError(cause, bucket.id));
         }
         if (!previous || same) return ok({ path, removed: null });
         const removed = await run(() => api().remove([previous]));

@@ -23,7 +23,7 @@ declare class BrErr<T, E> {
 }
 type BrResult<T, E> = BrOk<T, E> | BrErr<T, E>;
 declare const Br: {
-  ok<T>(value: T): BrOk<T, never>;
+  ok<T>(value: T): BrOk<T>;
   err<E>(error: E): BrErr<never, E>;
 };
 

@@ -1,0 +1,33 @@
+{
+  "name": "better-supabase",
+  "version": "0.1.0",
+  "description": "Agent skills for better-supabase: typed Supabase repositories, adapters, codegen and RLS tests, plus the docs MCP server.",
+  "author": {
+    "name": "ScaleDockHQ",
+    "url": "https://github.com/ScaleDockHQ"
+  },
+  "homepage": "https://bettersupabase.com",
+  "repository": "https://github.com/ScaleDockHQ/better-supabase",
+  "license": "MIT",
+  "keywords": [
+    "supabase",
+    "postgres",
+    "postgrest",
+    "rls",
+    "typescript",
+    "nextjs",
+    "hono",
+    "mcp"
+  ],
+  "skills": [
+    "./packages/better-supabase/skills/better-supabase",
+    "./packages/better-supabase/skills/better-supabase-api",
+    "./packages/better-supabase/skills/better-supabase-testing"
+  ],
+  "mcpServers": {
+    "better-supabase-docs": {
+      "type": "http",
+      "url": "https://bettersupabase.com/mcp"
+    }
+  }
+}

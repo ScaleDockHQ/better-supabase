@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck:matrix": "tsc -p ../shared/tsconfig.json && tsc -p ../shared/tsconfig.bundler.json"
+    "typecheck:matrix": "tsc --stableTypeOrdering -p ../shared/tsconfig.json && tsc --stableTypeOrdering -p ../shared/tsconfig.bundler.json"
   },
   "devDependencies": {
     "@better-supabase/types-shared": "workspace:*",

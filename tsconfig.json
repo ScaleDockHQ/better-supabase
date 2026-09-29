@@ -3,5 +3,10 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["commitlint.config.ts", "oxlint.config.ts", "oxfmt.config.ts"]
+  "include": [
+    "commitlint.config.ts",
+    "oxlint.config.ts",
+    "oxfmt.config.ts",
+    "scripts"
+  ]
 }

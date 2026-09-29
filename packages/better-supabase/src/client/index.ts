@@ -136,7 +136,7 @@ function clientFor(options: BrowserOptions): SupabaseClient {
   if (!checked.ok) throw new EnvValidationError(checked.issues);
   if (options.storage === 'local')
     return createClient(checked.env.url, checked.env.publishableKey);
-  // @supabase/ssr defaults the client-options type parameter differently from supabase-js.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- @supabase/ssr defaults the client-options type parameter differently from supabase-js.
   return createBrowserClient(
     checked.env.url,
     checked.env.publishableKey,
@@ -181,7 +181,7 @@ export function createBrowser<
   });
 
   const browser: BetterBrowser<M, F, E, C> = {
-    sb: sb as unknown as BetterSupabase<M, unknown, F, E, C>,
+    sb: sb,
     supabase,
     get db() {
       db ??= sb.connect(supabase, contextOf(snapshot));

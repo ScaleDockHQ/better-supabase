@@ -42,8 +42,9 @@ explicit change.
 | [Stripe Sync Engine schema](https://github.com/supabase/stripe-sync-engine/tree/v0.48.5/packages/sync-engine/src/database/migrations) | Adopted (pinned) | the [`entitlements` kit module](/docs/kits/entitlements) reads `stripe.active_entitlements` |
 | [pgvector iterative index scans (0.8+)](https://github.com/pgvector/pgvector#iterative-index-scans) | Adopted (pinned) | the [`vector-search` kit module](/docs/kits/vector-search) sets `hnsw.iterative_scan` |
 | [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | Adopted | `doctor --format sarif` |
-| [Agent Skills](https://agentskills.io) | Adopted | `skills/` in the package, `better-supabase skills install` |
-| [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org) | Adopted | repo root and these docs (`/llms.txt`, `/llms-full.txt`) |
+| [Agent Skills](https://agentskills.io) | Adopted | `skills/` in the package, `npx skills add ScaleDockHQ/better-supabase`, `better-supabase skills install` ([for AI agents](/docs/for-ai-agents)) |
+| [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org) | Adopted | repo root and these docs (`/llms.txt`, `/llms-full.txt`, `/docs/<page>.md`) |
+| [MCP Registry `server.json`](https://github.com/modelcontextprotocol/registry) | Adopted | the read-only docs MCP server at `/mcp` ([for AI agents](/docs/for-ai-agents#docs-mcp-server)) |
 | [npm provenance](https://docs.npmjs.com/generating-provenance-statements) | Adopted | release workflow |
 | [AsyncAPI 3](https://www.asyncapi.com/docs/reference/specification/v3.0.0) | Tracked | describing realtime topics |
 | [OpenFeature](https://openfeature.dev) | Tracked | feature flags in context |

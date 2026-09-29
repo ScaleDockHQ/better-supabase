@@ -55,9 +55,7 @@ describe.skipIf(!(await reachable()))('vite-react example', () => {
       { client: queryClient },
     );
 
-    const list = await queryClient.fetchQuery(
-      customerList(browser.queries, name),
-    );
+    const list = await queryClient.query(customerList(browser.queries, name));
     expect(list).toEqual([{ id: created.id, name, status: 'lead' }]);
     await browser.supabase.auth.signOut();
   });

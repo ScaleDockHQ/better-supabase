@@ -1,10 +1,11 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
     "docs": {
       "root": "apps/docs",
       "framework": "nextjs",
       "installCommand": "corepack enable && corepack pnpm@11.21.0 install",
-      "buildCommand": "(cd ../../packages/better-supabase && node --run build) && next build",
+      "buildCommand": "cd ../.. && corepack pnpm@11.21.0 exec turbo run build --filter=docs",
       "rewrites": [
         {
           "source": "/docs/_next/:path*",
@@ -16,7 +17,7 @@
       "root": "apps/marketing",
       "framework": "nextjs",
       "installCommand": "corepack enable && corepack pnpm@11.21.0 install",
-      "buildCommand": "next build"
+      "buildCommand": "cd ../.. && corepack pnpm@11.21.0 exec turbo run build --filter=marketing"
     }
   },
   "rewrites": [
@@ -57,6 +58,12 @@
       }
     },
     {
+      "source": "/mcp",
+      "destination": {
+        "service": "docs"
+      }
+    },
+    {
       "source": "/_next/(.*)",
       "destination": {
         "service": "marketing"
@@ -68,5 +75,6 @@
         "service": "marketing"
       }
     }
-  ]
+  ],
+  "ignoreCommand": "npx turbo-ignore@2.11.5 docs --fallback=HEAD^1 && npx turbo-ignore@2.11.5 marketing --fallback=HEAD^1"
 }

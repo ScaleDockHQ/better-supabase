@@ -146,7 +146,7 @@ describe.skipIf(!live)('Realtime kit', async () => {
     const values = { orgId: ACME, userId: USER };
     const invalid = await notifications.send(acme, values, 'created', {
       nope: true,
-    } as never);
+    });
     expect(invalid.error).toMatchObject({
       kind: 'validation',
       issues: [{ path: ['title'] }],

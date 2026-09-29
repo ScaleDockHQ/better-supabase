@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test:e2e": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --checkers 4"
   },
   "devDependencies": {
     "@better-supabase/example-edge": "workspace:*",

@@ -3,19 +3,46 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '.cursor/**'
+      - '.claude/**'
+      - '.agents/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '.cursor/**'
+      - '.claude/**'
+      - '.agents/**'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The TUI swallows task output on non-TTY runners.
+  TURBO_UI: stream
+  SUPABASE_CLI_VERSION: 2.118.0
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # OIDC token for the Vercel Remote Cache.
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          # `turbo --affected` compares against the base branch.
+          fetch-depth: 0
+
+      - uses: vercel/setup-turborepo-remote-cache-action@v1
+        continue-on-error: true
+        with:
+          team: ${{ vars.TURBO_TEAM || 'scaledock' }}
 
       - uses: pnpm/setup@v3
         with:
@@ -35,7 +62,14 @@ jobs:
       - name: Type performance
         run: pnpm run typecheck:perf
 
+      - name: Test (affected)
+        if: github.event_name == 'pull_request'
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+        run: pnpm exec turbo run test --affected
+
       - name: Test
+        if: github.event_name != 'pull_request'
         run: pnpm run test
 
       - name: Size
@@ -64,8 +98,16 @@ jobs:
   stack:
     runs-on: ubuntu-latest
     needs: check
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
+
+      - uses: vercel/setup-turborepo-remote-cache-action@v1
+        continue-on-error: true
+        with:
+          team: ${{ vars.TURBO_TEAM || 'scaledock' }}
 
       - uses: pnpm/setup@v3
         with:
@@ -73,9 +115,9 @@ jobs:
           cache: true
           require-lockfile: true
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - name: Start Supabase
         run: |
@@ -88,6 +130,7 @@ jobs:
             --override-name db.url=SUPABASE_DB_URL \
             | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
+      # Restored from the remote cache when the check job built the same inputs.
       - name: Build
         run: pnpm run build
 

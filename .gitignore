@@ -31,10 +31,10 @@ apps/examples/nextjs/CLAUDE.md
 # packed tarballs
 *.tgz
 
-# env
-.env
-.env*.local
+# env (examples and the local-stack production file stay tracked)
+.env*
 !.env.example
+!apps/examples/nextjs/.env.production
 
 # supabase local state
 supabase/.branches/
@@ -49,9 +49,6 @@ next-env.d.ts
 
 # ox
 .oxlintcache
-
-# testcontainers
-.testcontainers/
 
 # debug
 npm-debug.log*
@@ -68,4 +65,7 @@ Thumbs.db
 
 # doctor output
 doctor.sarif
-.env*
+
+# per-user agent permissions
+.cursor/cli.json
+.cursor/permissions.json

@@ -50,7 +50,7 @@ describe('createQueries', () => {
     expect(q.key).toEqual(['bs']);
 
     const queryClient = new QueryClient();
-    expect(await queryClient.fetchQuery(options)).toEqual([
+    expect(await queryClient.query(options)).toEqual([
       { id: 'c1', name: 'Acme' },
     ]);
     expect(last().params.get('status')).toBe('eq.active');
@@ -63,7 +63,7 @@ describe('createQueries', () => {
     }));
     const q = createQueries(sb, sb.connect(client));
     await expect(
-      new QueryClient().fetchQuery(q.customers.count()),
+      new QueryClient().query(q.customers.count()),
     ).rejects.toBeInstanceOf(DbException);
   });
 
@@ -99,7 +99,7 @@ describe('createQueries', () => {
       size: 1,
       orderBy: { name: 'asc' },
     });
-    const data = await new QueryClient().fetchInfiniteQuery(options);
+    const data = await new QueryClient().infiniteQuery(options);
     expect(data.pages[0]).toMatchObject({
       items: [{ id: 'a', name: 'A' }],
       hasMore: true,
@@ -121,7 +121,7 @@ describe('createQueries', () => {
       page: 2,
     });
     expect(options.initialPageParam).toBe(2);
-    const data = await new QueryClient().fetchInfiniteQuery(options);
+    const data = await new QueryClient().infiniteQuery(options);
     expect(requests[0]!.params.get('offset')).toBe('2');
     expect(options.getNextPageParam(data.pages[0]!)).toBe(3);
   });
@@ -209,7 +209,7 @@ describe('createQueries', () => {
     expect(rpc.queryKey).toEqual(['bs', '$rpc', 'customer_stats', {}]);
     expect(rpc.meta.bsTables).toEqual(['customers']);
     const queryClient = new QueryClient();
-    expect(await queryClient.fetchQuery(rpc)).toBe(42);
+    expect(await queryClient.query(rpc)).toBe(42);
 
     const mutation = q.$rpcMutation('archive_customer' as never);
     await mutation.mutationFn({} as never);

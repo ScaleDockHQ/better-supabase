@@ -522,9 +522,7 @@ export function rowChange<
   return {
     operation,
     table,
-    record: payload.record ? (toApp(meta, payload.record) as Row<M, T>) : null,
-    oldRecord: payload.old_record
-      ? (toApp(meta, payload.old_record) as Partial<Row<M, T>>)
-      : null,
+    record: payload.record ? toApp(meta, payload.record) : null,
+    oldRecord: payload.old_record ? toApp(meta, payload.old_record) : null,
   };
 }

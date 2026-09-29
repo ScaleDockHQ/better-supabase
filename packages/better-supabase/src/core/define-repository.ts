@@ -52,7 +52,8 @@ export function defineRepository<
     name: `repository:${table}`,
     repository: ({ table: meta, base }) =>
       meta.key === table
-        ? (build(base as unknown as RepositoryOf<M, Table, E>) as Readonly<
+        ? // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `base` is the repository for `table`, checked by `meta.key` above.
+          (build(base as unknown as RepositoryOf<M, Table, E>) as Readonly<
             Record<string, (...args: never[]) => unknown>
           >)
         : undefined,
