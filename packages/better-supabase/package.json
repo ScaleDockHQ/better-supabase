@@ -202,6 +202,7 @@
     "effect": "catalog:",
     "hono": "catalog:",
     "next": "catalog:",
+    "oxfmt": "catalog:",
     "pg": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",
