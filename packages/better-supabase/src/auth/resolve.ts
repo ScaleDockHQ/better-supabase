@@ -13,6 +13,7 @@ import type { StandardSchemaV1 } from '../core/standard.ts';
 import type { BetterSupabaseEnv } from '../env/index.ts';
 
 import { type DbError, dbError } from '../core/errors.ts';
+import { impersonatorOf } from './impersonation.ts';
 import { refreshSession } from './refresh.ts';
 import {
   applyCookieWrites,
@@ -511,11 +512,13 @@ export async function resolveAuth(
 export function authContext(auth: AuthState): RequestContext {
   switch (auth.kind) {
     case 'user': {
+      const impersonator = impersonatorOf(auth.claims);
       const actor: Actor = {
         id: auth.user.id,
         kind: 'user',
         ...(auth.user.role !== undefined ? { role: auth.user.role } : {}),
         ...(auth.user.email !== undefined ? { email: auth.user.email } : {}),
+        ...(impersonator ? { impersonator: impersonator.id } : {}),
       };
       return { actor, claims: auth.claims };
     }

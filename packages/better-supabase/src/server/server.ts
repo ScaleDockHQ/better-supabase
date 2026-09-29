@@ -7,6 +7,7 @@ import type { AsyncResult } from '../core/result.ts';
 import type { Postgres, SqlClaims } from '../postgres/pool.ts';
 import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 
+import { actClaim, type ImpersonationOptions } from '../auth/impersonation.ts';
 import {
   type AuthResolution,
   type AuthState,
@@ -123,10 +124,15 @@ export interface BetterServer<
     userId: string,
     options?: DeleteAccountOptions,
   ): AsyncResult<DeleteAccountResult>;
-  /** Repositories running as a user, with RLS, over direct Postgres. */
+  /**
+   * Repositories running as a user, with RLS, over direct Postgres. With
+   * `impersonation`, the claims carry `act: { sub: actor, reason }`, which
+   * the `audit` and `actor` SQL kit modules record.
+   */
   actingAs(
     userId: string,
-    claims?: Omit<SqlClaims, 'sub'>,
+    claims?: Omit<SqlClaims, 'sub' | 'act'>,
+    impersonation?: ImpersonationOptions,
   ): Db<M, F, E, undefined>;
 }
 
@@ -408,10 +414,20 @@ export function createServer<
       }),
     deleteAccount: (userId, deleteOptions) =>
       deleteAccount(sb, serviceClient, userId, deleteOptions),
-    actingAs: (userId, claims = {}) => {
-      const full: SqlClaims = { role: 'authenticated', ...claims, sub: userId };
+    actingAs: (userId, claims = {}, impersonation) => {
+      const full: SqlClaims = {
+        role: 'authenticated',
+        ...claims,
+        sub: userId,
+        ...(impersonation ? { act: actClaim(impersonation) } : {}),
+      };
       return sqlFor(full, {
-        actor: { id: userId, kind: 'user', role: full.role ?? 'authenticated' },
+        actor: {
+          id: userId,
+          kind: 'user',
+          role: full.role ?? 'authenticated',
+          ...(impersonation ? { impersonator: impersonation.actor } : {}),
+        },
         claims: full,
       });
     },

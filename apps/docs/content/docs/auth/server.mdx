@@ -47,7 +47,9 @@ await server.actingAs(userId, { org_id }).customers.findMany();
 
 `actingAs` runs over direct Postgres with the user's claims set for the
 transaction, the way PostgREST does it, so policies see
-`auth.uid() = userId`. It needs `postgres`.
+`auth.uid() = userId`. It needs `postgres`. For support work, pass
+`{ actor, reason }` as a third argument to record the admin: see
+[Impersonation](/docs/auth/impersonation).
 
 `dbFor(auth)` and `supabaseFor(auth)` bind to an auth state you already
 have, for example one resolved in a proxy.

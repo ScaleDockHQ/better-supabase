@@ -3,6 +3,7 @@ import type { JWTClaims, UserClaims } from '@supabase/server';
 import type { DbError } from '../core/errors.ts';
 import type { AuthState, InvalidReason } from './resolve.ts';
 
+import { type Impersonator, impersonatorOf } from './impersonation.ts';
 import { type Aal, aalOf, type AmrEntry, amrOf } from './mfa.ts';
 
 /**
@@ -24,6 +25,8 @@ export type AuthSession<C = unknown> =
       readonly aal: Aal;
       /** How the user signed in (`password`, `totp`, `sso/saml`, ...). */
       readonly amr: readonly AmrEntry[];
+      /** Set when an admin acts as this user (the `act` claim), for a banner. */
+      readonly impersonator?: Impersonator;
     }
   | { readonly kind: 'service'; readonly keyName: string }
   | { readonly kind: 'anon'; readonly reason: AnonReason }
@@ -38,7 +41,8 @@ type AnonReason = Extract<AuthState, { kind: 'anon' }>['reason'];
 /** Drops the token from an `AuthState`, leaving only serializable fields. */
 export function toSession<C>(auth: AuthState<C>): AuthSession<C> {
   switch (auth.kind) {
-    case 'user':
+    case 'user': {
+      const impersonator = impersonatorOf(auth.claims);
       return {
         kind: 'user',
         user: auth.user,
@@ -46,7 +50,9 @@ export function toSession<C>(auth: AuthState<C>): AuthSession<C> {
         expiresAt: auth.expiresAt,
         aal: aalOf(auth.claims),
         amr: amrOf(auth.claims),
+        ...(impersonator ? { impersonator } : {}),
       };
+    }
     case 'service':
       return { kind: 'service', keyName: auth.keyName };
     case 'anon':

@@ -9,6 +9,8 @@ export interface Actor {
   readonly kind: 'user' | 'service' | 'anon';
   readonly role?: string;
   readonly email?: string;
+  /** The admin acting as this user (the `act` claim's `sub`). */
+  readonly impersonator?: string;
 }
 
 /**

@@ -49,6 +49,7 @@ import {
   type Aal,
   checkAal,
   createServer,
+  impersonatorOf,
   PRIMARY_COOKIE,
 } from 'better-supabase/server';
 import { defineBucket, type StoragePath } from 'better-supabase/storage';
@@ -220,6 +221,15 @@ export function integrations(): unknown[] {
         return ctx.replica?.wrote satisfies boolean | undefined;
       }),
     PRIMARY_COOKIE satisfies string,
+    server
+      .actingAs('u1', { org_id: 'a' }, { actor: 'admin', reason: 'support' })
+      .customers.count(),
+    impersonatorOf({ act: { sub: 'admin' } })?.id satisfies string | undefined,
+    createNext(sb)
+      .session()
+      .then((session) =>
+        session.kind === 'user' ? session.impersonator?.reason : undefined,
+      ),
     (error: DbError) =>
       error.kind === 'rate_limited'
         ? (error.retryAfter satisfies number | undefined)

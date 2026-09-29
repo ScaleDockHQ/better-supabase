@@ -1,0 +1,70 @@
+---
+title: Impersonation
+description: Act as a user for support work, with RLS applied and the admin recorded in the audit log.
+---
+
+Support staff sometimes need to see what a user sees, or fix their data the
+way the app would. `actingAs` runs repositories as that user, under their RLS
+policies, and records who really made each change:
+
+```ts title="app/admin/actions.ts"
+const db = server.actingAs(
+  userId,
+  { org_id },
+  { actor: admin.id, reason: 'Support ticket 4211' },
+);
+await db.invoices.update(id, { status: 'void' });
+```
+
+The third argument adds an [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#section-4.1)
+`act` claim to the session: `{ sub: admin.id, reason }`. Policies still see
+`auth.uid() = userId`. Check who acts first: `actingAs` trusts its caller, so
+only call it after your own admin check.
+
+## What gets recorded
+
+| Where | What |
+| --- | --- |
+| `audit` kit module | `audit_log.impersonated_by` and `impersonation_reason` on every row the admin changes |
+| `actor` kit module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write, and clears it on the user's own writes |
+| Repository context | `context.actor.impersonator`, for plugins |
+| In SQL | `auth.jwt() -> 'act' ->> 'sub'`, for your own triggers and policies |
+
+A policy can also refuse impersonated writes where they make no sense:
+
+```sql
+create policy "no impersonated payouts" on public.payouts
+  as restrictive for insert
+  with check (auth.jwt() -> 'act' is null);
+```
+
+## Why only over Postgres
+
+`actingAs` needs [`postgres`](/docs/auth/postgres) in `createServer`. It sets
+the claims for the transaction itself, the way PostgREST does after checking a
+token. The Data API has no equivalent:
+
+- PostgREST only trusts tokens signed by the project's JWT signing keys. With
+  asymmetric keys, only the Auth server holds the private key, so the app
+  can't mint a token with an `act` claim.
+- Auth has no impersonation API. A token you could mint (with a legacy
+  shared secret) would be a full session for the user, with no expiry control
+  and no record in Auth's audit log.
+
+So over the Data API, the claims are whatever Auth issued. Run impersonated
+work on the server over Postgres, and keep the admin signed in as themselves.
+
+## Showing a banner
+
+`session.impersonator` is set when a verified token carries an `act` claim,
+for example one your [custom access token hook](/docs/auth#typed-claims) adds for
+a support session recorded in a table:
+
+```tsx
+if (session.kind === 'user' && session.impersonator) {
+  return <Banner>Support session by {session.impersonator.id}</Banner>;
+}
+```
+
+`impersonatorOf(claims)` from `better-supabase/server` reads the same claim
+anywhere else.

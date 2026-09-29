@@ -20,8 +20,8 @@ supabase db diff -f better_supabase_kit
 | Module | What it adds |
 | --- | --- |
 | `updated-at` | `track_updated_at(table)` keeps an `updated_at` column current |
-| `actor` | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()` |
-| `audit` | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, including which columns changed |
+| `actor` | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin |
+| `audit` | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, including which columns changed and any impersonating admin |
 | `tenant` | `memberships`, `current_org_id()` and `has_org_role(org, roles)` for RLS policies |
 | `invitations` | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's email |
 | `reserved-slugs` | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs |

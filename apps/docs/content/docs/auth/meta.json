@@ -6,6 +6,7 @@
     "sessions",
     "mfa-sso",
     "account-deletion",
+    "impersonation",
     "server",
     "middleware",
     "postgres",

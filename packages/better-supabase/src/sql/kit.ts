@@ -86,15 +86,23 @@ begin
   if tg_argv[1] <> '' then
     new := jsonb_populate_record(new, jsonb_build_object(tg_argv[1], actor));
   end if;
+  -- The admin behind an impersonated write (the act claim), null otherwise.
+  if tg_nargs > 2 and tg_argv[2] <> '' then
+    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[2], auth.jwt() -> 'act' ->> 'sub'));
+  end if;
   return new;
 end;
 $$;
 
+drop function if exists better_supabase.track_actor(regclass, text, text);
+
 -- select better_supabase.track_actor('public.customers');
+-- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
 create or replace function better_supabase.track_actor(
   target regclass,
   created_by text default 'created_by',
-  updated_by text default 'updated_by'
+  updated_by text default 'updated_by',
+  impersonated_by text default null
 )
 returns void
 language plpgsql
@@ -103,10 +111,11 @@ as $$
 begin
   execute format('drop trigger if exists bs_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L)',
+    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
-    coalesce(updated_by, '')
+    coalesce(updated_by, ''),
+    coalesce(impersonated_by, '')
   );
 end;
 $$;`,
@@ -139,6 +148,9 @@ create table if not exists better_supabase.audit_log (
   org_id uuid,
   at timestamptz not null default now()
 );
+-- Set when an admin acted as the user (the act claim).
+alter table better_supabase.audit_log add column if not exists impersonated_by uuid;
+alter table better_supabase.audit_log add column if not exists impersonation_reason text;
 create index if not exists audit_log_record_idx on better_supabase.audit_log (table_name, record_id, at desc);
 create index if not exists audit_log_org_idx on better_supabase.audit_log (org_id, at desc);
 
@@ -175,7 +187,8 @@ begin
     end if;
   end if;
   insert into better_supabase.audit_log
-    (table_name, record_id, op, old_record, new_record, changed, actor_id, actor_role, org_id)
+    (table_name, record_id, op, old_record, new_record, changed, actor_id, actor_role, org_id,
+     impersonated_by, impersonation_reason)
   values (
     tg_table_schema || '.' || tg_table_name,
     row_data ->> 'id',
@@ -188,7 +201,12 @@ begin
     case
       when row_data ->> 'organization_id' ~ '^[0-9a-f-]{36}$'
         then (row_data ->> 'organization_id')::uuid
-    end
+    end,
+    case
+      when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$'
+        then (auth.jwt() -> 'act' ->> 'sub')::uuid
+    end,
+    auth.jwt() -> 'act' ->> 'reason'
   );
   return null;
 end;

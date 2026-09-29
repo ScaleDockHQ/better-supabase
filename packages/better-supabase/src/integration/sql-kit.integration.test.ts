@@ -69,11 +69,12 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         name text,
         created_by uuid,
         updated_by uuid,
+        impersonated_by uuid,
         updated_at timestamptz
       );
       grant all on ${table} to authenticated;
       select better_supabase.track_updated_at('${table}');
-      select better_supabase.track_actor('${table}');
+      select better_supabase.track_actor('${table}', impersonated_by => 'impersonated_by');
       select better_supabase.track_slug('${table}');
       select better_supabase.audit('${table}', ignore => '{updated_at}');
     `);
@@ -190,6 +191,39 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     await expect(
       as.queryRaw('select * from better_supabase.audit_log limit 1'),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('stamps impersonated_by from the act claim', async () => {
+    const user = crypto.randomUUID();
+    const admin = crypto.randomUUID();
+    const acting = postgres.asUser({
+      sub: user,
+      role: 'authenticated',
+      act: { sub: admin, reason: 'support' },
+    });
+    const [row] = await acting.queryRaw<{
+      id: string;
+      created_by: string;
+      impersonated_by: string | null;
+    }>(`insert into ${table} (name) values ('Impersonated') returning *`);
+    expect(row).toMatchObject({ created_by: user, impersonated_by: admin });
+
+    const [own] = await postgres
+      .asUser({ sub: user, role: 'authenticated' })
+      .queryRaw<{ impersonated_by: string | null }>(
+        `update ${table} set name = 'Own' where id = $1 returning impersonated_by`,
+        [row!.id],
+      );
+    expect(own!.impersonated_by).toBeNull();
+    const log = await pool.query(
+      `select impersonated_by, impersonation_reason from better_supabase.audit_log
+       where table_name = $1 and record_id = $2 order by id`,
+      [table, row!.id],
+    );
+    expect(log.rows).toEqual([
+      { impersonated_by: admin, impersonation_reason: 'support' },
+      { impersonated_by: null, impersonation_reason: null },
+    ]);
   });
 
   it('runs invitations through memberships and has_org_role', async () => {

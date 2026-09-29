@@ -24,6 +24,7 @@ import {
   withBetterSupabase,
 } from '../server/middleware.ts';
 import { createServer } from '../server/server.ts';
+import { SQL_MODULES } from '../sql/kit.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const dbUrl =
@@ -191,6 +192,60 @@ describe.skipIf(!live)('auth against the local stack', () => {
       .customers.count({ allTenants: true } as never)
       .orThrow();
     expect(all).toBeGreaterThanOrEqual(acting);
+  });
+
+  it('records the impersonating admin in the audit log', async () => {
+    const sb = defineSupabase(schema).use(tenant());
+    const server = createServer(sb, { env, postgres });
+    const admin = crypto.randomUUID();
+    await postgres.admin.queryRaw(SQL_MODULES['audit']!.sql);
+    await postgres.admin.queryRaw(
+      "select better_supabase.audit('public.customers')",
+    );
+    let id: string | undefined;
+    try {
+      const row = await server
+        .actingAs(
+          userId,
+          { org_id: ACME },
+          { actor: admin, reason: 'support ticket 42' },
+        )
+        .customers.create(
+          { name: `Impersonated ${crypto.randomUUID()}`, organizationId: ACME },
+          { select: ['id'] },
+        )
+        .orThrow();
+      id = row.id;
+      const log = await postgres.admin.queryRaw<{
+        actor_id: string;
+        impersonated_by: string;
+        impersonation_reason: string;
+      }>(
+        `select actor_id, impersonated_by, impersonation_reason from better_supabase.audit_log
+         where table_name = 'public.customers' and record_id = $1`,
+        [id],
+      );
+      expect(log).toEqual([
+        {
+          actor_id: userId,
+          impersonated_by: admin,
+          impersonation_reason: 'support ticket 42',
+        },
+      ]);
+    } finally {
+      await postgres.admin.queryRaw(
+        "select better_supabase.unaudit('public.customers')",
+      );
+      if (id) {
+        await postgres.admin.queryRaw('delete from customers where id = $1', [
+          id,
+        ]);
+        await postgres.admin.queryRaw(
+          'delete from better_supabase.audit_log where record_id = $1',
+          [id],
+        );
+      }
+    }
   });
 
   it('follows the session in the browser client', async () => {

@@ -84,6 +84,7 @@ export type { DbStats } from '../core/stats.ts';
 export type { AuthKind, GuardOptions } from '../server/respond.ts';
 export type { AuthSession } from '../auth/view.ts';
 export type { Aal, AmrEntry } from '../auth/mfa.ts';
+export type { Impersonator } from '../auth/impersonation.ts';
 export { toSession } from '../auth/view.ts';
 export { hasEntitlement } from '../auth/entitlements.ts';
 export type { EntitlementKey } from '../auth/entitlements.ts';

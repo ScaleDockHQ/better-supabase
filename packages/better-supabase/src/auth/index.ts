@@ -13,6 +13,8 @@ export { toSession } from './view.ts';
 export type { AuthSession } from './view.ts';
 export { aalOf, amrOf, checkAal } from './mfa.ts';
 export type { Aal, AmrEntry } from './mfa.ts';
+export { impersonatorOf } from './impersonation.ts';
+export type { ImpersonationOptions, Impersonator } from './impersonation.ts';
 export { hasEntitlement } from './entitlements.ts';
 export type { EntitlementKey } from './entitlements.ts';
 export {
