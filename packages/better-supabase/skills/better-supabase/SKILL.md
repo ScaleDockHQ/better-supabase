@@ -55,7 +55,7 @@ const result = await db.customers.findMany({
   limit: 20,
 });
 if (!result.ok) return result; // DbError: kind, message, status, code
-const customers = result.value;
+const customers = result.data;
 ```
 
 - Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted.

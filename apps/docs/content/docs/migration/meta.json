@@ -1,4 +1,4 @@
 {
   "title": "Migrating",
-  "pages": ["supabase-cache-helpers"]
+  "pages": ["supabase-js", "supabase-cache-helpers"]
 }
