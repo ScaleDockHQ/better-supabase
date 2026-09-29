@@ -259,6 +259,28 @@ export function testExecutor(
         expect(!result.ok, 'calling a missing function must fail');
       },
     ],
+    executor.functionSources && [
+      'reads from SelectOp.source instead of the table',
+      async () => {
+        const op = await read();
+        if (op.kind !== 'select') return;
+        const result = await executor.execute(
+          {
+            ...op,
+            source: {
+              schema: op.table.schema,
+              name: '__better_supabase_missing__',
+              args: {},
+            },
+          },
+          context,
+        );
+        expect(
+          !result.ok,
+          'a missing source function must fail; reading the table ignores source',
+        );
+      },
+    ],
     executor.batch && [
       'batch returns one result per operation, in order',
       async () => {

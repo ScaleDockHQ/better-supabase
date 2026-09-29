@@ -131,6 +131,7 @@ export const notesRow: z.ZodType<RowOf<'notes'>> = z.object({
   attachments: z.json().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
+  embedding: z.string().nullable(),
 });
 export const notesInsert: z.ZodType<InsertOf<'notes'>> = z.object({
   organizationId: z.guid(),
@@ -140,6 +141,7 @@ export const notesInsert: z.ZodType<InsertOf<'notes'>> = z.object({
   attachments: z.json().nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  embedding: z.string().nullable().exactOptional(),
 });
 export const notesUpdate: z.ZodType<UpdateOf<'notes'>> = z.object({
   organizationId: z.guid().exactOptional(),
@@ -149,6 +151,7 @@ export const notesUpdate: z.ZodType<UpdateOf<'notes'>> = z.object({
   attachments: z.json().nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  embedding: z.string().nullable().exactOptional(),
 });
 
 export const notificationsRow: z.ZodType<RowOf<'notifications'>> = z.object({

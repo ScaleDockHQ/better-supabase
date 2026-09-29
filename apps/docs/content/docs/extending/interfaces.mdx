@@ -51,6 +51,11 @@ runs the operations in parallel through `execute`. `testExecutor` checks
 `stable` functions such as [read sets](/docs/repository/read-sets). Send
 those as GET, so read replicas can serve them.
 
+`functionSources: true` says the executor honors `SelectOp.source`: read from
+that set-returning function, with its named arguments, instead of the table.
+[`db.$search`](/docs/kits/vector-search) needs it. `testExecutor` checks that a
+missing source function fails rather than falling back to the table.
+
 `sb.connect(client, { executor })` runs the queries through `executor` while
 `db.$client` stays the given client. The server uses this to wrap two
 PostgREST executors for [read replicas](/docs/guides/read-replicas).

@@ -35,6 +35,7 @@ supabase db diff -f better_supabase_kit
 | `read-sets` | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets) |
 | `mfa` | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso) |
 | `entitlements` | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `membership_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements) |
+| `vector-search` | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search) |
 | `rate-limit` | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes) |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. The

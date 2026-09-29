@@ -213,6 +213,7 @@ export type Models = {
       attachments: Json | null;
       createdAt: string;
       updatedAt: string;
+      embedding: string | null;
     };
     Insert: {
       id?: never;
@@ -223,6 +224,7 @@ export type Models = {
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
+      embedding?: string | null;
     };
     Update: {
       id?: never;
@@ -233,6 +235,7 @@ export type Models = {
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
+      embedding?: string | null;
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -356,7 +359,15 @@ export type Models = {
   };
 };
 
-export type Functions = Record<never, never>;
+export type Functions = {
+  search_notes: {
+    Args: {
+      k?: number;
+      query: string;
+    };
+    Returns: (Database["public"]['Tables']["notes"]['Row'])[];
+  };
+};
 
 export type TableName = keyof Models;
 /** Constraint names for `isConflict`, `isCheck` and `isForeignKey`. */
@@ -877,6 +888,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "embedding": {
+          "db": "embedding",
+          "type": "vector",
+          "nullable": true,
+          "hasDefault": false
         }
       },
       "primaryKey": [
@@ -1221,7 +1238,25 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       "email"
     ]
   },
-  "functions": {},
+  "functions": {
+    "search_notes": {
+      "name": "search_notes",
+      "schema": "public",
+      "args": [
+        {
+          "name": "k",
+          "type": "int4"
+        },
+        {
+          "name": "query",
+          "type": "vector"
+        }
+      ],
+      "returns": "notes",
+      "returnsSet": true,
+      "volatility": "stable"
+    }
+  },
   "buckets": {
     "customerLogos": {
       "id": "customer-logos",

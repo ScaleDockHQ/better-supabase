@@ -20,6 +20,8 @@ export interface ExecuteResult {
  */
 export interface Executor {
   readonly name: string;
+  /** Honors `SelectOp.source`. `db.$search` fails on executors without it. */
+  readonly functionSources?: boolean;
   execute(
     op: Operation,
     context: ExecuteContext,

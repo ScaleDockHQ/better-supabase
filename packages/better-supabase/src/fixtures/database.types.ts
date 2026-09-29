@@ -206,6 +206,7 @@ export type Database = {
           body: string
           created_at: string
           customer_id: string
+          embedding: string | null
           id: number
           kind: Database["public"]["Enums"]["note_kind"]
           organization_id: string
@@ -216,6 +217,7 @@ export type Database = {
           body: string
           created_at?: string
           customer_id: string
+          embedding?: string | null
           id?: never
           kind?: Database["public"]["Enums"]["note_kind"]
           organization_id: string
@@ -226,6 +228,7 @@ export type Database = {
           body?: string
           created_at?: string
           customer_id?: string
+          embedding?: string | null
           id?: never
           kind?: Database["public"]["Enums"]["note_kind"]
           organization_id?: string
@@ -341,7 +344,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_notes: {
+        Args: { k?: number; query: string }
+        Returns: {
+          attachments: Json | null
+          body: string
+          created_at: string
+          customer_id: string
+          embedding: string | null
+          id: number
+          kind: Database["public"]["Enums"]["note_kind"]
+          organization_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "notes"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       note_kind: "call" | "meeting" | "email"

@@ -56,6 +56,7 @@ export default defineConfig({
 | `topics` | `{}` | Realtime topic templates |
 | `realtime` | `{ tables: [] }` | Tables for [live queries](/docs/frontend/live-queries) |
 | `entitlements` | `{ customer: 'organizations.stripe_customer_id', key: 'id' }` | Where the [`entitlements` kit module](/docs/kits/entitlements) finds each tenant's Stripe customer |
+| `vectorSearch` | `{}` | Embedding columns (`{ chunks: 'embedding' }`) the [`vector-search` kit module](/docs/kits/vector-search) writes `search_<table>` for |
 | `readSets` | `[]` | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL kit module |
 | `sql` | `supabase/schemas`, `900_better_supabase`, `supabase/tests` | Where generated SQL and pgTAP files go, and the [SQL kit](/docs/kits/sql) modules to keep in sync |
 | `seed` | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql` | Entry module and output of [`seed`](/docs/cli/local#seed) |

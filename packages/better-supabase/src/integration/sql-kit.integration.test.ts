@@ -2,6 +2,8 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import type { AnyModels } from '../schema/types.ts';
+
 import { defineSupabase } from '../core/define.ts';
 import { mapDbError, type RawDbError } from '../core/errors.ts';
 import { defineReadSet } from '../core/read-set.ts';
@@ -14,6 +16,7 @@ import {
   entitlementMembers,
 } from '../jobs/index.ts';
 import { createPostgres } from '../postgres/pool.ts';
+import { defineSchema } from '../schema/define.ts';
 import { renderKit, SQL_MODULES } from '../sql/kit.ts';
 import { compileReadSet } from '../sql/read-sets.ts';
 import { asUser } from '../testing/as-user.ts';
@@ -819,6 +822,114 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const sql = await alice.sql!.$many(specs).orThrow();
     expect(sql).toEqual(rest);
     expect(rest[0]).toBeGreaterThan(0);
+  });
+
+  it('searches the nearest rows the caller can read', async () => {
+    const name = `bs_chunks_${RUN}`;
+    const mine = crypto.randomUUID();
+    const theirs = crypto.randomUUID();
+    const column = (db: string, type: string) => ({
+      db,
+      type,
+      nullable: false,
+      hasDefault: false,
+    });
+    const table = (key: string, db: string) => ({
+      key,
+      name: db,
+      schema: 'public',
+      kind: 'table' as const,
+      columns: {
+        id: column('id', 'int4'),
+        orgId: column('org_id', 'uuid'),
+        content: column('content', 'text'),
+      },
+      primaryKey: ['id'],
+      uniqueKeys: {},
+      relations: {},
+      flags: {},
+    });
+    const sb = defineSupabase(
+      defineSchema<AnyModels>({
+        version: 1,
+        casing: 'camel',
+        tables: {
+          chunks: table('chunks', name),
+          unsearched: table('unsearched', `bs_unsearched_${RUN}`),
+        },
+        enums: {},
+        functions: {},
+      }),
+    );
+    const rows = [
+      ...Array.from(
+        { length: 20 },
+        (_, i) => `(${i + 1}, '${theirs}', 'x', '[1,${i / 100},0]')`,
+      ),
+      `(101, '${mine}', 'a', '[0,1,0]')`,
+      `(102, '${mine}', 'b', '[0.5,0.5,0]')`,
+      `(103, '${mine}', 'c', '[0.9,0.1,0]')`,
+    ];
+    const [kit] = renderKit(['vector-search'], {
+      vectorSearch: [{ table: name, column: 'embedding', distance: 'cosine' }],
+    });
+    try {
+      await pool.query(`
+        create extension if not exists vector with schema extensions;
+        create table public.${name} (
+          id int primary key, org_id uuid not null, content text not null,
+          embedding extensions.vector(3)
+        );
+        insert into public.${name} values ${rows.join(', ')};
+        create index on public.${name} using hnsw (embedding extensions.vector_cosine_ops);
+        alter table public.${name} enable row level security;
+        create policy "own org" on public.${name} for select to authenticated
+          using (org_id = (auth.jwt() ->> 'org_id')::uuid);
+        grant select on public.${name} to authenticated;
+      `);
+      await pool.query(kit!.contents);
+      await pool.query(`notify pgrst, 'reload schema'`);
+      const alice = await asUser(
+        sb,
+        { sub: crypto.randomUUID(), org_id: mine },
+        { url, publishableKey, postgres },
+      );
+      const query = { vector: [1, 0, 0], k: 2, select: ['id', 'content'] };
+      // The ad-hoc schema is untyped (`AnyModels`), so the args are too.
+      const search = (
+        db: Pick<typeof alice.db, '$search'>,
+        table: 'chunks' | 'unsearched',
+        args: object = query,
+      ) => db.$search(table, args as never);
+      await expect
+        .poll(async () => (await search(alice.db, 'chunks')).ok, {
+          timeout: 10_000,
+        })
+        .toBe(true);
+
+      const rest = await search(alice.db, 'chunks').orThrow();
+      expect(rest).toEqual([
+        { id: 103, content: 'c' },
+        { id: 102, content: 'b' },
+      ]);
+      const sql = await search(alice.sql!, 'chunks').orThrow();
+      expect(sql).toEqual(rest);
+      const filtered = await search(alice.db, 'chunks', {
+        ...query,
+        k: 3,
+        where: { content: 'a' },
+      }).orThrow();
+      expect(filtered).toEqual([{ id: 101, content: 'a' }]);
+
+      const missing = await search(alice.db, 'unsearched');
+      expect(missing.ok).toBe(false);
+      expect(missing.error?.hint).toContain('vectorSearch');
+    } finally {
+      await pool.query(`drop table if exists public.${name} cascade`);
+      await pool.query(
+        `drop function if exists public.search_${name}(extensions.vector, integer)`,
+      );
+    }
   });
 
   it('answers writes over the limit with 429 and Retry-After', async () => {

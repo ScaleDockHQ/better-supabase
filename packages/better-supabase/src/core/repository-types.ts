@@ -25,6 +25,7 @@ import type { Executor } from './executor.ts';
 import type { ApplyExtension, RequestContext } from './plugin.ts';
 import type { InferReadSetParams, ReadSet, ReadSetResult } from './read-set.ts';
 import type { AsyncResult } from './result.ts';
+import type { SearchArgs } from './search.ts';
 import type { InferResult, QuerySpec } from './spec.ts';
 import type { StandardSchemaV1 } from './standard.ts';
 import type { DbStats } from './stats.ts';
@@ -300,6 +301,15 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
     specs: S,
     options?: { readonly signal?: AbortSignal },
   ): AsyncResult<{ -readonly [K in keyof S]: InferResult<S[K]> }>;
+  /**
+   * The `k` rows nearest to `vector`, nearest first, through the
+   * `search_<table>` function of the `vector-search` SQL kit module. RLS
+   * applies inside the search; `where` filters the `k` rows it returns.
+   */
+  $search<T extends TableKey<M>, const A extends SearchArgs<M, T>>(
+    table: T,
+    args: A,
+  ): AsyncResult<Payload<M, T, A>[]>;
 }
 
 export type Db<M extends AnyModels, F extends AnyFunctions, E, C> = {

@@ -1458,6 +1458,21 @@ $$;
 notify pgrst, 'reload config';`,
 };
 
+const VECTOR_SEARCH: SqlModule = {
+  name: 'vector-search',
+  title: 'Vector search',
+  description:
+    'search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.',
+  requires: [],
+  target: 'schema',
+  sql: `create extension if not exists vector with schema extensions;
+
+-- Functions for the tables in \`vectorSearch\` (better-supabase.config.ts); \`sql sync\` rewrites them.
+-- They are security invoker, so RLS (a tenant policy, say) filters inside the
+-- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
+-- (pgvector 0.8+) instead of returning fewer.`,
+};
+
 /** New modules go at the end: the position is part of the file name. */
 export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
   Object.fromEntries(
@@ -1479,6 +1494,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       MFA,
       ENTITLEMENTS,
       RATE_LIMIT,
+      VECTOR_SEARCH,
     ].map((module) => [module.name, module]),
   );
 
@@ -1532,6 +1548,56 @@ export interface KitLayout {
   }[];
   /** `config.entitlements`: where the `entitlements` module finds each tenant's Stripe customer. */
   readonly entitlements?: EntitlementsSource;
+  /** `config.vectorSearch`: the tables the `vector-search` module writes a search function for. */
+  readonly vectorSearch?: readonly VectorSearchTable[];
+}
+
+/** An embedding column `db.$search` can query. */
+export interface VectorSearchTable {
+  /** `table` or `schema.table`. */
+  readonly table: string;
+  readonly column: string;
+  readonly distance: 'cosine' | 'l2' | 'inner_product';
+}
+
+const DISTANCE_OPERATORS: Readonly<
+  Record<VectorSearchTable['distance'], string>
+> = {
+  cosine: '<=>',
+  l2: '<->',
+  inner_product: '<#>',
+};
+
+function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
+  if (tables.length === 0) return '';
+  const functions = tables.map((entry) => {
+    const [schema, table] = entry.table.includes('.')
+      ? entry.table.split('.', 2)
+      : ['public', entry.table];
+    const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
+    const fn = `${sqlIdent(schema!)}.${sqlIdent(`search_${table!}`)}`;
+    const column = `t.${sqlIdent(entry.column)}`;
+    const operator = DISTANCE_OPERATORS[entry.distance];
+    const signature = `${fn}(extensions.vector, integer)`;
+    return `-- ${entry.table}.${entry.column} (${entry.distance})
+create or replace function ${fn}(query extensions.vector, k integer default 10)
+returns setof ${target}
+language sql
+stable
+security invoker
+set search_path = ''
+set hnsw.iterative_scan = 'strict_order'
+as $$
+  select t.* from ${target} t
+  where ${column} is not null
+  order by ${column} operator(extensions.${operator}) query
+  limit least(greatest(k, 1), 1000)
+$$;
+
+revoke execute on function ${signature} from public, anon;
+grant execute on function ${signature} to authenticated, service_role;`;
+  });
+  return `\n-- config.vectorSearch\n${functions.join('\n\n')}\n`;
 }
 
 /** The table holding each tenant's Stripe customer id. */
@@ -1650,6 +1716,8 @@ function moduleExtras(module: SqlModule, layout: KitLayout): string {
   if (module.name === 'jsonb-schemas')
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
   if (module.name === 'grants') return tableGrants(layout.grants ?? []);
+  if (module.name === 'vector-search')
+    return vectorSearchFunctions(layout.vectorSearch ?? []);
   if (module.name === 'read-sets') {
     const sets = layout.readSets ?? [];
     if (sets.length === 0) return '';

@@ -2436,6 +2436,27 @@
         "comment": null
       },
       {
+        "table_id": 1000012,
+        "schema": "public",
+        "table": "notes",
+        "id": "1000012.9",
+        "ordinal_position": 9,
+        "name": "embedding",
+        "default_value": null,
+        "data_type": "USER-DEFINED",
+        "format": "vector",
+        "type_schema": "extensions",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
         "table_id": 1000013,
         "schema": "public",
         "table": "notifications",
@@ -3941,6 +3962,41 @@
         "config_params": {
           "search_path": "\"\""
         }
+      },
+      {
+        "id": 3000023,
+        "schema": "public",
+        "name": "search_notes",
+        "language": "sql",
+        "definition": "\n  select t.* from \"public\".\"notes\" t\n  where t.\"embedding\" is not null\n  order by t.\"embedding\" operator(extensions.<=>) query\n  limit least(greatest(k, 1), 1000)\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.search_notes(query vector, k integer DEFAULT 10)\n RETURNS SETOF notes\n LANGUAGE sql\n STABLE\n SET search_path TO ''\n SET \"hnsw.iterative_scan\" TO 'strict_order'\nAS $function$\n  select t.* from \"public\".\"notes\" t\n  where t.\"embedding\" is not null\n  order by t.\"embedding\" operator(extensions.<=>) query\n  limit least(greatest(k, 1), 1000)\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "k",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "query",
+            "type_id": 2000046,
+            "has_default": false
+          }
+        ],
+        "argument_types": "query vector, k integer DEFAULT 10",
+        "identity_argument_types": "query vector, k integer",
+        "return_type_id": 2000042,
+        "return_type": "SETOF notes",
+        "return_type_relation_id": 1000012,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\"",
+          "hnsw.iterative_scan": "strict_order"
+        }
       }
     ],
     "types": [
@@ -4403,6 +4459,16 @@
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000015
+      },
+      {
+        "id": 2000046,
+        "name": "vector",
+        "schema": "extensions",
+        "format": "vector",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
       }
     ]
   },
@@ -5180,6 +5246,13 @@
             "partial": false
           },
           {
+            "name": "notes_embedding_idx",
+            "columns": ["embedding"],
+            "unique": false,
+            "primary": false,
+            "partial": false
+          },
+          {
             "name": "notes_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
@@ -5512,6 +5585,18 @@
         "securityDefiner": true,
         "settings": {
           "search_path": "\"\""
+        }
+      },
+      {
+        "schema": "public",
+        "name": "search_notes",
+        "signature": "query vector, k integer",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": false,
+        "settings": {
+          "search_path": "\"\"",
+          "hnsw.iterative_scan": "strict_order"
         }
       }
     ],

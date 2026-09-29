@@ -1,0 +1,101 @@
+---
+title: Vector search
+description: Nearest-neighbour search with pgvector that respects RLS and still returns k rows per tenant.
+---
+
+Semantic search over embeddings is an `order by embedding <=> query limit k`.
+In a multi-tenant app, RLS adds `where org_id = ...` to that query, and an
+HNSW index can't apply it while scanning: it finds the `k` nearest rows
+across all tenants, then RLS drops the ones the caller can't see. A tenant
+with a small share of the data often gets fewer than `k` results, or none.
+
+pgvector 0.8 fixed this with
+[iterative index scans](https://github.com/pgvector/pgvector#iterative-index-scans):
+with `hnsw.iterative_scan` on, the scan continues until `k` visible rows are
+found. The `vector-search` kit module writes one search function per table
+with it set, and `db.$search` calls it.
+
+## Setup
+
+List the embedding columns:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  vectorSearch: {
+    chunks: 'embedding', // cosine distance
+    'docs.pages': { column: 'embedding', distance: 'inner_product' }, // or 'l2'
+  },
+  sql: { kit: ['vector-search'] },
+});
+```
+
+```bash
+better-supabase sql sync
+supabase db diff -f vector_search
+```
+
+For `chunks` this writes:
+
+```sql
+create or replace function public.search_chunks(query extensions.vector, k integer default 10)
+returns setof public.chunks
+language sql stable security invoker
+set search_path = ''
+set hnsw.iterative_scan = 'strict_order'
+as $$
+  select t.* from public.chunks t
+  where t.embedding is not null
+  order by t.embedding operator(extensions.<=>) query
+  limit least(greatest(k, 1), 1000)
+$$;
+```
+
+The function is `security invoker`, so the caller's RLS policies run inside
+the scan. It is granted to `authenticated` and `service_role`; grant it to
+`anon` yourself for public search. Create the index with the operator class
+that matches the distance:
+
+```sql
+create index on public.chunks using hnsw (embedding extensions.vector_cosine_ops);
+```
+
+## Searching
+
+```ts
+const embedding = await embed(question); // number[]
+const result = await ctx.db.$search('chunks', {
+  vector: embedding,
+  k: 8,
+  select: ['id', 'content', 'documentId'],
+});
+```
+
+- Rows come back nearest first, typed from the generated schema, in your
+  configured casing. `select` and `include` work as in `findMany`.
+- `where` filters the `k` rows the search returns, so it can return fewer. Put
+  filters that should shape the search (the tenant, a document set) in RLS.
+- `vector` is a `number[]` or pgvector text (`'[0.1,0.2]'`). It is sent in a
+  POST body: embeddings are too long for a URL. So a search counts toward
+  [write rate limits](/docs/kits/sql#rate-limiting-writes) and goes to the
+  primary with [read replicas](/docs/guides/read-replicas).
+- It runs over PostgREST and over [`better-supabase/postgres`](/docs/auth/postgres)
+  alike. A table without a search function fails with a hint to add it to
+  `vectorSearch`.
+
+`strict_order` returns rows in exact distance order. For large tables where
+approximate order is enough, change the setting in the function to
+`relaxed_order`, and raise `hnsw.max_scan_tuples` if a tenant's rows are
+very sparse.
+
+## Example
+
+The Next.js example stores a 3-dimensional `notes.embedding` and lists the
+notes nearest to the latest one on its customers page
+(`src/features/notes/note-queries.ts`). It needs no embedding model: the
+query vector is a stored embedding.
+
+## Custom executors
+
+`db.$search` reads through `SelectOp.source`. An executor opts in with
+`functionSources: true`; `testExecutor` then checks that it reads the function
+rather than the table. See [Interfaces](/docs/extending/interfaces#executor).

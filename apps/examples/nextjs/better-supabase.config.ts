@@ -35,5 +35,7 @@ export default defineConfig({
   // Rows store the object path; URLs are built when rendering.
   storagePaths: { 'customers.logo_path': 'customerLogos' },
   readSets: ['src/lib/read-sets.ts'],
-  sql: { kit: ['read-sets', 'realtime-tables', 'rate-limit'] },
+  // `search_notes(query, k)` for `db.$search('notes', …)`.
+  vectorSearch: { notes: 'embedding' },
+  sql: { kit: ['read-sets', 'realtime-tables', 'rate-limit', 'vector-search'] },
 });

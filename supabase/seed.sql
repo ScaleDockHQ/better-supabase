@@ -19,8 +19,10 @@ insert into public.customer_tags (customer_id, tag_id, organization_id) values
 insert into public.locations (organization_id, customer_id, label, city, is_primary) values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'HQ', 'Amsterdam', true);
 
-insert into public.notes (organization_id, customer_id, kind, body) values
-  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'meeting', 'Kickoff');
+insert into public.notes (organization_id, customer_id, kind, body, embedding) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'meeting', 'Kickoff', '[0.9,0.1,0.1]'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'email', 'Sent the invoice', '[0.1,0.2,0.9]'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a001', 'call', 'Asked when the invoice is due', '[0.2,0.2,0.9]');
 
 -- Two local users for the Next.js example (password: `password123`). Both
 -- belong to Acme; the admin gets a row in rbac.user_roles, so the custom

@@ -67,6 +67,9 @@ export function routedExecutor(
   const replicaBatch = replica.batch?.bind(replica);
   return {
     name: primary.name,
+    ...(primary.functionSources && replica.functionSources
+      ? { functionSources: true }
+      : {}),
     async execute(op, context) {
       if (op.kind === 'select' && !state.pinned)
         return replica.execute(op, context);

@@ -239,6 +239,11 @@ export function integrations(): unknown[] {
     >,
     liveCount,
     useLiveCount,
+    server
+      .actingAs('u1')
+      .$search('customers', { vector: [0.1, 0.2], k: 3, select: ['id'] })
+      .map((rows) => rows.map((row) => row.id satisfies string)),
+    defineConfig({ vectorSearch: { notes: { column: 'embedding' } } }),
     fromBetterResult(
       toBetterResult(
         { ok: true, data: 1, error: null },

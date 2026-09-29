@@ -1,3 +1,4 @@
+import type { SelectOp } from '../ir/types.ts';
 import type {
   AnyFunctions,
   AnyModels,
@@ -46,6 +47,7 @@ import {
   type ThrowMapper,
   withErrorMapper,
 } from './result.ts';
+import { type SearchInput, vectorLiteral } from './search.ts';
 import {
   createSpecs,
   isQuerySpec,
@@ -388,6 +390,68 @@ export class BetterSupabase<
         }
         return many(target, options?.signal, true);
       },
+      $search: (name: string, args: SearchInput) =>
+        AsyncResult.from(async () => {
+          const table = Object.hasOwn(this.meta.tables, name)
+            ? this.meta.tables[name]
+            : undefined;
+          if (!table) {
+            return err(
+              dbError(
+                'invalid_request',
+                `db.$search(): unknown table "${name}"`,
+              ),
+            );
+          }
+          if (!base.functionSources) {
+            return err(
+              dbError(
+                'invalid_request',
+                `db.$search() reads from a function; the ${base.name} executor doesn't support that`,
+                { table: table.key },
+              ),
+            );
+          }
+          const query = vectorLiteral(args.vector);
+          const k = args.k ?? 10;
+          if (query === undefined || !Number.isInteger(k) || k < 1) {
+            return err(
+              dbError(
+                'invalid_input',
+                'db.$search() needs a vector of finite numbers and a positive integer k',
+                { table: table.key },
+              ),
+            );
+          }
+          const { builder } = runner.runtime;
+          const op: SelectOp = {
+            kind: 'select',
+            table,
+            selection: builder.selection(table, args.select, args.include),
+            where: builder.where(table, args.where),
+            orderBy: [],
+            limit: k,
+            offset: undefined,
+            count: undefined,
+            head: false,
+            single: undefined,
+            source: {
+              schema: table.schema,
+              name: `search_${table.name}`,
+              args: { query, k },
+            },
+          };
+          const result = await runner.run(op, {}, args.signal);
+          if (result.ok) return ok(result.data.rows);
+          const missing =
+            result.error.code === 'PGRST202' || result.error.code === '42883';
+          return missing
+            ? err({
+                ...result.error,
+                hint: `Add "${table.schema}.${table.name}" to vectorSearch in better-supabase.config.ts and run \`better-supabase sql sync\`.`,
+              })
+            : result;
+        }),
     };
 
     const many = (
@@ -479,7 +543,7 @@ export class BetterSupabase<
 
     const throwAs = this.options.throwAs;
     if (throwAs) {
-      for (const name of ['$rpc', '$run', '$many']) {
+      for (const name of ['$rpc', '$run', '$many', '$search']) {
         db[name] = mapThrows(db[name] as AnyMethod, throwAs);
       }
     }

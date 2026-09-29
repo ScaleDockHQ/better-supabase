@@ -131,6 +131,12 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
     // Relation aggregates and the grouped status count render with the rows.
     expect(html).toMatch(/\d+(?:<!-- -->)? notes/);
     expect(html).toMatch(/\d+ (?:lead|active|archived)/);
+    // Nearest first, from `db.$search` over the seeded note embeddings.
+    const similar = html.slice(html.indexOf('data-testid="similar-notes"'));
+    expect(similar.indexOf('Sent the invoice')).toBeGreaterThan(0);
+    expect(similar.indexOf('Sent the invoice')).toBeLessThan(
+      similar.indexOf('Kickoff'),
+    );
     expect(
       await (await get('/customers', { cookie: await other.cookie() })).text(),
     ).not.toContain(name);

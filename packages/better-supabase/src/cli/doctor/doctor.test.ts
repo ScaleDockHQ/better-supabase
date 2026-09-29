@@ -784,7 +784,7 @@ uri = "https://example.com/hook"
     });
 
     it('keeps functions, role settings and hooks from saved snapshots', () => {
-      expect(base.extras.functions).toHaveLength(3);
+      expect(base.extras.functions).toHaveLength(4);
       expect(base.extras.hooks?.map((hook) => hook.name)).toEqual([
         'custom_access_token_hook',
       ]);

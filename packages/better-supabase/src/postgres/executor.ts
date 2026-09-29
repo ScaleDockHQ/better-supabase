@@ -91,6 +91,7 @@ async function run(
 export function postgresExecutor(client: SqlClient): Executor {
   return {
     name: 'postgres',
+    functionSources: true,
     execute: (op, context) => executeOn(client, op, context),
     async batch(ops, context) {
       if (!client.transaction) {

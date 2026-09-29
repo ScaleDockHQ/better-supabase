@@ -320,7 +320,16 @@ function returningRows(
 export function compileSql(op: Operation): SqlPlan {
   const compiler = new SqlCompiler();
   const alias = compiler.alias();
-  const from = `${tableRef(op.table)} as ${alias}`;
+  const source = op.kind === 'select' ? op.source : undefined;
+  const from = source
+    ? `${quoteIdent(source.schema)}.${quoteIdent(source.name)}(${Object.entries(
+        source.args,
+      )
+        .map(
+          ([name, value]) => `${quoteIdent(name)} => ${compiler.param(value)}`,
+        )
+        .join(', ')}) as ${alias}`
+    : `${tableRef(op.table)} as ${alias}`;
 
   switch (op.kind) {
     case 'select': {

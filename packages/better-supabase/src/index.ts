@@ -157,6 +157,7 @@ export type { EnrichDatabase } from './schema/enrich.ts';
 export type { StoragePath } from './storage/path.ts';
 export type * from './schema/types.ts';
 
+export type { SearchArgs } from './core/search.ts';
 export type * from './ir/args.ts';
 export type * from './ir/types.ts';
 export { escapeLike } from './ir/build.ts';

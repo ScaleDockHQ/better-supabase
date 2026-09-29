@@ -145,4 +145,43 @@ describe('sameKitFile', () => {
     );
     expect(renderKit(['grants'])[0]!.contents).not.toContain('config.expose');
   });
+
+  it('writes a search function per vectorSearch table', () => {
+    const config = resolveConfig(
+      {
+        vectorSearch: {
+          chunks: 'embedding',
+          'docs.pages': { column: 'vec', distance: 'inner_product' },
+        },
+      },
+      '/project',
+    );
+    const [file] = renderKit(['vector-search'], kitLayout(config));
+    expect(file!.path).toBe(
+      'supabase/schemas/900_better_supabase_18_vector_search.sql',
+    );
+    expect(file!.contents).toContain(
+      [
+        'create or replace function "public"."search_chunks"(query extensions.vector, k integer default 10)',
+        'returns setof "public"."chunks"',
+        'language sql',
+        'stable',
+        'security invoker',
+        "set search_path = ''",
+        "set hnsw.iterative_scan = 'strict_order'",
+      ].join('\n'),
+    );
+    expect(file!.contents).toContain(
+      'order by t."embedding" operator(extensions.<=>) query',
+    );
+    expect(file!.contents).toContain(
+      'order by t."vec" operator(extensions.<#>) query',
+    );
+    expect(file!.contents).toContain(
+      'grant execute on function "docs"."search_pages"(extensions.vector, integer) to authenticated, service_role;',
+    );
+    expect(renderKit(['vector-search'])[0]!.contents).not.toContain(
+      'config.vectorSearch',
+    );
+  });
 });

@@ -233,6 +233,14 @@ export interface EntitlementsConfig {
   readonly key?: string;
 }
 
+/** pgvector distance: `<=>` (cosine), `<->` (l2) or `<#>` (negative inner product). */
+export type VectorDistance = 'cosine' | 'l2' | 'inner_product';
+
+/** The embedding column, or the column and its distance (default `cosine`). */
+export type VectorSearchConfig =
+  | string
+  | { readonly column: string; readonly distance?: VectorDistance };
+
 /** A privilege the Data API roles can be granted on a table or view. */
 export type Privilege = 'select' | 'insert' | 'update' | 'delete';
 
@@ -309,6 +317,12 @@ export interface BetterSupabaseConfig {
   readonly topics?: Readonly<Record<string, string>>;
   readonly realtime?: RealtimeConfig;
   readonly entitlements?: EntitlementsConfig;
+  /**
+   * Embedding columns, keyed by `table` or `schema.table`. The
+   * `vector-search` SQL kit module writes `search_<table>(query, k)` for each,
+   * which `db.$search(table, { vector, k })` calls.
+   */
+  readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
   readonly openapi?: OpenApiConfig;
@@ -330,6 +344,16 @@ function entitlementsOf(
     column: customer.slice(dot + 1),
     key: config.key ?? 'id',
   };
+}
+
+function vectorSearchOf(
+  config: Readonly<Record<string, VectorSearchConfig>> = {},
+): ResolvedConfig['vectorSearch'] {
+  return Object.entries(config).map(([table, entry]) =>
+    typeof entry === 'string'
+      ? { table, column: entry, distance: 'cosine' }
+      : { table, column: entry.column, distance: entry.distance ?? 'cosine' },
+  );
 }
 
 /** The config with defaults applied. */
@@ -362,6 +386,11 @@ export interface ResolvedConfig {
     readonly column: string;
     readonly key: string;
   };
+  readonly vectorSearch: readonly {
+    readonly table: string;
+    readonly column: string;
+    readonly distance: VectorDistance;
+  }[];
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<RealtimeConfig>;
   readonly sql: Required<SqlConfig>;
@@ -445,6 +474,7 @@ export function resolveConfig(
     topics: config.topics ?? {},
     realtime: { tables: config.realtime?.tables ?? [] },
     entitlements: entitlementsOf(config.entitlements),
+    vectorSearch: vectorSearchOf(config.vectorSearch),
     sql: {
       dir: config.sql?.dir ?? 'supabase/schemas',
       prefix: config.sql?.prefix ?? '900_better_supabase',

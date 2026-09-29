@@ -40,6 +40,7 @@ explicit change.
 | [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) | Adopted | `await using tx`, `using sub` |
 | [PostgREST aggregate functions (12+)](https://docs.postgrest.org/en/v12/references/api/aggregate_functions.html) | Adopted (pinned) | [`aggregate()` and `_sum`/`_avg`/`_min`/`_max` includes](/docs/repository/aggregates) |
 | [Stripe Sync Engine schema](https://github.com/supabase/stripe-sync-engine/tree/v0.48.5/packages/sync-engine/src/database/migrations) | Adopted (pinned) | the [`entitlements` kit module](/docs/kits/entitlements) reads `stripe.active_entitlements` |
+| [pgvector iterative index scans (0.8+)](https://github.com/pgvector/pgvector#iterative-index-scans) | Adopted (pinned) | the [`vector-search` kit module](/docs/kits/vector-search) sets `hnsw.iterative_scan` |
 | [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | Adopted | `doctor --format sarif` |
 | [Agent Skills](https://agentskills.io) | Adopted | `skills/` in the package, `better-supabase skills install` |
 | [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org) | Adopted | repo root and these docs (`/llms.txt`, `/llms-full.txt`) |
@@ -58,4 +59,5 @@ SPEC_PINS.openapi; // default OpenAPI version emitted
 SPEC_PINS.postgrestAggregates; // PostgREST version whose aggregate syntax is used
 SPEC_PINS.serverTiming; // W3C Server Timing draft the proxy header follows
 SPEC_PINS.stripeSyncEngine; // Stripe Sync Engine release whose tables the entitlements module reads
+SPEC_PINS.pgvector; // minimum pgvector version for the vector-search module's iterative scans
 ```

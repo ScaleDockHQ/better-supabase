@@ -135,6 +135,7 @@ export const notesRow: v.GenericSchema<RowOf<'notes'>> = v.object({
   attachments: v.nullable(json),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  embedding: v.nullable(v.string()),
 });
 export const notesInsert: v.GenericSchema<InsertOf<'notes'>> = v.object({
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -144,6 +145,7 @@ export const notesInsert: v.GenericSchema<InsertOf<'notes'>> = v.object({
   attachments: v.exactOptional(v.nullable(json)),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  embedding: v.exactOptional(v.nullable(v.string())),
 });
 export const notesUpdate: v.GenericSchema<UpdateOf<'notes'>> = v.object({
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -153,6 +155,7 @@ export const notesUpdate: v.GenericSchema<UpdateOf<'notes'>> = v.object({
   attachments: v.exactOptional(v.nullable(json)),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  embedding: v.exactOptional(v.nullable(v.string())),
 });
 
 export const notificationsRow: v.GenericSchema<RowOf<'notifications'>> = v.object({

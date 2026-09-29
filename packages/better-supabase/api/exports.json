@@ -155,6 +155,7 @@
       "RpcNotice",
       "RpcOptions",
       "ScopeFor",
+      "SearchArgs",
       "Specs",
       "StandardSchemaV1",
       "StoragePath",
@@ -207,6 +208,8 @@
       "TenantConfig",
       "TimestampsConfig",
       "ValibotGeneratorOptions",
+      "VectorDistance",
+      "VectorSearchConfig",
       "ZodGeneratorOptions"
     ]
   },

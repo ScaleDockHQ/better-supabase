@@ -65,6 +65,9 @@ describe('extension interfaces', () => {
     expectTypeOf<NonNullable<Executor['batch']>>()
       .parameter(0)
       .toEqualTypeOf<readonly Operation[]>();
+    expectTypeOf<Executor['functionSources']>().toEqualTypeOf<
+      boolean | undefined
+    >();
   });
 });
 

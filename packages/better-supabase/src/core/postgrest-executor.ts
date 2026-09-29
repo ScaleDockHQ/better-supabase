@@ -1,4 +1,4 @@
-import type { Operation } from '../ir/types.ts';
+import type { FunctionSource, Operation } from '../ir/types.ts';
 import type { ExecuteContext, ExecuteResult, Executor } from './executor.ts';
 
 import { compilePostgrest, type PostgrestPlan } from '../compile/postgrest.ts';
@@ -68,7 +68,11 @@ export interface PostgrestClientLike {
 
 interface ScopedClient {
   from(relation: string): unknown;
-  rpc?(fn: string, args?: object, options?: { get?: boolean }): unknown;
+  rpc?(
+    fn: string,
+    args?: object,
+    options?: { get?: boolean; count?: string; head?: boolean },
+  ): unknown;
 }
 
 interface LooseClient extends ScopedClient {
@@ -86,6 +90,21 @@ function fromTable(
   table: string,
 ): BuilderLike {
   return scope(client, schema).from(table) as BuilderLike;
+}
+
+/** A POST to the function: arguments such as query vectors are too long for a URL. */
+function fromFunction(
+  client: PostgrestClientLike,
+  source: FunctionSource,
+  options: { count?: string; head?: boolean },
+): BuilderLike {
+  const scoped = scope(client, source.schema);
+  if (!scoped.rpc) {
+    throw new TypeError(
+      `better-supabase: the client has no rpc(), needed to read from ${source.name}`,
+    );
+  }
+  return scoped.rpc(source.name, source.args, options) as BuilderLike;
 }
 
 function applyFilters(builder: BuilderLike, plan: PostgrestPlan): BuilderLike {
@@ -139,10 +158,10 @@ function build(
       const options: { count?: string; head?: boolean } = {};
       if (op.count) options.count = op.count;
       if (op.head) options.head = true;
-      let query = applyShape(
-        applyFilters(base.select(plan.select, options), plan),
-        plan,
-      );
+      const selected = op.source
+        ? fromFunction(client, op.source, options).select(plan.select)
+        : base.select(plan.select, options);
+      let query = applyShape(applyFilters(selected, plan), plan);
       if (op.single === 'one') query = query.single();
       if (op.single === 'maybe') query = query.maybeSingle();
       return query;
@@ -192,6 +211,7 @@ const aborted = (): DbError => dbError('aborted', 'The request was aborted');
 export function postgrestExecutor(client: PostgrestClientLike): Executor {
   return {
     name: 'postgrest',
+    functionSources: true,
     async execute(
       op: Operation,
       context: ExecuteContext,

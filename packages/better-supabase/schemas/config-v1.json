@@ -242,6 +242,27 @@
         }
       }
     },
+    "vectorSearch": {
+      "description": "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL kit module writes `search_<table>(query, k)` for each.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "description": "The embedding column." },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["column"],
+            "properties": {
+              "column": { "type": "string" },
+              "distance": {
+                "enum": ["cosine", "l2", "inner_product"],
+                "default": "cosine"
+              }
+            }
+          }
+        ]
+      }
+    },
     "realtime": {
       "description": "Live query change broadcasts.",
       "type": "object",

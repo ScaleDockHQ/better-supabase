@@ -108,6 +108,7 @@ describe('config JSON Schema', () => {
       topics: true,
       realtime: true,
       entitlements: true,
+      vectorSearch: true,
       sensitive: true,
       storagePaths: true,
       expose: true,

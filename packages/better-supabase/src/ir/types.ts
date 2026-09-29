@@ -128,6 +128,18 @@ export interface SelectOp {
   /** Only count, return no rows. */
   readonly head: boolean;
   readonly single: 'one' | 'maybe' | undefined;
+  /**
+   * Read from this set-returning function instead of the table (`db.$search`).
+   * Only executors with `functionSources` honor it.
+   */
+  readonly source?: FunctionSource;
+}
+
+/** A function returning `setof <table>`, called with named arguments. */
+export interface FunctionSource {
+  readonly schema: string;
+  readonly name: string;
+  readonly args: Readonly<Record<string, unknown>>;
 }
 
 export interface InsertOp {

@@ -1,4 +1,12 @@
 {
   "title": "Kits",
-  "pages": ["list", "storage", "realtime", "sql", "jobs", "entitlements"]
+  "pages": [
+    "list",
+    "storage",
+    "realtime",
+    "sql",
+    "jobs",
+    "entitlements",
+    "vector-search"
+  ]
 }
