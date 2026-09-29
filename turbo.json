@@ -7,7 +7,7 @@
     "env": ["CI", "NODE_ENV"],
     "envMode": "strict",
     "inputs": ["tsconfig.json"],
-    "passThroughEnv": ["LEFTHOOK", "DOCKER_HOST", "TESTCONTAINERS_*"]
+    "passThroughEnv": ["LEFTHOOK", "DOCKER_HOST"]
   },
   "tasks": {
     "build": {
