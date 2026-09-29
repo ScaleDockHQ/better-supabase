@@ -125,7 +125,7 @@ describe.skipIf(!live)('Realtime kit', async () => {
           .customers.create({ organizationId: ACME, name: 'Realtime Co', kvk })
           .orThrow();
       });
-    });
+    }, 15_000);
     received = await got;
     const change = rowChange(sb, 'customers', received);
     expect(change).toMatchObject({
@@ -134,7 +134,7 @@ describe.skipIf(!live)('Realtime kit', async () => {
       record: { name: 'Realtime Co', organizationId: ACME, kvk },
     });
     expect(rowChange(sb, 'notes', received)).toBeNull();
-  });
+  }, 20_000);
 
   it('refuses private topics of another tenant', async () => {
     const sub = customers.subscribe(other, { orgId: ACME }, {});
