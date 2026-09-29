@@ -332,6 +332,29 @@ describe('writes', () => {
     });
   });
 
+  it('hints at missing Data API grants on permission errors', async () => {
+    const reply = (message: string) =>
+      capturingClient(() => ({
+        status: 403,
+        body: { code: '42501', message, details: null, hint: null },
+      })).client;
+    const denied = await sbCamel
+      .connect(reply('permission denied for table tags'))
+      .tags.findMany();
+    expect(denied.error).toMatchObject({
+      kind: 'forbidden',
+      status: 403,
+      hint: expect.stringContaining('add tags to `expose`'),
+    });
+    const rls = await sbCamel
+      .connect(
+        reply('new row violates row-level security policy for table "tags"'),
+      )
+      .tags.create({ organizationId: 'o', name: 'vip' });
+    expect(rls.error?.kind).toBe('forbidden');
+    expect(rls.error?.hint).toBeUndefined();
+  });
+
   it('deletes by composite key and reports not_found for zero rows', async () => {
     const { client, last } = capturingClient(() => ({
       status: 204,

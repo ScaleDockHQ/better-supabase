@@ -3,10 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { defineSupabase } from '../core/define.ts';
+import { mapDbError, type RawDbError } from '../core/errors.ts';
 import { schema } from '../fixtures/generated-camel.ts';
 import { createIdempotency, createInbox, createJobs } from '../jobs/index.ts';
 import { createPostgres } from '../postgres/pool.ts';
-import { SQL_MODULES } from '../sql/kit.ts';
+import { renderKit, SQL_MODULES } from '../sql/kit.ts';
 import { asUser } from '../testing/as-user.ts';
 import { signWebhook } from '../webhooks/index.ts';
 
@@ -90,6 +91,46 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
   it('is idempotent', async () => {
     for (const module of Object.values(SQL_MODULES)) {
       if (module.target === 'schema') await pool.query(module.sql);
+    }
+  });
+
+  it('grants tables in expose to the Data API roles', async () => {
+    const name = `bs_grants_${RUN}`;
+    const read = async (): Promise<Response> => {
+      for (let attempt = 0; ; attempt++) {
+        const response = await fetch(`${url}/rest/v1/${name}?select=id`, {
+          headers: { apikey: publishableKey },
+        });
+        const body = (await response.clone().json()) as { code?: string };
+        if (body.code !== 'PGRST205' || attempt === 20) return response;
+        await new Promise((done) => setTimeout(done, 250));
+      }
+    };
+    try {
+      await pool.query(`
+        create table public.${name} (id int primary key);
+        alter table public.${name} enable row level security;
+        create policy "read" on public.${name} for select using (true);
+        revoke all on public.${name} from anon, authenticated;
+        notify pgrst, 'reload schema';
+      `);
+      const denied = await read();
+      const raw = (await denied.json()) as RawDbError;
+      expect(raw.code).toBe('42501');
+      expect(mapDbError(raw)).toMatchObject({
+        kind: 'forbidden',
+        hint: expect.stringContaining('expose'),
+      });
+
+      const [file] = renderKit(['grants'], {
+        grants: [{ table: name, role: 'anon', privileges: ['select'] }],
+      });
+      await pool.query(file!.contents);
+      const allowed = await read();
+      expect(allowed.status).toBe(200);
+      expect(await allowed.json()).toEqual([]);
+    } finally {
+      await pool.query(`drop table if exists public.${name}`);
     }
   });
 

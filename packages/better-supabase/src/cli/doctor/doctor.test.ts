@@ -133,6 +133,46 @@ describe('doctor rules', () => {
     });
   });
 
+  it('flags tables the Data API roles cannot reach', async () => {
+    const snap = snapshot((tables) => {
+      table(tables, 'tags').grants = [];
+      table(tables, 'notes').grants = [
+        { role: 'PUBLIC', privileges: ['SELECT'] },
+      ];
+    });
+    const only = RULES.filter((rule) => rule.code === 'BS106');
+    const plain = await runRules(context(snap), only);
+    expect(plain.map((finding) => finding.target)).toEqual([
+      'public.tags:authenticated',
+    ]);
+    expect(plain[0]!.message).toContain(
+      'grant select on table public.tags to authenticated;',
+    );
+
+    const exposed = await runRules(
+      context(snap, {
+        config: resolveConfig(
+          {
+            expose: {
+              notes: ['select', 'insert'],
+              'public.organizations': { anon: ['select'] },
+            },
+            tables: { tags: { exclude: true } },
+          },
+          '/project',
+        ),
+        configToml: toml('[api]\nauto_expose_new_tables = false\n'),
+      }),
+      only,
+    );
+    expect(exposed.map((finding) => finding.target)).toEqual([
+      'public.notes:authenticated',
+      'public.organizations:anon',
+    ]);
+    expect(exposed[0]!.message).toMatch(/no insert on public\.notes/);
+    expect(exposed[0]!.message).toContain('auto_expose_new_tables = false');
+  });
+
   it('reports Supabase advisor lints with their own severity and links', async () => {
     const lint = (overrides: Partial<Lint>): Lint => ({
       name: 'rls_disabled_in_public',

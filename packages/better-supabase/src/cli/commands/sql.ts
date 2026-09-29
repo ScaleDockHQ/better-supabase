@@ -40,6 +40,14 @@ export function kitLayout(
     testsDir,
     version: VERSION,
     realtimeTables: config.realtime.tables,
+    grants: Object.entries(config.expose).flatMap(([table, roles]) => [
+      { table, role: 'anon' as const, privileges: roles.anon },
+      {
+        table,
+        role: 'authenticated' as const,
+        privileges: roles.authenticated,
+      },
+    ]),
     jsonSchemas: Object.entries(config.json).flatMap(([key, entry]) => {
       if (!entry.schema) return [];
       const dot = key.lastIndexOf('.');

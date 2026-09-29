@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { resolveJsonSchema } from '../config/index.ts';
+import { kitLayout } from '../cli/commands/sql.ts';
+import { resolveConfig, resolveJsonSchema } from '../config/index.ts';
 import { renderKit, resolveModules, sameKitFile, SQL_MODULES } from './kit.ts';
 
 describe('resolveModules', () => {
@@ -118,5 +119,30 @@ describe('sameKitFile', () => {
     expect(file!.contents).toContain(
       'alter table "billing"."invoices" drop constraint if exists "bs_json_lines";',
     );
+  });
+
+  it('writes Data API grants from the expose config', () => {
+    const config = resolveConfig(
+      {
+        expose: {
+          customers: ['select', 'insert', 'update', 'delete'],
+          'billing.invoices': { anon: ['select'], authenticated: ['select'] },
+        },
+      },
+      '/project',
+    );
+    const [file] = renderKit(['grants'], kitLayout(config));
+    expect(file!.path).toBe(
+      'supabase/schemas/900_better_supabase_13_grants.sql',
+    );
+    expect(file!.contents).toContain(
+      [
+        '-- config.expose',
+        'grant select, insert, update, delete on table "public"."customers" to authenticated;',
+        'grant select on table "billing"."invoices" to anon;',
+        'grant select on table "billing"."invoices" to authenticated;',
+      ].join('\n'),
+    );
+    expect(renderKit(['grants'])[0]!.contents).not.toContain('config.expose');
   });
 });

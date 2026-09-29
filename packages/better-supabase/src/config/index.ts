@@ -212,6 +212,26 @@ export interface RealtimeConfig {
   readonly tables?: readonly string[];
 }
 
+/** A privilege the Data API roles can be granted on a table or view. */
+export type Privilege = 'select' | 'insert' | 'update' | 'delete';
+
+/**
+ * Data API grants for one table: privileges for `authenticated`, or per
+ * role.
+ */
+export type ExposeConfig =
+  | readonly Privilege[]
+  | {
+      readonly anon?: readonly Privilege[];
+      readonly authenticated?: readonly Privilege[];
+    };
+
+/** Resolved grants for one table. */
+export interface ResolvedExpose {
+  readonly anon: readonly Privilege[];
+  readonly authenticated: readonly Privilege[];
+}
+
 export interface BetterSupabaseConfig {
   readonly $schema?: string;
   readonly source?: SourceConfig;
@@ -239,6 +259,14 @@ export interface BetterSupabaseConfig {
    * `schema.table.column`, database names), for the `noSensitiveSelect` rule.
    */
   readonly sensitive?: readonly string[];
+  /**
+   * Data API grants, keyed by `table` or `schema.table`. Supabase no longer
+   * grants new tables to `anon` and `authenticated` automatically; the
+   * `grants` SQL kit module writes these, and doctor (BS106) checks them.
+   * Tables not listed need `select, insert, update, delete` for
+   * `authenticated` (`select` for views).
+   */
+  readonly expose?: Readonly<Record<string, ExposeConfig>>;
   readonly generators?: readonly Generator[];
   /** Enables plugin flags in the generated metadata. */
   readonly plugins?: PluginFlagsConfig;
@@ -266,6 +294,7 @@ export interface ResolvedConfig {
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs: Required<CodecsConfig>;
   readonly sensitive: readonly string[];
+  readonly expose: Readonly<Record<string, ResolvedExpose>>;
   readonly generators: readonly Generator[];
   readonly plugins: {
     readonly timestamps: Required<TimestampsConfig> | undefined;
@@ -301,6 +330,12 @@ function pick<T extends object>(
   return { ...defaults, ...value } as Required<T>;
 }
 
+function resolveExpose(entry: ExposeConfig): ResolvedExpose {
+  if (Array.isArray(entry)) return { anon: [], authenticated: entry };
+  const roles = entry as Exclude<ExposeConfig, readonly Privilege[]>;
+  return { anon: roles.anon ?? [], authenticated: roles.authenticated ?? [] };
+}
+
 /** Applies defaults. Paths stay relative to `root`. */
 export function resolveConfig(
   config: BetterSupabaseConfig,
@@ -323,6 +358,12 @@ export function resolveConfig(
       numeric: config.codecs?.numeric ?? 'number',
     },
     sensitive: config.sensitive ?? [],
+    expose: Object.fromEntries(
+      Object.entries(config.expose ?? {}).map(([table, entry]) => [
+        table,
+        resolveExpose(entry),
+      ]),
+    ),
     generators: config.generators ?? [],
     plugins: {
       timestamps: pick(config.plugins?.timestamps, {

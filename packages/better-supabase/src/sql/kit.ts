@@ -1163,6 +1163,18 @@ select extensions.pass('better-supabase test helpers installed');
 select * from extensions.finish();`,
 };
 
+const GRANTS: SqlModule = {
+  name: 'grants',
+  title: 'Data API grants',
+  description:
+    'Grants the tables in the `expose` config to anon and authenticated. Supabase no longer grants new tables to the Data API roles automatically.',
+  requires: [],
+  target: 'schema',
+  sql: `-- List tables in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+-- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
+};
+
+/** New modules go at the end: the position is part of the file name. */
 export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
   Object.fromEntries(
     [
@@ -1178,6 +1190,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       REALTIME_TABLES,
       JSONB_SCHEMAS,
       PGTAP,
+      GRANTS,
     ].map((module) => [module.name, module]),
   );
 
@@ -1222,6 +1235,29 @@ export interface KitLayout {
   readonly tenantColumn?: string;
   /** Check constraints for the `jsonb-schemas` module. */
   readonly jsonSchemas?: readonly JsonSchemaCheck[];
+  /** `config.expose`: the grants the `grants` module writes. */
+  readonly grants?: readonly TableGrant[];
+}
+
+/** Privileges one Data API role gets on a table or view. */
+export interface TableGrant {
+  /** `table` or `schema.table`. */
+  readonly table: string;
+  readonly role: 'anon' | 'authenticated';
+  readonly privileges: readonly ('select' | 'insert' | 'update' | 'delete')[];
+}
+
+function tableGrants(grants: readonly TableGrant[]): string {
+  const statements = grants
+    .filter((grant) => grant.privileges.length > 0)
+    .map((grant) => {
+      const [schema, table] = grant.table.includes('.')
+        ? grant.table.split('.', 2)
+        : ['public', grant.table];
+      return `grant ${grant.privileges.join(', ')} on table ${sqlIdent(schema!)}.${sqlIdent(table!)} to ${grant.role};`;
+    });
+  if (statements.length === 0) return '';
+  return `\n-- config.expose\n${statements.join('\n')}\n`;
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
@@ -1257,6 +1293,7 @@ function moduleExtras(module: SqlModule, layout: KitLayout): string {
     );
   if (module.name === 'jsonb-schemas')
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
+  if (module.name === 'grants') return tableGrants(layout.grants ?? []);
   return '';
 }
 

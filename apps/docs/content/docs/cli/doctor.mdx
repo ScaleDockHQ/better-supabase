@@ -104,6 +104,17 @@ bloat and more.
 `delete` or `all` policy for `anon` or `public` uses `true`. Anyone can change
 rows. Restrict the policy to `authenticated` and check ownership.
 
+### BS106
+
+**Error: table not granted to the Data API.** Supabase no longer grants new
+tables to `anon` and `authenticated` (new projects from May 30, 2026, existing
+projects from October 30, 2026). Without a grant, every request fails with
+`42501` before RLS runs. Tables listed in [`expose`](/docs/guides/data-api-grants)
+need exactly the privileges listed; other tables in the generated schemas need
+`select` for `authenticated`. Add the table to `expose` and run
+`better-supabase sql add grants`, or exclude it in `tables`. When `config.toml`
+sets `[api] auto_expose_new_tables = false`, the finding says so.
+
 ## Performance
 
 ### BS204

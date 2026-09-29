@@ -70,6 +70,7 @@ describe('config JSON Schema', () => {
       topics: true,
       realtime: true,
       sensitive: true,
+      expose: true,
       sql: true,
       seed: true,
       openapi: true,

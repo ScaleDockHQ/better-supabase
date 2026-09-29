@@ -1,0 +1,72 @@
+---
+title: Data API grants
+description: Grant new tables to the Data API roles now that Supabase no longer does it for you.
+---
+
+Supabase used to grant every new table in `public` to `anon`, `authenticated`
+and `service_role`, so RLS was the only gate. That default is going away: new
+projects stopped getting it on May 30, 2026, and existing projects lose it for
+new tables on October 30, 2026. A table without a grant fails every Data API
+request with `42501 permission denied for table ...`, before any policy runs.
+
+Tables that already exist keep their grants. The tables you add after the
+cutover are the ones that break.
+
+## Declare what each role reaches
+
+List the tables and privileges in `expose`. An array means privileges for
+`authenticated`; an object sets them per role.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  expose: {
+    customers: ['select', 'insert', 'update', 'delete'],
+    organizations: ['select'],
+    'public.pricing_plans': { anon: ['select'], authenticated: ['select'] },
+  },
+  sql: { kit: ['grants'] },
+});
+```
+
+Then write the grants into your declarative schema and diff a migration:
+
+```bash
+better-supabase sql add grants
+supabase db diff -f data_api_grants
+```
+
+The `grants` module writes plain `grant ... on table ... to ...` statements.
+It only adds grants; revoke by hand what a role should lose. RLS still
+decides which rows a role sees.
+
+Tables with a `serial` column also need `usage` on the sequence for inserts
+(identity columns don't). Functions called with `db.$rpc()` need `execute`.
+
+## Find missing grants
+
+`better-supabase doctor` reports [BS106](/docs/cli/doctor#bs106) for every
+table the Data API roles can't reach. Tables in `expose` need the privileges
+listed there. Other tables in the generated schemas need at least `select`
+for `authenticated`. Exclude a table on purpose with
+`tables: { internal_x: { exclude: true } }`.
+
+If `supabase/config.toml` sets `[api] auto_expose_new_tables = false`, the
+finding says so: that's the local equivalent of the new hosted default, and
+it's the setting to use locally so you hit missing grants before production
+does.
+
+## At runtime
+
+A missing grant comes back as a `forbidden` `DbError` (status 403). Its
+`hint` keeps PostgREST's `GRANT ...` suggestion and adds a pointer to
+`expose`, so the log line tells you what to fix:
+
+```ts
+const { error } = await db.pricingPlans.findMany();
+// error.kind === 'forbidden'
+// error.hint === 'Grant the required privileges ... Supabase no longer grants new tables ... add pricing_plans to `expose` ...'
+```
+
+RLS violations (`new row violates row-level security policy`) are also
+`42501` and also `forbidden`, but have no grant hint, because granting would
+not help.

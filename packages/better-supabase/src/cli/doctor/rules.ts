@@ -269,6 +269,55 @@ export const RULES: readonly Rule[] = [
           })),
       ),
   },
+  {
+    code: 'BS106',
+    severity: 'error',
+    title: 'Table not granted to the Data API',
+    description:
+      'Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated.',
+    check: (context) => {
+      const auto = context.configToml
+        ? tomlGet(context.configToml.document, [
+            'api',
+            'auto_expose_new_tables',
+          ])
+        : undefined;
+      const note =
+        auto === false || auto === 'false'
+          ? ' config.toml sets [api] auto_expose_new_tables = false, so new tables start without grants.'
+          : '';
+      return exposed(context).flatMap((table) => {
+        if (context.config.tables[table.name]?.exclude) return [];
+        const wanted = context.config.expose[qualified(table)] ??
+          context.config.expose[table.name] ?? {
+            anon: [],
+            authenticated: ['select' as const],
+          };
+        const granted = (role: string): Set<string> =>
+          new Set(
+            table.grants
+              .filter((grant) => grant.role === role || grant.role === 'PUBLIC')
+              .flatMap((grant) =>
+                grant.privileges.map((privilege) => privilege.toLowerCase()),
+              ),
+          );
+        return (['anon', 'authenticated'] as const).flatMap((role) => {
+          const have = granted(role);
+          const missing = wanted[role].filter(
+            (privilege) => !have.has(privilege),
+          );
+          if (missing.length === 0) return [];
+          return [
+            {
+              message: `${role} has no ${missing.join(', ')} on ${qualified(table)}, so the Data API answers 42501. Add it to \`expose\` and run \`better-supabase sql add grants\`, or run \`grant ${missing.join(', ')} on table ${qualified(table)} to ${role};\`.${note}`,
+              target: `${qualified(table)}:${role}`,
+              object: tableObject(table),
+            },
+          ];
+        });
+      });
+    },
+  },
   advisorRule(
     'BS200',
     'performance',

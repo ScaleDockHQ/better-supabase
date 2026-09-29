@@ -197,6 +197,8 @@ export type ErrorMapper = (
 const CONSTRAINT_IN_MESSAGE = /constraint "([^"]+)"/;
 const KEY_COLUMNS_IN_DETAILS = /^Key \(([^)]+)\)=/;
 const COLUMN_IN_MESSAGE = /column "([^"]+)"/;
+const PERMISSION_DENIED =
+  /^permission denied for (table|view|sequence|function|schema) (\S+)/;
 
 function constraintOf(raw: RawDbError): string | undefined {
   return raw.constraint ?? CONSTRAINT_IN_MESSAGE.exec(raw.message ?? '')?.[1];
@@ -286,8 +288,20 @@ function mapBuiltin(raw: RawDbError): DbError {
         ...(constraint ? { constraint } : {}),
       });
     }
-    case '42501':
-      return dbError('forbidden', message, base);
+    case '42501': {
+      const object = PERMISSION_DENIED.exec(message);
+      const postgrestHint = base.hint?.startsWith('Grant the required');
+      if (!object || (base.hint && !postgrestHint))
+        return dbError('forbidden', message, base);
+      const advice =
+        object[1] === 'table' || object[1] === 'view'
+          ? `Supabase no longer grants new tables to the Data API roles: add ${object[2]} to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
+          : `Supabase no longer grants new objects to the Data API roles automatically; grant ${object[1] === 'function' ? 'execute' : 'usage'} on ${object[1]} ${object[2]} to the role that needs it.`;
+      return dbError('forbidden', message, {
+        ...base,
+        hint: postgrestHint ? `${base.hint} ${advice}` : advice,
+      });
+    }
     case 'P0001':
       return dbError('raised', message, base);
     case '57014':

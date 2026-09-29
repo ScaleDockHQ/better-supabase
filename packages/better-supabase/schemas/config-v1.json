@@ -198,6 +198,23 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "expose": {
+      "description": "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL kit module and checked by doctor (BS106).",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/privileges" },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "anon": { "$ref": "#/$defs/privileges" },
+              "authenticated": { "$ref": "#/$defs/privileges" }
+            }
+          }
+        ]
+      }
+    },
     "realtime": {
       "description": "Live query change broadcasts.",
       "type": "object",
@@ -252,6 +269,10 @@
     }
   },
   "$defs": {
-    "casing": { "enum": ["snake", "camel"] }
+    "casing": { "enum": ["snake", "camel"] },
+    "privileges": {
+      "type": "array",
+      "items": { "enum": ["select", "insert", "update", "delete"] }
+    }
   }
 }
