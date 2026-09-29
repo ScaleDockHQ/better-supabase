@@ -12,6 +12,7 @@ import { defineBucket, parseSize } from '../../storage/index.ts';
 import { renderFiles } from '../commands/gen.ts';
 import { kitLayout } from '../commands/sql.ts';
 import { tomlGet } from '../supabase-toml.ts';
+import { HOOK_RULES } from './hooks.ts';
 import { LIVE_RULES } from './live.ts';
 import { permissiveOverlaps, RLS_RULES } from './rls.ts';
 import {
@@ -86,6 +87,8 @@ export interface DoctorContext {
   readonly stats?: boolean;
   /** `--explain`: tables to plan and the claims to plan them as (BS212). */
   readonly explain?: ExplainRequest;
+  /** `--as`: the user to call the custom access token hook for (BS405). */
+  readonly hookUser?: string;
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
 }
@@ -727,6 +730,7 @@ const OWN_RULES: readonly Rule[] = [
 export const RULES: readonly Rule[] = [
   ...OWN_RULES,
   ...RLS_RULES,
+  ...HOOK_RULES,
   ...LIVE_RULES,
 ].sort((a, b) => a.code.localeCompare(b.code));
 

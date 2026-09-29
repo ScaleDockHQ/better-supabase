@@ -31,7 +31,7 @@ with 1 when there are errors, or with any warning under `--strict`.
 | `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`) |
 | `--stats` | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209)) |
 | `--explain <tables>` | Plan these tables under RLS ([BS212](#bs212)) |
-| `--as <uuid>` | With `--explain`: plan as this authenticated user |
+| `--as <uuid>` | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405)) |
 | `--claims <json>` | With `--explain`: plan with these JWT claims |
 
 Doctor never prints env values, only variable names and line numbers.
@@ -309,6 +309,40 @@ for you.
 **Info: local stack signs tokens with a shared secret.** Hosted projects sign
 with asymmetric keys. Run [`better-supabase keys`](/docs/cli/local#keys) so
 local tokens verify through JWKS, the same as in production.
+
+### BS404
+
+**Error: Auth hook function grants.** For every enabled
+`[auth.hook.<name>]` in `supabase/config.toml` with a
+`pg-functions://postgres/<schema>/<function>` URI, doctor introspects the
+function, even in a schema outside `schemas`. Auth calls it as
+`supabase_auth_admin`, which needs `usage` on the schema and `execute` on the
+function. Nobody else should be able to call it: through the Data API, a
+client could call the custom access token hook for any user id and read the
+claims it adds. The finding lists the SQL that fixes it:
+
+```sql
+grant usage on schema rbac to supabase_auth_admin;
+grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase_auth_admin;
+revoke execute on function rbac.custom_access_token_hook(event jsonb) from authenticated, anon, public;
+```
+
+A hook whose function doesn't exist is reported at its `config.toml` line,
+because every sign-in fails until it does. Snapshots taken before the hook
+was configured skip it; run `better-supabase introspect` again.
+
+### BS405
+
+**Warning: custom access token hook shape.** Auth runs the hook on every
+sign-in and token refresh. Declare it `stable` and give it
+`set search_path = ''`, qualifying every table it reads.
+
+The claims it returns travel with every request, in the session cookie and in
+the `Authorization` header. With `--as <uuid>`, doctor calls the hook for that
+user the way Auth does, as `supabase_auth_admin` with the user's standard
+claims, in a transaction that is rolled back. It warns when the returned
+claims are over 2 KB. Keep ids and roles in the token and look everything
+else up. This needs a direct connection (local stack or `--db-url`).
 
 ## Env files
 

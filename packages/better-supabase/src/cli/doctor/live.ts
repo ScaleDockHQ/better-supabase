@@ -28,10 +28,12 @@ export const EXPLAIN_LIMIT = 1000;
 const escape = (name: string): string =>
   name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`;
-const literal = (text: string): string => `'${text.replaceAll("'", "''")}'`;
+export const ident = (name: string): string =>
+  `"${name.replaceAll('"', '""')}"`;
+export const literal = (text: string): string =>
+  `'${text.replaceAll("'", "''")}'`;
 
-const errorText = (cause: unknown): string =>
+export const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
 const oneLine = (query: string, max = 160): string => {

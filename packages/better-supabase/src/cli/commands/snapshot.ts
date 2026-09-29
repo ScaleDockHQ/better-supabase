@@ -13,6 +13,7 @@ import {
   pgSource,
 } from '../introspect/source.ts';
 import { validateGeneratorMetadata } from '../introspect/typegen.ts';
+import { pgFunctionHooks, readSupabaseToml } from '../supabase-toml.ts';
 
 export const SNAPSHOT_SCHEMA_URL =
   'https://unpkg.com/better-supabase/schemas/snapshot-v2.json';
@@ -98,12 +99,15 @@ export async function loadSnapshot(
 ): Promise<Snapshot> {
   const path = snapshotFile(config, source);
   if (path) return readSnapshotFile(resolve(config.root, path), path);
+  const toml = await readSupabaseToml(config.root);
+  const hooks = toml ? pgFunctionHooks(toml.document) : [];
   const db = await openSource(config, env, source);
   try {
-    return await introspect(db.queryable, [
-      ...config.schemas,
-      ...EXTRA_SCHEMAS,
-    ]);
+    return await introspect(
+      db.queryable,
+      [...config.schemas, ...EXTRA_SCHEMAS],
+      { hooks },
+    );
   } finally {
     await db.close();
   }
@@ -152,6 +156,11 @@ export function parseSnapshot(
       tables: doc.extras.tables,
       buckets: doc.extras.buckets ?? [],
       realtime: doc.extras.realtime ?? [],
+      ...(doc.extras.roleSettings
+        ? { roleSettings: doc.extras.roleSettings }
+        : {}),
+      ...(doc.extras.functions ? { functions: doc.extras.functions } : {}),
+      ...(doc.extras.hooks ? { hooks: doc.extras.hooks } : {}),
     },
   };
 }

@@ -3,6 +3,8 @@ import type {
   CatalogPolicy,
   CatalogTrigger,
   ExtrasFunction,
+  ExtrasHook,
+  ExtrasHookFunction,
   ExtrasTable,
   ForeignKeyAction,
   SnapshotBucket,
@@ -94,6 +96,33 @@ where p.oid in (
   or (n.nspname = any(${schemas}) and exists (
     select 1 from unnest(p.proconfig) setting where setting not like 'search_path=%'
   ))
+order by 1, 2, 3`;
+
+/** Roles the hook checks care about: the one Auth calls it as, and the API roles. */
+const HOOK_ROLES = literalArray([
+  'supabase_auth_admin',
+  'authenticated',
+  'anon',
+]);
+
+// Auth hook functions by qualified name, with who may call them.
+const HOOKS = (names: string) => `
+select n.nspname as schema, p.proname as name,
+  pg_get_function_identity_arguments(p.oid) as signature,
+  l.lanname as language, p.provolatile as volatility,
+  p.prosecdef as security_definer, coalesce(p.proconfig, '{}')::text[] as config,
+  array(select r.rolname::text from pg_roles r
+    where r.rolname = any(${HOOK_ROLES}) and has_function_privilege(r.oid, p.oid, 'execute')
+    order by 1) as execute,
+  exists(select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+    where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_execute,
+  array(select r.rolname::text from pg_roles r
+    where r.rolname = any(${HOOK_ROLES}) and has_schema_privilege(r.oid, n.oid, 'usage')
+    order by 1) as schema_usage
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+join pg_language l on l.oid = p.prolang
+where n.nspname || '.' || p.proname = any(${names})
 order by 1, 2, 3`;
 
 const TRIGGERS = (schemas: string) => `
@@ -215,6 +244,54 @@ function settingsOf(config: readonly string[] | null): Record<string, string> {
   return settings;
 }
 
+interface HookRow extends FunctionRow {
+  execute: string[];
+  public_execute: boolean;
+  schema_usage: string[];
+}
+
+/** A hook function to introspect: `[auth.hook.<hook>]` pointing at `schema.name`. */
+export interface HookTarget {
+  readonly hook: string;
+  readonly schema: string;
+  readonly name: string;
+}
+
+const functionOf = (row: FunctionRow): ExtrasFunction => ({
+  schema: row.schema,
+  name: row.name,
+  signature: row.signature,
+  language: row.language,
+  volatility: VOLATILITY[row.volatility],
+  securityDefiner: row.security_definer,
+  settings: settingsOf(row.config),
+});
+
+/** The functions behind Auth hooks, in any schema, with their ACLs. */
+export async function readHooks(
+  db: Queryable,
+  targets: readonly HookTarget[],
+): Promise<ExtrasHook[]> {
+  if (targets.length === 0) return [];
+  const found = await rows<HookRow>(
+    db,
+    HOOKS(literalArray(targets.map((t) => `${t.schema}.${t.name}`))),
+  );
+  return targets.map((target) => ({
+    hook: target.hook,
+    schema: target.schema,
+    name: target.name,
+    functions: found
+      .filter((row) => row.schema === target.schema && row.name === target.name)
+      .map((row): ExtrasHookFunction => ({
+        ...functionOf(row),
+        execute: row.execute,
+        publicExecute: row.public_execute,
+        schemaUsage: row.schema_usage,
+      })),
+  }));
+}
+
 interface TriggerRow {
   table_id: number | string;
   name: string;
@@ -268,6 +345,7 @@ function groupById<T extends { table_id: number | string }>(
 export async function readExtras(
   db: Queryable,
   schemas: readonly string[],
+  hooks: readonly HookTarget[] = [],
 ): Promise<SnapshotExtras> {
   const list = literalArray(schemas);
   const relations = await rows<{
@@ -372,14 +450,7 @@ export async function readExtras(
     })),
     realtime: realtime.map((row) => row.name),
     roleSettings,
-    functions: functions.map((row): ExtrasFunction => ({
-      schema: row.schema,
-      name: row.name,
-      signature: row.signature,
-      language: row.language,
-      volatility: VOLATILITY[row.volatility],
-      securityDefiner: row.security_definer,
-      settings: settingsOf(row.config),
-    })),
+    functions: functions.map(functionOf),
+    ...(hooks.length > 0 ? { hooks: await readHooks(db, hooks) } : {}),
   };
 }

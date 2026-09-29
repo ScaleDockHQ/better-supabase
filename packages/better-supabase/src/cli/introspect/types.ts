@@ -36,6 +36,33 @@ export interface SnapshotExtras {
    * those schemas with `set` options. Absent in older snapshots.
    */
   readonly functions?: readonly ExtrasFunction[];
+  /**
+   * The Postgres functions `supabase/config.toml` configures as Auth hooks,
+   * in any schema. Absent in older snapshots and without a `config.toml`.
+   */
+  readonly hooks?: readonly ExtrasHook[];
+}
+
+/** An `[auth.hook.<name>]` with a `pg-functions://` URI. */
+export interface ExtrasHook {
+  /** `custom_access_token`, `send_email`, ... */
+  readonly hook: string;
+  readonly schema: string;
+  readonly name: string;
+  /** Every overload with that name; empty when the function does not exist. */
+  readonly functions: readonly ExtrasHookFunction[];
+}
+
+export interface ExtrasHookFunction extends ExtrasFunction {
+  /**
+   * Of `supabase_auth_admin`, `authenticated` and `anon`, the roles that may
+   * execute it (directly or through `public`).
+   */
+  readonly execute: readonly string[];
+  /** Whether `public` may execute it (the default until revoked). */
+  readonly publicExecute: boolean;
+  /** Of the same roles, those with `usage` on its schema. */
+  readonly schemaUsage: readonly string[];
 }
 
 /** A function as doctor needs it for RLS checks, in any schema. */

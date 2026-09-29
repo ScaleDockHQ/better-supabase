@@ -163,3 +163,35 @@ export function tomlNumber(
     return Number(value);
   return undefined;
 }
+
+/** An enabled `[auth.hook.<hook>]` backed by a Postgres function. */
+export interface PgFunctionHook {
+  readonly hook: string;
+  readonly uri: string;
+  readonly schema: string;
+  readonly name: string;
+}
+
+/** `pg-functions://postgres/<schema>/<function>` as schema and name. */
+export function parsePgFunctionUri(
+  uri: string,
+): { readonly schema: string; readonly name: string } | undefined {
+  const match = /^pg-functions:\/\/[^/]+\/([^/]+)\/([^/?#]+)$/.exec(uri.trim());
+  return match ? { schema: match[1]!, name: match[2]! } : undefined;
+}
+
+/** The enabled Auth hooks with a `pg-functions://` URI, by hook name. */
+export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
+  const hooks = tomlGet(document, ['auth', 'hook']);
+  if (typeof hooks !== 'object' || hooks === null || Array.isArray(hooks))
+    return [];
+  return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
+    if (typeof table !== 'object' || table === null || Array.isArray(table))
+      return [];
+    const { enabled, uri } = table as TomlTable;
+    if ((enabled !== true && enabled !== 'true') || typeof uri !== 'string')
+      return [];
+    const target = parsePgFunctionUri(uri);
+    return target ? [{ hook, uri, ...target }] : [];
+  });
+}

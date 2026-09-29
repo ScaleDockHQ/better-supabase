@@ -60,7 +60,8 @@ Options
   --project-ref <r> Read a hosted project through the Management API
   --stats           Report slow frequent statements from pg_stat_statements (BS209)
   --explain <t,..>  EXPLAIN ANALYZE the tables under RLS, rolled back (BS212)
-  --as <uuid>       Plan as this authenticated user
+  --as <uuid>       Plan as this authenticated user; measure the claims
+                    the custom access token hook returns for them (BS405)
   --claims <json>   Plan with these JWT claims ({"role":"authenticated",...})
 
 Checks: ${RULE_CODES.join(', ')}`;
@@ -280,9 +281,11 @@ export async function runDoctor(
   const claims = explainClaims(args);
   if ('error' in claims) return { code: 2, error: String(claims.error) };
   // --stats and --explain ask for their checks even when --only leaves them out.
+  const hookUser = flagString(args.flags, 'as');
   const asked = new Set([
     ...(stats ? ['BS209'] : []),
     ...(explainTables.length > 0 ? ['BS212'] : []),
+    ...(hookUser ? ['BS405'] : []),
   ]);
   const rules = RULES.filter(
     (rule) =>
@@ -294,15 +297,16 @@ export async function runDoctor(
   const dbUrl = flagString(args.flags, 'db-url');
   const projectRef = flagString(args.flags, 'project-ref');
   const source: SnapshotSource = {
-    // Statistics and plans need the database, not the saved snapshot.
-    ...(stats || explainTables.length > 0 ? { live: true } : {}),
+    // Statistics, plans and hook calls need the database, not the saved snapshot.
+    ...(stats || explainTables.length > 0 || hookUser ? { live: true } : {}),
     ...(snapshotPath ? { snapshotPath } : {}),
     ...(dbUrl ? { dbUrl } : {}),
     ...(projectRef ? { projectRef } : {}),
   };
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, env, source));
-  const wantsLive = rules.some((rule) => LIVE_CODES.has(rule.code));
+  const wantsLive =
+    hookUser !== undefined || rules.some((rule) => LIVE_CODES.has(rule.code));
   const opened: OpenLive =
     options.snapshot || !wantsLive
       ? {
@@ -335,6 +339,7 @@ export async function runDoctor(
     ...(opened.advisors ? { advisors: opened.advisors } : {}),
     ...(opened.database ? { database: opened.database } : {}),
     ...(stats ? { stats } : {}),
+    ...(hookUser ? { hookUser } : {}),
     ...(explainTables.length > 0
       ? { explain: { tables: explainTables, claims } }
       : {}),

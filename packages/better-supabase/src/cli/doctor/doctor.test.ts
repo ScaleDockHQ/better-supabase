@@ -8,6 +8,7 @@ import type {
   CatalogFunction,
   CatalogTable,
   ExtrasFunction,
+  ExtrasHookFunction,
   Snapshot,
 } from '../introspect/types.ts';
 import type { AdvisorSource, Lint } from './advisors.ts';
@@ -20,7 +21,11 @@ import { parseSnapshot } from '../commands/snapshot.ts';
 import { toCatalog } from '../introspect/catalog.ts';
 import { fromCatalog } from '../introspect/from-catalog.ts';
 import { run } from '../run.ts';
-import { parseTomlSubset, type SupabaseToml } from '../supabase-toml.ts';
+import {
+  parseTomlSubset,
+  pgFunctionHooks,
+  type SupabaseToml,
+} from '../supabase-toml.ts';
 import { formatReport } from './format.ts';
 import { summarizePlan } from './live.ts';
 import { type DoctorContext, RULE_CODES, RULES, runRules } from './rules.ts';
@@ -626,6 +631,191 @@ describe('doctor rules', () => {
         },
       ]);
       expect(await runRules(context(base, { database }), rule)).toEqual([]);
+    });
+  });
+
+  describe('Auth hooks', () => {
+    const HOOK_TOML = `[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/rbac/custom_access_token_hook"
+`;
+    const hookFn = (
+      overrides: Partial<ExtrasHookFunction> = {},
+    ): ExtrasHookFunction => ({
+      schema: 'rbac',
+      name: 'custom_access_token_hook',
+      signature: 'event jsonb',
+      language: 'plpgsql',
+      volatility: 'stable',
+      securityDefiner: false,
+      settings: { search_path: '""' },
+      execute: ['supabase_auth_admin'],
+      publicExecute: false,
+      schemaUsage: ['supabase_auth_admin'],
+      ...overrides,
+    });
+    const withHook = (functions: ExtrasHookFunction[]): Snapshot => ({
+      ...base,
+      extras: {
+        ...base.extras,
+        hooks: [
+          {
+            hook: 'custom_access_token',
+            schema: 'rbac',
+            name: 'custom_access_token_hook',
+            functions,
+          },
+        ],
+      },
+    });
+    const hookContext = (
+      snap: Snapshot,
+      extra: Partial<DoctorContext> = {},
+    ): DoctorContext =>
+      context(snap, { configToml: toml(HOOK_TOML), ...extra });
+    const only = (code: string) => RULES.filter((rule) => rule.code === code);
+
+    it('parses pg-functions hooks from config.toml', () => {
+      expect(
+        pgFunctionHooks(
+          parseTomlSubset(`${HOOK_TOML}
+[auth.hook.send_email]
+enabled = false
+uri = "pg-functions://postgres/public/send"
+
+[auth.hook.send_sms]
+enabled = true
+uri = "https://example.com/hook"
+`),
+        ),
+      ).toEqual([
+        {
+          hook: 'custom_access_token',
+          uri: 'pg-functions://postgres/rbac/custom_access_token_hook',
+          schema: 'rbac',
+          name: 'custom_access_token_hook',
+        },
+      ]);
+    });
+
+    it('keeps functions, role settings and hooks from saved snapshots', () => {
+      expect(base.extras.functions).toHaveLength(3);
+      expect(base.extras.hooks?.map((hook) => hook.name)).toEqual([
+        'custom_access_token_hook',
+      ]);
+    });
+
+    it('passes the fixture hook and a well-formed one', async () => {
+      expect(await codes(hookContext(base), 'BS404')).toEqual([]);
+      expect(await codes(hookContext(base), 'BS405')).toEqual([]);
+      expect(await codes(hookContext(withHook([hookFn()])))).not.toContain(
+        'BS404',
+      );
+    });
+
+    it('flags missing grants and API access (BS404)', async () => {
+      const findings = await runRules(
+        hookContext(
+          withHook([
+            hookFn({
+              execute: ['anon', 'authenticated'],
+              publicExecute: true,
+              schemaUsage: [],
+            }),
+          ]),
+        ),
+        only('BS404'),
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({
+        code: 'BS404',
+        severity: 'error',
+        object: { kind: 'function', name: 'custom_access_token_hook' },
+      });
+      const message = findings[0]!.message;
+      expect(message).toContain(
+        'grant usage on schema rbac to supabase_auth_admin;',
+      );
+      expect(message).toContain(
+        'grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase_auth_admin;',
+      );
+      expect(message).toContain('authenticated, anon, public may execute it');
+      expect(message).toContain('from authenticated, anon, public;');
+    });
+
+    it('flags a hook function that does not exist, located in config.toml', async () => {
+      const findings = await runRules(hookContext(withHook([])), only('BS404'));
+      expect(findings).toMatchObject([
+        {
+          message: expect.stringContaining('does not exist'),
+          location: { file: 'supabase/config.toml', line: 1 },
+        },
+      ]);
+    });
+
+    it('skips hooks a snapshot predates', async () => {
+      expect(
+        await codes(
+          hookContext({ ...base, extras: { ...base.extras, hooks: [] } }),
+        ),
+      ).not.toContain('BS404');
+    });
+
+    it('flags a volatile hook without an empty search_path (BS405)', async () => {
+      const findings = await runRules(
+        hookContext(
+          withHook([hookFn({ volatility: 'volatile', settings: {} })]),
+        ),
+        only('BS405'),
+      );
+      expect(findings).toMatchObject([
+        {
+          code: 'BS405',
+          severity: 'warning',
+          message: expect.stringMatching(/volatile.*search_path/),
+        },
+      ]);
+    });
+
+    it('measures the claims the hook returns with --as (BS405)', async () => {
+      const USER_ID = '11111111-1111-4111-8111-111111111111';
+      const run = async (bytes: number | null, user = true) => {
+        const queries: string[] = [];
+        const database: LiveDatabase = {
+          describe: 'test',
+          session: true,
+          async query<R>(sql: string) {
+            queries.push(sql);
+            if (
+              sql.includes('better_supabase.hook_event') &&
+              sql.includes('auth.users')
+            )
+              return (user ? [{ event: '{}' }] : []) as R[];
+            if (sql.includes('pg_roles')) return [{ member: true }] as R[];
+            if (sql.includes('octet_length')) return [{ bytes }] as R[];
+            return [] as R[];
+          },
+        };
+        const findings = await runRules(
+          hookContext(base, { database, hookUser: USER_ID }),
+          only('BS405'),
+        );
+        return { findings, queries };
+      };
+      const big = await run(4096);
+      expect(big.findings).toMatchObject([
+        {
+          severity: 'warning',
+          message: expect.stringContaining('returns 4096 bytes of claims'),
+        },
+      ]);
+      expect(big.queries[0]).toBe('begin');
+      expect(big.queries).toContain('set local role supabase_auth_admin');
+      expect(big.queries.at(-1)).toBe('rollback');
+      expect((await run(300)).findings).toEqual([]);
+      expect((await run(300, false)).findings).toMatchObject([
+        { severity: 'info', message: expect.stringContaining('no such user') },
+      ]);
     });
   });
 

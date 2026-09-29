@@ -5215,6 +5215,29 @@
           "search_path": "\"\""
         }
       }
+    ],
+    "hooks": [
+      {
+        "hook": "custom_access_token",
+        "schema": "rbac",
+        "name": "custom_access_token_hook",
+        "functions": [
+          {
+            "schema": "rbac",
+            "name": "custom_access_token_hook",
+            "signature": "event jsonb",
+            "language": "plpgsql",
+            "volatility": "stable",
+            "securityDefiner": false,
+            "settings": {
+              "search_path": "\"\""
+            },
+            "execute": ["supabase_auth_admin"],
+            "publicExecute": false,
+            "schemaUsage": ["authenticated", "supabase_auth_admin"]
+          }
+        ]
+      }
     ]
   }
 }

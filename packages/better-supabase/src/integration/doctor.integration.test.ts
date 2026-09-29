@@ -7,6 +7,7 @@ import type { Snapshot } from '../cli/introspect/types.ts';
 import { type DoctorContext, RULES, runRules } from '../cli/doctor/rules.ts';
 import { introspect } from '../cli/introspect/index.ts';
 import { pgSource } from '../cli/introspect/source.ts';
+import { parseTomlSubset } from '../cli/supabase-toml.ts';
 import { resolveConfig } from '../config/index.ts';
 
 const dbUrl =
@@ -156,3 +157,131 @@ describe.skipIf(!source)('doctor against the local stack', () => {
     });
   });
 });
+
+const hookSource = await open();
+
+describe.skipIf(!hookSource)(
+  'doctor Auth hooks against the local stack',
+  () => {
+    const db = hookSource!;
+    const HOOKS = `bs_doctor_hooks_${Date.now()}`;
+    const USER = crypto.randomUUID();
+    const database: LiveDatabase = {
+      describe: 'local stack',
+      session: true,
+      async query<R>(sql: string) {
+        return (await db.queryable.query(sql)).rows as R[];
+      },
+    };
+    const toml = (fn: string) => {
+      const text = `[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/${HOOKS}/${fn}"
+`;
+      return {
+        path: 'supabase/config.toml',
+        text,
+        document: parseTomlSubset(text),
+        parser: 'builtin' as const,
+      };
+    };
+    const run = async (fn: string, codes: string[], hookUser?: string) => {
+      const snapshot = await introspect(db.queryable, ['public'], {
+        hooks: [{ hook: 'custom_access_token', schema: HOOKS, name: fn }],
+      });
+      return runRules(
+        {
+          config: resolveConfig({ schemas: ['public'] }, '/project'),
+          snapshot,
+          configToml: toml(fn),
+          envFiles: [],
+          gitignore: '',
+          sources: [],
+          database,
+          ...(hookUser ? { hookUser } : {}),
+        },
+        RULES.filter((rule) => codes.includes(rule.code)),
+      );
+    };
+
+    beforeAll(async () => {
+      await db.queryable.query(`
+      create schema ${HOOKS};
+      create function ${HOOKS}.good(event jsonb) returns jsonb
+        language plpgsql stable set search_path = ''
+        as $$ begin
+          return jsonb_set(event, '{claims,profile}', to_jsonb(repeat('x', 3000)));
+        end $$;
+      grant usage on schema ${HOOKS} to supabase_auth_admin;
+      grant execute on function ${HOOKS}.good(jsonb) to supabase_auth_admin;
+      revoke execute on function ${HOOKS}.good(jsonb) from authenticated, anon, public;
+      create function ${HOOKS}.bad(event jsonb) returns jsonb
+        language plpgsql
+        as $$ begin return event; end $$;
+      insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
+        values ('${USER}', 'authenticated', 'authenticated', 'hook-${USER}@example.com', '{}', '{}');
+    `);
+    });
+
+    afterAll(async () => {
+      await db.queryable.query(`
+      delete from auth.users where id = '${USER}';
+      drop schema if exists ${HOOKS} cascade;
+    `);
+      await db.close();
+    });
+
+    it('introspects hook functions outside the configured schemas', async () => {
+      const snapshot = await introspect(db.queryable, ['public'], {
+        hooks: [{ hook: 'custom_access_token', schema: HOOKS, name: 'good' }],
+      });
+      expect(snapshot.extras.hooks).toEqual([
+        {
+          hook: 'custom_access_token',
+          schema: HOOKS,
+          name: 'good',
+          functions: [
+            expect.objectContaining({
+              signature: 'event jsonb',
+              volatility: 'stable',
+              settings: { search_path: '""' },
+              execute: ['supabase_auth_admin'],
+              publicExecute: false,
+              schemaUsage: ['supabase_auth_admin'],
+            }),
+          ],
+        },
+      ]);
+    });
+
+    it('flags default grants and a volatile hook without search_path', async () => {
+      const findings = await run('bad', ['BS404', 'BS405']);
+      expect(findings.map((finding) => finding.code)).toEqual([
+        'BS404',
+        'BS405',
+      ]);
+      // `public` may execute a new function, so Auth can call it, and so can everyone else.
+      expect(findings[0]!.message).toContain(
+        'authenticated, anon, public may execute it',
+      );
+      expect(findings[0]!.message).toContain(
+        `revoke execute on function ${HOOKS}.bad(event jsonb) from authenticated, anon, public;`,
+      );
+      expect(await run('good', ['BS404', 'BS405'])).toEqual([]);
+    });
+
+    it('calls the hook as supabase_auth_admin for --as and measures the claims', async () => {
+      const findings = await run('good', ['BS405'], USER);
+      expect(findings).toMatchObject([
+        {
+          code: 'BS405',
+          severity: 'warning',
+          message: expect.stringMatching(/returns \d{4} bytes of claims/),
+        },
+      ]);
+      const [who] = (await db.queryable.query('select current_user as role'))
+        .rows as { role: string }[];
+      expect(who?.role).toBe('postgres');
+    });
+  },
+);
