@@ -84,6 +84,10 @@ const customers = await db.$run(spec).orThrow();
 Server actions and route handlers that write through `db` revalidate those
 tags automatically (`cacheTags: false` turns it off).
 
+`next.cacheTags` also takes an array of specs or a
+[read set](/docs/repository/read-sets), and tags the union of the tables
+they read.
+
 ## Query specs
 
 A `QuerySpec` is a read described as plain JSON:

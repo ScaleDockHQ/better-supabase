@@ -5,6 +5,7 @@
     "filtering",
     "includes",
     "aggregates",
+    "read-sets",
     "pagination",
     "writing",
     "unique-and-errors"

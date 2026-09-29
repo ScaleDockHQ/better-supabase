@@ -44,6 +44,17 @@ export type {
   Specs,
   TableSpecs,
 } from './core/spec.ts';
+export { defineReadSet, isReadSet, readSetTables } from './core/read-set.ts';
+export type {
+  InferReadSetParams,
+  ReadSet,
+  ReadSetOptions,
+  ReadSetParams,
+  ReadSetParamType,
+  ReadSetParamTypes,
+  ReadSetParamValue,
+  ReadSetResult,
+} from './core/read-set.ts';
 export { invalidationTargets, touchedTables } from './ir/tables.ts';
 export type { CacheAdapter, CacheTarget, MemoryCache } from './core/cache.ts';
 export { consoleLogger, silentLogger } from './core/logger.ts';
@@ -71,6 +82,7 @@ export type {
   ExecuteContext,
   ExecuteResult,
   Executor,
+  RpcContext,
 } from './core/executor.ts';
 export {
   explainPostgrest,

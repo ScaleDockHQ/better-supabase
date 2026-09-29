@@ -304,6 +304,46 @@ describe('keys', () => {
   });
 });
 
+describe('read sets', () => {
+  const readSetModule = `import { defineSupabase } from ${JSON.stringify(join(src, 'core/define.ts'))};
+import { defineReadSet } from ${JSON.stringify(join(src, 'core/read-set.ts'))};
+import { schema } from ${JSON.stringify(join(src, 'fixtures/generated-camel.ts'))};
+
+const sb = defineSupabase(schema);
+
+export const chrome = defineReadSet(sb, 'chrome', { params: { orgId: 'uuid' } }, (s, p) => ({
+  customers: s.customers.count({ where: { organizationId: p.orgId, status: 'active' } }),
+}));
+`;
+
+  it('compiles config.readSets into the read-sets module and checks drift', async () => {
+    await project(
+      {},
+      {
+        'better-supabase.config.ts': `export default { readSets: ['src/read-sets.ts'], sql: { kit: ['read-sets'] } };\n`,
+        'src/read-sets.ts': readSetModule,
+      },
+    );
+    const added = await run(['sql', 'add', 'read-sets', '--cwd', dir]);
+    expect(added.stderr).toBe('');
+    const path = join(
+      dir,
+      'supabase/schemas/900_better_supabase_14_read_sets.sql',
+    );
+    const sql = await readFile(path, 'utf8');
+    expect(sql).toContain(
+      'create or replace function public.rs_chrome(p jsonb)',
+    );
+    expect(sql).toContain("((p->>'orgId')::uuid)");
+    expect((await run(['sql', 'sync', '--check', '--cwd', dir])).code).toBe(0);
+
+    await writeFile(path, sql.replace("'active'", "'lead'"));
+    const stale = await run(['sql', 'sync', '--check', '--cwd', dir]);
+    expect(stale.code).toBe(1);
+    expect(stale.stderr).toContain('read_sets');
+  });
+});
+
 describe('seed', () => {
   it('renders the seed module, refuses foreign files and checks drift', async () => {
     await project(

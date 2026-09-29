@@ -7,6 +7,7 @@ import type { Executor } from '../core/executor.ts';
 import { writeSession } from '../auth/session.ts';
 import { defineSupabase } from '../core/define.ts';
 import { DbException, dbError } from '../core/errors.ts';
+import { defineReadSet } from '../core/read-set.ts';
 import { AsyncResult, ok } from '../core/result.ts';
 import { schema } from '../fixtures/generated-camel.ts';
 import { createTestSigner } from '../testing/jwt.ts';
@@ -408,5 +409,16 @@ describe('createNext', () => {
       'bs:notes',
       'bs:customers:c1',
     );
+
+    next.cacheTags([sb.spec.tags.count(), sb.spec.notes.count()]);
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith('bs:tags', 'bs:notes');
+
+    next.cacheTags(
+      defineReadSet(sb, 'chrome', {}, (s) => ({
+        customers: s.customers.count(),
+        notes: s.notes.findMany({ include: { customer: true } }),
+      })),
+    );
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith('bs:customers', 'bs:notes');
   });
 });

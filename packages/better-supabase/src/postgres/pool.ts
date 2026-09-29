@@ -91,6 +91,7 @@ export function createPostgres(options: PostgresOptions = {}): Postgres {
       const scoped: SqlClient = {
         queryRaw: async <R>(text: string, params?: unknown[]) =>
           (await client.query(text, params)).rows as R[],
+        transaction: (inner) => inner(scoped),
       };
       const result = await fn(scoped);
       await client.query('commit');
@@ -106,6 +107,7 @@ export function createPostgres(options: PostgresOptions = {}): Postgres {
   const clientFor = (session: Session): SqlClient => ({
     queryRaw: <R>(text: string, params?: unknown[]) =>
       transaction(session, (client) => client.queryRaw<R>(text, params)),
+    transaction: (fn) => transaction(session, fn),
   });
 
   const sessionFor = (claims: SqlClaims): Session => ({

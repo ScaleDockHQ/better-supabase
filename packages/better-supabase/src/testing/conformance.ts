@@ -259,6 +259,35 @@ export function testExecutor(
         expect(!result.ok, 'calling a missing function must fail');
       },
     ],
+    executor.batch && [
+      'batch returns one result per operation, in order',
+      async () => {
+        const rows = await read();
+        const count = await captureOp(sb, (db) => db[table]!.count!());
+        const missing = {
+          ...rows,
+          table: { ...rows.table, name: '__better_supabase_missing__' },
+        } as Operation;
+        const results = await executor.batch!([rows, count, missing], context);
+        expect(
+          results.length === 3,
+          `expected 3 results, got ${results.length}`,
+        );
+        const [first, second, third] = results;
+        expect(
+          first?.ok === true && Array.isArray(first.data.rows),
+          'the first operation must return rows',
+        );
+        expect(
+          second?.ok === true && typeof second.data.count === 'number',
+          'the second operation must return a count',
+        );
+        expect(
+          third?.ok === false,
+          'a failing operation must fail on its own, as a result',
+        );
+      },
+    ],
     create && [
       'round-trips a write',
       async () => {

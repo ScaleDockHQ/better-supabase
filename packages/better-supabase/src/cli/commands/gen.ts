@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import type { GeneratedFile, ResolvedConfig } from '../../config/index.ts';
 import type { Snapshot } from '../introspect/types.ts';
 
+import { type KitFile, renderKit, sameKitFile } from '../../sql/kit.ts';
 import { emitModule } from '../gen/emit.ts';
 import { buildModel } from '../gen/model.ts';
 import { generateDatabaseTypes } from '../introspect/typegen.ts';
@@ -14,7 +15,9 @@ import {
   importPath,
   writeIfChanged,
 } from '../io.ts';
+import { compiledReadSets } from '../read-sets.ts';
 import { loadSnapshot, type SnapshotSource } from './snapshot.ts';
+import { kitLayout } from './sql.ts';
 
 export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
@@ -65,6 +68,18 @@ export async function renderFiles(
   return files;
 }
 
+/** The `read-sets` SQL kit file for `config.readSets`, if any are configured. */
+async function readSetFile(
+  config: ResolvedConfig,
+): Promise<KitFile | undefined> {
+  if (config.readSets.length === 0) return undefined;
+  const readSets = await compiledReadSets(config);
+  return renderKit(
+    ['read-sets'],
+    kitLayout(config, config.sql.testsDir, readSets),
+  )[0];
+}
+
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
   const snapshot =
@@ -81,6 +96,15 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       if (current !== file.contents)
         stale.push(display(config.root, file.path));
     }
+    const readSets = await readSetFile(config);
+    if (readSets) {
+      const path = resolve(config.root, readSets.path);
+      const current = existsSync(path)
+        ? await readFile(path, 'utf8')
+        : undefined;
+      if (!sameKitFile(current, readSets.contents))
+        stale.push(display(config.root, readSets.path));
+    }
     if (stale.length > 0) {
       return {
         code: 1,
@@ -89,7 +113,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     }
     return {
       code: 0,
-      output: `Generated files are up to date (${files.length}).`,
+      output: `Generated files are up to date (${files.length + (readSets ? 1 : 0)}).`,
     };
   }
 
@@ -98,6 +122,17 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     if (await writeIfChanged(resolve(config.root, file.path), file.contents)) {
       written.push(display(config.root, file.path));
     }
+  }
+  // Read-set modules import the generated module, so they load after it is written.
+  const readSets = await readSetFile(config);
+  if (
+    readSets &&
+    (await writeIfChanged(
+      resolve(config.root, readSets.path),
+      readSets.contents,
+    ))
+  ) {
+    written.push(display(config.root, readSets.path));
   }
   const tables = snapshot.extras.tables.filter((table) =>
     config.schemas.includes(table.schema),

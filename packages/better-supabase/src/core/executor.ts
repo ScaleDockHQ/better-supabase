@@ -28,6 +28,21 @@ export interface Executor {
   rpc?(
     name: string,
     args: Readonly<Record<string, unknown>>,
-    context: ExecuteContext & { readonly schema: string },
+    context: RpcContext,
   ): Promise<Result<unknown>>;
+  /**
+   * Runs several reads together, for `db.$many`: one transaction on a SQL
+   * connection. Returns one result per operation, in order. Optional;
+   * without it `db.$many` runs the operations in parallel.
+   */
+  batch?(
+    ops: readonly Operation[],
+    context: ExecuteContext,
+  ): Promise<readonly Result<ExecuteResult>[]>;
+}
+
+export interface RpcContext extends ExecuteContext {
+  readonly schema: string;
+  /** The function is `stable`: send it as a GET, so read replicas can serve it. */
+  readonly get?: boolean;
 }

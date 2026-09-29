@@ -252,5 +252,14 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
       });
       expect(renders[0]!.stats.calls).toBeGreaterThan(0);
     });
+
+    it('renders the dashboard read set within one database call', async () => {
+      await expectDbBudget(page, {
+        maxCalls: 1,
+        maxWaves: 1,
+        during: () => page.goto(`${base}/`),
+      });
+      await page.getByTestId('workspace-summary').waitFor();
+    });
   });
 });

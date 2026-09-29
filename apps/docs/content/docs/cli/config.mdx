@@ -54,6 +54,7 @@ export default defineConfig({
 | `buckets` | `{}` | Typed storage buckets; doctor compares them with the database and `config.toml` |
 | `topics` | `{}` | Realtime topic templates |
 | `realtime` | `{ tables: [] }` | Tables for [live queries](/docs/frontend/live-queries) |
+| `readSets` | `[]` | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL kit module |
 | `sql` | `supabase/schemas`, `900_better_supabase`, `supabase/tests` | Where generated SQL and pgTAP files go, and the [SQL kit](/docs/kits/sql) modules to keep in sync |
 | `seed` | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql` | Entry module and output of [`seed`](/docs/cli/local#seed) |
 | `openapi` | `src/lib/openapi.ts`, `openapi.json` | Entry module and output of [`openapi emit`](/docs/cli/local#openapi-emit) |

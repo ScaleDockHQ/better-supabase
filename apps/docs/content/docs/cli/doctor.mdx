@@ -169,6 +169,10 @@ is the same check as `gen --check`.
 the version this release ships. Run `better-supabase sql sync`, then
 `supabase db diff` to create a migration.
 
+For the `read-sets` module, doctor imports the modules in `readSets` and
+compares the functions they compile to. If a module can't be imported,
+doctor skips that file instead of reporting it.
+
 ### BS305
 
 **Warning: live query table without change broadcasts.** A table in

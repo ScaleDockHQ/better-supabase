@@ -17,6 +17,7 @@ import { serializeCookie } from '../auth/session.ts';
 import { toSession } from '../auth/view.ts';
 import { dbError } from '../core/errors.ts';
 import { problemResponse } from '../core/problem.ts';
+import { isReadSet, type ReadSet } from '../core/read-set.ts';
 import { validate } from '../core/standard.ts';
 import { EMPTY_STATS } from '../core/stats.ts';
 import {
@@ -162,10 +163,16 @@ export interface BetterNext<
   /** Tags the current `"use cache"` scope with a table (and row) tag. */
   cacheTag(table: Extract<keyof M, string>, id?: string | number): void;
   /**
-   * Tags the current `"use cache"` scope with every table `spec` reads (and
-   * the row of a `findById`), so any mutation that changes one revalidates it.
+   * Tags the current `"use cache"` scope with every table the specs (or a
+   * read set) read, plus the row of each `findById`, so any mutation that
+   * changes one revalidates it.
    */
-  cacheTags(spec: QuerySpec<Extract<keyof M, string>>): void;
+  cacheTags(
+    target:
+      | QuerySpec<Extract<keyof M, string>>
+      | readonly QuerySpec<Extract<keyof M, string>>[]
+      | ReadSet,
+  ): void;
   /**
    * GET handler serving a request's database totals (`?id=<request id>`) for
    * `expectDbBudget`. Answers 404 unless `debug` is on.
@@ -479,14 +486,24 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
       cacheTag(tagFor(table), ...(id === undefined ? [] : [tagFor(table, id)]));
     },
 
-    cacheTags(spec) {
-      const [id] = spec.args;
-      const row =
-        spec.method === 'findById' &&
-        (typeof id === 'string' || typeof id === 'number')
-          ? [tagFor(spec.table, id)]
-          : [];
-      cacheTag(...sb.tablesOf(spec).map((table) => tagFor(table)), ...row);
+    cacheTags(target) {
+      const specs = isReadSet(target)
+        ? Object.values(target.specs)
+        : Array.isArray(target)
+          ? target
+          : [target];
+      const tags = new Set<string>();
+      for (const spec of specs) {
+        for (const table of sb.tablesOf(spec)) tags.add(tagFor(table));
+        const [id] = spec.args;
+        if (
+          spec.method === 'findById' &&
+          (typeof id === 'string' || typeof id === 'number')
+        ) {
+          tags.add(tagFor(spec.table, id));
+        }
+      }
+      cacheTag(...tags);
     },
   });
 }

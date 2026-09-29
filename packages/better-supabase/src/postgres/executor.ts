@@ -3,11 +3,12 @@ import type {
   ExecuteResult,
   Executor,
 } from '../core/executor.ts';
+import type { Result } from '../core/result.ts';
 import type { Operation } from '../ir/types.ts';
 
 import { compileSql, type SqlPlan } from '../compile/sql.ts';
 import { dbError, mapDbError, type RawDbError } from '../core/errors.ts';
-import { err, ok, type Result, toDbError } from '../core/result.ts';
+import { err, ok, toDbError } from '../core/result.ts';
 
 /**
  * Anything that runs parameterized SQL: `ctx.postgres` from
@@ -18,6 +19,11 @@ export interface SqlClient {
     text: string,
     params?: unknown[],
   ): Promise<T[]>;
+  /**
+   * Runs `fn` on one connection in one transaction. Optional; without it
+   * `db.$many` sends its statements separately.
+   */
+  transaction?<T>(fn: (client: SqlClient) => Promise<T>): Promise<T>;
 }
 
 interface PgErrorLike {
@@ -85,38 +91,60 @@ async function run(
 export function postgresExecutor(client: SqlClient): Executor {
   return {
     name: 'postgres',
-    async execute(
-      op: Operation,
-      context: ExecuteContext,
-    ): Promise<Result<ExecuteResult>> {
-      let plan: SqlPlan;
+    execute: (op, context) => executeOn(client, op, context),
+    async batch(ops, context) {
+      if (!client.transaction) {
+        return Promise.all(ops.map((op) => executeOn(client, op, context)));
+      }
       try {
-        plan = compileSql(op);
+        return await client.transaction(async (scoped) => {
+          const results: Result<ExecuteResult>[] = [];
+          for (const op of ops) {
+            const result = await executeOn(scoped, op, context);
+            if (!result.ok) throw new BatchFailed();
+            results.push(result);
+          }
+          return results;
+        });
       } catch (cause) {
-        return err(toDbError(cause));
+        if (!(cause instanceof BatchFailed)) throw cause;
+        // A failed statement aborts the transaction; run each on its own so
+        // every operation still gets its own result.
+        return Promise.all(ops.map((op) => executeOn(client, op, context)));
       }
-      if (plan.never) return ok({ rows: [], count: 0 });
-      if (context.signal?.aborted)
-        return err(dbError('aborted', 'The request was aborted'));
-      let result: ExecuteResult;
-      try {
-        result = await run(client, plan, op);
-      } catch (cause) {
-        const raw = fromPgError(cause);
-        return err(
-          raw ? mapDbError(raw, context.errorMappers) : toDbError(cause),
-        );
-      }
-      if (op.kind === 'select' && op.single) {
-        if (result.rows.length > 1)
-          return err(
-            dbError('multiple_rows', `Expected one ${op.table.key} row`),
-          );
-        if (result.rows.length === 0 && op.single === 'one') {
-          return err(dbError('not_found', `No ${op.table.key} row matched`));
-        }
-      }
-      return ok(result);
     },
   };
+}
+
+class BatchFailed extends Error {}
+
+async function executeOn(
+  client: SqlClient,
+  op: Operation,
+  context: ExecuteContext,
+): Promise<Result<ExecuteResult>> {
+  let plan: SqlPlan;
+  try {
+    plan = compileSql(op);
+  } catch (cause) {
+    return err(toDbError(cause));
+  }
+  if (plan.never) return ok({ rows: [], count: 0 });
+  if (context.signal?.aborted)
+    return err(dbError('aborted', 'The request was aborted'));
+  let result: ExecuteResult;
+  try {
+    result = await run(client, plan, op);
+  } catch (cause) {
+    const raw = fromPgError(cause);
+    return err(raw ? mapDbError(raw, context.errorMappers) : toDbError(cause));
+  }
+  if (op.kind === 'select' && op.single) {
+    if (result.rows.length > 1)
+      return err(dbError('multiple_rows', `Expected one ${op.table.key} row`));
+    if (result.rows.length === 0 && op.single === 'one') {
+      return err(dbError('not_found', `No ${op.table.key} row matched`));
+    }
+  }
+  return ok(result);
 }

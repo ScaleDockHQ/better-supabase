@@ -15,4 +15,6 @@ export default defineConfig({
     customer_tags: crud,
     organizations: ['select'],
   },
+  readSets: ['src/lib/read-sets.ts'],
+  sql: { kit: ['read-sets'] },
 });

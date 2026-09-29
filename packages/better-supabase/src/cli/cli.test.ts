@@ -71,6 +71,7 @@ describe('config JSON Schema', () => {
       realtime: true,
       sensitive: true,
       expose: true,
+      readSets: true,
       sql: true,
       seed: true,
       openapi: true,

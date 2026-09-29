@@ -68,7 +68,7 @@ export interface PostgrestClientLike {
 
 interface ScopedClient {
   from(relation: string): unknown;
-  rpc?(fn: string, args?: object): unknown;
+  rpc?(fn: string, args?: object, options?: { get?: boolean }): unknown;
 }
 
 interface LooseClient extends ScopedClient {
@@ -221,7 +221,11 @@ export function postgrestExecutor(client: PostgrestClientLike): Executor {
         return err(toDbError(new Error('The client does not support rpc()')));
       }
       if (context.signal?.aborted) return err(aborted());
-      let query = scoped.rpc(name, args) as BuilderLike;
+      let query = (
+        context.get
+          ? scoped.rpc(name, queryArgs(args), { get: true })
+          : scoped.rpc(name, args)
+      ) as BuilderLike;
       if (context.signal) query = query.abortSignal(context.signal);
       const response = await query;
       if (response.error) {
@@ -231,6 +235,23 @@ export function postgrestExecutor(client: PostgrestClientLike): Executor {
       return ok(response.data);
     },
   };
+}
+
+/**
+ * GET arguments travel in the query string, where supabase-js would print an
+ * object as `[object Object]`; json and jsonb parameters take it as JSON.
+ */
+function queryArgs(
+  args: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(args).map(([key, value]) => [
+      key,
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? JSON.stringify(value)
+        : value,
+    ]),
+  );
 }
 
 /** The compiled plan for an operation; useful for debugging and tests. */

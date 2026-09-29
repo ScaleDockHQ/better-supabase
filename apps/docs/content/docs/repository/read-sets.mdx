@@ -1,0 +1,166 @@
+---
+title: Read sets and $many
+description: Run several reads as one round trip, a single GET to a stable function or one SQL transaction.
+---
+
+An app shell that shows an unread badge, a customer count and the latest
+note makes three requests on every navigation. Even in parallel, each costs
+a connection and a trip through PostgREST. `db.$many` runs them together:
+ad-hoc specs as one parallel wave, and registered read sets as a single
+request.
+
+## Ad-hoc reads
+
+Pass an array of [query specs](/docs/concepts/caching#query-specs). The result is a tuple, typed
+per entry:
+
+```ts
+const [customers, notes] = await db
+  .$many([
+    sb.spec.customers.findMany({ select: ['id', 'name'], limit: 10 }),
+    sb.spec.notes.count(),
+  ])
+  .orThrow();
+```
+
+Over PostgREST the specs run in parallel, as one [wave](/docs/testing#database-budget).
+Over [`better-supabase/postgres`](/docs/auth/postgres) they run on one
+connection in one transaction, through `Executor.batch`. Plugins apply to
+each spec as usual. The first error fails the whole call.
+
+## Registered read sets
+
+A read set names its reads once, with typed placeholders for parameters:
+
+```ts title="src/lib/read-sets.ts"
+import { defineReadSet } from 'better-supabase';
+
+import { sb } from './supabase.ts';
+
+export const workspaceSummary = defineReadSet(
+  sb,
+  'workspace_summary',
+  { params: { userId: 'uuid' } },
+  (s, p) => ({
+    customers: s.customers.count(),
+    mine: s.customers.count({ where: { createdBy: p.userId } }),
+    latestNote: s.notes.findFirst({
+      select: ['body', 'createdAt'],
+      orderBy: { createdAt: 'desc' },
+    }),
+  }),
+);
+```
+
+List the module in the config and add the `read-sets` SQL kit module:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  readSets: ['src/lib/read-sets.ts'],
+  sql: { kit: ['read-sets'] },
+});
+```
+
+`better-supabase gen` compiles each set into one function in the
+[`read-sets` module](/docs/kits/sql), then you create a migration with
+`supabase db diff`:
+
+```sql
+create or replace function public.rs_workspace_summary(p jsonb)
+  returns jsonb
+  language sql stable security invoker set search_path = ''
+as $rs$
+  select jsonb_build_object(
+    'customers', ...,
+    'mine', ... where t0."created_by" = ((p->>'userId')::uuid) ...,
+    'latestNote', ...
+  )
+$rs$;
+grant execute on function public.rs_workspace_summary(jsonb) to authenticated;
+```
+
+Then run it:
+
+```ts
+const summary = await db
+  .$many(workspaceSummary, { userId: session.user.id })
+  .orThrow();
+// { customers: number; mine: number; latestNote: { body: string; createdAt: string } | null }
+```
+
+| Executor | What runs |
+| --- | --- |
+| PostgREST | One GET to `rpc/rs_<name>`. The function is `stable`, so a read replica can serve it |
+| `better-supabase/postgres` | The same reads with the values bound, in one transaction. The function isn't needed |
+| Anything else | The reads in parallel |
+
+Rows come back exactly as `db.$run(spec)` would return them: same casing,
+codecs and [aggregates](/docs/repository/aggregates).
+
+### Parameters
+
+`p` holds placeholders, not values. Use them where a value goes in `where`,
+including `in` lists and string filters such as `contains`. The function
+reads each one from its `p jsonb` argument and casts it to the declared type,
+so nothing is built as dynamic SQL.
+
+| Type | TypeScript value |
+| --- | --- |
+| `uuid`, `text`, `date`, `timestamp`, `timestamptz` | `string` |
+| `int2`, `int4`, `int8`, `float4`, `float8`, `numeric` | `number` |
+| `bool` | `boolean` |
+| `<type>[]` | `readonly` array of the above |
+| `schema.type`, for example `public.note_kind` | `string` |
+
+Name enums and domains with their schema: the function runs with an empty
+`search_path`. An enum column expects its literal union, so cast the
+placeholder (`p.kind as 'call'`).
+
+Every parameter is required. A missing one fails with `invalid_request`
+before anything reaches the database. A spec taken from a read set still
+holds placeholders, so `db.$run(readSet.specs.x)` fails too; run the set.
+
+### Security
+
+The function is `security invoker`, so RLS decides what each caller reads,
+as for any other query. Execute is granted to `authenticated` only; pass
+`roles: ['anon', 'authenticated']` to open it up.
+
+Read sets run without query plugins, on both executors: the function is
+compiled once, and plugins such as `tenant` or `softDelete` add filters at
+request time. Scope read sets with RLS, or with explicit parameters and
+`where` filters.
+
+### Limits
+
+- Each entry is one select: `findMany`, `findFirst`, `findUnique`,
+  `findById`, `count`, `exists`, `aggregate` or an offset `paginate`.
+- A set has between 1 and 50 entries.
+- Names are snake_case, at most 60 characters. The function is
+  `public.rs_<name>`.
+- `gen` imports the module with Node, so relative imports need their `.ts`
+  extension (`allowImportingTsExtensions` in `tsconfig.json`), and the module
+  can't import `server-only`.
+
+## Caching
+
+In Next.js, tag a `"use cache"` scope with every table a set (or an array
+of specs) reads:
+
+```ts
+export async function getWorkspaceSummary() {
+  'use cache: private';
+  const { db, session } = await next.cached();
+  next.cacheTags(workspaceSummary);
+  return db.$many(workspaceSummary, { userId: session.user.id }).orThrow();
+}
+```
+
+Any mutation of those tables revalidates the entry. See
+[Cache Components](/docs/frameworks/next-cache-components).
+
+## Doctor
+
+[BS304](/docs/cli/doctor#bs304) reports a `read-sets` file that no longer
+matches the sets in `readSets`. Run `better-supabase gen` (or
+`better-supabase sql sync`), then `supabase db diff`.

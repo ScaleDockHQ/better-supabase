@@ -17,7 +17,10 @@ the same generator behind `supabase gen types typescript`, and writes:
 2. the main module (`output`), with models in your casing, enum and CHECK
    constants, typed constraint names, relation metadata with foreign key
    actions, and the `schema` object;
-3. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`).
+3. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`);
+4. with `readSets` configured, the `read-sets` SQL kit file: one function per
+   [read set](/docs/repository/read-sets). `gen` imports those modules after
+   writing the main module, since they import it.
 
 It doesn't need Docker or the Supabase CLI: it only needs a way to run SQL.
 Files are only rewritten when their contents change, so watchers and bundlers

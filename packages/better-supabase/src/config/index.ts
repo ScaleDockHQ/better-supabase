@@ -272,6 +272,12 @@ export interface BetterSupabaseConfig {
    * `authenticated` (`select` for views).
    */
   readonly expose?: Readonly<Record<string, ExposeConfig>>;
+  /**
+   * Modules that export `defineReadSet` results. `gen` compiles each set to
+   * a function in the `read-sets` SQL kit module. Node imports them, so
+   * relative imports need their `.ts` extension.
+   */
+  readonly readSets?: readonly string[];
   readonly generators?: readonly Generator[];
   /** Enables plugin flags in the generated metadata. */
   readonly plugins?: PluginFlagsConfig;
@@ -300,6 +306,7 @@ export interface ResolvedConfig {
   readonly codecs: Required<CodecsConfig>;
   readonly sensitive: readonly string[];
   readonly expose: Readonly<Record<string, ResolvedExpose>>;
+  readonly readSets: readonly string[];
   readonly generators: readonly Generator[];
   readonly plugins: {
     readonly timestamps: Required<TimestampsConfig> | undefined;
@@ -369,6 +376,7 @@ export function resolveConfig(
         resolveExpose(entry),
       ]),
     ),
+    readSets: config.readSets ?? [],
     generators: config.generators ?? [],
     plugins: {
       timestamps: pick(config.plugins?.timestamps, {

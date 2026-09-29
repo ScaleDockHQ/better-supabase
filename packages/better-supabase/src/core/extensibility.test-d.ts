@@ -6,6 +6,7 @@ import { describe, expectTypeOf, it } from 'vitest';
 import type { AuthResolver } from '../auth/resolve.ts';
 import type { Generator } from '../config/index.ts';
 import type { EventSink } from '../events/index.ts';
+import type { Operation } from '../ir/types.ts';
 import type { CacheAdapter } from './cache.ts';
 import type { Compiler } from './compiler.ts';
 import type { Executor } from './executor.ts';
@@ -53,6 +54,17 @@ describe('extension interfaces', () => {
     expectTypeOf<AuthResolver['resolve']>()
       .parameter(0)
       .toEqualTypeOf<Request>();
+  });
+
+  it('keeps Executor.batch optional, so existing executors still conform', () => {
+    const minimal: Executor = {
+      name: 'minimal',
+      execute: () => Promise.reject(new Error('unused')),
+    };
+    expectTypeOf(minimal).toExtend<Executor>();
+    expectTypeOf<NonNullable<Executor['batch']>>()
+      .parameter(0)
+      .toEqualTypeOf<readonly Operation[]>();
   });
 });
 

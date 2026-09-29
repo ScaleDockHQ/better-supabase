@@ -32,6 +32,7 @@ supabase db diff -f better_supabase_kit
 | `jsonb-schemas` | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below) |
 | `pgtap` | Test helpers for `supabase test db`. See [Testing](/docs/testing) |
 | `grants` | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants) |
+| `read-sets` | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets) |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. The
 `tenant` module is a template: edit the roles and policies to fit your app.

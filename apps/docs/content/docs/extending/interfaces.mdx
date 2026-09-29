@@ -40,6 +40,17 @@ export function kyselyExecutor(db: Kysely<Database>): Executor {
 const db = sb.connect(kyselyExecutor(kysely), { claims });
 ```
 
+`batch(ops, context)` is optional. `db.$many` hands it every operation that
+is ready at once and expects one `Result` per operation, in order.
+`postgresExecutor` runs them in one transaction. If one fails, it runs each
+operation on its own so the others still succeed. Without `batch`, `$many`
+runs the operations in parallel through `execute`. `testExecutor` checks
+`batch` when an executor has it.
+
+`rpc(name, args, context)` is optional too. `context.get` is set for
+`stable` functions such as [read sets](/docs/repository/read-sets). Send
+those as GET, so read replicas can serve them.
+
 ## Compiler
 
 `Compiler<TTarget>` turns an operation into what a backend runs:

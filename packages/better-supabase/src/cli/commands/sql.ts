@@ -16,6 +16,7 @@ import {
 } from '../../sql/kit.ts';
 import { flagBool, flagString } from '../args.ts';
 import { display, writeIfChanged } from '../io.ts';
+import { compiledReadSets } from '../read-sets.ts';
 import { VERSION } from '../version.ts';
 
 export const SQL_HELP = `Usage: better-supabase sql <list|add|sync|print> [modules...]
@@ -33,12 +34,14 @@ Options
 export function kitLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
+  readSets: KitLayout['readSets'] = [],
 ): KitLayout {
   return {
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,
     version: VERSION,
+    readSets,
     realtimeTables: config.realtime.tables,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: 'anon' as const, privileges: roles.anon },
@@ -69,6 +72,22 @@ function layout(config: ResolvedConfig, args: ParsedArgs): KitLayout {
   return kitLayout(config, flagString(args.flags, 'tests-dir'));
 }
 
+/** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
+async function layoutFor(
+  config: ResolvedConfig,
+  args: ParsedArgs,
+  names: readonly string[],
+): Promise<KitLayout> {
+  const needsReadSets = resolveModules(names).some(
+    (module) => module.name === 'read-sets',
+  );
+  return kitLayout(
+    config,
+    flagString(args.flags, 'tests-dir'),
+    needsReadSets ? await compiledReadSets(config) : [],
+  );
+}
+
 async function write(
   config: ResolvedConfig,
   args: ParsedArgs,
@@ -76,7 +95,7 @@ async function write(
 ): Promise<string[]> {
   const lines: string[] = [];
   const dryRun = flagBool(args.flags, 'dry-run');
-  for (const file of renderKit(names, layout(config, args))) {
+  for (const file of renderKit(names, await layoutFor(config, args, names))) {
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
     if (dryRun) {
@@ -156,7 +175,10 @@ export async function runSql(
         };
       }
       const stale: string[] = [];
-      for (const file of renderKit(config.sql.kit, layout(config, args))) {
+      for (const file of renderKit(
+        config.sql.kit,
+        await layoutFor(config, args, config.sql.kit),
+      )) {
         const current = await readFile(
           resolve(config.root, file.path),
           'utf8',

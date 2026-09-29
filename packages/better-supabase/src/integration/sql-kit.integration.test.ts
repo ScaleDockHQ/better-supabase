@@ -4,10 +4,12 @@ import { z } from 'zod';
 
 import { defineSupabase } from '../core/define.ts';
 import { mapDbError, type RawDbError } from '../core/errors.ts';
+import { defineReadSet } from '../core/read-set.ts';
 import { schema } from '../fixtures/generated-camel.ts';
 import { createIdempotency, createInbox, createJobs } from '../jobs/index.ts';
 import { createPostgres } from '../postgres/pool.ts';
 import { renderKit, SQL_MODULES } from '../sql/kit.ts';
+import { compileReadSet } from '../sql/read-sets.ts';
 import { asUser } from '../testing/as-user.ts';
 import { signWebhook } from '../webhooks/index.ts';
 
@@ -499,5 +501,108 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       { url, publishableKey },
     );
     expect(await stranger.db.customers.count().orThrow()).toBe(0);
+  });
+
+  it('read sets run as one GET and one transaction, under RLS', async () => {
+    const sb = defineSupabase(schema);
+    const chrome = defineReadSet(
+      sb,
+      `kit_${RUN}`,
+      { params: { orgId: 'uuid', kinds: 'public.note_kind[]' } },
+      (s, p) => ({
+        customers: s.customers.count({ where: { organizationId: p.orgId } }),
+        notes: s.notes.findMany({
+          select: ['id', 'kind', 'customerId'],
+          where: {
+            organizationId: p.orgId,
+            kind: { in: p.kinds as readonly ('call' | 'meeting')[] },
+          },
+          orderBy: { id: 'asc' },
+        }),
+        org: s.organizations.findFirst({
+          select: ['id', 'name'],
+          where: { id: p.orgId },
+        }),
+        busiest: s.customers.findFirst({
+          select: ['id'],
+          include: { _count: { notes: true } },
+          where: { organizationId: p.orgId },
+          orderBy: { name: 'asc' },
+        }),
+      }),
+    );
+    const [file] = renderKit(['read-sets'], {
+      readSets: [await compileReadSet(chrome)],
+    });
+    await pool.query(file!.contents);
+    await pool.query(`notify pgrst, 'reload schema'`);
+
+    try {
+      const alice = await asUser(
+        sb,
+        { sub: crypto.randomUUID(), org_id: ACME },
+        { url, publishableKey, postgres },
+      );
+      const params = { orgId: ACME, kinds: ['call', 'meeting'] };
+      let rest = await alice.db.$many(chrome, params);
+      for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        rest = await alice.db.$many(chrome, params);
+      }
+      expect(rest.error).toBeNull();
+      const sql = await alice.sql!.$many(chrome, params).orThrow();
+      expect(rest.data).toEqual(sql);
+
+      const separate = {
+        customers: await alice.db.customers
+          .count({ where: { organizationId: ACME } })
+          .orThrow(),
+        org: await alice.db.organizations
+          .findFirst({ select: ['id', 'name'], where: { id: ACME } })
+          .orThrow(),
+      };
+      await expect(alice.db.$run(chrome.specs.org).orThrow()).rejects.toThrow(
+        /placeholders/,
+      );
+      expect(separate).toEqual({
+        customers: rest.data!.customers,
+        org: rest.data!.org,
+      });
+      expect(rest.data!.customers).toBeGreaterThan(0);
+      expect(rest.data!.org).toMatchObject({ id: ACME });
+      expect(rest.data!.busiest?._count.notes).toEqual(expect.any(Number));
+
+      const stranger = await asUser(
+        sb,
+        { sub: crypto.randomUUID() },
+        { url, publishableKey, postgres },
+      );
+      const hidden = await stranger.db.$many(chrome, params).orThrow();
+      expect(hidden).toEqual({
+        customers: 0,
+        notes: [],
+        org: null,
+        busiest: null,
+      });
+    } finally {
+      await pool.query(`drop function if exists public.rs_kit_${RUN}(jsonb)`);
+    }
+  });
+
+  it('db.$many batches ad-hoc specs in one SQL transaction', async () => {
+    const sb = defineSupabase(schema);
+    const alice = await asUser(
+      sb,
+      { sub: crypto.randomUUID(), org_id: ACME },
+      { url, publishableKey, postgres },
+    );
+    const specs = [
+      sb.spec.customers.count(),
+      sb.spec.notes.findMany({ select: ['id'], orderBy: { id: 'asc' } }),
+    ] as const;
+    const rest = await alice.db.$many(specs).orThrow();
+    const sql = await alice.sql!.$many(specs).orThrow();
+    expect(sql).toEqual(rest);
+    expect(rest[0]).toBeGreaterThan(0);
   });
 });

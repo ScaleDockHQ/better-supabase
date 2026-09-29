@@ -10,6 +10,7 @@ import type { Logger } from './logger.ts';
 import type { Db } from './repository-types.ts';
 
 import { IrBuilder } from '../ir/build.ts';
+import { batchingExecutor } from './batch.ts';
 import {
   type CacheAdapter,
   type CacheTarget,
@@ -29,8 +30,15 @@ import {
   type PostgrestClientLike,
   postgrestExecutor,
 } from './postgrest-executor.ts';
+import {
+  bindParams,
+  checkParams,
+  containsPlaceholder,
+  isReadSet,
+  type ReadSet,
+} from './read-set.ts';
 import { createRepository, OperationRunner } from './repository.ts';
-import { AsyncResult, err, ok } from './result.ts';
+import { AsyncResult, err, ok, type Result } from './result.ts';
 import {
   createSpecs,
   isQuerySpec,
@@ -236,6 +244,7 @@ export class BetterSupabase<
     context: RequestContext,
     plugins: readonly AnyPlugin[],
     recorder: StatsRecorder,
+    events: EventHub = this.events,
   ): object {
     let executor = base;
     for (const plugin of plugins) {
@@ -254,7 +263,7 @@ export class BetterSupabase<
       executor,
       plugins,
       context,
-      events: this.events,
+      events,
       errorMappers,
       now: this.options.now ?? (() => new Date()),
     });
@@ -289,7 +298,113 @@ export class BetterSupabase<
       },
       $run: (spec: unknown, options?: { signal?: AbortSignal }) =>
         runSpec(db, spec, options?.signal),
+      $many: (target: unknown, ...rest: unknown[]) => {
+        if (isReadSet(target)) {
+          const [values, options] = rest as [
+            Readonly<Record<string, unknown>> | undefined,
+            { signal?: AbortSignal } | undefined,
+          ];
+          return readSet(target, values, options?.signal);
+        }
+        const [options] = rest as [{ signal?: AbortSignal } | undefined];
+        if (!Array.isArray(target)) {
+          return AsyncResult.err(
+            dbError(
+              'invalid_request',
+              'db.$many() expects an array of specs or a read set',
+            ),
+          );
+        }
+        return many(target, options?.signal, true);
+      },
     };
+
+    const many = (
+      specs: readonly unknown[],
+      signal: AbortSignal | undefined,
+      usePlugins: boolean,
+    ): AsyncResult<unknown[]> =>
+      AsyncResult.from(async () => {
+        const invalid = specs.findIndex((spec) => !isQuerySpec(spec));
+        if (invalid !== -1) {
+          return err(
+            dbError(
+              'invalid_request',
+              `db.$many() entry ${invalid} is not a QuerySpec from sb.spec`,
+            ),
+          );
+        }
+        const active = usePlugins ? plugins : [];
+        const batch = base.batch?.bind(base);
+        const batching =
+          batch && specs.length > 1
+            ? batchingExecutor({ ...base, batch }, specs.length)
+            : undefined;
+        const target = (
+          batching
+            ? this.#db(client, batching.executor, context, active, recorder)
+            : usePlugins
+              ? db
+              : this.#db(client, base, context, [], recorder)
+        ) as Record<string, unknown>;
+        const results = await Promise.all(
+          specs.map(async (spec) => {
+            try {
+              return await runSpec(target, spec, signal);
+            } finally {
+              batching?.done();
+            }
+          }),
+        );
+        const data: unknown[] = [];
+        for (const result of results) {
+          if (!result.ok) return result;
+          data.push(result.data);
+        }
+        return ok(data);
+      });
+
+    const readSet = (
+      set: ReadSet,
+      values: Readonly<Record<string, unknown>> | undefined,
+      signal: AbortSignal | undefined,
+    ): AsyncResult<Record<string, unknown>> =>
+      AsyncResult.from(async () => {
+        const problems = checkParams(set, values);
+        if (problems.length > 0) {
+          return err(
+            dbError(
+              'invalid_request',
+              `db.$many(${set.name}): ${problems.join(', ')}`,
+            ),
+          );
+        }
+        const keys = Object.keys(set.specs);
+        const bound = bindParams(set, values ?? {});
+        if (base.batch || !executor.rpc) {
+          const result = await many(
+            keys.map((key) => bound[key]),
+            signal,
+            false,
+          );
+          if (!result.ok) return result;
+          return ok(
+            Object.fromEntries(keys.map((key, i) => [key, result.data[i]])),
+          );
+        }
+        const called = await executor.rpc(
+          set.functionName,
+          { p: values ?? {} },
+          {
+            schema: 'public',
+            get: true,
+            errorMappers,
+            ...(signal ? { signal } : {}),
+          },
+        );
+        if (!called.ok) return called;
+        return this.#decodeReadSet(client, context, set, bound, called.data);
+      });
 
     for (const [key, table] of Object.entries(this.meta.tables)) {
       let repository: Record<string, unknown> | undefined;
@@ -302,6 +417,65 @@ export class BetterSupabase<
       });
     }
     return db;
+  }
+
+  /**
+   * Decodes what a read-set function returned (`{ [key]: { rows, count } }`)
+   * by running each spec against those rows, so casing, codecs and
+   * aggregates come out exactly as from `db.$run`.
+   */
+  async #decodeReadSet(
+    client: unknown,
+    context: RequestContext,
+    set: ReadSet,
+    specs: Readonly<Record<string, QuerySpec>>,
+    data: unknown,
+  ): Promise<Result<Record<string, unknown>>> {
+    const payload = (data ?? {}) as Record<
+      string,
+      { rows?: Record<string, unknown>[] | null; count?: number | null }
+    >;
+    const out: Record<string, unknown> = {};
+    for (const [key, spec] of Object.entries(specs)) {
+      const entry = payload[key];
+      if (!entry) {
+        return err(
+          dbError(
+            'unexpected',
+            `${set.functionName}() returned no "${key}". Run \`better-supabase gen\` and migrate.`,
+          ),
+        );
+      }
+      const rows = entry.rows ?? [];
+      const stub: Executor = {
+        name: 'read-set',
+        execute: async (op) => {
+          if (op.kind === 'select' && op.single) {
+            if (rows.length > 1)
+              return err(
+                dbError('multiple_rows', `Expected one ${op.table.key} row`),
+              );
+            if (rows.length === 0 && op.single === 'one')
+              return err(
+                dbError('not_found', `No ${op.table.key} row matched`),
+              );
+          }
+          return ok({ rows, count: entry.count ?? null });
+        },
+      };
+      const decoder = this.#db(
+        client,
+        stub,
+        context,
+        [],
+        new StatsRecorder(),
+        new EventHub(this.events.logger),
+      ) as Record<string, unknown>;
+      const result = await runSpec(decoder, spec, undefined);
+      if (!result.ok) return result;
+      out[key] = result.data;
+    }
+    return ok(out);
   }
 
   #repository(
@@ -355,6 +529,14 @@ function runSpec(
   if (!method) {
     return AsyncResult.err(
       dbError('invalid_request', `Unknown table "${spec.table}" in QuerySpec`),
+    );
+  }
+  if (containsPlaceholder(spec.args)) {
+    return AsyncResult.err(
+      dbError(
+        'invalid_request',
+        'This spec comes from a read set and still holds placeholders; run it with db.$many(readSet, params)',
+      ),
     );
   }
   const args = [...spec.args];

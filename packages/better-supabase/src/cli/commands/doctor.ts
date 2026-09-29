@@ -30,6 +30,7 @@ import {
   type TextFile,
 } from '../doctor/rules.ts';
 import { writeIfChanged } from '../io.ts';
+import { compiledReadSets } from '../read-sets.ts';
 import { readSupabaseToml } from '../supabase-toml.ts';
 import { VERSION } from '../version.ts';
 import {
@@ -256,6 +257,9 @@ export async function runDoctor(
     envFiles,
     gitignore: (await readText(config.root, '.gitignore'))?.text ?? '',
     sources: await sourceFiles(config),
+    readSets: await compiledReadSets(config).catch((cause: unknown) => ({
+      skipped: cause instanceof Error ? cause.message : String(cause),
+    })),
     ...(opened.advisors ? { advisors: opened.advisors } : {}),
   };
   const sql = await sqlFiles(config.root);

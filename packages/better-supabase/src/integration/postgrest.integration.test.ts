@@ -306,4 +306,24 @@ describe.skipIf(!live)('PostgREST integration', () => {
     );
     expect(blocked.error?.kind).toBe('forbidden');
   });
+
+  it('db.$many runs ad-hoc specs in one wave as an authenticated member', async () => {
+    const acme = await asOrgMember(ACME);
+    const globex = await asOrgMember(GLOBEX);
+    const specs = [
+      sb.spec.customers.findMany({ select: ['id'], orderBy: { name: 'asc' } }),
+      sb.spec.notes.count(),
+      sb.spec.customers.exists({ where: { id: INITECH } }),
+    ] as const;
+    const [customers, notes, initech] = await acme.$many(specs).orThrow();
+    expect(customers.map((row) => row.id).sort()).toEqual(
+      [ROAD_RUNNER, ANVIL].sort(),
+    );
+    expect(notes).toBeGreaterThan(0);
+    expect(initech).toBe(false);
+    expect(acme.$stats()).toMatchObject({ calls: 3, waves: 1 });
+
+    const [theirs] = await globex.$many(specs).orThrow();
+    expect(theirs.map((row) => row.id)).toEqual([INITECH]);
+  });
 });

@@ -1174,6 +1174,17 @@ const GRANTS: SqlModule = {
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
 };
 
+const READ_SETS: SqlModule = {
+  name: 'read-sets',
+  title: 'Read sets',
+  description:
+    'One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.',
+  requires: [],
+  target: 'schema',
+  sql: `-- Functions for the read sets in \`readSets\` (better-supabase.config.ts); \`gen\` and \`sql sync\` rewrite them.
+-- They are security invoker: RLS decides what each caller reads, as for any other query.`,
+};
+
 /** New modules go at the end: the position is part of the file name. */
 export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
   Object.fromEntries(
@@ -1191,6 +1202,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       JSONB_SCHEMAS,
       PGTAP,
       GRANTS,
+      READ_SETS,
     ].map((module) => [module.name, module]),
   );
 
@@ -1237,6 +1249,11 @@ export interface KitLayout {
   readonly jsonSchemas?: readonly JsonSchemaCheck[];
   /** `config.expose`: the grants the `grants` module writes. */
   readonly grants?: readonly TableGrant[];
+  /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
+  readonly readSets?: readonly {
+    readonly name: string;
+    readonly sql: string;
+  }[];
 }
 
 /** Privileges one Data API role gets on a table or view. */
@@ -1294,6 +1311,11 @@ function moduleExtras(module: SqlModule, layout: KitLayout): string {
   if (module.name === 'jsonb-schemas')
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
   if (module.name === 'grants') return tableGrants(layout.grants ?? []);
+  if (module.name === 'read-sets') {
+    const sets = layout.readSets ?? [];
+    if (sets.length === 0) return '';
+    return `\n-- config.readSets\n${sets.map((set) => `-- ${set.name}\n${set.sql}`).join('\n\n')}\n`;
+  }
   return '';
 }
 

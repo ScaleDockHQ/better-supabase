@@ -215,6 +215,11 @@
         ]
       }
     },
+    "readSets": {
+      "description": "Modules exporting `defineReadSet` results. `gen` compiles them into the `read-sets` SQL kit module.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "realtime": {
       "description": "Live query change broadcasts.",
       "type": "object",

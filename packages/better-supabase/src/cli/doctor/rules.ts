@@ -11,7 +11,7 @@ import type {
 import type { SupabaseToml, TomlValue } from '../supabase-toml.ts';
 import type { AdvisorCategory, AdvisorSource, Lint } from './advisors.ts';
 
-import { renderKit, sameKitFile } from '../../sql/kit.ts';
+import { type KitLayout, renderKit, sameKitFile } from '../../sql/kit.ts';
 import { defineBucket, parseSize } from '../../storage/index.ts';
 import { renderFiles } from '../commands/gen.ts';
 import { kitLayout } from '../commands/sql.ts';
@@ -66,6 +66,8 @@ export interface DoctorContext {
   readonly gitignore: string;
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
+  /** `config.readSets`, compiled, or why they could not be loaded. */
+  readonly readSets?: KitLayout['readSets'] | { readonly skipped: string };
   /**
    * Supabase advisors for the database being checked, or why they were
    * skipped (a saved snapshot has no database to lint).
@@ -508,10 +510,17 @@ export const RULES: readonly Rule[] = [
     check: async (context) => {
       if (context.config.sql.kit.length === 0) return [];
       const stale: FindingInput[] = [];
+      const readSets = context.readSets;
+      const skipped = readSets !== undefined && 'skipped' in readSets;
       for (const file of renderKit(
         context.config.sql.kit,
-        kitLayout(context.config),
+        kitLayout(
+          context.config,
+          context.config.sql.testsDir,
+          skipped ? [] : readSets,
+        ),
       )) {
+        if (skipped && file.module === 'read-sets') continue;
         const current = await readFile(
           resolve(context.config.root, file.path),
           'utf8',

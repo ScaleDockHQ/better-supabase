@@ -23,6 +23,7 @@ import type {
 } from '../schema/types.ts';
 import type { Executor } from './executor.ts';
 import type { ApplyExtension, RequestContext } from './plugin.ts';
+import type { InferReadSetParams, ReadSet, ReadSetResult } from './read-set.ts';
 import type { AsyncResult } from './result.ts';
 import type { InferResult, QuerySpec } from './spec.ts';
 import type { StandardSchemaV1 } from './standard.ts';
@@ -282,6 +283,23 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
     spec: S,
     options?: { readonly signal?: AbortSignal },
   ): AsyncResult<InferResult<S>>;
+  /**
+   * Runs a read set as one round trip: a single GET to its function over
+   * PostgREST, one transaction over SQL. Query plugins don't apply; RLS does.
+   */
+  $many<S extends ReadSet>(
+    readSet: S,
+    params: InferReadSetParams<S>,
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncResult<ReadSetResult<S>>;
+  /**
+   * Runs specs together: in parallel over PostgREST, in one transaction when
+   * the executor has `batch`. Fails with the first error.
+   */
+  $many<const S extends readonly QuerySpec<TableKey<M>>[]>(
+    specs: S,
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncResult<{ -readonly [K in keyof S]: InferResult<S[K]> }>;
 }
 
 export type Db<M extends AnyModels, F extends AnyFunctions, E, C> = {
