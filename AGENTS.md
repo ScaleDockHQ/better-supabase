@@ -34,7 +34,7 @@ scripts/               repo checks that run with Node type stripping
 
 ## Commands
 
-- `pnpm install`: install (pnpm 11, Node 24).
+- `pnpm install`: install (pnpm 12, Node 24).
 - `pnpm check`: format check, lint (type-aware Oxlint with the anti-slop plugin), the prose check and typecheck.
 - `pnpm build`: tsdown build of every package and app.
 - `pnpm test`: unit and type tests (vitest, `expectTypeOf`).

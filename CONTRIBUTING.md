@@ -5,15 +5,10 @@ Thanks for contributing to better-supabase. This repository is a pnpm and Turbor
 ## Requirements
 
 - Node.js 24 or later (CI runs 24 LTS)
-- pnpm 11.21.0, through Corepack
+- pnpm 12.8.1, the version pinned in `packageManager`
 - Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), for the integration and end-to-end suites
 
-npm and Yarn are not supported.
-
-```bash
-corepack enable
-corepack prepare pnpm@11.21.0 --activate
-```
+npm and Yarn are not supported. Any pnpm 11 or later switches to the pinned version on its own. Install pnpm with its [standalone installer](https://pnpm.io/installation) rather than Corepack, because pnpm does not switch versions when Corepack runs it.
 
 ## Setup
 
