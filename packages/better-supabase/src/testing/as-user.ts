@@ -21,6 +21,8 @@ export interface LocalStack {
   readonly publishableKey?: string;
   /** Defaults to `$SUPABASE_JWT_SECRET`, then the CLI default. */
   readonly jwtSecret?: string;
+  /** Service-role key for `expectTenantIsolation`; defaults to `$SUPABASE_SECRET_KEY`. */
+  readonly secretKey?: string;
   /** Enables `sql`: the same user over direct Postgres. */
   readonly postgres?: Postgres;
 }

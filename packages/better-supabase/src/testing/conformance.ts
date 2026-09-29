@@ -45,15 +45,15 @@ export class ConformanceError extends Error {
   }
 }
 
-type Check = readonly [name: string, run: () => void | Promise<void>];
+export type Check = readonly [name: string, run: () => void | Promise<void>];
 
-class Violation extends Error {}
+export class Violation extends Error {}
 
-function expect(condition: unknown, message: string): asserts condition {
+export function expect(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Violation(message);
 }
 
-async function conform(
+export async function conform(
   subject: string,
   checks: readonly (Check | false | undefined)[],
 ): Promise<ConformanceReport> {

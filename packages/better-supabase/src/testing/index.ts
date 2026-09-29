@@ -3,6 +3,13 @@ export type { TestJwtClaims, TestSigner } from './jwt.ts';
 export { asUser, LOCAL_JWT_SECRET } from './as-user.ts';
 export type { LocalStack, TestUser } from './as-user.ts';
 export { expectDbBudget } from './budget.ts';
+export { expectTenantIsolation } from './isolation.ts';
+export type {
+  IsolationTable,
+  IsolationTables,
+  IsolationTenant,
+  TenantIsolationOptions,
+} from './isolation.ts';
 export type {
   BudgetPage,
   BudgetResponse,

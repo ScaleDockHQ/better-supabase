@@ -41,7 +41,11 @@ import {
 import { defineTopic, liveCount } from 'better-supabase/realtime';
 import { createServer } from 'better-supabase/server';
 import { defineBucket, type StoragePath } from 'better-supabase/storage';
-import { defineSeed, testExecutor } from 'better-supabase/testing';
+import {
+  defineSeed,
+  expectTenantIsolation,
+  testExecutor,
+} from 'better-supabase/testing';
 import { verifyWebhook } from 'better-supabase/webhooks';
 
 import {
@@ -171,6 +175,18 @@ export function integrations(): unknown[] {
     seed.sql(),
     verifyWebhook,
     testExecutor(executor, { sb }),
+    expectTenantIsolation(sb, {
+      tenants: [
+        { id: 'a', claims: { sub: 'u1', org_id: 'a' } },
+        { id: 'b', claims: { sub: 'u2', org_id: 'b' } },
+      ],
+      tables: {
+        tags: {
+          row: (tenant, n) => ({ organizationId: tenant.id, name: `t${n}` }),
+          update: { name: 'changed' },
+        },
+      },
+    }),
     sb.mapError((error) => new Error(error.message, { cause: error })),
     createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
       LiveCountSeed<'customers'>

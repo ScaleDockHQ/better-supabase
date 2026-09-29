@@ -53,6 +53,53 @@ await app.request('/api/customers', { headers: { authorization: `Bearer ${alice.
 Use it in tests only. In production, tokens are verified against your
 project's JWKS.
 
+## Tenant isolation
+
+`expectTenantIsolation(sb, { tenants, tables })` checks that RLS keeps two
+tenants apart. For each table it seeds one row per tenant through the service
+role, then signs in as a user of each tenant and tries to select, insert,
+update and delete the other tenant's row:
+
+```ts title="isolation.test.ts"
+import { expectTenantIsolation } from 'better-supabase/testing';
+
+it('keeps organizations apart', async () => {
+  await expectTenantIsolation(sb, {
+    tenants: [
+      { id: ACME, name: 'acme', claims: { sub: alice, org_id: ACME } },
+      { id: GLOBEX, name: 'globex', claims: { sub: bob, org_id: GLOBEX } },
+    ],
+    tables: {
+      tags: {
+        row: (tenant, n) => ({ organizationId: tenant.id, name: `iso-${n}` }),
+        update: { color: 'red' },
+      },
+    },
+    seed: () => seed.insert(postgres.admin),
+  });
+});
+```
+
+- A leak is a row that comes back from a select, or an insert, update or
+  delete that changed the other tenant's data. The helper checks the row
+  through the service role, so a blocked update that returns 0 rows counts
+  as blocked.
+- Each user must also read its own row. Otherwise the test passes because
+  the user can see nothing, and the helper fails with a hint about claims
+  and memberships.
+- `row(tenant, n)` builds a row owned by `tenant`. `n` is 0 for the seeded
+  row and 1 for the insert attempt, so put it in unique columns. `update`
+  must change the row.
+- It runs without `sb`'s plugins, so the [`tenant()` plugin](/docs/plugins)
+  can't hide a missing policy.
+- On a leak it throws a `ConformanceError` naming every table and command
+  that leaked, such as `tags: globex can't delete leaky's rows`. It removes
+  every row it created either way.
+- It needs the service-role key: `stack.secretKey` or `$SUPABASE_SECRET_KEY`.
+
+[`doctor`](/docs/cli/doctor#bs107) reports tenant tables whose policies skip
+a command before a test has to.
+
 ## Database budget
 
 `expectDbBudget(page, { maxCalls, maxWaves, during })` fails a Playwright

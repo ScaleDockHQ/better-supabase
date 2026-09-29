@@ -182,6 +182,35 @@ describe('doctor rules', () => {
     expect(exposed[0]!.message).toContain('auto_expose_new_tables = false');
   });
 
+  it('flags tenant tables whose policies skip a command', async () => {
+    const policy = (
+      name: string,
+      command: 'all' | 'select' | 'insert' | 'update' | 'delete',
+      using: string,
+    ) => ({
+      name,
+      command,
+      roles: ['authenticated'],
+      permissive: true,
+      using,
+      check: null,
+      functions: [],
+    });
+    const snap = snapshot((tables) => {
+      table(tables, 'tags').policies = [
+        policy('tags_read', 'select', 'organization_id = current_org_id()'),
+        policy('tags_add', 'insert', 'organization_id = current_org_id()'),
+      ];
+      table(tables, 'organizations').policies = [
+        policy('organizations_read', 'select', 'id = current_org_id()'),
+      ];
+    });
+    const only = RULES.filter((rule) => rule.code === 'BS107');
+    const findings = await runRules(context(snap), only);
+    expect(findings.map((finding) => finding.target)).toEqual(['public.tags']);
+    expect(findings[0]!.message).toContain('no update, delete policy');
+  });
+
   it('reports Supabase advisor lints with their own severity and links', async () => {
     const lint = (overrides: Partial<Lint>): Lint => ({
       name: 'rls_disabled_in_public',

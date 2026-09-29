@@ -244,6 +244,14 @@ function coveredByBS207(lint: Lint, context: DoctorContext): boolean {
 const AGGREGATE_USE =
   /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{|\bfacetCounts\s*:\s*true\b/;
 
+/** A policy that reads memberships or the tenant claim: `is_member(...)`, `current_org_id()`, `memberships`. */
+const TENANT_HELPER = /member|tenant|current_org|org_id/i;
+
+/** A foreign key to the tenant table itself, whose own policies are usually read-only. */
+const TENANT_COLUMN = /^(?:org|organization|tenant|team|workspace|account)_id$/;
+
+const COMMANDS = ['select', 'insert', 'update', 'delete'] as const;
+
 const OWN_RULES: readonly Rule[] = [
   advisorRule(
     'BS100',
@@ -320,6 +328,70 @@ const OWN_RULES: readonly Rule[] = [
             },
           ];
         });
+      });
+    },
+  },
+  {
+    code: 'BS107',
+    severity: 'warning',
+    title: 'Tenant table without a policy for every command',
+    description:
+      'A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`.',
+    check: (context) => {
+      const column = context.config.plugins.tenant?.column;
+      const tables = exposed(context);
+      const roots = new Set(
+        tables.flatMap((table) =>
+          table.foreignKeys
+            .filter(
+              (key) =>
+                key.columns.length === 1 &&
+                (column === undefined
+                  ? TENANT_COLUMN.test(key.columns[0]!)
+                  : key.columns[0] === column),
+            )
+            .map((key) => `${key.refSchema}.${key.refTable}`),
+        ),
+      );
+      return tables.flatMap((table) => {
+        if (table.kind !== 'table' || !table.rls) return [];
+        if (roots.has(qualified(table))) return [];
+        if (context.config.tables[table.name]?.exclude) return [];
+        const granting = table.policies.filter(
+          (policy) =>
+            policy.permissive &&
+            policy.roles.some((role) =>
+              ['authenticated', 'public'].includes(role),
+            ),
+        );
+        if (granting.length === 0) return [];
+        const scoped =
+          (column !== undefined &&
+            table.columns.some((entry) => entry.name === column)) ||
+          granting.some((policy) =>
+            TENANT_HELPER.test(
+              [
+                policy.using ?? '',
+                policy.check ?? '',
+                ...(policy.functions ?? []),
+              ].join(' '),
+            ),
+          );
+        if (!scoped) return [];
+        const covered = new Set(
+          granting.flatMap((policy) =>
+            policy.command === 'all' ? COMMANDS : [policy.command],
+          ),
+        );
+        const missing = COMMANDS.filter((command) => !covered.has(command));
+        if (missing.length === 0) return [];
+        return [
+          {
+            message: `${qualified(table)} is tenant-scoped but has no ${missing.join(', ')} policy for authenticated, so ${missing.join(' and ')} silently match no rows. Add the policies, or state the intent with a restrictive \`using (false)\` policy.`,
+            target: qualified(table),
+            object: tableObject(table),
+          },
+        ];
       });
     },
   },

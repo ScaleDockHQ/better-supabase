@@ -125,6 +125,18 @@ need exactly the privileges listed; other tables in the generated schemas need
 `better-supabase sql add grants`, or exclude it in `tables`. When `config.toml`
 sets `[api] auto_expose_new_tables = false`, the finding says so.
 
+### BS107
+
+**Warning: tenant table without a policy for every command.** A table with
+the tenant column (or whose policies call a membership or tenant helper) has
+permissive policies for `authenticated` covering some of `select`, `insert`,
+`update` and `delete`, but not all. RLS denies the missing commands without
+an error, so an update or delete matches 0 rows and the UI looks like it
+worked. Add the missing policies, or a restrictive `using (false)` policy to
+make a read-only table explicit, and cover the table with
+[`expectTenantIsolation`](/docs/testing#tenant-isolation). The tenant table
+itself (the one the tenant column references) is skipped.
+
 ## Performance
 
 ### BS204
