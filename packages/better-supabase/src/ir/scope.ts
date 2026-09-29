@@ -85,7 +85,7 @@ export function scopeSelection(
 ): Selection {
   if (selection.includes.length === 0) return selection;
   return {
-    columns: selection.columns,
+    ...selection,
     includes: selection.includes.map((include) =>
       scopeInclude(include, scopeFor),
     ),

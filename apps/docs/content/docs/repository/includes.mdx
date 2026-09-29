@@ -53,4 +53,5 @@ const customers = await db.customers
 ```
 
 To-one relations can't be counted; that's a type error, and an
-`invalid_request` error at runtime.
+`invalid_request` error at runtime. `_sum`, `_avg`, `_min` and `_max` work
+the same way; see [Aggregates](/docs/repository/aggregates).

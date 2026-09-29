@@ -163,6 +163,40 @@ describe.skipIf(!live)('Postgres executor', async () => {
       (db) => db.customers.count({ where: { status: 'active' } }).orThrow(),
     ],
     [
+      'relation aggregates',
+      (db) =>
+        db.customers
+          .findMany({
+            select: ['id'],
+            include: {
+              _sum: { notes: { id: true } },
+              _max: { notes: { createdAt: true, kind: true } },
+              _count: { notes: true },
+            },
+            orderBy: { name: 'asc' },
+          })
+          .orThrow(),
+    ],
+    [
+      'grouped aggregate',
+      (db) =>
+        db.customers
+          .aggregate({
+            groupBy: ['status'],
+            _count: true,
+            _min: { createdAt: true },
+            orderBy: { status: 'asc' },
+          })
+          .orThrow(),
+    ],
+    [
+      'single aggregate',
+      (db) =>
+        db.notes
+          .aggregate({ _count: true, _sum: { id: true }, _avg: { id: true } })
+          .orThrow(),
+    ],
+    [
       'offset page',
       (db) =>
         db.customers
@@ -219,6 +253,25 @@ describe.skipIf(!live)('Postgres executor', async () => {
           .orThrow(),
     ],
   ];
+
+  it('aggregates only the rows RLS and plugins let the caller see', async () => {
+    for (const db of [rest, sql]) {
+      const groups = await db.customers
+        .aggregate({ groupBy: ['status'], _count: true })
+        .orThrow();
+      const total = groups.reduce((sum, group) => sum + group._count, 0);
+      expect(total).toBe(await db.customers.count().orThrow());
+      const [roadRunner] = await db.customers
+        .findMany({
+          select: ['id'],
+          where: { id: ROAD_RUNNER },
+          include: { _count: { notes: true }, _max: { notes: { id: true } } },
+        })
+        .orThrow();
+      expect(roadRunner?._count.notes).toBeGreaterThan(0);
+      expect(roadRunner?._max.notes.id).toEqual(expect.any(Number));
+    }
+  });
 
   for (const [name, run] of queries) {
     it(`matches PostgREST: ${name}`, async () => {

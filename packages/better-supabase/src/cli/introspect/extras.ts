@@ -102,6 +102,15 @@ from pg_publication_tables
 where pubname = 'supabase_realtime'
 order by 1`;
 
+// Settings for every database and for this one; the database's own win.
+const ROLE_SETTINGS = `
+select r.rolname as role, s.setconfig as config
+from pg_catalog.pg_db_role_setting s
+join pg_catalog.pg_roles r on r.oid = s.setrole
+where r.rolname in ('authenticator', 'anon', 'authenticated')
+  and s.setdatabase in (0, (select oid from pg_catalog.pg_database where datname = current_database()))
+order by s.setdatabase`;
+
 const HAS_TABLE = (qualified: string) =>
   `select to_regclass('${qualified}') is not null as present`;
 
@@ -215,6 +224,17 @@ export async function readExtras(
     'pg_catalog.pg_publication_tables',
     REALTIME,
   );
+  const roleSettings: Record<string, Record<string, string>> = {};
+  for (const row of await rows<{ role: string; config: string[] | null }>(
+    db,
+    ROLE_SETTINGS,
+  )) {
+    const settings = (roleSettings[row.role] ??= {});
+    for (const entry of row.config ?? []) {
+      const at = entry.indexOf('=');
+      if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
+    }
+  }
 
   const tables = relations.map((relation): ExtrasTable => {
     const id = Number(relation.id);
@@ -289,5 +309,6 @@ export async function readExtras(
       allowedMimeTypes: row.allowed_mime_types,
     })),
     realtime: realtime.map((row) => row.name),
+    roleSettings,
   };
 }

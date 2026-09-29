@@ -317,6 +317,13 @@ function mapBuiltin(raw: RawDbError): DbError {
     case 'PGRST302':
     case 'PGRST303':
       return dbError('unauthorized', message, base);
+    case 'PGRST123':
+      return dbError('invalid_request', message, {
+        ...base,
+        hint:
+          base.hint ??
+          "PostgREST aggregates are off. Run `alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';` (see BS210), or use better-supabase/postgres.",
+      });
     default:
       break;
   }

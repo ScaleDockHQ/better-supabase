@@ -1,4 +1,6 @@
 import type {
+  AggregateArgs,
+  AggregateResult,
   CountArgs,
   FindFirstArgs,
   FindManyArgs,
@@ -156,6 +158,13 @@ export interface Repository<
     args?: A,
   ): AsyncResult<Payload<M, T, A>>;
   count(args?: CountArgs<M, T> & FindExt<E, M, T>): AsyncResult<number>;
+  /**
+   * Counts, sums, averages, minimums and maximums in one request, grouped by
+   * `groupBy` columns. Needs `pgrst.db_aggregates_enabled` over PostgREST.
+   */
+  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+    args: A,
+  ): AsyncResult<AggregateResult<M, T, A>>;
   exists(
     args?: {
       readonly where?: WhereInput<M, T>;

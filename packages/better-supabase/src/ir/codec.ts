@@ -1,5 +1,5 @@
 import type { Codec } from '../schema/types.ts';
-import type { Selection } from './types.ts';
+import type { Measure, Selection } from './types.ts';
 
 /** Wire form of an app value: `Date` to ISO text, `bigint` to decimal text. */
 export function encodeValue(value: unknown): unknown {
@@ -34,10 +34,13 @@ function decode(codec: Codec, value: unknown): unknown {
 /** Whether decoding `selection` changes anything, so plain reads skip the walk. */
 export function needsDecoding(selection: Selection): boolean {
   return (
+    selection.aggregate !== undefined ||
     selection.columns.some((column) => column.codec !== undefined) ||
     selection.includes.some(
       (include) =>
-        include.count !== undefined || needsDecoding(include.selection),
+        include.count !== undefined ||
+        include.aggregate !== undefined ||
+        needsDecoding(include.selection),
     )
   );
 }
@@ -51,6 +54,22 @@ function countOf(value: unknown): number {
   return Number(value ?? 0);
 }
 
+function measureOf(measure: Measure, value: unknown): unknown {
+  if (value === undefined || value === null) return null;
+  return measure.codec ? decodeScalar(measure.codec, value) : value;
+}
+
+/** Adds `value` under `row[key][name]`, next to what is already there. */
+function fold(
+  row: Record<string, unknown>,
+  key: string,
+  name: string,
+  value: unknown,
+): void {
+  const existing = (row[key] ?? {}) as Record<string, unknown>;
+  row[key] = { ...existing, [name]: value };
+}
+
 function decodeRow(
   selection: Selection,
   row: Record<string, unknown>,
@@ -60,13 +79,35 @@ function decodeRow(
     if (column.codec && column.alias in out)
       out[column.alias] = decode(column.codec, out[column.alias]);
   }
+  if (selection.aggregate) {
+    if (selection.aggregate.count) out['_count'] = countOf(out['_count']);
+    for (const measure of selection.aggregate.measures) {
+      const value = out[measure.key];
+      delete out[measure.key];
+      fold(out, `_${measure.fn}`, measure.alias, measureOf(measure, value));
+    }
+  }
   for (const include of selection.includes) {
     const value = out[include.alias];
     if (include.count !== undefined) {
       if (!(include.alias in out)) continue;
       delete out[include.alias];
-      const counts = (out['_count'] ?? {}) as Record<string, number>;
-      out['_count'] = { ...counts, [include.count]: countOf(value) };
+      fold(out, '_count', include.count, countOf(value));
+      continue;
+    }
+    if (include.aggregate !== undefined) {
+      if (!(include.alias in out)) continue;
+      delete out[include.alias];
+      // PostgREST returns `[{ amount }]` for an aggregate embed; SQL the object.
+      const inner = (Array.isArray(value) ? value[0] : value) as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      const measures: Record<string, unknown> = {};
+      for (const measure of include.selection.aggregate?.measures ?? []) {
+        measures[measure.alias] = measureOf(measure, inner?.[measure.key]);
+      }
+      fold(out, `_${include.aggregate.fn}`, include.aggregate.name, measures);
       continue;
     }
     if (Array.isArray(value)) {

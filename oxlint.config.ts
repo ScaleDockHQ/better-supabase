@@ -21,7 +21,19 @@ export default defineConfig({
       files: ['packages/better-supabase/src/**/*.{ts,tsx}'],
       rules: {
         'import/no-default-export': 'error',
-        'no-underscore-dangle': ['error', { allow: ['_count'] }],
+      },
+    },
+    {
+      // Relation counts and aggregates are part of the repository API.
+      files: [
+        'packages/better-supabase/src/**/*.{ts,tsx}',
+        'apps/examples/**/*.{ts,tsx}',
+      ],
+      rules: {
+        'no-underscore-dangle': [
+          'error',
+          { allow: ['_count', '_sum', '_avg', '_min', '_max'] },
+        ],
       },
     },
     {

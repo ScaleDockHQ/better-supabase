@@ -1,6 +1,8 @@
 import type {
+  Aggregation,
   Condition,
   Include,
+  Measure,
   Operation,
   OrderTerm,
   SelectColumn,
@@ -60,6 +62,8 @@ interface EmbedNode {
   readonly children: EmbedNode[];
   /** Render `count` instead of columns (`_count` includes). */
   readonly count?: boolean;
+  /** Render these aggregates instead of columns (`_sum` and friends). */
+  readonly measures?: readonly Measure[];
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +328,9 @@ class PostgrestCompiler {
       columns: include.selection.columns,
       children: this.withPath([], aliasPath),
       ...(include.count === undefined ? {} : { count: true }),
+      ...(include.selection.aggregate
+        ? { measures: include.selection.aggregate.measures }
+        : {}),
     };
     embeds.push(node);
     for (const child of include.selection.includes) {
@@ -412,10 +419,27 @@ function columnList(columns: readonly SelectColumn[]): string[] {
   });
 }
 
+/** `key:column.sum()::text`, PostgREST's aggregate syntax (PostgREST 12+). */
+function measureList(measures: readonly Measure[]): string[] {
+  return measures.map(
+    ({ key, column, fn, cast }) =>
+      `${key}:${column}.${fn}()${cast ? `::${cast}` : ''}`,
+  );
+}
+
+function aggregateList(aggregate: Aggregation): string[] {
+  return [
+    ...(aggregate.count ? ['_count:count()'] : []),
+    ...measureList(aggregate.measures),
+  ];
+}
+
 function renderEmbeds(embeds: readonly EmbedNode[]): string[] {
   return embeds.map((node) => {
     const hint = `${node.target.name}!${node.relation.foreignKey}${node.inner ? '!inner' : ''}`;
     if (node.count) return `${node.alias}:${hint}(count)`;
+    if (node.measures)
+      return `${node.alias}:${hint}(${measureList(node.measures).join(',')})`;
     const inside = [
       ...columnList(node.columns),
       ...renderEmbeds(node.children),
@@ -428,7 +452,11 @@ function renderSelect(
   selection: Selection,
   embeds: readonly EmbedNode[],
 ): string {
-  const parts = [...columnList(selection.columns), ...renderEmbeds(embeds)];
+  const parts = [
+    ...columnList(selection.columns),
+    ...(selection.aggregate ? aggregateList(selection.aggregate) : []),
+    ...renderEmbeds(embeds),
+  ];
   return parts.length > 0 ? parts.join(',') : '*';
 }
 

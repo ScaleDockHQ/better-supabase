@@ -64,6 +64,8 @@ export interface DoctorContext {
   readonly configToml: SupabaseToml | undefined;
   readonly envFiles: readonly TextFile[];
   readonly gitignore: string;
+  /** App source files matched by `doctor.sources`. */
+  readonly sources: readonly TextFile[];
   /**
    * Supabase advisors for the database being checked, or why they were
    * skipped (a saved snapshot has no database to lint).
@@ -239,6 +241,9 @@ function advisorRule(
   };
 }
 
+/** `db.x.aggregate(` or an `_sum:`/`_avg:`/`_min:`/`_max:` include. */
+const AGGREGATE_USE = /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{/;
+
 export const RULES: readonly Rule[] = [
   advisorRule(
     'BS100',
@@ -346,6 +351,32 @@ export const RULES: readonly Rule[] = [
           target: `${qualified(table)}.${tenant.column}`,
           object: tableObject(table),
         }));
+    },
+  },
+  {
+    code: 'BS210',
+    severity: 'warning',
+    title: 'Aggregates used while PostgREST disables them',
+    description:
+      'PostgREST rejects `count()`, `sum()` and the other aggregates with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the authenticator role. `aggregate()` and `_sum`/`_avg`/`_min`/`_max` includes need it; `better-supabase/postgres` does not.',
+    check: (context) => {
+      const settings = context.snapshot.extras.roleSettings;
+      if (!settings) return [];
+      const enabled =
+        settings['authenticator']?.['pgrst.db_aggregates_enabled'];
+      if (enabled === 'true' || enabled === 'on') return [];
+      for (const file of context.sources) {
+        const line = lineOf(file.text, AGGREGATE_USE);
+        if (line === undefined) continue;
+        return [
+          {
+            message: `${file.path} uses aggregates, but PostgREST has them off, so these requests fail with PGRST123. Run \`alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';\` in a migration.`,
+            target: 'authenticator:pgrst.db_aggregates_enabled',
+            location: { file: file.path, line },
+          },
+        ];
+      }
+      return [];
     },
   },
   {

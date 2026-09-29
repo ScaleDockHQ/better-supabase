@@ -154,6 +154,11 @@ export interface DoctorConfig {
   readonly ignore?: readonly string[];
   /** Treat warnings as errors. */
   readonly strict?: boolean;
+  /**
+   * App source files doctor scans for API use (BS210). Globs relative to the
+   * root. Defaults to `['src/**\/*.{ts,tsx}']`.
+   */
+  readonly sources?: readonly string[];
 }
 
 /**
@@ -400,6 +405,7 @@ export function resolveConfig(
     doctor: {
       ignore: config.doctor?.ignore ?? [],
       strict: config.doctor?.strict ?? false,
+      sources: config.doctor?.sources ?? ['src/**/*.{ts,tsx}'],
     },
   };
 }

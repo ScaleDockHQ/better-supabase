@@ -62,6 +62,9 @@ export default defineConfig({
 });
 ```
 
+`doctor.sources` lists the app files that checks such as BS210 scan, as globs
+relative to the project root. The default is `['src/**/*.{ts,tsx}']`.
+
 ## Supabase advisors
 
 ### BS100
@@ -122,6 +125,22 @@ sets `[api] auto_expose_new_tables = false`, the finding says so.
 **Warning: tenant column without an index.** With the
 [tenant plugin](/docs/plugins), every query filters on the tenant column. Add
 an index that starts with it.
+
+### BS210
+
+**Warning: aggregates used while PostgREST disables them.** PostgREST
+answers `aggregate()` and `_sum`, `_avg`, `_min` and `_max` includes with
+PGRST123 unless `pgrst.db_aggregates_enabled` is on for the `authenticator`
+role. Doctor reads the role's settings from the database and scans the files
+in `doctor.sources` (default `src/**/*.{ts,tsx}`) for those calls. Turn
+aggregates on in a migration:
+
+```sql
+alter role authenticator set pgrst.db_aggregates_enabled = 'true';
+notify pgrst, 'reload config';
+```
+
+Saved snapshots from before this check carry no role settings, so they skip it.
 
 ## Drift
 

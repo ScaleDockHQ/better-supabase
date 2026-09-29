@@ -4,6 +4,7 @@
     "index",
     "filtering",
     "includes",
+    "aggregates",
     "pagination",
     "writing",
     "unique-and-errors"

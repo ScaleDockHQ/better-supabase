@@ -76,11 +76,42 @@ export interface Include {
    * rows, folded into `row._count[count]` when decoded.
    */
   readonly count?: string;
+  /**
+   * `_sum`/`_avg`/`_min`/`_max` include: `selection.aggregate` holds the
+   * measures, folded into `row[`_${fn}`][name]` when decoded.
+   */
+  readonly aggregate?: { readonly fn: AggregateFn; readonly name: string };
+}
+
+export type AggregateFn = 'sum' | 'avg' | 'min' | 'max';
+
+export interface Measure {
+  readonly fn: AggregateFn;
+  /** Key in the returned row (`_sum_amount`, or the column alias in an include). */
+  readonly key: string;
+  /** App column name, the key under `_sum` in the decoded row. */
+  readonly alias: string;
+  /** Database column name. */
+  readonly column: string;
+  /** Read the result as text, so exact `int8`/`numeric` values survive JSON. */
+  readonly cast?: 'text';
+  readonly codec?: Codec;
+}
+
+/**
+ * Aggregates instead of rows. `Selection.columns` become the grouping
+ * columns; without any, the result is exactly one row.
+ */
+export interface Aggregation {
+  /** Also return `_count`, the number of rows in each group. */
+  readonly count: boolean;
+  readonly measures: readonly Measure[];
 }
 
 export interface Selection {
   readonly columns: readonly SelectColumn[];
   readonly includes: readonly Include[];
+  readonly aggregate?: Aggregation;
 }
 
 export type CountMode = 'exact' | 'planned' | 'estimated';

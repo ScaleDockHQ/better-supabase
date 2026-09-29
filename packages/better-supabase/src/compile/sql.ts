@@ -204,6 +204,14 @@ class SqlCompiler {
       (entry) =>
         `'${entry.alias.replaceAll("'", "''")}', ${this.column(alias, entry.column)}${entry.cast ? `::${entry.cast}` : ''}`,
     );
+    if (selection.aggregate) {
+      if (selection.aggregate.count) pairs.push(`'_count', count(*)`);
+      for (const measure of selection.aggregate.measures) {
+        pairs.push(
+          `'${measure.key.replaceAll("'", "''")}', ${measure.fn}(${this.column(alias, measure.column)})${measure.cast ? `::${measure.cast}` : ''}`,
+        );
+      }
+    }
     for (const include of selection.includes) {
       pairs.push(
         `'${include.alias.replaceAll("'", "''")}', ${this.include(include, table, alias)}`,
@@ -264,6 +272,7 @@ class SqlCompiler {
     const from = `from ${tableRef(include.target)} as ${alias} where ${where}`;
     if (include.count !== undefined) return `(select count(*) ${from})`;
     const row = this.rowExpression(include.selection, include.target, alias);
+    if (include.selection.aggregate) return `(select ${row} ${from})`;
     if (include.relation.kind === 'one') {
       return `(select ${row} ${from} limit 1)`;
     }
@@ -338,6 +347,10 @@ export function compileSql(op: Operation): SqlPlan {
         ? { text: countText, params: [...compiler.params] }
         : undefined;
       const row = compiler.rowExpression(op.selection, op.table, alias);
+      const group =
+        op.selection.aggregate && op.selection.columns.length > 0
+          ? ` group by ${op.selection.columns.map((entry) => compiler.column(alias, entry.column)).join(', ')}`
+          : '';
       const order =
         op.orderBy.length > 0
           ? ` order by ${compiler.orderBy(op.orderBy, alias)}`
@@ -347,7 +360,7 @@ export function compileSql(op: Operation): SqlPlan {
         op.offset === undefined ? '' : ` offset ${integer(op.offset)}`;
       return {
         rows: {
-          text: `select ${row} as row from ${from}${filter}${order}${limit}${offset}`,
+          text: `select ${row} as row from ${from}${filter}${group}${order}${limit}${offset}`,
           params: compiler.params,
         },
         count: countQuery,

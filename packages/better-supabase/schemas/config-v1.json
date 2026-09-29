@@ -264,7 +264,8 @@
           "type": "array",
           "items": { "type": "string", "pattern": "^BS\\d{3}$" }
         },
-        "strict": { "type": "boolean" }
+        "strict": { "type": "boolean" },
+        "sources": { "type": "array", "items": { "type": "string" } }
       }
     }
   },

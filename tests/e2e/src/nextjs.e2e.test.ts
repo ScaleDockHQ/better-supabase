@@ -128,6 +128,9 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
     const html = await page.text();
     expect(html).toContain(name);
     expect(html).toContain('New customer');
+    // Relation aggregates and the grouped status count render with the rows.
+    expect(html).toMatch(/\d+(?:<!-- -->)? notes/);
+    expect(html).toMatch(/\d+ (?:lead|active|archived)/);
     expect(
       await (await get('/customers', { cookie: await other.cookie() })).text(),
     ).not.toContain(name);

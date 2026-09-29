@@ -37,6 +37,7 @@ explicit change.
 | [WinterTC minimum common API](https://min-common-api.proposal.wintertc.org) | Adopted | runtime entries import no Node built-ins (checked in CI) |
 | [AbortSignal](https://dom.spec.whatwg.org/#interface-AbortSignal) | Adopted | every repository, storage and RPC call takes `signal` |
 | [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) | Adopted | `await using tx`, `using sub` |
+| [PostgREST aggregate functions (12+)](https://docs.postgrest.org/en/v12/references/api/aggregate_functions.html) | Adopted (pinned) | [`aggregate()` and `_sum`/`_avg`/`_min`/`_max` includes](/docs/repository/aggregates) |
 | [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | Adopted | `doctor --format sarif` |
 | [Agent Skills](https://agentskills.io) | Adopted | `skills/` in the package, `better-supabase skills install` |
 | [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org) | Adopted | repo root and these docs (`/llms.txt`, `/llms-full.txt`) |
@@ -52,4 +53,5 @@ import { SPEC_PINS } from 'better-supabase';
 SPEC_PINS.otelSemconv; // OpenTelemetry semantic conventions version
 SPEC_PINS.mcp; // MCP protocol revision
 SPEC_PINS.openapi; // default OpenAPI version emitted
+SPEC_PINS.postgrestAggregates; // PostgREST version whose aggregate syntax is used
 ```

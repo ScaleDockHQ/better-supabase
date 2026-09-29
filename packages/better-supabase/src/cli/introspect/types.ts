@@ -24,6 +24,13 @@ export interface SnapshotExtras {
   readonly buckets: readonly SnapshotBucket[];
   /** Tables in the `supabase_realtime` publication, as `schema.table`. */
   readonly realtime: readonly string[];
+  /**
+   * `alter role ... set` values for the Data API roles (`authenticator`),
+   * such as `pgrst.db_aggregates_enabled`. Absent in older snapshots.
+   */
+  readonly roleSettings?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
 }
 
 export interface ExtrasTable {

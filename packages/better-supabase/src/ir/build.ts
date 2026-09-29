@@ -4,8 +4,10 @@ import { DbException, dbError } from '../core/errors.ts';
 import { relationMeta } from '../schema/define.ts';
 import { encodeValue } from './codec.ts';
 import {
+  type AggregateFn,
   type Condition,
   type Include,
+  type Measure,
   type OrderTerm,
   type SelectColumn,
   type Selection,
@@ -13,6 +15,27 @@ import {
   not,
   or,
 } from './types.ts';
+
+const AGGREGATE_KEYS: Readonly<Record<string, AggregateFn>> = {
+  _sum: 'sum',
+  _avg: 'avg',
+  _min: 'min',
+  _max: 'max',
+};
+
+const NUMERIC_TYPES = new Set([
+  'int2',
+  'int4',
+  'int8',
+  'float4',
+  'float8',
+  'numeric',
+  'smallint',
+  'integer',
+  'bigint',
+  'real',
+  'double precision',
+]);
 
 /** Thrown while building IR; surfaces as an `invalid_request` Result. */
 export function invalidRequest(message: string, table?: string): never {
@@ -313,11 +336,127 @@ export class IrBuilder {
       }
       for (const [name, value] of Object.entries(include)) {
         if (value === undefined || value === false) continue;
+        const fn = AGGREGATE_KEYS[name];
         if (name === '_count') includes.push(...this.counts(table, value));
+        else if (fn)
+          includes.push(...this.relationAggregates(table, fn, value));
         else includes.push(this.include(table, name, value));
       }
     }
     return { columns, includes };
+  }
+
+  /**
+   * `db.x.aggregate(args)`: the grouping columns, `_count` and the measures
+   * of each group.
+   */
+  aggregation(table: TableMeta, args: Input): Selection {
+    const groupBy = args.groupBy ?? [];
+    if (!Array.isArray(groupBy)) {
+      invalidRequest(`"groupBy" on "${table.key}" must be an array`, table.key);
+    }
+    const columns = groupBy.map((name: unknown) =>
+      this.selectColumn(table, String(name)),
+    );
+    const measures: Measure[] = [];
+    for (const [key, fn] of Object.entries(AGGREGATE_KEYS)) {
+      const value = args[key];
+      if (value === undefined) continue;
+      for (const alias of this.measured(table, key, value)) {
+        measures.push(this.measure(table, fn, alias, `${key}_${alias}`));
+      }
+    }
+    const count = args._count === true;
+    if (!count && measures.length === 0) {
+      invalidRequest(
+        `aggregate on "${table.key}" needs _count, _sum, _avg, _min or _max`,
+        table.key,
+      );
+    }
+    return { columns, includes: [], aggregate: { count, measures } };
+  }
+
+  private relationAggregates(
+    table: TableMeta,
+    fn: AggregateFn,
+    value: unknown,
+  ): Include[] {
+    const key = `_${fn}`;
+    if (!isPlainObject(value)) {
+      invalidRequest(
+        `"${key}" on "${table.key}" must map relations to columns`,
+        table.key,
+      );
+    }
+    const includes: Include[] = [];
+    for (const [name, entry] of Object.entries(value)) {
+      if (entry === undefined || entry === false) continue;
+      const { relation, target } = relationMeta(this.meta, table, name);
+      if (relation.kind !== 'many') {
+        invalidRequest(
+          `"${key}.${name}" on "${table.key}" needs a to-many relation`,
+          table.key,
+        );
+      }
+      const measures = this.measured(target, `${key}.${name}`, entry).map(
+        (alias) => this.measure(target, fn, alias, alias),
+      );
+      if (measures.length === 0) continue;
+      includes.push({
+        alias: `${key}_${name}`,
+        relation,
+        target,
+        selection: {
+          columns: [],
+          includes: [],
+          aggregate: { count: false, measures },
+        },
+        where: undefined,
+        orderBy: [],
+        limit: undefined,
+        required: false,
+        aggregate: { fn, name },
+      });
+    }
+    return includes;
+  }
+
+  /** The columns switched on in `{ amount: true, tax: true }`. */
+  private measured(table: TableMeta, path: string, value: unknown): string[] {
+    if (!isPlainObject(value)) {
+      invalidRequest(
+        `"${path}" on "${table.key}" must map columns to true`,
+        table.key,
+      );
+    }
+    return Object.entries(value)
+      .filter(([, on]) => on === true)
+      .map(([alias]) => alias);
+  }
+
+  private measure(
+    table: TableMeta,
+    fn: AggregateFn,
+    alias: string,
+    key: string,
+  ): Measure {
+    const column = this.column(table, alias);
+    const meta = table.columns[alias];
+    if (
+      (fn === 'sum' || fn === 'avg') &&
+      !NUMERIC_TYPES.has(meta?.type ?? '')
+    ) {
+      invalidRequest(
+        `_${fn} needs a numeric column; "${alias}" on "${table.key}" is ${meta?.type}`,
+        table.key,
+      );
+    }
+    // avg is always a plain number; sum keeps exact int8/numeric codecs.
+    const codec = fn === 'avg' ? undefined : meta?.codec;
+    if (!codec) return { fn, key, alias, column };
+    return codec === 'date'
+      ? { fn, key, alias, column, codec }
+      : { fn, key, alias, column, cast: 'text', codec };
   }
 
   /** A selected column, with the cast and codec its metadata asks for. */

@@ -642,6 +642,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "roleSettings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
         }
       }
     },

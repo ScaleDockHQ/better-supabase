@@ -175,6 +175,7 @@ describe('shipped JSON Schemas', () => {
       },
       envFiles: [{ path: '.env', text: 'SUPABASE_SECRET_KEY=x\n' }],
       gitignore: '',
+      sources: [],
     };
     const findings = await runRules(
       context,
@@ -200,7 +201,7 @@ describe('shipped JSON Schemas', () => {
       casing: 'camel',
       output: 'src/lib/supabase/generated.ts',
       postgrestVersion: '13',
-      doctor: { ignore: ['BS204'], strict: true },
+      doctor: { ignore: ['BS204'], strict: true, sources: ['app/**/*.tsx'] },
     };
     expect(await errorsFor('config-v1.json', config)).toEqual([]);
     expect(

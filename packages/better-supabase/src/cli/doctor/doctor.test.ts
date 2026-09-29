@@ -61,6 +61,7 @@ function context(
     configToml: undefined,
     envFiles: [],
     gitignore: '',
+    sources: [],
     ...extra,
   };
 }
@@ -265,6 +266,41 @@ describe('doctor rules', () => {
       );
     });
     expect(await codes(context(snap))).toEqual(['BS204']);
+  });
+
+  it('flags aggregates while PostgREST disables them', async () => {
+    const withSettings = (settings: Record<string, string>): Snapshot => ({
+      ...base,
+      extras: { ...base.extras, roleSettings: { authenticator: settings } },
+    });
+    const sources = [
+      { path: 'src/a.ts', text: 'db.customers.findMany()\n' },
+      {
+        path: 'src/b.ts',
+        text: 'const x = 1;\nawait db.orders.aggregate({ _count: true });\n',
+      },
+    ];
+    const off = await runRules(
+      context(withSettings({}), { sources }),
+      RULES.filter((rule) => rule.code === 'BS210'),
+    );
+    expect(off).toMatchObject([
+      {
+        code: 'BS210',
+        location: { file: 'src/b.ts', line: 2 },
+        message: expect.stringContaining('pgrst.db_aggregates_enabled'),
+      },
+    ]);
+    const include = [
+      { path: 'src/c.tsx', text: 'include: { _sum: { invoices: {} } }' },
+    ];
+    expect(
+      await codes(context(withSettings({}), { sources: include }), 'BS210'),
+    ).toEqual(['BS210']);
+    const on = withSettings({ 'pgrst.db_aggregates_enabled': 'true' });
+    expect(await codes(context(on, { sources }), 'BS210')).toEqual([]);
+    // Older snapshots carry no role settings, so there is nothing to check.
+    expect(await codes(context(base, { sources }), 'BS210')).toEqual([]);
   });
 
   it('flags soft delete hidden by a select policy and bucket drift', async () => {

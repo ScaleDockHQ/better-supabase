@@ -12,8 +12,26 @@ export async function getCustomers() {
   return db.customers
     .findMany({
       select: ['id', 'name', 'status'],
+      // Counted and maxed in the database, in the same request.
+      include: {
+        _count: { notes: true },
+        _max: { notes: { createdAt: true } },
+      },
       orderBy: { name: 'asc' },
       limit: 50,
+    })
+    .orThrow();
+}
+
+/** Customers per status, as one grouped `count()`. */
+export async function getStatusCounts() {
+  'use cache: private';
+  const { db } = await next.cached();
+  return db.customers
+    .aggregate({
+      groupBy: ['status'],
+      _count: true,
+      orderBy: { status: 'asc' },
     })
     .orThrow();
 }

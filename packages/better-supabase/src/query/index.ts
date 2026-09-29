@@ -25,6 +25,8 @@ import type {
 import type { AsyncResult } from '../core/result.ts';
 import type { InferResult, QuerySpec } from '../core/spec.ts';
 import type {
+  AggregateArgs,
+  AggregateResult,
   CountArgs,
   FindFirstArgs,
   FindManyArgs,
@@ -110,6 +112,9 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   count(
     args?: (CountArgs<M, T> & FindExt<E, M, T>) | SkipToken,
   ): QueryOptionsOf<number>;
+  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+    args: A | SkipToken,
+  ): QueryOptionsOf<AggregateResult<M, T, A>>;
   exists(
     args?:
       | ({ readonly where?: WhereInput<M, T> } & FindExt<E, M, T>)
@@ -299,6 +304,7 @@ function tableQueries(
     findFirst: read('findFirst'),
     findUnique: read('findUnique'),
     count: read('count'),
+    aggregate: read('aggregate'),
     exists: read('exists'),
     paginate: read('paginate'),
     findById: (id: unknown, args?: object) =>

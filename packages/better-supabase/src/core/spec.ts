@@ -1,4 +1,6 @@
 import type {
+  AggregateArgs,
+  AggregateResult,
   CountArgs,
   FindFirstArgs,
   FindManyArgs,
@@ -30,6 +32,7 @@ export type ReadMethod =
   | 'findUnique'
   | 'findById'
   | 'count'
+  | 'aggregate'
   | 'exists'
   | 'paginate';
 
@@ -39,6 +42,7 @@ export const READ_METHODS: readonly ReadMethod[] = [
   'findUnique',
   'findById',
   'count',
+  'aggregate',
   'exists',
   'paginate',
 ];
@@ -91,6 +95,9 @@ export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
   count(
     args?: NoSignal<CountArgs<M, T>> & FindExt<E, M, T>,
   ): QuerySpec<T, 'count', number>;
+  aggregate<const A extends NoSignal<AggregateArgs<M, T>> & FindExt<E, M, T>>(
+    args: A,
+  ): QuerySpec<T, 'aggregate', AggregateResult<M, T, A>>;
   exists(
     args?: { readonly where?: WhereInput<M, T> } & FindExt<E, M, T>,
   ): QuerySpec<T, 'exists', boolean>;
@@ -174,7 +181,10 @@ function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   }
   const table = tableMeta(meta, spec.table);
   const args = specOptions(spec);
-  const counts = spec.method === 'count' || spec.method === 'exists';
+  const counts =
+    spec.method === 'count' ||
+    spec.method === 'exists' ||
+    spec.method === 'aggregate';
   return touchedTables({
     kind: 'select',
     table,

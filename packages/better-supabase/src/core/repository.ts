@@ -66,6 +66,12 @@ const KNOWN_KEYS = new Set([
   'after',
   'mode',
   'data',
+  'groupBy',
+  '_count',
+  '_sum',
+  '_avg',
+  '_min',
+  '_max',
 ]);
 
 function optionsOf(args: Args | undefined): CallOptions {
@@ -298,6 +304,35 @@ export function createRepository(
         );
         const result = await run(op, args);
         return result.ok ? ok(result.data.count ?? 0) : result;
+      });
+    },
+
+    aggregate(args: Args) {
+      return AsyncResult.from(async () => {
+        const aggregation = builder.aggregation(table, args);
+        const orderBy = builder.orderBy(table, args.orderBy);
+        const grouped = new Set(aggregation.columns.map((c) => c.column));
+        const loose = orderBy.find((term) => !grouped.has(term.column));
+        if (loose) {
+          return runner.fail(
+            table,
+            dbError(
+              'invalid_request',
+              `aggregate on "${table.key}" can only sort by groupBy columns, not "${loose.column}"`,
+            ),
+          );
+        }
+        const op = selectOp(
+          { where: args.where, limit: args.limit, offset: args.offset },
+          { selection: aggregation, orderBy },
+        );
+        const result = await run(op, args);
+        if (!result.ok) return result;
+        if (args.groupBy !== undefined) return ok(result.data.rows);
+        // Without groups the database returns one row, unless nothing can match.
+        return ok(
+          result.data.rows[0] ?? decodeRows(aggregation, [{}])[0] ?? {},
+        );
       });
     },
 

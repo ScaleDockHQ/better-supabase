@@ -144,6 +144,40 @@ export type IncludeArg<M extends AnyModels, T extends keyof M> = {
 } & {
   /** Counts related rows: `_count: { notes: true }` returns `_count.notes`. */
   readonly _count?: CountArg<M, T>;
+} & {
+  /**
+   * Aggregates related rows: `_sum: { invoices: { amount: true } }` returns
+   * `_sum.invoices.amount`. `_sum`/`_avg` need numeric columns.
+   */
+  readonly [K in MeasureKey]?: RelationMeasureArg<M, T>;
+};
+
+type NumericKey<M extends AnyModels, T extends keyof M> = {
+  [K in keyof Row<M, T>]: [NonNullable<Row<M, T>[K]>] extends [
+    number | bigint | string,
+  ]
+    ? K
+    : never;
+}[keyof Row<M, T>];
+
+export type MeasureKey = '_sum' | '_avg' | '_min' | '_max';
+
+/** Columns to aggregate: `{ amount: true }`. */
+export type MeasureArg<M extends AnyModels, T extends keyof M> = {
+  readonly [K in keyof Row<M, T>]?: true;
+};
+
+/** `_sum` and `_avg` take number (and numeric-as-string) columns only. */
+export type NumericMeasureArg<M extends AnyModels, T extends keyof M> = {
+  readonly [K in NumericKey<M, T>]?: true;
+};
+
+/** Relation aggregates check numeric columns at runtime, to keep includes cheap to type. */
+export type RelationMeasureArg<M extends AnyModels, T extends keyof M> = {
+  readonly [R in ManyRelations<M, T>]?: MeasureArg<
+    M,
+    Extract<TargetOf<Relations<M, T>[R]>, keyof M>
+  >;
 };
 
 type ManyRelations<M extends AnyModels, T extends keyof M> = {
@@ -194,6 +228,23 @@ export interface CountArgs<M extends AnyModels, T extends keyof M> {
   readonly signal?: AbortSignal;
 }
 
+export interface AggregateArgs<M extends AnyModels, T extends keyof M> {
+  readonly where?: WhereInput<M, T>;
+  /** One result per distinct combination; without it, one result. */
+  readonly groupBy?: SelectArg<M, T>;
+  /** The number of rows (per group). */
+  readonly _count?: true;
+  readonly _sum?: NumericMeasureArg<M, T>;
+  readonly _avg?: NumericMeasureArg<M, T>;
+  readonly _min?: MeasureArg<M, T>;
+  readonly _max?: MeasureArg<M, T>;
+  /** Sorts groups; only `groupBy` columns. */
+  readonly orderBy?: OrderByArg<M, T>;
+  readonly limit?: number;
+  readonly offset?: number;
+  readonly signal?: AbortSignal;
+}
+
 // ---------------------------------------------------------------------------
 // Result payloads
 
@@ -224,12 +275,79 @@ type IncludePart<M extends AnyModels, T extends keyof M, A> = A extends {
         Relations<M, T>[R],
         I[R]
       >;
-    } & CountPart<I>
+    } & CountPart<I> &
+      ([keyof I & MeasureKey] extends [never]
+        ? unknown
+        : RelationMeasures<M, T, I>)
   : unknown;
 
 type CountPart<I> = I extends { readonly _count: infer C }
   ? { _count: { -readonly [R in keyof C]: number } }
   : unknown;
+
+/**
+ * `_avg` is a number; `_sum` keeps exact `bigint` and `string` (numeric)
+ * columns; `_min`/`_max` have the column's type. All are `null` without rows.
+ */
+type MeasureValue<K extends MeasureKey, V> = K extends '_avg'
+  ? number | null
+  : K extends '_sum'
+    ? [NonNullable<V>] extends [bigint]
+      ? bigint | null
+      : [NonNullable<V>] extends [string]
+        ? string | null
+        : number | null
+    : NonNullable<V> | null;
+
+type MeasuresOf<
+  M extends AnyModels,
+  T extends keyof M,
+  C,
+  K extends MeasureKey,
+> = {
+  -readonly [P in keyof C & keyof Row<M, T>]: MeasureValue<K, Row<M, T>[P]>;
+};
+
+type RelationMeasures<M extends AnyModels, T extends keyof M, I> = {
+  -readonly [K in keyof I & MeasureKey]: {
+    -readonly [R in keyof I[K] & keyof Relations<M, T>]: MeasuresOf<
+      M,
+      Extract<TargetOf<Relations<M, T>[R]>, keyof M>,
+      I[K][R],
+      K
+    >;
+  };
+};
+
+type RootMeasures<
+  M extends AnyModels,
+  T extends keyof M,
+  A,
+  K extends MeasureKey,
+> = A extends { readonly [P in K]: infer C }
+  ? { [P in K]: MeasuresOf<M, T, C, K> }
+  : unknown;
+
+/** One aggregate result: the `groupBy` columns, `_count` and each measure. */
+export type AggregateRow<M extends AnyModels, T extends keyof M, A> = Simplify<
+  (A extends { readonly groupBy: readonly (infer K)[] }
+    ? Pick<Row<M, T>, Extract<K, keyof Row<M, T>>>
+    : unknown) &
+    (A extends { readonly _count: true } ? { _count: number } : unknown) &
+    RootMeasures<M, T, A, '_sum'> &
+    RootMeasures<M, T, A, '_avg'> &
+    RootMeasures<M, T, A, '_min'> &
+    RootMeasures<M, T, A, '_max'>
+>;
+
+/** `aggregate()` returns one row per group with `groupBy`, else one row. */
+export type AggregateResult<
+  M extends AnyModels,
+  T extends keyof M,
+  A,
+> = A extends { readonly groupBy: readonly unknown[] }
+  ? AggregateRow<M, T, A>[]
+  : AggregateRow<M, T, A>;
 
 /** The row type returned for read arguments `A` on table `T`. */
 export type Payload<M extends AnyModels, T extends keyof M, A> = Simplify<

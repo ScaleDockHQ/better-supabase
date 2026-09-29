@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { glob, readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import type { ResolvedConfig } from '../../config/index.ts';
@@ -95,6 +95,21 @@ async function sqlFiles(root: string): Promise<TextFile[]> {
   await walk('supabase/migrations');
   migrations.push(...files.splice(before).reverse());
   return [...files, ...migrations];
+}
+
+/** Files matching `doctor.sources`, skipping dependencies and build output. */
+async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
+  const files: TextFile[] = [];
+  for await (const path of glob([...config.doctor.sources], {
+    cwd: config.root,
+    exclude: (name) => name === 'node_modules' || name === '.next',
+  })) {
+    files.push({
+      path,
+      text: await readFile(resolve(config.root, path), 'utf8'),
+    });
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 const escape = (name: string): string =>
@@ -240,6 +255,7 @@ export async function runDoctor(
     configToml: await readSupabaseToml(config.root),
     envFiles,
     gitignore: (await readText(config.root, '.gitignore'))?.text ?? '',
+    sources: await sourceFiles(config),
     ...(opened.advisors ? { advisors: opened.advisors } : {}),
   };
   const sql = await sqlFiles(config.root);

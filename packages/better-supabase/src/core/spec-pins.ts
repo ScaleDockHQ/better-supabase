@@ -10,6 +10,7 @@ export const SPEC_PINS: {
   readonly standardWebhooks: '1.0.0';
   readonly sarif: '2.1.0';
   readonly jsonSchema: '2020-12';
+  readonly postgrestAggregates: '12';
 } = {
   otelSemconv: '1.37.0',
   mcp: '2025-06-18',
@@ -18,4 +19,5 @@ export const SPEC_PINS: {
   standardWebhooks: '1.0.0',
   sarif: '2.1.0',
   jsonSchema: '2020-12',
+  postgrestAggregates: '12',
 };

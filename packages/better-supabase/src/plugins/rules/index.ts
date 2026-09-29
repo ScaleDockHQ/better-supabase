@@ -122,7 +122,8 @@ function optionOf<T>(setting: RuleSetting<T> | undefined, fallback: T): T {
 function includeDepth(selection: Selection): number {
   let depth = 0;
   for (const include of selection.includes) {
-    if (include.count !== undefined) depth = Math.max(depth, 1);
+    if (include.count !== undefined || include.aggregate !== undefined)
+      depth = Math.max(depth, 1);
     else depth = Math.max(depth, 1 + includeDepth(include.selection));
   }
   return depth;
@@ -135,7 +136,11 @@ function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
       .filter((column) => column.sensitive)
       .map((column) => column.db),
   );
-  for (const column of selection.columns) {
+  const columns = [
+    ...selection.columns,
+    ...(selection.aggregate?.measures ?? []),
+  ];
+  for (const column of columns) {
     if (sensitive.has(column.column))
       found.push(`${table.key}.${column.column}`);
   }

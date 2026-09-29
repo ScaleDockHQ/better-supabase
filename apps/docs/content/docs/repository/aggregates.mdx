@@ -1,0 +1,121 @@
+---
+title: Aggregates
+description: Sums, averages, minimums, maximums and grouped counts in one request, without loading rows.
+---
+
+A dashboard that loads every invoice to add up the amounts moves all those
+rows to the server first. Aggregates let the database do the math and return
+only the totals, in the same request as the rows they belong to.
+
+## Enable aggregates in PostgREST
+
+PostgREST (12 and later) supports aggregate functions, but they are off by
+default. Turn them on for the `authenticator` role in a migration:
+
+```sql title="supabase/migrations/20260101000070_aggregates.sql"
+alter role authenticator set pgrst.db_aggregates_enabled = 'true';
+notify pgrst, 'reload config';
+```
+
+Without it, PostgREST answers PGRST123. better-supabase returns that as an
+`invalid_request` error whose `hint` names the setting, and
+[`better-supabase doctor`](/docs/cli/doctor#bs210) warns (BS210) when your
+code uses aggregates while the setting is off. Over
+[`better-supabase/postgres`](/docs/auth/postgres) the same calls
+compile to SQL and need no setting.
+
+Aggregates run under RLS like any other read: they see only the rows the
+caller may read, and plugins such as `tenant` and `softDelete` scope them
+the same way as `findMany`.
+
+## Per-row aggregates of a relation
+
+`_sum`, `_avg`, `_min` and `_max` work like [`_count`](/docs/repository/includes#counting-related-rows):
+each takes to-many relations and, per relation, the columns to aggregate:
+
+```ts
+const customers = await db.customers
+  .findMany({
+    select: ['id', 'name'],
+    include: {
+      _count: { invoices: true },
+      _sum: { invoices: { amount: true } },
+      _max: { invoices: { issuedAt: true } },
+    },
+  })
+  .orThrow();
+// {
+//   id: string; name: string;
+//   _count: { invoices: number };
+//   _sum: { invoices: { amount: number | null } };
+//   _max: { invoices: { issuedAt: string | null } };
+// }[]
+```
+
+The values are `null` when a row has no related rows. Keys follow the
+configured casing, like every other column.
+
+## Totals for a table
+
+`db.x.aggregate()` returns one result for the rows that match `where`:
+
+```ts
+const totals = await db.invoices
+  .aggregate({
+    where: { status: 'open' },
+    _count: true,
+    _sum: { amount: true },
+    _avg: { amount: true },
+  })
+  .orThrow();
+// { _count: number; _sum: { amount: number | null }; _avg: { amount: number | null } }
+```
+
+## Grouped totals
+
+With `groupBy`, it returns one result per distinct combination of those
+columns. `orderBy` can sort by the `groupBy` columns; `limit` and `offset`
+page through the groups:
+
+```ts
+const byStatus = await db.customers
+  .aggregate({
+    groupBy: ['status'],
+    _count: true,
+    _min: { createdAt: true },
+    orderBy: { status: 'asc' },
+  })
+  .orThrow();
+// { status: 'lead' | 'active' | 'archived'; _count: number; _min: { createdAt: string | null } }[]
+```
+
+## Value types
+
+| Aggregate | Columns | Result |
+| --- | --- | --- |
+| `_count` | any | `number` |
+| `_sum` | numeric | `number`; `bigint` or `string` for exact `int8`/`numeric` [codecs](/docs/cli/config) |
+| `_avg` | numeric | `number` |
+| `_min`, `_max` | any comparable | the column's type |
+
+`_sum` and `_avg` only accept number columns (and numeric columns read as
+strings). Passing a text column is a type error, and an `invalid_request`
+error at runtime.
+
+## Specs and query options
+
+`aggregate` is a read method, so it works everywhere a spec does:
+
+```ts
+const spec = sb.spec.customers.aggregate({ groupBy: ['status'], _count: true });
+const groups = await db.$run(spec).orThrow();
+
+// TanStack Query
+useQuery(queries.customers.aggregate({ groupBy: ['status'], _count: true }));
+```
+
+## Cost
+
+Each call is one request: `(count)`, `amount.sum()` and friends are rendered
+into PostgREST's `select`, and into one `select ... group by` over SQL. No
+related rows cross the network.
