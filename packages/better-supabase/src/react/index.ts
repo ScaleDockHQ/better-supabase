@@ -1,5 +1,6 @@
 'use client';
 
+import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { QueryClient } from '@tanstack/query-core';
 
@@ -15,6 +16,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import type { AuthSession } from '../auth/view.ts';
 import type { AuthSnapshot, BrowserAuth } from '../client/index.ts';
 import type { QuerySpec } from '../core/spec.ts';
 import type {
@@ -30,6 +32,7 @@ import type { LiveSource } from '../realtime/live.ts';
 
 import { invalidateTables } from '../query/invalidate.ts';
 import { liveQuery } from '../realtime/live.ts';
+import { useSession } from './session.ts';
 
 export { SessionProvider, useSession } from './session.ts';
 export type { SessionProviderProps } from './session.ts';
@@ -123,7 +126,16 @@ export interface BetterHooks<B extends BrowserLike> {
   readonly useQueries: () => B['queries'];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => AuthSnapshot;
+  /** `useSession()` with the claims typed by the browser's `sb.claims(schema)`. */
+  readonly useSession: () => AuthSession<ClaimsOf<B>>;
 }
+
+/** The claims type of a browser's `sb.claims(schema)`, `unknown` without one. */
+export type ClaimsOf<B extends BrowserLike> = B['sb'] extends {
+  readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
+}
+  ? C
+  : unknown;
 
 /**
  * Hooks typed for your schema.
@@ -146,6 +158,7 @@ export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
     },
     useSupabase,
     useAuth,
+    useSession: useSession<ClaimsOf<B>>,
   };
 }
 

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { defineSupabase } from '../core/define.ts';
 import { schema } from '../fixtures/generated-camel.ts';
@@ -56,5 +57,32 @@ describe('createServer headers', () => {
       ['api', 'r2'],
     ]);
     expect(sent[1]!.get('authorization')).toBe(`Bearer ${token}`);
+  });
+});
+
+describe('createServer claims', () => {
+  it('validates claims with the schema from sb.claims()', async () => {
+    const sb = defineSupabase(schema).claims(
+      z.object({ tenant_id: z.string().min(1) }),
+    );
+    const server = createServer(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+    });
+    const request = async (claims: Record<string, unknown>) =>
+      new Request('https://api.test/', {
+        headers: {
+          authorization: `Bearer ${await signer.sign({
+            sub: '11111111-1111-4111-8111-111111111111',
+            ...claims,
+          })}`,
+        },
+      });
+
+    const ok = await server.context(await request({ tenant_id: 't1' }));
+    expect(ok.auth.kind === 'user' && ok.auth.claims.tenant_id).toBe('t1');
+
+    const bad = await server.context(await request({}));
+    expect(bad.auth).toMatchObject({ kind: 'invalid', reason: 'claims' });
   });
 });

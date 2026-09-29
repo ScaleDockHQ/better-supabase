@@ -192,6 +192,45 @@ and never from `user_metadata`, which users can edit. Hiding a menu item is
 UX, not security: re-check in every Server Action (`can(toSession(auth), …)`)
 and enforce it in the database with an `authorize(permission)` RLS helper.
 
+### Who owns what
+
+| Part | Owns |
+| --- | --- |
+| Supabase Auth | Identity, sessions, signing and refreshing tokens |
+| Your hook (SQL) | Which claims a token carries, read from your tables |
+| `sb.claims(schema)` | Validating and typing those claims on the server |
+| RLS | Enforcing access with the same claims (`auth.jwt()`) |
+| Your code or PermDock | Mapping roles to permissions |
+
+The hook, the schema and your policies read the same claims, so agree on
+one shape. For multi-tenant apps, use this one:
+
+```ts
+const Claims = z.object({
+  /** Global roles, e.g. `['support']`. */
+  roles: z.array(z.string()).default([]),
+  /** One entry per organization the user belongs to. */
+  memberships: z
+    .array(
+      z.object({
+        tenant_id: z.uuid(),
+        roles: z.array(z.string()),
+        /** Plan features for this tenant, e.g. `['exports']`. */
+        entitlements: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
+  /** The active tenant; the `tenant` plugin reads it. */
+  tenant_id: z.uuid().optional(),
+});
+```
+
+`tenant_id` is the one the [tenant plugin](/docs/plugins/tenant) and
+`current_org_id()`-style RLS helpers read; `memberships` lets the UI switch
+tenants without another query. Keep the list short: every claim is sent
+with every request, and `better-supabase doctor --as <user id>` warns when
+the hook returns more than 2 KB.
+
 <Callout title="Using PermDock">
   For more than a handful of roles, use
   [PermDock](https://github.com/ScaleDockHQ/PermDock). It reads the same

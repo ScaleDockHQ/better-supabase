@@ -27,8 +27,10 @@ export type {
   CookieOptions,
   CookieRecord,
   CookieWrite,
+  InvalidReason,
   RefreshOutcome,
   ResolveAuthOptions,
+  ResolvedState,
   StoredSession,
 } from '../auth/index.ts';
 export {

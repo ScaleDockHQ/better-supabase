@@ -12,12 +12,33 @@ import {
 import { scopeOperation } from '../../ir/scope.ts';
 import { dbName, equals, forbidden } from '../shared.ts';
 
-export interface TenantOptions {
+/**
+ * Dotted paths to the string claims of `C` (up to three levels), e.g.
+ * `'tenant_id' | 'app_metadata.tenant_id'`. Any string without a claims type.
+ */
+export type ClaimPath<C> = unknown extends C
+  ? string
+  : StringPaths<C, [1, 2, 3]>;
+
+type StringPaths<T, Depth extends readonly unknown[]> = T extends object
+  ? T extends readonly unknown[]
+    ? never
+    : {
+        [K in keyof T & string]-?:
+          | (NonNullable<T[K]> extends string ? K : never)
+          | (Depth extends readonly [unknown, ...infer Rest]
+              ? `${K}.${StringPaths<NonNullable<T[K]>, Rest>}`
+              : never);
+      }[keyof T & string]
+  : never;
+
+/** `C` is the claims type (`sb.claims(schema)`'s output); it types `claim`. */
+export interface TenantOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.
    * Dots walk into objects. Default `['org_id', 'app_metadata.org_id']`.
    */
-  readonly claim?: string | readonly string[];
+  readonly claim?: ClaimPath<C> | readonly ClaimPath<C>[];
   /** Custom resolution, e.g. from a header validated against memberships. */
   readonly resolve?: (context: RequestContext) => string | undefined;
   /**
@@ -43,16 +64,14 @@ export interface TenantExtension extends RepositoryExtension {
 }
 
 /** The tenant for a request: `context.tenant`, then the configured claim. */
-export function resolveTenant(
+export function resolveTenant<C = unknown>(
   context: RequestContext,
-  options: TenantOptions = {},
+  options: TenantOptions<C> = {},
 ): string | undefined {
   if (options.resolve) return options.resolve(context);
   if (typeof context.tenant === 'string') return context.tenant;
-  const paths =
-    typeof options.claim === 'string'
-      ? [options.claim]
-      : (options.claim ?? DEFAULT_CLAIMS);
+  const claim = options.claim as string | readonly string[] | undefined;
+  const paths = typeof claim === 'string' ? [claim] : (claim ?? DEFAULT_CLAIMS);
   for (const path of paths) {
     let value: unknown = context.claims;
     for (const segment of path.split('.')) {
@@ -79,8 +98,8 @@ function tenantColumn(table: TableMeta): string | undefined {
  * would move rows to another tenant. It complements RLS; it does not replace
  * it.
  */
-export function tenant(
-  options: TenantOptions = {},
+export function tenant<C = unknown>(
+  options: TenantOptions<C> = {},
 ): Plugin<'tenant', TenantExtension> {
   const onMissing = options.onMissing ?? 'error';
 

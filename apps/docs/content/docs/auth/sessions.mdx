@@ -28,3 +28,13 @@ of two generations) read as no session rather than as a broken one.
 
 Whenever you send session cookies, send `AUTH_CACHE_HEADERS` too.
 `resolution.apply(response)` does both.
+
+## Claims in the session
+
+The access token inside the cookie carries every claim your custom access
+token hook adds, so the session cookie grows with them and every request
+sends them twice (cookie and `Authorization` header). Keep ids and roles in
+the token, validate and type them with
+[`sb.claims(schema)`](/docs/auth#typed-claims), and let
+`better-supabase doctor --as <user id>` warn when they pass 2 KB
+([BS405](/docs/cli/doctor#bs405)).

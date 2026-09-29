@@ -21,7 +21,7 @@ switch (auth.kind) {
   case 'user':    // auth.user.id, auth.claims, auth.token
   case 'service': // a secret key, when `secret: true`
   case 'anon':    // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
-  case 'invalid': // credentials were sent but did not verify: answer 401
+  case 'invalid': // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims): answer 401
 }
 ```
 
@@ -98,6 +98,56 @@ const apiKeys: AuthResolver = {
 
 await resolveAuth(request, { env, resolvers: [apiKeys] });
 ```
+
+Resolvers may leave `reason` out of an `invalid` state; it counts as
+`'token'`. Users they return go through the claims schema like any other.
+
+## Typed claims
+
+Claims your [custom access token
+hook](https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook)
+adds are typed `unknown` until you describe them. `sb.claims(schema)` takes
+any [Standard Schema](https://standardschema.dev) (zod, valibot, arktype) and
+returns a new definition whose servers validate the verified claims and
+whose sessions are typed by the schema's output:
+
+```ts title="src/lib/supabase/sb.ts"
+import { z } from 'zod';
+
+export const Claims = z.object({
+  tenant_id: z.uuid().optional(),
+  roles: z.array(z.string()).default([]),
+});
+
+export const sb = defineSupabase(schema)
+  .claims(Claims)
+  .use(tenant<z.infer<typeof Claims>>({ claim: 'tenant_id' }));
+```
+
+- `createServer`, `createNext`, `createHono` and friends validate after the
+  signature check, on every request, including tokens served from the
+  verification memo. A token whose claims fail resolves to
+  `{ kind: 'invalid', reason: 'claims' }` with an `unauthorized` error
+  (`code: 'CLAIMS_INVALID'`) that names the failing paths, never the values.
+  The cookie path does not try a refresh for it, since a new token from the
+  same hook would fail the same way.
+- The output is merged over the payload, so `sub`, `exp` and the other JWT
+  claims stay, and defaults such as `roles: []` fill in. The merge is one
+  level deep: a nested object in the schema, like `app_metadata`, replaces
+  the payload's, so describe it with `z.looseObject()` (or your library's
+  equivalent) to keep its other keys.
+- `ctx.auth.claims`, `await next.session()` and the `useSession` from
+  `createHooks<typeof browser>()` are typed `JWTClaims & Claims`. The
+  standalone `useSession<Claims>()` takes the type explicitly.
+- `tenant<Claims>({ claim })` only accepts dotted paths to string claims,
+  such as `'tenant_id'` or `'app_metadata.tenant_id'`.
+
+Keep the schema small: it runs on every request, and anything the hook
+doesn't always set should be optional or have a default.
+`better-supabase doctor` checks the hook itself: its grants
+([BS404](/docs/cli/doctor#bs404)), that it is `stable` with an empty
+`search_path`, and with `--as <user id>` how large the claims it returns are
+([BS405](/docs/cli/doctor#bs405)).
 
 ## Identity for repositories
 

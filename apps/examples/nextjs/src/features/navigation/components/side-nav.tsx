@@ -1,10 +1,10 @@
 'use client';
 
-import { useSession } from 'better-supabase/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { can } from '@/features/user/user-permissions';
+import { useSession } from '@/lib/hooks';
 
 import { navItems } from '../nav-items';
 

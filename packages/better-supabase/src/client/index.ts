@@ -51,9 +51,14 @@ export interface BrowserAuth {
   readonly subscribe: (listener: () => void) => () => void;
 }
 
-export interface BetterBrowser<M extends AnyModels, F extends AnyFunctions, E> {
+export interface BetterBrowser<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+> {
   /** The definition the browser was created from (schema metadata, specs, live queries). */
-  readonly sb: BetterSupabase<M, unknown, F, E>;
+  readonly sb: BetterSupabase<M, unknown, F, E, C>;
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
   readonly db: Db<M, F, E, SupabaseClient>;
@@ -151,10 +156,11 @@ export function createBrowser<
   D,
   F extends AnyFunctions,
   E,
+  C = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  sb: BetterSupabase<M, D, F, E, C>,
   options: BrowserOptions = {},
-): BetterBrowser<M, F, E> {
+): BetterBrowser<M, F, E, C> {
   const supabase = clientFor(options);
   let snapshot: AuthSnapshot = LOADING;
   let db: Db<M, F, E, SupabaseClient> | undefined;
@@ -174,8 +180,8 @@ export function createBrowser<
     for (const listener of listeners) listener();
   });
 
-  const browser: BetterBrowser<M, F, E> = {
-    sb: sb as unknown as BetterSupabase<M, unknown, F, E>,
+  const browser: BetterBrowser<M, F, E, C> = {
+    sb: sb as unknown as BetterSupabase<M, unknown, F, E, C>,
     supabase,
     get db() {
       db ??= sb.connect(supabase, contextOf(snapshot));

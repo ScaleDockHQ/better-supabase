@@ -30,9 +30,14 @@ export interface ServerOptions {
   readonly headers?: (request: Request) => Readonly<Record<string, string>>;
 }
 
-export interface ServerContext<M extends AnyModels, F extends AnyFunctions, E> {
-  readonly auth: AuthState;
-  readonly resolution: AuthResolution;
+export interface ServerContext<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+> {
+  readonly auth: AuthState<C>;
+  readonly resolution: AuthResolution<C>;
   /** supabase-js client scoped to the caller (RLS applies). */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the caller. */
@@ -49,12 +54,17 @@ export interface ContextOptions {
   readonly stats?: StatsRecorder;
 }
 
-export interface BetterServer<M extends AnyModels, F extends AnyFunctions, E> {
+export interface BetterServer<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+> {
   readonly env: BetterSupabaseEnv;
   resolve(
     request: Request,
     options?: { readonly refresh?: boolean },
-  ): Promise<AuthResolution>;
+  ): Promise<AuthResolution<C>>;
   /**
    * Resolves auth and binds repositories to the caller. Refreshes an expired
    * cookie session only with `refresh: true`; send `ctx.resolution.apply(response)`.
@@ -62,9 +72,12 @@ export interface BetterServer<M extends AnyModels, F extends AnyFunctions, E> {
   context(
     request: Request,
     options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E>>;
+  ): Promise<ServerContext<M, F, E, C>>;
   /** The context for an auth state resolved elsewhere (the proxy, a queue message). */
-  contextFor(auth: AuthState, options?: ContextOptions): ServerContext<M, F, E>;
+  contextFor(
+    auth: AuthState<C>,
+    options?: ContextOptions,
+  ): ServerContext<M, F, E, C>;
   /** A stateless supabase-js client for an auth state, optionally with extra request headers. */
   supabaseFor(
     auth: AuthState,
@@ -121,10 +134,16 @@ export function withExtra<T extends object, X extends object>(
  * Server-side entry point for APIs, jobs, MCP servers and framework
  * adapters. Holds the secrets; `sb` stays isomorphic.
  */
-export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
+export function createServer<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+>(
+  sb: BetterSupabase<M, D, F, E, C>,
   options: ServerOptions = {},
-): BetterServer<M, F, E> {
+): BetterServer<M, F, E, C> {
   let loaded: BetterSupabaseEnv | undefined;
   const env = (): BetterSupabaseEnv => (loaded ??= options.env ?? loadEnv());
   let adminClient: SupabaseClient | undefined;
@@ -202,10 +221,10 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   /** Clients and repositories are built on first access: most scopes use one of them. */
   const contextFor = (
-    resolution: AuthResolution,
+    resolution: AuthResolution<C>,
     headers: Readonly<Record<string, string>>,
     parent: StatsRecorder | undefined,
-  ): ServerContext<M, F, E> => {
+  ): ServerContext<M, F, E, C> => {
     const { auth } = resolution;
     const context = authContext(auth);
     const recorder = new StatsRecorder(parent);
@@ -242,9 +261,11 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
   const resolve = async (
     request: Request,
     resolveOptions: { readonly refresh?: boolean } = {},
-  ): Promise<AuthResolution> => {
-    const resolution = await resolveAuth(request, {
+  ): Promise<AuthResolution<C>> => {
+    const claims = options.auth?.claims ?? sb.claimsSchema;
+    const resolved = await resolveAuth(request, {
       ...options.auth,
+      ...(claims ? { claims } : {}),
       env: env(),
       ...(resolveOptions.refresh !== undefined
         ? { refresh: resolveOptions.refresh }
@@ -254,6 +275,8 @@ export function createServer<M extends AnyModels, D, F extends AnyFunctions, E>(
         sb.events.emit('refresh', event);
       },
     });
+    // The claims schema's output is merged into every verified user's claims.
+    const resolution = resolved as AuthResolution<C>;
     if (sb.events.has('auth')) {
       const { auth } = resolution;
       sb.events.emit('auth', {

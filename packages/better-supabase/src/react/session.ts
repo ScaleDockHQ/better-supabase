@@ -32,14 +32,15 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
 
 /**
  * The session from the nearest `<SessionProvider>`. Suspends until the
- * promise resolves, so render it inside `<Suspense>`.
+ * promise resolves, so render it inside `<Suspense>`. `C` types the claims
+ * (the output of `sb.claims(schema)`); `createHooks().useSession` infers it.
  */
-export function useSession(): AuthSession {
+export function useSession<C = unknown>(): AuthSession<C> {
   const promise = useContext(SessionContext);
   if (!promise) {
     throw new Error(
       'better-supabase: useSession() needs <SessionProvider sessionPromise={...}>',
     );
   }
-  return use(promise);
+  return use(promise) as AuthSession<C>;
 }

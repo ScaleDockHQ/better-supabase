@@ -16,6 +16,7 @@ export type {
   BetterSupabaseProviderProps,
   BroadcastOptions,
   BrowserLike,
+  ClaimsOf,
   LiveQueryHookOptions,
 } from './index.ts';
 export type { SessionProviderProps } from './session.ts';
@@ -30,7 +31,8 @@ function clientOnly(name: string): () => never {
 }
 
 /** The `react-server` build of `useSession`: await `next.session()` instead. */
-export const useSession: () => AuthSession = clientOnly('useSession');
+export const useSession: <C = unknown>() => AuthSession<C> =
+  clientOnly('useSession');
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates
@@ -42,5 +44,6 @@ export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
     useQueries: clientOnly('useQueries'),
     useSupabase: clientOnly('useSupabase'),
     useAuth: clientOnly('useAuth'),
+    useSession: clientOnly('useSession'),
   };
 }

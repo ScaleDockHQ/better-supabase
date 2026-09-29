@@ -73,10 +73,10 @@ export type { AuthKind, GuardOptions } from '../server/respond.ts';
 export type { AuthSession } from '../auth/view.ts';
 export { toSession } from '../auth/view.ts';
 
-export interface ProxyOptions {
+export interface ProxyOptions<C = unknown> {
   /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
   readonly protect?: (
-    auth: AuthState,
+    auth: AuthState<C>,
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
 }
@@ -108,26 +108,27 @@ export interface BetterNext<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> extends BetterServer<M, F, E> {
+  C = unknown,
+> extends BetterServer<M, F, E, C> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
-  proxy(request: NextRequest, options?: ProxyOptions): Promise<Response>;
+  proxy(request: NextRequest, options?: ProxyOptions<C>): Promise<Response>;
   /** Server Components and actions: the caller's context, memoized per request. */
-  server(): Promise<ServerContext<M, F, E>>;
+  server(): Promise<ServerContext<M, F, E, C>>;
   /**
    * The verified caller as serializable data (no token, no clients), memoized
    * per request. Wrap it in a `'use cache: private'` function with Cache
    * Components and pass the promise to `<SessionProvider>`.
    */
-  session(): Promise<AuthSession>;
+  session(): Promise<AuthSession<C>>;
   /**
    * The context for a session and its token, without reading the request.
    * The token is verified again (memoized, no network call); a token for
    * another user than `session` gives an `invalid` context.
    */
   serverFor(
-    session: AuthSession,
+    session: AuthSession<C>,
     options: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E>>;
+  ): Promise<ServerContext<M, F, E, C>>;
   /**
    * First statement of an app-authored `'use cache: private'` function: sets
    * `cacheLife` from the session's expiry (`sessionStale`), tags the entry
@@ -141,14 +142,14 @@ export interface BetterNext<
    * }
    * ```
    */
-  cached(options?: CachedOptions): Promise<CachedContext<M, F, E>>;
+  cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C>>;
   /** Drops every `next.cached()` entry of a user, e.g. after a role change. */
   invalidateSession(userId: string): void;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
   route<P = Record<string, string | string[]>>(
     handler: (
       request: NextRequest,
-      ctx: ServerContext<M, F, E> & { readonly params: P },
+      ctx: ServerContext<M, F, E, C> & { readonly params: P },
     ) => unknown,
     options?: GuardOptions,
   ): (
@@ -158,7 +159,10 @@ export interface BetterNext<
   /** Server action returning a serializable `ActionResult`. */
   action<S extends StandardSchemaV1 | undefined, T>(
     options: ActionOptions<S>,
-    fn: (input: ActionParsed<S>, ctx: ServerContext<M, F, E>) => Promise<T> | T,
+    fn: (
+      input: ActionParsed<S>,
+      ctx: ServerContext<M, F, E, C>,
+    ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /** Tags the current `"use cache"` scope with a table (and row) tag. */
   cacheTag(table: Extract<keyof M, string>, id?: string | number): void;
@@ -215,7 +219,8 @@ export type CachedContext<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> = ServerContext<M, F, E> & { readonly session: AuthSession };
+  C = unknown,
+> = ServerContext<M, F, E, C> & { readonly session: AuthSession<C> };
 
 /** The tag `next.cached()` puts on a user's entries. */
 export function sessionTag(userId: string): string {
@@ -289,10 +294,16 @@ export function shouldRefresh(request: Request): boolean {
  * export const next = createNext(sb);
  * ```
  */
-export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
+export function createNext<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+>(
+  sb: BetterSupabase<M, D, F, E, C>,
   options: NextOptions = {},
-): BetterNext<M, F, E> {
+): BetterNext<M, F, E, C> {
   const base = createServer(sb, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
@@ -321,12 +332,12 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
       headers: new Headers(await headers()),
     });
 
-  const server = cache(async (): Promise<ServerContext<M, F, E>> => {
+  const server = cache(async (): Promise<ServerContext<M, F, E, C>> => {
     const request = await incomingRequest();
     return base.context(request, statsFor(request));
   });
 
-  const session = cache(async (): Promise<AuthSession> => {
+  const session = cache(async (): Promise<AuthSession<C>> => {
     const resolution = await base.resolve(await incomingRequest(), {
       refresh: false,
     });
@@ -334,9 +345,9 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
   });
 
   const serverFor = async (
-    view: AuthSession,
+    view: AuthSession<C>,
     { token }: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E>> => {
+  ): Promise<ServerContext<M, F, E, C>> => {
     const request = new Request('http://next.local/', {
       headers: token ? { authorization: `Bearer ${token}` } : {},
     });
@@ -348,6 +359,7 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
     if (matches) return ctx;
     return base.contextFor({
       kind: 'invalid',
+      reason: 'token',
       error: dbError(
         'unauthorized',
         'The token does not belong to the session passed to serverFor()',
@@ -355,7 +367,7 @@ export function createNext<M extends AnyModels, D, F extends AnyFunctions, E>(
     });
   };
 
-  return extendServer<BetterNext<M, F, E>>(base, {
+  return extendServer<BetterNext<M, F, E, C>>(base, {
     server,
     session,
     serverFor,

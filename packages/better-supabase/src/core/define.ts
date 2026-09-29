@@ -58,6 +58,8 @@ export interface DefineSupabaseOptions {
   readonly logger?: Logger;
   /** RPCs that change tables, keyed by function name. Prefer `sb.defineRpc()`. */
   readonly rpc?: Readonly<Record<string, RpcDefinition>>;
+  /** Validates verified JWT claims on the server. Prefer `sb.claims()`, which also types them. */
+  readonly claims?: StandardSchemaV1;
 }
 
 export interface ConnectOptions {
@@ -88,6 +90,7 @@ export class BetterSupabase<
   D = unknown,
   F extends AnyFunctions = AnyFunctions,
   E = unknown,
+  C = unknown,
 > {
   readonly schema: Schema<M, D, F>;
   readonly plugins: readonly AnyPlugin[];
@@ -110,6 +113,31 @@ export class BetterSupabase<
     return this.schema.meta;
   }
 
+  /** The schema set by `claims()`; its output types `session.claims`. */
+  get claimsSchema(): StandardSchemaV1<unknown, C> | undefined {
+    return this.options.claims as StandardSchemaV1<unknown, C> | undefined;
+  }
+
+  /**
+   * Returns a new instance whose servers validate verified JWT claims (custom
+   * access token hook output) with `schema`, and whose sessions are typed by it.
+   * A token that fails it resolves to `{ kind: 'invalid', reason: 'claims' }`.
+   *
+   * ```ts
+   * const sb = defineSupabase(schema).claims(z.object({ tenant_id: z.uuid() }));
+   * ```
+   */
+  claims<S extends StandardSchemaV1>(
+    schema: S,
+  ): BetterSupabase<M, D, F, E, StandardSchemaV1.InferOutput<S>> {
+    return new BetterSupabase(
+      this.schema,
+      this.plugins,
+      { ...this.options, claims: schema },
+      this.events,
+    );
+  }
+
   #specs: Specs<M, E> | undefined;
 
   /**
@@ -129,7 +157,7 @@ export class BetterSupabase<
   /** Returns a new instance with the plugin appended. */
   use<P extends AnyPlugin>(
     plugin: P,
-  ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<P>>> {
+  ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<P>>, C> {
     if (plugin.apiVersion !== 1) {
       throw new TypeError(
         `better-supabase: plugin "${plugin.name}" targets plugin API v${String(plugin.apiVersion)}; this version supports v1`,
@@ -159,7 +187,7 @@ export class BetterSupabase<
   defineRpc(
     name: Extract<keyof F, string>,
     options: { readonly invalidates: readonly TableKey<M>[] },
-  ): BetterSupabase<M, D, F, E> {
+  ): BetterSupabase<M, D, F, E, C> {
     for (const table of options.invalidates) {
       if (!this.meta.tables[table]) {
         throw new TypeError(

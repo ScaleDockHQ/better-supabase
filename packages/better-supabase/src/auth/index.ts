@@ -5,7 +5,9 @@ export type {
   AuthResolution,
   AuthResolver,
   AuthState,
+  InvalidReason,
   ResolveAuthOptions,
+  ResolvedState,
 } from './resolve.ts';
 export { toSession } from './view.ts';
 export type { AuthSession } from './view.ts';

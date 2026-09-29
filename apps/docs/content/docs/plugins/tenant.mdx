@@ -24,6 +24,16 @@ The tenant comes from `context.tenant`, then the JWT claim, or from your own
 token hook, or `app_metadata` set through the Auth admin API. Server
 adapters fill the context from the verified JWT.
 
+Pass your [claims type](/docs/auth#typed-claims) to check the paths at
+compile time. Only paths to string claims, up to three levels deep, are
+accepted:
+
+```ts
+const sb = defineSupabase(schema)
+  .claims(Claims)
+  .use(tenant<z.infer<typeof Claims>>({ claim: 'tenant_id' }));
+```
+
 ## Missing tenant
 
 By default a query on a tenant table without a tenant fails with

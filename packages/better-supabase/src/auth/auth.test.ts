@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { dbError } from '../core/errors.ts';
 import { fromProblem, problemResponse, toProblem } from '../core/problem.ts';
@@ -323,6 +324,89 @@ describe('resolveAuth', async () => {
       },
     );
     expect(auth).toEqual({ kind: 'service', keyName: 'partner' });
+  });
+
+  it('marks resolver failures as token failures', async () => {
+    const { auth } = await resolveAuth(new Request('https://api.test/'), {
+      ...options,
+      resolvers: [
+        {
+          name: 'api-key',
+          resolve: () => ({
+            kind: 'invalid',
+            error: dbError('unauthorized', 'bad key'),
+          }),
+        },
+      ],
+    });
+    expect(auth).toMatchObject({ kind: 'invalid', reason: 'token' });
+  });
+
+  describe('claims', () => {
+    const claims = z.object({
+      tenant_id: z.uuid(),
+      roles: z.array(z.string()).default([]),
+    });
+    const TENANT = '22222222-2222-4222-8222-222222222222';
+    const bearer = (token: string) =>
+      new Request('https://api.test/', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+    it('validates verified claims and merges the output over the payload', async () => {
+      const token = await signer.sign({ sub: USER, tenant_id: TENANT });
+      const { auth } = await resolveAuth(bearer(token), {
+        ...options,
+        claims,
+      });
+      expect(auth).toMatchObject({
+        kind: 'user',
+        claims: { sub: USER, tenant_id: TENANT, roles: [] },
+      });
+    });
+
+    it('resolves claims the schema rejects to invalid, also on memo hits', async () => {
+      const token = await signer.sign({ sub: USER, tenant_id: 'nope' });
+      for (let i = 0; i < 2; i++) {
+        const { auth } = await resolveAuth(bearer(token), {
+          ...options,
+          claims,
+        });
+        expect(auth).toMatchObject({
+          kind: 'invalid',
+          reason: 'claims',
+          error: {
+            kind: 'unauthorized',
+            status: 401,
+            code: 'CLAIMS_INVALID',
+            message: expect.stringContaining('tenant_id:'),
+          },
+        });
+      }
+    });
+
+    it('never refreshes a cookie session whose claims fail', async () => {
+      const token = await signer.sign({ sub: USER });
+      const fetchSpy = vi.fn<typeof fetch>();
+      const { auth, cookies } = await resolveAuth(
+        cookieRequest(sessionFor(token, 'refresh-claims')),
+        { ...options, claims, refresh: true, fetch: fetchSpy },
+      );
+      expect(auth).toMatchObject({ kind: 'invalid', reason: 'claims' });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(cookies).toEqual([]);
+    });
+
+    it('validates users from custom resolvers', async () => {
+      const token = await signer.sign({ sub: USER });
+      const verified = await resolveAuth(bearer(token), options);
+      const { auth } = await resolveAuth(new Request('https://api.test/'), {
+        ...options,
+        claims,
+        resolvers: [{ name: 'fixed', resolve: () => verified.auth }],
+      });
+      expect(auth).toMatchObject({ kind: 'invalid', reason: 'claims' });
+    });
   });
 });
 

@@ -9,6 +9,7 @@ import { extractCredentials, verifyCredentials } from '@supabase/server/core';
 
 import type { RefreshEvent } from '../core/events.ts';
 import type { Actor, RequestContext } from '../core/plugin.ts';
+import type { StandardSchemaV1 } from '../core/standard.ts';
 import type { BetterSupabaseEnv } from '../env/index.ts';
 
 import { type DbError, dbError } from '../core/errors.ts';
@@ -27,11 +28,15 @@ import {
   writeSession,
 } from './session.ts';
 
-export type AuthState =
+/**
+ * Who is calling. `C` is the claims type from `sb.claims(schema)`; the
+ * verified payload keeps every JWT claim and adds the schema's output.
+ */
+export type AuthState<C = unknown> =
   | {
       readonly kind: 'user';
       readonly token: string;
-      readonly claims: JWTClaims;
+      readonly claims: JWTClaims & C;
       readonly user: UserClaims;
       readonly source: 'bearer' | 'cookie' | (string & {});
       /** Seconds since epoch, from the token's `exp`. */
@@ -43,8 +48,29 @@ export type AuthState =
       /** `expired`: the cookie session needs a refresh that was not allowed here (run the proxy). */
       readonly reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed';
     }
-  /** Credentials were sent but did not verify. Answer 401, never downgrade to anon. */
-  | { readonly kind: 'invalid'; readonly error: DbError };
+  /**
+   * Credentials were sent but did not verify (`token`), or verified but failed
+   * the claims schema (`claims`). Answer 401, never downgrade to anon.
+   */
+  | {
+      readonly kind: 'invalid';
+      readonly reason: InvalidReason;
+      readonly error: DbError;
+    };
+
+export type InvalidReason = 'token' | 'claims';
+
+/**
+ * What an `AuthResolver` returns. `reason` may be left out of an `invalid`
+ * state; it then counts as `token`.
+ */
+export type ResolvedState =
+  | Exclude<AuthState, { kind: 'invalid' }>
+  | {
+      readonly kind: 'invalid';
+      readonly reason?: InvalidReason;
+      readonly error: DbError;
+    };
 
 /**
  * Extension point for other credentials (API keys, third-party auth, custom
@@ -55,7 +81,7 @@ export interface AuthResolver {
   readonly name: string;
   resolve(
     request: Request,
-  ): Promise<AuthState | undefined> | AuthState | undefined;
+  ): Promise<ResolvedState | undefined> | ResolvedState | undefined;
 }
 
 export interface ResolveAuthOptions {
@@ -77,6 +103,11 @@ export interface ResolveAuthOptions {
   };
   /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
   readonly jwks?: SupabaseEnv['jwks'];
+  /**
+   * Validates the verified claims (`sb.claims(schema)` sets it). A failure
+   * resolves to `{ kind: 'invalid', reason: 'claims' }`.
+   */
+  readonly claims?: StandardSchemaV1;
   readonly resolvers?: readonly AuthResolver[];
   /** Called after every refresh attempt (metrics, logging). */
   readonly onRefresh?: (event: RefreshEvent) => void;
@@ -84,8 +115,8 @@ export interface ResolveAuthOptions {
   readonly now?: () => number;
 }
 
-export interface AuthResolution {
-  readonly auth: AuthState;
+export interface AuthResolution<C = unknown> {
+  readonly auth: AuthState<C>;
   /** Cookie writes for the response. Empty unless the session was refreshed or cleared. */
   readonly cookies: readonly CookieWrite[];
   /** No-store headers, set whenever `cookies` is not empty. */
@@ -195,7 +226,7 @@ async function verify(
   if (token && memo) {
     const now = Math.floor((options.now ?? Date.now)() / 1000);
     const hit = remembered(memo, token, now);
-    if (hit) return { ...hit, source };
+    if (hit) return checkClaims({ ...hit, source }, options);
   }
   const state = await verifyOnce(credentials, modes, options, source);
   if (token && memo && state.kind === 'user') {
@@ -207,7 +238,44 @@ async function verify(
       expiresAt: state.expiresAt,
     });
   }
-  return state;
+  return checkClaims(state, options);
+}
+
+/** Validates a user's claims against `options.claims`, keeping every JWT claim. */
+async function checkClaims(
+  state: AuthState,
+  options: ResolveAuthOptions,
+): Promise<AuthState> {
+  if (state.kind !== 'user' || !options.claims) return state;
+  let outcome = options.claims['~standard'].validate(state.claims);
+  if (outcome instanceof Promise) outcome = await outcome;
+  if (outcome.issues) {
+    const issues = outcome.issues
+      .map((issue) => {
+        const path = issue.path
+          ?.map((segment) =>
+            typeof segment === 'object' ? String(segment.key) : String(segment),
+          )
+          .join('.');
+        return path ? `${path}: ${issue.message}` : issue.message;
+      })
+      .join('; ');
+    return {
+      kind: 'invalid',
+      reason: 'claims',
+      error: dbError(
+        'unauthorized',
+        `The token claims are invalid (${issues})`,
+        {
+          code: 'CLAIMS_INVALID',
+        },
+      ),
+    };
+  }
+  const extra = outcome.value;
+  return typeof extra === 'object' && extra !== null
+    ? { ...state, claims: { ...state.claims, ...extra } }
+    : state;
 }
 
 async function verifyOnce(
@@ -231,6 +299,7 @@ async function verifyOnce(
           : 'unauthorized';
     return {
       kind: 'invalid',
+      reason: 'token',
       error: dbError(kind, error.message, { code: error.code }),
     };
   }
@@ -301,7 +370,17 @@ export async function resolveAuth(
 
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
-    if (state) return resolution(state, cookies);
+    if (!state) continue;
+    return resolution(
+      state.kind === 'invalid'
+        ? {
+            kind: 'invalid',
+            reason: state.reason ?? 'token',
+            error: state.error,
+          }
+        : await checkClaims(state, options),
+      cookies,
+    );
   }
 
   const credentials = extractCredentials(request);
@@ -358,7 +437,12 @@ export async function resolveAuth(
       options,
       'cookie',
     );
-    if (state.kind !== 'invalid' || state.error.kind === 'network')
+    // A refresh can't fix claims the schema rejects, nor an unreachable JWKS.
+    if (
+      state.kind !== 'invalid' ||
+      state.reason === 'claims' ||
+      state.error.kind === 'network'
+    )
       return resolution(state, cookies);
     if (!options.refresh)
       return resolution({ kind: 'anon', reason: 'signed_out' }, cookies);

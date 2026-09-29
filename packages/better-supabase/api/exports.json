@@ -233,6 +233,7 @@
       "BetterSupabaseProviderProps",
       "BroadcastOptions",
       "BrowserLike",
+      "ClaimsOf",
       "LiveQueryHookOptions",
       "SessionProviderProps"
     ]
@@ -292,11 +293,13 @@
       "CookieRecord",
       "CookieWrite",
       "GuardOptions",
+      "InvalidReason",
       "ProblemDetails",
       "ProblemOptions",
       "ProblemResponseOptions",
       "RefreshOutcome",
       "ResolveAuthOptions",
+      "ResolvedState",
       "ResourceHandler",
       "ResourceInput",
       "ResourceList",
@@ -694,6 +697,7 @@
       "tenant"
     ],
     "types": [
+      "ClaimPath",
       "TenantExtension",
       "TenantFindArgs",
       "TenantOptions"
