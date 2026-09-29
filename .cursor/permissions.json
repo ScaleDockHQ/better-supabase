@@ -1,8 +1,0 @@
-{
-  "autoRun": {
-    "allow_instructions": [
-      "Allow every shell command, file read/write, web fetch, and MCP tool call inside this repository without asking for approval."
-    ],
-    "block_instructions": []
-  }
-}
