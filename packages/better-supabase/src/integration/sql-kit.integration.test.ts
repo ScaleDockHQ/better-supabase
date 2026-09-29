@@ -17,6 +17,7 @@ import { createPostgres } from '../postgres/pool.ts';
 import { renderKit, SQL_MODULES } from '../sql/kit.ts';
 import { compileReadSet } from '../sql/read-sets.ts';
 import { asUser } from '../testing/as-user.ts';
+import { signTestJwt } from '../testing/jwt.ts';
 import { signWebhook } from '../webhooks/index.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
@@ -26,6 +27,9 @@ const dbUrl =
 const publishableKey =
   process.env['SUPABASE_PUBLISHABLE_KEY'] ??
   'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+const jwtSecret =
+  process.env['SUPABASE_JWT_SECRET'] ??
+  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const RUN = String(Date.now());
@@ -781,5 +785,69 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const sql = await alice.sql!.$many(specs).orThrow();
     expect(sql).toEqual(rest);
     expect(rest[0]).toBeGreaterThan(0);
+  });
+
+  it('answers writes over the limit with 429 and Retry-After', async () => {
+    const probe = `bs_rate_probe_${RUN}`;
+    const scope = `/rpc/${probe}`;
+    const token = await signTestJwt(jwtSecret, { sub: crypto.randomUUID() });
+    const call = (method: 'GET' | 'POST') =>
+      fetch(`${url}/rest/v1/rpc/${probe}`, {
+        method,
+        headers: {
+          apikey: publishableKey,
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        ...(method === 'POST' ? { body: '{}' } : {}),
+      });
+    try {
+      await pool.query(`
+        create function public.${probe}() returns integer language sql as 'select 1';
+        grant execute on function public.${probe}() to authenticated;
+        notify pgrst, 'reload schema';
+      `);
+      await expect
+        .poll(async () => (await call('GET')).status, { timeout: 10_000 })
+        .toBe(200);
+      const { rows } = await pool.query(
+        `select setting from pg_db_role_setting s join pg_roles r on r.oid = s.setrole,
+           unnest(s.setconfig) setting
+         where r.rolname = 'authenticator' and setting like 'pgrst.db_pre_request=%'`,
+      );
+      expect(rows[0]?.setting).toBe(
+        'pgrst.db_pre_request=better_supabase.check_request',
+      );
+      await pool.query(
+        `select better_supabase.set_rate_limit($1, 2, interval '1 minute')`,
+        [scope],
+      );
+
+      expect((await call('POST')).status).toBe(200);
+      expect((await call('POST')).status).toBe(200);
+      const limited = await call('POST');
+      expect(limited.status).toBe(429);
+      const retryAfter = Number(limited.headers.get('retry-after'));
+      expect(retryAfter).toBeGreaterThan(0);
+      expect(retryAfter).toBeLessThanOrEqual(60);
+      const error = mapDbError((await limited.json()) as RawDbError);
+      expect(error).toMatchObject({
+        kind: 'rate_limited',
+        status: 429,
+        code: 'BS429',
+        retryAfter,
+      });
+      expect((await call('GET')).status).toBe(200);
+
+      await pool.query(`select better_supabase.set_rate_limit($1, null)`, [
+        scope,
+      ]);
+      expect((await call('POST')).status).toBe(200);
+    } finally {
+      await pool.query(`select better_supabase.set_rate_limit($1, null)`, [
+        scope,
+      ]);
+      await pool.query(`drop function if exists public.${probe}()`);
+    }
   });
 });

@@ -23,6 +23,8 @@ export interface DbErrorKinds {
   validation: { issues: readonly ValidationIssue[] };
   multiple_rows: Record<never, never>;
   stale: Record<never, never>;
+  /** `retryAfter`: seconds until the window resets (the `Retry-After` header). */
+  rate_limited: { retryAfter?: number };
   unexpected: Record<never, never>;
 }
 
@@ -76,6 +78,7 @@ const STATUS: { readonly [K in DbErrorKind]: number } = {
   validation: 422,
   multiple_rows: 409,
   stale: 412,
+  rate_limited: 429,
   unexpected: 500,
 };
 
@@ -203,6 +206,7 @@ export type ErrorMapper = (
 const CONSTRAINT_IN_MESSAGE = /constraint "([^"]+)"/;
 const KEY_COLUMNS_IN_DETAILS = /^Key \(([^)]+)\)=/;
 const COLUMN_IN_MESSAGE = /column "([^"]+)"/;
+const RETRY_AFTER = /retry after (\d+)/i;
 const PERMISSION_DENIED =
   /^permission denied for (table|view|sequence|function|schema) (\S+)/;
 
@@ -330,6 +334,14 @@ function mapBuiltin(raw: RawDbError): DbError {
           base.hint ??
           "PostgREST aggregates are off. Run `alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';` (see BS210), or use better-supabase/postgres.",
       });
+    case 'BS429':
+    case 'PT429': {
+      const seconds = RETRY_AFTER.exec(raw.details ?? '')?.[1];
+      return dbError('rate_limited', message, {
+        ...base,
+        ...(seconds ? { retryAfter: Number(seconds) } : {}),
+      });
+    }
     default:
       break;
   }

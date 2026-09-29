@@ -52,6 +52,7 @@ const name = await db.customers
 | `validation` | 422 | Standard Schema issues from the validation plugin |
 | `multiple_rows` | 409 | A single-row call matched several rows |
 | `stale` | 412 | `update(..., { expect })` found a newer row |
+| `rate_limited` | 429 | Over a [write rate limit](/docs/kits/sql#rate-limiting-writes); `retryAfter` is the seconds to wait |
 | `unexpected` | 500 | Anything else |
 
 The `status` field feeds the [RFC 9457](/docs/standards) problem details

@@ -17,7 +17,13 @@ export function CreateCustomerForm() {
       <button type="submit" disabled={pending}>
         Add
       </button>
-      {state?.ok === false ? <p role="alert">{state.error.message}</p> : null}
+      {state?.ok === false ? (
+        <p role="alert">
+          {state.error.kind === 'rate_limited'
+            ? `Too many new customers. Try again in ${String(state.error.retryAfter ?? 60)} seconds.`
+            : state.error.message}
+        </p>
+      ) : null}
     </form>
   );
 }

@@ -9,7 +9,11 @@ import { toAppResult } from '@/lib/app-error';
 import { logos } from '@/lib/buckets';
 import { next } from '@/lib/supabase.server';
 
-/** Mutations invalidate `bs:customers` with `updateTag` (see `createNext`). */
+/**
+ * Mutations invalidate `bs:customers` with `updateTag` (see `createNext`).
+ * With `select better_supabase.set_rate_limit('/customers', 30)` (the
+ * `rate-limit` kit module), a burst of creates returns `rate_limited`.
+ */
 export const createCustomer = next.action(
   { input: z.object({ name: z.string().min(1).max(200) }) },
   async ({ name }, { auth, db }) => {

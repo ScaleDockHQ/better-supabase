@@ -220,6 +220,10 @@ export function integrations(): unknown[] {
         return ctx.replica?.wrote satisfies boolean | undefined;
       }),
     PRIMARY_COOKIE satisfies string,
+    (error: DbError) =>
+      error.kind === 'rate_limited'
+        ? (error.retryAfter satisfies number | undefined)
+        : undefined,
     createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
       LiveCountSeed<'customers'>
     >,

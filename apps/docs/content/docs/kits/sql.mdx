@@ -35,6 +35,7 @@ supabase db diff -f better_supabase_kit
 | `read-sets` | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets) |
 | `mfa` | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso) |
 | `entitlements` | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `membership_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements) |
+| `rate-limit` | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes) |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. The
 `tenant` module is a template: edit the roles and policies to fit your app.
@@ -51,6 +52,59 @@ create policy "admins update" on public.customers for update
 Errors raised by the kit carry a stable code in the `hint` field, for example
 `SLUG_RESERVED`, `SLUG_INVALID` or `INVITATION_INVALID`. They come back as
 typed `DbError`s through the repository.
+
+## Rate limiting writes
+
+Auth rate-limits sign-ins, but the Data API has no limit of its own: a signed-in
+user can call `insert` or an RPC as often as they like. The `rate-limit` module
+counts writes in PostgREST's
+[pre-request hook](https://docs.postgrest.org/en/v12/references/transactions.html#pre-request),
+before the query runs:
+
+```bash
+better-supabase sql add rate-limit
+```
+
+```sql
+-- 5 invites per user per minute, 300 writes per user per minute overall.
+select better_supabase.set_rate_limit('/rpc/send_invite', 5, interval '1 minute');
+select better_supabase.set_rate_limit('*', 300, interval '1 minute');
+
+-- Per tenant instead of per user: count by the org_id claim.
+select better_supabase.set_rate_limit('/customers', 1000, interval '1 hour', key_claim => 'org_id');
+
+-- Remove a rule.
+select better_supabase.set_rate_limit('/customers', null);
+```
+
+- A scope is `*`, a table path (`/customers`) or an RPC path
+  (`/rpc/send_invite`). Every matching rule counts, so `*` and a path rule
+  both apply.
+- Only `POST`, `PATCH`, `PUT` and `DELETE` count. GET and HEAD run read-only
+  and may be served by a [read replica](/docs/guides/read-replicas).
+- Callers without the claim (anonymous) are counted by their first
+  `x-forwarded-for` hop. The service role is never limited.
+- Counters live in an unlogged table: fast, and reset after a crash.
+- A write over the limit fails with HTTP 429 and a `Retry-After` header. The
+  repository returns it as a `rate_limited` [`DbError`](/docs/concepts/results)
+  with `retryAfter` in seconds, and `problemResponse()` passes the header on.
+
+The module sets `pgrst.db_pre_request` on the `authenticator` role, and only
+if no other pre-request function is set. `supabase db diff` doesn't capture
+role settings, so copy the `do` block at the end of the file into a
+migration. If you already have a pre-request function, keep it and call the
+check from it:
+
+```sql
+create or replace function public.pre_request() returns void language plpgsql as $$
+begin
+  perform better_supabase.check_request();
+  -- your checks
+end $$;
+```
+
+The hook runs only for the Data API. Queries through
+[`better-supabase/postgres`](/docs/auth/postgres) and `db.$sql` aren't limited.
 
 ## Enforcing jsonb shapes
 

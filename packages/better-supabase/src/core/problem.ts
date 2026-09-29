@@ -23,6 +23,8 @@ export interface ProblemDetails {
   readonly issues?: readonly ValidationIssue[];
   /** The assurance level a `forbidden` answer needs (`aal2`). */
   readonly required?: 'aal1' | 'aal2';
+  /** Seconds until a `rate_limited` caller may retry. */
+  readonly retryAfter?: number;
 }
 
 export const PROBLEM_TYPE_BASE = 'https://bettersupabase.com/problems/';
@@ -47,6 +49,7 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   validation: 'Validation failed',
   multiple_rows: 'More than one row matched',
   stale: 'Row changed since it was read',
+  rate_limited: 'Too many requests',
   unexpected: 'Unexpected error',
 };
 
@@ -93,6 +96,8 @@ export function toProblem(
   if ('issues' in error) problem['issues'] = error.issues;
   if ('required' in error && error.required)
     problem['required'] = error.required;
+  if ('retryAfter' in error && error.retryAfter !== undefined)
+    problem['retryAfter'] = error.retryAfter;
   return problem as unknown as ProblemDetails;
 }
 
@@ -112,6 +117,12 @@ export function problemResponse(
       error.code === 'MISSING_CREDENTIALS' ? '' : ', error="invalid_token"';
     headers.set('www-authenticate', `Bearer realm="${realm}"${params}`);
   }
+  if (
+    'retryAfter' in error &&
+    error.retryAfter !== undefined &&
+    !headers.has('retry-after')
+  )
+    headers.set('retry-after', String(error.retryAfter));
   return new Response(JSON.stringify(toProblem(error, options)), {
     status: error.status,
     headers,
@@ -143,6 +154,7 @@ export function fromProblem(problem: ProblemDetails): DbError {
     'columns',
     'column',
     'required',
+    'retryAfter',
   ] as const) {
     if (problem[key] !== undefined) extra[key] = problem[key];
   }
