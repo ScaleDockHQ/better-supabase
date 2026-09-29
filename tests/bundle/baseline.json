@@ -1,6 +1,6 @@
 {
   ".": 31404,
-  "./config": 5121,
+  "./config": 5139,
   "./client": 6907,
   "./react": 4513,
   "./query": 3308,
@@ -28,6 +28,6 @@
   "./plugins/tenant": 5759,
   "./plugins/actor": 4042,
   "./plugins/validation": 5601,
-  "./testing": 32685,
-  "./cli": 84869
+  "./testing": 32704,
+  "./cli": 92256
 }

@@ -159,6 +159,11 @@ export interface DoctorConfig {
    * root. Defaults to `['src/**\/*.{ts,tsx}']`.
    */
   readonly sources?: readonly string[];
+  /**
+   * How many policies a security definer helper may appear in before BS206
+   * asks for an inlinable `language sql stable` function. Defaults to 5.
+   */
+  readonly policyHelperLimit?: number;
 }
 
 /**
@@ -414,6 +419,7 @@ export function resolveConfig(
       ignore: config.doctor?.ignore ?? [],
       strict: config.doctor?.strict ?? false,
       sources: config.doctor?.sources ?? ['src/**/*.{ts,tsx}'],
+      policyHelperLimit: config.doctor?.policyHelperLimit ?? 5,
     },
   };
 }

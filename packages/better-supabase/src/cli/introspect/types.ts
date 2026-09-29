@@ -31,6 +31,25 @@ export interface SnapshotExtras {
   readonly roleSettings?: Readonly<
     Record<string, Readonly<Record<string, string>>>
   >;
+  /**
+   * Functions that policies in the read schemas call, plus functions in
+   * those schemas with `set` options. Absent in older snapshots.
+   */
+  readonly functions?: readonly ExtrasFunction[];
+}
+
+/** A function as doctor needs it for RLS checks, in any schema. */
+export interface ExtrasFunction {
+  readonly schema: string;
+  readonly name: string;
+  /** Identity arguments, e.g. `org uuid`. */
+  readonly signature: string;
+  /** `sql`, `plpgsql`, `c`, ... */
+  readonly language: string;
+  readonly volatility: 'immutable' | 'stable' | 'volatile';
+  readonly securityDefiner: boolean;
+  /** `set` options, e.g. `{ statement_timeout: '5s' }`. */
+  readonly settings: Readonly<Record<string, string>>;
 }
 
 export interface ExtrasTable {
@@ -85,6 +104,11 @@ export interface CatalogPolicy {
   readonly permissive: boolean;
   readonly using: string | null;
   readonly check: string | null;
+  /**
+   * Functions the policy expressions call, as `schema.name`, from
+   * `pg_depend`. Absent in older snapshots.
+   */
+  readonly functions?: readonly string[];
 }
 
 export interface CatalogTrigger {

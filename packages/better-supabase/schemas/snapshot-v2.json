@@ -647,7 +647,51 @@
           "type": "object",
           "additionalProperties": {
             "type": "object",
-            "additionalProperties": { "type": "string" }
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schema",
+              "name",
+              "signature",
+              "language",
+              "volatility",
+              "securityDefiner",
+              "settings"
+            ],
+            "properties": {
+              "schema": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "volatility": {
+                "enum": ["immutable", "stable", "volatile"]
+              },
+              "securityDefiner": {
+                "type": "boolean"
+              },
+              "settings": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -812,6 +856,12 @@
               },
               "check": {
                 "type": ["string", "null"]
+              },
+              "functions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

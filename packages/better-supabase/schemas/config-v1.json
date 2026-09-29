@@ -270,7 +270,8 @@
           "items": { "type": "string", "pattern": "^BS\\d{3}$" }
         },
         "strict": { "type": "boolean" },
-        "sources": { "type": "array", "items": { "type": "string" } }
+        "sources": { "type": "array", "items": { "type": "string" } },
+        "policyHelperLimit": { "type": "integer", "minimum": 1 }
       }
     }
   },

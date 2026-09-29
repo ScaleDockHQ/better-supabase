@@ -2,21 +2,28 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import type { ResolvedConfig } from '../../config/index.ts';
-import type {
-  Catalog,
-  CatalogPolicy,
-  CatalogTable,
-  Snapshot,
-} from '../introspect/types.ts';
+import type { CatalogPolicy, Snapshot } from '../introspect/types.ts';
 import type { SupabaseToml, TomlValue } from '../supabase-toml.ts';
 import type { AdvisorCategory, AdvisorSource, Lint } from './advisors.ts';
+import type { ExplainRequest, LiveDatabase } from './live.ts';
 
 import { type KitLayout, renderKit, sameKitFile } from '../../sql/kit.ts';
 import { defineBucket, parseSize } from '../../storage/index.ts';
 import { renderFiles } from '../commands/gen.ts';
 import { kitLayout } from '../commands/sql.ts';
-import { toCatalog } from '../introspect/catalog.ts';
 import { tomlGet } from '../supabase-toml.ts';
+import { LIVE_RULES } from './live.ts';
+import { permissiveOverlaps, RLS_RULES } from './rls.ts';
+import {
+  catalogOf,
+  exposed,
+  lineOf,
+  policyObject,
+  qualified,
+  tableObject,
+} from './shared.ts';
+
+export { catalogOf, lineOf };
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -73,6 +80,14 @@ export interface DoctorContext {
    * skipped (a saved snapshot has no database to lint).
    */
   readonly advisors?: AdvisorSource | { readonly skipped: string };
+  /** The database being checked, for statistics and plans (BS208, BS209, BS212). */
+  readonly database?: LiveDatabase | { readonly skipped: string };
+  /** `--stats`: read `pg_stat_statements` (BS209). */
+  readonly stats?: boolean;
+  /** `--explain`: tables to plan and the claims to plan them as (BS212). */
+  readonly explain?: ExplainRequest;
+  /** Codes of the rules in this run, so a rule can defer to another. */
+  readonly codes?: readonly string[];
 }
 
 export interface Rule {
@@ -87,41 +102,6 @@ export interface Rule {
 
 export const DOCS_URL = 'https://bettersupabase.com/docs/cli/doctor';
 
-const catalogs = new WeakMap<Snapshot, Catalog>();
-
-/** The snapshot joined per table and function, computed once per snapshot. */
-export function catalogOf(context: DoctorContext): Catalog {
-  let catalog = catalogs.get(context.snapshot);
-  if (!catalog) {
-    catalog = toCatalog(context.snapshot);
-    catalogs.set(context.snapshot, catalog);
-  }
-  return catalog;
-}
-
-const exposed = (context: DoctorContext): CatalogTable[] =>
-  catalogOf(context).tables.filter((table) =>
-    context.config.schemas.includes(table.schema),
-  );
-
-const qualified = (table: CatalogTable): string =>
-  `${table.schema}.${table.name}`;
-
-const tableObject = (table: CatalogTable): SqlObject => ({
-  kind: 'table',
-  schema: table.schema,
-  name: table.name,
-});
-
-const policyObject = (
-  table: CatalogTable,
-  policy: CatalogPolicy,
-): SqlObject => ({
-  kind: 'policy',
-  schema: table.schema,
-  name: policy.name,
-});
-
 const writes = (policy: CatalogPolicy): boolean =>
   policy.command === 'all' ||
   policy.command === 'insert' ||
@@ -134,12 +114,6 @@ const publicRoles = (policy: CatalogPolicy): boolean =>
 
 const isTrue = (expression: string | null): boolean =>
   expression !== null && /^\(*\s*true\s*\)*$/i.test(expression.trim());
-
-/** Line number (1-based) of the first line matching `pattern`. */
-export function lineOf(text: string, pattern: RegExp): number | undefined {
-  const index = text.split('\n').findIndex((line) => pattern.test(line));
-  return index === -1 ? undefined : index + 1;
-}
 
 function authSetting(
   context: DoctorContext,
@@ -214,13 +188,15 @@ function advisorRule(
   category: AdvisorCategory,
   title: string,
   description: string,
+  covered: (lint: Lint, context: DoctorContext) => boolean = () => false,
 ): Rule {
   return {
     code,
     severity: 'warning',
     title,
     description,
-    async check({ advisors }) {
+    async check(context) {
+      const { advisors } = context;
       if (!advisors) return [];
       if ('skipped' in advisors) {
         return [
@@ -231,7 +207,9 @@ function advisorRule(
         ];
       }
       try {
-        return (await advisors.lints(category)).map(lintFinding);
+        return (await advisors.lints(category))
+          .filter((lint) => !covered(lint, context))
+          .map(lintFinding);
       } catch (cause) {
         return [
           {
@@ -243,6 +221,19 @@ function advisorRule(
   };
 }
 
+/** splinter's `multiple_permissive_policies` for a table BS207 reports. */
+function coveredByBS207(lint: Lint, context: DoctorContext): boolean {
+  if (lint.name !== 'multiple_permissive_policies') return false;
+  if (!context.codes?.includes('BS207')) return false;
+  const object = lintObject(lint);
+  if (!object) return false;
+  const table = exposed(context).find(
+    (candidate) =>
+      candidate.schema === object.schema && candidate.name === object.name,
+  );
+  return table !== undefined && permissiveOverlaps(table).length > 0;
+}
+
 /**
  * `db.x.aggregate(`, an `_sum:`/`_avg:`/`_min:`/`_max:` include or a list
  * with `facetCounts: true`.
@@ -250,7 +241,7 @@ function advisorRule(
 const AGGREGATE_USE =
   /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{|\bfacetCounts\s*:\s*true\b/;
 
-export const RULES: readonly Rule[] = [
+const OWN_RULES: readonly Rule[] = [
   advisorRule(
     'BS100',
     'security',
@@ -334,6 +325,7 @@ export const RULES: readonly Rule[] = [
     'performance',
     'Supabase performance advisor',
     'Findings from the Performance Advisor (splinter): unindexed foreign keys, auth calls re-evaluated per row in policies, multiple permissive policies, unused and duplicate indexes and more.',
+    coveredByBS207,
   ),
   {
     code: 'BS204',
@@ -732,6 +724,12 @@ export const RULES: readonly Rule[] = [
   },
 ];
 
+export const RULES: readonly Rule[] = [
+  ...OWN_RULES,
+  ...RLS_RULES,
+  ...LIVE_RULES,
+].sort((a, b) => a.code.localeCompare(b.code));
+
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);
 
 export async function runRules(
@@ -739,8 +737,9 @@ export async function runRules(
   rules: readonly Rule[] = RULES,
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
+  const scoped = { ...context, codes: rules.map((rule) => rule.code) };
   for (const rule of rules) {
-    for (const input of await rule.check(context)) {
+    for (const input of await rule.check(scoped)) {
       findings.push({
         code: rule.code,
         severity: rule.severity,

@@ -29,6 +29,10 @@ with 1 when there are errors, or with any warning under `--strict`.
 | `--snapshot <file>` | Check a saved snapshot instead of the database |
 | `--db-url <url>` | Database to introspect |
 | `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`) |
+| `--stats` | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209)) |
+| `--explain <tables>` | Plan these tables under RLS ([BS212](#bs212)) |
+| `--as <uuid>` | With `--explain`: plan as this authenticated user |
+| `--claims <json>` | With `--explain`: plan with these JWT claims |
 
 Doctor never prints env values, only variable names and line numbers.
 
@@ -64,6 +68,8 @@ export default defineConfig({
 
 `doctor.sources` lists the app files that checks such as BS210 scan, as globs
 relative to the project root. The default is `['src/**/*.{ts,tsx}']`.
+`doctor.policyHelperLimit` (default 5) is how many policies a security definer
+helper may appear in before [BS206](#bs206) reports it.
 
 ## Supabase advisors
 
@@ -97,7 +103,8 @@ instead of failing silently.
 **Performance Advisor findings.** Same sources as BS100: unindexed foreign
 keys, `auth.uid()` re-evaluated per row in policies, multiple permissive
 policies, unused and duplicate indexes, tables without a primary key, table
-bloat and more.
+bloat and more. When [BS207](#bs207) runs, it replaces splinter's
+`multiple_permissive_policies` lint for the tables it reports.
 
 ## Security
 
@@ -126,6 +133,56 @@ sets `[api] auto_expose_new_tables = false`, the finding says so.
 [tenant plugin](/docs/plugins), every query filters on the tenant column. Add
 an index that starts with it.
 
+### BS205
+
+**Warning: policy calls a slow function once per row.** A policy passes a
+column of the row, such as `is_member(organization_id)`, to a `plpgsql`,
+other non-SQL or `volatile` function. Postgres can't inline the call or cache
+its result, so it runs once for every row the query reads. Doctor finds the
+functions a policy calls in `pg_depend`, so helpers in private schemas count
+too. Make the helper `language sql stable` so Postgres inlines it, or have it
+return the allowed values once and compare:
+
+```sql
+create policy notes_member on public.notes for select to authenticated
+  using (organization_id in (select private.user_org_ids()));
+```
+
+### BS206
+
+**Warning: security definer policy helper that cannot be inlined.** A
+`security definer` function appears in more than `doctor.policyHelperLimit`
+policies (default 5) and is not `language sql stable`. Every query on those
+tables pays for the call. Rewrite it as `language sql stable` and call it as
+`(select helper())`, so Postgres evaluates it once per statement as an
+InitPlan.
+
+### BS207
+
+**Warning: several permissive policies for one command and role.** Postgres
+evaluates every permissive policy that applies to a command and role, and ORs
+the results, so each extra policy adds its cost to every row. The message
+lists each command and role with its policies; a policy for `public` counts
+for every role. Merge each group into one policy with `or`.
+
+### BS208
+
+**Warning: queries spill to temporary files.** Reads `temp_files` and
+`temp_bytes` from `pg_stat_database` since the statistics were last reset,
+with the current `work_mem`. When `pg_stat_statements` is installed, the
+message lists the five statements that wrote the most temporary blocks. Add
+indexes so large sorts go away, or raise `work_mem` for the role that runs
+them. Needs a database; saved snapshots skip it.
+
+### BS209
+
+**Warning: slow frequent statements.** With `--stats`, doctor reads
+`pg_stat_statements` and reports statements with a mean time above 50 ms and
+more than 1000 calls, slowest total first. When a statement names a table in
+the exposed schemas, the finding points at the file that creates the table.
+Without the extension, doctor reports an info finding with the
+`create extension` command.
+
 ### BS210
 
 **Warning: aggregates used while PostgREST disables them.** PostgREST
@@ -141,6 +198,50 @@ notify pgrst, 'reload config';
 ```
 
 Saved snapshots from before this check carry no role settings, so they skip it.
+
+### BS211
+
+**Info: statement timeouts for the Data API roles.** PostgREST switches to
+`anon` or `authenticated` for each request, so their `statement_timeout`
+limits Data API queries; doctor reports the values set on `anon`,
+`authenticated` and `authenticator`. A function's own
+`set statement_timeout = ...` only applies to an RPC when PostgREST hoists
+it into the transaction. When `pgrst.db_hoisted_tx_settings` is set without
+`statement_timeout`, doctor warns for each exposed function that sets one.
+
+### BS212
+
+**Info: RLS plan for a table.** `--explain customers,notes` runs, for each
+table, in a transaction that is rolled back:
+
+```sql
+set local track_functions = 'all';  -- skipped if the role may not set it
+select set_config('request.jwt.claims', '<claims>', true);
+set local role authenticated;       -- the claims' role, default anon
+explain (analyze, buffers, format json) select * from public.customers limit 1000;
+```
+
+That is the query `findMany()` sends, capped at Supabase's default `max_rows`.
+`--as <uuid>` plans as `{ "sub": uuid, "role": "authenticated" }`;
+`--claims '{"role":"authenticated","org_id":"..."}'` sets any claims your
+policies read. Qualify tables outside the exposed schemas, such as
+`better_supabase.memberships`.
+
+The finding lists node types, timings and loops, never row data, with the
+number of InitPlans and each function's share of the execution time from
+`pg_stat_xact_user_functions`. A SubPlan that runs more than once means a
+policy is evaluated per row, and the finding becomes a warning: wrap the
+policy's function calls in `(select ...)` so they run once as an InitPlan.
+`--explain` needs a direct connection (local stack or `--db-url`); the
+Management API's read-only endpoint can't switch roles.
+
+```text
+info    BS212 RLS plan for a table
+        public.customers as authenticated 0000…00ff: 0.15 ms, 1 InitPlan.
+        Plan: Limit 0.14 ms ×1 > InitPlan 1: Result 0.13 ms ×1 > Seq Scan on
+        customers 0.14 ms ×1. Function time: better_supabase.current_org_id
+        0.13 ms over 1 call (83%).
+```
 
 ## Drift
 

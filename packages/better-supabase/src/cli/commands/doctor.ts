@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path';
 
 import type { ResolvedConfig } from '../../config/index.ts';
 import type { ParsedArgs } from '../args.ts';
+import type { LiveDatabase } from '../doctor/live.ts';
+import type { IntrospectionSource } from '../introspect/source.ts';
 import type { Snapshot } from '../introspect/types.ts';
 import type { CommandResult } from '../io.ts';
 
@@ -56,6 +58,10 @@ Options
   --snapshot <file> Check a saved snapshot instead of the database
   --db-url <url>    Read this database
   --project-ref <r> Read a hosted project through the Management API
+  --stats           Report slow frequent statements from pg_stat_statements (BS209)
+  --explain <t,..>  EXPLAIN ANALYZE the tables under RLS, rolled back (BS212)
+  --as <uuid>       Plan as this authenticated user
+  --claims <json>   Plan with these JWT claims ({"role":"authenticated",...})
 
 Checks: ${RULE_CODES.join(', ')}`;
 
@@ -154,50 +160,94 @@ export interface DoctorOptions {
   readonly snapshot?: Snapshot;
   /** Advisor results (tests); otherwise read from the database being checked. */
   readonly advisors?: DoctorContext['advisors'];
+  /** The live database (tests); otherwise the database being checked. */
+  readonly database?: DoctorContext['database'];
 }
+
+/** Checks that read the database itself rather than the snapshot. */
+const LIVE_CODES = new Set(['BS100', 'BS200', 'BS208', 'BS209', 'BS212']);
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-interface OpenAdvisors {
+interface OpenLive {
   readonly advisors: DoctorContext['advisors'];
+  readonly database: DoctorContext['database'];
   close(): Promise<void>;
 }
 
 /**
- * Advisors for the database doctor reads: the Management API for hosted
- * projects, splinter over the connection otherwise. Saved snapshots skip them.
+ * The database doctor reads, for advisors and live checks: the Management
+ * API for hosted projects, one lazily opened connection otherwise (splinter
+ * runs over it). Saved snapshots skip both.
  */
-async function openAdvisors(
+function openLive(
   config: ResolvedConfig,
   env: Env,
   source: SnapshotSource,
-): Promise<OpenAdvisors> {
+): OpenLive {
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
   if (file) {
-    return {
-      ...none,
-      advisors: {
-        skipped: `reading the saved snapshot ${file}; pass --db-url or --project-ref to lint a database.`,
-      },
-    };
+    const skipped = `reading the saved snapshot ${file}; pass --db-url or --project-ref to check a database.`;
+    return { ...none, advisors: { skipped }, database: { skipped } };
   }
+  let opened: Promise<IntrospectionSource> | undefined;
+  const open = (): Promise<IntrospectionSource> =>
+    (opened ??= openSource(config, env, source));
   const target = managementTarget(config, env, source);
-  if (target) return { ...none, advisors: managementAdvisors(target) };
-  let opened: Awaited<ReturnType<typeof openSource>> | undefined;
+  const database: LiveDatabase = {
+    describe: target
+      ? `project ${target.projectRef} (Management API)`
+      : 'database',
+    session: !target,
+    async query<R>(sql: string) {
+      const result = await (await open()).queryable.query(sql);
+      return result.rows as R[];
+    },
+  };
+  const close = async (): Promise<void> => {
+    if (opened) await (await opened).close();
+  };
+  if (target) return { advisors: managementAdvisors(target), database, close };
   let splinter: Promise<AdvisorSource> | undefined;
   const cacheDir = resolve(config.root, 'node_modules/.cache/better-supabase');
   const advisors: AdvisorSource = {
     describe: 'database (splinter)',
     async lints(category) {
-      splinter ??= openSource(config, env, source).then((db) => {
-        opened = db;
-        return splinterAdvisors(db.queryable, db.describe, { cacheDir });
-      });
+      splinter ??= open().then((db) =>
+        splinterAdvisors(db.queryable, db.describe, { cacheDir }),
+      );
       return (await splinter).lints(category);
     },
   };
-  return { advisors, close: async () => opened?.close() };
+  return { advisors, database, close };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `--as <uuid>` or `--claims <json>` as `request.jwt.claims`. */
+function explainClaims(
+  args: ParsedArgs,
+): Record<string, unknown> | { error: string } {
+  const as = flagString(args.flags, 'as');
+  const claims = flagString(args.flags, 'claims');
+  if (as && claims) return { error: 'Pass --as or --claims, not both' };
+  if (as) {
+    if (!UUID.test(as))
+      return { error: `--as takes a user id (uuid), got "${as}"` };
+    return { sub: as, role: 'authenticated' };
+  }
+  if (!claims) return { role: 'anon' };
+  try {
+    const parsed = JSON.parse(claims) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      return { error: '--claims takes a JSON object' };
+    return { role: 'anon', ...(parsed as Record<string, unknown>) };
+  } catch (cause) {
+    return {
+      error: `--claims is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
+    };
+  }
 }
 
 export async function runDoctor(
@@ -225,28 +275,50 @@ export async function runDoctor(
       code: 2,
       error: `Unknown check ${unknown.join(', ')}. Checks: ${RULE_CODES.join(', ')}`,
     };
+  const explainTables = flagList(args.flags, 'explain');
+  const stats = flagBool(args.flags, 'stats');
+  const claims = explainClaims(args);
+  if ('error' in claims) return { code: 2, error: String(claims.error) };
+  // --stats and --explain ask for their checks even when --only leaves them out.
+  const asked = new Set([
+    ...(stats ? ['BS209'] : []),
+    ...(explainTables.length > 0 ? ['BS212'] : []),
+  ]);
   const rules = RULES.filter(
     (rule) =>
-      (only.length === 0 || only.includes(rule.code)) && !ignore.has(rule.code),
+      (only.length === 0 || only.includes(rule.code) || asked.has(rule.code)) &&
+      !ignore.has(rule.code),
   );
 
   const snapshotPath = flagString(args.flags, 'snapshot');
   const dbUrl = flagString(args.flags, 'db-url');
   const projectRef = flagString(args.flags, 'project-ref');
   const source: SnapshotSource = {
+    // Statistics and plans need the database, not the saved snapshot.
+    ...(stats || explainTables.length > 0 ? { live: true } : {}),
     ...(snapshotPath ? { snapshotPath } : {}),
     ...(dbUrl ? { dbUrl } : {}),
     ...(projectRef ? { projectRef } : {}),
   };
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, env, source));
-  const wantsAdvisors = rules.some(
-    (rule) => rule.code === 'BS100' || rule.code === 'BS200',
-  );
-  const opened =
-    options.advisors !== undefined || options.snapshot || !wantsAdvisors
-      ? { advisors: options.advisors, close: () => Promise.resolve() }
-      : await openAdvisors(config, env, source);
+  const wantsLive = rules.some((rule) => LIVE_CODES.has(rule.code));
+  const opened: OpenLive =
+    options.snapshot || !wantsLive
+      ? {
+          advisors: options.advisors,
+          database: options.database,
+          close: () => Promise.resolve(),
+        }
+      : {
+          ...openLive(config, env, source),
+          ...(options.advisors !== undefined
+            ? { advisors: options.advisors }
+            : {}),
+          ...(options.database !== undefined
+            ? { database: options.database }
+            : {}),
+        };
   const envFiles = (
     await Promise.all(ENV_FILES.map((path) => readText(config.root, path)))
   ).filter((file): file is TextFile => file !== undefined);
@@ -261,6 +333,11 @@ export async function runDoctor(
       skipped: cause instanceof Error ? cause.message : String(cause),
     })),
     ...(opened.advisors ? { advisors: opened.advisors } : {}),
+    ...(opened.database ? { database: opened.database } : {}),
+    ...(stats ? { stats } : {}),
+    ...(explainTables.length > 0
+      ? { explain: { tables: explainTables, claims } }
+      : {}),
   };
   const sql = await sqlFiles(config.root);
   let ran: Finding[];

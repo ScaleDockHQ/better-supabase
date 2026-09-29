@@ -2,6 +2,7 @@ import type { Queryable } from './typegen.ts';
 import type {
   CatalogPolicy,
   CatalogTrigger,
+  ExtrasFunction,
   ExtrasTable,
   ForeignKeyAction,
   SnapshotBucket,
@@ -55,12 +56,45 @@ order by 1, 2`;
 const POLICIES = (schemas: string) => `
 select c.oid::int8 as table_id, p.policyname as name,
   (p.permissive = 'PERMISSIVE') as permissive, p.roles::text[] as roles, lower(p.cmd) as command,
-  p.qual as using_expr, p.with_check as check_expr
+  p.qual as using_expr, p.with_check as check_expr,
+  array(
+    select distinct fn.nspname || '.' || pr.proname
+    from pg_policy pol
+    join pg_depend d on d.classid = 'pg_policy'::regclass and d.objid = pol.oid
+      and d.refclassid = 'pg_proc'::regclass
+    join pg_proc pr on pr.oid = d.refobjid
+    join pg_namespace fn on fn.oid = pr.pronamespace
+    where pol.polrelid = c.oid and pol.polname = p.policyname
+    order by 1
+  )::text[] as functions
 from pg_policies p
 join pg_namespace n on n.nspname = p.schemaname
 join pg_class c on c.relnamespace = n.oid and c.relname = p.tablename
 where p.schemaname = any(${schemas})
 order by 1, 2`;
+
+// Functions policies call (in any schema) and functions with `set` options
+// other than `search_path`.
+const FUNCTIONS = (schemas: string) => `
+select n.nspname as schema, p.proname as name,
+  pg_get_function_identity_arguments(p.oid) as signature,
+  l.lanname as language, p.provolatile as volatility,
+  p.prosecdef as security_definer, coalesce(p.proconfig, '{}')::text[] as config
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+join pg_language l on l.oid = p.prolang
+where p.oid in (
+    select d.refobjid
+    from pg_depend d
+    join pg_policy pol on d.classid = 'pg_policy'::regclass and d.objid = pol.oid
+    join pg_class c on c.oid = pol.polrelid
+    join pg_namespace cn on cn.oid = c.relnamespace
+    where d.refclassid = 'pg_proc'::regclass and cn.nspname = any(${schemas})
+  )
+  or (n.nspname = any(${schemas}) and exists (
+    select 1 from unnest(p.proconfig) setting where setting not like 'search_path=%'
+  ))
+order by 1, 2, 3`;
 
 const TRIGGERS = (schemas: string) => `
 select t.tgrelid::int8 as table_id, t.tgname as name,
@@ -149,6 +183,36 @@ interface PolicyRow {
   command: CatalogPolicy['command'];
   using_expr: string | null;
   check_expr: string | null;
+  functions: string[] | null;
+}
+
+interface FunctionRow {
+  schema: string;
+  name: string;
+  signature: string;
+  language: string;
+  volatility: 'i' | 's' | 'v';
+  security_definer: boolean;
+  config: string[] | null;
+}
+
+const VOLATILITY: Record<
+  FunctionRow['volatility'],
+  ExtrasFunction['volatility']
+> = {
+  i: 'immutable',
+  s: 'stable',
+  v: 'volatile',
+};
+
+/** `['statement_timeout=5s']` as `{ statement_timeout: '5s' }`. */
+function settingsOf(config: readonly string[] | null): Record<string, string> {
+  const settings: Record<string, string> = {};
+  for (const entry of config ?? []) {
+    const at = entry.indexOf('=');
+    if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
+  }
+  return settings;
 }
 
 interface TriggerRow {
@@ -224,16 +288,13 @@ export async function readExtras(
     'pg_catalog.pg_publication_tables',
     REALTIME,
   );
+  const functions = await rows<FunctionRow>(db, FUNCTIONS(list));
   const roleSettings: Record<string, Record<string, string>> = {};
   for (const row of await rows<{ role: string; config: string[] | null }>(
     db,
     ROLE_SETTINGS,
   )) {
-    const settings = (roleSettings[row.role] ??= {});
-    for (const entry of row.config ?? []) {
-      const at = entry.indexOf('=');
-      if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
-    }
+    Object.assign((roleSettings[row.role] ??= {}), settingsOf(row.config));
   }
 
   const tables = relations.map((relation): ExtrasTable => {
@@ -284,6 +345,7 @@ export async function readExtras(
         permissive: policy.permissive,
         using: policy.using_expr,
         check: policy.check_expr,
+        functions: policy.functions ?? [],
       })),
       triggers: (triggers.get(id) ?? []).map((trigger) => ({
         name: trigger.name,
@@ -310,5 +372,14 @@ export async function readExtras(
     })),
     realtime: realtime.map((row) => row.name),
     roleSettings,
+    functions: functions.map((row): ExtrasFunction => ({
+      schema: row.schema,
+      name: row.name,
+      signature: row.signature,
+      language: row.language,
+      volatility: VOLATILITY[row.volatility],
+      securityDefiner: row.security_definer,
+      settings: settingsOf(row.config),
+    })),
   };
 }

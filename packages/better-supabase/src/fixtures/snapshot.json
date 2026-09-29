@@ -4368,7 +4368,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "( SELECT better_supabase.has_org_role(invitations.org_id, '{owner,admin}'::text[]) AS has_org_role)",
-            "check": null
+            "check": null,
+            "functions": ["better_supabase.has_org_role"]
           }
         ],
         "triggers": [],
@@ -4490,7 +4491,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT better_supabase.has_org_role(memberships.org_id) AS has_org_role))",
-            "check": null
+            "check": null,
+            "functions": ["auth.uid", "better_supabase.has_org_role"]
           }
         ],
         "triggers": [],
@@ -4537,7 +4539,8 @@
             "roles": ["public"],
             "permissive": true,
             "using": "true",
-            "check": null
+            "check": null,
+            "functions": []
           }
         ],
         "triggers": [],
@@ -4647,7 +4650,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))"
+            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [
@@ -4732,7 +4736,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))"
+            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [],
@@ -4821,7 +4826,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))"
+            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [
@@ -4908,7 +4914,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))"
+            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [
@@ -4988,7 +4995,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))"
+            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [
@@ -5055,7 +5063,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": null
+            "check": null,
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [
@@ -5140,7 +5149,8 @@
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))"
+            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "functions": ["better_supabase.current_org_id"]
           }
         ],
         "triggers": [],
@@ -5172,6 +5182,39 @@
         "allowedMimeTypes": ["image/png", "image/jpeg", "image/webp"]
       }
     ],
-    "realtime": []
+    "realtime": [],
+    "functions": [
+      {
+        "schema": "auth",
+        "name": "uid",
+        "signature": "",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": false,
+        "settings": {}
+      },
+      {
+        "schema": "better_supabase",
+        "name": "current_org_id",
+        "signature": "",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": false,
+        "settings": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "schema": "better_supabase",
+        "name": "has_org_role",
+        "signature": "org uuid, roles text[]",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        }
+      }
+    ]
   }
 }

@@ -7,9 +7,11 @@ import type {
   Catalog,
   CatalogFunction,
   CatalogTable,
+  ExtrasFunction,
   Snapshot,
 } from '../introspect/types.ts';
 import type { AdvisorSource, Lint } from './advisors.ts';
+import type { LiveDatabase } from './live.ts';
 
 import { resolveConfig } from '../../config/index.ts';
 import fixture from '../../fixtures/snapshot.json' with { type: 'json' };
@@ -20,6 +22,7 @@ import { fromCatalog } from '../introspect/from-catalog.ts';
 import { run } from '../run.ts';
 import { parseTomlSubset, type SupabaseToml } from '../supabase-toml.ts';
 import { formatReport } from './format.ts';
+import { summarizePlan } from './live.ts';
 import { type DoctorContext, RULE_CODES, RULES, runRules } from './rules.ts';
 
 const base = parseSnapshot(fixture);
@@ -305,6 +308,325 @@ describe('doctor rules', () => {
     expect(await codes(context(on, { sources }), 'BS210')).toEqual([]);
     // Older snapshots carry no role settings, so there is nothing to check.
     expect(await codes(context(base, { sources }), 'BS210')).toEqual([]);
+  });
+
+  describe('RLS performance', () => {
+    const helper = (overrides: Partial<ExtrasFunction>): ExtrasFunction => ({
+      schema: 'private',
+      name: 'is_member',
+      signature: 'org uuid',
+      language: 'plpgsql',
+      volatility: 'stable',
+      securityDefiner: true,
+      settings: {},
+      ...overrides,
+    });
+    const withFunctions = (
+      snap: Snapshot,
+      functions: ExtrasFunction[],
+      roleSettings?: Record<string, Record<string, string>>,
+    ): Snapshot => ({
+      ...snap,
+      extras: {
+        ...snap.extras,
+        functions,
+        ...(roleSettings ? { roleSettings } : {}),
+      },
+    });
+    const memberPolicy = (name: string, using: string) => ({
+      name,
+      command: 'select' as const,
+      roles: ['authenticated'],
+      permissive: true,
+      using,
+      check: null,
+      functions: ['private.is_member'],
+    });
+
+    it('flags slow helpers called with a row column (BS205)', async () => {
+      const snap = snapshot((tables) => {
+        table(tables, 'customers').policies = [
+          memberPolicy(
+            'customers_member',
+            '( SELECT private.is_member(customers.organization_id) AS is_member)',
+          ),
+        ];
+      });
+      const findings = await runRules(
+        context(withFunctions(snap, [helper({})])),
+        RULES.filter((rule) => rule.code === 'BS205'),
+      );
+      expect(findings).toMatchObject([
+        {
+          code: 'BS205',
+          message: expect.stringContaining(
+            'private.is_member(organization_id), a plpgsql function',
+          ),
+          object: { kind: 'policy', name: 'customers_member' },
+        },
+      ]);
+      // Inlinable SQL helpers, and calls without a column, are fine.
+      const sql = withFunctions(snap, [helper({ language: 'sql' })]);
+      expect(await codes(context(sql), 'BS205')).toEqual([]);
+      const constant = snapshot((tables) => {
+        table(tables, 'customers').policies = [
+          memberPolicy(
+            'customers_member',
+            "private.is_member('00000000-0000-4000-8000-000000000001'::uuid)",
+          ),
+        ];
+      });
+      expect(
+        await codes(context(withFunctions(constant, [helper({})])), 'BS205'),
+      ).toEqual([]);
+    });
+
+    it('flags security definer helpers used in many policies (BS206)', async () => {
+      const names = ['customers', 'notes', 'tags', 'contacts', 'locations'];
+      const snap = snapshot((tables) => {
+        for (const name of names) {
+          table(tables, name).policies = [
+            memberPolicy(`${name}_member`, '(select private.is_member())'),
+          ];
+        }
+      });
+      const five = withFunctions(snap, [helper({})]);
+      expect(await codes(context(five), 'BS206')).toEqual([]);
+      const tight = context(five, {
+        config: resolveConfig({ doctor: { policyHelperLimit: 4 } }, '/p'),
+      });
+      const [finding] = await runRules(
+        tight,
+        RULES.filter((rule) => rule.code === 'BS206'),
+      );
+      expect(finding).toMatchObject({
+        target: 'private.is_member',
+        message: expect.stringContaining('used in 5 policies'),
+        object: { kind: 'function', schema: 'private', name: 'is_member' },
+      });
+      const inlinable = withFunctions(snap, [helper({ language: 'sql' })]);
+      expect(
+        await codes(context(inlinable, { config: tight.config }), 'BS206'),
+      ).toEqual([]);
+    });
+
+    it('flags overlapping permissive policies and drops the splinter duplicate (BS207)', async () => {
+      const snap = snapshot((tables) => {
+        edit(table(tables, 'notes').policies).push({
+          name: 'notes_public_read',
+          command: 'select',
+          roles: ['public'],
+          permissive: true,
+          using: 'true',
+          check: null,
+        });
+      });
+      const findings = await runRules(
+        context(snap),
+        RULES.filter((rule) => rule.code === 'BS207'),
+      );
+      expect(findings).toMatchObject([
+        {
+          target: 'public.notes',
+          message: expect.stringContaining(
+            'select for authenticated: notes_tenant, notes_public_read',
+          ),
+        },
+      ]);
+      const lint = {
+        name: 'multiple_permissive_policies',
+        title: 'Multiple Permissive Policies',
+        level: 'WARN',
+        facing: 'EXTERNAL',
+        categories: ['PERFORMANCE'],
+        description: '',
+        detail: 'notes has several',
+        remediation: '',
+        metadata: { schema: 'public', name: 'notes', type: 'table' },
+        cache_key: 'multiple_permissive_policies_public_notes',
+      } satisfies Lint;
+      const advisors: AdvisorSource = {
+        describe: 'test',
+        lints: () => Promise.resolve([lint]),
+      };
+      const both = RULES.filter((rule) =>
+        ['BS200', 'BS207'].includes(rule.code),
+      );
+      expect(await codes(context(snap, { advisors }), undefined)).toContain(
+        'BS207',
+      );
+      expect(
+        (await runRules(context(snap, { advisors }), both)).map(
+          (finding) => finding.code,
+        ),
+      ).toEqual(['BS207']);
+      // Without BS207 in the run, splinter's lint stays.
+      expect(
+        (
+          await runRules(
+            context(snap, { advisors }),
+            RULES.filter((rule) => rule.code === 'BS200'),
+          )
+        ).map((finding) => finding.code),
+      ).toEqual(['BS200']);
+    });
+
+    it('reports role timeouts and unhoisted function timeouts (BS211)', async () => {
+      const roles = {
+        anon: { statement_timeout: '3s' },
+        authenticated: { statement_timeout: '8s' },
+        authenticator: {
+          statement_timeout: '8s',
+          'pgrst.db_hoisted_tx_settings': 'default_transaction_isolation',
+        },
+      };
+      const slow = helper({
+        schema: 'public',
+        name: 'report',
+        signature: '',
+        language: 'sql',
+        settings: { statement_timeout: '60s' },
+      });
+      const findings = await runRules(
+        context(withFunctions(base, [slow], roles)),
+        RULES.filter((rule) => rule.code === 'BS211'),
+      );
+      expect(findings).toMatchObject([
+        {
+          severity: 'info',
+          message:
+            'statement_timeout: anon 3s, authenticated 8s, authenticator 8s. Unset roles use the database default.',
+        },
+        {
+          severity: 'warning',
+          target: 'public.report:statement_timeout',
+          object: { kind: 'function', name: 'report' },
+        },
+      ]);
+      const hoisted = {
+        ...roles,
+        authenticator: { statement_timeout: '8s' },
+      };
+      expect(
+        await codes(context(withFunctions(base, [slow], hoisted)), 'BS211'),
+      ).toEqual(['BS211']);
+    });
+
+    it('reads temp spills and slow statements from a live database (BS208, BS209)', async () => {
+      const answers: [RegExp, Record<string, unknown>[]][] = [
+        [
+          /pg_stat_database/,
+          [{ temp_files: 3, temp_bytes: 3145728, work_mem: '4MB' }],
+        ],
+        [/pg_extension/, [{ schema: 'extensions' }]],
+        [
+          /temp_blks_written > 0/,
+          [{ query: 'select * from big order by x', temp_blks_written: 90 }],
+        ],
+        [
+          /mean_exec_time >/,
+          [
+            {
+              queryid: '42',
+              query: 'SELECT "public"."customers".* FROM "public"."customers"',
+              calls: 5000,
+              mean_exec_time: 81.25,
+            },
+          ],
+        ],
+      ];
+      const database: LiveDatabase = {
+        describe: 'test',
+        session: true,
+        query: <R>(sql: string) =>
+          Promise.resolve(
+            (answers.find(([pattern]) => pattern.test(sql))?.[1] ?? []) as R[],
+          ),
+      };
+      const live = RULES.filter((rule) =>
+        ['BS208', 'BS209'].includes(rule.code),
+      );
+      const withoutStats = await runRules(context(base, { database }), live);
+      expect(withoutStats).toMatchObject([
+        {
+          code: 'BS208',
+          message: expect.stringMatching(
+            /^3 temporary files \(3\.0 MB\).*work_mem is 4MB.*select \* from big order by x \(90 blocks\)/,
+          ),
+        },
+      ]);
+      const withStats = await runRules(
+        context(base, { database, stats: true }),
+        live,
+      );
+      expect(withStats[1]).toMatchObject({
+        code: 'BS209',
+        message: expect.stringContaining('81.3 ms mean over 5000 calls'),
+        target: 'pg_stat_statements:42',
+        object: { kind: 'table', schema: 'public', name: 'customers' },
+      });
+      expect(
+        await codes(context(base, { database: { skipped: 'x' } })),
+      ).toEqual([]);
+    });
+
+    it('summarizes plans without rows (BS212)', () => {
+      const summary = summarizePlan({
+        'Execution Time': 4.5,
+        Plan: {
+          'Node Type': 'Seq Scan',
+          'Relation Name': 'notes',
+          'Actual Total Time': 4.1,
+          'Actual Loops': 1,
+          Plans: [
+            {
+              'Node Type': 'Result',
+              'Parent Relationship': 'InitPlan',
+              'Subplan Name': 'InitPlan 1',
+              'Actual Total Time': 0.02,
+              'Actual Loops': 1,
+            },
+            {
+              'Node Type': 'Index Scan',
+              'Relation Name': 'memberships',
+              'Parent Relationship': 'SubPlan',
+              'Subplan Name': 'SubPlan 2',
+              'Actual Total Time': 0.01,
+              'Actual Loops': 250,
+            },
+          ],
+        },
+      });
+      expect(summary).toEqual({
+        nodes: [
+          'Seq Scan on notes 4.10 ms ×1',
+          'InitPlan 1: Result 0.02 ms ×1',
+          'SubPlan 2: Index Scan on memberships 0.01 ms ×250',
+        ],
+        initPlans: 1,
+        perRowSubPlans: ['SubPlan 2: Index Scan on memberships ×250'],
+        executionMs: 4.5,
+      });
+    });
+
+    it('needs a direct connection for --explain (BS212)', async () => {
+      const explain = { tables: ['customers'], claims: { role: 'anon' } };
+      const rule = RULES.filter((entry) => entry.code === 'BS212');
+      const database: LiveDatabase = {
+        describe: 'management',
+        session: false,
+        query: () => Promise.resolve([]),
+      };
+      expect(
+        await runRules(context(base, { database, explain }), rule),
+      ).toMatchObject([
+        {
+          severity: 'warning',
+          message: expect.stringContaining('direct database connection'),
+        },
+      ]);
+      expect(await runRules(context(base, { database }), rule)).toEqual([]);
+    });
   });
 
   it('flags soft delete hidden by a select policy and bucket drift', async () => {

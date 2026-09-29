@@ -13,6 +13,7 @@ const ARRAY_FLAGS = new Set([
   'agent',
   'kit',
   'with',
+  'explain',
 ]);
 const BOOLEAN_FLAGS = new Set([
   'check',
@@ -30,6 +31,7 @@ const BOOLEAN_FLAGS = new Set([
   'apply',
   'print',
   'global',
+  'stats',
 ]);
 
 export function parseArgs(argv: readonly string[]): ParsedArgs {
