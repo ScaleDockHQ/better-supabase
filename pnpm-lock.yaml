@@ -860,7 +860,7 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
-  tests/validation-centrakit:
+  tests/validation-crm:
     devDependencies:
       '@better-supabase/typescript-config':
         specifier: workspace:*
@@ -884,7 +884,7 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
 
-  tests/validation-lienlink:
+  tests/validation-request-context:
     devDependencies:
       '@better-supabase/typescript-config':
         specifier: workspace:*

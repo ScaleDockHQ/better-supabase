@@ -30,14 +30,14 @@ To use another stack, set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and
 
 ## Real-world ports
 
-`tests/validation-centrakit` and `tests/validation-lienlink` rewrite code
+`tests/validation-crm` and `tests/validation-request-context` rewrite code
 from two production apps on better-supabase:
 
-- **CentraKit customers service**: the customer list, which has status,
+- **CRM customers service**: the customer list, which has status,
   tag, assignee and nested contact search filters plus four includes, becomes
   one `paginate` call that sends a single request. It is generated from and
   typechecked against a 263-table schema.
-- **CentraKit latency ports**, each asserting its request budget with
+- **CRM latency ports**, each asserting its request budget with
   `db.$stats()`:
   - The customers overview is a `defineListQuery` with facet counts and
     per-row aggregates: 2 calls in 1 wave.
@@ -45,6 +45,6 @@ from two production apps on better-supabase:
     approvals) are one read set: 1 call.
   - The customer portal is scoped by `tenant({ claim: 'customer_id' })` on
     claims validated by `sb.claims()`: 2 calls in 1 wave.
-- **lienlink's Supabase package**: env validation, request headers, a
+- **An app Supabase package**: env validation, request headers, a
   user-auth guard, a cron guard with a named secret key, avatar storage and
   the browser client. Its request-context tests run against the local stack.

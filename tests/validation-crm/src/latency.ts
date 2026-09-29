@@ -8,9 +8,9 @@ import { schema } from './generated.ts';
 export const sb = defineSupabase(schema);
 
 /**
- * CentraKit's customers overview: the page, the per-status counts and each
+ * The customers overview: the page, the per-status counts and each
  * row's contact count and latest update of a location, in two requests
- * that run in parallel. CentraKit runs up to six sequential queries.
+ * that run in parallel. The original service ran up to six sequential queries.
  */
 export const customerOverview = defineListQuery(sb, 'customers', {
   search: ['companyName', 'sortName', 'billingEmail'],
@@ -25,7 +25,7 @@ export const customerOverview = defineListQuery(sb, 'customers', {
 });
 
 /**
- * The three badges in CentraKit's app chrome (unread notifications, my open
+ * The three badges in the app chrome (unread notifications, my open
  * tasks, approvals waiting on me) as one read set: `gen` compiles it into
  * `public.rs_app_chrome(p jsonb)`, and `db.$many` calls it with one GET.
  */
@@ -49,7 +49,7 @@ export const appChrome = defineReadSet(
   }),
 );
 
-/** Claims of CentraKit's customer portal token: the customer it may see. */
+/** Claims of the customer portal token: the customer it may see. */
 export const PortalClaims = z.object({
   sub: z.uuid(),
   customer_id: z.string().regex(/^\d+$/),

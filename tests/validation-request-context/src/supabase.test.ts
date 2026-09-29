@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { avatarPath, avatarRenderer, leftoverAvatarPaths } from './storage.ts';
 import {
-  lienlinkRequestHeaders,
+  appRequestHeaders,
   supabaseClientEnv,
   supabaseServerEnv,
 } from './supabase.ts';
@@ -96,7 +96,7 @@ describe('env', () => {
   });
 });
 
-describe('lienlinkRequestHeaders', () => {
+describe('appRequestHeaders', () => {
   it('stamps channel, request id and the first forwarded client ip', () => {
     const request = new Request('https://app.test', {
       headers: {
@@ -104,15 +104,15 @@ describe('lienlinkRequestHeaders', () => {
         'x-forwarded-for': '203.0.113.7, 10.0.0.1',
       },
     });
-    expect(lienlinkRequestHeaders(request, 'web')).toEqual({
-      'x-lienlink-channel': 'web',
+    expect(appRequestHeaders(request, 'web')).toEqual({
+      'x-app-channel': 'web',
       'x-request-id': 'req-1',
       'x-client-ip': '203.0.113.7',
     });
   });
 
   it('falls back to a generated request id', () => {
-    const headers = lienlinkRequestHeaders(
+    const headers = appRequestHeaders(
       new Request('https://app.test'),
       'mobile',
     );

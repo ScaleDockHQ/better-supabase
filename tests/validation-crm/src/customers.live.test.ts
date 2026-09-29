@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { createCustomersService } from './customers.ts';
 import { schema } from './generated.ts';
 
-const url = process.env['CENTRAKIT_SUPABASE_URL'];
-const secretKey = process.env['CENTRAKIT_SUPABASE_SECRET_KEY'];
+const url = process.env['CRM_SUPABASE_URL'];
+const secretKey = process.env['CRM_SUPABASE_SECRET_KEY'];
 
 describe.skipIf(!url || !secretKey)(
-  'CentraKit customers against a running CentraKit stack (read-only)',
+  'CRM customers against a running CRM stack (read-only)',
   () => {
     it('runs the overview query with every filter and include', async () => {
       const db = defineSupabase(schema).connect(

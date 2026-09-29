@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parseEnv } from 'better-supabase/env';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createLienlinkServer, withCron, withUserAuth } from './supabase.ts';
+import { createAppServer, withCron, withUserAuth } from './supabase.ts';
 
 const stack = {
   url: process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421',
@@ -45,7 +45,7 @@ const admin = createClient(stack.url, stack.secretKey, {
 });
 
 async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
-  const email = `lienlink-${crypto.randomUUID()}@example.com`;
+  const email = `request-context-${crypto.randomUUID()}@example.com`;
   const password = 'correct horse battery staple';
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -79,8 +79,8 @@ const cookieHeader = (cookies: Map<string, string>) =>
     .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
     .join('; ');
 
-describe.skipIf(!up)('lienlink request context on better-supabase', () => {
-  const server = createLienlinkServer(env, 'web');
+describe.skipIf(!up)('request context on better-supabase', () => {
+  const server = createAppServer(env, 'web');
   const whoami = withUserAuth(server, async (_request, ctx) => {
     const customers = await ctx.db.customers
       .findMany({ select: ['organizationId'] })
@@ -184,7 +184,7 @@ describe.skipIf(!up)('lienlink request context on better-supabase', () => {
       SUPABASE_URL: stack.url,
       SUPABASE_PUBLISHABLE_KEY: stack.publishableKey,
     }).env!;
-    const lazy = createLienlinkServer(publicOnly, 'worker');
+    const lazy = createAppServer(publicOnly, 'worker');
     expect(() => lazy.admin()).toThrow(/SUPABASE_SECRET_KEY/);
   });
 });

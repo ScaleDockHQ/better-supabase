@@ -6803,7 +6803,7 @@
         "id": "1000015.19",
         "ordinal_position": 19,
         "name": "ical_uid",
-        "default_value": "((gen_random_uuid())::text || '@centrakit'::text)",
+        "default_value": "((gen_random_uuid())::text || '@example'::text)",
         "data_type": "text",
         "format": "text",
         "type_schema": "pg_catalog",
