@@ -33,11 +33,13 @@ export const fixtureConfig: BetterSupabaseConfig = {
   buckets: {
     customerLogos: {
       path: '{orgId}/{customerId}/logo/{version}.webp',
+      public: true,
       policy: 'tenant',
       fileSizeLimit: '5MiB',
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
     },
   },
+  storagePaths: { 'customers.logo_path': 'customerLogos' },
   topics: {
     notifications: 'org:{orgId}:notifications:{userId}',
     customers: 'org:{orgId}:customers',

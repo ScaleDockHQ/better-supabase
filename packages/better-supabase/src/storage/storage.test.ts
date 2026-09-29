@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { createClient } from '@supabase/supabase-js';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { DbException } from '../core/errors.ts';
-import { defineBucket, fromStorageError, parseSize } from './index.ts';
+import {
+  defineBucket,
+  fromStorageError,
+  parseSize,
+  type StoragePath,
+} from './index.ts';
 
 const logos = defineBucket({
   id: 'customer-logos',
@@ -157,5 +163,85 @@ describe('storage helpers', () => {
       fromStorageError({ name: 'StorageUnknownError', message: 'fetch failed' })
         .kind,
     ).toBe('network');
+  });
+});
+
+describe('renderUrl', () => {
+  const URL_BASE = 'https://abcdefghijklmnopqrst.supabase.co';
+  const client = (fetch: typeof globalThis.fetch) =>
+    createClient(URL_BASE, 'sb_publishable_test', {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch },
+    });
+  const transform = {
+    width: 320,
+    height: 200,
+    resize: 'cover',
+    quality: 70,
+  } as const;
+
+  it('builds a /render/image/public URL for public buckets without a request', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const avatars = defineBucket({
+      id: 'avatars',
+      path: '{userId}/{file}',
+      public: true,
+      policy: 'public',
+    }).connect(client(fetch));
+    const url = await avatars
+      .renderUrl({ userId: 'u1', file: 'me.webp' }, transform)
+      .orThrow();
+    expect(fetch).not.toHaveBeenCalled();
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe(
+      '/storage/v1/render/image/public/avatars/u1/me.webp',
+    );
+    expect(Object.fromEntries(parsed.searchParams)).toEqual({
+      width: '320',
+      height: '200',
+      resize: 'cover',
+      quality: '70',
+    });
+  });
+
+  it('signs a /render/image/sign URL for private buckets', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        signedURL:
+          '/render/image/sign/customer-logos/o1/c1/logo/3.webp?token=t0k',
+      }),
+    );
+    const url = await logos
+      .connect(client(fetch))
+      .renderUrl('o1/c1/logo/3.webp', transform, { ttl: 'day' })
+      .orThrow();
+    const [input, init] = fetch.mock.calls[0]!;
+    expect(String(input)).toBe(
+      `${URL_BASE}/storage/v1/object/sign/customer-logos/o1/c1/logo/3.webp`,
+    );
+    expect(JSON.parse(String(init?.body))).toEqual({
+      expiresIn: 86_400,
+      transform,
+    });
+    expect(url).toBe(
+      `${URL_BASE}/storage/v1/render/image/sign/customer-logos/o1/c1/logo/3.webp?token=t0k`,
+    );
+  });
+});
+
+describe('StoragePath', () => {
+  it('brands paths with the bucket id', () => {
+    const path = logos.path({ orgId: 'o1', customerId: 'c1', version: 1 });
+    expectTypeOf(path).toEqualTypeOf<StoragePath<'customer-logos'>>();
+    expectTypeOf(path).toMatchTypeOf<string>();
+    const bucket = logos.connect({} as never);
+    type Target = Parameters<typeof bucket.exists>[0];
+    expectTypeOf(path).toMatchTypeOf<Target>();
+    expectTypeOf('o1/c1/logo/1.webp').toMatchTypeOf<Target>();
+    const avatar = '' as StoragePath<'avatars'>;
+    const wrongBucket = () =>
+      // @ts-expect-error a path from another bucket
+      bucket.exists(avatar);
+    expectTypeOf(wrongBucket).toBeFunction();
   });
 });

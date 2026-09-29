@@ -12,6 +12,7 @@ const entries = [
   'postgres/index',
   'ssr/index',
   'next/index',
+  'next/image/index',
   'hono/index',
   'orpc/index',
   'edge/index',

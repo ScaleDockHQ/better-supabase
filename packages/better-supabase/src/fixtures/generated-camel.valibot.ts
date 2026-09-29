@@ -46,6 +46,7 @@ export const customersRow: v.GenericSchema<RowOf<'customers'>> = v.object({
   archivedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
   updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  logoPath: v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>)),
 });
 export const customersInsert: v.GenericSchema<InsertOf<'customers'>> = v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -60,6 +61,7 @@ export const customersInsert: v.GenericSchema<InsertOf<'customers'>> = v.object(
   archivedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
 });
 export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -74,6 +76,7 @@ export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.object(
   archivedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
 });
 
 export const customerTagsRow: v.GenericSchema<RowOf<'customerTags'>> = v.object({

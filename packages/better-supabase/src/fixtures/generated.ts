@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { defineSchema, type Schema } from "../index.ts";
-import type { EnrichDatabase } from "../index.ts";
+import type { EnrichDatabase, StoragePath } from "../index.ts";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -15,6 +15,7 @@ export type Database = EnrichDatabase<
       customers: {
         status: "lead" | "active" | "archived";
         metadata: { source?: string; tier?: 'free' | 'pro' };
+        logo_path: StoragePath<"customer-logos">;
       };
       tags: {
         color: "gray" | "red" | "green" | "blue";
@@ -112,6 +113,7 @@ export type Models = {
       archived_at: string | null;
       created_at: string;
       updated_at: string;
+      logo_path: StoragePath<"customer-logos"> | null;
     };
     Insert: {
       id?: string;
@@ -126,6 +128,7 @@ export type Models = {
       archived_at?: string | null;
       created_at?: string;
       updated_at?: string;
+      logo_path?: StoragePath<"customer-logos"> | null;
     };
     Update: {
       id?: string;
@@ -140,6 +143,7 @@ export type Models = {
       archived_at?: string | null;
       created_at?: string;
       updated_at?: string;
+      logo_path?: StoragePath<"customer-logos"> | null;
     };
     Relations: {
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
@@ -339,7 +343,7 @@ export type UpdateOf<T extends TableName> = Models[T]['Update'];
 export const buckets = {
   "customerLogos": {
     "id": "customer-logos",
-    "public": false,
+    "public": true,
     "path": "{orgId}/{customerId}/logo/{version}.webp",
     "policy": "tenant",
     "fileSizeLimit": "5MiB",
@@ -607,6 +611,13 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "logo_path": {
+          "db": "logo_path",
+          "type": "text",
+          "nullable": true,
+          "hasDefault": false,
+          "storage": "customer-logos"
         }
       },
       "primaryKey": [
@@ -1135,7 +1146,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
   "buckets": {
     "customerLogos": {
       "id": "customer-logos",
-      "public": false,
+      "public": true,
       "path": "{orgId}/{customerId}/logo/{version}.webp",
       "policy": "tenant",
       "fileSizeLimit": "5MiB",

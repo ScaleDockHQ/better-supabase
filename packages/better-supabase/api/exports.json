@@ -153,6 +153,7 @@
       "ScopeFor",
       "Specs",
       "StandardSchemaV1",
+      "StoragePath",
       "TableRepositoryExtension",
       "TableSpecs",
       "UpdateArgs",
@@ -388,6 +389,16 @@
       "SessionStaleOptions"
     ]
   },
+  "./next/image": {
+    "values": [
+      "createImageLoader"
+    ],
+    "types": [
+      "ImageLoader",
+      "ImageLoaderOptions",
+      "ImageLoaderProps"
+    ]
+  },
   "./hono": {
     "values": [
       "createHono"
@@ -534,10 +545,12 @@
       "BucketDrift",
       "BucketPolicy",
       "ObjectTarget",
+      "PathIn",
       "ReplaceOptions",
       "ReplaceResult",
       "Reservation",
       "StorageClient",
+      "StoragePath",
       "StoredObject",
       "SweepOptions",
       "SweepResult",

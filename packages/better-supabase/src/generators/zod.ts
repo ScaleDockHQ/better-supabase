@@ -10,6 +10,7 @@ import {
   HEADER,
   parseImport,
   propertyKey,
+  rowType,
   type ScalarKind,
   schemaName,
   siblingPath,
@@ -67,7 +68,9 @@ function field(
     ? imported
     : plan.customJson
       ? `z.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
-      : scalar(plan.scalar);
+      : plan.column.storage !== undefined
+        ? `(z.string() as unknown as z.ZodType<${rowType(table, plan)}>)`
+        : scalar(plan.scalar);
   if (plan.column.array) expr = `z.array(${expr})`;
   if (plan.nullable) expr = `${expr}.nullable()`;
   if (plan.optional) expr = `${expr}.exactOptional()`;

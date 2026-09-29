@@ -2066,6 +2066,27 @@
         "comment": null
       },
       {
+        "table_id": 1000010,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000010.13",
+        "ordinal_position": 13,
+        "name": "logo_path",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
         "table_id": 1000011,
         "schema": "public",
         "table": "locations",

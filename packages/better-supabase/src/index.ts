@@ -141,6 +141,7 @@ export { SPEC_PINS } from './core/spec-pins.ts';
 
 export { defineSchema, tableMeta } from './schema/define.ts';
 export type { EnrichDatabase } from './schema/enrich.ts';
+export type { StoragePath } from './storage/path.ts';
 export type * from './schema/types.ts';
 
 export type * from './ir/args.ts';

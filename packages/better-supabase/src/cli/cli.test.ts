@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { BetterSupabaseConfig } from '../config/index.ts';
 
-import { renderFixtures } from '../fixtures/render.ts';
+import { resolveConfig } from '../config/index.ts';
+import { loadFixtureSnapshot, renderFixtures } from '../fixtures/render.ts';
+import { buildModel } from './gen/model.ts';
 import { parseCheckUnion } from './gen/shared.ts';
 import { run } from './run.ts';
 
@@ -46,6 +48,42 @@ describe('fixtures', () => {
   });
 });
 
+describe('storagePaths', () => {
+  const model = async (config: BetterSupabaseConfig) =>
+    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
+  const logo = (built: Awaited<ReturnType<typeof model>>) =>
+    built.tables
+      .find((table) => table.key === 'customers')
+      ?.columns.find((column) => column.db === 'logo_path');
+
+  it('types a column with the bucket id from a buckets key or a raw id', async () => {
+    const byKey = await model({
+      buckets: { customerLogos: { path: '{orgId}/{file}' } },
+      storagePaths: { 'public.customers.logo_path': 'customerLogos' },
+    });
+    expect(logo(byKey)).toMatchObject({
+      storage: 'customer-logos',
+      tsType: 'StoragePath<"customer-logos">',
+    });
+    expect(byKey.meta.tables['customers']?.columns['logo_path']?.storage).toBe(
+      'customer-logos',
+    );
+    const byId = await model({
+      storagePaths: { 'customers.logo_path': 'logos' },
+    });
+    expect(logo(byId)?.tsType).toBe('StoragePath<"logos">');
+  });
+
+  it('rejects unknown and non-text columns', async () => {
+    await expect(
+      model({ storagePaths: { 'customers.logo_url': 'logos' } }),
+    ).rejects.toThrow('storagePaths["customers.logo_url"]: no such column');
+    await expect(
+      model({ storagePaths: { 'customers.metadata': 'logos' } }),
+    ).rejects.toThrow('is jsonb, not a text column');
+  });
+});
+
 describe('config JSON Schema', () => {
   it('describes every config key', async () => {
     const schema = JSON.parse(
@@ -70,6 +108,7 @@ describe('config JSON Schema', () => {
       topics: true,
       realtime: true,
       sensitive: true,
+      storagePaths: true,
       expose: true,
       readSets: true,
       sql: true,

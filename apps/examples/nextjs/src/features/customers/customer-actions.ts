@@ -5,6 +5,7 @@ import { toSession } from 'better-supabase/next';
 import { z } from 'zod';
 
 import { can } from '@/features/user/user-permissions';
+import { logos } from '@/lib/buckets';
 import { next } from '@/lib/supabase.server';
 
 /** Mutations invalidate `bs:customers` with `updateTag` (see `createNext`). */
@@ -23,5 +24,39 @@ export const createCustomer = next.action(
       { name, organizationId },
       { select: ['id', 'name', 'status'] },
     );
+  },
+);
+
+/**
+ * Uploads a new logo, points the row at its path, then removes the old one.
+ * The row keeps the path; URLs are signed when rendering.
+ */
+export const uploadCustomerLogo = next.action(
+  {
+    input: z.object({
+      customerId: z.uuid(),
+      logo: z.instanceof(File).refine((file) => file.size > 0, 'Pick a file'),
+    }),
+  },
+  async ({ customerId, logo }, { auth, db, supabase }) => {
+    if (!can(toSession(auth), 'customers.write')) {
+      return err(dbError('forbidden', 'You cannot change customers'));
+    }
+    const orgId =
+      auth.kind === 'user' ? auth.claims.app_metadata?.org_id : undefined;
+    if (!orgId) {
+      return err(dbError('forbidden', 'Your account has no organization'));
+    }
+    const customer = await db.customers.findById(customerId, {
+      select: ['id', 'logoPath'],
+    });
+    if (!customer.ok) return customer;
+    return logos
+      .connect(supabase)
+      .replace({ orgId, customerId, version: crypto.randomUUID() }, logo, {
+        contentType: logo.type,
+        previous: customer.data.logoPath,
+        commit: (path) => db.customers.update(customerId, { logoPath: path }),
+      });
   },
 );

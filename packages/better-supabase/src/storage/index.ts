@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import type { PathIn, StoragePath } from './path.ts';
+
 import {
   type DbError,
   DbException,
@@ -18,12 +20,16 @@ import {
 } from '../core/template.ts';
 
 export type { TemplateParams, TemplateValues } from '../core/template.ts';
+export type { PathIn, StoragePath } from './path.ts';
 
 export type BucketPolicy = 'tenant' | 'owner' | 'public' | 'none';
 
-export interface BucketConfig<P extends string = string> {
+export interface BucketConfig<
+  P extends string = string,
+  Id extends string = string,
+> {
   /** Bucket id, e.g. `customer-logos`. */
-  readonly id: string;
+  readonly id: Id;
   /** Object path template, e.g. `{orgId}/{customerId}/logo/{version}.webp`. */
   readonly path: P;
   readonly public?: boolean;
@@ -51,8 +57,13 @@ export interface BucketConfig<P extends string = string> {
   };
 }
 
-/** A path from the template's values, or an existing path string (checked against the template). */
-export type ObjectTarget<P extends string> = TemplateValues<P> | string;
+/**
+ * A path from the template's values, or an existing path string (checked
+ * against the template). `StoragePath`s of other buckets are rejected.
+ */
+export type ObjectTarget<P extends string, Id extends string = string> =
+  | TemplateValues<P>
+  | PathIn<Id>;
 
 export const TTL = {
   minute: 60,
@@ -108,18 +119,20 @@ export interface Reservation {
   readonly signedUrl: string;
 }
 
-export interface ReplaceOptions extends UploadOptions {
+export interface ReplaceOptions<
+  Id extends string = string,
+> extends UploadOptions {
   /** Path the object replaces. Removed after `commit` succeeds. */
   readonly previous?: string | null;
   /**
    * Store the new path, e.g. update the row. Throwing or returning an error
    * `Result` removes the new object and keeps the previous one.
    */
-  readonly commit?: (path: string) => unknown;
+  readonly commit?: (path: StoragePath<Id>) => unknown;
 }
 
-export interface ReplaceResult {
-  readonly path: string;
+export interface ReplaceResult<Id extends string = string> {
+  readonly path: StoragePath<Id>;
   readonly removed: string | null;
   /** Set when the previous object could not be removed. */
   readonly cleanup?: DbError;
@@ -162,65 +175,73 @@ export interface ActualBucket {
 
 export type StorageClient = Pick<SupabaseClient, 'storage'>;
 
-export interface BucketClient<P extends string> {
-  readonly bucket: Bucket<P>;
+export interface BucketClient<P extends string, Id extends string = string> {
+  readonly bucket: Bucket<P, Id>;
   upload(
-    target: ObjectTarget<P>,
+    target: ObjectTarget<P, Id>,
     body: UploadBody,
     options?: UploadOptions,
-  ): AsyncResult<{ path: string }>;
+  ): AsyncResult<{ path: StoragePath<Id> }>;
   download(
-    target: ObjectTarget<P>,
+    target: ObjectTarget<P, Id>,
     options?: { signal?: AbortSignal },
   ): AsyncResult<Blob>;
-  exists(target: ObjectTarget<P>): AsyncResult<boolean>;
-  remove(targets: readonly ObjectTarget<P>[]): AsyncResult<readonly string[]>;
+  exists(target: ObjectTarget<P, Id>): AsyncResult<boolean>;
+  remove(
+    targets: readonly ObjectTarget<P, Id>[],
+  ): AsyncResult<readonly string[]>;
   list(
     within?: Partial<TemplateValues<P>>,
     options?: { signal?: AbortSignal },
   ): AsyncResult<readonly StoredObject[]>;
-  signedUrl(target: ObjectTarget<P>, options?: UrlOptions): AsyncResult<string>;
+  signedUrl(
+    target: ObjectTarget<P, Id>,
+    options?: UrlOptions,
+  ): AsyncResult<string>;
   signedUrls(
-    targets: readonly ObjectTarget<P>[],
+    targets: readonly ObjectTarget<P, Id>[],
     options?: Omit<UrlOptions, 'transform'>,
   ): AsyncResult<readonly string[]>;
   /** URL for public buckets. No request is made. */
-  publicUrl(target: ObjectTarget<P>, options?: Omit<UrlOptions, 'ttl'>): string;
+  publicUrl(
+    target: ObjectTarget<P, Id>,
+    options?: Omit<UrlOptions, 'ttl'>,
+  ): string;
   /** Image transform URL: public for public buckets, signed otherwise. */
   renderUrl(
-    target: ObjectTarget<P>,
+    target: ObjectTarget<P, Id>,
     transform: TransformOptions,
     options?: Omit<UrlOptions, 'transform'>,
   ): AsyncResult<string>;
   /** Upload the new object, run `commit`, then remove the previous object. */
   replace(
-    target: ObjectTarget<P>,
+    target: ObjectTarget<P, Id>,
     body: UploadBody,
-    options?: ReplaceOptions,
-  ): AsyncResult<ReplaceResult>;
+    options?: ReplaceOptions<Id>,
+  ): AsyncResult<ReplaceResult<Id>>;
   /** A signed upload URL for a browser or another service. */
   reserve(
-    target: ObjectTarget<P>,
+    target: ObjectTarget<P, Id>,
     options?: { upsert?: boolean },
   ): AsyncResult<Reservation>;
   uploadReserved(
     reservation: Pick<Reservation, 'path' | 'token'>,
     body: UploadBody,
     options?: UploadOptions,
-  ): AsyncResult<{ path: string }>;
+  ): AsyncResult<{ path: StoragePath<Id> }>;
   /** Removes objects that match the template, are old enough and are not referenced. */
   sweep(options: SweepOptions<P>): AsyncResult<SweepResult>;
 }
 
-export interface Bucket<P extends string> {
-  readonly id: string;
+export interface Bucket<P extends string, Id extends string = string> {
+  readonly id: Id;
   readonly template: P;
   readonly params: readonly TemplateParams<P>[];
   readonly public: boolean;
   readonly policy: BucketPolicy;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
-  path(values: TemplateValues<P>): string;
+  path(values: TemplateValues<P>): StoragePath<Id>;
   match(path: string): TemplateValues<P> | null;
   /** Folder prefix filled by `values`, for listing. */
   prefix(values?: Partial<TemplateValues<P>>): string;
@@ -231,7 +252,7 @@ export interface Bucket<P extends string> {
   /** A `[storage.buckets.<id>]` section for `supabase/config.toml`. */
   toml(): string;
   drift(actual: ActualBucket | undefined): readonly BucketDrift[];
-  connect(client: StorageClient): BucketClient<P>;
+  connect(client: StorageClient): BucketClient<P, Id>;
 }
 
 const SIZE_UNITS: Readonly<Record<string, number>> = {
@@ -370,9 +391,10 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
  * });
  * ```
  */
-export function defineBucket<const P extends string>(
-  config: BucketConfig<P>,
-): Bucket<P> {
+export function defineBucket<
+  const P extends string,
+  const Id extends string = string,
+>(config: BucketConfig<P, Id>): Bucket<P, Id> {
   const template: Template = parseTemplate(config.path, '/', validateSegment);
   const policy = config.policy ?? 'none';
   const fileSizeLimit =
@@ -415,8 +437,9 @@ export function defineBucket<const P extends string>(
     }
   })();
 
-  const resolve = (target: ObjectTarget<P>): string => {
-    if (typeof target !== 'string') return template.build(target);
+  const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
+    if (typeof target !== 'string')
+      return template.build(target) as StoragePath<Id>;
     if (!template.match(target)) {
       throw new DbException(
         dbError(
@@ -425,7 +448,7 @@ export function defineBucket<const P extends string>(
         ),
       );
     }
-    return target;
+    return target as StoragePath<Id>;
   };
 
   const check = (file: {
@@ -455,7 +478,7 @@ export function defineBucket<const P extends string>(
     return undefined;
   };
 
-  const bucket: Bucket<P> = {
+  const bucket: Bucket<P, Id> = {
     id: config.id,
     template: config.path,
     params: template.params as TemplateParams<P>[],
@@ -463,7 +486,7 @@ export function defineBucket<const P extends string>(
     policy,
     fileSizeLimit,
     allowedMimeTypes,
-    path: (values) => template.build(values),
+    path: (values) => template.build(values) as StoragePath<Id>,
     match: (path) => template.match(path) as TemplateValues<P> | null,
     prefix: (values = {}) =>
       template.prefix(
@@ -613,11 +636,11 @@ function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
   );
 }
 
-function connectBucket<P extends string>(
-  bucket: Bucket<P>,
+function connectBucket<P extends string, Id extends string>(
+  bucket: Bucket<P, Id>,
   client: StorageClient,
-  resolve: (target: ObjectTarget<P>) => string,
-): BucketClient<P> {
+  resolve: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
+): BucketClient<P, Id> {
   const api = () => client.storage.from(bucket.id);
   const run = <T>(
     fn: () => PromiseLike<{ data: T; error: unknown }>,
@@ -644,7 +667,7 @@ function connectBucket<P extends string>(
   const download = (value: boolean | string | undefined) =>
     value === undefined ? {} : { download: value };
 
-  const upload: BucketClient<P>['upload'] = (target, body, options) =>
+  const upload: BucketClient<P, Id>['upload'] = (target, body, options) =>
     AsyncResult.from(async () => {
       options?.signal?.throwIfAborted();
       const path = resolve(target);
@@ -656,7 +679,7 @@ function connectBucket<P extends string>(
       ).map(() => ({ path }));
     });
 
-  const remove: BucketClient<P>['remove'] = (targets) =>
+  const remove: BucketClient<P, Id>['remove'] = (targets) =>
     AsyncResult.from(async () => {
       const paths = targets.map(resolve);
       if (paths.length === 0) return ok([]);
@@ -700,14 +723,14 @@ function connectBucket<P extends string>(
     }
   };
 
-  const list: BucketClient<P>['list'] = (within, options) =>
+  const list: BucketClient<P, Id>['list'] = (within, options) =>
     AsyncResult.from(async () => {
       const out: StoredObject[] = [];
       await walk(bucket.prefix(within ?? {}), options?.signal, out);
       return ok(out);
     }).mapError((error) => ({ ...error, table: bucket.id }));
 
-  const signedUrl: BucketClient<P>['signedUrl'] = (target, options) =>
+  const signedUrl: BucketClient<P, Id>['signedUrl'] = (target, options) =>
     AsyncResult.from(async () => {
       const path = resolve(target);
       return run(() =>
@@ -788,7 +811,7 @@ function connectBucket<P extends string>(
       );
     },
     replace: (target, body, options = {}) =>
-      AsyncResult.from<ReplaceResult>(async () => {
+      AsyncResult.from<ReplaceResult<Id>>(async () => {
         const path = resolve(target);
         const previous = options.previous ?? null;
         const same = previous === path;

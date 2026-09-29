@@ -19,6 +19,17 @@ export default defineConfig({
     customer_tags: crud,
     organizations: ['select'],
   },
+  buckets: {
+    customerLogos: {
+      path: '{orgId}/{customerId}/logo/{version}.webp',
+      public: true,
+      policy: 'tenant',
+      fileSizeLimit: '5MiB',
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+    },
+  },
+  // Rows store the object path; URLs are built when rendering.
+  storagePaths: { 'customers.logo_path': 'customerLogos' },
   readSets: ['src/lib/read-sets.ts'],
   sql: { kit: ['read-sets'] },
 });

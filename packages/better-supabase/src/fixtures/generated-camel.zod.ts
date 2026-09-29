@@ -42,6 +42,7 @@ export const customersRow: z.ZodType<RowOf<'customers'>> = z.object({
   archivedAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
+  logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable(),
 });
 export const customersInsert: z.ZodType<InsertOf<'customers'>> = z.object({
   id: z.guid().exactOptional(),
@@ -56,6 +57,7 @@ export const customersInsert: z.ZodType<InsertOf<'customers'>> = z.object({
   archivedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable().exactOptional(),
 });
 export const customersUpdate: z.ZodType<UpdateOf<'customers'>> = z.object({
   id: z.guid().exactOptional(),
@@ -70,6 +72,7 @@ export const customersUpdate: z.ZodType<UpdateOf<'customers'>> = z.object({
   archivedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+  logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable().exactOptional(),
 });
 
 export const customerTagsRow: z.ZodType<RowOf<'customerTags'>> = z.object({

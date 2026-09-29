@@ -21,7 +21,7 @@ violation fails the call with `invalid_request`, and nothing is sent.
 | Preset | Contents |
 | --- | --- |
 | `safe()` | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteManyWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
-| `recommended()` | `safe()` plus the performance rules as warnings (the default) |
+| `recommended()` | `safe()` plus the performance rules and `storagePathColumns` as warnings (the default) |
 | `strict()` | Everything as an error |
 
 Spread a preset to change single rules:
@@ -42,6 +42,7 @@ rules({ rules: { ...recommended(), maxLimit: ['error', 200], noUnboundedFindMany
 | `noAdminInBrowser` | A service-role connection where `window` and `document` exist | |
 | `noSensitiveSelect` | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call | |
 | `noDeleteManyWithoutWhere` | A delete without `where` | |
+| `storagePathColumns` | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/kits/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead | |
 
 `noSensitiveSelect` looks at the columns actually selected, includes too. A
 `select` that leaves the column out passes; to read it on purpose:
@@ -54,6 +55,11 @@ The repository already refuses `deleteMany` without `where` on its own, so
 `noDeleteManyWithoutWhere` only catches deletes built by other plugins. The
 [lint rule](/docs/plugins/lint) of the same name catches the call in your
 editor.
+
+`storagePathColumns` only compares against bucket templates with a literal
+part besides `/` (`{orgId}/{customerId}/logo/{version}.webp`, not
+`{userId}/{file}`), so a `website_url` holding `example.com/about` isn't
+mistaken for an object.
 
 ## Reporting
 

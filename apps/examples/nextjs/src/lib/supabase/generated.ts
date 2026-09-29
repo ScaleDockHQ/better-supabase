@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { defineSchema, type Schema } from "better-supabase";
-import type { EnrichDatabase } from "better-supabase";
+import type { EnrichDatabase, StoragePath } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -14,6 +14,7 @@ export type Database = EnrichDatabase<
     public: {
       customers: {
         status: "lead" | "active" | "archived";
+        logo_path: StoragePath<"customer-logos">;
       };
       tags: {
         color: "gray" | "red" | "green" | "blue";
@@ -106,6 +107,7 @@ export type Models = {
       archivedAt: string | null;
       createdAt: string;
       updatedAt: string;
+      logoPath: StoragePath<"customer-logos"> | null;
     };
     Insert: {
       id?: string;
@@ -120,6 +122,7 @@ export type Models = {
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: StoragePath<"customer-logos"> | null;
     };
     Update: {
       id?: string;
@@ -134,6 +137,7 @@ export type Models = {
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: StoragePath<"customer-logos"> | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -313,6 +317,22 @@ export type ForeignKeyConstraint = Models[TableName]['ForeignKeys'];
 export type RowOf<T extends TableName> = Models[T]['Row'];
 export type InsertOf<T extends TableName> = Models[T]['Insert'];
 export type UpdateOf<T extends TableName> = Models[T]['Update'];
+
+/** Bucket configs for `defineBucket` from `better-supabase/storage`. */
+export const buckets = {
+  "customerLogos": {
+    "id": "customer-logos",
+    "public": true,
+    "path": "{orgId}/{customerId}/logo/{version}.webp",
+    "policy": "tenant",
+    "fileSizeLimit": "5MiB",
+    "allowedMimeTypes": [
+      "image/png",
+      "image/jpeg",
+      "image/webp"
+    ]
+  }
+} as const;
 
 export const schema: Schema<Models, Database, Functions> = defineSchema({
   "version": 1,
@@ -556,6 +576,13 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "logoPath": {
+          "db": "logo_path",
+          "type": "text",
+          "nullable": true,
+          "hasDefault": false,
+          "storage": "customer-logos"
         }
       },
       "primaryKey": [
@@ -1050,5 +1077,19 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       "email"
     ]
   },
-  "functions": {}
+  "functions": {},
+  "buckets": {
+    "customerLogos": {
+      "id": "customer-logos",
+      "public": true,
+      "path": "{orgId}/{customerId}/logo/{version}.webp",
+      "policy": "tenant",
+      "fileSizeLimit": "5MiB",
+      "allowedMimeTypes": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ]
+    }
+  }
 });

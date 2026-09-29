@@ -47,6 +47,8 @@ export interface ColumnModel {
   readonly values: readonly string[] | undefined;
   readonly json: boolean;
   readonly codec: Codec | undefined;
+  /** Bucket id from `config.storagePaths`. */
+  readonly storage: string | undefined;
   readonly insertable: boolean;
   readonly updatable: boolean;
 }
@@ -126,6 +128,43 @@ function codecFor(udt: string, config: ResolvedConfig): Codec | undefined {
   return undefined;
 }
 
+const TEXT_UDTS = new Set(['text', 'varchar', 'bpchar']);
+
+/** `config.storagePaths` resolved to bucket ids, with a check that every key is used. */
+function storagePathsOf(config: ResolvedConfig) {
+  const bucketId = (name: string): string => {
+    const bucket = config.buckets[name];
+    if (!bucket) return name;
+    return (
+      bucket.id ?? name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)
+    );
+  };
+  const unused = new Set(Object.keys(config.storagePaths));
+  return {
+    lookup(schema: string, table: string, column: string, udt: string) {
+      const key = [`${schema}.${table}.${column}`, `${table}.${column}`].find(
+        (candidate) => candidate in config.storagePaths,
+      );
+      if (key === undefined) return undefined;
+      unused.delete(key);
+      if (!TEXT_UDTS.has(udt)) {
+        throw new TypeError(
+          `storagePaths["${key}"]: ${schema}.${table}.${column} is ${udt}, not a text column`,
+        );
+      }
+      return bucketId(config.storagePaths[key] as string);
+    },
+    assertUsed(): void {
+      const [first] = unused;
+      if (first !== undefined) {
+        throw new TypeError(
+          `storagePaths["${first}"]: no such column. Use \`table.column\` or \`schema.table.column\` (database names) in \`schemas\`.`,
+        );
+      }
+    },
+  };
+}
+
 function enumType(values: readonly string[]): string {
   return values.map((value) => JSON.stringify(value)).join(' | ');
 }
@@ -159,6 +198,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     return name;
   };
 
+  const storagePaths = storagePathsOf(config);
   const included = catalog.tables.filter(
     (table) =>
       config.schemas.includes(table.schema) &&
@@ -187,11 +227,25 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       const values = enumValues ?? checks.get(column.name);
       const json = isJsonUdt(column.udt);
       const override = json ? jsonTypeFor(table.name, column.name) : undefined;
+      const storage = storagePaths.lookup(
+        table.schema,
+        table.name,
+        column.name,
+        column.udt,
+      );
       const codec =
-        override || values ? undefined : codecFor(column.udt, config);
+        override || values || storage
+          ? undefined
+          : codecFor(column.udt, config);
       const base =
         override ??
-        (values ? enumType(values) : codec ? CODEC_TYPE[codec] : undefined);
+        (values
+          ? enumType(values)
+          : storage
+            ? `StoragePath<${JSON.stringify(storage)}>`
+            : codec
+              ? CODEC_TYPE[codec]
+              : undefined);
       const columnType =
         base === undefined
           ? tsType(table.schema, column.format, column.typeSchema)
@@ -212,12 +266,14 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         values,
         json,
         codec,
+        storage,
         insertable,
         updatable,
       };
     });
     return { table, casing, columns };
   });
+  storagePaths.assertUsed();
 
   const byKey = new Map<string, (typeof tables)[number]>();
   for (const entry of tables) {
@@ -371,6 +427,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       if (column.json) meta.json = true;
       if (column.values) meta.enum = column.values;
       if (column.codec) meta.codec = column.codec;
+      if (column.storage) meta.storage = column.storage;
       if (
         config.sensitive.includes(`${table.name}.${column.db}`) ||
         config.sensitive.includes(`${table.schema}.${table.name}.${column.db}`)

@@ -76,6 +76,10 @@
       "types": "./dist/next/index.d.ts",
       "default": "./dist/next/index.js"
     },
+    "./next/image": {
+      "types": "./dist/next/image/index.d.ts",
+      "default": "./dist/next/image/index.js"
+    },
     "./hono": {
       "types": "./dist/hono/index.d.ts",
       "default": "./dist/hono/index.js"

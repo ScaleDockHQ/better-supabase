@@ -96,6 +96,7 @@ export type Database = {
           created_by: string | null
           id: string
           kvk: string | null
+          logo_path: string | null
           metadata: NonNullable<Json>
           name: string
           organization_id: string
@@ -110,6 +111,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           kvk?: string | null
+          logo_path?: string | null
           metadata?: NonNullable<Json>
           name: string
           organization_id: string
@@ -124,6 +126,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           kvk?: string | null
+          logo_path?: string | null
           metadata?: NonNullable<Json>
           name?: string
           organization_id?: string

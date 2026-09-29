@@ -24,7 +24,7 @@ enabled = true
 file_size_limit = "50MiB"
 
 [storage.buckets.customer-logos]
-public = false
+public = true
 file_size_limit = "5MiB"
 allowed_mime_types = ["image/png", "image/jpeg", "image/webp"]
 

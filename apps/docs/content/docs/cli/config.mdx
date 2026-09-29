@@ -52,6 +52,7 @@ export default defineConfig({
 | `generators` | `[]` | `zod()`, `valibot()`, `jsonSchema()` or your own |
 | `plugins` | none | Flags for timestamps, soft delete, tenant and actor columns |
 | `buckets` | `{}` | Typed storage buckets; doctor compares them with the database and `config.toml` |
+| `storagePaths` | `{}` | Text columns that hold object paths, keyed by `table.column`, with a `buckets` key or bucket id as the value. They're typed as [`StoragePath<'bucket-id'>`](/docs/kits/storage#path-columns) |
 | `topics` | `{}` | Realtime topic templates |
 | `realtime` | `{ tables: [] }` | Tables for [live queries](/docs/frontend/live-queries) |
 | `readSets` | `[]` | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL kit module |

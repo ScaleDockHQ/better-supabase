@@ -23,6 +23,8 @@ export interface ColumnMeta {
   readonly codec?: Codec;
   /** Listed in `config.sensitive`; the `noSensitiveSelect` rule guards reads of it. */
   readonly sensitive?: true;
+  /** Bucket id of the objects this text column points to (`config.storagePaths`). */
+  readonly storage?: string;
 }
 
 /**

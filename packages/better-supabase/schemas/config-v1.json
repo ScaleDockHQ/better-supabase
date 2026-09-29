@@ -198,6 +198,11 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "storagePaths": {
+      "description": "Text columns holding a storage object path (`table.column` or `schema.table.column`), mapped to a `buckets` key or bucket id. Typed as `StoragePath<'bucket-id'>`.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
     "expose": {
       "description": "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL kit module and checked by doctor (BS106).",
       "type": "object",

@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { err, ok } from '../core/result.ts';
+import { createImageLoader } from '../next/image/index.ts';
 import { defineBucket } from '../storage/index.ts';
 import { signTestJwt } from '../testing/jwt.ts';
 
@@ -38,12 +39,20 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
+// Own bucket ids: `customer-logos` belongs to the example app's migration.
 const logos = defineBucket({
-  id: 'customer-logos',
+  id: 'bs-it-logos',
   path: '{orgId}/{customerId}/logo/{version}.webp',
   policy: 'tenant',
   fileSizeLimit: '5MiB',
   allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+});
+
+const avatars = defineBucket({
+  id: 'bs-it-avatars',
+  path: '{orgId}/{file}',
+  public: true,
+  policy: 'public',
 });
 
 const image = (text: string) => new Blob([text], { type: 'image/webp' });
@@ -61,14 +70,17 @@ describe.skipIf(!live)('Storage kit', async () => {
     auth: { persistSession: false },
   });
   const admin = logos.connect(service);
+  const publicAdmin = avatars.connect(service);
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
 
   beforeAll(async () => {
     await pool.query(logos.sql());
+    await pool.query(avatars.sql());
   });
   afterAll(async () => {
     const all = await admin.list({ orgId: ACME, customerId: CUSTOMER });
     if (all.ok) await admin.remove(all.data.map((object) => object.path));
+    await publicAdmin.remove([{ orgId: ACME, file: `${CUSTOMER}.webp` }]);
     await pool.end();
   });
 
@@ -135,9 +147,33 @@ describe.skipIf(!live)('Storage kit', async () => {
       false,
     );
     expect(await (await user.download(target).orThrow()).text()).toBe('one');
-    expect(await user.renderUrl(target, { width: 64 }).orThrow()).toMatch(
-      /\/sign\/customer-logos\//,
+    const rendered = new URL(
+      await user.renderUrl(target, { width: 64, height: 64 }).orThrow(),
     );
+    // `/object/sign/` when the stack has image transformations disabled
+    // (no imgproxy), `/render/image/sign/` when they're on.
+    expect(rendered.pathname).toMatch(
+      new RegExp(
+        `^/storage/v1/(render/image|object)/sign/bs-it-logos/${ACME}/${CUSTOMER}/logo/v1\\.webp$`,
+      ),
+    );
+    expect(rendered.searchParams.get('token')).toBeTruthy();
+  });
+
+  it('builds public render URLs the next/image loader keeps in sync', async () => {
+    const target = { orgId: ACME, file: `${CUSTOMER}.webp` };
+    await publicAdmin.upload(target, image('face'), { upsert: true }).orThrow();
+    const object = publicAdmin.publicUrl(target);
+    expect(await (await fetch(object)).text()).toBe('face');
+    const rendered = await publicAdmin
+      .renderUrl(target, { width: 128, quality: 60 })
+      .orThrow();
+    expect(rendered).toBe(
+      `${url}/storage/v1/render/image/public/bs-it-avatars/${ACME}/${CUSTOMER}.webp?width=128&quality=60`,
+    );
+    expect(
+      createImageLoader({ url })({ src: object, width: 128, quality: 60 }),
+    ).toBe(rendered);
   });
 
   it('replaces objects and rolls back when the commit fails', async () => {

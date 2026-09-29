@@ -170,6 +170,12 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "logoPath": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -184,7 +190,8 @@
         "updatedBy",
         "archivedAt",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "logoPath"
       ],
       "additionalProperties": false
     },
@@ -252,6 +259,12 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "logoPath": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -324,6 +337,12 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "logoPath": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

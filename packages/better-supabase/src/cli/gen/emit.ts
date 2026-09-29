@@ -51,7 +51,8 @@ function enrichedDatabase(model: Model): string[] {
           .filter(
             (column) =>
               (column.values && !column.snapshot.isEnum) ||
-              (column.json && column.tsType !== 'Json'),
+              (column.json && column.tsType !== 'Json') ||
+              column.storage !== undefined,
           )
           .map((column) => `${prop(column.db)}: ${column.tsType};`);
         return overrides.length > 0
@@ -143,7 +144,12 @@ export function emitModule(model: Model, options: EmitOptions): string {
   ];
 
   lines.push(`import { defineSchema, type Schema } from ${q(runtime)};`);
-  lines.push(`import type { EnrichDatabase } from ${q(runtime)};`);
+  const storagePaths = model.tables.some((table) =>
+    table.columns.some((column) => column.storage !== undefined),
+  );
+  lines.push(
+    `import type { EnrichDatabase${storagePaths ? ', StoragePath' : ''} } from ${q(runtime)};`,
+  );
   lines.push(
     `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? './database.types.ts')};`,
   );

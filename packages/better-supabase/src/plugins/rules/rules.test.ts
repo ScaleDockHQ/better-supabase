@@ -150,6 +150,62 @@ describe('rules()', () => {
     expect(allowed.error).toBeNull();
   });
 
+  it('flags storage objects written to *_url columns', async () => {
+    const meta = schema.meta as SchemaMeta;
+    const customers = meta.tables['customers']!;
+    const text = { type: 'text', nullable: true, hasDefault: false } as const;
+    const marked = defineSchema({
+      ...meta,
+      tables: {
+        ...meta.tables,
+        customers: {
+          ...customers,
+          columns: {
+            ...customers.columns,
+            logoUrl: { ...text, db: 'logo_url' },
+            bannerUrl: { ...text, db: 'banner_url', storage: 'banners' },
+          },
+        },
+      },
+    });
+    const { plugin, violations } = withReport(recommended());
+    const { client } = capturingClient();
+    const db = defineSupabase({ ...schema, meta: marked.meta })
+      .use(plugin)
+      .connect(client, context);
+    const write = (set: Record<string, string>) =>
+      db.customers.update('c1', set as never);
+    await write({ logoUrl: 'o1/c1/logo/1.webp' });
+    await write({
+      logoUrl:
+        'https://abcdefghijklmnopqrst.supabase.co/storage/v1/object/sign/a/b.png?token=t',
+    });
+    await write({ logoUrl: 'https://example.com/logo.png' });
+    await write({ name: 'Acme' });
+    await db.customers.create({
+      organizationId: 'org-1',
+      name: 'Acme',
+      bannerUrl: 'o1/banner.png',
+    } as never);
+    expect(
+      violations.map((v) => [v.rule, v.level, v.operation, v.message]),
+    ).toEqual([
+      [
+        'storagePathColumns',
+        'warn',
+        'update',
+        expect.stringContaining('store its path in "logo_path"'),
+      ],
+      ['storagePathColumns', 'warn', 'update', expect.any(String)],
+      [
+        'storagePathColumns',
+        'warn',
+        'insert',
+        '"banner_url" holds paths in bucket "banners"; name it "banner_path"',
+      ],
+    ]);
+  });
+
   it('keeps the repository guard for deleteMany without where', async () => {
     const { plugin, violations } = withReport(safe());
     const { client } = capturingClient();

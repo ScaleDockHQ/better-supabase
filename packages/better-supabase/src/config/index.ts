@@ -270,6 +270,13 @@ export interface BetterSupabaseConfig {
    */
   readonly sensitive?: readonly string[];
   /**
+   * Text columns that hold an object path, keyed by `table.column` or
+   * `schema.table.column` (database names), with the bucket as the value (a
+   * `buckets` key or a bucket id). Generated rows type them as
+   * `StoragePath<'bucket-id'>`.
+   */
+  readonly storagePaths?: Readonly<Record<string, string>>;
+  /**
    * Data API grants, keyed by `table` or `schema.table`. Supabase no longer
    * grants new tables to `anon` and `authenticated` automatically; the
    * `grants` SQL kit module writes these, and doctor (BS106) checks them.
@@ -310,6 +317,7 @@ export interface ResolvedConfig {
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs: Required<CodecsConfig>;
   readonly sensitive: readonly string[];
+  readonly storagePaths: Readonly<Record<string, string>>;
   readonly expose: Readonly<Record<string, ResolvedExpose>>;
   readonly readSets: readonly string[];
   readonly generators: readonly Generator[];
@@ -375,6 +383,7 @@ export function resolveConfig(
       numeric: config.codecs?.numeric ?? 'number',
     },
     sensitive: config.sensitive ?? [],
+    storagePaths: config.storagePaths ?? {},
     expose: Object.fromEntries(
       Object.entries(config.expose ?? {}).map(([table, entry]) => [
         table,

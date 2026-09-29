@@ -106,6 +106,7 @@ export type Models = {
       archivedAt: string | null;
       createdAt: string;
       updatedAt: string;
+      logoPath: string | null;
     };
     Insert: {
       id?: string;
@@ -120,6 +121,7 @@ export type Models = {
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: string | null;
     };
     Update: {
       id?: string;
@@ -134,6 +136,7 @@ export type Models = {
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -556,6 +559,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "logoPath": {
+          "db": "logo_path",
+          "type": "text",
+          "nullable": true,
+          "hasDefault": false
         }
       },
       "primaryKey": [

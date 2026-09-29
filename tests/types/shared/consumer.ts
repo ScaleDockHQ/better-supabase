@@ -21,6 +21,7 @@ import { forwardMutations, httpSink } from 'better-supabase/events';
 import { createHono } from 'better-supabase/hono';
 import { defineListQuery } from 'better-supabase/list';
 import { createNext, nextCache } from 'better-supabase/next';
+import { createImageLoader } from 'better-supabase/next/image';
 import { createOpenApi } from 'better-supabase/openapi';
 import { createOrpc } from 'better-supabase/orpc';
 import { otel } from 'better-supabase/otel';
@@ -32,7 +33,7 @@ import { createQueries, queryCache } from 'better-supabase/query';
 import { createHooks } from 'better-supabase/react';
 import { defineTopic } from 'better-supabase/realtime';
 import { createServer } from 'better-supabase/server';
-import { defineBucket } from 'better-supabase/storage';
+import { defineBucket, type StoragePath } from 'better-supabase/storage';
 import { defineSeed, testExecutor } from 'better-supabase/testing';
 import { verifyWebhook } from 'better-supabase/webhooks';
 
@@ -151,7 +152,14 @@ export function integrations(): unknown[] {
     }),
     defineConfig({ generators: [zod()] }),
     list,
-    logos.path({ orgId: 'o', customerId: 'c' }),
+    logos.path({
+      orgId: 'o',
+      customerId: 'c',
+    }) satisfies StoragePath<'customer-logos'>,
+    createImageLoader({ url: 'https://x.supabase.co' })({
+      src: '/a.png',
+      width: 64,
+    }),
     topic,
     seed.sql(),
     verifyWebhook,

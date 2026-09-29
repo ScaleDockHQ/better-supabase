@@ -10,6 +10,7 @@ import {
   HEADER,
   parseImport,
   propertyKey,
+  rowType,
   type ScalarKind,
   schemaName,
   siblingPath,
@@ -67,7 +68,9 @@ function field(
     ? imported
     : plan.customJson
       ? `v.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
-      : scalar(plan.scalar);
+      : plan.column.storage !== undefined
+        ? `(v.string() as unknown as v.GenericSchema<${rowType(table, plan)}>)`
+        : scalar(plan.scalar);
   if (plan.column.array) expr = `v.array(${expr})`;
   if (plan.nullable) expr = `v.nullable(${expr})`;
   if (plan.optional) expr = `v.exactOptional(${expr})`;

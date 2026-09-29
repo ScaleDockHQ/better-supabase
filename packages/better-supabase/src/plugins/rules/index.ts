@@ -1,5 +1,5 @@
 import type { Operation, Selection } from '../../ir/types.ts';
-import type { TableMeta } from '../../schema/types.ts';
+import type { SchemaMeta, TableMeta } from '../../schema/types.ts';
 
 import { dbError, DbException } from '../../core/errors.ts';
 import {
@@ -46,6 +46,13 @@ export interface RuleSet {
    * the lint rule of the same name flags the call in the editor.
    */
   readonly noDeleteManyWithoutWhere?: RuleSetting;
+  /**
+   * Storage objects written to `*_url` text columns: a column listed in
+   * `storagePaths`, or a value that is a Storage URL or matches a bucket's
+   * path template. Signed URLs expire and public URLs pin the project host,
+   * so store the path in a `*_path` column and build URLs when rendering.
+   */
+  readonly storagePathColumns?: RuleSetting;
 }
 
 export type RuleName = keyof RuleSet;
@@ -94,6 +101,7 @@ export function recommended(): RuleSet {
     maxLimit: ['warn', 1000],
     requireOrderByForCursor: 'warn',
     maxIncludeDepth: ['warn', 3],
+    storagePathColumns: 'warn',
   };
 }
 
@@ -105,6 +113,7 @@ export function strict(): RuleSet {
     maxLimit: ['error', 1000],
     requireOrderByForCursor: 'error',
     maxIncludeDepth: ['error', 3],
+    storagePathColumns: 'error',
   };
 }
 
@@ -166,6 +175,64 @@ function claimValue(context: HookArgs['context'], claim: string): unknown {
   return value;
 }
 
+const TEXT_TYPES = new Set(['text', 'varchar', 'bpchar']);
+const STORAGE_URL =
+  /\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\//;
+
+const templatesBySchema = new WeakMap<SchemaMeta, readonly RegExp[]>();
+
+/** Bucket templates specific enough to identify a path: some literal text besides `/`. */
+function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
+  let templates = templatesBySchema.get(schema);
+  if (!templates) {
+    templates = Object.values(schema.buckets ?? {})
+      .filter((bucket) => bucket.path.replace(/\{[^}]*\}|\//g, '').length > 0)
+      .map(
+        (bucket) =>
+          new RegExp(
+            `^${bucket.path
+              .split(/\{[^}]*\}/)
+              .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+              .join('[^/]+')}$`,
+          ),
+      );
+    templatesBySchema.set(schema, templates);
+  }
+  return templates;
+}
+
+function storedObjectColumn(
+  op: Operation,
+  schema: SchemaMeta,
+): string | undefined {
+  const rows =
+    op.kind === 'insert' ? op.rows : op.kind === 'update' ? [op.set] : [];
+  if (rows.length === 0) return undefined;
+  for (const column of Object.values(op.table.columns)) {
+    if (
+      !rows.some((row) => column.db in row) ||
+      !column.db.endsWith('_url') ||
+      column.array ||
+      !TEXT_TYPES.has(column.type)
+    )
+      continue;
+    const path = `${column.db.slice(0, -4)}_path`;
+    if (column.storage !== undefined)
+      return `"${column.db}" holds paths in bucket "${column.storage}"; name it "${path}"`;
+    const stored = rows.some((row) => {
+      const value = row[column.db];
+      return (
+        typeof value === 'string' &&
+        (STORAGE_URL.test(value) ||
+          bucketTemplates(schema).some((template) => template.test(value)))
+      );
+    });
+    if (stored)
+      return `"${column.db}" is given a storage object; store its path in "${path}" and build URLs with signedUrl() or renderUrl()`;
+  }
+  return undefined;
+}
+
 type Check = (op: Operation, hook: HookArgs) => string | undefined;
 
 function checks(rules: RuleSet): Record<RuleName, Check> {
@@ -223,6 +290,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       op.kind === 'delete' && op.where === undefined
         ? 'delete without where removes every visible row'
         : undefined,
+    storagePathColumns: (op, { schema }) => storedObjectColumn(op, schema),
   };
 }
 

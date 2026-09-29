@@ -1,4 +1,5 @@
 import 'server-only';
+import { logos } from '@/lib/buckets';
 import { customerList } from '@/lib/lists';
 import { next } from '@/lib/supabase.server';
 
@@ -12,10 +13,10 @@ import { next } from '@/lib/supabase.server';
  */
 export async function getCustomers() {
   'use cache: private';
-  const { db } = await next.cached();
-  return customerList
+  const { db, supabase } = await next.cached();
+  const page = await customerList
     .run(db, customerList.defaults, {
-      select: ['id', 'name', 'status'],
+      select: ['id', 'name', 'status', 'logoPath'],
       // Counted and maxed in the database, in the same request.
       include: {
         _count: { notes: true },
@@ -23,4 +24,14 @@ export async function getCustomers() {
       },
     })
     .orThrow();
+  // Public bucket: the URL is built locally, and `next/image` resizes it
+  // through Storage (see `src/image-loader.ts`).
+  const storage = logos.connect(supabase);
+  return {
+    ...page,
+    items: page.items.map((customer) => ({
+      ...customer,
+      logoUrl: customer.logoPath ? storage.publicUrl(customer.logoPath) : null,
+    })),
+  };
 }

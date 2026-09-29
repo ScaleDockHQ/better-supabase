@@ -37,6 +37,33 @@ failed check is an `invalid_input` error, and no request is sent. Client methods
 accept values or an existing path string, and a path string must match the
 template.
 
+### Path columns
+
+`logos.path()` and `upload()` return a `StoragePath<'customer-logos'>`: a
+string branded with the bucket id. Client methods take plain strings too, but
+reject a path branded for another bucket.
+
+Store that path in the row, never a URL. Signed URLs expire and public URLs
+pin the project host, so build the URL when you render. List the column in
+`storagePaths` and `gen` types it:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  buckets: { customerLogos: { path: '{orgId}/{customerId}/logo/{version}.webp', policy: 'tenant' } },
+  storagePaths: { 'customers.logo_path': 'customerLogos' }, // a buckets key or a bucket id
+});
+```
+
+```ts
+customer.logoPath; // StoragePath<'customer-logos'> | null
+await db.customers.update(id, { logoPath: 'o1/c1/logo/3.webp' }); // type error: not a path of that bucket
+await db.customers.update(id, { logoPath: (await storage.upload(values, file).orThrow()).path }); // ok
+```
+
+`gen` fails on a key that names no column or a column that isn't text. The
+[`storagePathColumns` rule](/docs/plugins/rules) warns when a Storage URL or
+bucket path is written to a `*_url` column.
+
 ## Policies and config
 
 `logos.sql()` returns idempotent SQL. It upserts the bucket row and creates
@@ -72,8 +99,44 @@ Uploads are checked against `fileSizeLimit` and `allowedMimeTypes` before any
 request. Failures become `DbError`s: `invalid_input` with status 413 or 415,
 `forbidden` for policy denials, `conflict` for existing objects, and `network`
 for 5xx responses. TTL presets are `minute`, `hour`, `day` and `week`, or pass
-a number of seconds. `renderUrl` gives a public transform URL for public
-buckets and a signed one otherwise.
+a number of seconds.
+
+### Image transformations
+
+`renderUrl(target, { width, height, resize, quality })` returns a
+[Storage image transformation](https://supabase.com/docs/guides/storage/serving/image-transformations)
+URL. For public buckets it builds `/storage/v1/render/image/public/...` without
+a request. For private buckets it signs one, and Storage answers with a
+`/storage/v1/render/image/sign/...` URL whose token covers the transform, so
+sign at the size you render.
+
+With image transformations off (the Free plan, or a local stack without
+`[storage.image_transformation] enabled = true`), Storage signs a plain
+`/storage/v1/object/sign/...` URL instead, and the original image is served.
+
+### next/image
+
+`better-supabase/next/image` is a [`loaderFile`](https://nextjs.org/docs/app/api-reference/components/image#loaderfile)
+that serves public objects through Storage transformations instead of the
+Next.js optimizer:
+
+```ts title="src/image-loader.ts"
+import { createImageLoader } from 'better-supabase/next/image';
+
+export default createImageLoader({ url: process.env.NEXT_PUBLIC_SUPABASE_URL! });
+```
+
+```ts title="next.config.ts"
+export default { images: { loader: 'custom', loaderFile: './src/image-loader.ts' } };
+```
+
+The loader rewrites `/object/public/` and `/render/image/public/` URLs of your
+project to `/render/image/public/` with the requested `width` (at most 2500)
+and `quality` (20 to 100), and sets `resize` when you pass one. Signed URLs
+pass through unchanged, since changing their parameters would break the
+token. Local and other hosts' images go to `fallback`, which returns `src`
+unchanged by default. Next.js warns in development when a loader ignores
+`width`, so give those images `unoptimized` or a `fallback`.
 
 ### Replace
 

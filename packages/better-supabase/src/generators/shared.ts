@@ -55,6 +55,15 @@ export interface FieldPlan {
   readonly customJson: boolean;
 }
 
+/**
+ * The generated row type of a field (its element type for arrays). Storage
+ * path columns validate as strings and are cast to their `StoragePath` brand.
+ */
+export function rowType(table: string, plan: FieldPlan): string {
+  const type = `NonNullable<RowOf<'${table}'>['${plan.name}']>`;
+  return plan.column.array ? `${type}[number]` : type;
+}
+
 /** The fields a variant accepts; read-only columns are left out of writes. */
 export function fieldsFor(
   table: TableMeta,
