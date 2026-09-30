@@ -299,6 +299,7 @@ const SIZE_UNITS: Readonly<Record<string, number>> = {
 export function parseSize(value: string | number): number {
   if (typeof value === 'number') return value;
   const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$/i.exec(value);
+  // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty unit means bytes.
   const unit = SIZE_UNITS[(match?.[2] || 'b').toLowerCase()];
   if (!match || unit === undefined)
     throw new TypeError(`Invalid size "${value}"`);
@@ -883,7 +884,9 @@ function connectBucket<P extends string, Id extends string>(
             download(options?.download),
           ),
         ).andThen(async (data) => {
-          const failed = data.find((entry) => entry.error || !entry.signedUrl);
+          const failed = data.find(
+            (entry) => entry.error != null || !entry.signedUrl,
+          );
           if (failed)
             return err(
               dbError(

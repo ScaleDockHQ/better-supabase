@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "bench": "node bench.ts",
+    "lint": "oxlint",
     "update": "BENCH_UPDATE=1 node bench.ts"
   },
   "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
     "@supabase/supabase-js": "catalog:",
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",

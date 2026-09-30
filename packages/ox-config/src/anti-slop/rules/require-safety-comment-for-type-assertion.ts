@@ -52,7 +52,7 @@ function hasSafetyComment(
   if (hasAdjacentSafetyComment(sourceCode.text, node.start)) return true;
 
   let current: ESTree.Node = node;
-  while (true) {
+  for (;;) {
     if (
       sourceCode
         .getCommentsBefore(current)

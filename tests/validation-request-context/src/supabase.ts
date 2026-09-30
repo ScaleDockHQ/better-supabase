@@ -62,6 +62,7 @@ export function withCron(
 
 export function createAppBrowser(env: PublicEnv) {
   return createBrowser(sb, {
+    // oxlint-disable-next-line typescript/no-unsafe-assignment -- supabase-js infers `any` for the schema name without a Database type.
     client: createBrowserClient(env.url, env.publishableKey, {
       global: { headers: { 'x-app-channel': 'web' } },
     }),

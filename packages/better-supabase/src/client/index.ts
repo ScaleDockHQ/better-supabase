@@ -136,7 +136,9 @@ function clientFor(options: BrowserOptions): SupabaseClient {
   });
   if (!checked.ok) throw new EnvValidationError(checked.issues);
   if (options.storage === 'local')
+    // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
     return createClient(checked.env.url, checked.env.publishableKey);
+  // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
   return createBrowserClient(checked.env.url, checked.env.publishableKey);
 }
 

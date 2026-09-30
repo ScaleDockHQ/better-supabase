@@ -99,7 +99,7 @@ describe.skipIf(!up)('request context on better-supabase', () => {
     [a, b] = await Promise.all([signIn(), signIn()]);
   });
   afterAll(async () => {
-    await Promise.all([a?.remove(), b?.remove()]);
+    await Promise.all([a.remove(), b.remove()]);
   });
 
   const call = (

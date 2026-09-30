@@ -1,25 +1,48 @@
 {
   "$schema": "https://v2-11-5.turborepo.dev/schema.json",
   "futureFlags": {
-    "globalConfiguration": true
+    "affectedUsingTaskInputs": true
   },
-  "global": {
-    "env": ["CI", "NODE_ENV"],
-    "envMode": "strict",
-    "inputs": ["tsconfig.json", "packages/typescript-config/*.json"],
-    "passThroughEnv": ["LEFTHOOK"],
-    "remoteCache": {
-      "teamSlug": "scaledock",
-      "signature": false
-    }
+  "envMode": "strict",
+  "globalEnv": ["CI", "NODE_ENV"],
+  "globalPassThroughEnv": [
+    "SUPABASE_*",
+    "VERCEL_*",
+    "VERCEL",
+    "PORTLESS*",
+    "REUI_LICENSE_KEY",
+    "GITHUB_ACTIONS",
+    "LEFTHOOK"
+  ],
+  "globalDependencies": [
+    "tsconfig.json",
+    "oxlint.config.ts",
+    "oxfmt.config.ts",
+    "packages/typescript-config/*.json"
+  ],
+  "remoteCache": {
+    "teamSlug": "scaledock",
+    "signature": false
   },
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        "!.next/dev/**",
+        ".source/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["^build", "transit"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "transit"]
     },
     "test": {
       "dependsOn": ["build", "^build"]
@@ -28,6 +51,10 @@
       "dependsOn": ["build", "^build"]
     },
     "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "dev:portless": {
       "cache": false,
       "persistent": true
     }

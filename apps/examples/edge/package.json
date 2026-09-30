@@ -10,6 +10,7 @@
   "scripts": {
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
     "typecheck": "tsc --noEmit --checkers 4"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
     "better-supabase": "workspace:*"
   },
   "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"

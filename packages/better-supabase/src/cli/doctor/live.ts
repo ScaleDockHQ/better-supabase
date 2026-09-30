@@ -175,7 +175,9 @@ async function explainTable(
     await db.query(
       `select set_config('request.jwt.claims', ${literal(JSON.stringify(claims))}, true)`,
     );
-    const before = tracked ? await functionTimes(db) : new Map();
+    const before = tracked
+      ? await functionTimes(db)
+      : new Map<string, { calls: number; selfTime: number }>();
     await db.query(`set local role ${ident(role)}`);
     const [row] = await db.query<{ 'QUERY PLAN': unknown }>(
       `explain (analyze, buffers, format json) select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,

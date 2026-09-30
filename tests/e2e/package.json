@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "lint": "oxlint",
     "test:e2e": "vitest run",
     "typecheck": "tsc --noEmit --checkers 4"
   },
@@ -13,6 +14,7 @@
     "@better-supabase/example-nextjs": "workspace:*",
     "@better-supabase/example-orpc-api": "workspace:*",
     "@better-supabase/example-vite-react": "workspace:*",
+    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@next/playwright": "catalog:",
     "@orpc/server": "catalog:",

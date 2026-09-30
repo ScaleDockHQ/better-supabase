@@ -11,12 +11,14 @@ export async function UserMenu() {
   return (
     <div className="user-menu">
       {session.impersonator ? (
-        <strong role="status">
-          Support session by {session.impersonator.id}
-          {session.impersonator.reason
-            ? ` (${session.impersonator.reason})`
-            : ''}
-        </strong>
+        <output>
+          <strong>
+            Support session by {session.impersonator.id}
+            {session.impersonator.reason
+              ? ` (${session.impersonator.reason})`
+              : ''}
+          </strong>
+        </output>
       ) : null}
       <span>{session.user.email}</span>
       <small data-testid="role">

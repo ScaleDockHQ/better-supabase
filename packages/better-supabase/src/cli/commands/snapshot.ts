@@ -154,7 +154,9 @@ export function parseSnapshot(
     generator,
     extras: {
       tables: doc.extras.tables,
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- snapshots from older releases have no buckets.
       buckets: doc.extras.buckets ?? [],
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- snapshots from older releases have no realtime.
       realtime: doc.extras.realtime ?? [],
       ...(doc.extras.roleSettings
         ? { roleSettings: doc.extras.roleSettings }

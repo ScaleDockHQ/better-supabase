@@ -2,7 +2,11 @@
   "name": "@better-supabase/types-shared",
   "private": true,
   "type": "module",
+  "scripts": {
+    "lint": "oxlint"
+  },
   "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
     "@opentelemetry/api": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase/supabase-js": "catalog:",

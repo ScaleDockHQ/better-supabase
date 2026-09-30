@@ -304,7 +304,7 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
     const { data, error } = await client.schema('pgmq_public').rpc(fn, args);
     if (error) {
       const message =
-        typeof error === 'object' && error !== null && 'message' in error
+        typeof error === 'object' && 'message' in error
           ? String(error.message)
           : String(error);
       throw new Error(`pgmq_public.${fn}: ${message}`, { cause: error });
@@ -961,8 +961,9 @@ export const ENTITLEMENTS_UPDATED =
   'entitlements.active_entitlement_summary.updated';
 
 function stripeCustomerOf(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined;
   const object = (payload as { data?: { object?: { customer?: unknown } } })
-    ?.data?.object;
+    .data?.object;
   const customer = object?.customer;
   if (typeof customer === 'string') return customer;
   const id = (customer as { id?: unknown } | undefined)?.id;

@@ -20,6 +20,7 @@ export function defineSchema<
 }
 
 function validateMeta(meta: SchemaMeta): SchemaMeta {
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- generated files from another release can carry another version.
   if (meta.version !== 1) {
     throw new TypeError(
       `better-supabase: unsupported schema metadata version ${String(meta.version)}. Run \`better-supabase gen\` again.`,

@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --checkers 4"
   },
   "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@supabase/supabase-js": "catalog:",
     "@types/node": "catalog:",

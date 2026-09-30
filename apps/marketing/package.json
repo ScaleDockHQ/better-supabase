@@ -6,12 +6,14 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev -p ${PORT:-3000}",
+    "lint": "oxlint",
     "start": "next start -p ${PORT:-3000}",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit --checkers 4"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@t3-oss/env-nextjs": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "lucide-react": "catalog:",
@@ -22,9 +24,11 @@
     "shadcn": "catalog:",
     "shiki": "catalog:",
     "tailwind-merge": "catalog:",
-    "tw-animate-css": "catalog:"
+    "tw-animate-css": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",

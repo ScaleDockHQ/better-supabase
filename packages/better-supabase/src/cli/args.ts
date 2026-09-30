@@ -1,3 +1,5 @@
+import { isList } from '../core/guards.ts';
+
 export type FlagValue = string | boolean | readonly string[];
 
 export interface ParsedArgs {
@@ -84,7 +86,7 @@ function setFlag(
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
-    flags[name] = Array.isArray(current) ? [...current, ...pieces] : pieces;
+    flags[name] = isList(current) ? [...current, ...pieces] : pieces;
     return;
   }
   flags[name] = value;
@@ -110,7 +112,7 @@ export function flagList(
   name: string,
 ): readonly string[] {
   const value = flags[name];
-  if (Array.isArray(value)) return value;
+  if (isList(value)) return value;
   if (typeof value === 'string') return [value];
   return [];
 }

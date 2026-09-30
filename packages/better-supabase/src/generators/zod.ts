@@ -64,13 +64,13 @@ function field(
   jsonImports: ReadonlyMap<string, string>,
 ): string {
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
-  let expr = imported
-    ? imported
-    : plan.customJson
+  let expr =
+    imported ??
+    (plan.customJson
       ? `z.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
       : plan.column.storage !== undefined
         ? `(z.string() as unknown as z.ZodType<${rowType(table, plan)}>)`
-        : scalar(plan.scalar);
+        : scalar(plan.scalar));
   if (plan.column.array) expr = `z.array(${expr})`;
   if (plan.nullable) expr = `${expr}.nullable()`;
   if (plan.optional) expr = `${expr}.exactOptional()`;

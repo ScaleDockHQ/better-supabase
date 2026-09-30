@@ -179,6 +179,7 @@
     "bench": "node src/next/next.bench.ts",
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
+    "lint": "oxlint",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit --checkers 4"
   },
@@ -191,6 +192,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",
+    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@effect/platform-node": "catalog:",
     "@opentelemetry/api": "catalog:",

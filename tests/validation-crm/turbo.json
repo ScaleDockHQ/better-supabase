@@ -1,0 +1,9 @@
+{
+  "$schema": "https://v2-11-5.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "passThroughEnv": ["CRM_SUPABASE_SECRET_KEY", "CRM_SUPABASE_URL"]
+    }
+  }
+}

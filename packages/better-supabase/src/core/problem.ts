@@ -91,13 +91,11 @@ export function toProblem(
   if (error.hint) problem['hint'] = error.hint;
   if ('constraint' in error && error.constraint)
     problem['constraint'] = error.constraint;
-  if ('columns' in error && error.columns) problem['columns'] = error.columns;
+  if ('columns' in error) problem['columns'] = error.columns;
   if ('column' in error && error.column) problem['column'] = error.column;
   if ('issues' in error) problem['issues'] = error.issues;
-  if ('required' in error && error.required)
-    problem['required'] = error.required;
-  if ('retryAfter' in error && error.retryAfter !== undefined)
-    problem['retryAfter'] = error.retryAfter;
+  if ('required' in error) problem['required'] = error.required;
+  if ('retryAfter' in error) problem['retryAfter'] = error.retryAfter;
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
   return problem as unknown as ProblemDetails;
 }
@@ -118,11 +116,7 @@ export function problemResponse(
       error.code === 'MISSING_CREDENTIALS' ? '' : ', error="invalid_token"';
     headers.set('www-authenticate', `Bearer realm="${realm}"${params}`);
   }
-  if (
-    'retryAfter' in error &&
-    error.retryAfter !== undefined &&
-    !headers.has('retry-after')
-  )
+  if ('retryAfter' in error && !headers.has('retry-after'))
     headers.set('retry-after', String(error.retryAfter));
   return new Response(JSON.stringify(toProblem(error, options)), {
     status: error.status,

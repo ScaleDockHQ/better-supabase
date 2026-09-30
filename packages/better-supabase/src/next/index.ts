@@ -17,6 +17,7 @@ import type { AnyFunctions, AnyModels } from '../schema/types.ts';
 import { type Aal, checkAal } from '../auth/mfa.ts';
 import { toSession } from '../auth/view.ts';
 import { dbError } from '../core/errors.ts';
+import { isList } from '../core/guards.ts';
 import { problemResponse } from '../core/problem.ts';
 import { isReadSet, type ReadSet } from '../core/read-set.ts';
 import { validate } from '../core/standard.ts';
@@ -403,8 +404,10 @@ export function createNext<
   const statsHeader = debug?.header ?? 'x-bs-db-calls';
   const statsRoute = debug?.route ?? '/api/bs-stats';
   const development =
+    // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
     typeof process !== 'undefined' && process.env['NODE_ENV'] === 'development';
   const collector =
+    // oxlint-disable-next-line typescript/prefer-optional-chain -- without debug options there is no collector, even in development.
     debug && (debug.enabled ?? development)
       ? sharedCollector({
           logger: sb.events.logger,
@@ -648,7 +651,7 @@ export function createNext<
     cacheTags(target) {
       const specs = isReadSet(target)
         ? Object.values(target.specs)
-        : Array.isArray(target)
+        : isList(target)
           ? target
           : [target];
       const tags = new Set<string>();

@@ -104,9 +104,9 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
   });
 
   afterAll(async () => {
-    server?.kill();
+    server.kill();
     if (id) await admin.from('customers').delete().eq('id', id);
-    await Promise.all([acme?.remove(), member?.remove(), other?.remove()]);
+    await Promise.all([acme.remove(), member.remove(), other.remove()]);
   });
 
   const get = (
@@ -251,7 +251,7 @@ describe.skipIf(!(await reachable()))('nextjs example', () => {
     });
 
     afterAll(async () => {
-      await browser?.close();
+      await browser.close();
     });
 
     it('serves a static shell on a cold load, auth streams in after', async () => {

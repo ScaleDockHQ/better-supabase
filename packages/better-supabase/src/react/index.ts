@@ -209,6 +209,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   const auth = useAuth();
   const [status, setStatus] = useState<SubscriptionStatus>('closed');
   const latest = useRef({ handlers, options });
+  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current = { handlers, options };
   const name = values ? topic.topic(values) : null;
   const userId = auth.user?.id ?? null;
@@ -259,6 +260,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       void subscription.unsubscribe();
       setStatus('closed');
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [browser, topic, name, userId, auth.status, queryClient]);
 
   return status;
@@ -330,6 +332,7 @@ export function useLiveQuery(
     return () => {
       void live.unsubscribe();
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [browser, queryClient, key, tenant, userId, auth.status, debounceMs]);
 
   return status;
@@ -403,6 +406,7 @@ export function useLiveCount(
     return () => {
       void live.unsubscribe();
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [browser, key, tenant, userId, auth.status, debounceMs, hasInitial]);
 
   const fresh = state.key === key;

@@ -92,6 +92,7 @@ export async function respond(
 
 export function defaultExpose(): boolean {
   return (
+    // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
     typeof process !== 'undefined' && process.env['NODE_ENV'] === 'development'
   );
 }

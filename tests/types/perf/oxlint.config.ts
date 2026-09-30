@@ -1,0 +1,25 @@
+import {
+  core,
+  node,
+  test,
+  ignorePatterns,
+} from '@better-supabase/ox-config/oxlint';
+import { defineConfig } from 'oxlint';
+
+export default defineConfig({
+  extends: [core, node, test],
+  ignorePatterns: [
+    ...ignorePatterns,
+    '**/*.generated.ts',
+    '**/generated.ts',
+    '**/generated-*.ts',
+    '**/database.types.ts',
+  ],
+  overrides: [
+    {
+      // BENCH_UPDATE switches the benchmark to rewriting its baseline.
+      files: ['bench.ts'],
+      rules: { 'node/no-process-env': 'off' },
+    },
+  ],
+});

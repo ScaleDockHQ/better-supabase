@@ -126,7 +126,7 @@ export async function reads(): Promise<void> {
   // @ts-expect-error unknown column
   await db.customers.findMany({ select: ['nope'] });
   // @ts-expect-error the method exists on customers only
-  db.tags.active();
+  db.tags.active(); // oxlint-disable-line typescript/no-unsafe-call -- the call is the expected type error.
   await db.customers.restore('id');
 }
 

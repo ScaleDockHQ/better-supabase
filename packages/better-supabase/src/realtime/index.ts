@@ -313,7 +313,7 @@ export function defineTopic<
     tenantParam &&
     (options.tenant || parsed.params.includes(tenantParam))
   ) {
-    const tenant = options.tenant || {};
+    const tenant = options.tenant === false ? {} : (options.tenant ?? {});
     const expression =
       tenant.sql ?? claimSql(tenant.claim ?? tenantClaimPaths());
     checks.push(
@@ -454,6 +454,7 @@ export function defineTopic<
       subscribeOptions.onStatus?.('joining');
       const ready = (async () => {
         if (isPrivate) await client.realtime.setAuth();
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- `close()` can run while `setAuth` is awaited.
         if (closed) return;
         await new Promise<void>((resolve, reject) => {
           channel.subscribe((status, error) => {

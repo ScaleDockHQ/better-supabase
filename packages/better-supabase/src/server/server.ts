@@ -222,17 +222,20 @@ export function createServer<
     const shared = !global && url === env().url;
     switch (auth.kind) {
       case 'user':
+        // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return createClient(url, env().publishableKey, {
           accessToken: () => Promise.resolve(auth.token),
           ...global,
         });
       case 'service':
+        // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return shared
           ? serviceClient()
           : createClient(url, secretKey(), { auth: STATELESS, ...global });
       case 'anon':
       case 'invalid':
         if (!shared) {
+          // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
           return createClient(url, env().publishableKey, {
             auth: STATELESS,
             ...global,

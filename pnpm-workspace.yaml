@@ -24,6 +24,7 @@ catalog:
   '@supabase/server': 1.8.1
   '@supabase/ssr': 0.12.7
   '@supabase/supabase-js': 2.117.2
+  '@t3-oss/env-nextjs': 0.13.11
   '@tailwindcss/postcss': 4.3.3
   '@tanstack/query-core': 5.104.0
   '@tanstack/react-query': 5.104.0
@@ -53,6 +54,10 @@ catalog:
   nuqs: 2.10.1
   oxfmt: 0.71.0
   '@oxlint/plugins': 1.86.0
+  '@shadcn/lint': 0.2.0
+  eslint-plugin-playwright: 2.12.0
+  eslint-plugin-turbo: 2.11.5
+  oxlint-plugin-react-doctor: 0.9.14
   oxlint: 1.86.0
   oxlint-tsgolint: 7.0.2003
   pg: 8.23.0

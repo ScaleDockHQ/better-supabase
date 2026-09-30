@@ -390,6 +390,7 @@ export function defineListQuery<
   function parse(
     input: ListQueryInput<S, F> | ListSearchParams | undefined,
   ): ListParseResult<S, F> {
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- search params from JavaScript can be null.
     if (input === undefined || input === null)
       return { ok: true, value: defaults };
     if (typeof input !== 'object')

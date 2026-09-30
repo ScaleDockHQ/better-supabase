@@ -4,6 +4,7 @@ import type {
   GeneratorInput,
 } from '../config/index.ts';
 
+import { isList } from '../core/guards.ts';
 import {
   type FieldPlan,
   fieldsFor,
@@ -61,7 +62,7 @@ function property(plan: FieldPlan): JsonSchema {
   if (!plan.nullable) return schema;
   if (Object.keys(schema).length === 0) return schema;
   const { enum: values, ...rest } = schema;
-  if (Array.isArray(values))
+  if (isList(values))
     return { ...rest, type: ['string', 'null'], enum: [...values, null] };
   return typeof schema['type'] === 'string'
     ? { ...schema, type: [schema['type'], 'null'] }

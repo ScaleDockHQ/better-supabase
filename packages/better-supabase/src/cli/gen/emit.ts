@@ -50,7 +50,7 @@ function enrichedDatabase(model: Model): string[] {
         const overrides = table.columns
           .filter(
             (column) =>
-              (column.values && !column.snapshot.isEnum) ||
+              (column.values !== undefined && !column.snapshot.isEnum) ||
               (column.json && column.tsType !== 'Json') ||
               column.storage !== undefined,
           )

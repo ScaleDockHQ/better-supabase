@@ -1,0 +1,9 @@
+{
+  "$schema": "https://v2-11-5.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "bench": {
+      "env": ["BENCH_UPDATE"]
+    }
+  }
+}

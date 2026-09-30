@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
-const docsOrigin = process.env['DOCS_ORIGIN'] ?? 'http://127.0.0.1:3001';
+import { env } from './env.ts';
+
+const docsOrigin = env.DOCS_ORIGIN;
 
 const docsPaths = [
   '/docs',
@@ -29,7 +31,7 @@ const config: NextConfig = {
   },
   rewrites() {
     // In production Vercel Services routes these paths to apps/docs.
-    if (process.env.NODE_ENV === 'production') {
+    if (env.NODE_ENV === 'production') {
       return Promise.resolve([]);
     }
     return Promise.resolve(

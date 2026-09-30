@@ -48,7 +48,7 @@ export default function ChangelogPage() {
             >
               <span
                 aria-hidden="true"
-                className="bg-brand ring-background absolute top-1.5 -left-[5px] size-2.5 rounded-full ring-4"
+                className="bg-brand ring-background absolute top-1.5 -left-1.25 size-2.5 rounded-full ring-4"
               />
               <div className="flex items-center gap-2">
                 <h2 className="font-mono text-base font-semibold">

@@ -20,6 +20,7 @@ export async function reachable(): Promise<boolean> {
   }
 }
 
+// oxlint-disable-next-line typescript/no-unsafe-assignment -- supabase-js infers `any` for the schema name without a Database type.
 export const admin: SupabaseClient = createClient(stack.url, stack.secretKey, {
   auth: { persistSession: false },
 });

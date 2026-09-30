@@ -200,7 +200,7 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   const jwks = options.jwks;
   if (jwks && typeof jwks === 'object' && !(jwks instanceof URL)) {
     let memo = memoByJwks.get(jwks);
-    if (!memo) memoByJwks.set(jwks, (memo = new Map()));
+    if (!memo) memoByJwks.set(jwks, (memo = new Map<string, VerifiedUser>()));
     return memo;
   }
   const key = JSON.stringify([
@@ -210,7 +210,7 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
     options.issuer ?? null,
   ]);
   let memo = memoByUrl.get(key);
-  if (!memo) memoByUrl.set(key, (memo = new Map()));
+  if (!memo) memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
   return memo;
 }
 

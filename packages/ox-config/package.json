@@ -14,16 +14,22 @@
     "./anti-slop": "./src/anti-slop/index.ts"
   },
   "scripts": {
+    "lint": "oxlint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --checkers 4"
   },
   "dependencies": {
     "@oxlint/plugins": "catalog:",
+    "@shadcn/lint": "catalog:",
+    "eslint-plugin-playwright": "catalog:",
+    "eslint-plugin-turbo": "catalog:",
     "oxfmt": "catalog:",
-    "oxlint": "catalog:"
+    "oxlint": "catalog:",
+    "oxlint-plugin-react-doctor": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

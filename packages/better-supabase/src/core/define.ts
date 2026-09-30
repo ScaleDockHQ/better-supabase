@@ -235,6 +235,7 @@ export class BetterSupabase<
   use<Q extends AnyPlugin>(
     plugin: Q,
   ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<Q>>, C, P> {
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- plugins from JavaScript can target another API version.
     if (plugin.apiVersion !== 1) {
       throw new TypeError(
         `better-supabase: plugin "${plugin.name}" targets plugin API v${String(plugin.apiVersion)}; this version supports v1`,

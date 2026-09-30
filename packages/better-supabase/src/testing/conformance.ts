@@ -14,6 +14,7 @@ import {
   resolveConfig,
 } from '../config/index.ts';
 import { dbError } from '../core/errors.ts';
+import { isList } from '../core/guards.ts';
 import { ok } from '../core/result.ts';
 import { toCloudEvents } from '../events/index.ts';
 
@@ -178,7 +179,7 @@ export function testExecutor(
           result.ok,
           `select failed: ${result.ok ? '' : result.error.message}`,
         );
-        expect(Array.isArray(result.data.rows), 'rows must be an array');
+        expect(isList(result.data.rows), 'rows must be an array');
         expect(
           result.data.rows.length <= 2,
           `limit 2 returned ${result.data.rows.length} rows`,
@@ -585,7 +586,7 @@ export function testGenerator(
       'writes files inside the project',
       async () => {
         const files = await generator.generate(input());
-        expect(Array.isArray(files), 'generate() must return an array');
+        expect(isList(files), 'generate() must return an array');
         for (const file of files) {
           expect(
             typeof file.path === 'string' && typeof file.contents === 'string',
@@ -652,6 +653,7 @@ export function testPlugin(
       'targets plugin API v1',
       () =>
         expect(
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- the kit checks plugins written in JavaScript too.
           plugin.apiVersion === 1,
           `apiVersion is ${String(plugin.apiVersion)}`,
         ),
@@ -676,6 +678,7 @@ export function testPlugin(
         const first = plugin.transformQuery!(frozenCopy(op), hook(op));
         const second = plugin.transformQuery!(frozenCopy(op), hook(op));
         expect(
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- the kit checks plugins written in JavaScript too.
           typeof first === 'object' && first !== null && first.kind === op.kind,
           'must return an operation of the same kind',
         );

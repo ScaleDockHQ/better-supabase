@@ -281,8 +281,7 @@ function knownValueEvidence(
 
   const declarator = variableDeclarator(variable);
   if (
-    declarator === null ||
-    declarator.parent.type !== 'VariableDeclaration' ||
+    declarator?.parent.type !== 'VariableDeclaration' ||
     declarator.parent.kind !== 'const' ||
     declarator.init === null ||
     variable.references.some(
@@ -312,8 +311,7 @@ function widenedBinding(
 } | null {
   const declarator = variableDeclarator(variable);
   if (
-    declarator === null ||
-    declarator.parent.type !== 'VariableDeclaration' ||
+    declarator?.parent.type !== 'VariableDeclaration' ||
     declarator.parent.kind !== 'const' ||
     declarator.id.type !== 'Identifier' ||
     declarator.init === null ||

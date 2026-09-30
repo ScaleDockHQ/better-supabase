@@ -179,6 +179,7 @@ function lintObject(lint: Lint): SqlObject | undefined {
 function lintFinding(lint: Lint): FindingInput {
   const object = lintObject(lint);
   return {
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- splinter can add levels this map does not know.
     severity: ADVISOR_SEVERITY[lint.level] ?? 'warning',
     title: lint.title,
     message: `${lint.detail.replaceAll('\\`', '`')} [${lint.name}]`,

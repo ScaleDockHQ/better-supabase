@@ -13,6 +13,7 @@
     "dev": "vite",
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit --checkers 4"
   },
@@ -25,6 +26,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

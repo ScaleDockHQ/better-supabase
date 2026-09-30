@@ -85,7 +85,7 @@ export function parseTomlSubset(text: string): TomlTable {
         .split('.')
         .map((p) => p.trim().replace(/^"(.*)"$/, '$1'))) {
         const next = table[part];
-        if (typeof next !== 'object' || next === null || Array.isArray(next)) {
+        if (typeof next !== 'object' || Array.isArray(next)) {
           table[part] = {};
         }
         table = table[part] as Record<string, TomlValue>;
@@ -142,8 +142,7 @@ export function tomlGet(
 ): TomlValue | undefined {
   let value: TomlValue | undefined = document;
   for (const key of path) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value))
-      return undefined;
+    if (typeof value !== 'object' || Array.isArray(value)) return undefined;
     value = (value as TomlTable)[key];
   }
   return value;
@@ -183,11 +182,9 @@ export function parsePgFunctionUri(
 /** The enabled Auth hooks with a `pg-functions://` URI, by hook name. */
 export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
   const hooks = tomlGet(document, ['auth', 'hook']);
-  if (typeof hooks !== 'object' || hooks === null || Array.isArray(hooks))
-    return [];
+  if (typeof hooks !== 'object' || Array.isArray(hooks)) return [];
   return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
-    if (typeof table !== 'object' || table === null || Array.isArray(table))
-      return [];
+    if (typeof table !== 'object' || Array.isArray(table)) return [];
     const { enabled, uri } = table as TomlTable;
     if ((enabled !== true && enabled !== 'true') || typeof uri !== 'string')
       return [];
