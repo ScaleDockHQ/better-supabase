@@ -4,6 +4,9 @@
   "private": true,
   "description": "A Next.js App Router app: Cache Components, instant navigation, role-aware menus, proxy session refresh, route handlers and actions.",
   "type": "module",
+  "exports": {
+    "./supabase": "./src/lib/supabase.ts"
+  },
   "scripts": {
     "build": "next build",
     "dev": "next dev -p 3100",

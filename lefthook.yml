@@ -2,12 +2,12 @@ pre-commit:
   parallel: true
   commands:
     fmt:
-      glob: '*.{js,ts,tsx,mjs,cjs,json,jsonc,yml,yaml}'
+      glob: '*.{js,ts,tsx,mjs,cjs,mts,json,jsonc,yml,yaml}'
       exclude: '{.agents,.cursor,.claude}/**'
       run: pnpm exec oxfmt {staged_files}
       stage_fixed: true
     lint:
-      glob: '*.{js,ts,tsx,mjs,cjs}'
+      glob: '*.{js,ts,tsx,mjs,cjs,mts}'
       exclude: '{.agents,.cursor,.claude}/**'
       run: pnpm exec oxlint --fix {staged_files}
       stage_fixed: true
@@ -19,9 +19,7 @@ commit-msg:
 
 pre-push:
   commands:
-    check:
-      run: pnpm run check
-    test:
+    affected:
       env:
         TURBO_SCM_BASE: origin/main
-      run: pnpm exec turbo run test --affected
+      run: pnpm exec turbo run lint typecheck test --affected

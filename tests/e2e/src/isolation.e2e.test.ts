@@ -1,7 +1,7 @@
+import { sb } from '@better-supabase/example-nextjs/supabase';
 import { expectTenantIsolation } from 'better-supabase/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { sb } from '../../../apps/examples/nextjs/src/lib/supabase.ts';
 import {
   ACME,
   createUser,

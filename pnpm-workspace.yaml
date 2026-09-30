@@ -37,6 +37,7 @@ catalog:
   better-result: 3.0.1
   class-variance-authority: 0.7.1
   clsx: 2.1.1
+  dotenv-cli: 11.0.0
   effect: 4.0.0-rc.117
   fumadocs-core: 16.15.15
   fumadocs-mdx: 15.4.5
@@ -55,6 +56,7 @@ catalog:
   oxlint: 1.86.0
   oxlint-tsgolint: 7.0.2003
   pg: 8.23.0
+  portless: 0.15.6
   postcss: 8.5.28
   publint: 0.3.24
   react: 19.3.0

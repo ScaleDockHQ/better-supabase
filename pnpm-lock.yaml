@@ -260,6 +260,9 @@ catalogs:
     clsx:
       specifier: 2.1.1
       version: 2.1.1
+    dotenv-cli:
+      specifier: 11.0.0
+      version: 11.0.0
     effect:
       specifier: 4.0.0-rc.117
       version: 4.0.0-rc.117
@@ -299,6 +302,9 @@ catalogs:
     pg:
       specifier: 8.23.0
       version: 8.23.0
+    portless:
+      specifier: 0.15.6
+      version: 0.15.6
     postcss:
       specifier: 8.5.28
       version: 8.5.28
@@ -392,6 +398,9 @@ importers:
       better-supabase:
         specifier: workspace:*
         version: link:packages/better-supabase
+      dotenv-cli:
+        specifier: 'catalog:'
+        version: 11.0.0
       lefthook:
         specifier: 'catalog:'
         version: 2.1.14
@@ -407,6 +416,9 @@ importers:
       oxlint-tsgolint:
         specifier: 'catalog:'
         version: 7.0.2003
+      portless:
+        specifier: 'catalog:'
+        version: 0.15.6
       supabase:
         specifier: 'catalog:'
         version: 2.118.0
@@ -3729,6 +3741,18 @@ packages:
     resolution: {integrity: sha512-tE7ztYzXHIeyvc7N+hR3oi7FIbf/NIjVP9hmAt3yMXzrQ072/fpjGLx2GxNxGxUl5V73MEqYzioOMoVhGMJ5cA==}
     engines: {node: '>=10'}
 
+  dotenv-cli@11.0.0:
+    resolution: {integrity: sha512-r5pA8idbk7GFWuHEU7trSTflWcdBpQEK+Aw17UrSHjS6CReuhrrPcyC3zcQBPQvhArRHnBo/h6eLH1fkCvNlww==}
+    hasBin: true
+
+  dotenv-expand@12.0.3:
+    resolution: {integrity: sha512-uc47g4b+4k/M/SeaW1y4OApx+mtLWl92l5LMPP0GNXctZqELk+YGgOPIIC5elYmUH4OuoK3JLhuRUYegeySiFA==}
+    engines: {node: '>=12'}
+
+  dotenv@16.6.1:
+    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
+
   dotenv@17.4.2:
     resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
@@ -5333,6 +5357,12 @@ packages:
   playwright@1.63.0:
     resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
     engines: {node: '>=20'}
+    hasBin: true
+
+  portless@0.15.6:
+    resolution: {integrity: sha512-uOAwWLF32rmyEGFASzSO0VOaqb/AQxFCCzyZbPGd82UNNOfIEvc09zy92nroNibE5HNfzV4oVB0ObKbPXgkM9A==}
+    engines: {node: '>=24'}
+    os: [darwin, linux, win32]
     hasBin: true
 
   postcss-selector-parser@7.1.6:
@@ -8415,6 +8445,19 @@ snapshots:
     dependencies:
       is-obj: 2.0.0
 
+  dotenv-cli@11.0.0:
+    dependencies:
+      cross-spawn: 7.0.6
+      dotenv: 17.4.2
+      dotenv-expand: 12.0.3
+      minimist: 1.2.8
+
+  dotenv-expand@12.0.3:
+    dependencies:
+      dotenv: 16.6.1
+
+  dotenv@16.6.1: {}
+
   dotenv@17.4.2: {}
 
   dts-resolver@3.0.0: {}
@@ -10139,6 +10182,8 @@ snapshots:
   playwright@1.63.0:
     dependencies:
       playwright-core: 1.63.0
+
+  portless@0.15.6: {}
 
   postcss-selector-parser@7.1.6:
     dependencies:
