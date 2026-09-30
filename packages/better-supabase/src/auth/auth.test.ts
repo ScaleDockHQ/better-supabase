@@ -20,6 +20,7 @@ import {
   type StoredSession,
   writeSession,
 } from './session.ts';
+import { toSession } from './view.ts';
 
 const PROJECT_URL = 'https://abcdefghijklmnopqrst.supabase.co';
 const env = {
@@ -448,6 +449,104 @@ describe('resolveAuth', async () => {
         resolvers: [{ name: 'fixed', resolve: () => verified.auth }],
       });
       expect(auth).toMatchObject({ kind: 'invalid', reason: 'claims' });
+    });
+  });
+
+  describe('userMetadata', () => {
+    const profile = z.object({
+      display_name: z.string(),
+      avatar_url: z.url().optional(),
+    });
+    const bearer = (token: string) =>
+      new Request('https://api.test/', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+    const logger = () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    });
+
+    it('parses user_metadata into the profile', async () => {
+      const token = await signer.sign({
+        sub: USER,
+        user_metadata: { display_name: 'Ada', role: 'admin' },
+      });
+      const { auth } = await resolveAuth(bearer(token), {
+        ...options,
+        userMetadata: profile,
+      });
+      expect(auth).toMatchObject({
+        kind: 'user',
+        profile: { display_name: 'Ada' },
+      });
+      expect(toSession(auth)).toMatchObject({
+        profile: { display_name: 'Ada' },
+      });
+    });
+
+    it('leaves the profile undefined and warns once with issue paths only', async () => {
+      const schema = profile.extend({});
+      const log = logger();
+      const token = await signer.sign({
+        sub: USER,
+        user_metadata: { display_name: 42, secret: 'do-not-log' },
+      });
+      for (let i = 0; i < 2; i++) {
+        const { auth } = await resolveAuth(bearer(token), {
+          ...options,
+          userMetadata: schema,
+          logger: log,
+        });
+        expect(auth).toMatchObject({ kind: 'user', user: { id: USER } });
+        expect(auth).not.toHaveProperty('profile');
+        expect(toSession(auth)).not.toHaveProperty('profile');
+      }
+      expect(log.warn).toHaveBeenCalledTimes(1);
+      expect(log.warn).toHaveBeenCalledWith(expect.any(String), {
+        paths: ['display_name'],
+      });
+      expect(JSON.stringify(log.warn.mock.calls)).not.toContain('do-not-log');
+    });
+
+    it('validates an empty object when the token has no user_metadata', async () => {
+      const token = await signer.sign({ sub: USER });
+      const { auth } = await resolveAuth(bearer(token), {
+        ...options,
+        userMetadata: z.object({ theme: z.string().default('light') }),
+        logger: logger(),
+      });
+      expect(auth).toMatchObject({ kind: 'user', profile: { theme: 'light' } });
+    });
+
+    it('replaces a profile set by a custom resolver', async () => {
+      const token = await signer.sign({
+        sub: USER,
+        user_metadata: { display_name: 'Ada' },
+      });
+      const verified = await resolveAuth(bearer(token), options);
+      const forged = { ...verified.auth, profile: { display_name: 'Eve' } };
+      const { auth } = await resolveAuth(new Request('https://api.test/'), {
+        ...options,
+        userMetadata: profile,
+        resolvers: [{ name: 'fixed', resolve: () => forged }],
+      });
+      expect(auth).toMatchObject({ profile: { display_name: 'Ada' } });
+    });
+
+    it('never affects the claims or the authorization result', async () => {
+      const token = await signer.sign({
+        sub: USER,
+        user_metadata: { display_name: 42, tenant_id: 'from-user' },
+      });
+      const { auth } = await resolveAuth(bearer(token), {
+        ...options,
+        userMetadata: profile,
+        logger: logger(),
+      });
+      expect(auth.kind).toBe('user');
+      expect(auth).not.toHaveProperty('claims.tenant_id');
     });
   });
 });

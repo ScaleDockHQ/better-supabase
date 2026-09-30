@@ -71,6 +71,8 @@ export interface DefineSupabaseOptions {
   readonly throwAs?: ThrowMapper;
   /** Validates verified JWT claims on the server. Prefer `sb.claims()`, which also types them. */
   readonly claims?: StandardSchemaV1;
+  /** Parses `user_metadata` into `session.profile`. Prefer `sb.userMetadata()`, which also types it. */
+  readonly userMetadata?: StandardSchemaV1;
   /**
    * PostgREST's `db-max-rows`: the most rows one read returns. An unbounded
    * `findMany` that returns this many sets `truncated` on the `query` event
@@ -113,6 +115,7 @@ export class BetterSupabase<
   F extends AnyFunctions = AnyFunctions,
   E = unknown,
   C = unknown,
+  P = unknown,
 > {
   readonly schema: Schema<M, D, F>;
   readonly plugins: readonly AnyPlugin[];
@@ -140,6 +143,14 @@ export class BetterSupabase<
     return this.options.claims as StandardSchemaV1<unknown, C> | undefined;
   }
 
+  /** The schema set by `userMetadata()`; its output types `session.profile`. */
+  get userMetadataSchema(): StandardSchemaV1<unknown, P> | undefined {
+    // SAFETY: only `userMetadata()` sets the option, and it fixes `P` to the schema output.
+    return this.options.userMetadata as
+      | StandardSchemaV1<unknown, P>
+      | undefined;
+  }
+
   /**
    * Returns a new instance whose servers validate verified JWT claims (custom
    * access token hook output) with `schema`, and whose sessions are typed by it.
@@ -151,11 +162,32 @@ export class BetterSupabase<
    */
   claims<S extends StandardSchemaV1>(
     schema: S,
-  ): BetterSupabase<M, D, F, E, StandardSchemaV1.InferOutput<S>> {
+  ): BetterSupabase<M, D, F, E, StandardSchemaV1.InferOutput<S>, P> {
     return new BetterSupabase(
       this.schema,
       this.plugins,
       { ...this.options, claims: schema },
+      this.events,
+    );
+  }
+
+  /**
+   * Returns a new instance whose sessions parse `user_metadata` with
+   * `schema` into a typed `session.profile`. Users can change their metadata
+   * with `auth.updateUser()`, so a failure only leaves `profile` undefined
+   * (with one warning), and no authorization code reads it.
+   *
+   * ```ts
+   * const sb = defineSupabase(schema).userMetadata(z.object({ display_name: z.string() }));
+   * ```
+   */
+  userMetadata<S extends StandardSchemaV1>(
+    schema: S,
+  ): BetterSupabase<M, D, F, E, C, StandardSchemaV1.InferOutput<S>> {
+    return new BetterSupabase(
+      this.schema,
+      this.plugins,
+      { ...this.options, userMetadata: schema },
       this.events,
     );
   }
@@ -169,7 +201,9 @@ export class BetterSupabase<
    * const sb = defineSupabase(schema).mapError((error) => new AppError(error));
    * ```
    */
-  mapError(mapper: (error: DbError) => unknown): BetterSupabase<M, D, F, E, C> {
+  mapError(
+    mapper: (error: DbError) => unknown,
+  ): BetterSupabase<M, D, F, E, C, P> {
     return new BetterSupabase(
       this.schema,
       this.plugins,
@@ -196,9 +230,9 @@ export class BetterSupabase<
   }
 
   /** Returns a new instance with the plugin appended. */
-  use<P extends AnyPlugin>(
-    plugin: P,
-  ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<P>>, C> {
+  use<Q extends AnyPlugin>(
+    plugin: Q,
+  ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<Q>>, C, P> {
     if (plugin.apiVersion !== 1) {
       throw new TypeError(
         `better-supabase: plugin "${plugin.name}" targets plugin API v${String(plugin.apiVersion)}; this version supports v1`,
@@ -228,7 +262,7 @@ export class BetterSupabase<
   defineRpc(
     name: Extract<keyof F, string>,
     options: { readonly invalidates: readonly TableKey<M>[] },
-  ): BetterSupabase<M, D, F, E, C> {
+  ): BetterSupabase<M, D, F, E, C, P> {
     for (const table of options.invalidates) {
       if (!this.meta.tables[table]) {
         throw new TypeError(

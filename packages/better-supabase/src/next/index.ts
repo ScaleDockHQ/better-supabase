@@ -87,9 +87,9 @@ export type { Aal, AmrEntry } from '../auth/mfa.ts';
 export type { Impersonator } from '../auth/impersonation.ts';
 export { toSession } from '../auth/view.ts';
 export { hasEntitlement } from '../auth/entitlements.ts';
-export type { EntitlementKey } from '../auth/entitlements.ts';
+export type { EntitlementKey, MembershipClaim } from '../auth/entitlements.ts';
 
-export interface ProxyOptions<C = unknown> {
+export interface ProxyOptions<C = unknown, U = unknown> {
   /**
    * Another middleware to compose with, such as next-intl's. It runs on the
    * original request, alongside auth; its rewrite, redirect or request
@@ -100,13 +100,13 @@ export interface ProxyOptions<C = unknown> {
   ) => Response | undefined | Promise<Response | undefined>;
   /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
   readonly protect?: (
-    auth: AuthState<C>,
+    auth: AuthState<C, U>,
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
   /** Post-processes the final response; return a new one to replace it. */
   readonly after?: (
     response: Response,
-    auth: AuthState<C>,
+    auth: AuthState<C, U>,
   ) => Response | undefined | void | Promise<Response | undefined | void>;
   /**
    * Adds `Server-Timing: bs-proxy;dur=..., bs-verify;dur=...` (ms): the whole
@@ -143,26 +143,27 @@ export interface BetterNext<
   F extends AnyFunctions,
   E,
   C = unknown,
-> extends BetterServer<M, F, E, C> {
+  U = unknown,
+> extends BetterServer<M, F, E, C, U> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
-  proxy(request: NextRequest, options?: ProxyOptions<C>): Promise<Response>;
+  proxy(request: NextRequest, options?: ProxyOptions<C, U>): Promise<Response>;
   /** Server Components and actions: the caller's context, memoized per request. */
-  server(): Promise<ServerContext<M, F, E, C>>;
+  server(): Promise<ServerContext<M, F, E, C, U>>;
   /**
    * The verified caller as serializable data (no token, no clients), memoized
    * per request. Wrap it in a `'use cache: private'` function with Cache
    * Components and pass the promise to `<SessionProvider>`.
    */
-  session(): Promise<AuthSession<C>>;
+  session(): Promise<AuthSession<C, U>>;
   /**
    * The context for a session and its token, without reading the request.
    * The token is verified again (memoized, no network call); a token for
    * another user than `session` gives an `invalid` context.
    */
   serverFor(
-    session: AuthSession<C>,
+    session: AuthSession<C, U>,
     options: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C>>;
+  ): Promise<ServerContext<M, F, E, C, U>>;
   /**
    * First statement of an app-authored `'use cache: private'` function: sets
    * `cacheLife` from the session's expiry (`sessionStale`), tags the entry
@@ -176,7 +177,7 @@ export interface BetterNext<
    * }
    * ```
    */
-  cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C>>;
+  cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C, U>>;
   /** Drops every `next.cached()` entry of a user, e.g. after a role change. */
   invalidateSession(userId: string): void;
   /**
@@ -194,7 +195,7 @@ export interface BetterNext<
   route<P = Record<string, string | string[]>>(
     handler: (
       request: NextRequest,
-      ctx: ServerContext<M, F, E, C> & { readonly params: P },
+      ctx: ServerContext<M, F, E, C, U> & { readonly params: P },
     ) => unknown,
     options?: GuardOptions,
   ): (
@@ -206,7 +207,7 @@ export interface BetterNext<
     options: ActionOptions<S>,
     fn: (
       input: ActionParsed<S>,
-      ctx: ServerContext<M, F, E, C>,
+      ctx: ServerContext<M, F, E, C, U>,
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /** Tags the current `"use cache"` scope with a table (and row) tag. */
@@ -265,7 +266,8 @@ export type CachedContext<
   F extends AnyFunctions,
   E,
   C = unknown,
-> = ServerContext<M, F, E, C> & { readonly session: AuthSession<C> };
+  U = unknown,
+> = ServerContext<M, F, E, C, U> & { readonly session: AuthSession<C, U> };
 
 /** The tag `next.cached()` puts on a user's entries. */
 export function sessionTag(userId: string): string {
@@ -386,10 +388,11 @@ export function createNext<
   F extends AnyFunctions,
   E,
   C = unknown,
+  U = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E, C>,
+  sb: BetterSupabase<M, D, F, E, C, U>,
   options: NextOptions = {},
-): BetterNext<M, F, E, C> {
+): BetterNext<M, F, E, C, U> {
   const base = createServer(sb, options);
   const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
   const expose = options.exposeErrors ?? defaultExpose();
@@ -419,12 +422,12 @@ export function createNext<
       headers: new Headers(await headers()),
     });
 
-  const server = cache(async (): Promise<ServerContext<M, F, E, C>> => {
+  const server = cache(async (): Promise<ServerContext<M, F, E, C, U>> => {
     const request = await incomingRequest();
     return base.context(request, statsFor(request));
   });
 
-  const session = cache(async (): Promise<AuthSession<C>> => {
+  const session = cache(async (): Promise<AuthSession<C, U>> => {
     const resolution = await base.resolve(await incomingRequest(), {
       refresh: false,
     });
@@ -432,9 +435,9 @@ export function createNext<
   });
 
   const serverFor = async (
-    view: AuthSession<C>,
+    view: AuthSession<C, U>,
     { token }: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C>> => {
+  ): Promise<ServerContext<M, F, E, C, U>> => {
     const request = new Request('http://next.local/', {
       headers: token ? { authorization: `Bearer ${token}` } : {},
     });
@@ -459,10 +462,10 @@ export function createNext<
       base.deleteAccount(userId, deleteOptions).map((result) => {
         invalidate(sessionTag(userId));
         return result;
-      })) satisfies BetterServer<M, F, E, C>['deleteAccount'],
+      })) satisfies BetterServer<M, F, E, C, U>['deleteAccount'],
   });
 
-  return extendServer<BetterNext<M, F, E, C>>(withAccounts, {
+  return extendServer<BetterNext<M, F, E, C, U>>(withAccounts, {
     server,
     session,
     serverFor,

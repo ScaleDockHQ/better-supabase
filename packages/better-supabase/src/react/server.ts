@@ -18,6 +18,7 @@ export type {
   BrowserLike,
   ClaimsOf,
   LiveQueryHookOptions,
+  ProfileOf,
 } from './index.ts';
 export type { SessionProviderProps } from './session.ts';
 export type { AuthSession } from '../auth/view.ts';
@@ -31,7 +32,7 @@ function clientOnly(name: string): () => never {
 }
 
 /** The `react-server` build of `useSession`: await `next.session()` instead. */
-export const useSession: <C = unknown>() => AuthSession<C> =
+export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly('useSession');
 
 /**

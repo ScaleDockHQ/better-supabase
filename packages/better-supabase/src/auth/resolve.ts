@@ -8,11 +8,13 @@ import type {
 import { extractCredentials, verifyCredentials } from '@supabase/server/core';
 
 import type { RefreshEvent } from '../core/events.ts';
+import type { Logger } from '../core/logger.ts';
 import type { Actor, RequestContext } from '../core/plugin.ts';
 import type { StandardSchemaV1 } from '../core/standard.ts';
 import type { BetterSupabaseEnv } from '../env/index.ts';
 
 import { type DbError, dbError } from '../core/errors.ts';
+import { consoleLogger } from '../core/logger.ts';
 import { impersonatorOf } from './impersonation.ts';
 import { refreshSession } from './refresh.ts';
 import {
@@ -31,9 +33,10 @@ import {
 
 /**
  * Who is calling. `C` is the claims type from `sb.claims(schema)`; the
- * verified payload keeps every JWT claim and adds the schema's output.
+ * verified payload keeps every JWT claim and adds the schema's output. `P`
+ * is the `user_metadata` type from `sb.userMetadata(schema)`.
  */
-export type AuthState<C = unknown> =
+export type AuthState<C = unknown, P = unknown> =
   | {
       readonly kind: 'user';
       readonly token: string;
@@ -42,6 +45,12 @@ export type AuthState<C = unknown> =
       readonly source: 'bearer' | 'cookie' | (string & {});
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
+      /**
+       * `user_metadata` parsed by `sb.userMetadata(schema)`; `undefined`
+       * without a schema or when the metadata fails it. Users can write this
+       * data themselves: use it for display, never for access.
+       */
+      readonly profile?: P;
     }
   | { readonly kind: 'service'; readonly keyName: string }
   | {
@@ -109,6 +118,14 @@ export interface ResolveAuthOptions {
    * resolves to `{ kind: 'invalid', reason: 'claims' }`.
    */
   readonly claims?: StandardSchemaV1;
+  /**
+   * Parses `user_metadata` into `profile` (`sb.userMetadata(schema)` sets
+   * it). A failure leaves `profile` undefined and warns once; the session
+   * stays valid.
+   */
+  readonly userMetadata?: StandardSchemaV1;
+  /** Receives the `userMetadata` warning. Defaults to `console`. */
+  readonly logger?: Logger;
   readonly resolvers?: readonly AuthResolver[];
   /**
    * The caller's IP, sent to Auth as `Sb-Forwarded-For` on refreshes so its
@@ -123,8 +140,8 @@ export interface ResolveAuthOptions {
   readonly now?: () => number;
 }
 
-export interface AuthResolution<C = unknown> {
-  readonly auth: AuthState<C>;
+export interface AuthResolution<C = unknown, P = unknown> {
+  readonly auth: AuthState<C, P>;
   /** Cookie writes for the response. Empty unless the session was refreshed or cleared. */
   readonly cookies: readonly CookieWrite[];
   /** No-store headers, set whenever `cookies` is not empty. */
@@ -166,7 +183,10 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
   };
 }
 
-type VerifiedUser = Omit<Extract<AuthState, { kind: 'user' }>, 'source'>;
+type VerifiedUser = Omit<
+  Extract<AuthState, { kind: 'user' }>,
+  'source' | 'profile'
+>;
 
 const MEMO_SIZE = 256;
 const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
@@ -234,7 +254,7 @@ async function verify(
   if (token && memo) {
     const now = Math.floor((options.now ?? Date.now)() / 1000);
     const hit = remembered(memo, token, now);
-    if (hit) return checkClaims({ ...hit, source }, options);
+    if (hit) return checkUser({ ...hit, source }, options);
   }
   const state = await verifyOnce(credentials, modes, options, source);
   if (token && memo && state.kind === 'user') {
@@ -246,7 +266,7 @@ async function verify(
       expiresAt: state.expiresAt,
     });
   }
-  return checkClaims(state, options);
+  return checkUser(state, options);
 }
 
 /** Validates a user's claims against `options.claims`, keeping every JWT claim. */
@@ -284,6 +304,43 @@ async function checkClaims(
   return typeof extra === 'object' && extra !== null
     ? { ...state, claims: { ...state.claims, ...extra } }
     : state;
+}
+
+const warnedMetadata = new WeakSet<StandardSchemaV1>();
+
+/** Claims first, then `user_metadata`, whose failure never invalidates the session. */
+async function checkUser(
+  state: AuthState,
+  options: ResolveAuthOptions,
+): Promise<AuthState> {
+  const checked = await checkClaims(state, options);
+  const schema = options.userMetadata;
+  if (checked.kind !== 'user' || !schema) return checked;
+  const { profile: _untrusted, ...user } = checked;
+  let outcome = schema['~standard'].validate(
+    checked.user.userMetadata ?? checked.claims.user_metadata ?? {},
+  );
+  if (outcome instanceof Promise) outcome = await outcome;
+  if (!outcome.issues) return { ...user, profile: outcome.value };
+  if (!warnedMetadata.has(schema)) {
+    warnedMetadata.add(schema);
+    (options.logger ?? consoleLogger).warn(
+      'user_metadata does not match sb.userMetadata(schema); session.profile is undefined',
+      {
+        paths: outcome.issues.map(
+          (issue) =>
+            issue.path
+              ?.map((segment) =>
+                typeof segment === 'object'
+                  ? String(segment.key)
+                  : String(segment),
+              )
+              .join('.') ?? '',
+        ),
+      },
+    );
+  }
+  return user;
 }
 
 async function verifyOnce(
@@ -394,7 +451,7 @@ export async function resolveAuth(
             reason: state.reason ?? 'token',
             error: state.error,
           }
-        : await checkClaims(state, options),
+        : await checkUser(state, options),
       cookies,
     );
   }

@@ -38,7 +38,7 @@ describe('next.session', () => {
 const Claims = z.object({
   tenant_id: z.uuid(),
   app_metadata: z.object({ plan: z.enum(['free', 'pro']) }),
-  memberships: z.array(z.object({ tenant_id: z.string() })),
+  memberships: z.array(z.object({ scope: z.string(), id: z.string() })),
 });
 type Claims = z.infer<typeof Claims>;
 
@@ -86,5 +86,50 @@ describe('sb.claims(schema)', () => {
     // @ts-expect-error unknown claim
     tenant<Claims>({ claim: 'org_id' });
     tenant({ claim: 'anything.goes' });
+  });
+});
+
+const Profile = z.object({ display_name: z.string() });
+type Profile = z.infer<typeof Profile>;
+
+describe('sb.userMetadata(schema)', () => {
+  const sb = defineSupabase(schema)
+    .claims(Claims)
+    .userMetadata(Profile)
+    .use(tenant());
+
+  it('types the profile next to the claims, possibly undefined', async () => {
+    const session = await createNext(sb).session();
+    if (session.kind === 'user') {
+      expectTypeOf(session.profile).toEqualTypeOf<Profile | undefined>();
+      expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
+    }
+    const ctx = await createServer(sb).context(new Request('http://x/'));
+    expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims, Profile>>();
+  });
+
+  it('keeps the profile through claims() and use() in either order', () => {
+    const later = defineSupabase(schema)
+      .userMetadata(Profile)
+      .use(tenant())
+      .claims(Claims);
+    expectTypeOf(createNext(later).session()).resolves.toEqualTypeOf<
+      AuthSession<Claims, Profile>
+    >();
+  });
+
+  it('infers the profile in createHooks', () => {
+    const browser = createBrowser(sb);
+    const hooks = createHooks<typeof browser>();
+    expectTypeOf(hooks.useSession).returns.toEqualTypeOf<
+      AuthSession<Claims, Profile>
+    >();
+  });
+
+  it('leaves the profile unknown without a schema', async () => {
+    const session = await next.session();
+    if (session.kind === 'user') {
+      expectTypeOf(session.profile).toEqualTypeOf<unknown>();
+    }
   });
 });

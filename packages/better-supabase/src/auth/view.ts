@@ -10,7 +10,7 @@ import { type Aal, aalOf, type AmrEntry, amrOf } from './mfa.ts';
  * The verified caller as plain data: no token, no clients. Safe to return
  * from a `'use cache: private'` function and to pass to Client Components.
  */
-export type AuthSession<C = unknown> =
+export type AuthSession<C = unknown, P = unknown> =
   | {
       readonly kind: 'user';
       readonly user: UserClaims;
@@ -21,6 +21,12 @@ export type AuthSession<C = unknown> =
       readonly claims: JWTClaims & C;
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
+      /**
+       * `user_metadata` parsed by `sb.userMetadata(schema)`, for display.
+       * Absent without a schema or when the metadata fails it. Users
+       * write this data with `auth.updateUser()`: never base access on it.
+       */
+      readonly profile?: P;
       /** `aal2` once the user verified a second factor in this session. */
       readonly aal: Aal;
       /** How the user signed in (`password`, `totp`, `sso/saml`, ...). */
@@ -39,7 +45,7 @@ export type AuthSession<C = unknown> =
 type AnonReason = Extract<AuthState, { kind: 'anon' }>['reason'];
 
 /** Drops the token from an `AuthState`, leaving only serializable fields. */
-export function toSession<C>(auth: AuthState<C>): AuthSession<C> {
+export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
   switch (auth.kind) {
     case 'user': {
       const impersonator = impersonatorOf(auth.claims);
@@ -48,6 +54,7 @@ export function toSession<C>(auth: AuthState<C>): AuthSession<C> {
         user: auth.user,
         claims: auth.claims,
         expiresAt: auth.expiresAt,
+        ...(auth.profile === undefined ? {} : { profile: auth.profile }),
         aal: aalOf(auth.claims),
         amr: amrOf(auth.claims),
         ...(impersonator ? { impersonator } : {}),
