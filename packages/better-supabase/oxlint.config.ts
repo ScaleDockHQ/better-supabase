@@ -18,13 +18,13 @@ export default defineConfig({
     "**/*.generated.ts",
     "**/database.types.ts",
     // Generated fixtures open with a blanket disable for consumers' linters.
-    "src/fixtures/generated*.ts",
+    "tests/fixtures/generated*.ts",
     "api/**",
   ],
   overrides: [
     {
       // Relation counts and aggregates are part of the repository API.
-      files: ["src/**/*.{ts,tsx}"],
+      files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
       rules: {
         "no-underscore-dangle": [
           "error",

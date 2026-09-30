@@ -144,15 +144,15 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 
 | Change | Also update |
 |---|---|
-| A generated-file shape | `src/cli/gen/*.test.ts` snapshots, `apps/examples/*/src/lib/supabase/*` |
+| A generated-file shape | `tests/fixtures` (`node scripts/gen-fixtures.ts` in `packages/better-supabase`), `apps/examples/*/src/lib/supabase/*` |
 | A doctor finding | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`) |
 | The splinter pin | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together |
 | A rule in `plugins/rules` or `lint` | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx` |
 | A SQL kit module | `src/sql/kit.ts` registry, `sql-kit.integration.test.ts`, `kits/sql.mdx` |
 | A `DbError` kind | `problem.ts` status map, the errors docs page |
 | A subpath | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md` |
-| A public export | `packages/better-supabase/api/exports.json` (`vitest run src/exports.test.ts -u`), review the diff |
-| An extension interface | its kit in `src/testing/conformance.ts`, `src/core/extensibility.test-d.ts`, the interfaces docs page |
+| A public export | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff |
+| An extension interface | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page |
 | A spec version | `SPEC_PINS`, standards docs page |
 | A consumer skill | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests |
 | The package version | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not) |

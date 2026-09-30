@@ -1,11 +1,11 @@
 /**
- * Regenerates the runtime test fixtures from `src/fixtures/snapshot.json`.
+ * Regenerates the runtime test fixtures from `tests/fixtures/snapshot.json`.
  * The snapshot itself comes from the repo's fixture database:
- * `node src/cli/bin.ts introspect --cwd ../.. --out packages/better-supabase/src/fixtures/snapshot.json`
+ * `node src/cli/bin.ts introspect --cwd ../.. --out packages/better-supabase/tests/fixtures/snapshot.json`
  */
 import { readFile, writeFile } from "node:fs/promises";
 
-import { renderFixtures } from "../src/fixtures/render.ts";
+import { renderFixtures } from "../tests/fixtures/render.ts";
 
 const check = process.argv.includes("--check");
 let stale = false;

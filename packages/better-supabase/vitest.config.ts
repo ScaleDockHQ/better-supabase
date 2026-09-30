@@ -7,11 +7,11 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["src/**/*.test.ts"],
-          exclude: ["src/**/*.integration.test.ts"],
+          include: ["tests/**/*.test.ts"],
+          exclude: ["tests/**/*.integration.test.ts"],
           typecheck: {
             enabled: true,
-            include: ["src/**/*.test-d.ts"],
+            include: ["tests/**/*.test-d.ts"],
             ignoreSourceErrors: true,
           },
         },
@@ -20,7 +20,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "integration",
-          include: ["src/**/*.integration.test.ts"],
+          include: ["tests/**/*.integration.test.ts"],
           // The suites share one database; counts must not race with writes.
           fileParallelism: false,
         },
@@ -29,13 +29,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: [
-        "src/**/*.test.ts",
-        "src/**/*.test-d.ts",
-        "src/**/index.ts",
-        "src/cli/bin.ts",
-        "src/fixtures/**",
-      ],
+      exclude: ["src/**/index.ts", "src/cli/bin.ts"],
       thresholds: {
         statements: 70,
         lines: 70,

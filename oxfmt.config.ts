@@ -7,7 +7,7 @@ export default oxfmt({
     "**/.claude/**",
     "**/*.generated.ts",
     "**/database.types.ts",
-    "packages/better-supabase/src/fixtures/generated*",
+    "packages/better-supabase/tests/fixtures/generated*",
     "apps/examples/**/lib/supabase/generated.ts",
     "tests/validation-*/src/generated.ts",
     "packages/better-supabase/api/**",
