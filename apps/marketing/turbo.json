@@ -10,7 +10,7 @@
       "dependsOn": []
     },
     "build": {
-      "env": ["DOCS_ORIGIN"]
+      "env": ["DOCS_ORIGIN", "NEXT_PUBLIC_SITE_URL"]
     }
   }
 }

@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import { createNextConfig } from "@better-supabase/next-config/next-config";
 
 import { env } from "./env.ts";
 
@@ -14,12 +14,9 @@ const docsPaths = [
   "/mcp",
 ];
 
-const config: NextConfig = {
-  reactStrictMode: true,
-  // `next build` needs the TypeScript 6 compiler API; the Turbo `typecheck`
-  // task runs TypeScript 7 instead.
-  typescript: { ignoreBuildErrors: true },
+export default createNextConfig({
   allowedDevOrigins: ["127.0.0.1"],
+  experimental: { optimizePackageImports: ["lucide-react"] },
   redirects() {
     return Promise.resolve([
       {
@@ -41,6 +38,4 @@ const config: NextConfig = {
       })),
     );
   },
-};
-
-export default config;
+});

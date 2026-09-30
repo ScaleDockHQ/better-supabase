@@ -16,10 +16,16 @@ export const env = createEnv({
       "http://127.0.0.1:3001",
     ),
   },
-  client: {},
+  client: {
+    NEXT_PUBLIC_SITE_URL: v.optional(
+      v.pipe(v.string(), v.url()),
+      "https://bettersupabase.com",
+    ),
+  },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     DOCS_ORIGIN: process.env["DOCS_ORIGIN"],
+    NEXT_PUBLIC_SITE_URL: process.env["NEXT_PUBLIC_SITE_URL"],
   },
   emptyStringAsUndefined: true,
 });

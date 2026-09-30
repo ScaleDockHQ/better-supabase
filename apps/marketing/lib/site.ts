@@ -1,8 +1,10 @@
+import { env } from "@/env";
+
 export const site = {
   name: "better-supabase",
   tagline:
     "Typed repositories, auth glue, framework adapters and cache helpers for Supabase.",
-  url: "https://bettersupabase.com",
+  url: env.NEXT_PUBLIC_SITE_URL,
   github: "https://github.com/ScaleDockHQ/better-supabase",
   npm: "https://www.npmjs.com/package/better-supabase",
   email: "hello@scaledock.com",

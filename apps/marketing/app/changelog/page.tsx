@@ -5,16 +5,14 @@ import { Button } from "@/components/ui/button";
 import { loadChangelog } from "@/lib/changelogs";
 import { site } from "@/lib/site";
 
-export const dynamic = "force-static";
-
 export const metadata: Metadata = {
   title: "Changelog",
   description:
     "Every better-supabase release, built from the package changelog.",
 };
 
-export default function ChangelogPage() {
-  const releases = loadChangelog();
+export default async function ChangelogPage() {
+  const releases = await loadChangelog();
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-16 md:px-8">
       <div className="mb-10 flex flex-col gap-2">

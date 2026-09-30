@@ -1,3 +1,4 @@
+import { cacheLife } from "next/cache";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -9,7 +10,10 @@ const changelogPath = join(
   "../../packages/better-supabase/CHANGELOG.md",
 );
 
-export function loadChangelog(): ChangelogRelease[] {
+/** Read once per build: the file only changes with a release, which redeploys. */
+export async function loadChangelog(): Promise<ChangelogRelease[]> {
+  "use cache";
+  cacheLife("max");
   if (!existsSync(changelogPath)) {
     return [];
   }

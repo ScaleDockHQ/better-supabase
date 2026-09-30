@@ -1,25 +1,17 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { Geist_Mono, Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { SiteFooter } from "@/components/site/footer";
 import { Navbar } from "@/components/site/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
+import { geistMono, inter } from "@/lib/fonts";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -53,6 +45,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           <main className="flex flex-1 flex-col">{children}</main>
           <SiteFooter />
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
