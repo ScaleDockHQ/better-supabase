@@ -12,6 +12,10 @@ import { sb } from '@/lib/supabase';
 // the shapes `permdock/supabase/middleware` and `permdock/supabase` export:
 // `withPermDock` needs `ctx.jwtClaims` upstream and contributes `ctx.permdock`,
 // and `subjectFromSupabaseSession` reads `{ kind, claims }`.
+// TODO: once `permdock@next` is on npm, add it as a devDependency of this
+// example only and import `withPermDock` from `permdock/supabase/middleware`
+// and `subjectFromSupabaseSession` from `permdock/supabase` instead of these
+// stand-ins. Source: https://github.com/ScaleDockHQ/PermDock
 type SupabaseJwtClaims = {
   readonly sub: string;
   readonly [claim: string]: unknown;
