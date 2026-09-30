@@ -84,6 +84,23 @@ export default defineConfig({
 The tenant plugin, storage and realtime policies and the generated schema then
 read `tenant_id`, the same claim PermDock's policies read.
 
+The tenant claim name must match on both sides. If you set a non-default
+`claims.tenant`, set the same name as PermDock's `rls.tenantClaim` (which the
+generated hook and policies use) and pass it to `subjectFromSupabase` or
+`subjectFromSupabaseSession` as `{ tenant }`:
+
+```ts
+// better-supabase.config.ts
+claims: { tenant: 'org_id', scope: 'organization' },
+// permdock.config.ts
+rls: { tenantClaim: 'org_id' },
+// server code
+subjectFromSupabaseSession(session, { tenant: 'org_id' });
+```
+
+Otherwise PermDock writes and reads `tenant_id` while better-supabase reads
+`org_id`, and tenant checks on one side see no tenant.
+
 </Step>
 
 <Step>
