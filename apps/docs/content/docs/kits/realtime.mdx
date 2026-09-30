@@ -51,7 +51,9 @@ export const board = defineTopic('org:{orgId}:board', {
 
 Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
 and `schema` work as for [buckets](/docs/kits/storage#permdock-permissions),
-and keys PermDock splits by row condition (`board.read#1`) are refused.
+and keys PermDock splits by row condition (`board.read#1`) are refused. The
+segment is compared as text, so it must be the id's canonical lowercase form:
+a topic with an uppercase uuid is denied.
 
 The helpers check role and scope, not a permission's row conditions (for
 example `authorId = principal.id`). Use `permdock` only for permissions whose

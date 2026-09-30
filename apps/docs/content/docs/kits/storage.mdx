@@ -114,7 +114,9 @@ without being able to browse the folder, or the other way around. `write`
 covers uploads, updates and moves, and deletes unless `delete` is set. The
 scope id comes from the `{orgId}` segment; set `segment` (1-based) for another
 one, and `schema` when the helpers aren't in `public`. The id is compared as
-text, so a malformed path is denied instead of raising a cast error.
+text, so a malformed path is denied instead of raising a cast error, and the
+segment must be the id's canonical lowercase form: a path with an uppercase
+uuid is denied.
 
 The policies are only ever for `authenticated`.
 

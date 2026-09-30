@@ -20,6 +20,8 @@ const secretKey =
 const ACME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
 const USER = '00000000-0000-4000-8000-0000000000fe';
+/** An id with hex letters, so its uppercase form differs. */
+const HEX = 'abcdef00-0000-4000-8000-0000000000ab';
 const RUN = String(Date.now());
 const SCHEMA = `bs_pd_${RUN}`;
 
@@ -102,12 +104,17 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
     await admin
       .upload({ orgId: OTHER, file: 'b.txt' }, new Blob(['other']))
       .orThrow();
+    for (const orgId of [HEX, HEX.toUpperCase()]) {
+      await admin.upload({ orgId, file: 'h.txt' }, new Blob([orgId])).orThrow();
+    }
   });
   afterAll(async () => {
     await admin.remove([
       { orgId: ACME, file: 'a.txt' },
       { orgId: ACME, file: 'w.txt' },
       { orgId: OTHER, file: 'b.txt' },
+      { orgId: HEX, file: 'h.txt' },
+      { orgId: HEX.toUpperCase(), file: 'h.txt' },
     ]);
     await service.storage.deleteBucket(files.id);
     const objects = ['select', 'list', 'insert', 'update', 'delete'].map(
@@ -155,6 +162,26 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
     );
     expect(readerWrite.error?.kind).toBe('forbidden');
   });
+
+  it('compares ids as canonical lowercase text', async () => {
+    const hexReader = files.connect(clientWith({ 'files.read': [HEX] }));
+    const lower = await hexReader.download({ orgId: HEX, file: 'h.txt' });
+    expect(lower.ok).toBe(true);
+    const upper = await hexReader.download({
+      orgId: HEX.toUpperCase(),
+      file: 'h.txt',
+    });
+    expect(upper.ok).toBe(false);
+
+    const client = clientWith({ 'board.read': [HEX] });
+    const joined = board.subscribe(client, { orgId: HEX }, {});
+    await joined.ready;
+    await joined.unsubscribe();
+    const shouting = board.subscribe(client, { orgId: HEX.toUpperCase() }, {});
+    await expect(shouting.ready).rejects.toThrow(/./);
+    await shouting.unsubscribe();
+    client.removeAllChannels();
+  }, 20_000);
 
   it('joins and sends on topics by permission', async () => {
     const readOnly = clientWith({ 'board.read': [ACME] });
