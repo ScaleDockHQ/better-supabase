@@ -6,6 +6,7 @@ import type { Claims, Role } from '@/lib/claims';
 // and the client, over PermDock's claim contract. A real app replaces this
 // file with PermDock (https://github.com/ScaleDockHQ/PermDock):
 //
+//   permdock rls generate                    # helpers and table policies
 //   permdock supabase hook generate          # the only access token hook
 //   const subject = subjectFromSupabaseSession(session);
 //   const permdock = await createPermDock(policy, subject);

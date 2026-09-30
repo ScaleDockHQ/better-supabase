@@ -90,9 +90,11 @@ outside the paths your code builds. Use `tenant: { param, claim }` or
 ### PermDock permissions
 
 With [PermDock](/docs/auth/permdock), a bucket can check permissions instead
-of the tenant claim. The policies call the helpers `permdock supabase hook
-generate` writes: `<schema>.permitted_<scope>_ids(key)` for a scope whose id is
-a path segment, and `<schema>.permdock_has(key)` for `scope: 'global'`.
+of the tenant claim. The policies call the helpers `permdock rls generate`
+writes: `<schema>.permitted_<scope>_ids(key)` for a scope whose id is a path
+segment, and `<schema>.permdock_has(key)` for `scope: 'global'`. The helpers
+live in PermDock's `rls.schema` (`public` by default), and the bucket's
+`schema` option must name the same schema.
 
 ```ts title="src/lib/storage.ts"
 export const files = defineBucket({

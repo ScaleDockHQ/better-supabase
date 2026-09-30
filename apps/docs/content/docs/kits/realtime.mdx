@@ -38,9 +38,10 @@ can broadcast too, and `presence: true` authorizes presence.
 
 With [PermDock](/docs/auth/permdock), `permdock` replaces the tenant check
 with PermDock permissions: joining needs `receive` in the scope named by the
-`{orgId}` segment, and sending needs `send`. The policies call
-`<schema>.permitted_<scope>_ids(key)`, or `<schema>.permdock_has(key)` for
-`scope: 'global'`:
+`{orgId}` segment, and sending needs `send`. The policies call the helpers
+`permdock rls generate` writes, `<schema>.permitted_<scope>_ids(key)`, or
+`<schema>.permdock_has(key)` for `scope: 'global'`. The topic's `schema`
+option must equal PermDock's `rls.schema` (`public` by default):
 
 ```ts
 export const board = defineTopic('org:{orgId}:board', {

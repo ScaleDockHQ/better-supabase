@@ -138,7 +138,10 @@ export interface PermdockBucketPolicy {
   readonly scope: string;
   /** 1-based path segment holding the scope id. Defaults to the `{orgId}` segment. */
   readonly segment?: number;
-  /** Schema of the PermDock helpers. Defaults to `public`. */
+  /**
+   * Schema of the helpers `permdock rls generate` writes: PermDock's
+   * `rls.schema`. Defaults to `public`.
+   */
   readonly schema?: string;
 }
 
