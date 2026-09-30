@@ -126,6 +126,55 @@ export interface TestSigner {
   sign(claims: TestJwtClaims): Promise<string>;
 }
 
+/** A private ES256 JWK, as `better-supabase keys` writes to `supabase/signing_keys.json`. */
+export interface SigningJwk extends JsonWebKey {
+  readonly kid: string;
+}
+
+async function signEs256(
+  key: CryptoKey,
+  kid: string,
+  claims: TestJwtClaims,
+): Promise<string> {
+  const { expiresIn = 3600, ...rest } = claims;
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    aud: 'authenticated',
+    role: 'authenticated',
+    aal: 'aal1',
+    iat: now,
+    exp: now + expiresIn,
+    ...rest,
+  };
+  const header = base64url(JSON.stringify({ alg: 'ES256', typ: 'JWT', kid }));
+  const body = base64url(JSON.stringify(payload));
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    encoder.encode(`${header}.${body}`),
+  );
+  return `${header}.${body}.${base64url(new Uint8Array(signature))}`;
+}
+
+/**
+ * Signs an ES256 access token with a private JWK, the way the local stack
+ * signs them once `signing_keys_path` is set. Test-only.
+ */
+export async function signTestJwtWithKey(
+  key: SigningJwk,
+  claims: TestJwtClaims,
+): Promise<string> {
+  const { kid, ...jwk } = key;
+  const privateKey = await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  );
+  return signEs256(privateKey, kid, claims);
+}
+
 /** An in-memory ES256 key pair that signs tokens like Supabase Auth's asymmetric keys. */
 export async function createTestSigner(): Promise<TestSigner> {
   const pair = await crypto.subtle.generateKey(
@@ -135,31 +184,9 @@ export async function createTestSigner(): Promise<TestSigner> {
   );
   const kid = crypto.randomUUID();
   const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const published: SigningJwk = { ...publicJwk, kid, alg: 'ES256', use: 'sig' };
   return {
-    jwks: {
-      keys: [{ ...publicJwk, kid, alg: 'ES256', use: 'sig' } as JsonWebKey],
-    },
-    async sign(claims) {
-      const { expiresIn = 3600, ...rest } = claims;
-      const now = Math.floor(Date.now() / 1000);
-      const payload = {
-        aud: 'authenticated',
-        role: 'authenticated',
-        aal: 'aal1',
-        iat: now,
-        exp: now + expiresIn,
-        ...rest,
-      };
-      const header = base64url(
-        JSON.stringify({ alg: 'ES256', typ: 'JWT', kid }),
-      );
-      const body = base64url(JSON.stringify(payload));
-      const signature = await crypto.subtle.sign(
-        { name: 'ECDSA', hash: 'SHA-256' },
-        pair.privateKey,
-        encoder.encode(`${header}.${body}`),
-      );
-      return `${header}.${body}.${base64url(new Uint8Array(signature))}`;
-    },
+    jwks: { keys: [published] },
+    sign: (claims) => signEs256(pair.privateKey, kid, claims),
   };
 }

@@ -7,7 +7,7 @@ import { defineListQuery, UNSET } from '../list/index.ts';
 import { softDelete } from '../plugins/soft-delete/index.ts';
 import { tenant } from '../plugins/tenant/index.ts';
 import { createPostgres, postgresExecutor } from '../postgres/index.ts';
-import { signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const dbUrl =
@@ -16,9 +16,6 @@ const dbUrl =
 const publishableKey =
   process.env['SUPABASE_PUBLISHABLE_KEY'] ??
   'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const USER = '00000000-0000-4000-8000-0000000000ff';
@@ -42,8 +39,8 @@ describe.skipIf(!live)('Postgres executor', async () => {
   const postgres = createPostgres({ connectionString: dbUrl, max: 4 });
   afterAll(() => postgres.end());
 
-  const claims = { sub: USER, role: 'authenticated', org_id: ACME };
-  const token = await signTestJwt(jwtSecret, claims);
+  const claims = { sub: USER, role: 'authenticated', tenant_id: ACME };
+  const token = await signLocalJwt(claims);
   const sb = defineSupabase(schema).use(softDelete()).use(tenant());
   const rest = sb.connect(
     createClient(url, publishableKey, { accessToken: async () => token }),
@@ -285,7 +282,7 @@ describe.skipIf(!live)('Postgres executor', async () => {
         postgres.asUser({
           sub: USER,
           role: 'authenticated',
-          org_id: '00000000-0000-4000-8000-000000000002',
+          tenant_id: '00000000-0000-4000-8000-000000000002',
         }),
       ),
       {

@@ -73,7 +73,7 @@ describe.skipIf(!live)('auth against the local stack', () => {
       email,
       password,
       email_confirm: true,
-      app_metadata: { org_id: ACME },
+      app_metadata: { tenant_id: ACME },
     });
     if (error) throw error;
     userId = created.user.id;
@@ -183,7 +183,7 @@ describe.skipIf(!live)('auth against the local stack', () => {
     expect(viaRest.length).toBeGreaterThan(0);
 
     const acting = await server
-      .actingAs(userId, { org_id: ACME })
+      .actingAs(userId, { tenant_id: ACME })
       .customers.count()
       .orThrow();
     expect(acting).toBe(viaRest.length);
@@ -207,7 +207,7 @@ describe.skipIf(!live)('auth against the local stack', () => {
       const row = await server
         .actingAs(
           userId,
-          { org_id: ACME },
+          { tenant_id: ACME },
           { actor: admin, reason: 'support ticket 42' },
         )
         .customers.create(

@@ -24,12 +24,12 @@ const resolve = async (token: string) =>
 describe('localAuth', () => {
   it('accepts signTestJwt tokens as users with their claims', async () => {
     const auth = await resolve(
-      await signTestJwt(SECRET, { sub: USER, org_id: 'o1' }),
+      await signTestJwt(SECRET, { sub: USER, tenant_id: 'o1' }),
     );
     expect(auth).toMatchObject({
       kind: 'user',
       user: { id: USER, role: 'authenticated' },
-      claims: { org_id: 'o1' },
+      claims: { tenant_id: 'o1' },
     });
   });
 

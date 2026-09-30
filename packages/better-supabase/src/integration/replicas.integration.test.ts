@@ -6,7 +6,7 @@ import { parseEnv } from '../env/index.ts';
 import { schema } from '../fixtures/generated-camel.ts';
 import { PRIMARY_COOKIE } from '../server/replicas.ts';
 import { createServer } from '../server/server.ts';
-import { localAuth, signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const publishableKey =
@@ -15,9 +15,6 @@ const publishableKey =
 const secretKey =
   process.env['SUPABASE_SECRET_KEY'] ??
   'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const USER = '00000000-0000-4000-8000-0000000000ff';
@@ -47,7 +44,6 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
         SUPABASE_PUBLISHABLE_KEY: publishableKey,
         SUPABASE_READ_URL: readUrl,
       }).env!,
-      auth: { resolvers: [localAuth(jwtSecret)] },
     });
     const admin = sb.connect(
       createClient(url, secretKey, { auth: { persistSession: false } }),
@@ -60,7 +56,7 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
     });
 
     it('reads its own write from the primary right after writing', async () => {
-      const token = await signTestJwt(jwtSecret, { sub: USER, org_id: ACME });
+      const token = await signLocalJwt({ sub: USER, tenant_id: ACME });
       const real = globalThis.fetch;
       const hosts: string[] = [];
       vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {

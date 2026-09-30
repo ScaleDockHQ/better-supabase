@@ -5,7 +5,7 @@ import { defineSupabase } from '../core/define.ts';
 import { parseEnv } from '../env/index.ts';
 import { schema } from '../fixtures/generated-camel.ts';
 import { createMcp } from '../mcp/index.ts';
-import { localAuth, signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const publishableKey =
@@ -14,9 +14,6 @@ const publishableKey =
 const secretKey =
   process.env['SUPABASE_SECRET_KEY'] ??
   'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
@@ -48,7 +45,6 @@ describe.skipIf(!live)('MCP tools against the local stack', () => {
       SUPABASE_URL: url,
       SUPABASE_PUBLISHABLE_KEY: publishableKey,
     }).env!,
-    auth: { resolvers: [localAuth(jwtSecret)] },
     name: 'crm',
     version: '1.0.0',
     resources: { customers: { select: ['id', 'name', 'organizationId'] } },
@@ -64,7 +60,7 @@ describe.skipIf(!live)('MCP tools against the local stack', () => {
   });
 
   const call = async (orgId: string, name: string, args: unknown) => {
-    const token = await signTestJwt(jwtSecret, { sub: USER, org_id: orgId });
+    const token = await signLocalJwt({ sub: USER, tenant_id: orgId });
     const response = await mcp.fetch(
       new Request('http://127.0.0.1/mcp', {
         method: 'POST',

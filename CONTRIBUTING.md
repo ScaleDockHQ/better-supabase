@@ -35,6 +35,8 @@ pnpm run check
 
 The local stack uses the API on port 55421 and Postgres on 55422. Override them with `SUPABASE_URL` and `SUPABASE_DB_URL`.
 
+Before the first `supabase start`, create the stack's ES256 signing key with `node packages/better-supabase/src/cli/bin.ts keys --cwd .`. It writes `supabase/signing_keys.json` (gitignored), which `config.toml` loads, and the integration tests sign their tokens with it.
+
 ## Commits
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). Lefthook runs commitlint on `commit-msg`.

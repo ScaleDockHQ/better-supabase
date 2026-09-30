@@ -99,8 +99,8 @@ function env(names: readonly string[]): string | undefined {
  * ```ts
  * await expectTenantIsolation(sb, {
  *   tenants: [
- *     { id: ACME, claims: { sub: alice, org_id: ACME } },
- *     { id: GLOBEX, claims: { sub: bob, org_id: GLOBEX } },
+ *     { id: ACME, claims: { sub: alice, tenant_id: ACME } },
+ *     { id: GLOBEX, claims: { sub: bob, tenant_id: GLOBEX } },
  *   ],
  *   tables: {
  *     tags: {

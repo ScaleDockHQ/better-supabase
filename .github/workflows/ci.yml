@@ -119,6 +119,11 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
+      # config.toml points signing_keys_path at this gitignored file, so the
+      # stack signs and verifies ES256 tokens like a hosted project.
+      - name: Create the local signing key
+        run: node packages/better-supabase/src/cli/bin.ts keys --cwd .
+
       - name: Start Supabase
         run: |
           supabase start

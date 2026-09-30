@@ -102,15 +102,15 @@ describe('createMcp', () => {
     });
   });
 
-  it('initializes and lists tools with JSON Schema inputs and annotations', async () => {
+  it('initializes legacy clients and lists tools with JSON Schema inputs and annotations', async () => {
     expect(
       await result('initialize', {
-        protocolVersion: MCP_PROTOCOL_VERSION,
+        protocolVersion: '2025-06-18',
         capabilities: {},
         clientInfo: { name: 'test', version: '1' },
       }),
     ).toMatchObject({
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion: '2025-06-18',
       capabilities: { tools: {} },
       serverInfo: { name: 'crm', version: '1.0.0' },
       instructions: expect.stringContaining('Customer'),
@@ -225,6 +225,155 @@ describe('createMcp', () => {
       ).status,
     ).toBe(403);
     expect((await mcp.fetch(new Request(ENDPOINT))).status).toBe(405);
+  });
+
+  const modern = (
+    id: number,
+    method: string,
+    params: Record<string, unknown> = {},
+    headers: Record<string, string> = {},
+  ) =>
+    rpc(
+      {
+        jsonrpc: '2.0',
+        id,
+        method,
+        params: {
+          ...params,
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': MCP_PROTOCOL_VERSION,
+            'io.modelcontextprotocol/clientCapabilities': {},
+          },
+        },
+      },
+      {
+        headers: {
+          'mcp-protocol-version': MCP_PROTOCOL_VERSION,
+          'mcp-method': method,
+          ...headers,
+        },
+      },
+    );
+
+  it('serves 2026-07-28 requests without a handshake', async () => {
+    expect(MCP_PROTOCOL_VERSION).toBe('2026-07-28');
+    const discover = await (await modern(1, 'server/discover')).json();
+    expect(discover.result).toMatchObject({
+      supportedVersions: [
+        '2026-07-28',
+        '2025-11-25',
+        '2025-06-18',
+        '2025-03-26',
+      ],
+      capabilities: { tools: { listChanged: false } },
+      instructions: expect.stringContaining('Customer'),
+      cacheScope: 'private',
+      resultType: 'complete',
+      _meta: {
+        'io.modelcontextprotocol/serverInfo': { name: 'crm', version: '1.0.0' },
+      },
+    });
+    const list = await (await modern(2, 'tools/list')).json();
+    expect(list.result).toMatchObject({
+      ttlMs: expect.any(Number),
+      cacheScope: 'private',
+      resultType: 'complete',
+    });
+    const call = await (
+      await modern(
+        3,
+        'tools/call',
+        { name: 'whoami', arguments: {} },
+        { 'mcp-name': `=?base64?${btoa('whoami')}?=` },
+      )
+    ).json();
+    expect(call.result).toMatchObject({
+      structuredContent: { id: USER },
+      resultType: 'complete',
+    });
+    const removed = await modern(4, 'initialize');
+    expect(removed.status).toBe(404);
+    expect((await modern(5, 'ping')).status).toBe(404);
+  });
+
+  it('rejects 2026-07-28 requests whose headers or _meta disagree', async () => {
+    const mismatch = await modern(
+      1,
+      'tools/call',
+      { name: 'whoami' },
+      { 'mcp-name': 'echo' },
+    );
+    expect(mismatch.status).toBe(400);
+    expect(await mismatch.json()).toMatchObject({ error: { code: -32020 } });
+    expect(
+      await (
+        await modern(2, 'tools/list', {}, { 'mcp-method': 'tools/call' })
+      ).json(),
+    ).toMatchObject({ error: { code: -32020 } });
+    const unsupported = await rpc(
+      { jsonrpc: '2.0', id: 3, method: 'tools/list' },
+      { headers: { 'mcp-protocol-version': '1999-01-01' } },
+    );
+    expect(unsupported.status).toBe(400);
+    expect(await unsupported.json()).toMatchObject({
+      error: {
+        code: -32022,
+        data: { requested: '1999-01-01', supported: expect.any(Array) },
+      },
+    });
+    const noMeta = await rpc(
+      { jsonrpc: '2.0', id: 4, method: 'tools/list' },
+      {
+        headers: {
+          'mcp-protocol-version': MCP_PROTOCOL_VERSION,
+          'mcp-method': 'tools/list',
+        },
+      },
+    );
+    expect(noMeta.status).toBe(400);
+    expect(await noMeta.json()).toMatchObject({ error: { code: -32602 } });
+  });
+
+  it('challenges with insufficient_scope and publishes scopes without offline_access', async () => {
+    const scoped = createMcp(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: 'admin',
+      version: '1.0.0',
+      allow: ['service'],
+      scopes: ['openid', 'crm.read', 'offline_access'],
+    });
+    const response = await scoped.fetch(
+      new Request(ENDPOINT, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      }),
+    );
+    expect(response.status).toBe(403);
+    const challenge = response.headers.get('www-authenticate') ?? '';
+    expect(challenge).toMatch(/^Bearer error="insufficient_scope", /);
+    expect(challenge).toContain('scope="openid crm.read"');
+    expect(challenge).toContain(
+      'resource_metadata="https://tools.test/.well-known/oauth-protected-resource/mcp"',
+    );
+    const anonymous = await scoped.fetch(
+      new Request(ENDPOINT, { method: 'POST', body: '{}' }),
+    );
+    expect(anonymous.headers.get('www-authenticate')).toContain(
+      'scope="openid crm.read"',
+    );
+    const metadata = await scoped.fetch(
+      new Request(
+        'https://tools.test/.well-known/oauth-protected-resource/mcp',
+      ),
+    );
+    expect(await metadata.json()).toMatchObject({
+      scopes_supported: ['openid', 'crm.read'],
+    });
   });
 
   it('rejects invalid tool definitions', () => {

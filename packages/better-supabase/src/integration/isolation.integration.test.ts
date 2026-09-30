@@ -73,8 +73,12 @@ describe.skipIf(!source)(
       const report = await expectTenantIsolation(sb, {
         stack,
         tenants: [
-          { id: ACME, name: 'acme', claims: { sub: USER, org_id: ACME } },
-          { id: GLOBEX, name: 'globex', claims: { sub: USER, org_id: GLOBEX } },
+          { id: ACME, name: 'acme', claims: { sub: USER, tenant_id: ACME } },
+          {
+            id: GLOBEX,
+            name: 'globex',
+            claims: { sub: USER, tenant_id: GLOBEX },
+          },
         ],
         tables: { tags },
       });
@@ -90,8 +94,12 @@ describe.skipIf(!source)(
       const error = await expectTenantIsolation(sb, {
         stack,
         tenants: [
-          { id: GLOBEX, name: 'globex', claims: { sub: USER, org_id: GLOBEX } },
-          { id: LEAKY, name: 'leaky', claims: { sub: USER, org_id: LEAKY } },
+          {
+            id: GLOBEX,
+            name: 'globex',
+            claims: { sub: USER, tenant_id: GLOBEX },
+          },
+          { id: LEAKY, name: 'leaky', claims: { sub: USER, tenant_id: LEAKY } },
         ],
         tables: { tags },
         seed: async () => {
