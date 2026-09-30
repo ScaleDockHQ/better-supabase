@@ -6,6 +6,7 @@ packages:
   - tests/types/*
 
 catalog:
+  "@ai-sdk/react": 4.0.125
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.8.0
   "@changesets/cli": 3.0.3
@@ -34,7 +35,10 @@ catalog:
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
   "@valibot/to-json-schema": 1.8.0
+  "@vercel/analytics": 2.0.1
+  "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.1
+  ai: 7.0.122
   "@vitest/coverage-v8": 5.0.2
   better-result: 3.0.1
   class-variance-authority: 0.7.1
@@ -44,6 +48,7 @@ catalog:
   fumadocs-core: 16.15.15
   fumadocs-mdx: 15.4.5
   fumadocs-twoslash: 4.0.1
+  fumadocs-typescript: 5.4.1
   # Base UI build of fumadocs-ui, kept on the fumadocs-core version.
   fumadocs-ui: npm:@fumadocs/base-ui@16.15.15
   hono: 4.13.10
@@ -81,7 +86,8 @@ catalog:
   valibot: 1.5.0
   vite: 8.3.1
   vitest: 5.0.2
-  # Only the core package's zod generator fixture imports Zod (docs/decisions/0002).
+  # Only the core package's zod generator fixture imports Zod, and `ai` needs it
+  # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
   zod: 4.6.5
 
 catalogs:

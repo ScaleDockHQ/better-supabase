@@ -4,7 +4,7 @@
     "affectedUsingTaskInputs": true
   },
   "envMode": "strict",
-  "globalEnv": ["CI", "NODE_ENV"],
+  "globalEnv": ["CI", "NODE_ENV", "EXPOSE_TESTING_API"],
   "globalPassThroughEnv": [
     "SUPABASE_*",
     "VERCEL_*",

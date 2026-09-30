@@ -12,19 +12,28 @@
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/react": "catalog:",
+    "@t3-oss/env-nextjs": "catalog:",
+    "@vercel/analytics": "catalog:",
+    "@vercel/speed-insights": "catalog:",
+    "ai": "catalog:",
     "better-supabase": "workspace:*",
     "fumadocs-core": "catalog:",
     "fumadocs-mdx": "catalog:",
     "fumadocs-twoslash": "catalog:",
+    "fumadocs-typescript": "catalog:",
     "fumadocs-ui": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "shiki": "catalog:",
-    "twoslash": "catalog:"
+    "twoslash": "catalog:",
+    "valibot": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@better-supabase/next-config": "workspace:*",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
