@@ -21,7 +21,7 @@ export const createCustomer = next.action(
       return err(dbError('forbidden', 'You cannot add customers'));
     }
     const organizationId =
-      auth.kind === 'user' ? auth.claims.app_metadata?.org_id : undefined;
+      auth.kind === 'user' ? auth.claims.app_metadata?.tenant_id : undefined;
     if (!organizationId) {
       return err(dbError('forbidden', 'Your account has no organization'));
     }
@@ -48,7 +48,7 @@ export const uploadCustomerLogo = next.action(
       return err(dbError('forbidden', 'You cannot change customers'));
     }
     const orgId =
-      auth.kind === 'user' ? auth.claims.app_metadata?.org_id : undefined;
+      auth.kind === 'user' ? auth.claims.app_metadata?.tenant_id : undefined;
     if (!orgId) {
       return err(dbError('forbidden', 'Your account has no organization'));
     }

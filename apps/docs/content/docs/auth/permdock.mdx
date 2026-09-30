@@ -1,0 +1,158 @@
+---
+title: better-supabase and PermDock
+description: Use PermDock for authorization and better-supabase for authentication and data, with one hook and one claim contract.
+---
+
+[PermDock](https://github.com/ScaleDockHQ/PermDock) is an authorization layer
+for Supabase apps. better-supabase follows PermDock's claim contract, so the two
+share one access token hook and one set of claims. Neither package imports the
+other: they compose through `@supabase/middleware` and plain claim shapes.
+
+## Who owns what
+
+| Area | better-supabase | PermDock |
+| --- | --- | --- |
+| Tokens | Verification through `@supabase/server`, sessions, refresh, `AuthSession` | Reads the verified claims into a subject |
+| Access token hook | None when PermDock is installed | `permdock supabase hook generate`, the only hook |
+| Roles and permissions | None | `role_permissions`, `authorize()`, `permdock_has`, `permitted_<scope>_ids`, table policies |
+| Data | Typed clients, repositories, typegen, jobs, webhooks | None |
+| Storage and Realtime | `defineBucket`, `defineTopic`, with a `permdock` policy mode that calls PermDock's helpers | The helpers those policies call |
+| MCP | `createMcp` and its protected-resource metadata | None |
+| Lints | Token lifetime, refresh reuse, signing keys, splinter, claim size | Authorization lints |
+
+## Setup
+
+<Steps>
+
+<Step>
+
+### Use one hook
+
+Generate the custom access token hook with PermDock and enable it in
+`supabase/config.toml`:
+
+```bash
+permdock supabase hook generate --out supabase/migrations/20260929_permdock_hook.sql
+```
+
+The hook writes `user_role`, `memberships`, `tenant_id`, `authz_ver` and,
+when the claims would exceed its budget, `memberships_truncated`. Don't add
+better-supabase's `tenant` or `entitlements` kit modules next to it: they
+write the same claims. `better-supabase sql add tenant` and
+`sql add entitlements` stop when they find a `permdock.config.ts` (`--force`
+writes them anyway), and [doctor](/docs/cli/doctor#bs407) reports BS407 when
+one hook calls both.
+
+</Step>
+
+<Step>
+
+### Name the same claims
+
+The `claims` block in `better-supabase.config.ts` defaults to PermDock's
+names. Set `scope` to the name of your first PermDock scope:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  claims: { tenant: 'tenant_id', scope: 'organization' },
+});
+```
+
+The tenant plugin, storage and realtime policies and the generated schema then
+read `tenant_id`, the same claim PermDock's policies read.
+
+</Step>
+
+<Step>
+
+### Keep the claims schema loose
+
+`sb.claims(schema)` validates the claims on every request. Use a loose object,
+so claims your schema doesn't name (`authz_ver`, `memberships_truncated`,
+`attrs`) reach PermDock unchanged:
+
+```ts title="src/lib/claims.ts"
+import { z } from 'zod';
+
+export const Claims = z.looseObject({
+  user_role: z.union([z.string(), z.array(z.string())]).optional(),
+  tenant_id: z.uuid().optional(),
+  memberships: z
+    .array(z.looseObject({ scope: z.string(), id: z.string(), roles: z.array(z.string()) }))
+    .optional(),
+});
+```
+
+</Step>
+
+</Steps>
+
+## Servers
+
+`withBetterSupabase(sb)()` contributes `ctx.db` and `withPermDock()`
+contributes `ctx.permdock`. Both read what `withSupabase` verified:
+
+```ts title="src/api/customers.ts"
+import { pipeline } from '@supabase/middleware';
+import { withSupabase } from '@supabase/server';
+import { withBetterSupabase } from 'better-supabase/server';
+import { createPermDock } from 'permdock/supabase/middleware';
+import { subjectFromSupabase } from 'permdock/supabase';
+
+const { withPermDock } = createPermDock(policy, {
+  subject: (ctx) => subjectFromSupabase(ctx.jwtClaims),
+});
+
+export const listCustomers = pipeline(
+  [withSupabase({ auth: 'user' }), withBetterSupabase(sb)(), withPermDock()],
+  async (_req, ctx) => {
+    if (!ctx.permdock.can(permissions.customers.read)) {
+      return new Response(null, { status: 403 });
+    }
+    return Response.json(await ctx.db.customers.findMany().orThrow());
+  },
+);
+```
+
+## Sessions in Next.js and React
+
+`subjectFromSupabaseSession(session)` takes a better-supabase `AuthSession`
+as it is. A `user` session becomes a PermDock subject from its claims; `anon`,
+`service` and `invalid` sessions become the anonymous subject.
+
+```ts title="src/lib/permissions.ts"
+import { createPermDock } from 'permdock';
+import { subjectFromSupabaseSession } from 'permdock/supabase';
+
+export async function permdockFor() {
+  const session = await next.session();
+  return createPermDock(policy, subjectFromSupabaseSession(session));
+}
+```
+
+## Large membership lists
+
+The hook keeps the token under its budget (1 KB by default) by dropping
+memberships and setting `memberships_truncated`. Pass your membership sources
+through PermDock's `claimsFirst(sources)`: it uses the token's memberships and
+reads the sources only when the token says it dropped some.
+
+`better-supabase doctor` measures the hook's output against the same budget
+when it finds a `permdock.config.ts` (BS405), and reports
+`memberships_truncated` for the sample user. Set `doctor.claimsLimit` to match
+a different `--budget`.
+
+## Storage and Realtime
+
+Buckets and topics can call PermDock's helpers instead of comparing the
+tenant claim. See [PermDock permissions for buckets](/docs/kits/storage#permdock-permissions)
+and [for topics](/docs/kits/realtime#authorization).
+
+## What neither package does
+
+- Read roles, memberships or the tenant from `user_metadata`. Users can change
+  it with `auth.updateUser()`. Use [`sb.userMetadata(schema)`](/docs/auth#profile)
+  for display data.
+- Trust a tenant id from a URL or request body without a matching membership.
+- Build a subject for `service_role`. The storage and realtime policies are
+  only ever for `authenticated`.

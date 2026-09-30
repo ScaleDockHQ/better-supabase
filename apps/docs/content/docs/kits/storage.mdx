@@ -69,12 +69,13 @@ bucket path is written to a `*_url` column.
 `logos.sql()` returns idempotent SQL. It upserts the bucket row and creates
 `storage.objects` policies for the `authenticated` role:
 
-| `policy` | Access                                                                                   |
-| -------- | ---------------------------------------------------------------------------------------- |
-| `tenant` | The `{orgId}` segment must equal the JWT `org_id` (or `app_metadata.org_id`)              |
-| `owner`  | The `{userId}` segment must equal `auth.uid()`                                            |
-| `public` | Anyone can read. Writes need the secret key                                               |
-| `none`   | No policies. Only the secret key has access                                               |
+| `policy` | Access |
+| --- | --- |
+| `tenant` | The `{orgId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`) |
+| `owner` | The `{userId}` segment must equal `auth.uid()` |
+| `public` | Anyone can read. Writes need the secret key |
+| `none` | No policies. Only the secret key has access |
+| `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below) |
 
 `bucket.owner` names the placeholder that holds the owning user's id: the
 `owner` param for `owner` buckets, otherwise `userId` when the template has
@@ -85,6 +86,39 @@ Writes are also checked against the template's shape
 (`name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$'`), so users can't upload objects
 outside the paths your code builds. Use `tenant: { param, claim }` or
 `tenant: { sql }` to change which JWT claim or SQL expression is compared.
+
+### PermDock permissions
+
+With [PermDock](/docs/auth/permdock), a bucket can check permissions instead
+of the tenant claim. The policies call the helpers `permdock supabase hook
+generate` writes: `<schema>.permitted_<scope>_ids(key)` for a scope whose id is
+a path segment, and `<schema>.permdock_has(key)` for `scope: 'global'`.
+
+```ts title="src/lib/storage.ts"
+export const files = defineBucket({
+  id: 'org-files',
+  path: '{orgId}/{file}',
+  policy: {
+    permdock: { read: 'files.download', list: 'files.browse', write: 'files.upload' },
+    scope: 'organization', // or 'global'
+  },
+});
+```
+
+`read` covers downloads, signed URLs, image renders and metadata reads.
+With `list`, listing gets its own policy (through
+`storage.allow_any_operation`), so a user can download a file they were sent
+without being able to browse the folder, or the other way around. `write`
+covers uploads, updates and moves, and deletes unless `delete` is set. The
+scope id comes from the `{orgId}` segment; set `segment` (1-based) for another
+one, and `schema` when the helpers aren't in `public`. The id is compared as
+text, so a malformed path is denied instead of raising a cast error.
+
+The policies are only ever for `authenticated`. Use the mode for permissions
+whose grants have no row conditions beyond the scope: PermDock splits a
+permission with row conditions into keys such as `files.download#1`, and
+`defineBucket` refuses those, because only PermDock's own generated policies
+can enforce them.
 
 `logos.toml()` gives the `[storage.buckets.customer-logos]` section for
 `supabase/config.toml`. `logos.drift(actual)` compares the bucket with what

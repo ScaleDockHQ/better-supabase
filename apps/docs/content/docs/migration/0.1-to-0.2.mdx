@@ -1,0 +1,103 @@
+---
+title: From 0.1 to 0.2
+description: What to change when upgrading to better-supabase 0.2, which follows PermDock's claim contract.
+---
+
+0.2 renames claims and SQL functions to match
+[PermDock's claim contract](/docs/auth/permdock). There are no compatibility
+options: follow the steps below, regenerate, and run your tests.
+
+## Claims
+
+The active tenant claim is `tenant_id` instead of `org_id`, in the token and
+in `app_metadata`. Update your custom access token hook, anything that sets
+`app_metadata.org_id` through the Auth admin API, and your claims schema:
+
+```ts title="src/lib/claims.ts"
+export const Claims = z.looseObject({
+  tenant_id: z.uuid().optional(),
+  app_metadata: z.looseObject({ tenant_id: z.uuid().optional() }).optional(),
+});
+```
+
+To keep another name, set it once in `better-supabase.config.ts` instead of
+per plugin. `plugins.tenant.claim` is gone:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  claims: { tenant: 'org_id' },
+});
+```
+
+Use loose objects (`z.looseObject`, valibot `looseObject`) for claims
+schemas, so claims your schema doesn't list reach the code that reads them.
+
+## SQL kit
+
+Run `better-supabase sql sync` (or `sql add` again) after upgrading. The
+modules change as follows:
+
+| 0.1 | 0.2 |
+| --- | --- |
+| `better_supabase.current_org_id()` | `better_supabase.current_tenant_id()` |
+| `membership_claims()` in the entitlements module, `[{ tenant_id, roles, entitlements }]` | `membership_claims()` in the tenant module, `[{ scope, id, roles }]` |
+| Plan features inside each membership | `feature_claims()` in the entitlements module, `{ [tenantId]: string[] }` in the `features` claim |
+
+Replace `current_org_id()` in your own policies and functions. A hook that
+used `membership_claims()` now sets two claims:
+
+```sql
+claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid));
+claims := jsonb_set(claims, '{features}', better_supabase.feature_claims(uid));
+```
+
+`sql add tenant` and `sql add entitlements` stop when the project has a
+`permdock.config.ts`, because PermDock's hook writes those claims. Pass
+`--force` to write them anyway.
+
+## TypeScript
+
+- `MembershipClaim` has PermDock's shape (`scope`, `id`, `roles`, and
+  optional `within`, `via`, `expiresAt`). Code that read `tenant_id` or
+  `entitlements` from a membership reads `id` and the `features` claim.
+- `hasEntitlement(session, tenantId, key)` reads the `features` claim. Pass
+  the claim name as a fourth argument if you renamed it.
+- `EntitlementKey` infers keys from the `features` claim of your claims
+  schema.
+- `AuthSession`, `AuthState` and `BetterSupabase` take one more type
+  parameter, the profile type from the new
+  [`sb.userMetadata(schema)`](/docs/auth#profile). It defaults to `unknown`,
+  so existing annotations keep compiling. If you read display fields from
+  `session.claims.user_metadata`, move them to the typed `session.profile`.
+
+## Storage and Realtime
+
+Bucket and topic policies with `policy: 'tenant'` compare the configured
+tenant claim, so they read `tenant_id` after `sql sync` and `gen`. Buckets
+and topics can also use PermDock permissions: see
+[storage](/docs/kits/storage#permdock-permissions).
+
+## Testing
+
+`asUser` signs ES256 tokens with the key `better-supabase keys` writes,
+the way a hosted project signs them. Create the key, set `signing_keys_path`
+in `supabase/config.toml` and restart the stack ([signing key](/docs/testing#signing-key)).
+To keep signing with the shared JWT secret, pass `{ alg: 'HS256' }`; it only
+works against a local stack. Tests that used `localAuth(secret)` to accept
+test tokens can drop it, since ES256 tokens verify against the stack's JWKS.
+
+## Doctor
+
+- BS405 measures the hook's claims against 1 KB when the project has a
+  `permdock.config.ts` and 2 KB otherwise. Set `doctor.claimsLimit` to change
+  it.
+- BS407 is new: it reports a hook that writes both better-supabase's and
+  PermDock's claims.
+
+## MCP
+
+`SPEC_PINS.mcp` and `MCP_PROTOCOL_VERSION` are `2026-07-28`. `createMcp`
+serves those stateless requests and still answers `initialize` for
+`2025-11-25`, `2025-06-18` and `2025-03-26` clients. A 403 now carries an
+`insufficient_scope` challenge; set `scopes` to publish the scopes your tools
+need ([MCP servers](/docs/frameworks/mcp)).

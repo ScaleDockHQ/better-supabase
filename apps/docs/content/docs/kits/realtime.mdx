@@ -28,13 +28,29 @@ Topics are private by default: Realtime checks `realtime.messages` policies
 when a client joins. `topic.sql()` generates them:
 
 - The topic must match the template (`^org:[^:]+:notifications:[^:]+$`).
-- `{orgId}` must equal the JWT `org_id` (or `app_metadata.org_id`).
+- `{orgId}` must equal the JWT `tenant_id` (or `app_metadata.tenant_id`).
 - `{userId}` must equal `auth.uid()`.
 
 Both checks switch on automatically when the template has those placeholders.
 Configure them with `tenant: { param, claim | sql }` and `owner: { param }`,
 or turn them off with `false`. `send: true` adds an insert policy so clients
 can broadcast too, and `presence: true` authorizes presence.
+
+With [PermDock](/docs/auth/permdock), `permdock` replaces the tenant check
+with PermDock permissions: joining needs `receive` in the scope named by the
+`{orgId}` segment, and sending needs `send`. The policies call
+`<schema>.permitted_<scope>_ids(key)`, or `<schema>.permdock_has(key)` for
+`scope: 'global'`:
+
+```ts
+export const board = defineTopic('org:{orgId}:board', {
+  permdock: { receive: 'board.read', send: 'board.write', scope: 'organization' },
+});
+```
+
+Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
+and `schema` work as for [buckets](/docs/kits/storage#permdock-permissions),
+and keys PermDock splits by row condition (`board.read#1`) are refused.
 
 ## Row changes
 

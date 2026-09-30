@@ -111,17 +111,15 @@ and the document describes exactly these routes.
 
 ## Testing against the local stack
 
-The local stack signs test tokens with a shared HS256 secret. `localAuth`
-from `better-supabase/testing` accepts those tokens, so your API sees the
-same claims that PostgREST and RLS see:
+`signLocalJwt` from `better-supabase/testing` signs a token with the local
+stack's ES256 key (see [signing key](/docs/testing#signing-key)). The API
+verifies it against the stack's JWKS, as it would in production, and sees
+the same claims that PostgREST and RLS see:
 
 ```ts
-import { localAuth, signTestJwt } from 'better-supabase/testing';
+import { signLocalJwt } from 'better-supabase/testing';
 
-const bs = createHono(sb, { auth: { resolvers: [localAuth(process.env.SUPABASE_JWT_SECRET!)] } });
-const token = await signTestJwt(process.env.SUPABASE_JWT_SECRET!, { sub: userId, org_id: orgId });
+const bs = createHono(sb);
+const token = await signLocalJwt({ sub: userId, tenant_id: orgId });
 await app.request('/api/customers', { headers: { authorization: `Bearer ${token}` } });
 ```
-
-Use it in tests only; production tokens are verified against your project's
-JWKS.

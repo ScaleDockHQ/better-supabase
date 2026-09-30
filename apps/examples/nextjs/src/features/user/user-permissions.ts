@@ -3,8 +3,17 @@ import type { AuthSession } from 'better-supabase/react';
 import type { Claims, Role } from '@/lib/claims';
 
 // A deliberately small, hand-written permission check that runs on the server
-// and the client. For real apps use PermDock (https://github.com/ScaleDockHQ/PermDock):
-// `subjectFromSupabase(session.claims)` reads the same `user_role` claim.
+// and the client, over PermDock's claim contract. A real app replaces this
+// file with PermDock (https://github.com/ScaleDockHQ/PermDock):
+//
+//   permdock supabase hook generate          # the only access token hook
+//   const subject = subjectFromSupabaseSession(session);
+//   const permdock = await createPermDock(policy, subject);
+//   permdock.can(permissions.customers.read);
+//
+// `AuthSession` already has the `{ kind, claims }` shape PermDock reads, and
+// `anon`, `service` and `invalid` sessions become PermDock's anonymous subject.
+// See https://bettersupabase.com/docs/auth/permdock.
 
 export type Permission =
   | 'customers.read'
@@ -29,13 +38,24 @@ const grants: Readonly<Record<Role, readonly Permission[]>> = {
   member: ['customers.read'],
 };
 
+const isRole = (role: string): role is Role => Object.hasOwn(grants, role);
+
 /**
- * `user_role` as the custom access token hook writes it (top level), else
- * from `app_metadata`. Never `user_metadata`: users can edit that.
+ * The global `user_role` the hook writes (top level, else `app_metadata`),
+ * plus the roles of the membership in the active tenant (`tenant_id`).
+ * Never `user_metadata`: users can edit that.
  */
 export function rolesOf(claims: Claims): Role[] {
-  const role = claims.user_role ?? claims.app_metadata?.user_role;
-  return role ? [role] : [];
+  const global = claims.user_role ?? claims.app_metadata?.user_role;
+  const tenant = claims.tenant_id ?? claims.app_metadata?.tenant_id;
+  const membership = claims.memberships?.find(
+    (entry) => entry.scope === 'tenant' && entry.id === tenant,
+  );
+  const roles = new Set<Role>(global ? [global] : []);
+  for (const role of membership?.roles ?? []) {
+    if (isRole(role)) roles.add(role);
+  }
+  return [...roles];
 }
 
 export function can(

@@ -8,6 +8,7 @@
     "account-deletion",
     "impersonation",
     "server",
+    "permdock",
     "middleware",
     "postgres",
     "problems"

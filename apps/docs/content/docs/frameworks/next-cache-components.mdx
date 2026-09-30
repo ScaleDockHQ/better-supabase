@@ -199,44 +199,54 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 | Supabase Auth | Identity, sessions, signing and refreshing tokens |
 | Your hook (SQL) | Which claims a token carries, read from your tables |
 | `sb.claims(schema)` | Validating and typing those claims on the server |
+| `sb.userMetadata(schema)` | A typed `session.profile` for display, never for access |
 | RLS | Enforcing access with the same claims (`auth.jwt()`) |
 | Your code or PermDock | Mapping roles to permissions |
 
 The hook, the schema and your policies read the same claims, so agree on
-one shape. For multi-tenant apps, use this one:
+one shape. For multi-tenant apps, use PermDock's, which the `tenant` kit
+module and [PermDock](/docs/auth/permdock) both emit:
 
 ```ts
-const Claims = z.object({
+const Claims = z.looseObject({
   /** Global roles, e.g. `['support']`. */
   roles: z.array(z.string()).default([]),
-  /** One entry per organization the user belongs to. */
+  /** One entry per scope the user belongs to. */
   memberships: z
     .array(
-      z.object({
-        tenant_id: z.uuid(),
+      z.looseObject({
+        scope: z.string(), // 'tenant' by default (claims.scope)
+        id: z.string(),
         roles: z.array(z.string()),
-        /** Plan features for this tenant, e.g. `['exports']`. */
-        entitlements: z.array(z.string()).default([]),
       }),
     )
     .default([]),
-  /** The active tenant; the `tenant` plugin reads it. */
+  /** The active tenant; the `tenant` plugin and RLS read it. */
   tenant_id: z.uuid().optional(),
+  /** Plan features per tenant, e.g. `{ [tenantId]: ['exports'] }`. */
+  features: z.record(z.string(), z.array(z.string())).default({}),
 });
 ```
 
-`tenant_id` is the one the [tenant plugin](/docs/plugins/tenant) and
-`current_org_id()`-style RLS helpers read; `memberships` lets the UI switch
-tenants without another query. Keep the list short: every claim is sent
-with every request, and `better-supabase doctor --as <user id>` warns when
-the hook returns more than 2 KB.
+`tenant_id` is the claim the [tenant plugin](/docs/plugins/tenant) and
+`current_tenant_id()` read (`claims.tenant` in the config renames it);
+`memberships` lets the UI switch tenants without another query. Use
+`z.looseObject` so the fields PermDock adds (`attrs`, `authz_ver`,
+`memberships_truncated`, and `within` or `expiresAt` on a membership) survive
+validation. Keep the list short: every claim is sent with every request, and
+`better-supabase doctor --as <user id>` warns when the hook returns more than
+2 KB (1 KB when a `permdock.config.ts` is present).
 
 <Callout title="Using PermDock">
   For more than a handful of roles, use
-  [PermDock](https://github.com/ScaleDockHQ/PermDock). It reads the same
-  claim: `subjectFromSupabase(session.claims)`. `permdock rls generate
-  --rbac supabase` emits the hook, `authorize()` and the RLS policies, and
-  `permdock/next` and `permdock/react` replace the hand-written `can()`.
+  [PermDock](https://github.com/ScaleDockHQ/PermDock).
+  `permdock supabase hook generate` writes the access token hook,
+  `role_permissions`, `authorize()` and the RLS helpers; don't add the kit's
+  `tenant` hook next to it. On the server, build the subject with
+  `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a token with
+  `memberships_truncated` falls back to a database lookup. `permdock/next` and
+  `permdock/react` replace the hand-written `can()`. See
+  [better-supabase and PermDock](/docs/auth/permdock).
 </Callout>
 
 ## 5. Optimistic redirects in the proxy

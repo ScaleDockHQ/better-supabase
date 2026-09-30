@@ -42,7 +42,7 @@ token, so it makes no auth calls and keeps no state between requests.
 await server.admin().customers.count();
 
 // A user, with RLS, without their token: jobs, webhooks, support tooling.
-await server.actingAs(userId, { org_id }).customers.findMany();
+await server.actingAs(userId, { tenant_id: orgId }).customers.findMany();
 ```
 
 `actingAs` runs over direct Postgres with the user's claims set for the

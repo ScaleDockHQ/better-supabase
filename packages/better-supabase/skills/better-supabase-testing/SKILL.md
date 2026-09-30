@@ -25,6 +25,7 @@ again once you restore it.
 ## Setup
 
 - `better-supabase env` writes the URL and keys to `.env.local`; load it in the test setup.
+- `better-supabase keys` creates `supabase/signing_keys.json`. Set `signing_keys_path = "./signing_keys.json"` under `[auth]` in `supabase/config.toml`, gitignore the file and restart the stack. `asUser` signs ES256 tokens with it.
 - Typed fixtures live in `supabase/seed.ts`:
 
 ```ts
@@ -43,7 +44,7 @@ export const seed = defineSeed(sb, {
 ## RLS tests
 
 ```ts
-const alice = await asUser(sb, { sub: aliceId, org_id: ACME }, { postgres });
+const alice = await asUser(sb, { sub: aliceId, tenant_id: ACME }, { postgres });
 expect(await alice.db.customers.count().orThrow()).toBe(1);
 expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({ ok: false });
 ```
@@ -54,8 +55,8 @@ expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({ ok
 
 ## API tests
 
-Pass `auth: { resolvers: [localAuth(LOCAL_JWT_SECRET)] }` to the adapter and
-send `authorization: Bearer ${alice.token}`.
+Send `authorization: Bearer ${alice.token}` (or a token from `signLocalJwt`).
+The adapter verifies it against the local JWKS; no test-only resolver is needed.
 
 ## pgTAP
 

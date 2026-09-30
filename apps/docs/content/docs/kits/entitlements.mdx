@@ -40,7 +40,7 @@ has no entitlements.
 | --- | --- | --- |
 | `tenant_entitlements(tenant)` | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer |
 | `has_entitlement(tenant, key)` | `authenticated` | `true` when the caller is a member of `tenant` and it has `key` |
-| `membership_claims(user_id)` | `service_role`, `supabase_auth_admin` | The `memberships` claim for the user |
+| `feature_claims(user_id)` | `service_role`, `supabase_auth_admin` | The `features` claim for the user: lookup keys per tenant |
 | `entitlement_members(customer)` | `service_role` | Members of the tenants billed to `customer` |
 
 RLS reads the live table, so a downgrade takes effect on the next query:
@@ -53,19 +53,22 @@ create policy exports_need_plan on public.exports as restrictive
 
 ## In the access token
 
-`membership_claims` builds the `memberships` claim of the
-[claims contract](/docs/frameworks/next-cache-components#who-owns-what), with
-entitlements per tenant:
+`feature_claims` builds the `features` claim: the plan's lookup keys per
+tenant the user is a member of. Plan features stay out of `memberships`, whose
+entries follow the
+[claims contract](/docs/frameworks/next-cache-components#who-owns-what)
+(`scope`, `id`, `roles`); an `entitlements` field on a membership means seats,
+not plan features.
 
 ```json
 {
-  "memberships": [
-    { "tenant_id": "4f1c…", "roles": ["admin"], "entitlements": ["exports", "sso"] }
-  ]
+  "memberships": [{ "scope": "tenant", "id": "4f1c…", "roles": ["admin"] }],
+  "features": { "4f1c…": ["exports", "sso"] }
 }
 ```
 
-Call it from your custom access token hook:
+Call it from your custom access token hook. The `tenant` module's
+`membership_claims` fills `memberships`:
 
 ```sql
 create or replace function public.custom_access_token_hook(event jsonb)
@@ -74,29 +77,28 @@ language plpgsql
 stable
 set search_path = ''
 as $$
+declare
+  uid uuid := (event ->> 'user_id')::uuid;
 begin
-  return jsonb_set(event, '{claims,memberships}',
-    better_supabase.membership_claims((event ->> 'user_id')::uuid));
+  event := jsonb_set(event, '{claims,memberships}', better_supabase.membership_claims(uid));
+  return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid));
 end
 $$;
 
 grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
 ```
 
+With [PermDock](/docs/auth/permdock), PermDock's generated hook writes
+`memberships`; add only the `features` line to it, or use PermDock's own
+`fromStripeEntitlements` instead of this module. The claim name comes from
+`claims.features` in the config (`features` by default).
+
 Declare the shape in `sb.claims()` to type it, with `z.enum` for the keys you
 sell:
 
 ```ts title="src/lib/supabase.ts"
-const Claims = z.object({
-  memberships: z
-    .array(
-      z.object({
-        tenant_id: z.uuid(),
-        roles: z.array(z.string()),
-        entitlements: z.array(z.enum(['exports', 'sso', 'audit'])).default([]),
-      }),
-    )
-    .default([]),
+const Claims = z.looseObject({
+  features: z.record(z.string(), z.array(z.enum(['exports', 'sso', 'audit']))).default({}),
 });
 
 export const sb = defineSupabase(schema).claims(Claims);
@@ -104,13 +106,14 @@ export const sb = defineSupabase(schema).claims(Claims);
 
 Every key travels in every request, so keep the list to lookup keys.
 [`doctor --as <user id>`](/docs/cli/doctor#bs405) warns when the hook's
-claims pass 2 KB.
+claims pass the budget (2 KB, or 1 KB next to PermDock).
 
 ## In components
 
-`hasEntitlement(session, tenantId, key)` reads the claim, from
-`better-supabase/next`, `better-supabase/react` or `better-supabase/ssr`.
-With a typed claims schema, `key` only accepts its lookup keys:
+`hasEntitlement(session, tenantId, key)` reads the `features` claim, from
+`better-supabase/next`, `better-supabase/react` or `better-supabase/ssr`. Pass
+the claim name as a fourth argument when `claims.features` renames it. With a
+typed claims schema, `key` only accepts its lookup keys:
 
 ```tsx
 import { hasEntitlement } from 'better-supabase/next';

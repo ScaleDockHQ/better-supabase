@@ -38,7 +38,7 @@ rules({ rules: { ...recommended(), maxLimit: ['error', 200], noUnboundedFindMany
 | `maxLimit` | `limit` above the maximum | maximum, default `1000` |
 | `requireOrderByForCursor` | `offset`, or `limit` above 1, without `orderBy`: pages overlap or skip rows. `findMany` orders by the primary key by default, so only views and keyless tables trigger it | |
 | `maxIncludeDepth` | Includes nested deeper than the maximum | maximum depth, default `3` |
-| `requireTenantContext` | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt | claim, default `'org_id'` |
+| `requireTenantContext` | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt | claim, default `claims.tenant` (`'tenant_id'`) |
 | `noAdminInBrowser` | A service-role connection where `window` and `document` exist | |
 | `noSensitiveSelect` | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call | |
 | `noDeleteManyWithoutWhere` | A delete without `where` | |
