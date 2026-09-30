@@ -132,9 +132,7 @@ export const core: OxlintConfig = defineConfig({
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
     "anti-slop/no-widen-then-assert": "error",
-    // 470 unannotated assertions when measured (285 outside tests). New code
-    // follows the AGENTS.md convention; turn this on once the backlog is gone.
-    "anti-slop/require-safety-comment-for-type-assertion": "off",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
 
     // Shadowing a name in a nested scope is how the query builders read.
     "eslint/no-shadow": "off",
@@ -308,6 +306,7 @@ export const test: OxlintConfig = defineConfig({
         "vitest/expect-expect": "off",
         // Tests hand fake clients and spans to typed APIs on purpose.
         "anti-slop/no-chained-type-assertions": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off",
         // Fixtures read the local stack's env with defaults.
         "node/no-process-env": "off",
         // Vitest asymmetric matchers (`expect.any`, `expect.stringContaining`)

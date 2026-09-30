@@ -123,8 +123,8 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
   (`src/core/result.ts` is tested in `tests/core/result.test.ts`).
 - Oxfmt uses double quotes and sorts `@/` and `@better-supabase/` imports as internal.
 - A new type assertion (`as T`) carries a `SAFETY:` comment saying why it is
-  safe. `anti-slop/require-safety-comment-for-type-assertion` is off until
-  the existing backlog is annotated. Prefer a type guard or a schema parse.
+  safe (`anti-slop/require-safety-comment-for-type-assertion`, off in tests).
+  Prefer a type guard or a schema parse.
   `as unknown as T` is rejected outside tests
   (`anti-slop/no-chained-type-assertions`); the remaining library sites
   carry a disable comment with the reason.

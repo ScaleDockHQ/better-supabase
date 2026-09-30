@@ -63,7 +63,10 @@ is cleared in its own commit series, then turned on.
 |---|---|
 | `typescript/strict-boolean-expressions` | 426 |
 | `typescript/no-non-null-assertion` | 335 (222 in tests) |
-| `anti-slop/require-safety-comment-for-type-assertion` | 470 (285 outside tests) |
+
+`anti-slop/require-safety-comment-for-type-assertion` had 470 findings (282
+outside tests). Those were annotated and the rule is an error everywhere
+except the test preset, where fakes are handed to typed APIs on purpose.
 
 The test preset turns off the `typescript/no-unsafe-*` rules, because Vitest's
 asymmetric matchers and `Response.json()` are typed `any` (60 findings).
