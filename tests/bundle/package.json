@@ -13,6 +13,7 @@
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

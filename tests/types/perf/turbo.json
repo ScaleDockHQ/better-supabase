@@ -1,6 +1,7 @@
 {
   "$schema": "https://v2-11-5.turborepo.dev/schema.json",
   "extends": ["//"],
+  "tags": ["test"],
   "tasks": {
     "bench": {
       "env": ["BENCH_UPDATE"]

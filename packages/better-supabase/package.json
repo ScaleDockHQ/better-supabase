@@ -211,6 +211,7 @@
     "hono": "catalog:",
     "next": "catalog:",
     "oxfmt": "catalog:",
+    "oxlint": "catalog:",
     "pg": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",

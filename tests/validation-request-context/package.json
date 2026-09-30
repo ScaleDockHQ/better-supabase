@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "catalog:",
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

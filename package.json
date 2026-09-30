@@ -20,8 +20,9 @@
     "env:pull": "vercel env pull .env.development.local --environment=development --yes && vercel env pull .env.preview.local --environment=preview --yes && vercel env pull .env.production.local --environment=production --yes",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
+    "knip": "knip --config knip.mts",
     "lint": "turbo run lint && pnpm run lint:root",
-    "lint:root": "oxlint -c oxlint.config.ts commitlint.config.ts oxlint.config.ts oxfmt.config.ts scripts",
+    "lint:root": "oxlint -c oxlint.config.ts commitlint.config.ts knip.mts oxlint.config.ts oxfmt.config.ts vitest.config.ts scripts",
     "prepare": "node scripts/prepare.mjs",
     "release": "pnpm run build && changeset publish",
     "site:dev": "turbo run dev --filter=docs --filter=marketing",
@@ -40,7 +41,7 @@
     "typecheck:matrix": "pnpm --filter './tests/types/*' run typecheck:matrix",
     "typecheck:perf": "pnpm --filter @better-supabase/types-perf run bench",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "pnpm run format:check && pnpm run lint && pnpm run check:prose && pnpm run typecheck && pnpm run typecheck:tooling && pnpm run boundaries && pnpm run test && pnpm run doctor && pnpm run audit:high",
+    "verify": "pnpm run format:check && pnpm run lint && pnpm run check:prose && pnpm run typecheck && pnpm run typecheck:tooling && pnpm run knip && pnpm run boundaries && pnpm run test && pnpm run doctor && pnpm run audit:high",
     "version-packages": "changeset version && pnpm run format"
   },
   "devDependencies": {
@@ -53,6 +54,7 @@
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
     "dotenv-cli": "catalog:",
+    "knip": "catalog:",
     "lefthook": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",

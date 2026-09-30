@@ -24,6 +24,30 @@
     "teamSlug": "scaledock",
     "signature": false
   },
+  "boundaries": {
+    "tags": {
+      "published": {
+        "dependencies": {
+          "deny": ["app", "example", "test"]
+        }
+      },
+      "app": {
+        "dependents": {
+          "deny": ["published", "config", "example"]
+        }
+      },
+      "example": {
+        "dependents": {
+          "deny": ["published", "config", "app"]
+        }
+      },
+      "test": {
+        "dependents": {
+          "deny": ["published", "config", "app", "example"]
+        }
+      }
+    }
+  },
   "tasks": {
     "transit": {
       "dependsOn": ["^transit"]

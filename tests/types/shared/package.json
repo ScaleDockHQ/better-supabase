@@ -17,6 +17,7 @@
     "better-supabase": "workspace:*",
     "hono": "catalog:",
     "next": "catalog:",
+    "oxlint": "catalog:",
     "pg": "catalog:",
     "react": "catalog:"
   }
