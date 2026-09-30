@@ -1,12 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { RequestContext } from '../core/plugin.ts';
-import type { AnyFunctions, AnyModels } from '../schema/types.ts';
-import type { Bucket } from '../storage/index.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { RequestContext } from "../core/plugin.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { Bucket } from "../storage/index.ts";
 
-import { type DbError, dbError, isDbError } from '../core/errors.ts';
-import { AsyncResult, err, ok } from '../core/result.ts';
+import { type DbError, dbError, isDbError } from "../core/errors.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 
 export interface DeleteAccountOptions {
   /**
@@ -44,27 +44,27 @@ interface AuthFailure {
 function fromAuthError(raw: unknown): DbError {
   if (isDbError(raw)) return raw;
   const failure = (
-    typeof raw === 'object' && raw !== null ? raw : {}
+    typeof raw === "object" && raw !== null ? raw : {}
   ) as AuthFailure;
-  const message = failure.message ?? 'Auth request failed';
+  const message = failure.message ?? "Auth request failed";
   const base = {
-    table: 'auth.users',
+    table: "auth.users",
     ...(failure.code ? { code: failure.code } : {}),
   };
-  if (failure.code === 'user_not_found' || failure.status === 404)
-    return dbError('not_found', message, base);
+  if (failure.code === "user_not_found" || failure.status === 404)
+    return dbError("not_found", message, base);
   if (/database error deleting user/i.test(message)) {
-    return dbError('conflict', message, {
+    return dbError("conflict", message, {
       ...base,
-      hint: 'A foreign key to auth.users without on delete cascade or set null blocks the delete (doctor BS406)',
+      hint: "A foreign key to auth.users without on delete cascade or set null blocks the delete (doctor BS406)",
     });
   }
-  if (failure.status === 401) return dbError('unauthorized', message, base);
-  if (failure.status === 403) return dbError('forbidden', message, base);
-  return failure.name === 'AuthRetryableFetchError' ||
+  if (failure.status === 401) return dbError("unauthorized", message, base);
+  if (failure.status === 403) return dbError("forbidden", message, base);
+  return failure.name === "AuthRetryableFetchError" ||
     (failure.status ?? 0) >= 500
-    ? dbError('network', message, base)
-    : dbError('unexpected', message, base);
+    ? dbError("network", message, base)
+    : dbError("unexpected", message, base);
 }
 
 /**
@@ -120,14 +120,14 @@ export function deleteAccount<
     }
 
     const context = options.context ?? {};
-    sb.events.emit('mutation', {
-      table: 'auth.users',
-      kind: 'delete',
+    sb.events.emit("mutation", {
+      table: "auth.users",
+      kind: "delete",
       rows: [{ id: userId }],
       context,
     });
     for (const table of options.cascades ?? [])
-      sb.events.emit('mutation', { table, kind: 'delete', rows: [], context });
+      sb.events.emit("mutation", { table, kind: "delete", rows: [], context });
     return ok({ userId, removed });
   });
 }

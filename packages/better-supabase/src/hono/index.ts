@@ -1,38 +1,38 @@
-import type { Context, ErrorHandler, MiddlewareHandler } from 'hono';
+import type { Context, ErrorHandler, MiddlewareHandler } from "hono";
 
-import { Hono } from 'hono';
+import { Hono } from "hono";
 
-import type { AuthState } from '../auth/resolve.ts';
-import type { BetterSupabase } from '../core/define.ts';
-import type { AnyFunctions, AnyModels, TableKey } from '../schema/types.ts';
+import type { AuthState } from "../auth/resolve.ts";
+import type { BetterSupabase } from "../core/define.ts";
+import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from '../server/server.ts';
+} from "../server/server.ts";
 
-import { dbError, dbErrorOf } from '../core/errors.ts';
-import { problemResponse } from '../core/problem.ts';
+import { dbError, dbErrorOf } from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
 import {
   defineResource,
   type ResourceRouteOptions,
-} from '../server/resource.ts';
+} from "../server/resource.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   respond,
-} from '../server/respond.ts';
-import { createServer, extendServer } from '../server/server.ts';
+} from "../server/respond.ts";
+import { createServer, extendServer } from "../server/server.ts";
 
-export type { GuardOptions } from '../server/respond.ts';
-export type { ResourceRouteOptions } from '../server/resource.ts';
+export type { GuardOptions } from "../server/respond.ts";
+export type { ResourceRouteOptions } from "../server/resource.ts";
 
 /** Hono `Env` with the request's better-supabase context in `c.var`. */
 export interface BetterEnv<M extends AnyModels, F extends AnyFunctions, E> {
   Variables: {
     readonly bs: ServerContext<M, F, E>;
-    readonly db: ServerContext<M, F, E>['db'];
+    readonly db: ServerContext<M, F, E>["db"];
     readonly auth: AuthState;
   };
 }
@@ -82,10 +82,10 @@ export interface BetterHono<
 function contextOf<M extends AnyModels, F extends AnyFunctions, E>(
   c: Context<BetterEnv<M, F, E>>,
 ): ServerContext<M, F, E> {
-  const ctx = c.get('bs') as ServerContext<M, F, E> | undefined;
+  const ctx = c.get("bs") as ServerContext<M, F, E> | undefined;
   if (!ctx) {
     throw new TypeError(
-      'better-supabase: no context on this request; add app.use(bs.middleware()) first',
+      "better-supabase: no context on this request; add app.use(bs.middleware()) first",
     );
   }
   return ctx;
@@ -104,8 +104,8 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
     const thrown = dbErrorOf(cause);
     if (thrown) return problemResponse(thrown, { instance, expose });
     const error = dbError(
-      'unexpected',
-      expose ? cause.message : 'Internal server error',
+      "unexpected",
+      expose ? cause.message : "Internal server error",
       { status: 500 },
     );
     return problemResponse(error, { instance, expose });
@@ -132,9 +132,9 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
             }),
           );
         }
-        c.set('bs', ctx);
-        c.set('db', ctx.db);
-        c.set('auth', ctx.auth);
+        c.set("bs", ctx);
+        c.set("db", ctx.db);
+        c.set("auth", ctx.auth);
         await next();
         c.res = ctx.resolution.apply(c.res);
         return undefined;
@@ -161,11 +161,11 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
           resource.handle(
             c.req.raw,
             contextOf(c).db,
-            item ? c.req.param('id') : undefined,
+            item ? c.req.param("id") : undefined,
             { instance: new URL(c.req.url).pathname, expose },
           );
-      app.all('/', serve(false));
-      if (resource.keyParam) app.all('/:id', serve(true));
+      app.all("/", serve(false));
+      if (resource.keyParam) app.all("/:id", serve(true));
       return app;
     },
   });

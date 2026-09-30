@@ -1,6 +1,6 @@
-import type { Operation } from '../ir/types.ts';
+import type { Operation } from "../ir/types.ts";
 
-import { compilePostgrest, type PostgrestPlan } from '../compile/postgrest.ts';
+import { compilePostgrest, type PostgrestPlan } from "../compile/postgrest.ts";
 
 /**
  * Turns an IR operation into something a backend runs. An `Executor` for a
@@ -12,6 +12,6 @@ export interface Compiler<TTarget> {
 }
 
 export const postgrestCompiler: Compiler<PostgrestPlan> = {
-  target: 'postgrest',
+  target: "postgrest",
   compile: compilePostgrest,
 };

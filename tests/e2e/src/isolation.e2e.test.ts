@@ -1,6 +1,7 @@
-import { sb } from '@better-supabase/example-nextjs/supabase';
-import { expectTenantIsolation } from 'better-supabase/testing';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { expectTenantIsolation } from "better-supabase/testing";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { sb } from "@better-supabase/example-nextjs/supabase";
 
 import {
   ACME,
@@ -9,12 +10,12 @@ import {
   reachable,
   stack,
   type TestUser,
-} from './stack.ts';
+} from "./stack.ts";
 
 const live = await reachable();
 const RUN = Date.now();
 
-describe.skipIf(!live)('Next.js example tenant isolation', () => {
+describe.skipIf(!live)("Next.js example tenant isolation", () => {
   const users = new Map<string, TestUser>();
 
   beforeAll(async () => {
@@ -26,7 +27,7 @@ describe.skipIf(!live)('Next.js example tenant isolation', () => {
     for (const user of users.values()) await user.remove();
   });
 
-  it('keeps organizations apart on every command', async () => {
+  it("keeps organizations apart on every command", async () => {
     const userOf = (tenant: { id: string }): string => users.get(tenant.id)!.id;
     const member = (id: string) => ({
       id,
@@ -41,7 +42,7 @@ describe.skipIf(!live)('Next.js example tenant isolation', () => {
             organizationId: tenant.id,
             name: `iso-${RUN}-${n}`,
           }),
-          update: { color: 'red' },
+          update: { color: "red" },
         },
         notifications: {
           row: (tenant, n) => ({
@@ -49,7 +50,7 @@ describe.skipIf(!live)('Next.js example tenant isolation', () => {
             userId: userOf(tenant),
             title: `Isolation ${RUN} ${n}`,
           }),
-          update: { title: 'Changed' },
+          update: { title: "Changed" },
         },
       },
     });

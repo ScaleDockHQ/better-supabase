@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useActionState } from 'react';
+import { useActionState } from "react";
 
-import { createCustomer } from '../customer-actions';
+import { createCustomer } from "../customer-actions";
 
 type State = Awaited<ReturnType<typeof createCustomer>> | null;
 
@@ -19,7 +19,7 @@ export function CreateCustomerForm() {
       </button>
       {state?.ok === false ? (
         <p role="alert">
-          {state.error.kind === 'rate_limited'
+          {state.error.kind === "rate_limited"
             ? `Too many new customers. Try again in ${String(state.error.retryAfter ?? 60)} seconds.`
             : state.error.message}
         </p>

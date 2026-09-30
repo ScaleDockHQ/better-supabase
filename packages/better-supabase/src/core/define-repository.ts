@@ -1,19 +1,19 @@
-import type { AnyFunctions, AnyModels, TableKey } from '../schema/types.ts';
-import type { BetterSupabase } from './define.ts';
-import type { RepositoryOf } from './repository-types.ts';
+import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
+import type { BetterSupabase } from "./define.ts";
+import type { RepositoryOf } from "./repository-types.ts";
 
 import {
   definePlugin,
   type Plugin,
   type RepositoryExtension,
-} from './plugin.ts';
+} from "./plugin.ts";
 
 /** Adds `Methods` to the repository of `Table` only. */
 export interface TableRepositoryExtension<
   Table extends string,
   Methods,
 > extends RepositoryExtension {
-  readonly methods: this['T'] extends Table ? Methods : unknown;
+  readonly methods: this["T"] extends Table ? Methods : unknown;
 }
 
 /**

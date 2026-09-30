@@ -1,12 +1,12 @@
-import { hasEntitlement } from 'better-supabase/next';
+import { hasEntitlement } from "better-supabase/next";
 
-import { getSession } from '@/features/user/user-queries';
-import { type Entitlement } from '@/lib/claims';
+import { getSession } from "@/features/user/user-queries";
+import { type Entitlement } from "@/lib/claims";
 
 const FEATURES: Record<Entitlement, string> = {
-  exports: 'CSV exports',
-  sso: 'Single sign-on',
-  audit: 'Audit log',
+  exports: "CSV exports",
+  sso: "Single sign-on",
+  audit: "Audit log",
 };
 
 /**
@@ -16,7 +16,7 @@ const FEATURES: Record<Entitlement, string> = {
 export async function PlanFeatures() {
   const session = await getSession();
   const orgId =
-    session.kind === 'user'
+    session.kind === "user"
       ? (session.claims.tenant_id ?? session.claims.app_metadata?.tenant_id)
       : undefined;
   if (!orgId) return null;
@@ -24,10 +24,10 @@ export async function PlanFeatures() {
     <ul aria-label="Plan features">
       {Object.entries(FEATURES).map(([key, label]) => (
         <li key={key}>
-          {label}:{' '}
+          {label}:{" "}
           {hasEntitlement(session, orgId, key as Entitlement)
-            ? 'included'
-            : 'not in your plan'}
+            ? "included"
+            : "not in your plan"}
         </li>
       ))}
     </ul>

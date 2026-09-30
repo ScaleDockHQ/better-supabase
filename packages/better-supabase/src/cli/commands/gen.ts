@@ -1,23 +1,23 @@
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import type { GeneratedFile, ResolvedConfig } from '../../config/index.ts';
-import type { Snapshot } from '../introspect/types.ts';
+import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type { Snapshot } from "../introspect/types.ts";
 
-import { type KitFile, renderKit, sameKitFile } from '../../sql/kit.ts';
-import { emitModule } from '../gen/emit.ts';
-import { buildModel } from '../gen/model.ts';
-import { generateDatabaseTypes } from '../introspect/typegen.ts';
+import { type KitFile, renderKit, sameKitFile } from "../../sql/kit.ts";
+import { emitModule } from "../gen/emit.ts";
+import { buildModel } from "../gen/model.ts";
+import { generateDatabaseTypes } from "../introspect/typegen.ts";
 import {
   type CommandResult,
   display,
   importPath,
   writeIfChanged,
-} from '../io.ts';
-import { compiledReadSets } from '../read-sets.ts';
-import { loadSnapshot, type SnapshotSource } from './snapshot.ts';
-import { kitLayout } from './sql.ts';
+} from "../io.ts";
+import { compiledReadSets } from "../read-sets.ts";
+import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
+import { kitLayout } from "./sql.ts";
 
 export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
@@ -75,7 +75,7 @@ async function readSetFile(
   if (config.readSets.length === 0) return undefined;
   const readSets = await compiledReadSets(config);
   return renderKit(
-    ['read-sets'],
+    ["read-sets"],
     kitLayout(config, config.sql.testsDir, readSets),
   )[0];
 }
@@ -91,7 +91,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     for (const file of files) {
       const path = resolve(config.root, file.path);
       const current = existsSync(path)
-        ? await readFile(path, 'utf8')
+        ? await readFile(path, "utf8")
         : undefined;
       if (current !== file.contents)
         stale.push(display(config.root, file.path));
@@ -100,7 +100,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     if (readSets) {
       const path = resolve(config.root, readSets.path);
       const current = existsSync(path)
-        ? await readFile(path, 'utf8')
+        ? await readFile(path, "utf8")
         : undefined;
       if (!sameKitFile(current, readSets.contents))
         stale.push(display(config.root, readSets.path));
@@ -108,7 +108,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     if (stale.length > 0) {
       return {
         code: 1,
-        error: `Generated files are out of date:\n${stale.map((path) => `  ${path}`).join('\n')}\nRun \`better-supabase gen\`.`,
+        error: `Generated files are out of date:\n${stale.map((path) => `  ${path}`).join("\n")}\nRun \`better-supabase gen\`.`,
       };
     }
     return {
@@ -142,6 +142,6 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     output:
       written.length === 0
         ? `No changes (${tables} tables).`
-        : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join('\n')}`,
+        : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join("\n")}`,
   };
 }

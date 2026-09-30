@@ -1,7 +1,7 @@
-import 'server-only';
-import { next } from '@/lib/supabase.server';
+import "server-only";
+import { next } from "@/lib/supabase.server";
 
-import { unreadSpec } from './inbox-specs';
+import { unreadSpec } from "./inbox-specs";
 
 /**
  * The unread count plus its spec, for `useLiveCount` on the inbox page.

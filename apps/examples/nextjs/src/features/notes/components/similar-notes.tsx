@@ -1,6 +1,6 @@
-import { Panel, PanelSkeleton } from '@/components/ui/panel';
+import { Panel, PanelSkeleton } from "@/components/ui/panel";
 
-import { getSimilarNotes } from '../note-queries';
+import { getSimilarNotes } from "../note-queries";
 
 export async function SimilarNotes() {
   const result = await getSimilarNotes();

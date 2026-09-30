@@ -1,10 +1,10 @@
-import { Suspense } from 'react';
+import { Suspense } from "react";
 
-import { DeleteAccountButton } from '@/features/user/components/delete-account-button';
+import { DeleteAccountButton } from "@/features/user/components/delete-account-button";
 import {
   ProfileDetails,
   ProfileDetailsSkeleton,
-} from '@/features/user/components/profile-details';
+} from "@/features/user/components/profile-details";
 
 export const instant = true;
 

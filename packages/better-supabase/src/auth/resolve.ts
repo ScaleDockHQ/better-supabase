@@ -3,20 +3,20 @@ import type {
   JWTClaims,
   SupabaseEnv,
   UserClaims,
-} from '@supabase/server';
+} from "@supabase/server";
 
-import { extractCredentials, verifyCredentials } from '@supabase/server/core';
+import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
-import type { RefreshEvent } from '../core/events.ts';
-import type { Logger } from '../core/logger.ts';
-import type { Actor, RequestContext } from '../core/plugin.ts';
-import type { StandardSchemaV1 } from '../core/standard.ts';
-import type { BetterSupabaseEnv } from '../env/index.ts';
+import type { RefreshEvent } from "../core/events.ts";
+import type { Logger } from "../core/logger.ts";
+import type { Actor, RequestContext } from "../core/plugin.ts";
+import type { StandardSchemaV1 } from "../core/standard.ts";
+import type { BetterSupabaseEnv } from "../env/index.ts";
 
-import { type DbError, dbError } from '../core/errors.ts';
-import { consoleLogger } from '../core/logger.ts';
-import { impersonatorOf } from './impersonation.ts';
-import { refreshSession } from './refresh.ts';
+import { type DbError, dbError } from "../core/errors.ts";
+import { consoleLogger } from "../core/logger.ts";
+import { impersonatorOf } from "./impersonation.ts";
+import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
@@ -29,7 +29,7 @@ import {
   sessionCookieName,
   type StoredSession,
   writeSession,
-} from './session.ts';
+} from "./session.ts";
 
 /**
  * Who is calling. `C` is the claims type from `sb.claims(schema)`; the
@@ -38,11 +38,11 @@ import {
  */
 export type AuthState<C = unknown, P = unknown> =
   | {
-      readonly kind: 'user';
+      readonly kind: "user";
       readonly token: string;
       readonly claims: JWTClaims & C;
       readonly user: UserClaims;
-      readonly source: 'bearer' | 'cookie' | (string & {});
+      readonly source: "bearer" | "cookie" | (string & {});
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
       /**
@@ -52,32 +52,32 @@ export type AuthState<C = unknown, P = unknown> =
        */
       readonly profile?: P;
     }
-  | { readonly kind: 'service'; readonly keyName: string }
+  | { readonly kind: "service"; readonly keyName: string }
   | {
-      readonly kind: 'anon';
+      readonly kind: "anon";
       /** `expired`: the cookie session needs a refresh that was not allowed here (run the proxy). */
-      readonly reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed';
+      readonly reason: "none" | "expired" | "signed_out" | "refresh_failed";
     }
   /**
    * Credentials were sent but did not verify (`token`), or verified but failed
    * the claims schema (`claims`). Answer 401, never downgrade to anon.
    */
   | {
-      readonly kind: 'invalid';
+      readonly kind: "invalid";
       readonly reason: InvalidReason;
       readonly error: DbError;
     };
 
-export type InvalidReason = 'token' | 'claims';
+export type InvalidReason = "token" | "claims";
 
 /**
  * What an `AuthResolver` returns. `reason` may be left out of an `invalid`
  * state; it then counts as `token`.
  */
 export type ResolvedState =
-  | Exclude<AuthState, { kind: 'invalid' }>
+  | Exclude<AuthState, { kind: "invalid" }>
   | {
-      readonly kind: 'invalid';
+      readonly kind: "invalid";
       readonly reason?: InvalidReason;
       readonly error: DbError;
     };
@@ -112,7 +112,7 @@ export interface ResolveAuthOptions {
     readonly options?: CookieOptions;
   };
   /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
-  readonly jwks?: SupabaseEnv['jwks'];
+  readonly jwks?: SupabaseEnv["jwks"];
   /**
    * Validates the verified claims (`sb.claims(schema)` sets it). A failure
    * resolves to `{ kind: 'invalid', reason: 'claims' }`.
@@ -153,12 +153,12 @@ export interface AuthResolution<C = unknown, P = unknown> {
 }
 
 function decodePayload(token: string): Record<string, unknown> | undefined {
-  const part = token.split('.')[1];
+  const part = token.split(".")[1];
   if (!part) return undefined;
   try {
-    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
     const parsed: unknown = JSON.parse(json);
-    return typeof parsed === 'object' && parsed !== null
+    return typeof parsed === "object" && parsed !== null
       ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
@@ -167,9 +167,9 @@ function decodePayload(token: string): Record<string, unknown> | undefined {
 }
 
 function expiryOf(session: StoredSession): number | undefined {
-  if (typeof session.expires_at === 'number') return session.expires_at;
-  const exp = decodePayload(session.access_token)?.['exp'];
-  return typeof exp === 'number' ? exp : undefined;
+  if (typeof session.expires_at === "number") return session.expires_at;
+  const exp = decodePayload(session.access_token)?.["exp"];
+  return typeof exp === "number" ? exp : undefined;
 }
 
 function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
@@ -184,8 +184,8 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
 }
 
 type VerifiedUser = Omit<
-  Extract<AuthState, { kind: 'user' }>,
-  'source' | 'profile'
+  Extract<AuthState, { kind: "user" }>,
+  "source" | "profile"
 >;
 
 const MEMO_SIZE = 256;
@@ -198,7 +198,7 @@ let memoByJwks = new WeakMap<object, Map<string, VerifiedUser>>();
  */
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   const jwks = options.jwks;
-  if (jwks && typeof jwks === 'object' && !(jwks instanceof URL)) {
+  if (jwks && typeof jwks === "object" && !(jwks instanceof URL)) {
     let memo = memoByJwks.get(jwks);
     if (!memo) memoByJwks.set(jwks, (memo = new Map<string, VerifiedUser>()));
     return memo;
@@ -247,9 +247,9 @@ async function verify(
   credentials: { token: string | null; apikey: string | null },
   modes: AuthModeWithKey[],
   options: ResolveAuthOptions,
-  source: 'bearer' | 'cookie',
+  source: "bearer" | "cookie",
 ): Promise<AuthState> {
-  const token = modes.length === 1 && modes[0] === 'user' && credentials.token;
+  const token = modes.length === 1 && modes[0] === "user" && credentials.token;
   const memo = token ? memoFor(options) : undefined;
   if (token && memo) {
     const now = Math.floor((options.now ?? Date.now)() / 1000);
@@ -257,9 +257,9 @@ async function verify(
     if (hit) return checkUser({ ...hit, source }, options);
   }
   const state = await verifyOnce(credentials, modes, options, source);
-  if (token && memo && state.kind === 'user') {
+  if (token && memo && state.kind === "user") {
     remember(memo, token, {
-      kind: 'user',
+      kind: "user",
       token: state.token,
       claims: state.claims,
       user: state.user,
@@ -274,34 +274,34 @@ async function checkClaims(
   state: AuthState,
   options: ResolveAuthOptions,
 ): Promise<AuthState> {
-  if (state.kind !== 'user' || !options.claims) return state;
-  let outcome = options.claims['~standard'].validate(state.claims);
+  if (state.kind !== "user" || !options.claims) return state;
+  let outcome = options.claims["~standard"].validate(state.claims);
   if (outcome instanceof Promise) outcome = await outcome;
   if (outcome.issues) {
     const issues = outcome.issues
       .map((issue) => {
         const path = issue.path
           ?.map((segment) =>
-            typeof segment === 'object' ? String(segment.key) : String(segment),
+            typeof segment === "object" ? String(segment.key) : String(segment),
           )
-          .join('.');
+          .join(".");
         return path ? `${path}: ${issue.message}` : issue.message;
       })
-      .join('; ');
+      .join("; ");
     return {
-      kind: 'invalid',
-      reason: 'claims',
+      kind: "invalid",
+      reason: "claims",
       error: dbError(
-        'unauthorized',
+        "unauthorized",
         `The token claims are invalid (${issues})`,
         {
-          code: 'CLAIMS_INVALID',
+          code: "CLAIMS_INVALID",
         },
       ),
     };
   }
   const extra = outcome.value;
-  return typeof extra === 'object' && extra !== null
+  return typeof extra === "object" && extra !== null
     ? { ...state, claims: { ...state.claims, ...extra } }
     : state;
 }
@@ -315,9 +315,9 @@ async function checkUser(
 ): Promise<AuthState> {
   const checked = await checkClaims(state, options);
   const schema = options.userMetadata;
-  if (checked.kind !== 'user' || !schema) return checked;
+  if (checked.kind !== "user" || !schema) return checked;
   const { profile: _untrusted, ...user } = checked;
-  let outcome = schema['~standard'].validate(
+  let outcome = schema["~standard"].validate(
     checked.user.userMetadata ?? checked.claims.user_metadata ?? {},
   );
   if (outcome instanceof Promise) outcome = await outcome;
@@ -325,17 +325,17 @@ async function checkUser(
   if (!warnedMetadata.has(schema)) {
     warnedMetadata.add(schema);
     (options.logger ?? consoleLogger).warn(
-      'user_metadata does not match sb.userMetadata(schema); session.profile is undefined',
+      "user_metadata does not match sb.userMetadata(schema); session.profile is undefined",
       {
         paths: outcome.issues.map(
           (issue) =>
             issue.path
               ?.map((segment) =>
-                typeof segment === 'object'
+                typeof segment === "object"
                   ? String(segment.key)
                   : String(segment),
               )
-              .join('.') ?? '',
+              .join(".") ?? "",
         ),
       },
     );
@@ -347,7 +347,7 @@ async function verifyOnce(
   credentials: { token: string | null; apikey: string | null },
   modes: AuthModeWithKey[],
   options: ResolveAuthOptions,
-  source: 'bearer' | 'cookie',
+  source: "bearer" | "cookie",
 ): Promise<AuthState> {
   const { data, error } = await verifyCredentials(credentials, {
     auth: modes,
@@ -357,36 +357,36 @@ async function verifyOnce(
   });
   if (error) {
     const kind =
-      error.code === 'JWKS_FETCH_FAILED'
-        ? 'network'
+      error.code === "JWKS_FETCH_FAILED"
+        ? "network"
         : error.status >= 500
-          ? 'unexpected'
-          : 'unauthorized';
+          ? "unexpected"
+          : "unauthorized";
     return {
-      kind: 'invalid',
-      reason: 'token',
+      kind: "invalid",
+      reason: "token",
       error: dbError(kind, error.message, { code: error.code }),
     };
   }
-  if (data.authMode === 'secret')
-    return { kind: 'service', keyName: data.keyName ?? 'default' };
+  if (data.authMode === "secret")
+    return { kind: "service", keyName: data.keyName ?? "default" };
   if (
-    data.authMode === 'user' &&
+    data.authMode === "user" &&
     data.token &&
     data.jwtClaims &&
     data.userClaims
   ) {
     return {
-      kind: 'user',
+      kind: "user",
       token: data.token,
       claims: data.jwtClaims,
       user: data.userClaims,
       source,
       expiresAt:
-        typeof data.jwtClaims.exp === 'number' ? data.jwtClaims.exp : null,
+        typeof data.jwtClaims.exp === "number" ? data.jwtClaims.exp : null,
     };
   }
-  return { kind: 'anon', reason: 'none' };
+  return { kind: "anon", reason: "none" };
 }
 
 function resolution(
@@ -406,11 +406,11 @@ function resolution(
       let target = response;
       try {
         for (const write of writes)
-          target.headers.append('set-cookie', serializeCookie(write));
+          target.headers.append("set-cookie", serializeCookie(write));
       } catch {
         target = new Response(response.body, response);
         for (const write of writes)
-          target.headers.append('set-cookie', serializeCookie(write));
+          target.headers.append("set-cookie", serializeCookie(write));
       }
       for (const [name, value] of Object.entries(headers))
         target.headers.set(name, value);
@@ -423,7 +423,7 @@ const IP = /^[0-9a-f:.]+$/i;
 
 /** The first `x-forwarded-for` hop, the client as your edge saw it. */
 export function clientIp(request: Request): string | undefined {
-  const first = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const first = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return first && IP.test(first) ? first : undefined;
 }
 
@@ -439,16 +439,16 @@ export async function resolveAuth(
   request: Request,
   options: ResolveAuthOptions,
 ): Promise<AuthResolution> {
-  const cookies = parseCookies(request.headers.get('cookie'));
+  const cookies = parseCookies(request.headers.get("cookie"));
 
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
     if (!state) continue;
     return resolution(
-      state.kind === 'invalid'
+      state.kind === "invalid"
         ? {
-            kind: 'invalid',
-            reason: state.reason ?? 'token',
+            kind: "invalid",
+            reason: state.reason ?? "token",
             error: state.error,
           }
         : await checkUser(state, options),
@@ -461,22 +461,22 @@ export async function resolveAuth(
     return resolution(
       await verify(
         { token: credentials.token, apikey: null },
-        ['user'],
+        ["user"],
         options,
-        'bearer',
+        "bearer",
       ),
       cookies,
     );
   }
-  if (options.secret && credentials.apikey?.startsWith('sb_secret_')) {
+  if (options.secret && credentials.apikey?.startsWith("sb_secret_")) {
     return resolution(
       await verify(
         { token: null, apikey: credentials.apikey },
         options.secret === true
-          ? ['secret']
+          ? ["secret"]
           : options.secret.map((name): AuthModeWithKey => `secret:${name}`),
         options,
-        'bearer',
+        "bearer",
       ),
       cookies,
     );
@@ -493,7 +493,7 @@ export async function resolveAuth(
         ? writeSession(cookies, name, null, options.cookie?.options)
         : [];
     return resolution(
-      { kind: 'anon', reason: stale ? 'signed_out' : 'none' },
+      { kind: "anon", reason: stale ? "signed_out" : "none" },
       cookies,
       writes,
     );
@@ -506,21 +506,21 @@ export async function resolveAuth(
   if (fresh) {
     const state = await verify(
       { token: session.access_token, apikey: null },
-      ['user'],
+      ["user"],
       options,
-      'cookie',
+      "cookie",
     );
     // A refresh can't fix claims the schema rejects, nor an unreachable JWKS.
     if (
-      state.kind !== 'invalid' ||
-      state.reason === 'claims' ||
-      state.error.kind === 'network'
+      state.kind !== "invalid" ||
+      state.reason === "claims" ||
+      state.error.kind === "network"
     )
       return resolution(state, cookies);
     if (!options.refresh)
-      return resolution({ kind: 'anon', reason: 'signed_out' }, cookies);
+      return resolution({ kind: "anon", reason: "signed_out" }, cookies);
   } else if (!options.refresh) {
-    return resolution({ kind: 'anon', reason: 'expired' }, cookies);
+    return resolution({ kind: "anon", reason: "expired" }, cookies);
   }
 
   const secretKey = options.env.secretKey;
@@ -542,10 +542,10 @@ export async function resolveAuth(
     durationMs: performance.now() - started,
   });
   if (!outcome.ok) {
-    if (outcome.reason === 'network')
-      return resolution({ kind: 'anon', reason: 'refresh_failed' }, cookies);
+    if (outcome.reason === "network")
+      return resolution({ kind: "anon", reason: "refresh_failed" }, cookies);
     return resolution(
-      { kind: 'anon', reason: 'signed_out' },
+      { kind: "anon", reason: "signed_out" },
       cookies,
       writeSession(cookies, name, null, options.cookie?.options),
     );
@@ -558,9 +558,9 @@ export async function resolveAuth(
   );
   const state = await verify(
     { token: outcome.session.access_token, apikey: null },
-    ['user'],
+    ["user"],
     options,
-    'cookie',
+    "cookie",
   );
   return resolution(state, cookies, writes);
 }
@@ -568,31 +568,31 @@ export async function resolveAuth(
 /** The repository context (`actor`, `claims`) for an auth state. */
 export function authContext(auth: AuthState): RequestContext {
   switch (auth.kind) {
-    case 'user': {
+    case "user": {
       const impersonator = impersonatorOf(auth.claims);
       const actor: Actor = {
         id: auth.user.id,
-        kind: 'user',
+        kind: "user",
         ...(auth.user.role !== undefined ? { role: auth.user.role } : {}),
         ...(auth.user.email !== undefined ? { email: auth.user.email } : {}),
         ...(impersonator ? { impersonator: impersonator.id } : {}),
       };
       return { actor, claims: auth.claims };
     }
-    case 'service':
+    case "service":
       return {
         actor: {
           id: `service:${auth.keyName}`,
-          kind: 'service',
-          role: 'service_role',
+          kind: "service",
+          role: "service_role",
         },
-        claims: { role: 'service_role' },
+        claims: { role: "service_role" },
       };
-    case 'anon':
-    case 'invalid':
+    case "anon":
+    case "invalid":
       return {
-        actor: { id: 'anon', kind: 'anon', role: 'anon' },
-        claims: { role: 'anon' },
+        actor: { id: "anon", kind: "anon", role: "anon" },
+        claims: { role: "anon" },
       };
     default: {
       const exhaustive: never = auth;

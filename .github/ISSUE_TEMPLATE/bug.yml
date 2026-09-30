@@ -1,7 +1,7 @@
 name: Bug
 description: Report a defect in better-supabase
-title: 'bug: '
-labels: ['bug']
+title: "bug: "
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -31,21 +31,21 @@ body:
     id: version
     attributes:
       label: better-supabase
-      placeholder: '0.1.0'
+      placeholder: "0.1.0"
     validations:
       required: true
   - type: input
     id: supabase
     attributes:
-      label: '@supabase/supabase-js and Supabase CLI'
-      placeholder: '2.117.2, CLI 2.118.0'
+      label: "@supabase/supabase-js and Supabase CLI"
+      placeholder: "2.117.2, CLI 2.118.0"
     validations:
       required: true
   - type: input
     id: typescript
     attributes:
       label: TypeScript and Node.js
-      placeholder: '7.0.2, Node 24.20.0'
+      placeholder: "7.0.2, Node 24.20.0"
     validations:
       required: true
   - type: input

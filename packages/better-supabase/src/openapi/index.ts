@@ -1,13 +1,13 @@
-import type { OpenApiParameter } from '../list/index.ts';
-import type { SchemaMeta, TableMeta } from '../schema/types.ts';
+import type { OpenApiParameter } from "../list/index.ts";
+import type { SchemaMeta, TableMeta } from "../schema/types.ts";
 
-import { PROBLEM_CONTENT_TYPE, PROBLEM_TYPE_BASE } from '../core/problem.ts';
-import { SPEC_PINS } from '../core/spec-pins.ts';
-import { buildJsonSchema } from '../generators/json-schema.ts';
+import { PROBLEM_CONTENT_TYPE, PROBLEM_TYPE_BASE } from "../core/problem.ts";
+import { SPEC_PINS } from "../core/spec-pins.ts";
+import { buildJsonSchema } from "../generators/json-schema.ts";
 
 type Json = Record<string, unknown>;
 
-export type ResourceOperation = 'list' | 'get' | 'create' | 'update' | 'delete';
+export type ResourceOperation = "list" | "get" | "create" | "update" | "delete";
 
 export interface ResourceOptions {
   /** Defaults to every operation for tables, `list` and `get` for views. */
@@ -38,7 +38,7 @@ export interface OpenApiOptions {
    * Security schemes. `bearer` is a Supabase access token; `oauth2` uses the
    * Supabase OAuth server and needs `supabaseUrl`. Defaults to `['bearer']`.
    */
-  readonly security?: readonly ('bearer' | 'oauth2')[];
+  readonly security?: readonly ("bearer" | "oauth2")[];
   readonly supabaseUrl?: string;
   /** Tables with a JSON column typed in `better-supabase.config.ts`. */
   readonly json?: Readonly<Record<string, unknown>>;
@@ -46,9 +46,9 @@ export interface OpenApiOptions {
 
 export interface OpenApiDocument {
   readonly openapi: string;
-  readonly info: OpenApiOptions['info'];
+  readonly info: OpenApiOptions["info"];
   readonly jsonSchemaDialect: string;
-  readonly servers?: OpenApiOptions['servers'];
+  readonly servers?: OpenApiOptions["servers"];
   readonly tags: readonly {
     readonly name: string;
     readonly description?: string;
@@ -64,32 +64,32 @@ export interface OpenApiDocument {
 
 /** JSON Schema for RFC 9457 Problem Details as better-supabase sends them. */
 export const PROBLEM_SCHEMA: Json = {
-  type: 'object',
-  required: ['type', 'title', 'status'],
+  type: "object",
+  required: ["type", "title", "status"],
   properties: {
     type: {
-      type: 'string',
-      format: 'uri-reference',
+      type: "string",
+      format: "uri-reference",
       examples: [`${PROBLEM_TYPE_BASE}not-found`],
     },
-    title: { type: 'string' },
-    status: { type: 'integer', minimum: 100, maximum: 599 },
-    detail: { type: 'string' },
-    instance: { type: 'string' },
-    kind: { type: 'string' },
-    code: { type: 'string' },
-    hint: { type: 'string' },
-    constraint: { type: 'string' },
-    column: { type: 'string' },
-    columns: { type: 'array', items: { type: 'string' } },
+    title: { type: "string" },
+    status: { type: "integer", minimum: 100, maximum: 599 },
+    detail: { type: "string" },
+    instance: { type: "string" },
+    kind: { type: "string" },
+    code: { type: "string" },
+    hint: { type: "string" },
+    constraint: { type: "string" },
+    column: { type: "string" },
+    columns: { type: "array", items: { type: "string" } },
     issues: {
-      type: 'array',
+      type: "array",
       items: {
-        type: 'object',
-        required: ['message'],
+        type: "object",
+        required: ["message"],
         properties: {
-          message: { type: 'string' },
-          path: { type: 'array', items: { type: ['string', 'integer'] } },
+          message: { type: "string" },
+          path: { type: "array", items: { type: ["string", "integer"] } },
         },
       },
     },
@@ -97,12 +97,12 @@ export const PROBLEM_SCHEMA: Json = {
 };
 
 const ERRORS: readonly [string, number, string][] = [
-  ['BadRequest', 400, 'The request is invalid.'],
-  ['Unauthorized', 401, 'Missing or invalid credentials.'],
-  ['Forbidden', 403, 'Row-level security or a plugin denied the request.'],
-  ['NotFound', 404, 'No row matches.'],
-  ['Conflict', 409, 'A unique or foreign key constraint failed.'],
-  ['Unprocessable', 422, 'Validation or a check constraint failed.'],
+  ["BadRequest", 400, "The request is invalid."],
+  ["Unauthorized", 401, "Missing or invalid credentials."],
+  ["Forbidden", 403, "Row-level security or a plugin denied the request."],
+  ["NotFound", 404, "No row matches."],
+  ["Conflict", 409, "A unique or foreign key constraint failed."],
+  ["Unprocessable", 422, "Validation or a check constraint failed."],
 ];
 
 const pascal = (value: string): string =>
@@ -122,24 +122,24 @@ function errorResponses(codes: readonly number[]): Json {
 }
 
 function jsonBody(schema: Json, description: string): Json {
-  return { description, content: { 'application/json': { schema } } };
+  return { description, content: { "application/json": { schema } } };
 }
 
 function pageParameters(): OpenApiParameter[] {
   return [
     {
-      name: 'page',
-      in: 'query',
+      name: "page",
+      in: "query",
       required: false,
-      description: '1-based page number.',
-      schema: { type: 'integer', minimum: 1, default: 1 },
+      description: "1-based page number.",
+      schema: { type: "integer", minimum: 1, default: 1 },
     },
     {
-      name: 'size',
-      in: 'query',
+      name: "size",
+      in: "query",
       required: false,
-      description: 'Page size.',
-      schema: { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+      description: "Page size.",
+      schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
     },
   ];
 }
@@ -163,12 +163,12 @@ export function createOpenApi(
   const defs = buildJsonSchema({
     meta: sb.meta,
     config: { json: options.json ?? {} },
-  })['$defs'] as Record<string, Json>;
+  })["$defs"] as Record<string, Json>;
   const schemas: Record<string, Json> = { Problem: PROBLEM_SCHEMA };
   const paths: Record<string, Json> = {};
   const tags: { name: string; description?: string }[] = [];
-  const base = (options.basePath ?? '').replace(/\/$/, '');
-  const security = options.security ?? ['bearer'];
+  const base = (options.basePath ?? "").replace(/\/$/, "");
+  const security = options.security ?? ["bearer"];
 
   for (const [key, raw] of Object.entries(options.resources)) {
     const table: TableMeta | undefined = sb.meta.tables[key];
@@ -176,9 +176,9 @@ export function createOpenApi(
     const resource: ResourceOptions = raw === true ? {} : raw;
     const operations =
       resource.operations ??
-      (table.kind === 'view'
-        ? ['list', 'get']
-        : ['list', 'get', 'create', 'update', 'delete']);
+      (table.kind === "view"
+        ? ["list", "get"]
+        : ["list", "get", "create", "update", "delete"]);
     const name = pascal(key);
     const tag = resource.tag ?? key;
     if (!tags.some((entry) => entry.name === tag))
@@ -187,27 +187,27 @@ export function createOpenApi(
         ...(resource.description ? { description: resource.description } : {}),
       });
     const extensions = {
-      'x-better-supabase-table': `${table.schema}.${table.name}`,
+      "x-better-supabase-table": `${table.schema}.${table.name}`,
     };
 
-    for (const variant of ['Row', 'Insert', 'Update'] as const) {
+    for (const variant of ["Row", "Insert", "Update"] as const) {
       const schema = defs[`${key}${variant}`];
       if (schema) schemas[`${name}${variant}`] = schema;
     }
     schemas[`${name}Page`] = {
-      type: 'object',
-      required: ['items', 'page'],
+      type: "object",
+      required: ["items", "page"],
       properties: {
-        items: { type: 'array', items: ref(`${name}Row`) },
+        items: { type: "array", items: ref(`${name}Row`) },
         page: {
-          type: 'object',
-          required: ['number', 'size', 'total', 'pages', 'hasMore'],
+          type: "object",
+          required: ["number", "size", "total", "pages", "hasMore"],
           properties: {
-            number: { type: 'integer' },
-            size: { type: 'integer' },
-            total: { type: ['integer', 'null'] },
-            pages: { type: ['integer', 'null'] },
-            hasMore: { type: 'boolean' },
+            number: { type: "integer" },
+            size: { type: "integer" },
+            total: { type: ["integer", "null"] },
+            pages: { type: ["integer", "null"] },
+            hasMore: { type: "boolean" },
           },
         },
       },
@@ -218,12 +218,12 @@ export function createOpenApi(
       table.primaryKey.length === 1 ? table.primaryKey[0]! : undefined;
     const idSchema = keyColumn
       ? ((
-          defs[`${key}Row`]?.['properties'] as Record<string, Json> | undefined
-        )?.[keyColumn] ?? { type: 'string' })
+          defs[`${key}Row`]?.["properties"] as Record<string, Json> | undefined
+        )?.[keyColumn] ?? { type: "string" })
       : undefined;
     const item = keyColumn ? `${collection}/{${keyColumn}}` : undefined;
     const idParameter = keyColumn
-      ? [{ name: keyColumn, in: 'path', required: true, schema: idSchema }]
+      ? [{ name: keyColumn, in: "path", required: true, schema: idSchema }]
       : [];
     const op = (
       operation: ResourceOperation,
@@ -234,68 +234,68 @@ export function createOpenApi(
       tags: [tag],
       summary,
       ...extensions,
-      'x-better-supabase-operation': operation,
+      "x-better-supabase-operation": operation,
       ...body,
     });
 
     for (const operation of operations) {
       switch (operation) {
-        case 'list':
-          (paths[collection] ??= {})['get'] = op('list', `List ${key}`, {
+        case "list":
+          (paths[collection] ??= {})["get"] = op("list", `List ${key}`, {
             parameters: resource.list?.openapi ?? pageParameters(),
             responses: {
-              '200': jsonBody(ref(`${name}Page`), `A page of ${key}.`),
+              "200": jsonBody(ref(`${name}Page`), `A page of ${key}.`),
               ...errorResponses([400, 401, 403]),
             },
           });
           break;
-        case 'create':
-          (paths[collection] ??= {})['post'] = op(
-            'create',
+        case "create":
+          (paths[collection] ??= {})["post"] = op(
+            "create",
             `Create a ${key} row`,
             {
               requestBody: {
                 required: true,
                 content: {
-                  'application/json': { schema: ref(`${name}Insert`) },
+                  "application/json": { schema: ref(`${name}Insert`) },
                 },
               },
               responses: {
-                '201': jsonBody(ref(`${name}Row`), 'Created.'),
+                "201": jsonBody(ref(`${name}Row`), "Created."),
                 ...errorResponses([400, 401, 403, 409, 422]),
               },
             },
           );
           break;
-        case 'get':
-        case 'update':
-        case 'delete': {
+        case "get":
+        case "update":
+        case "delete": {
           if (!item) break;
           const path = (paths[item] ??= { parameters: idParameter });
-          if (operation === 'get') {
-            path['get'] = op('get', `Get a ${key} row`, {
+          if (operation === "get") {
+            path["get"] = op("get", `Get a ${key} row`, {
               responses: {
-                '200': jsonBody(ref(`${name}Row`), 'The row.'),
+                "200": jsonBody(ref(`${name}Row`), "The row."),
                 ...errorResponses([401, 403, 404]),
               },
             });
-          } else if (operation === 'update') {
-            path['patch'] = op('update', `Update a ${key} row`, {
+          } else if (operation === "update") {
+            path["patch"] = op("update", `Update a ${key} row`, {
               requestBody: {
                 required: true,
                 content: {
-                  'application/json': { schema: ref(`${name}Update`) },
+                  "application/json": { schema: ref(`${name}Update`) },
                 },
               },
               responses: {
-                '200': jsonBody(ref(`${name}Row`), 'Updated.'),
+                "200": jsonBody(ref(`${name}Row`), "Updated."),
                 ...errorResponses([400, 401, 403, 404, 409, 422]),
               },
             });
           } else {
-            path['delete'] = op('delete', `Delete a ${key} row`, {
+            path["delete"] = op("delete", `Delete a ${key} row`, {
               responses: {
-                '204': { description: 'Deleted.' },
+                "204": { description: "Deleted." },
                 ...errorResponses([401, 403, 404, 409]),
               },
             });
@@ -313,22 +313,22 @@ export function createOpenApi(
   }
 
   const securitySchemes: Record<string, Json> = {};
-  if (security.includes('bearer')) {
-    securitySchemes['supabaseJwt'] = {
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
+  if (security.includes("bearer")) {
+    securitySchemes["supabaseJwt"] = {
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT",
       description:
-        'A Supabase access token. Requests run as that user under row-level security.',
+        "A Supabase access token. Requests run as that user under row-level security.",
     };
   }
-  if (security.includes('oauth2')) {
+  if (security.includes("oauth2")) {
     if (!options.supabaseUrl)
-      throw new TypeError('createOpenApi: oauth2 security needs supabaseUrl');
-    const auth = `${options.supabaseUrl.replace(/\/$/, '')}/auth/v1`;
-    securitySchemes['supabaseOAuth'] = {
-      type: 'oauth2',
-      description: 'The Supabase OAuth 2.1 server.',
+      throw new TypeError("createOpenApi: oauth2 security needs supabaseUrl");
+    const auth = `${options.supabaseUrl.replace(/\/$/, "")}/auth/v1`;
+    securitySchemes["supabaseOAuth"] = {
+      type: "oauth2",
+      description: "The Supabase OAuth 2.1 server.",
       flows: {
         authorizationCode: {
           authorizationUrl: `${auth}/oauth/authorize`,
@@ -343,14 +343,14 @@ export function createOpenApi(
   for (const [name, , description] of ERRORS) {
     responses[name] = {
       description,
-      content: { [PROBLEM_CONTENT_TYPE]: { schema: ref('Problem') } },
+      content: { [PROBLEM_CONTENT_TYPE]: { schema: ref("Problem") } },
     };
   }
 
   return {
     openapi: SPEC_PINS.openapi,
     info: options.info,
-    jsonSchemaDialect: 'https://json-schema.org/draft/2020-12/schema',
+    jsonSchemaDialect: "https://json-schema.org/draft/2020-12/schema",
     ...(options.servers ? { servers: options.servers } : {}),
     tags,
     paths,

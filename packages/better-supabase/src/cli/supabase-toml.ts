@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export type TomlValue =
   | string
@@ -20,10 +20,10 @@ export interface SupabaseToml {
   readonly text: string;
   /** The keys present in the file (snake_case, as written), after `env()` interpolation when parsed by `@supabase/config`. */
   readonly document: TomlTable;
-  readonly parser: '@supabase/config' | 'builtin';
+  readonly parser: "@supabase/config" | "builtin";
 }
 
-export const CONFIG_TOML = 'supabase/config.toml';
+export const CONFIG_TOML = "supabase/config.toml";
 
 interface SupabaseConfigIo {
   loadCliConfig(
@@ -38,7 +38,7 @@ interface SupabaseConfigIo {
  * projects without it get the built-in parser instead of a load error.
  */
 async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
-  const specifier = '@supabase/config/io';
+  const specifier = "@supabase/config/io";
   try {
     return (await import(specifier)) as SupabaseConfigIo;
   } catch {
@@ -53,19 +53,19 @@ function parseScalar(raw: string): TomlValue {
     const end = value.indexOf(quote, 1);
     return value.slice(1, end === -1 ? undefined : end);
   }
-  if (value.startsWith('[')) {
-    const inner = value.slice(1, value.lastIndexOf(']'));
+  if (value.startsWith("[")) {
+    const inner = value.slice(1, value.lastIndexOf("]"));
     return inner
-      .split(',')
+      .split(",")
       .map((item) => item.trim())
       .filter(Boolean)
       .map(parseScalar);
   }
-  const bare = value.replace(/\s+#.*$/, '');
-  if (bare === 'true') return true;
-  if (bare === 'false') return false;
-  const number = Number(bare.replaceAll('_', ''));
-  return bare !== '' && Number.isFinite(number) ? number : bare;
+  const bare = value.replace(/\s+#.*$/, "");
+  if (bare === "true") return true;
+  if (bare === "false") return false;
+  const number = Number(bare.replaceAll("_", ""));
+  return bare !== "" && Number.isFinite(number) ? number : bare;
 }
 
 /**
@@ -75,17 +75,17 @@ function parseScalar(raw: string): TomlValue {
 export function parseTomlSubset(text: string): TomlTable {
   const root: Record<string, TomlValue> = {};
   let table = root;
-  for (const raw of text.split('\n')) {
+  for (const raw of text.split("\n")) {
     const line = raw.trim();
-    if (line === '' || line.startsWith('#')) continue;
+    if (line === "" || line.startsWith("#")) continue;
     const header = /^\[([^[\]]+)\]$/.exec(line);
     if (header) {
       table = root;
       for (const part of header[1]!
-        .split('.')
-        .map((p) => p.trim().replace(/^"(.*)"$/, '$1'))) {
+        .split(".")
+        .map((p) => p.trim().replace(/^"(.*)"$/, "$1"))) {
         const next = table[part];
-        if (typeof next !== 'object' || Array.isArray(next)) {
+        if (typeof next !== "object" || Array.isArray(next)) {
           table[part] = {};
         }
         table = table[part] as Record<string, TomlValue>;
@@ -107,7 +107,7 @@ export async function readSupabaseToml(
 ): Promise<SupabaseToml | undefined> {
   const absolute = join(root, CONFIG_TOML);
   if (!existsSync(absolute)) return undefined;
-  const text = await readFile(absolute, 'utf8');
+  const text = await readFile(absolute, "utf8");
   const io = await loadSupabaseConfig();
   if (io) {
     try {
@@ -120,7 +120,7 @@ export async function readSupabaseToml(
           path: CONFIG_TOML,
           text,
           document: loaded.document as TomlTable,
-          parser: '@supabase/config',
+          parser: "@supabase/config",
         };
       }
     } catch {
@@ -131,7 +131,7 @@ export async function readSupabaseToml(
     path: CONFIG_TOML,
     text,
     document: parseTomlSubset(text),
-    parser: 'builtin',
+    parser: "builtin",
   };
 }
 
@@ -142,7 +142,7 @@ export function tomlGet(
 ): TomlValue | undefined {
   let value: TomlValue | undefined = document;
   for (const key of path) {
-    if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+    if (typeof value !== "object" || Array.isArray(value)) return undefined;
     value = (value as TomlTable)[key];
   }
   return value;
@@ -153,10 +153,10 @@ export function tomlNumber(
   path: readonly string[],
 ): number | undefined {
   const value = tomlGet(document, path);
-  if (typeof value === 'number') return value;
+  if (typeof value === "number") return value;
   if (
-    typeof value === 'string' &&
-    value.trim() !== '' &&
+    typeof value === "string" &&
+    value.trim() !== "" &&
     Number.isFinite(Number(value))
   )
     return Number(value);
@@ -181,12 +181,12 @@ export function parsePgFunctionUri(
 
 /** The enabled Auth hooks with a `pg-functions://` URI, by hook name. */
 export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
-  const hooks = tomlGet(document, ['auth', 'hook']);
-  if (typeof hooks !== 'object' || Array.isArray(hooks)) return [];
+  const hooks = tomlGet(document, ["auth", "hook"]);
+  if (typeof hooks !== "object" || Array.isArray(hooks)) return [];
   return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
-    if (typeof table !== 'object' || Array.isArray(table)) return [];
+    if (typeof table !== "object" || Array.isArray(table)) return [];
     const { enabled, uri } = table as TomlTable;
-    if ((enabled !== true && enabled !== 'true') || typeof uri !== 'string')
+    if ((enabled !== true && enabled !== "true") || typeof uri !== "string")
       return [];
     const target = parsePgFunctionUri(uri);
     return target ? [{ hook, uri, ...target }] : [];

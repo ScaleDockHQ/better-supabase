@@ -1,5 +1,6 @@
-import app from '@better-supabase/example-hono-api/app';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import app from "@better-supabase/example-hono-api/app";
 
 import {
   ACME,
@@ -8,12 +9,12 @@ import {
   OTHER,
   reachable,
   type TestUser,
-} from './stack.ts';
+} from "./stack.ts";
 
-describe.skipIf(!(await reachable()))('hono-api example', () => {
+describe.skipIf(!(await reachable()))("hono-api example", () => {
   let acme: TestUser;
   let other: TestUser;
-  const rows = cleanup('customers');
+  const rows = cleanup("customers");
 
   beforeAll(async () => {
     [acme, other] = await Promise.all([createUser(ACME), createUser(OTHER)]);
@@ -29,20 +30,20 @@ describe.skipIf(!(await reachable()))('hono-api example', () => {
     init: { method?: string; body?: unknown } = {},
   ) =>
     app.request(path, {
-      method: init.method ?? 'GET',
+      method: init.method ?? "GET",
       headers: {
         ...(user ? { authorization: `Bearer ${user.accessToken}` } : {}),
         ...(init.body === undefined
           ? {}
-          : { 'content-type': 'application/json' }),
+          : { "content-type": "application/json" }),
       },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     });
 
-  it('runs CRUD as the signed-in user, scoped by RLS', async () => {
+  it("runs CRUD as the signed-in user, scoped by RLS", async () => {
     const name = `Hono e2e ${crypto.randomUUID()}`;
-    const created = await call(acme, '/api/customers', {
-      method: 'POST',
+    const created = await call(acme, "/api/customers", {
+      method: "POST",
       body: { name, organizationId: ACME },
     });
     const row = (await created.json()) as { id: string; code?: string };
@@ -57,13 +58,13 @@ describe.skipIf(!(await reachable()))('hono-api example', () => {
         await call(acme, `/api/customers?q=${encodeURIComponent(name)}`)
       ).json(),
     ).toMatchObject({
-      items: [{ id: row.id, name, status: 'lead' }],
+      items: [{ id: row.id, name, status: "lead" }],
     });
     expect((await call(other, `/api/customers/${row.id}`)).status).toBe(404);
     expect(
       (
-        await call(other, '/api/customers', {
-          method: 'POST',
+        await call(other, "/api/customers", {
+          method: "POST",
           body: { name, organizationId: ACME },
         })
       ).status,
@@ -72,22 +73,22 @@ describe.skipIf(!(await reachable()))('hono-api example', () => {
       await (await call(acme, `/api/customers/${row.id}/notes`)).json(),
     ).toEqual({ items: [] });
     expect(
-      (await call(acme, `/api/customers/${row.id}`, { method: 'DELETE' }))
+      (await call(acme, `/api/customers/${row.id}`, { method: "DELETE" }))
         .status,
     ).toBe(204);
   });
 
-  it('answers anonymous callers with a 401 problem', async () => {
-    const response = await call(undefined, '/api/customers');
+  it("answers anonymous callers with a 401 problem", async () => {
+    const response = await call(undefined, "/api/customers");
     expect(response.status).toBe(401);
-    expect(response.headers.get('content-type')).toContain(
-      'application/problem+json',
+    expect(response.headers.get("content-type")).toContain(
+      "application/problem+json",
     );
   });
 
-  it('rejects unknown sort values with a 422 problem', async () => {
-    const response = await call(acme, '/api/customers?sort=nope');
+  it("rejects unknown sort values with a 422 problem", async () => {
+    const response = await call(acme, "/api/customers?sort=nope");
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ kind: 'validation' });
+    expect(await response.json()).toMatchObject({ kind: "validation" });
   });
 });

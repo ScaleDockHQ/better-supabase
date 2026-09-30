@@ -1,10 +1,10 @@
-import { Suspense } from 'react';
+import { Suspense } from "react";
 
-import { Panel } from '@/components/ui/panel';
+import { Panel } from "@/components/ui/panel";
 import {
   WorkspaceSummary,
   WorkspaceSummarySkeleton,
-} from '@/features/dashboard/components/workspace-summary';
+} from "@/features/dashboard/components/workspace-summary";
 
 export const instant = true;
 

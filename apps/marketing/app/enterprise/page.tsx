@@ -1,18 +1,18 @@
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
-import { MailIcon, ShieldCheckIcon } from 'lucide-react';
+import { MailIcon, ShieldCheckIcon } from "lucide-react";
 
-import { Badge } from '@/components/reui/badge';
-import { FeatureGrid } from '@/components/sections/feature-grid';
-import { Section } from '@/components/sections/section';
-import { Button } from '@/components/ui/button';
-import { engagements, pillars } from '@/lib/enterprise';
-import { site } from '@/lib/site';
+import { Badge } from "@/components/reui/badge";
+import { FeatureGrid } from "@/components/sections/feature-grid";
+import { Section } from "@/components/sections/section";
+import { Button } from "@/components/ui/button";
+import { engagements, pillars } from "@/lib/enterprise";
+import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: 'Enterprise',
+  title: "Enterprise",
   description:
-    'Support, architecture reviews and migrations for teams running better-supabase in production.',
+    "Support, architecture reviews and migrations for teams running better-supabase in production.",
 };
 
 export default function EnterprisePage() {

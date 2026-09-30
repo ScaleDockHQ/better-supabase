@@ -1,4 +1,4 @@
-import { createImageLoader } from 'better-supabase/next/image';
+import { createImageLoader } from "better-supabase/next/image";
 
 /**
  * Public Storage objects are resized by Supabase, not the Next.js optimizer.

@@ -1,168 +1,168 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from "vitest";
 
-import { capturingClient, query } from '../fixtures/client.ts';
-import { schema as camel } from '../fixtures/generated-camel.ts';
-import { schema as snake } from '../fixtures/generated.ts';
-import { defineSupabase } from './define.ts';
-import { DbException } from './errors.ts';
+import { capturingClient, query } from "../fixtures/client.ts";
+import { schema as camel } from "../fixtures/generated-camel.ts";
+import { schema as snake } from "../fixtures/generated.ts";
+import { defineSupabase } from "./define.ts";
+import { DbException } from "./errors.ts";
 
 const sbCamel = defineSupabase(camel);
 const sbSnake = defineSupabase(snake);
 
-describe('reads', () => {
-  it('aliases camel-cased columns inside the select', async () => {
+describe("reads", () => {
+  it("aliases camel-cased columns inside the select", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id', 'organizationId', 'primaryContactId'],
+      select: ["id", "organizationId", "primaryContactId"],
     });
-    expect(last().path).toBe('/rest/v1/customers');
+    expect(last().path).toBe("/rest/v1/customers");
     expect(query(last())).toEqual([
-      'select=id,organizationId:organization_id,primaryContactId:primary_contact_id',
-      'order=id.asc',
+      "select=id,organizationId:organization_id,primaryContactId:primary_contact_id",
+      "order=id.asc",
     ]);
   });
 
-  it('keeps snake-cased columns unaliased', async () => {
+  it("keeps snake-cased columns unaliased", async () => {
     const { client, last } = capturingClient();
     const db = sbSnake.connect(client);
-    await db.customers.findMany({ select: ['id', 'organization_id'] });
+    await db.customers.findMany({ select: ["id", "organization_id"] });
     expect(query(last())).toEqual([
-      'select=id,organization_id',
-      'order=id.asc',
+      "select=id,organization_id",
+      "order=id.asc",
     ]);
   });
 
-  it('compiles column filters and escapes LIKE input', async () => {
+  it("compiles column filters and escapes LIKE input", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id'],
+      select: ["id"],
       where: {
-        status: { in: ['lead', 'active'] },
-        name: { contains: '50%_off' },
+        status: { in: ["lead", "active"] },
+        name: { contains: "50%_off" },
         kvk: null,
         archivedAt: { isNull: true },
-        createdAt: { gte: '2026-01-01' },
+        createdAt: { gte: "2026-01-01" },
       },
       orderBy: [
-        { name: 'asc' },
-        { createdAt: { direction: 'desc', nulls: 'last' } },
+        { name: "asc" },
+        { createdAt: { direction: "desc", nulls: "last" } },
       ],
       limit: 10,
       offset: 20,
     });
     expect(query(last())).toEqual([
-      'select=id',
+      "select=id",
       'status=in.("lead","active")',
-      'name=ilike.%50\\%\\_off%',
-      'kvk=is.null',
-      'archived_at=is.null',
-      'created_at=gte.2026-01-01',
-      'order=name.asc,created_at.desc.nullslast',
-      'offset=20',
-      'limit=10',
+      "name=ilike.%50\\%\\_off%",
+      "kvk=is.null",
+      "archived_at=is.null",
+      "created_at=gte.2026-01-01",
+      "order=name.asc,created_at.desc.nullslast",
+      "offset=20",
+      "limit=10",
     ]);
   });
 
-  it('compiles OR and NOT into logic trees with quoted values', async () => {
+  it("compiles OR and NOT into logic trees with quoted values", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id'],
+      select: ["id"],
       where: {
-        OR: [{ name: 'a,b' }, { status: 'lead', kvk: { not: null } }],
-        NOT: { status: 'archived' },
+        OR: [{ name: "a,b" }, { status: "lead", kvk: { not: null } }],
+        NOT: { status: "archived" },
       },
     });
     expect(query(last())).toEqual([
-      'select=id',
+      "select=id",
       'or=(name.eq."a,b",and(status.eq."lead",kvk.not.is.null))',
-      'status=not.eq.archived',
-      'order=id.asc',
+      "status=not.eq.archived",
+      "order=id.asc",
     ]);
   });
 
-  it('filters through to-many relations with some, none and every', async () => {
+  it("filters through to-many relations with some, none and every", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id'],
+      select: ["id"],
       where: {
-        notes: { some: { kind: 'call' }, none: { body: { contains: 'spam' } } },
+        notes: { some: { kind: "call" }, none: { body: { contains: "spam" } } },
         locations: { every: { isPrimary: true } },
       },
     });
     expect(query(last())).toEqual([
-      'select=id,_bs1:notes!notes_customer_id_fkey!inner(),_bs2:notes!notes_customer_id_fkey(),_bs3:locations!locations_customer_id_fkey()',
-      '_bs1.kind=eq.call',
-      '_bs2.body=ilike.%spam%',
-      '_bs2=is.null',
-      '_bs3.is_primary=not.eq.true',
-      '_bs3=is.null',
-      'order=id.asc',
+      "select=id,_bs1:notes!notes_customer_id_fkey!inner(),_bs2:notes!notes_customer_id_fkey(),_bs3:locations!locations_customer_id_fkey()",
+      "_bs1.kind=eq.call",
+      "_bs2.body=ilike.%spam%",
+      "_bs2=is.null",
+      "_bs3.is_primary=not.eq.true",
+      "_bs3=is.null",
+      "order=id.asc",
     ]);
   });
 
-  it('filters through to-one relations, including null checks', async () => {
+  it("filters through to-one relations, including null checks", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id'],
-      where: { organization: { slug: 'acme' }, primaryContact: null },
+      select: ["id"],
+      where: { organization: { slug: "acme" }, primaryContact: null },
     });
     expect(query(last())).toEqual([
-      'select=id,_bs1:organizations!customers_organization_id_fkey!inner(),_bs2:contacts!customers_primary_contact_id_fkey()',
-      '_bs1.slug=eq.acme',
-      '_bs2=is.null',
-      'order=id.asc',
+      "select=id,_bs1:organizations!customers_organization_id_fkey!inner(),_bs2:contacts!customers_primary_contact_id_fkey()",
+      "_bs1.slug=eq.acme",
+      "_bs2=is.null",
+      "order=id.asc",
     ]);
   });
 
-  it('puts relation filters inside OR as embed null checks', async () => {
+  it("puts relation filters inside OR as embed null checks", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id'],
-      where: { OR: [{ name: 'x' }, { notes: { some: { kind: 'email' } } }] },
+      select: ["id"],
+      where: { OR: [{ name: "x" }, { notes: { some: { kind: "email" } } }] },
     });
     expect(query(last())).toEqual([
-      'select=id,_bs1:notes!notes_customer_id_fkey()',
-      '_bs1.kind=eq.email',
+      "select=id,_bs1:notes!notes_customer_id_fkey()",
+      "_bs1.kind=eq.email",
       'or=(name.eq."x",_bs1.not.is.null)',
-      'order=id.asc',
+      "order=id.asc",
     ]);
   });
 
-  it('embeds includes with nested filters, order and limits', async () => {
+  it("embeds includes with nested filters, order and limits", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
     await db.customers.findMany({
-      select: ['id', 'name'],
+      select: ["id", "name"],
       include: {
-        organization: { select: ['name'] },
+        organization: { select: ["name"] },
         notes: {
-          select: ['id', 'body'],
-          where: { kind: 'call' },
-          orderBy: { createdAt: 'desc' },
+          select: ["id", "body"],
+          where: { kind: "call" },
+          orderBy: { createdAt: "desc" },
           limit: 3,
         },
         customerTags: {
-          select: ['tagId'],
-          include: { tag: { select: ['name', 'color'] } },
+          select: ["tagId"],
+          include: { tag: { select: ["name", "color"] } },
         },
       },
     });
     expect(query(last())).toEqual([
-      'select=id,name,organization:organizations!customers_organization_id_fkey(name),notes:notes!notes_customer_id_fkey(id,body),customerTags:customer_tags!customer_tags_customer_id_fkey(tagId:tag_id,tag:tags!customer_tags_tag_id_fkey(name,color))',
-      'notes.kind=eq.call',
-      'notes.order=created_at.desc',
-      'order=id.asc',
-      'notes.limit=3',
+      "select=id,name,organization:organizations!customers_organization_id_fkey(name),notes:notes!notes_customer_id_fkey(id,body),customerTags:customer_tags!customer_tags_customer_id_fkey(tagId:tag_id,tag:tags!customer_tags_tag_id_fkey(name,color))",
+      "notes.kind=eq.call",
+      "notes.order=created_at.desc",
+      "order=id.asc",
+      "notes.limit=3",
     ]);
   });
 
-  it('skips the request when a filter can never match', async () => {
+  it("skips the request when a filter can never match", async () => {
     const { client, requests } = capturingClient();
     const db = sbCamel.connect(client);
     const result = await db.customers.findMany({ where: { id: { in: [] } } });
@@ -170,79 +170,79 @@ describe('reads', () => {
     expect(requests).toHaveLength(0);
   });
 
-  it('returns not_found from findById and throws from orThrow', async () => {
+  it("returns not_found from findById and throws from orThrow", async () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
     const db = sbCamel.connect(client);
     const result = await db.customers.findById(
-      '00000000-0000-4000-8000-000000000009',
+      "00000000-0000-4000-8000-000000000009",
     );
     expect(result.ok).toBe(false);
-    expect(result.error?.kind).toBe('not_found');
-    expect(result.error?.table).toBe('customers');
+    expect(result.error?.kind).toBe("not_found");
+    expect(result.error?.table).toBe("customers");
     expect(query(last())).toContain(
-      'id=eq.00000000-0000-4000-8000-000000000009',
+      "id=eq.00000000-0000-4000-8000-000000000009",
     );
     await expect(
-      db.customers.findById('00000000-0000-4000-8000-000000000009').orThrow(),
+      db.customers.findById("00000000-0000-4000-8000-000000000009").orThrow(),
     ).rejects.toBeInstanceOf(DbException);
   });
 
-  it('counts with a HEAD request', async () => {
+  it("counts with a HEAD request", async () => {
     const { client, last } = capturingClient(() => ({
       body: [],
-      headers: { 'content-range': '*/42' },
+      headers: { "content-range": "*/42" },
     }));
     const db = sbCamel.connect(client);
-    const result = await db.customers.count({ where: { status: 'active' } });
+    const result = await db.customers.count({ where: { status: "active" } });
     expect(result.data).toBe(42);
-    expect(last().method).toBe('HEAD');
-    expect(last().headers.get('prefer')).toContain('count=exact');
+    expect(last().method).toBe("HEAD");
+    expect(last().headers.get("prefer")).toContain("count=exact");
   });
 
-  it('paginates with a keyset cursor', async () => {
+  it("paginates with a keyset cursor", async () => {
     const rows = [
-      { id: 'a', name: 'Alpha' },
-      { id: 'b', name: 'Beta' },
-      { id: 'c', name: 'Gamma' },
+      { id: "a", name: "Alpha" },
+      { id: "b", name: "Beta" },
+      { id: "c", name: "Gamma" },
     ];
     const { client, last } = capturingClient(() => ({ body: rows }));
     const db = sbCamel.connect(client);
     const first = await db.customers.paginate({
-      select: ['id', 'name'],
-      orderBy: { name: 'asc' },
+      select: ["id", "name"],
+      orderBy: { name: "asc" },
       size: 2,
       after: null,
     });
     expect(first.data?.items).toEqual(rows.slice(0, 2));
     expect(first.data?.hasMore).toBe(true);
     const cursor = first.data?.nextCursor;
-    expect(typeof cursor).toBe('string');
+    expect(typeof cursor).toBe("string");
 
     await db.customers.paginate({
-      select: ['id', 'name'],
-      orderBy: { name: 'asc' },
+      select: ["id", "name"],
+      orderBy: { name: "asc" },
       size: 2,
       after: cursor ?? null,
     });
     expect(query(last())).toEqual([
-      'select=id,name',
+      "select=id,name",
       'or=(name.gt."Beta",and(name.eq."Beta",id.gt."b"))',
-      'order=name.asc,id.asc',
-      'limit=3',
+      "order=name.asc,id.asc",
+      "limit=3",
     ]);
   });
 
-  it('paginates by page number with a total', async () => {
+  it("paginates by page number with a total", async () => {
     const { client, last } = capturingClient(() => ({
-      body: [{ id: 'a' }],
-      headers: { 'content-range': '20-20/21' },
+      body: [{ id: "a" }],
+      headers: { "content-range": "20-20/21" },
     }));
     const db = sbCamel.connect(client);
     const page = await db.customers.paginate({
-      select: ['id'],
+      select: ["id"],
       page: 3,
       size: 10,
-      count: 'exact',
+      count: "exact",
     });
     expect(page.data?.page).toEqual({
       number: 3,
@@ -251,208 +251,208 @@ describe('reads', () => {
       pages: 3,
       hasMore: false,
     });
-    expect(query(last())).toEqual(['select=id', 'offset=20', 'limit=11']);
+    expect(query(last())).toEqual(["select=id", "offset=20", "limit=11"]);
   });
 });
 
-describe('writes', () => {
-  it('inserts with mapped columns and returns the row', async () => {
+describe("writes", () => {
+  it("inserts with mapped columns and returns the row", async () => {
     const { client, last } = capturingClient(() => ({
       status: 201,
-      body: [{ id: 'new', name: 'Acme' }],
+      body: [{ id: "new", name: "Acme" }],
     }));
     const db = sbCamel.connect(client);
     const created = await db.customers
       .create(
-        { organizationId: 'org', name: 'Acme', primaryContactId: null },
-        { select: ['id', 'name'] },
+        { organizationId: "org", name: "Acme", primaryContactId: null },
+        { select: ["id", "name"] },
       )
       .orThrow();
-    expect(created).toEqual({ id: 'new', name: 'Acme' });
-    expect(last().method).toBe('POST');
+    expect(created).toEqual({ id: "new", name: "Acme" });
+    expect(last().method).toBe("POST");
     expect(last().body).toEqual({
-      organization_id: 'org',
-      name: 'Acme',
+      organization_id: "org",
+      name: "Acme",
       primary_contact_id: null,
     });
-    expect(query(last())).toEqual(['select=id,name']);
+    expect(query(last())).toEqual(["select=id,name"]);
   });
 
-  it('upserts on a named unique key', async () => {
+  it("upserts on a named unique key", async () => {
     const { client, last } = capturingClient(() => ({
       status: 201,
-      body: [{ id: 'x' }],
+      body: [{ id: "x" }],
     }));
     const db = sbCamel.connect(client);
     await db.customers.upsert(
-      { organizationId: 'org', name: 'Acme', kvk: '123' },
-      { onConflict: 'customers_organization_id_kvk_key', select: ['id'] },
+      { organizationId: "org", name: "Acme", kvk: "123" },
+      { onConflict: "customers_organization_id_kvk_key", select: ["id"] },
     );
     expect(query(last())).toEqual([
-      'on_conflict=organization_id,kvk',
-      'select=id',
+      "on_conflict=organization_id,kvk",
+      "select=id",
     ]);
-    expect(last().headers.get('prefer')).toContain(
-      'resolution=merge-duplicates',
+    expect(last().headers.get("prefer")).toContain(
+      "resolution=merge-duplicates",
     );
   });
 
-  it('reports a stale row for optimistic concurrency', async () => {
+  it("reports a stale row for optimistic concurrency", async () => {
     let call = 0;
     const { client, requests } = capturingClient(() => {
       call += 1;
       return call === 1
         ? { body: [] }
-        : { body: [], headers: { 'content-range': '*/1' } };
+        : { body: [], headers: { "content-range": "*/1" } };
     });
     const db = sbCamel.connect(client);
     const result = await db.customers.update(
-      'c1',
-      { name: 'New' },
-      { expect: { updatedAt: '2026-01-01T00:00:00Z' } },
+      "c1",
+      { name: "New" },
+      { expect: { updatedAt: "2026-01-01T00:00:00Z" } },
     );
-    expect(result.error?.kind).toBe('stale');
+    expect(result.error?.kind).toBe("stale");
     expect(query(requests[0] ?? (undefined as never))).toEqual([
-      'id=eq.c1',
-      'updated_at=eq.2026-01-01T00:00:00Z',
-      'select=id,organizationId:organization_id,name,kvk,status,primaryContactId:primary_contact_id,metadata,createdBy:created_by,updatedBy:updated_by,archivedAt:archived_at,createdAt:created_at,updatedAt:updated_at,logoPath:logo_path',
+      "id=eq.c1",
+      "updated_at=eq.2026-01-01T00:00:00Z",
+      "select=id,organizationId:organization_id,name,kvk,status,primaryContactId:primary_contact_id,metadata,createdBy:created_by,updatedBy:updated_by,archivedAt:archived_at,createdAt:created_at,updatedAt:updated_at,logoPath:logo_path",
     ]);
   });
 
-  it('maps unique violations to conflict errors with columns', async () => {
+  it("maps unique violations to conflict errors with columns", async () => {
     const { client } = capturingClient(() => ({
       status: 409,
       body: {
-        code: '23505',
+        code: "23505",
         message:
           'duplicate key value violates unique constraint "tags_organization_id_name_key"',
-        details: 'Key (organization_id, name)=(o, vip) already exists.',
+        details: "Key (organization_id, name)=(o, vip) already exists.",
         hint: null,
       },
     }));
     const db = sbCamel.connect(client);
-    const result = await db.tags.create({ organizationId: 'o', name: 'vip' });
+    const result = await db.tags.create({ organizationId: "o", name: "vip" });
     expect(result.error).toMatchObject({
-      kind: 'conflict',
+      kind: "conflict",
       status: 409,
-      constraint: 'tags_organization_id_name_key',
-      columns: ['organization_id', 'name'],
-      table: 'tags',
+      constraint: "tags_organization_id_name_key",
+      columns: ["organization_id", "name"],
+      table: "tags",
     });
   });
 
-  it('hints at missing Data API grants on permission errors', async () => {
+  it("hints at missing Data API grants on permission errors", async () => {
     const reply = (message: string) =>
       capturingClient(() => ({
         status: 403,
-        body: { code: '42501', message, details: null, hint: null },
+        body: { code: "42501", message, details: null, hint: null },
       })).client;
     const denied = await sbCamel
-      .connect(reply('permission denied for table tags'))
+      .connect(reply("permission denied for table tags"))
       .tags.findMany();
     expect(denied.error).toMatchObject({
-      kind: 'forbidden',
+      kind: "forbidden",
       status: 403,
-      hint: expect.stringContaining('add tags to `expose`'),
+      hint: expect.stringContaining("add tags to `expose`"),
     });
     const rls = await sbCamel
       .connect(
         reply('new row violates row-level security policy for table "tags"'),
       )
-      .tags.create({ organizationId: 'o', name: 'vip' });
-    expect(rls.error?.kind).toBe('forbidden');
+      .tags.create({ organizationId: "o", name: "vip" });
+    expect(rls.error?.kind).toBe("forbidden");
     expect(rls.error?.hint).toBeUndefined();
   });
 
-  it('deletes by composite key and reports not_found for zero rows', async () => {
+  it("deletes by composite key and reports not_found for zero rows", async () => {
     const { client, last } = capturingClient(() => ({
       status: 204,
-      headers: { 'content-range': '*/0' },
+      headers: { "content-range": "*/0" },
     }));
     const db = sbCamel.connect(client);
     const result = await db.customerTags.delete({
-      customerId: 'c',
-      tagId: 't',
+      customerId: "c",
+      tagId: "t",
     });
-    expect(result.error?.kind).toBe('not_found');
-    expect(last().method).toBe('DELETE');
+    expect(result.error?.kind).toBe("not_found");
+    expect(last().method).toBe("DELETE");
     expect(query(last())).toEqual([
-      'customer_id=eq.c',
-      'tag_id=eq.t',
-      'select=customerId:customer_id,tagId:tag_id',
+      "customer_id=eq.c",
+      "tag_id=eq.t",
+      "select=customerId:customer_id,tagId:tag_id",
     ]);
   });
 
-  it('rejects relation filters in updateMany on PostgREST', async () => {
+  it("rejects relation filters in updateMany on PostgREST", async () => {
     const { client } = capturingClient();
     const db = sbCamel.connect(client);
     const result = await db.customers.updateMany({
       where: { notes: { some: {} } },
-      data: { status: 'active' },
+      data: { status: "active" },
     });
-    expect(result.error?.kind).toBe('invalid_request');
+    expect(result.error?.kind).toBe("invalid_request");
   });
 });
 
-describe('events', () => {
-  it('reports queries and mutations without affecting results', async () => {
+describe("events", () => {
+  it("reports queries and mutations without affecting results", async () => {
     const { client } = capturingClient(() => ({
       status: 201,
-      body: [{ id: 'x' }],
+      body: [{ id: "x" }],
     }));
     const sb = defineSupabase(camel);
     const seen: string[] = [];
-    const off = sb.on('mutation', (event) => {
+    const off = sb.on("mutation", (event) => {
       seen.push(`${event.table}:${event.kind}`);
-      throw new Error('ignored');
+      throw new Error("ignored");
     });
-    sb.on('query', (event) => seen.push(`query:${event.operation}`));
+    sb.on("query", (event) => seen.push(`query:${event.operation}`));
     const original = console.error;
     console.error = () => {};
     const result = await sb
       .connect(client)
-      .tags.create({ organizationId: 'o', name: 'n' });
+      .tags.create({ organizationId: "o", name: "n" });
     console.error = original;
     off();
     expect(result.ok).toBe(true);
-    expect(seen).toEqual(['query:insert', 'tags:insert']);
+    expect(seen).toEqual(["query:insert", "tags:insert"]);
   });
 });
 
-describe('row caps and default order', () => {
-  it('orders findMany by the primary key unless orderBy is given', async () => {
+describe("row caps and default order", () => {
+  it("orders findMany by the primary key unless orderBy is given", async () => {
     const { client, requests } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({ select: ['id'] });
-    await db.customers.findMany({ select: ['id'], orderBy: { name: 'desc' } });
-    await db.customers.findFirst({ select: ['id'] });
+    await db.customers.findMany({ select: ["id"] });
+    await db.customers.findMany({ select: ["id"], orderBy: { name: "desc" } });
+    await db.customers.findFirst({ select: ["id"] });
     expect(requests.map(query)).toEqual([
-      ['select=id', 'order=id.asc'],
-      ['select=id', 'order=name.desc'],
-      ['select=id', 'limit=1'],
+      ["select=id", "order=id.asc"],
+      ["select=id", "order=name.desc"],
+      ["select=id", "limit=1"],
     ]);
   });
 
-  it('flags unbounded reads that hit maxRows and warns once per table', async () => {
-    const rows = [{ id: 'a' }, { id: 'b' }];
+  it("flags unbounded reads that hit maxRows and warns once per table", async () => {
+    const rows = [{ id: "a" }, { id: "b" }];
     const { client } = capturingClient(() => ({ body: rows }));
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
     const sb = defineSupabase(camel, { maxRows: 2, logger });
     const truncated: boolean[] = [];
-    sb.on('query', (event) => truncated.push(event.truncated));
+    sb.on("query", (event) => truncated.push(event.truncated));
     const db = sb.connect(client);
 
-    const all = await db.customers.findMany({ select: ['id'] });
-    await db.customers.findMany({ select: ['id'] });
-    await db.customers.findMany({ select: ['id'], limit: 2 });
+    const all = await db.customers.findMany({ select: ["id"] });
+    await db.customers.findMany({ select: ["id"] });
+    await db.customers.findMany({ select: ["id"], limit: 2 });
 
     expect(all.data).toEqual(rows);
     expect(truncated).toEqual([true, true, false]);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('customers returned 2 rows'),
-      { table: 'customers', maxRows: 2 },
+      expect.stringContaining("customers returned 2 rows"),
+      { table: "customers", maxRows: 2 },
     );
   });
 });

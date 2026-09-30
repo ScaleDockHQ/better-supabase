@@ -3,10 +3,10 @@ import type {
   InfiniteData,
   QueryClient,
   SkipToken,
-} from '@tanstack/query-core';
+} from "@tanstack/query-core";
 
-import type { CacheAdapter } from '../core/cache.ts';
-import type { BetterSupabase } from '../core/define.ts';
+import type { CacheAdapter } from "../core/cache.ts";
+import type { BetterSupabase } from "../core/define.ts";
 import type {
   CursorPage,
   CursorPageArgs,
@@ -20,9 +20,9 @@ import type {
   UpdateArgs,
   UpsertArgs,
   WriteArgs,
-} from '../core/repository-types.ts';
-import type { AsyncResult } from '../core/result.ts';
-import type { InferResult, QuerySpec } from '../core/spec.ts';
+} from "../core/repository-types.ts";
+import type { AsyncResult } from "../core/result.ts";
+import type { InferResult, QuerySpec } from "../core/spec.ts";
 import type {
   AggregateArgs,
   AggregateResult,
@@ -32,7 +32,7 @@ import type {
   Payload,
   ReadArgs,
   WhereInput,
-} from '../ir/args.ts';
+} from "../ir/args.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -41,11 +41,11 @@ import type {
   TableKey,
   UniqueWhere,
   Update,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
-import { type DbError, DbException } from '../core/errors.ts';
-import { invalidationTargets } from '../ir/tables.ts';
-import { type BetterQueryMeta, invalidateTables } from './invalidate.ts';
+import { type DbError, DbException } from "../core/errors.ts";
+import { invalidationTargets } from "../ir/tables.ts";
+import { type BetterQueryMeta, invalidateTables } from "./invalidate.ts";
 
 /** Query errors stay `DbException`s, even for an `sb` with `mapError()`. */
 const asException = (error: DbError) => new DbException(error);
@@ -94,7 +94,7 @@ export interface MutationOptionsOf<V, R> {
 
 export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   /** Prefix of every key for this table's own queries. */
-  readonly key: readonly ['bs', T];
+  readonly key: readonly ["bs", T];
   findMany<const A extends FindManyArgs<M, T> & FindExt<E, M, T>>(
     args?: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A>[]>;
@@ -128,7 +128,7 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   ): QueryOptionsOf<OffsetPage<Payload<M, T, A>>>;
   /** Cursor pages for `useInfiniteQuery`. */
   infinite<
-    const A extends Omit<CursorPageArgs<M, T>, 'after'> & FindExt<E, M, T>,
+    const A extends Omit<CursorPageArgs<M, T>, "after"> & FindExt<E, M, T>,
   >(
     args: A,
   ): InfiniteOptionsOf<CursorPage<Payload<M, T, A>>, string | null>;
@@ -153,11 +153,11 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   ): MutationOptionsOf<PrimaryKeyValue<M, T>, void>;
 }
 
-type RpcArgsOf<F extends AnyFunctions, N extends keyof F> = F[N]['Args'];
+type RpcArgsOf<F extends AnyFunctions, N extends keyof F> = F[N]["Args"];
 
 export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
   /** Prefix of every better-supabase key. */
-  readonly key: readonly ['bs'];
+  readonly key: readonly ["bs"];
   /** Query options for a `QuerySpec`, for example one sent from a Server Component. */
   $spec<S extends QuerySpec<TableKey<M>>>(
     spec: S | SkipToken,
@@ -172,11 +172,11 @@ export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
     name: N,
     args?: RpcArgsOf<F, N> | SkipToken,
     options?: { readonly tables?: readonly TableKey<M>[] },
-  ): QueryOptionsOf<F[N]['Returns']>;
+  ): QueryOptionsOf<F[N]["Returns"]>;
   /** Mutation options for a database function; invalidates what `sb.defineRpc` declared. */
   $rpcMutation<N extends Extract<keyof F, string>>(
     name: N,
-  ): MutationOptionsOf<RpcArgsOf<F, N>, F[N]['Returns']>;
+  ): MutationOptionsOf<RpcArgsOf<F, N>, F[N]["Returns"]>;
 }
 
 export type Queries<
@@ -214,11 +214,11 @@ interface AnyDb {
 }
 
 function isSkip(value: unknown): value is SkipToken {
-  return typeof value === 'symbol';
+  return typeof value === "symbol";
 }
 
 function withoutSignal(value: unknown): unknown {
-  if (typeof value !== 'object' || value === null) return value;
+  if (typeof value !== "object" || value === null) return value;
   const { signal: _signal, ...rest } = value as Record<string, unknown>;
   return rest;
 }
@@ -238,14 +238,14 @@ function specQuery(
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
   if (isSkip(spec)) {
     return {
-      queryKey: key ?? ['bs', '$skip'],
+      queryKey: key ?? ["bs", "$skip"],
       queryFn: spec,
       meta: { bsTables: [] },
       ...stale,
     };
   }
   return {
-    queryKey: key ?? ['bs', spec.table, spec.method, ...spec.args],
+    queryKey: key ?? ["bs", spec.table, spec.method, ...spec.args],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       runtime.db().$run(spec, { signal }).orThrow(asException),
     meta: { bsTables: runtime.sb.tablesOf(spec) },
@@ -262,7 +262,7 @@ function tableQueries(
   runtime: Runtime,
   table: string,
 ): Record<string, unknown> {
-  const key = ['bs', table] as const;
+  const key = ["bs", table] as const;
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `spec` is generic over the schema; entries are looked up by table name.
   const tables = runtime.sb.spec as unknown as SpecTables;
   const specs = tables[table]!;
@@ -272,7 +272,7 @@ function tableQueries(
     (method: string) =>
     (args?: unknown): unknown =>
       isSkip(args)
-        ? specQuery(runtime, args, [...key, method, '$skip'])
+        ? specQuery(runtime, args, [...key, method, "$skip"])
         : specQuery(runtime, specs[method]!(withoutSignal(args)));
   const repo = (): AnyRepository => {
     const found = runtime.db()[table] as AnyRepository | undefined;
@@ -305,21 +305,21 @@ function tableQueries(
 
   return {
     key,
-    findMany: read('findMany'),
-    findFirst: read('findFirst'),
-    findUnique: read('findUnique'),
-    count: read('count'),
-    aggregate: read('aggregate'),
-    exists: read('exists'),
-    paginate: read('paginate'),
+    findMany: read("findMany"),
+    findFirst: read("findFirst"),
+    findUnique: read("findUnique"),
+    count: read("count"),
+    aggregate: read("aggregate"),
+    exists: read("exists"),
+    paginate: read("paginate"),
     findById: (id: unknown, args?: object) =>
       isSkip(id)
-        ? specQuery(runtime, id, [...key, 'findById', '$skip'])
-        : specQuery(runtime, specs['findById']!(id, withoutSignal(args))),
+        ? specQuery(runtime, id, [...key, "findById", "$skip"])
+        : specQuery(runtime, specs["findById"]!(id, withoutSignal(args))),
     infinite: (args: object) => {
       const base = withoutSignal(args) as object;
       return {
-        queryKey: [...key, 'infinite', base],
+        queryKey: [...key, "infinite", base],
         queryFn: ({
           signal,
           pageParam,
@@ -329,14 +329,14 @@ function tableQueries(
         }) =>
           runtime
             .db()
-            .$run(specs['paginate']!({ ...base, after: pageParam }), { signal })
+            .$run(specs["paginate"]!({ ...base, after: pageParam }), { signal })
             .orThrow(asException),
         initialPageParam: null,
         getNextPageParam: (last: { nextCursor: string | null }) =>
           last.nextCursor ?? undefined,
         meta: {
           bsTables: runtime.sb.tablesOf(
-            specs['paginate']!({ ...base, after: null }),
+            specs["paginate"]!({ ...base, after: null }),
           ),
         },
         ...stale,
@@ -345,7 +345,7 @@ function tableQueries(
     infinitePages: (args: { page?: number }) => {
       const base = withoutSignal(args) as { page?: number };
       return {
-        queryKey: [...key, 'infinitePages', base],
+        queryKey: [...key, "infinitePages", base],
         queryFn: ({
           signal,
           pageParam,
@@ -355,30 +355,30 @@ function tableQueries(
         }) =>
           runtime
             .db()
-            .$run(specs['paginate']!({ ...base, page: pageParam }), { signal })
+            .$run(specs["paginate"]!({ ...base, page: pageParam }), { signal })
             .orThrow(asException),
         initialPageParam: base.page ?? 1,
         getNextPageParam: (last: OffsetPage<unknown>) =>
           last.page.hasMore ? last.page.number + 1 : undefined,
-        meta: { bsTables: runtime.sb.tablesOf(specs['paginate']!(base)) },
+        meta: { bsTables: runtime.sb.tablesOf(specs["paginate"]!(base)) },
         ...stale,
       };
     },
     create: (args?: object) =>
-      mutation('create', (data) => call('create', data, args), [table]),
+      mutation("create", (data) => call("create", data, args), [table]),
     update: (args?: object) =>
       mutation(
-        'update',
+        "update",
         (variables: { id: unknown; patch: unknown }) =>
-          call('update', variables.id, variables.patch, args),
+          call("update", variables.id, variables.patch, args),
         [table],
       ),
     upsert: (args?: object) =>
-      mutation('upsert', (data) => call('upsert', data, args), [table]),
+      mutation("upsert", (data) => call("upsert", data, args), [table]),
     delete: (args?: object) =>
       mutation(
-        'delete',
-        (id) => call('delete', id, args),
+        "delete",
+        (id) => call("delete", id, args),
         invalidationTargets(runtime.sb.meta, table),
       ),
   };
@@ -408,15 +408,15 @@ export function createQueries<
 ): Queries<M, E, F> {
   const runtime: Runtime = {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
-    sb: sb as unknown as Runtime['sb'],
+    sb: sb as unknown as Runtime["sb"],
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
-    db: (typeof db === 'function' ? db : () => db) as unknown as () => AnyDb,
+    db: (typeof db === "function" ? db : () => db) as unknown as () => AnyDb,
     staleTime: options.staleTime,
   };
   const stale =
     options.staleTime === undefined ? {} : { staleTime: options.staleTime };
   const queries: Record<string, unknown> = {
-    key: ['bs'],
+    key: ["bs"],
     $spec: (spec: QuerySpec | SkipToken) => specQuery(runtime, spec),
     $prefetch: (client: QueryClient, spec: QuerySpec) =>
       // oxlint-disable-next-line typescript/no-deprecated -- `query()` needs @tanstack/query-core 5.104; the peer range is ^5.
@@ -426,7 +426,7 @@ export function createQueries<
       args?: unknown,
       rpcOptions: { tables?: readonly string[] } = {},
     ) => ({
-      queryKey: ['bs', '$rpc', name, isSkip(args) ? '$skip' : (args ?? {})],
+      queryKey: ["bs", "$rpc", name, isSkip(args) ? "$skip" : (args ?? {})],
       queryFn: isSkip(args)
         ? args
         : ({ signal }: { signal: AbortSignal }) =>
@@ -438,7 +438,7 @@ export function createQueries<
       ...stale,
     }),
     $rpcMutation: (name: string) => ({
-      mutationKey: ['bs', '$rpc', name],
+      mutationKey: ["bs", "$rpc", name],
       mutationFn: (args: unknown) =>
         runtime
           .db()
@@ -474,7 +474,7 @@ export function createQueries<
 /** Invalidates every query that read a table in the target. */
 export function queryCache(client: QueryClient): CacheAdapter {
   return {
-    name: 'tanstack-query',
+    name: "tanstack-query",
     invalidate: (target) => invalidateTables(client, target.tables),
   };
 }

@@ -1,4 +1,4 @@
-import { isList } from '../core/guards.ts';
+import { isList } from "../core/guards.ts";
 
 export type FlagValue = string | boolean | readonly string[];
 
@@ -9,31 +9,31 @@ export interface ParsedArgs {
 }
 
 const ARRAY_FLAGS = new Set([
-  'schema',
-  'only',
-  'ignore',
-  'agent',
-  'kit',
-  'with',
-  'explain',
+  "schema",
+  "only",
+  "ignore",
+  "agent",
+  "kit",
+  "with",
+  "explain",
 ]);
 const BOOLEAN_FLAGS = new Set([
-  'check',
-  'watch',
-  'json',
-  'strict',
-  'help',
-  'version',
-  'force',
-  'dry-run',
-  'no-color',
-  'yes',
-  'local',
-  'rotate',
-  'apply',
-  'print',
-  'global',
-  'stats',
+  "check",
+  "watch",
+  "json",
+  "strict",
+  "help",
+  "version",
+  "force",
+  "dry-run",
+  "no-color",
+  "yes",
+  "local",
+  "rotate",
+  "apply",
+  "print",
+  "global",
+  "stats",
 ]);
 
 export function parseArgs(argv: readonly string[]): ParsedArgs {
@@ -42,17 +42,17 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === undefined) continue;
-    if (token === '--') {
+    if (token === "--") {
       positionals.push(...argv.slice(index + 1));
       break;
     }
-    if (token === '-h') {
-      flags['help'] = true;
+    if (token === "-h") {
+      flags["help"] = true;
       continue;
     }
-    if (token.startsWith('--')) {
+    if (token.startsWith("--")) {
       const body = token.slice(2);
-      const eq = body.indexOf('=');
+      const eq = body.indexOf("=");
       if (eq !== -1) {
         setFlag(flags, body.slice(0, eq), body.slice(eq + 1));
         continue;
@@ -61,7 +61,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       if (
         !BOOLEAN_FLAGS.has(body) &&
         next !== undefined &&
-        !next.startsWith('-')
+        !next.startsWith("-")
       ) {
         setFlag(flags, body, next);
         index += 1;
@@ -83,7 +83,7 @@ function setFlag(
   if (ARRAY_FLAGS.has(name)) {
     const current = flags[name];
     const pieces = value
-      .split(',')
+      .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
     flags[name] = isList(current) ? [...current, ...pieces] : pieces;
@@ -97,14 +97,14 @@ export function flagString(
   name: string,
 ): string | undefined {
   const value = flags[name];
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === "string" ? value : undefined;
 }
 
 export function flagBool(
   flags: Readonly<Record<string, FlagValue>>,
   name: string,
 ): boolean {
-  return flags[name] === true || flags[name] === 'true';
+  return flags[name] === true || flags[name] === "true";
 }
 
 export function flagList(
@@ -113,6 +113,6 @@ export function flagList(
 ): readonly string[] {
   const value = flags[name];
   if (isList(value)) return value;
-  if (typeof value === 'string') return [value];
+  if (typeof value === "string") return [value];
   return [];
 }

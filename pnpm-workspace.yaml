@@ -6,35 +6,35 @@ packages:
   - tests/types/*
 
 catalog:
-  '@arethetypeswrong/cli': 0.18.5
-  '@base-ui/react': 1.8.0
-  '@changesets/cli': 3.0.3
-  '@commitlint/cli': 21.2.3
-  '@commitlint/config-conventional': 21.2.3
-  '@commitlint/types': 21.2.3
-  '@effect/platform-node': 4.0.0-rc.117
-  '@next/playwright': 16.3.6
-  '@opentelemetry/api': 1.9.1
-  '@orpc/server': 2.0.0-beta.40
-  '@playwright/test': 1.63.0
-  '@standard-schema/spec': 1.1.0
-  '@supabase/config': 0.10.0
-  '@supabase/middleware': 0.6.0
-  '@supabase/postgrest-typegen': 0.2.2
-  '@supabase/server': 1.8.1
-  '@supabase/ssr': 0.12.7
-  '@supabase/supabase-js': 2.117.2
-  '@t3-oss/env-nextjs': 0.13.11
-  '@tailwindcss/postcss': 4.3.3
-  '@tanstack/query-core': 5.104.0
-  '@tanstack/react-query': 5.104.0
-  '@types/mdx': 2.0.14
-  '@types/node': 24.19.0
-  '@types/pg': 8.23.1
-  '@types/react': 19.3.0
-  '@types/react-dom': 19.3.0
-  '@vitejs/plugin-react': 6.1.1
-  '@vitest/coverage-v8': 5.0.2
+  "@arethetypeswrong/cli": 0.18.5
+  "@base-ui/react": 1.8.0
+  "@changesets/cli": 3.0.3
+  "@commitlint/cli": 21.2.3
+  "@commitlint/config-conventional": 21.2.3
+  "@commitlint/types": 21.2.3
+  "@effect/platform-node": 4.0.0-rc.117
+  "@next/playwright": 16.3.6
+  "@opentelemetry/api": 1.9.1
+  "@orpc/server": 2.0.0-beta.40
+  "@playwright/test": 1.63.0
+  "@standard-schema/spec": 1.1.0
+  "@supabase/config": 0.10.0
+  "@supabase/middleware": 0.6.0
+  "@supabase/postgrest-typegen": 0.2.2
+  "@supabase/server": 1.8.1
+  "@supabase/ssr": 0.12.7
+  "@supabase/supabase-js": 2.117.2
+  "@t3-oss/env-nextjs": 0.13.11
+  "@tailwindcss/postcss": 4.3.3
+  "@tanstack/query-core": 5.104.0
+  "@tanstack/react-query": 5.104.0
+  "@types/mdx": 2.0.14
+  "@types/node": 24.19.0
+  "@types/pg": 8.23.1
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@vitejs/plugin-react": 6.1.1
+  "@vitest/coverage-v8": 5.0.2
   better-result: 3.0.1
   class-variance-authority: 0.7.1
   clsx: 2.1.1
@@ -53,8 +53,8 @@ catalog:
   next-themes: 0.4.6
   nuqs: 2.10.1
   oxfmt: 0.71.0
-  '@oxlint/plugins': 1.86.0
-  '@shadcn/lint': 0.2.0
+  "@oxlint/plugins": 1.86.0
+  "@shadcn/lint": 0.2.0
   eslint-plugin-playwright: 2.12.0
   eslint-plugin-turbo: 2.11.5
   oxlint-plugin-react-doctor: 0.9.14
@@ -89,20 +89,20 @@ catalogs:
   ts6:
     typescript: 6.0.3
   peers:
-    '@opentelemetry/api': '>=1.9'
-    '@orpc/server': '>=2.0.0-0'
-    '@supabase/config': '>=0.9.0 <0.11'
-    '@supabase/supabase-js': '^2.116.0'
-    '@tanstack/query-core': '^5'
-    hono: '>=4'
-    next: '>=16'
-    pg: '>=8'
-    react: '^19'
+    "@opentelemetry/api": ">=1.9"
+    "@orpc/server": ">=2.0.0-0"
+    "@supabase/config": ">=0.9.0 <0.11"
+    "@supabase/supabase-js": "^2.116.0"
+    "@tanstack/query-core": "^5"
+    hono: ">=4"
+    next: ">=16"
+    pg: ">=8"
+    react: "^19"
 
 catalogMode: strict
 nodeLinker: isolated
 saveExact: true
-savePrefix: ''
+savePrefix: ""
 strictPeerDependencies: true
 strictDepBuilds: true
 engineStrict: true
@@ -111,15 +111,15 @@ trustPolicy: no-downgrade
 trustPolicyIgnoreAfter: 43200
 # The native TypeScript 7 compiler resolves its platform binary from the root.
 publicHoistPattern:
-  - '@typescript/*'
-nodeOptions: '${NODE_OPTIONS:- } --disable-warning=MODULE_TYPELESS_PACKAGE_JSON'
+  - "@typescript/*"
+nodeOptions: "${NODE_OPTIONS:- } --disable-warning=MODULE_TYPELESS_PACKAGE_JSON"
 
 # `typescript` is deliberately not overridden: tests/types/* and apps/docs pin
 # 5.9 and 6 through the ts59 and ts6 catalogs for the compatibility matrix.
 overrides:
-  next: 'catalog:'
-  react: 'catalog:'
-  react-dom: 'catalog:'
+  next: "catalog:"
+  react: "catalog:"
+  react-dom: "catalog:"
 
 allowBuilds:
   # tsdown and vite bundle through esbuild's platform binary.

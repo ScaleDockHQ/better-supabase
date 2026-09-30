@@ -1,15 +1,15 @@
-import type { PrimaryKeyValue, TableMeta } from '../../schema/types.ts';
+import type { PrimaryKeyValue, TableMeta } from "../../schema/types.ts";
 
 import {
   definePlugin,
   type HasFlag,
   type Plugin,
   type RepositoryExtension,
-} from '../../core/plugin.ts';
-import { AsyncResult, ok, type Result } from '../../core/result.ts';
-import { scopeOperation } from '../../ir/scope.ts';
-import { and, type MutationOp, type Operation } from '../../ir/types.ts';
-import { dbName, isNotNull, isNull } from '../shared.ts';
+} from "../../core/plugin.ts";
+import { AsyncResult, ok, type Result } from "../../core/result.ts";
+import { scopeOperation } from "../../ir/scope.ts";
+import { and, type MutationOp, type Operation } from "../../ir/types.ts";
+import { dbName, isNotNull, isNull } from "../shared.ts";
 
 export interface SoftDeleteFindArgs {
   /** Include soft-deleted rows of the queried table. */
@@ -32,13 +32,13 @@ export interface SoftDeleteMethods<K> {
 }
 
 export interface SoftDeleteExtension extends RepositoryExtension {
-  readonly methods: HasFlag<this['M'], this['T'], 'softDelete'> extends true
-    ? SoftDeleteMethods<PrimaryKeyValue<this['M'], this['T']>>
+  readonly methods: HasFlag<this["M"], this["T"], "softDelete"> extends true
+    ? SoftDeleteMethods<PrimaryKeyValue<this["M"], this["T"]>>
     : unknown;
-  readonly findArgs: HasFlag<this['M'], this['T'], 'softDelete'> extends true
+  readonly findArgs: HasFlag<this["M"], this["T"], "softDelete"> extends true
     ? SoftDeleteFindArgs
     : unknown;
-  readonly deleteArgs: HasFlag<this['M'], this['T'], 'softDelete'> extends true
+  readonly deleteArgs: HasFlag<this["M"], this["T"], "softDelete"> extends true
     ? SoftDeleteDeleteArgs
     : unknown;
 }
@@ -69,26 +69,26 @@ type UpdateFn = (
  * Deletes become updates without `RETURNING`, so a SELECT policy that hides
  * deleted rows does not make them fail.
  */
-export function softDelete(): Plugin<'softDelete', SoftDeleteExtension> {
-  return definePlugin<'softDelete', SoftDeleteExtension>({
-    name: 'softDelete',
+export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
+  return definePlugin<"softDelete", SoftDeleteExtension>({
+    name: "softDelete",
     // Runs first so other plugins see the delete as the update it becomes.
-    enforce: 'pre',
+    enforce: "pre",
     transformQuery(op, { options }): Operation {
-      const hardDelete = op.kind === 'delete' && options['hard'] === true;
-      const withDeleted = options['withDeleted'] === true || hardDelete;
-      const onlyDeleted = options['onlyDeleted'] === true;
+      const hardDelete = op.kind === "delete" && options["hard"] === true;
+      const withDeleted = options["withDeleted"] === true || hardDelete;
+      const onlyDeleted = options["onlyDeleted"] === true;
       const scoped = scopeOperation(op, scopeFor, !withDeleted && !onlyDeleted);
       const column = deletedColumn(op.table);
-      if (!onlyDeleted || !column || scoped.kind === 'insert') return scoped;
+      if (!onlyDeleted || !column || scoped.kind === "insert") return scoped;
       return { ...scoped, where: and(scoped.where, isNotNull(column)) };
     },
     beforeMutation(op, { table, options, now }): MutationOp {
-      if (op.kind !== 'delete' || options['hard'] === true) return op;
+      if (op.kind !== "delete" || options["hard"] === true) return op;
       const column = deletedColumn(table);
       if (!column) return op;
       return {
-        kind: 'update',
+        kind: "update",
         table,
         set: { [column]: now().toISOString() },
         where: op.where,
@@ -99,7 +99,7 @@ export function softDelete(): Plugin<'softDelete', SoftDeleteExtension> {
       const flag = table.flags.softDelete;
       if (!flag) return undefined;
       // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- plugins receive `base` as an untyped method map.
-      const update = base['update'] as unknown as UpdateFn;
+      const update = base["update"] as unknown as UpdateFn;
       return {
         restore: (key: unknown, args?: { readonly signal?: AbortSignal }) =>
           AsyncResult.from(async (): Promise<Result<void>> => {

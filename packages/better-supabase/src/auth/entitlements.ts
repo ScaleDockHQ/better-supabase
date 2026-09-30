@@ -1,4 +1,4 @@
-import type { AuthSession } from './view.ts';
+import type { AuthSession } from "./view.ts";
 
 /**
  * One entry of the `memberships` claim, in PermDock's shape. PermDock strips
@@ -17,7 +17,7 @@ export interface MembershipClaim {
   readonly grantedBy?: string;
   readonly reason?: string;
   readonly member?: { readonly group: string };
-  readonly managedBy?: 'idp';
+  readonly managedBy?: "idp";
   /** Seats, not plan features: those are in the `features` claim. */
   readonly entitlements?: readonly string[];
 }
@@ -47,9 +47,9 @@ export function hasEntitlement<C>(
   session: AuthSession<C>,
   tenantId: string,
   key: EntitlementKey<C>,
-  claim = 'features',
+  claim = "features",
 ): boolean {
-  if (session.kind !== 'user') return false;
+  if (session.kind !== "user") return false;
   const claims: unknown = session.claims;
   if (!isRecord(claims)) return false;
   const features = claims[claim];
@@ -59,4 +59,4 @@ export function hasEntitlement<C>(
 }
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null;
+  typeof value === "object" && value !== null;

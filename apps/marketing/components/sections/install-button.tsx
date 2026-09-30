@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { CheckIcon, CopyIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { CheckIcon, CopyIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 export function InstallButton({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);

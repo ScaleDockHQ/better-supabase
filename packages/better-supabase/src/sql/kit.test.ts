@@ -1,60 +1,60 @@
-import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { kitLayout } from '../cli/commands/sql.ts';
-import { resolveConfig, resolveJsonSchema } from '../config/index.ts';
-import { renderKit, resolveModules, sameKitFile, SQL_MODULES } from './kit.ts';
+import { kitLayout } from "../cli/commands/sql.ts";
+import { resolveConfig, resolveJsonSchema } from "../config/index.ts";
+import { renderKit, resolveModules, sameKitFile, SQL_MODULES } from "./kit.ts";
 
-describe('resolveModules', () => {
-  it('adds dependencies and keeps registry order', () => {
+describe("resolveModules", () => {
+  it("adds dependencies and keeps registry order", () => {
     expect(
-      resolveModules(['invitations', 'updated-at']).map(
+      resolveModules(["invitations", "updated-at"]).map(
         (module) => module.name,
       ),
-    ).toEqual(['updated-at', 'tenant', 'invitations']);
+    ).toEqual(["updated-at", "tenant", "invitations"]);
   });
 
-  it('deduplicates and rejects unknown modules', () => {
-    expect(resolveModules(['tenant', 'tenant', 'invitations'])).toHaveLength(2);
-    expect(() => resolveModules(['nope'])).toThrow(
+  it("deduplicates and rejects unknown modules", () => {
+    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(2);
+    expect(() => resolveModules(["nope"])).toThrow(
       /Unknown SQL kit module "nope"/,
     );
   });
 });
 
-describe('renderKit', () => {
-  it('numbers files by registry position so paths stay stable', () => {
+describe("renderKit", () => {
+  it("numbers files by registry position so paths stay stable", () => {
     const all = renderKit(Object.keys(SQL_MODULES));
-    const jobs = renderKit(['jobs']);
+    const jobs = renderKit(["jobs"]);
     expect(jobs[0]!.path).toBe(
-      all.find((file) => file.module === 'jobs')!.path,
+      all.find((file) => file.module === "jobs")!.path,
     );
     expect(jobs[0]!.path).toMatch(
       /^supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql$/,
     );
   });
 
-  it('writes pgtap to the tests directory with a managed header', () => {
-    const [file] = renderKit(['pgtap'], {
-      testsDir: 'db/tests/',
-      version: '1.2.3',
+  it("writes pgtap to the tests directory with a managed header", () => {
+    const [file] = renderKit(["pgtap"], {
+      testsDir: "db/tests/",
+      version: "1.2.3",
     });
-    expect(file!.path).toBe('db/tests/000_better_supabase_pgtap.test.sql');
+    expect(file!.path).toBe("db/tests/000_better_supabase_pgtap.test.sql");
     expect(file!.contents).toMatch(
       /^-- better-supabase SQL kit: pgtap \(1\.2\.3\)\n/,
     );
-    expect(file!.contents).toContain('Managed by `better-supabase sql add`');
-    expect(file!.contents.endsWith('\n')).toBe(true);
+    expect(file!.contents).toContain("Managed by `better-supabase sql add`");
+    expect(file!.contents.endsWith("\n")).toBe(true);
   });
 
-  it('honours dir and prefix', () => {
-    const [file] = renderKit(['audit'], { dir: 'schemas/', prefix: 'zz' });
+  it("honours dir and prefix", () => {
+    const [file] = renderKit(["audit"], { dir: "schemas/", prefix: "zz" });
     expect(file!.path).toMatch(/^schemas\/zz_\d\d_audit\.sql$/);
   });
 
-  it('keeps every schema module in the better_supabase schema', () => {
+  it("keeps every schema module in the better_supabase schema", () => {
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== 'schema') continue;
+      if (module.target !== "schema") continue;
       const functions = [
         ...module.sql.matchAll(/create or replace function ([\w.]+)\(/g),
       ];
@@ -65,10 +65,10 @@ describe('renderKit', () => {
   });
 });
 
-describe('sameKitFile', () => {
-  it('ignores the version in the header only', () => {
-    const [file] = renderKit(['updated-at'], { version: '1.2.0' });
-    const older = file!.contents.replace(' (1.2.0)', ' (0.0.1)');
+describe("sameKitFile", () => {
+  it("ignores the version in the header only", () => {
+    const [file] = renderKit(["updated-at"], { version: "1.2.0" });
+    const older = file!.contents.replace(" (1.2.0)", " (0.0.1)");
     expect(older).not.toBe(file!.contents);
     expect(sameKitFile(older, file!.contents)).toBe(true);
     expect(sameKitFile(`${file!.contents}-- edited\n`, file!.contents)).toBe(
@@ -77,10 +77,10 @@ describe('sameKitFile', () => {
     expect(sameKitFile(undefined, file!.contents)).toBe(false);
   });
 
-  it('registers realtime tables with the tenant column', () => {
-    const [file] = renderKit(['realtime-tables'], {
-      realtimeTables: ['customers', 'billing.invoices'],
-      tenantColumn: 'organization_id',
+  it("registers realtime tables with the tenant column", () => {
+    const [file] = renderKit(["realtime-tables"], {
+      realtimeTables: ["customers", "billing.invoices"],
+      tenantColumn: "organization_id",
     });
     expect(file!.contents).toContain(
       "select better_supabase.track_realtime('public.customers', 'organization_id');",
@@ -88,30 +88,30 @@ describe('sameKitFile', () => {
     expect(file!.contents).toContain(
       "select better_supabase.track_realtime('billing.invoices', 'organization_id');",
     );
-    expect(renderKit(['realtime-tables'])[0]!.contents).not.toContain(
-      'config.realtime.tables',
+    expect(renderKit(["realtime-tables"])[0]!.contents).not.toContain(
+      "config.realtime.tables",
     );
   });
 
-  it('adds pg_jsonschema checks for json config schemas', () => {
+  it("adds pg_jsonschema checks for json config schemas", () => {
     const schema = resolveJsonSchema(z.object({ source: z.string() }));
     expect(schema).toMatchObject({
-      type: 'object',
-      required: ['source'],
+      type: "object",
+      required: ["source"],
     });
-    expect(resolveJsonSchema({ type: 'array' })).toEqual({ type: 'array' });
-    const [file] = renderKit(['jsonb-schemas'], {
+    expect(resolveJsonSchema({ type: "array" })).toEqual({ type: "array" });
+    const [file] = renderKit(["jsonb-schemas"], {
       jsonSchemas: [
-        { table: 'customers', column: 'metadata', schema: { type: 'object' } },
+        { table: "customers", column: "metadata", schema: { type: "object" } },
         {
-          table: 'billing.invoices',
-          column: 'lines',
-          schema: { type: 'array' },
+          table: "billing.invoices",
+          column: "lines",
+          schema: { type: "array" },
         },
       ],
     });
     expect(file!.contents).toContain(
-      'create extension if not exists pg_jsonschema with schema extensions;',
+      "create extension if not exists pg_jsonschema with schema extensions;",
     );
     expect(file!.contents).toContain(
       `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata"));`,
@@ -121,55 +121,55 @@ describe('sameKitFile', () => {
     );
   });
 
-  it('writes Data API grants from the expose config', () => {
+  it("writes Data API grants from the expose config", () => {
     const config = resolveConfig(
       {
         expose: {
-          customers: ['select', 'insert', 'update', 'delete'],
-          'billing.invoices': { anon: ['select'], authenticated: ['select'] },
+          customers: ["select", "insert", "update", "delete"],
+          "billing.invoices": { anon: ["select"], authenticated: ["select"] },
         },
       },
-      '/project',
+      "/project",
     );
-    const [file] = renderKit(['grants'], kitLayout(config));
+    const [file] = renderKit(["grants"], kitLayout(config));
     expect(file!.path).toBe(
-      'supabase/schemas/900_better_supabase_13_grants.sql',
+      "supabase/schemas/900_better_supabase_13_grants.sql",
     );
     expect(file!.contents).toContain(
       [
-        '-- config.expose',
+        "-- config.expose",
         'grant select, insert, update, delete on table "public"."customers" to authenticated;',
         'grant select on table "billing"."invoices" to anon;',
         'grant select on table "billing"."invoices" to authenticated;',
-      ].join('\n'),
+      ].join("\n"),
     );
-    expect(renderKit(['grants'])[0]!.contents).not.toContain('config.expose');
+    expect(renderKit(["grants"])[0]!.contents).not.toContain("config.expose");
   });
 
-  it('writes a search function per vectorSearch table', () => {
+  it("writes a search function per vectorSearch table", () => {
     const config = resolveConfig(
       {
         vectorSearch: {
-          chunks: 'embedding',
-          'docs.pages': { column: 'vec', distance: 'inner_product' },
+          chunks: "embedding",
+          "docs.pages": { column: "vec", distance: "inner_product" },
         },
       },
-      '/project',
+      "/project",
     );
-    const [file] = renderKit(['vector-search'], kitLayout(config));
+    const [file] = renderKit(["vector-search"], kitLayout(config));
     expect(file!.path).toBe(
-      'supabase/schemas/900_better_supabase_18_vector_search.sql',
+      "supabase/schemas/900_better_supabase_18_vector_search.sql",
     );
     expect(file!.contents).toContain(
       [
         'create or replace function "public"."search_chunks"(query extensions.vector, k integer default 10)',
         'returns setof "public"."chunks"',
-        'language sql',
-        'stable',
-        'security invoker',
+        "language sql",
+        "stable",
+        "security invoker",
         "set search_path = ''",
         "set hnsw.iterative_scan = 'strict_order'",
-      ].join('\n'),
+      ].join("\n"),
     );
     expect(file!.contents).toContain(
       'order by t."embedding" operator(extensions.<=>) query',
@@ -180,8 +180,8 @@ describe('sameKitFile', () => {
     expect(file!.contents).toContain(
       'grant execute on function "docs"."search_pages"(extensions.vector, integer) to authenticated, service_role;',
     );
-    expect(renderKit(['vector-search'])[0]!.contents).not.toContain(
-      'config.vectorSearch',
+    expect(renderKit(["vector-search"])[0]!.contents).not.toContain(
+      "config.vectorSearch",
     );
   });
 });

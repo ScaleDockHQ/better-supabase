@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-import Link from 'next/link';
-import { Suspense } from 'react';
+import Link from "next/link";
+import { Suspense } from "react";
 
-import { UnreadBadge } from '@/features/inbox/components/unread-badge';
-import { AppNav } from '@/features/navigation/components/app-nav';
-import { SideNavSkeleton } from '@/features/navigation/components/side-nav';
+import { UnreadBadge } from "@/features/inbox/components/unread-badge";
+import { AppNav } from "@/features/navigation/components/app-nav";
+import { SideNavSkeleton } from "@/features/navigation/components/side-nav";
 import {
   UserMenu,
   UserMenuSkeleton,
-} from '@/features/user/components/user-menu';
+} from "@/features/user/components/user-menu";
 
 /**
  * Synchronous on purpose: the header, sidebar frame and skeletons are the

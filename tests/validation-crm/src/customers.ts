@@ -1,29 +1,29 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   type AsyncResult,
   type Db,
   dbError,
   type WhereInput,
-} from 'better-supabase';
+} from "better-supabase";
 
-import type { Functions, Models } from './generated.ts';
+import type { Functions, Models } from "./generated.ts";
 
 export type CrmDb = Db<Models, Functions, unknown, SupabaseClient>;
 
-type CustomerWhere = WhereInput<Models, 'customers'>;
-type CustomerStatus = Models['customers']['Row']['status'];
+type CustomerWhere = WhereInput<Models, "customers">;
+type CustomerStatus = Models["customers"]["Row"]["status"];
 
 /** The filter of the customer list page. */
 export interface CustomerListFilter {
   readonly q?: string;
   readonly statuses?: readonly CustomerStatus[];
-  readonly types?: readonly ('business' | 'private')[];
+  readonly types?: readonly ("business" | "private")[];
   readonly assigneeIds?: readonly string[];
   readonly unassigned?: boolean;
   readonly tagIds?: readonly string[];
-  readonly sortBy?: 'name' | 'createdAt' | 'updatedAt';
-  readonly sortDirection?: 'asc' | 'desc';
+  readonly sortBy?: "name" | "createdAt" | "updatedAt";
+  readonly sortDirection?: "asc" | "desc";
   readonly page?: number;
   readonly size?: number;
 }
@@ -36,19 +36,19 @@ export interface CustomerInput {
 }
 
 const SORT_COLUMN = {
-  name: 'sortName',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt',
+  name: "sortName",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
 } as const;
 
 const LIST_COLUMNS = [
-  'id',
-  'companyName',
-  'isBusiness',
-  'status',
-  'sortName',
-  'logoPath',
-  'updatedAt',
+  "id",
+  "companyName",
+  "isBusiness",
+  "status",
+  "sortName",
+  "logoPath",
+  "updatedAt",
 ] as const;
 
 const escapeLike = (term: string): string =>
@@ -63,10 +63,10 @@ function listWhere(
   where.push(
     filter.statuses?.length
       ? { status: { in: filter.statuses } }
-      : { status: { neq: 'archived' } },
+      : { status: { neq: "archived" } },
   );
   if (filter.types?.length === 1)
-    where.push({ isBusiness: filter.types[0] === 'business' });
+    where.push({ isBusiness: filter.types[0] === "business" });
 
   const assigned = filter.assigneeIds?.length
     ? {
@@ -120,32 +120,32 @@ export function createCustomersService(db: CrmDb) {
         where: listWhere(organizationId, filter),
         orderBy: [
           {
-            [SORT_COLUMN[filter.sortBy ?? 'name']]:
-              filter.sortDirection ?? 'asc',
+            [SORT_COLUMN[filter.sortBy ?? "name"]]:
+              filter.sortDirection ?? "asc",
           },
-          { id: 'asc' },
+          { id: "asc" },
         ],
         page: filter.page ?? 1,
         size: filter.size ?? 25,
-        count: 'estimated',
+        count: "estimated",
         include: {
-          customerAssigneesByCustomer: { select: ['userId'] },
+          customerAssigneesByCustomer: { select: ["userId"] },
           customerTags: {
-            select: ['tagId'],
-            include: { tag: { select: ['id', 'name', 'color'] } },
+            select: ["tagId"],
+            include: { tag: { select: ["id", "name", "color"] } },
           },
           customerContacts: {
-            select: ['id', 'jobTitle'],
+            select: ["id", "jobTitle"],
             where: { isPrimary: true },
             limit: 1,
             include: {
               contactProfile: {
-                select: ['firstName', 'lastName', 'displayName'],
+                select: ["firstName", "lastName", "displayName"],
               },
             },
           },
           customerLocationsByCustomer: {
-            select: ['id', 'name', 'addressCity'],
+            select: ["id", "name", "addressCity"],
             where: { isPrimary: true },
             limit: 1,
           },
@@ -158,11 +158,11 @@ export function createCustomersService(db: CrmDb) {
         where: { id: customerId, organizationId },
         include: {
           customerContacts: {
-            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
             include: { contactProfile: true },
           },
           customerLocationsByCustomer: {
-            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
           },
           customerTags: { include: { tag: true } },
         },
@@ -186,7 +186,7 @@ export function createCustomersService(db: CrmDb) {
     ): AsyncResult<void> {
       return db.customers
         .update(customerId, {
-          status: 'archived',
+          status: "archived",
           archivedAt: new Date().toISOString(),
           archivedReason: reason,
         })
@@ -196,7 +196,7 @@ export function createCustomersService(db: CrmDb) {
     unarchiveCustomer(customerId: number): AsyncResult<void> {
       return db.customers
         .update(customerId, {
-          status: 'active',
+          status: "active",
           archivedAt: null,
           archivedReason: null,
         })
@@ -208,8 +208,8 @@ export function createCustomersService(db: CrmDb) {
       return db.customers
         .delete(customerId)
         .mapError((error) =>
-          error.kind === 'foreign_key'
-            ? dbError('conflict', 'This customer still has linked records.')
+          error.kind === "foreign_key"
+            ? dbError("conflict", "This customer still has linked records.")
             : error,
         );
     },

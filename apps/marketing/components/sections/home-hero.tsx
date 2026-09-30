@@ -1,11 +1,11 @@
-import { ArrowRightIcon } from 'lucide-react';
+import { ArrowRightIcon } from "lucide-react";
 
-import { CodeBlock } from '@/components/code-block';
-import { Badge } from '@/components/reui/badge';
-import { InstallButton } from '@/components/sections/install-button';
-import { Button } from '@/components/ui/button';
-import { site } from '@/lib/site';
-import { heroSnippet } from '@/lib/snippets';
+import { CodeBlock } from "@/components/code-block";
+import { Badge } from "@/components/reui/badge";
+import { InstallButton } from "@/components/sections/install-button";
+import { Button } from "@/components/ui/button";
+import { site } from "@/lib/site";
+import { heroSnippet } from "@/lib/snippets";
 
 export function HomeHero() {
   return (
@@ -22,7 +22,7 @@ export function HomeHero() {
           Open source. MIT. Built on the official Supabase packages.
         </Badge>
         <h1 className="text-foreground max-w-3xl text-center text-4xl font-semibold text-balance sm:text-5xl lg:text-6xl">
-          The typed layer for Supabase{' '}
+          The typed layer for Supabase{" "}
           <span className="text-muted-foreground">
             apps, APIs, MCP servers and jobs.
           </span>

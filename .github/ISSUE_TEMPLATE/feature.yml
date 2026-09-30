@@ -1,7 +1,7 @@
 name: Feature
 description: Propose a new API, adapter, kit module or CLI command
-title: 'feat: '
-labels: ['enhancement']
+title: "feat: "
+labels: ["enhancement"]
 body:
   - type: textarea
     id: context

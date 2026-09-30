@@ -1,17 +1,17 @@
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
-import { type ResolvedConfig, resolveConfig } from '../config/index.ts';
-import { readSupabaseToml, tomlNumber } from './supabase-toml.ts';
+import { type ResolvedConfig, resolveConfig } from "../config/index.ts";
+import { readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
 export const CONFIG_FILES = [
-  'better-supabase.config.ts',
-  'better-supabase.config.mts',
-  'better-supabase.config.js',
-  'better-supabase.config.mjs',
-  'better-supabase.config.json',
+  "better-supabase.config.ts",
+  "better-supabase.config.mts",
+  "better-supabase.config.js",
+  "better-supabase.config.mjs",
+  "better-supabase.config.json",
 ] as const;
 
 export function findConfig(cwd: string, explicit?: string): string | undefined {
@@ -39,12 +39,12 @@ export async function importExport(
 ): Promise<unknown> {
   if (!existsSync(path)) throw new Error(`Module not found: ${path}`);
   const loaded = await importModule(path);
-  return loaded[name] ?? loaded['default'];
+  return loaded[name] ?? loaded["default"];
 }
 
 async function importConfig(path: string): Promise<unknown> {
   const loaded = await importModule(path);
-  return loaded['default'] ?? loaded;
+  return loaded["default"] ?? loaded;
 }
 
 /**
@@ -58,10 +58,10 @@ export async function loadConfig(
   const path = findConfig(cwd, explicit);
   if (!path) return resolveConfig({}, cwd);
   if (!existsSync(path)) throw new Error(`Config file not found: ${path}`);
-  const config = path.endsWith('.json')
-    ? (JSON.parse(await readFile(path, 'utf8')) as unknown)
+  const config = path.endsWith(".json")
+    ? (JSON.parse(await readFile(path, "utf8")) as unknown)
     : await importConfig(path);
-  if (typeof config !== 'object' || config === null) {
+  if (typeof config !== "object" || config === null) {
     throw new Error(
       `${path} must export a config object (export default defineConfig({...}))`,
     );
@@ -72,10 +72,10 @@ export async function loadConfig(
 /** `[db] port` or `[api] port` from `supabase/config.toml`. */
 export async function readSupabasePort(
   root: string,
-  section: 'db' | 'api',
+  section: "db" | "api",
 ): Promise<number | undefined> {
   const toml = await readSupabaseToml(root);
-  return toml ? tomlNumber(toml.document, [section, 'port']) : undefined;
+  return toml ? tomlNumber(toml.document, [section, "port"]) : undefined;
 }
 
 /** Connection string: flag, config, `$DATABASE_URL`, then the local stack. */
@@ -86,7 +86,7 @@ export async function databaseUrl(
 ): Promise<string> {
   if (flag) return flag;
   if (config.source.dbUrl) return config.source.dbUrl;
-  if (env['DATABASE_URL']) return env['DATABASE_URL'];
-  const port = (await readSupabasePort(config.root, 'db')) ?? 54322;
+  if (env["DATABASE_URL"]) return env["DATABASE_URL"];
+  const port = (await readSupabasePort(config.root, "db")) ?? 54322;
   return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
 }

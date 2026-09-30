@@ -1,12 +1,12 @@
-import { CodeBlock } from '@/components/code-block';
-import { Section } from '@/components/sections/section';
-import { Button } from '@/components/ui/button';
-import { cliSnippet } from '@/lib/snippets';
+import { CodeBlock } from "@/components/code-block";
+import { Section } from "@/components/sections/section";
+import { Button } from "@/components/ui/button";
+import { cliSnippet } from "@/lib/snippets";
 
 const points: readonly string[] = [
-  'gen --check fails CI when the database and generated types drift apart.',
-  'doctor checks RLS, indexes, auth config and env files, and runs the Supabase Security and Performance Advisors locally.',
-  'Reports as text, JSON, SARIF or GitHub annotations.',
+  "gen --check fails CI when the database and generated types drift apart.",
+  "doctor checks RLS, indexes, auth config and env files, and runs the Supabase Security and Performance Advisors locally.",
+  "Reports as text, JSON, SARIF or GitHub annotations.",
 ];
 
 export function CliSection() {

@@ -1,8 +1,8 @@
-import type { ColumnMeta, SchemaMeta, TableMeta } from '../schema/types.ts';
+import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
-import { DbException, dbError } from '../core/errors.ts';
-import { relationMeta } from '../schema/define.ts';
-import { encodeValue } from './codec.ts';
+import { DbException, dbError } from "../core/errors.ts";
+import { relationMeta } from "../schema/define.ts";
+import { encodeValue } from "./codec.ts";
 import {
   type AggregateFn,
   type Condition,
@@ -14,63 +14,63 @@ import {
   and,
   not,
   or,
-} from './types.ts';
+} from "./types.ts";
 
 const AGGREGATE_KEYS: Readonly<Record<string, AggregateFn>> = {
-  _sum: 'sum',
-  _avg: 'avg',
-  _min: 'min',
-  _max: 'max',
+  _sum: "sum",
+  _avg: "avg",
+  _min: "min",
+  _max: "max",
 };
 
 const NUMERIC_TYPES = new Set([
-  'int2',
-  'int4',
-  'int8',
-  'float4',
-  'float8',
-  'numeric',
-  'smallint',
-  'integer',
-  'bigint',
-  'real',
-  'double precision',
+  "int2",
+  "int4",
+  "int8",
+  "float4",
+  "float8",
+  "numeric",
+  "smallint",
+  "integer",
+  "bigint",
+  "real",
+  "double precision",
 ]);
 
 /** Thrown while building IR; surfaces as an `invalid_request` Result. */
 export function invalidRequest(message: string, table?: string): never {
   throw new DbException(
-    dbError('invalid_request', message, table ? { table } : {}),
+    dbError("invalid_request", message, table ? { table } : {}),
   );
 }
 
 type Input = Readonly<Record<string, unknown>>;
 
 const FIELD_OPS = new Set([
-  'eq',
-  'neq',
-  'in',
-  'notIn',
-  'isNull',
-  'not',
-  'gt',
-  'gte',
-  'lt',
-  'lte',
-  'like',
-  'ilike',
-  'contains',
-  'startsWith',
-  'endsWith',
-  'search',
-  'hasEvery',
-  'hasSome',
-  'has',
-  'containedBy',
+  "eq",
+  "neq",
+  "in",
+  "notIn",
+  "isNull",
+  "not",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "like",
+  "ilike",
+  "contains",
+  "startsWith",
+  "endsWith",
+  "search",
+  "hasEvery",
+  "hasSome",
+  "has",
+  "containedBy",
 ]);
 
 function isPlainObject(value: unknown): value is Input {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const proto: unknown = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }
@@ -81,9 +81,9 @@ function isOpsObject(value: unknown): value is Input {
   return keys.length > 0 && keys.every((key) => FIELD_OPS.has(key));
 }
 
-function writable(meta: ColumnMeta, mode: 'insert' | 'update'): boolean {
-  if (meta.generated || meta.identity === 'always') return false;
-  return mode === 'insert'
+function writable(meta: ColumnMeta, mode: "insert" | "update"): boolean {
+  if (meta.generated || meta.identity === "always") return false;
+  return mode === "insert"
     ? meta.insertable !== false
     : meta.updatable !== false;
 }
@@ -124,12 +124,12 @@ export class IrBuilder {
     const items: (Condition | undefined)[] = [];
     for (const [key, value] of Object.entries(input)) {
       if (value === undefined) continue;
-      if (key === 'AND') {
+      if (key === "AND") {
         const list = Array.isArray(value) ? value : [value];
         items.push(
           and(...list.map((item: unknown) => this.where(table, item))),
         );
-      } else if (key === 'OR') {
+      } else if (key === "OR") {
         if (!Array.isArray(value)) {
           invalidRequest(`"OR" on "${table.key}" must be an array`, table.key);
         }
@@ -139,10 +139,10 @@ export class IrBuilder {
         // An empty OR matches nothing, like SQL `false`.
         items.push(
           branches.length === 0
-            ? not({ kind: 'and', items: [] })
+            ? not({ kind: "and", items: [] })
             : or(...branches),
         );
-      } else if (key === 'NOT') {
+      } else if (key === "NOT") {
         const inner = this.where(table, value);
         if (inner) items.push(not(inner));
       } else if (key in table.relations) {
@@ -161,10 +161,10 @@ export class IrBuilder {
   ): Condition {
     const { relation, target } = relationMeta(this.meta, table, name);
     const make = (
-      quantifier: 'some' | 'none' | 'every',
+      quantifier: "some" | "none" | "every",
       where: unknown,
     ): Condition => ({
-      kind: 'relation',
+      kind: "relation",
       name,
       relation,
       target,
@@ -172,7 +172,7 @@ export class IrBuilder {
       where: where === null ? undefined : this.where(target, where),
     });
 
-    if (relation.kind === 'many') {
+    if (relation.kind === "many") {
       if (!isPlainObject(value)) {
         invalidRequest(
           `Filter on to-many relation "${name}" needs some, none or every`,
@@ -183,9 +183,9 @@ export class IrBuilder {
       for (const [quantifier, where] of Object.entries(value)) {
         if (where === undefined) continue;
         if (
-          quantifier !== 'some' &&
-          quantifier !== 'none' &&
-          quantifier !== 'every'
+          quantifier !== "some" &&
+          quantifier !== "none" &&
+          quantifier !== "every"
         ) {
           invalidRequest(
             `Unknown quantifier "${quantifier}" on relation "${name}"`,
@@ -194,35 +194,35 @@ export class IrBuilder {
         }
         items.push(make(quantifier, where));
       }
-      return and(...items) ?? make('some', {});
+      return and(...items) ?? make("some", {});
     }
 
-    if (value === null) return make('none', null);
+    if (value === null) return make("none", null);
     if (isPlainObject(value)) {
       const keys = Object.keys(value);
       if (
         keys.length > 0 &&
-        keys.every((key) => key === 'is' || key === 'isNot')
+        keys.every((key) => key === "is" || key === "isNot")
       ) {
         const items: Condition[] = [];
-        if (value['is'] !== undefined) {
+        if (value["is"] !== undefined) {
           items.push(
-            value['is'] === null
-              ? make('none', null)
-              : make('some', value['is']),
+            value["is"] === null
+              ? make("none", null)
+              : make("some", value["is"]),
           );
         }
-        if (value['isNot'] !== undefined) {
+        if (value["isNot"] !== undefined) {
           items.push(
-            value['isNot'] === null
-              ? make('some', null)
-              : not(make('some', value['isNot'])),
+            value["isNot"] === null
+              ? make("some", null)
+              : not(make("some", value["isNot"])),
           );
         }
-        return and(...items) ?? make('some', null);
+        return and(...items) ?? make("some", null);
       }
     }
-    return make('some', value);
+    return make("some", value);
   }
 
   private fieldFilter(
@@ -232,16 +232,16 @@ export class IrBuilder {
   ): Condition {
     const column = this.column(table, name);
     if (value === null)
-      return { kind: 'column', column, op: 'is', value: null };
+      return { kind: "column", column, op: "is", value: null };
     if (!isOpsObject(value)) {
-      return { kind: 'column', column, op: 'eq', value: encodeValue(value) };
+      return { kind: "column", column, op: "eq", value: encodeValue(value) };
     }
     const items: Condition[] = [];
     for (const [op, operand] of Object.entries(value)) {
       if (operand === undefined) continue;
       items.push(this.fieldOp(table, name, column, op, operand));
     }
-    return and(...items) ?? { kind: 'and', items: [] };
+    return and(...items) ?? { kind: "and", items: [] };
   }
 
   private fieldOp(
@@ -252,10 +252,10 @@ export class IrBuilder {
     operand: unknown,
   ): Condition {
     const col = (
-      kind: Extract<Condition, { kind: 'column' }>['op'],
+      kind: Extract<Condition, { kind: "column" }>["op"],
       value: unknown,
     ): Condition => ({
-      kind: 'column',
+      kind: "column",
       column,
       op: kind,
       value: encodeValue(value),
@@ -263,53 +263,53 @@ export class IrBuilder {
     const meta = table.columns[name];
 
     switch (op) {
-      case 'eq':
-        return operand === null ? col('is', null) : col('eq', operand);
-      case 'neq':
-        return operand === null ? not(col('is', null)) : col('neq', operand);
-      case 'in':
-      case 'notIn': {
+      case "eq":
+        return operand === null ? col("is", null) : col("eq", operand);
+      case "neq":
+        return operand === null ? not(col("is", null)) : col("neq", operand);
+      case "in":
+      case "notIn": {
         if (!Array.isArray(operand)) {
           invalidRequest(`"${op}" on "${name}" needs an array`, table.key);
         }
-        const condition = col('in', operand);
-        return op === 'in' ? condition : not(condition);
+        const condition = col("in", operand);
+        return op === "in" ? condition : not(condition);
       }
-      case 'isNull':
-        return operand ? col('is', null) : not(col('is', null));
-      case 'not': {
+      case "isNull":
+        return operand ? col("is", null) : not(col("is", null));
+      case "not": {
         const inner = this.fieldFilter(table, name, operand);
         return not(inner);
       }
-      case 'gt':
-      case 'gte':
-      case 'lt':
-      case 'lte':
-      case 'like':
-      case 'ilike':
+      case "gt":
+      case "gte":
+      case "lt":
+      case "lte":
+      case "like":
+      case "ilike":
         return col(op, operand);
-      case 'contains':
-        if (meta?.json || meta?.array) return col('contains', operand);
-        return col('ilike', `%${escapeLike(String(operand))}%`);
-      case 'startsWith':
-        return col('like', `${escapeLike(String(operand))}%`);
-      case 'endsWith':
-        return col('like', `%${escapeLike(String(operand))}`);
-      case 'search': {
-        if (typeof operand === 'string') return col('fts', operand);
+      case "contains":
+        if (meta?.json || meta?.array) return col("contains", operand);
+        return col("ilike", `%${escapeLike(String(operand))}%`);
+      case "startsWith":
+        return col("like", `${escapeLike(String(operand))}%`);
+      case "endsWith":
+        return col("like", `%${escapeLike(String(operand))}`);
+      case "search": {
+        if (typeof operand === "string") return col("fts", operand);
         const { query, config } = operand as { query: string; config?: string };
         return config
-          ? { kind: 'column', column, op: 'fts', value: query, config }
-          : col('fts', query);
+          ? { kind: "column", column, op: "fts", value: query, config }
+          : col("fts", query);
       }
-      case 'hasEvery':
-        return col('contains', operand);
-      case 'has':
-        return col('contains', [operand]);
-      case 'hasSome':
-        return col('overlaps', operand);
-      case 'containedBy':
-        return col('containedBy', operand);
+      case "hasEvery":
+        return col("contains", operand);
+      case "has":
+        return col("contains", [operand]);
+      case "hasSome":
+        return col("overlaps", operand);
+      case "containedBy":
+        return col("containedBy", operand);
       default:
         return invalidRequest(
           `Unknown operator "${op}" on "${name}"`,
@@ -339,7 +339,7 @@ export class IrBuilder {
       for (const [name, value] of Object.entries(include)) {
         if (value === undefined || value === false) continue;
         const fn = AGGREGATE_KEYS[name];
-        if (name === '_count') includes.push(...this.counts(table, value));
+        if (name === "_count") includes.push(...this.counts(table, value));
         else if (fn)
           includes.push(...this.relationAggregates(table, fn, value));
         else includes.push(this.include(table, name, value));
@@ -353,7 +353,7 @@ export class IrBuilder {
    * of each group.
    */
   aggregation(table: TableMeta, args: Input): Selection {
-    const groupBy = args['groupBy'] ?? [];
+    const groupBy = args["groupBy"] ?? [];
     if (!Array.isArray(groupBy)) {
       invalidRequest(`"groupBy" on "${table.key}" must be an array`, table.key);
     }
@@ -368,7 +368,7 @@ export class IrBuilder {
         measures.push(this.measure(table, fn, alias, `${key}_${alias}`));
       }
     }
-    const count = args['_count'] === true;
+    const count = args["_count"] === true;
     if (!count && measures.length === 0) {
       invalidRequest(
         `aggregate on "${table.key}" needs _count, _sum, _avg, _min or _max`,
@@ -394,7 +394,7 @@ export class IrBuilder {
     for (const [name, entry] of Object.entries(value)) {
       if (entry === undefined || entry === false) continue;
       const { relation, target } = relationMeta(this.meta, table, name);
-      if (relation.kind !== 'many') {
+      if (relation.kind !== "many") {
         invalidRequest(
           `"${key}.${name}" on "${table.key}" needs a to-many relation`,
           table.key,
@@ -445,8 +445,8 @@ export class IrBuilder {
     const column = this.column(table, alias);
     const meta = table.columns[alias];
     if (
-      (fn === 'sum' || fn === 'avg') &&
-      !NUMERIC_TYPES.has(meta?.type ?? '')
+      (fn === "sum" || fn === "avg") &&
+      !NUMERIC_TYPES.has(meta?.type ?? "")
     ) {
       invalidRequest(
         `_${fn} needs a numeric column; "${alias}" on "${table.key}" is ${meta?.type}`,
@@ -454,11 +454,11 @@ export class IrBuilder {
       );
     }
     // avg is always a plain number; sum keeps exact int8/numeric codecs.
-    const codec = fn === 'avg' ? undefined : meta?.codec;
+    const codec = fn === "avg" ? undefined : meta?.codec;
     if (!codec) return { fn, key, alias, column };
-    return codec === 'date'
+    return codec === "date"
       ? { fn, key, alias, column, codec }
-      : { fn, key, alias, column, cast: 'text', codec };
+      : { fn, key, alias, column, cast: "text", codec };
   }
 
   /** A selected column, with the cast and codec its metadata asks for. */
@@ -466,9 +466,9 @@ export class IrBuilder {
     const column = this.column(table, alias);
     const codec = table.columns[alias]?.codec;
     if (!codec) return { alias, column };
-    return codec === 'date'
+    return codec === "date"
       ? { alias, column, codec }
-      : { alias, column, cast: 'text', codec };
+      : { alias, column, cast: "text", codec };
   }
 
   private counts(table: TableMeta, value: unknown): Include[] {
@@ -482,7 +482,7 @@ export class IrBuilder {
     for (const [name, entry] of Object.entries(value)) {
       if (entry === undefined || entry === false) continue;
       const { relation, target } = relationMeta(this.meta, table, name);
-      if (relation.kind !== 'many') {
+      if (relation.kind !== "many") {
         invalidRequest(
           `"_count.${name}" on "${table.key}" needs a to-many relation`,
           table.key,
@@ -494,7 +494,7 @@ export class IrBuilder {
         relation,
         target,
         selection: { columns: [], includes: [] },
-        where: this.where(target, args['where']),
+        where: this.where(target, args["where"]),
         orderBy: [],
         limit: undefined,
         required: false,
@@ -513,13 +513,13 @@ export class IrBuilder {
       target,
       selection: this.selection(
         target,
-        args['select'] as readonly string[] | undefined,
-        args['include'],
+        args["select"] as readonly string[] | undefined,
+        args["include"],
       ),
-      where: this.where(target, args['where']),
-      orderBy: this.orderBy(target, args['orderBy']),
-      limit: typeof args['limit'] === 'number' ? args['limit'] : undefined,
-      required: args['required'] === true,
+      where: this.where(target, args["where"]),
+      orderBy: this.orderBy(target, args["orderBy"]),
+      limit: typeof args["limit"] === "number" ? args["limit"] : undefined,
+      required: args["required"] === true,
     };
   }
 
@@ -537,13 +537,13 @@ export class IrBuilder {
       for (const [name, spec] of Object.entries(item)) {
         if (spec === undefined) continue;
         const column = this.column(table, name);
-        if (spec === 'asc' || spec === 'desc') {
+        if (spec === "asc" || spec === "desc") {
           terms.push({ column, direction: spec });
         } else if (isPlainObject(spec)) {
-          const direction = spec['direction'] === 'desc' ? 'desc' : 'asc';
-          const nulls = spec['nulls'];
+          const direction = spec["direction"] === "desc" ? "desc" : "asc";
+          const nulls = spec["nulls"];
           terms.push(
-            nulls === 'first' || nulls === 'last'
+            nulls === "first" || nulls === "last"
               ? { column, direction, nulls }
               : { column, direction },
           );
@@ -566,7 +566,7 @@ export class IrBuilder {
   row(
     table: TableMeta,
     input: unknown,
-    mode: 'insert' | 'update' = 'insert',
+    mode: "insert" | "update" = "insert",
   ): Record<string, unknown> {
     if (!isPlainObject(input)) {
       invalidRequest(`Row for "${table.key}" must be an object`, table.key);
@@ -578,7 +578,7 @@ export class IrBuilder {
       const meta = table.columns[name];
       if (meta && !writable(meta, mode)) {
         invalidRequest(
-          `"${name}" on "${table.key}" is read-only${meta.generated ? ' (generated)' : meta.identity === 'always' ? ' (identity always)' : ''} and can't be set in an ${mode}`,
+          `"${name}" on "${table.key}" is read-only${meta.generated ? " (generated)" : meta.identity === "always" ? " (identity always)" : ""} and can't be set in an ${mode}`,
           table.key,
         );
       }
@@ -606,19 +606,19 @@ export class IrBuilder {
     if (!match) {
       const names = keys
         .filter((key) => key.length > 0)
-        .map((key) => `{ ${key.join(', ')} }`)
-        .join(', ');
+        .map((key) => `{ ${key.join(", ")} }`)
+        .join(", ");
       invalidRequest(
         `findUnique on "${table.key}" needs one complete unique key: ${names}`,
         table.key,
       );
     }
     return {
-      kind: 'and',
+      kind: "and",
       items: match.map((name) => ({
-        kind: 'column' as const,
+        kind: "column" as const,
         column: this.column(table, name),
-        op: input[name] === null ? ('is' as const) : ('eq' as const),
+        op: input[name] === null ? ("is" as const) : ("eq" as const),
         value: encodeValue(input[name]),
       })),
     };
@@ -634,24 +634,24 @@ export class IrBuilder {
       const [name] = pk as [string];
       const value = isPlainObject(id) && name in id ? id[name] : id;
       return {
-        kind: 'column',
+        kind: "column",
         column: this.column(table, name),
-        op: 'eq',
+        op: "eq",
         value: encodeValue(value),
       };
     }
     if (!isPlainObject(id)) {
       invalidRequest(
-        `Table "${table.key}" has a composite key; pass { ${pk.join(', ')} }`,
+        `Table "${table.key}" has a composite key; pass { ${pk.join(", ")} }`,
         table.key,
       );
     }
     return {
-      kind: 'and',
+      kind: "and",
       items: pk.map((name) => ({
-        kind: 'column' as const,
+        kind: "column" as const,
         column: this.column(table, name),
-        op: 'eq' as const,
+        op: "eq" as const,
         value: encodeValue(id[name]),
       })),
     };

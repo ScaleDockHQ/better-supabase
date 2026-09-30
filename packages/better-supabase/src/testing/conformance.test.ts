@@ -1,28 +1,28 @@
-import { QueryClient } from '@tanstack/react-query';
-import { describe, expect, it } from 'vitest';
+import { QueryClient } from "@tanstack/react-query";
+import { describe, expect, it } from "vitest";
 
-import type { AuthResolver } from '../auth/resolve.ts';
-import type { CacheAdapter } from '../core/cache.ts';
-import type { Executor } from '../core/executor.ts';
-import type { CloudEvent, EventSink } from '../events/index.ts';
+import type { AuthResolver } from "../auth/resolve.ts";
+import type { CacheAdapter } from "../core/cache.ts";
+import type { Executor } from "../core/executor.ts";
+import type { CloudEvent, EventSink } from "../events/index.ts";
 
-import { jsonSchema, resolveConfig, type Generator } from '../config/index.ts';
-import { memoryCache } from '../core/cache.ts';
-import { defineSupabase } from '../core/define.ts';
-import { dbError } from '../core/errors.ts';
-import { definePlugin } from '../core/plugin.ts';
-import { err, ok } from '../core/result.ts';
-import { schema } from '../fixtures/generated-camel.ts';
-import { validators } from '../fixtures/generated-camel.zod.ts';
-import { valibot } from '../generators/valibot.ts';
-import { zod } from '../generators/zod.ts';
-import { nextCache } from '../next/index.ts';
-import { actor } from '../plugins/actor/index.ts';
-import { softDelete } from '../plugins/soft-delete/index.ts';
-import { tenant } from '../plugins/tenant/index.ts';
-import { timestamps } from '../plugins/timestamps/index.ts';
-import { validation } from '../plugins/validation/index.ts';
-import { queryCache } from '../query/index.ts';
+import { jsonSchema, resolveConfig, type Generator } from "../config/index.ts";
+import { memoryCache } from "../core/cache.ts";
+import { defineSupabase } from "../core/define.ts";
+import { dbError } from "../core/errors.ts";
+import { definePlugin } from "../core/plugin.ts";
+import { err, ok } from "../core/result.ts";
+import { schema } from "../fixtures/generated-camel.ts";
+import { validators } from "../fixtures/generated-camel.zod.ts";
+import { valibot } from "../generators/valibot.ts";
+import { zod } from "../generators/zod.ts";
+import { nextCache } from "../next/index.ts";
+import { actor } from "../plugins/actor/index.ts";
+import { softDelete } from "../plugins/soft-delete/index.ts";
+import { tenant } from "../plugins/tenant/index.ts";
+import { timestamps } from "../plugins/timestamps/index.ts";
+import { validation } from "../plugins/validation/index.ts";
+import { queryCache } from "../query/index.ts";
 import {
   ConformanceError,
   testAuthResolver,
@@ -31,9 +31,9 @@ import {
   testExecutor,
   testGenerator,
   testPlugin,
-} from './conformance.ts';
+} from "./conformance.ts";
 
-const ACME = '00000000-0000-4000-8000-000000000001';
+const ACME = "00000000-0000-4000-8000-000000000001";
 const sb = defineSupabase(schema);
 
 async function failures(pending: Promise<unknown>): Promise<string[]> {
@@ -49,16 +49,16 @@ async function failures(pending: Promise<unknown>): Promise<string[]> {
 
 function memoryExecutor(rows: Record<string, unknown>[]): Executor {
   return {
-    name: 'memory',
+    name: "memory",
     execute: (op, context) => {
       if (context.signal?.aborted)
-        return Promise.resolve(err(dbError('aborted', 'aborted')));
-      if (op.table.name !== 'tags')
+        return Promise.resolve(err(dbError("aborted", "aborted")));
+      if (op.table.name !== "tags")
         return Promise.resolve(
-          err(dbError('not_found', `no table ${op.table.name}`)),
+          err(dbError("not_found", `no table ${op.table.name}`)),
         );
-      if (op.kind !== 'select')
-        return Promise.resolve(err(dbError('invalid_request', 'read only')));
+      if (op.kind !== "select")
+        return Promise.resolve(err(dbError("invalid_request", "read only")));
       const selected = rows
         .slice(0, op.limit)
         .map((row) =>
@@ -77,75 +77,75 @@ function memoryExecutor(rows: Record<string, unknown>[]): Executor {
 }
 
 const tagRows = [
-  { id: '1', organization_id: ACME, name: 'a', color: 'red' },
-  { id: '2', organization_id: ACME, name: 'b', color: 'blue' },
-  { id: '3', organization_id: ACME, name: 'c', color: 'gray' },
+  { id: "1", organization_id: ACME, name: "a", color: "red" },
+  { id: "2", organization_id: ACME, name: "b", color: "blue" },
+  { id: "3", organization_id: ACME, name: "c", color: "gray" },
 ];
 
-describe('testExecutor', () => {
-  it('passes a conforming executor', async () => {
+describe("testExecutor", () => {
+  it("passes a conforming executor", async () => {
     const report = await testExecutor(memoryExecutor(tagRows), {
       sb,
-      table: 'tags',
+      table: "tags",
     });
     expect(report.subject).toBe('Executor "memory"');
     expect(report.checks.map((check) => check.name)).toContain(
-      'returns an aborted error for an aborted signal',
+      "returns an aborted error for an aborted signal",
     );
   });
 
-  it('reports every broken contract', async () => {
+  it("reports every broken contract", async () => {
     const broken: Executor = {
-      name: 'broken',
+      name: "broken",
       execute: (op) => {
-        if (op.table.name !== 'tags') throw new Error('boom');
+        if (op.table.name !== "tags") throw new Error("boom");
         return Promise.resolve(
-          ok({ rows: [{ id: '1', extra: true }, {}, {}], count: null }),
+          ok({ rows: [{ id: "1", extra: true }, {}, {}], count: null }),
         );
       },
     };
-    expect(await failures(testExecutor(broken, { sb, table: 'tags' }))).toEqual(
+    expect(await failures(testExecutor(broken, { sb, table: "tags" }))).toEqual(
       [
-        'reads rows keyed by the selection aliases',
-        'counts rows',
-        'returns an aborted error for an aborted signal',
-        'returns failures as results instead of throwing',
+        "reads rows keyed by the selection aliases",
+        "counts rows",
+        "returns an aborted error for an aborted signal",
+        "returns failures as results instead of throwing",
       ],
     );
   });
 });
 
-describe('testCacheAdapter', () => {
-  it('passes the first-party adapters', async () => {
+describe("testCacheAdapter", () => {
+  it("passes the first-party adapters", async () => {
     await testCacheAdapter(memoryCache());
     await testCacheAdapter(nextCache());
     await testCacheAdapter(queryCache(new QueryClient()));
   });
 
-  it('fails adapters that mutate targets or throw', async () => {
+  it("fails adapters that mutate targets or throw", async () => {
     const mutating: CacheAdapter = {
-      name: 'mutating',
+      name: "mutating",
       invalidate: (target) => {
-        (target.ids as string[]).push('x');
+        (target.ids as string[]).push("x");
       },
     };
     expect(await failures(testCacheAdapter(mutating))).toContain(
-      'invalidates rows of a tenant',
+      "invalidates rows of a tenant",
     );
     const picky: CacheAdapter = {
-      name: 'picky',
+      name: "picky",
       invalidate: (target) => {
-        if (target.table.startsWith('__')) throw new Error('unknown table');
+        if (target.table.startsWith("__")) throw new Error("unknown table");
       },
     };
     expect(await failures(testCacheAdapter(picky))).toEqual([
-      'accepts tables it has never seen',
+      "accepts tables it has never seen",
     ]);
   });
 });
 
-describe('testEventSink', () => {
-  it('passes a sink that delivers', async () => {
+describe("testEventSink", () => {
+  it("passes a sink that delivers", async () => {
     const delivered: CloudEvent[] = [];
     const sink: EventSink = {
       send: (events) => void delivered.push(...events),
@@ -154,111 +154,111 @@ describe('testEventSink', () => {
     expect(report.checks).toHaveLength(3);
   });
 
-  it('fails a sink that drops or mutates events', async () => {
+  it("fails a sink that drops or mutates events", async () => {
     const dropping: EventSink = { send: () => {} };
     expect(
       await failures(testEventSink(dropping, { received: () => [] })),
-    ).toEqual(['delivers every event']);
+    ).toEqual(["delivers every event"]);
     const mutating: EventSink = {
       send: (events) => {
-        for (const event of events) (event as { id: string }).id = 'x';
+        for (const event of events) (event as { id: string }).id = "x";
       },
     };
     expect(await failures(testEventSink(mutating))).toEqual([
-      'accepts a batch without mutating it',
+      "accepts a batch without mutating it",
     ]);
   });
 });
 
 const request = (key?: string): Request =>
   new Request(
-    'https://api.example.com/',
-    key === undefined ? {} : { headers: { 'x-api-key': key } },
+    "https://api.example.com/",
+    key === undefined ? {} : { headers: { "x-api-key": key } },
   );
 
-describe('testAuthResolver', () => {
-  it('passes a resolver that fails closed', async () => {
+describe("testAuthResolver", () => {
+  it("passes a resolver that fails closed", async () => {
     const apiKeys: AuthResolver = {
-      name: 'api-key',
+      name: "api-key",
       resolve: (incoming) => {
-        const key = incoming.headers.get('x-api-key');
+        const key = incoming.headers.get("x-api-key");
         if (key === null) return undefined;
-        return key === 'good'
-          ? { kind: 'service', keyName: 'ci' }
+        return key === "good"
+          ? { kind: "service", keyName: "ci" }
           : {
-              kind: 'invalid',
-              error: dbError('unauthorized', 'Invalid API key'),
+              kind: "invalid",
+              error: dbError("unauthorized", "Invalid API key"),
             };
       },
     };
     await testAuthResolver(apiKeys, {
-      invalid: [request('bad'), request('')],
-      valid: [{ request: request('good') }],
+      invalid: [request("bad"), request("")],
+      valid: [{ request: request("good") }],
     });
   });
 
-  it('fails a resolver that downgrades bad keys to anon or throws', async () => {
+  it("fails a resolver that downgrades bad keys to anon or throws", async () => {
     const lenient: AuthResolver = {
-      name: 'lenient',
+      name: "lenient",
       resolve: (incoming) => {
-        const key = incoming.headers.get('x-api-key');
-        if (key === 'throw') throw new Error('database down');
+        const key = incoming.headers.get("x-api-key");
+        if (key === "throw") throw new Error("database down");
         return key === null
-          ? { kind: 'anon', reason: 'none' }
-          : { kind: 'anon', reason: 'none' };
+          ? { kind: "anon", reason: "none" }
+          : { kind: "anon", reason: "none" };
       },
     };
     expect(
       await failures(
         testAuthResolver(lenient, {
-          invalid: [request('bad'), request('throw')],
+          invalid: [request("bad"), request("throw")],
         }),
       ),
     ).toEqual([
-      'passes on requests without its credentials',
-      'fails closed on invalid credentials',
+      "passes on requests without its credentials",
+      "fails closed on invalid credentials",
     ]);
   });
 });
 
-describe('testGenerator', () => {
-  const config = resolveConfig({ casing: 'camel' }, '/project');
+describe("testGenerator", () => {
+  const config = resolveConfig({ casing: "camel" }, "/project");
 
-  it('passes the first-party generators', async () => {
+  it("passes the first-party generators", async () => {
     for (const generator of [zod(), valibot(), jsonSchema()]) {
       await testGenerator(generator, { meta: schema.meta, config });
     }
   });
 
-  it('fails generators that escape the project or are not deterministic', async () => {
+  it("fails generators that escape the project or are not deterministic", async () => {
     let run = 0;
     const sloppy: Generator = {
-      name: 'sloppy',
+      name: "sloppy",
       generate: () => {
         run += 1;
         return [
-          { path: '../outside.ts', contents: `// run ${run}\n` },
-          { path: 'a.ts', contents: '' },
-          { path: 'a.ts', contents: '' },
+          { path: "../outside.ts", contents: `// run ${run}\n` },
+          { path: "a.ts", contents: "" },
+          { path: "a.ts", contents: "" },
         ];
       },
     };
     expect(
       await failures(testGenerator(sloppy, { meta: schema.meta, config })),
     ).toEqual([
-      'writes files inside the project',
-      'is deterministic and does not mutate its input',
+      "writes files inside the project",
+      "is deterministic and does not mutate its input",
     ]);
   });
 });
 
-describe('testPlugin', () => {
-  const create = { organizationId: ACME, name: 'conformance' };
+describe("testPlugin", () => {
+  const create = { organizationId: ACME, name: "conformance" };
 
-  it('passes the first-party plugins', async () => {
+  it("passes the first-party plugins", async () => {
     const context = {
       tenant: ACME,
-      actor: { id: 'user-1', kind: 'user' as const },
+      actor: { id: "user-1", kind: "user" as const },
     };
     for (const plugin of [
       timestamps(),
@@ -269,31 +269,31 @@ describe('testPlugin', () => {
     ]) {
       await testPlugin(plugin, {
         sb,
-        table: 'customers',
+        table: "customers",
         context,
-        create: { ...create, status: 'lead' },
+        create: { ...create, status: "lead" },
       });
     }
   });
 
-  it('fails plugins that mutate operations or change results', async () => {
+  it("fails plugins that mutate operations or change results", async () => {
     const sneaky = definePlugin({
-      name: 'sneaky',
+      name: "sneaky",
       transformQuery: (op) => {
         (op as { limit: number | undefined }).limit = 1;
         return op;
       },
       wrapExecutor: (inner) => ({
-        name: 'sneaky',
+        name: "sneaky",
         execute: async (op, context) => {
           const result = await inner.execute(op, context);
           return result.ok ? ok({ ...result.data, rows: [] }) : result;
         },
       }),
     });
-    expect(await failures(testPlugin(sneaky, { sb, table: 'tags' }))).toEqual([
-      'transformQuery is pure and deterministic',
-      'wrapExecutor keeps results intact',
+    expect(await failures(testPlugin(sneaky, { sb, table: "tags" }))).toEqual([
+      "transformQuery is pure and deterministic",
+      "wrapExecutor keeps results intact",
     ]);
   });
 });

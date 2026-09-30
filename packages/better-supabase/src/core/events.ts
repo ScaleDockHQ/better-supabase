@@ -1,12 +1,12 @@
-import type { Operation } from '../ir/types.ts';
-import type { DbError } from './errors.ts';
-import type { MutationKind, RequestContext } from './plugin.ts';
+import type { Operation } from "../ir/types.ts";
+import type { DbError } from "./errors.ts";
+import type { MutationKind, RequestContext } from "./plugin.ts";
 
-import { consoleLogger, type Logger } from './logger.ts';
+import { consoleLogger, type Logger } from "./logger.ts";
 
 export interface QueryEvent {
   readonly table: string;
-  readonly operation: Operation['kind'];
+  readonly operation: Operation["kind"];
   readonly ok: boolean;
   readonly durationMs: number;
   readonly rows: number;
@@ -38,7 +38,7 @@ export interface ErrorEvent {
 }
 
 export interface AuthEvent {
-  readonly source: 'bearer' | 'cookie' | 'none';
+  readonly source: "bearer" | "cookie" | "none";
   readonly ok: boolean;
   readonly userId?: string;
 }

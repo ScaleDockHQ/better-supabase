@@ -11,30 +11,30 @@ updates:
     ignore:
       # Pinned to an exact version so database.types.ts matches
       # `supabase gen types`; bumping needs the parity test (AGENTS.md).
-      - dependency-name: '@supabase/postgrest-typegen'
+      - dependency-name: "@supabase/postgrest-typegen"
       # The compatibility matrix pins these on purpose.
-      - dependency-name: 'typescript'
-        update-types: ['version-update:semver-major']
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       oxc:
         patterns:
           - oxlint
           - oxfmt
           - oxlint-tsgolint
-          - '@oxlint/*'
+          - "@oxlint/*"
       turbo:
         patterns:
           - turbo
-          - '@turbo/*'
+          - "@turbo/*"
       supabase:
         patterns:
-          - '@supabase/*'
+          - "@supabase/*"
       commitlint:
         patterns:
-          - '@commitlint/*'
+          - "@commitlint/*"
       dependencies:
         patterns:
-          - '*'
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
@@ -45,4 +45,4 @@ updates:
     groups:
       github-actions:
         patterns:
-          - '*'
+          - "*"

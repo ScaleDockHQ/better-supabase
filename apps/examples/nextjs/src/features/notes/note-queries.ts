@@ -1,5 +1,5 @@
-import 'server-only';
-import { next } from '@/lib/supabase.server';
+import "server-only";
+import { next } from "@/lib/supabase.server";
 
 /**
  * The latest embedded note and the notes nearest to it. `db.$search` calls
@@ -9,21 +9,21 @@ import { next } from '@/lib/supabase.server';
  * box's text with a model and pass that vector instead.
  */
 export async function getSimilarNotes() {
-  'use cache: private';
+  "use cache: private";
   const { db } = await next.cached();
   const source = await db.notes
     .findFirst({
-      select: ['id', 'body', 'embedding'],
+      select: ["id", "body", "embedding"],
       where: { embedding: { isNull: false } },
-      orderBy: { id: 'desc' },
+      orderBy: { id: "desc" },
     })
     .orThrow();
   if (!source?.embedding) return null;
   const similar = await db
-    .$search('notes', {
+    .$search("notes", {
       vector: source.embedding,
       k: 3,
-      select: ['id', 'body', 'kind'],
+      select: ["id", "body", "kind"],
       where: { id: { neq: source.id } },
     })
     .orThrow();

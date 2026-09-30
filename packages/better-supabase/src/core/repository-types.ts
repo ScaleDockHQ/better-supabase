@@ -7,8 +7,8 @@ import type {
   Payload,
   ReadArgs,
   WhereInput,
-} from '../ir/args.ts';
-import type { CountMode } from '../ir/types.ts';
+} from "../ir/args.ts";
+import type { CountMode } from "../ir/types.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -20,27 +20,27 @@ import type {
   UniqueKeyName,
   UniqueWhere,
   Update,
-} from '../schema/types.ts';
-import type { Executor } from './executor.ts';
-import type { ApplyExtension, RequestContext } from './plugin.ts';
-import type { InferReadSetParams, ReadSet, ReadSetResult } from './read-set.ts';
-import type { AsyncResult } from './result.ts';
-import type { SearchArgs } from './search.ts';
-import type { InferResult, QuerySpec } from './spec.ts';
-import type { StandardSchemaV1 } from './standard.ts';
-import type { DbStats } from './stats.ts';
+} from "../schema/types.ts";
+import type { Executor } from "./executor.ts";
+import type { ApplyExtension, RequestContext } from "./plugin.ts";
+import type { InferReadSetParams, ReadSet, ReadSetResult } from "./read-set.ts";
+import type { AsyncResult } from "./result.ts";
+import type { SearchArgs } from "./search.ts";
+import type { InferResult, QuerySpec } from "./spec.ts";
+import type { StandardSchemaV1 } from "./standard.ts";
+import type { DbStats } from "./stats.ts";
 
 export type FindExt<E, M extends AnyModels, T extends keyof M> = ApplyExtension<
   E,
   M,
   T,
-  'findArgs'
+  "findArgs"
 >;
 export type DeleteExt<
   E,
   M extends AnyModels,
   T extends keyof M,
-> = ApplyExtension<E, M, T, 'deleteArgs'>;
+> = ApplyExtension<E, M, T, "deleteArgs">;
 
 export interface WriteArgs<
   M extends AnyModels,
@@ -62,7 +62,7 @@ export interface UpdateArgs<
 }
 
 export type ConflictTarget<M extends AnyModels, T extends keyof M> =
-  | 'primaryKey'
+  | "primaryKey"
   | UniqueKeyName<M, T>
   | readonly Extract<keyof Row<M, T>, string>[];
 
@@ -88,7 +88,7 @@ export type Returned<M extends AnyModels, T extends keyof M, A> = A extends {
 
 export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   FindManyArgs<M, T>,
-  'limit' | 'offset'
+  "limit" | "offset"
 > & {
   /** 1-based page number. Defaults to 1. */
   readonly page?: number;
@@ -99,7 +99,7 @@ export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
 
 export type CursorPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   FindManyArgs<M, T>,
-  'limit' | 'offset'
+  "limit" | "offset"
 > & {
   /** Cursor from the previous page, or `null` for the first page. */
   readonly after: string | null;
@@ -241,7 +241,7 @@ export type RepositoryOf<
   M extends AnyModels,
   T extends TableKey<M>,
   E,
-> = Repository<M, T, E> & ApplyExtension<E, M, T, 'methods'>;
+> = Repository<M, T, E> & ApplyExtension<E, M, T, "methods">;
 
 export interface RpcOptions<R> {
   readonly signal?: AbortSignal;
@@ -251,9 +251,9 @@ export interface RpcOptions<R> {
 }
 
 type RpcArgs<F extends AnyFunctions, N extends keyof F> =
-  Record<never, never> extends F[N]['Args']
-    ? [args?: F[N]['Args']]
-    : [args: F[N]['Args']];
+  Record<never, never> extends F[N]["Args"]
+    ? [args?: F[N]["Args"]]
+    : [args: F[N]["Args"]];
 
 export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   /** The underlying client (supabase-js), for anything the repository lacks. */
@@ -261,7 +261,7 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   readonly $executor: Executor;
   readonly $context: RequestContext;
   /** Calls a database function with typed arguments. */
-  $rpc<N extends Extract<keyof F, string>, R = F[N]['Returns']>(
+  $rpc<N extends Extract<keyof F, string>, R = F[N]["Returns"]>(
     name: N,
     ...rest: [...RpcArgs<F, N>, options?: RpcOptions<R>]
   ): AsyncResult<R>;

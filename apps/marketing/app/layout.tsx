@@ -1,24 +1,24 @@
-import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
-import { Geist_Mono, Inter } from 'next/font/google';
+import { Geist_Mono, Inter } from "next/font/google";
 
-import { SiteFooter } from '@/components/site/footer';
-import { Navbar } from '@/components/site/navbar';
-import { ThemeProvider } from '@/components/theme-provider';
-import { site } from '@/lib/site';
-import { cn } from '@/lib/utils';
+import { SiteFooter } from "@/components/site/footer";
+import { Navbar } from "@/components/site/navbar";
+import { ThemeProvider } from "@/components/theme-provider";
+import { site } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
-import './globals.css';
+import "./globals.css";
 
 const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
+  subsets: ["latin"],
+  variable: "--font-sans",
 });
 
 const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
+  subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     title: site.name,
     description: site.tagline,
     siteName: site.name,
-    type: 'website',
+    type: "website",
   },
 };
 
@@ -44,7 +44,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       className={cn(
         inter.variable,
         geistMono.variable,
-        'font-sans antialiased',
+        "font-sans antialiased",
       )}
     >
       <body className="flex min-h-svh flex-col">

@@ -1,6 +1,6 @@
-import { Panel, PanelSkeleton } from '@/components/ui/panel';
+import { Panel, PanelSkeleton } from "@/components/ui/panel";
 
-import { getWorkspaceSummary } from '../dashboard-queries';
+import { getWorkspaceSummary } from "../dashboard-queries";
 
 export async function WorkspaceSummary() {
   const summary = await getWorkspaceSummary();
@@ -15,7 +15,7 @@ export async function WorkspaceSummary() {
         <dt>Added by you</dt>
         <dd>{summary.mine}</dd>
         <dt>Latest note</dt>
-        <dd>{summary.latestNote?.body ?? 'None yet'}</dd>
+        <dd>{summary.latestNote?.body ?? "None yet"}</dd>
       </dl>
     </Panel>
   );

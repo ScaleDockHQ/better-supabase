@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
-import { can } from '@/features/user/user-permissions';
-import { useSession } from '@/lib/hooks';
+import { can } from "@/features/user/user-permissions";
+import { useSession } from "@/lib/hooks";
 
-import { navItems } from '../nav-items';
+import { navItems } from "../nav-items";
 
 export function SideNav() {
   const session = useSession();
@@ -21,7 +21,7 @@ export function SideNav() {
           <li key={item.href}>
             <Link
               href={item.href}
-              aria-current={pathname === item.href ? 'page' : undefined}
+              aria-current={pathname === item.href ? "page" : undefined}
             >
               {item.label}
             </Link>

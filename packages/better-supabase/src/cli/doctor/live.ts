@@ -1,7 +1,7 @@
-import type { CatalogTable } from '../introspect/types.ts';
-import type { DoctorContext, FindingInput, Rule } from './rules.ts';
+import type { CatalogTable } from "../introspect/types.ts";
+import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { catalogOf, exposed, qualified, tableObject } from './shared.ts';
+import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
 
 /** The database doctor checks, for statistics and plans. */
 export interface LiveDatabase {
@@ -26,7 +26,7 @@ export const SLOW_CALLS = 1000;
 export const EXPLAIN_LIMIT = 1000;
 
 const escape = (name: string): string =>
-  name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const ident = (name: string): string =>
   `"${name.replaceAll('"', '""')}"`;
@@ -37,12 +37,12 @@ export const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
 const oneLine = (query: string, max = 160): string => {
-  const flat = query.replace(/\s+/g, ' ').trim();
+  const flat = query.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 };
 
 const plural = (count: number, word: string): string =>
-  `${count} ${word}${count === 1 ? '' : 's'}`;
+  `${count} ${word}${count === 1 ? "" : "s"}`;
 
 const megabytes = (bytes: number): string =>
   `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -74,18 +74,18 @@ const live = (
 ): LiveDatabase | { readonly skipped: string } | undefined => context.database;
 
 interface PlanNode {
-  readonly 'Node Type': string;
-  readonly 'Relation Name'?: string;
-  readonly 'Parent Relationship'?: string;
-  readonly 'Subplan Name'?: string;
-  readonly 'Actual Total Time'?: number;
-  readonly 'Actual Loops'?: number;
+  readonly "Node Type": string;
+  readonly "Relation Name"?: string;
+  readonly "Parent Relationship"?: string;
+  readonly "Subplan Name"?: string;
+  readonly "Actual Total Time"?: number;
+  readonly "Actual Loops"?: number;
   readonly Plans?: readonly PlanNode[];
 }
 
 interface ExplainOutput {
   readonly Plan: PlanNode;
-  readonly 'Execution Time'?: number;
+  readonly "Execution Time"?: number;
 }
 
 interface FunctionTime {
@@ -132,14 +132,14 @@ export function summarizePlan(output: ExplainOutput): PlanSummary {
   const perRowSubPlans: string[] = [];
   let initPlans = 0;
   const walk = (node: PlanNode): void => {
-    const loops = node['Actual Loops'] ?? 1;
-    const ms = (node['Actual Total Time'] ?? 0).toFixed(2);
-    const on = node['Relation Name'] ? ` on ${node['Relation Name']}` : '';
-    const sub = node['Subplan Name'] ? `${node['Subplan Name']}: ` : '';
-    nodes.push(`${sub}${node['Node Type']}${on} ${ms} ms ×${loops}`);
-    if (node['Parent Relationship'] === 'InitPlan') initPlans += 1;
-    if (node['Parent Relationship'] === 'SubPlan' && loops > 1)
-      perRowSubPlans.push(`${sub}${node['Node Type']}${on} ×${loops}`);
+    const loops = node["Actual Loops"] ?? 1;
+    const ms = (node["Actual Total Time"] ?? 0).toFixed(2);
+    const on = node["Relation Name"] ? ` on ${node["Relation Name"]}` : "";
+    const sub = node["Subplan Name"] ? `${node["Subplan Name"]}: ` : "";
+    nodes.push(`${sub}${node["Node Type"]}${on} ${ms} ms ×${loops}`);
+    if (node["Parent Relationship"] === "InitPlan") initPlans += 1;
+    if (node["Parent Relationship"] === "SubPlan" && loops > 1)
+      perRowSubPlans.push(`${sub}${node["Node Type"]}${on} ×${loops}`);
     for (const child of node.Plans ?? []) walk(child);
   };
   walk(output.Plan);
@@ -147,7 +147,7 @@ export function summarizePlan(output: ExplainOutput): PlanSummary {
     nodes,
     initPlans,
     perRowSubPlans,
-    executionMs: output['Execution Time'] ?? 0,
+    executionMs: output["Execution Time"] ?? 0,
   };
 }
 
@@ -158,19 +158,19 @@ async function explainTable(
   table: CatalogTable,
   claims: Readonly<Record<string, unknown>>,
 ): Promise<{ summary: PlanSummary; functions: FunctionTime[] | undefined }> {
-  const role = typeof claims['role'] === 'string' ? claims['role'] : 'anon';
+  const role = typeof claims["role"] === "string" ? claims["role"] : "anon";
   if (!ROLE.test(role)) throw new Error(`Invalid role "${role}" in the claims`);
-  await db.query('begin');
+  await db.query("begin");
   try {
     await db.query(`set local statement_timeout = '30s'`);
     let tracked = true;
-    await db.query('savepoint bs_track');
+    await db.query("savepoint bs_track");
     try {
       await db.query(`set local track_functions = 'all'`);
-      await db.query('release savepoint bs_track');
+      await db.query("release savepoint bs_track");
     } catch {
       tracked = false;
-      await db.query('rollback to savepoint bs_track');
+      await db.query("rollback to savepoint bs_track");
     }
     await db.query(
       `select set_config('request.jwt.claims', ${literal(JSON.stringify(claims))}, true)`,
@@ -179,14 +179,14 @@ async function explainTable(
       ? await functionTimes(db)
       : new Map<string, { calls: number; selfTime: number }>();
     await db.query(`set local role ${ident(role)}`);
-    const [row] = await db.query<{ 'QUERY PLAN': unknown }>(
+    const [row] = await db.query<{ "QUERY PLAN": unknown }>(
       `explain (analyze, buffers, format json) select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
     );
-    const raw = row?.['QUERY PLAN'];
-    const plan = (typeof raw === 'string' ? JSON.parse(raw) : raw) as
+    const raw = row?.["QUERY PLAN"];
+    const plan = (typeof raw === "string" ? JSON.parse(raw) : raw) as
       | ExplainOutput[]
       | undefined;
-    if (!plan?.[0]) throw new Error('EXPLAIN returned no plan');
+    if (!plan?.[0]) throw new Error("EXPLAIN returned no plan");
     const functions = tracked
       ? [...(await functionTimes(db))]
           .map(([name, after]): FunctionTime => {
@@ -202,7 +202,7 @@ async function explainTable(
       : undefined;
     return { summary: summarizePlan(plan[0]), functions };
   } finally {
-    await db.query('rollback');
+    await db.query("rollback");
   }
 }
 
@@ -210,21 +210,21 @@ function resolveTable(
   context: DoctorContext,
   name: string,
 ): CatalogTable | undefined {
-  return name.includes('.')
+  return name.includes(".")
     ? catalogOf(context).tables.find((table) => qualified(table) === name)
     : exposed(context).find((table) => table.name === name);
 }
 
 export const LIVE_RULES: readonly Rule[] = [
   {
-    code: 'BS208',
-    severity: 'warning',
-    title: 'Queries spill to temporary files',
+    code: "BS208",
+    severity: "warning",
+    title: "Queries spill to temporary files",
     description:
-      'Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`.',
+      "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`.",
     async check(context) {
       const db = live(context);
-      if (!db || 'skipped' in db) return [];
+      if (!db || "skipped" in db) return [];
       try {
         const [stats] = await db.query<{
           temp_files: number | string;
@@ -235,7 +235,7 @@ export const LIVE_RULES: readonly Rule[] = [
         );
         const files = Number(stats?.temp_files ?? 0);
         if (files === 0) return [];
-        let top = '';
+        let top = "";
         const view = await statementsView(db);
         if (view) {
           const statements = await db
@@ -249,19 +249,19 @@ export const LIVE_RULES: readonly Rule[] = [
                 (statement) =>
                   `${oneLine(statement.query, 100)} (${statement.temp_blks_written} blocks)`,
               )
-              .join('; ')}.`;
+              .join("; ")}.`;
           }
         }
         return [
           {
             message: `${files} temporary files (${megabytes(Number(stats?.temp_bytes ?? 0))}) since the statistics were reset; work_mem is ${stats?.work_mem}. Add indexes so large sorts go away, or raise work_mem for the role that runs them.${top}`,
-            target: 'pg_stat_database:temp_files',
+            target: "pg_stat_database:temp_files",
           },
         ];
       } catch (cause) {
         return [
           {
-            severity: 'info',
+            severity: "info",
             message: `Could not read pg_stat_database (${db.describe}): ${errorText(cause)}`,
           },
         ];
@@ -269,18 +269,18 @@ export const LIVE_RULES: readonly Rule[] = [
     },
   },
   {
-    code: 'BS209',
-    severity: 'warning',
-    title: 'Slow frequent statements',
+    code: "BS209",
+    severity: "warning",
+    title: "Slow frequent statements",
     description: `Statements from \`pg_stat_statements\` with a mean time above ${SLOW_MEAN_MS} ms and more than ${SLOW_CALLS} calls. Runs with \`--stats\`.`,
     async check(context) {
       if (!context.stats) return [];
       const db = live(context);
       if (!db) return [];
-      if ('skipped' in db)
+      if ("skipped" in db)
         return [
           {
-            severity: 'info',
+            severity: "info",
             message: `Skipped --stats: ${db.skipped}`,
           },
         ];
@@ -289,9 +289,9 @@ export const LIVE_RULES: readonly Rule[] = [
         if (!view) {
           return [
             {
-              severity: 'info',
+              severity: "info",
               message:
-                'pg_stat_statements is not installed, so --stats has nothing to read. Run `create extension pg_stat_statements with schema extensions;`.',
+                "pg_stat_statements is not installed, so --stats has nothing to read. Run `create extension pg_stat_statements with schema extensions;`.",
             },
           ];
         }
@@ -315,7 +315,7 @@ export const LIVE_RULES: readonly Rule[] = [
       } catch (cause) {
         return [
           {
-            severity: 'info',
+            severity: "info",
             message: `Could not read pg_stat_statements (${db.describe}): ${errorText(cause)}`,
           },
         ];
@@ -323,32 +323,32 @@ export const LIVE_RULES: readonly Rule[] = [
     },
   },
   {
-    code: 'BS212',
-    severity: 'info',
-    title: 'RLS plan for a table',
+    code: "BS212",
+    severity: "info",
+    title: "RLS plan for a table",
     description: `\`--explain <tables>\` runs \`EXPLAIN (ANALYZE, BUFFERS)\` on \`select * from <table> limit ${EXPLAIN_LIMIT}\` as the given claims, in a transaction that is rolled back. It reports node types, timings and loops, never rows, and warns when a policy SubPlan runs once per row.`,
     async check(context) {
       const request = context.explain;
       if (!request) return [];
       const db = live(context);
-      if (!db || 'skipped' in db || !db.session) {
+      if (!db || "skipped" in db || !db.session) {
         return [
           {
-            severity: 'warning',
-            message: `--explain needs a direct database connection (local stack or --db-url)${db && 'skipped' in db ? `: ${db.skipped}` : '.'}`,
+            severity: "warning",
+            message: `--explain needs a direct database connection (local stack or --db-url)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
           },
         ];
       }
       const who =
-        typeof request.claims['sub'] === 'string'
-          ? `${String(request.claims['role'] ?? 'anon')} ${request.claims['sub']}`
-          : String(request.claims['role'] ?? 'anon');
+        typeof request.claims["sub"] === "string"
+          ? `${String(request.claims["role"] ?? "anon")} ${request.claims["sub"]}`
+          : String(request.claims["role"] ?? "anon");
       const findings: FindingInput[] = [];
       for (const name of request.tables) {
         const table = resolveTable(context, name);
         if (!table) {
           findings.push({
-            severity: 'warning',
+            severity: "warning",
             message: `--explain: no table "${name}" in the exposed schemas; qualify tables in other schemas, like better_supabase.memberships.`,
           });
           continue;
@@ -368,26 +368,26 @@ export const LIVE_RULES: readonly Rule[] = [
                       summary.executionMs > 0
                         ? Math.round((self / summary.executionMs) * 100)
                         : 0;
-                    return `${fn.name} ${self.toFixed(2)} ms over ${plural(fn.calls, 'call')} (${share}%)`;
+                    return `${fn.name} ${self.toFixed(2)} ms over ${plural(fn.calls, "call")} (${share}%)`;
                   })
-                  .join(', ')}.`
-              : ' No tracked function ran; inlined SQL functions are part of the plan.'
-            : ' Function times need `track_functions`, which this role may not set; showing the plan only.';
+                  .join(", ")}.`
+              : " No tracked function ran; inlined SQL functions are part of the plan."
+            : " Function times need `track_functions`, which this role may not set; showing the plan only.";
           const perRow =
             summary.perRowSubPlans.length > 0
-              ? ` Per-row SubPlans: ${summary.perRowSubPlans.join(', ')}; wrap the policy's function calls in \`(select ...)\` so they run once as an InitPlan.`
-              : '';
+              ? ` Per-row SubPlans: ${summary.perRowSubPlans.join(", ")}; wrap the policy's function calls in \`(select ...)\` so they run once as an InitPlan.`
+              : "";
           findings.push({
             ...(summary.perRowSubPlans.length > 0
-              ? { severity: 'warning' as const }
+              ? { severity: "warning" as const }
               : {}),
-            message: `${qualified(table)} as ${who}: ${summary.executionMs.toFixed(2)} ms, ${plural(summary.initPlans, 'InitPlan')}. Plan: ${summary.nodes.join(' > ')}.${perRow}${helpers}`,
+            message: `${qualified(table)} as ${who}: ${summary.executionMs.toFixed(2)} ms, ${plural(summary.initPlans, "InitPlan")}. Plan: ${summary.nodes.join(" > ")}.${perRow}${helpers}`,
             target: `${qualified(table)}:explain`,
             object: tableObject(table),
           });
         } catch (cause) {
           findings.push({
-            severity: 'warning',
+            severity: "warning",
             message: `--explain ${qualified(table)} failed: ${errorText(cause)}`,
             target: `${qualified(table)}:explain`,
           });

@@ -1,13 +1,13 @@
-import { Pool } from 'pg';
-import { afterAll, describe, expect, it } from 'vitest';
+import { Pool } from "pg";
+import { afterAll, describe, expect, it } from "vitest";
 
-import { defineSupabase } from '../core/define.ts';
-import { schema } from '../fixtures/generated-camel.ts';
-import { defineSeed } from '../testing/seed.ts';
+import { defineSupabase } from "../core/define.ts";
+import { schema } from "../fixtures/generated-camel.ts";
+import { defineSeed } from "../testing/seed.ts";
 
 const dbUrl =
-  process.env['SUPABASE_DB_URL'] ??
-  'postgresql://postgres:postgres@127.0.0.1:55422/postgres';
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({
@@ -16,7 +16,7 @@ async function reachable(): Promise<boolean> {
     connectionTimeoutMillis: 1000,
   });
   try {
-    await pool.query('select 1');
+    await pool.query("select 1");
     return true;
   } catch {
     return false;
@@ -27,11 +27,11 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-describe.skipIf(!live)('seed against the local database', () => {
+describe.skipIf(!live)("seed against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   afterAll(() => pool.end());
 
-  it('inserts fixtures in dependency order and is re-runnable', async () => {
+  it("inserts fixtures in dependency order and is re-runnable", async () => {
     const org = crypto.randomUUID();
     const customer = crypto.randomUUID();
     const seed = defineSeed(defineSupabase(schema), {
@@ -40,13 +40,13 @@ describe.skipIf(!live)('seed against the local database', () => {
           id: customer,
           organizationId: org,
           name: "Seed's first",
-          metadata: { tier: 'pro' },
+          metadata: { tier: "pro" },
         },
       },
       organizations: {
         seeded: {
           id: org,
-          name: 'Seeded org',
+          name: "Seeded org",
           slug: `seeded-${org.slice(0, 8)}`,
         },
       },
@@ -57,7 +57,7 @@ describe.skipIf(!live)('seed against the local database', () => {
         (await client.query(text)).rows as T[],
     };
     try {
-      await client.query('begin');
+      await client.query("begin");
       await seed.insert(sql);
       await seed.insert(sql);
       const rows = await client.query<{
@@ -65,18 +65,18 @@ describe.skipIf(!live)('seed against the local database', () => {
         metadata: unknown;
         organization_id: string;
       }>(
-        'select name, metadata, organization_id from public.customers where id = $1',
+        "select name, metadata, organization_id from public.customers where id = $1",
         [seed.rows.customers.first.id],
       );
       expect(rows.rows).toEqual([
         {
           name: "Seed's first",
-          metadata: { tier: 'pro' },
+          metadata: { tier: "pro" },
           organization_id: org,
         },
       ]);
     } finally {
-      await client.query('rollback');
+      await client.query("rollback");
       client.release();
     }
   });

@@ -1,4 +1,4 @@
-import type { DbStats } from '../core/stats.ts';
+import type { DbStats } from "../core/stats.ts";
 
 /** The part of a Playwright `Response` the budget check reads. */
 export interface BudgetResponse {
@@ -10,8 +10,8 @@ export interface BudgetResponse {
 
 /** The part of a Playwright `Page` the budget check uses. */
 export interface BudgetPage {
-  on(event: 'response', listener: (response: BudgetResponse) => void): unknown;
-  off(event: 'response', listener: (response: BudgetResponse) => void): unknown;
+  on(event: "response", listener: (response: BudgetResponse) => void): unknown;
+  off(event: "response", listener: (response: BudgetResponse) => void): unknown;
   reload(): Promise<unknown>;
   readonly request: {
     get(url: string): Promise<{
@@ -42,9 +42,9 @@ export interface MeasuredRender {
 function isPrefetch(response: BudgetResponse): boolean {
   const headers = response.request().headers();
   return (
-    headers['next-router-prefetch'] !== undefined ||
-    headers['purpose'] === 'prefetch' ||
-    (headers['sec-purpose']?.includes('prefetch') ?? false)
+    headers["next-router-prefetch"] !== undefined ||
+    headers["purpose"] === "prefetch" ||
+    (headers["sec-purpose"]?.includes("prefetch") ?? false)
   );
 }
 
@@ -70,21 +70,21 @@ export async function expectDbBudget(
   const seen: { response: BudgetResponse; url: string; id: string }[] = [];
   const listener = (response: BudgetResponse): void => {
     const headers = response.headers();
-    const id = headers['x-bs-request-id'];
-    const stats = headers['x-bs-stats'];
+    const id = headers["x-bs-request-id"];
+    const stats = headers["x-bs-stats"];
     if (!id || !stats || (!expectation.prefetches && isPrefetch(response)))
       return;
     seen.push({ response, id, url: new URL(stats, response.url()).href });
   };
-  page.on('response', listener);
+  page.on("response", listener);
   try {
     await (expectation.during ? expectation.during() : page.reload());
   } finally {
-    page.off('response', listener);
+    page.off("response", listener);
   }
   if (seen.length === 0) {
     throw new Error(
-      'expectDbBudget: no response carried x-bs-request-id. Enable createNext(sb, { debug: { enabled: true } }) and run the proxy.',
+      "expectDbBudget: no response carried x-bs-request-id. Enable createNext(sb, { debug: { enabled: true } }) and run the proxy.",
     );
   }
   await Promise.all(
@@ -118,10 +118,10 @@ export async function expectDbBudget(
   if (over.length > 0) {
     const lines = over.map(
       ({ url, stats }) =>
-        `  ${url}: ${stats.calls} calls in ${stats.waves} waves (${stats.tables.join(', ')})`,
+        `  ${url}: ${stats.calls} calls in ${stats.waves} waves (${stats.tables.join(", ")})`,
     );
     throw new Error(
-      `expectDbBudget: over the budget of ${expectation.maxCalls ?? '∞'} calls and ${expectation.maxWaves ?? '∞'} waves:\n${lines.join('\n')}`,
+      `expectDbBudget: over the budget of ${expectation.maxCalls ?? "∞"} calls and ${expectation.maxWaves ?? "∞"} waves:\n${lines.join("\n")}`,
     );
   }
   return renders;

@@ -1,50 +1,50 @@
 import type {
   StandardJSONSchemaV1,
   StandardSchemaV1,
-} from '@standard-schema/spec';
+} from "@standard-schema/spec";
 
 import {
   fromSupabaseUrl,
   unauthorizedResponse,
-} from '@supabase/server/oauth-protected-resource';
+} from "@supabase/server/oauth-protected-resource";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { ResourceOperation } from '../openapi/index.ts';
-import type { AnyFunctions, AnyModels, TableKey } from '../schema/types.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { ResourceOperation } from "../openapi/index.ts";
+import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from '../server/server.ts';
+} from "../server/server.ts";
 
-import { type DbError, dbError } from '../core/errors.ts';
-import { toProblem } from '../core/problem.ts';
-import { SPEC_PINS } from '../core/spec-pins.ts';
-import { validate } from '../core/standard.ts';
-import { buildJsonSchema } from '../generators/json-schema.ts';
+import { type DbError, dbError } from "../core/errors.ts";
+import { toProblem } from "../core/problem.ts";
+import { SPEC_PINS } from "../core/spec-pins.ts";
+import { validate } from "../core/standard.ts";
+import { buildJsonSchema } from "../generators/json-schema.ts";
 import {
   defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
-} from '../server/resource.ts';
+} from "../server/resource.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   settle,
-} from '../server/respond.ts';
-import { createServer, extendServer, withExtra } from '../server/server.ts';
+} from "../server/respond.ts";
+import { createServer, extendServer, withExtra } from "../server/server.ts";
 
-export type { GuardOptions } from '../server/respond.ts';
-export type { ResourceRouteOptions } from '../server/resource.ts';
+export type { GuardOptions } from "../server/respond.ts";
+export type { ResourceRouteOptions } from "../server/resource.ts";
 
 export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
-const WELL_KNOWN = '/.well-known/oauth-protected-resource';
+const WELL_KNOWN = "/.well-known/oauth-protected-resource";
 /** Revisions before 2026-07-28 open with an `initialize` handshake. */
 const LEGACY_VERSIONS: readonly string[] = [
-  '2025-11-25',
-  '2025-06-18',
-  '2025-03-26',
+  "2025-11-25",
+  "2025-06-18",
+  "2025-03-26",
 ];
 const SUPPORTED_VERSIONS: readonly string[] = [
   MCP_PROTOCOL_VERSION,
@@ -208,7 +208,7 @@ export interface BetterMcp<
 }
 
 export interface ToolResult {
-  readonly content: readonly { readonly type: 'text'; readonly text: string }[];
+  readonly content: readonly { readonly type: "text"; readonly text: string }[];
   readonly structuredContent?: Json;
   readonly isError?: boolean;
 }
@@ -225,13 +225,13 @@ export function defineTool<
       `Invalid tool name "${definition.name}": use 1-64 letters, digits, "_", "-" or "."`,
     );
   }
-  const standard = definition.input?.['~standard'] as
+  const standard = definition.input?.["~standard"] as
     | Partial<StandardJSONSchemaV1.Props>
     | undefined;
   const inputSchema =
     definition.inputSchema ??
-    standard?.jsonSchema?.input({ target: 'draft-2020-12' }) ??
-    (definition.input ? undefined : { type: 'object', properties: {} });
+    standard?.jsonSchema?.input({ target: "draft-2020-12" }) ??
+    (definition.input ? undefined : { type: "object", properties: {} });
   if (!inputSchema) {
     throw new TypeError(
       `Tool "${definition.name}": the input schema has no JSON Schema; pass inputSchema`,
@@ -277,10 +277,10 @@ const ANNOTATIONS: { readonly [K in ResourceOperation]: ToolAnnotations } = {
 
 function pageSchema(max: number): Json {
   return {
-    type: 'object',
+    type: "object",
     properties: {
-      page: { type: 'integer', minimum: 1, default: 1 },
-      size: { type: 'integer', minimum: 1, maximum: max, default: 50 },
+      page: { type: "integer", minimum: 1, default: 1 },
+      size: { type: "integer", minimum: 1, maximum: max, default: 50 },
     },
     additionalProperties: false,
   };
@@ -291,25 +291,25 @@ function tableTools(
   defs: Readonly<Record<string, Json>>,
 ): { info: ToolInfo; operation: ResourceOperation }[] {
   const { table, keyParam } = resource;
-  const row = defs[`${table}Row`] ?? { type: 'object' };
+  const row = defs[`${table}Row`] ?? { type: "object" };
   const key: Json | undefined = keyParam
-    ? ((row['properties'] as Record<string, Json> | undefined)?.[keyParam] ?? {
-        type: 'string',
+    ? ((row["properties"] as Record<string, Json> | undefined)?.[keyParam] ?? {
+        type: "string",
       })
     : undefined;
   const keyInput = (more: Json = {}): Json => ({
-    type: 'object',
+    type: "object",
     properties: { [keyParam!]: key, ...more },
     required: [keyParam!, ...Object.keys(more)],
     additionalProperties: false,
   });
   const page: Json = {
-    type: 'object',
+    type: "object",
     properties: {
-      items: { type: 'array', items: row },
-      page: { type: 'object' },
+      items: { type: "array", items: row },
+      page: { type: "object" },
     },
-    required: ['items', 'page'],
+    required: ["items", "page"],
   };
   const tools: { info: ToolInfo; operation: ResourceOperation }[] = [];
   const add = (
@@ -332,42 +332,42 @@ function tableTools(
   };
   for (const operation of resource.operations) {
     switch (operation) {
-      case 'list': {
+      case "list": {
         const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
           pageSchema(resource.maxPageSize)) as Record<string, unknown>;
         add(
-          'list',
+          "list",
           `List ${table} rows visible to the caller, one page at a time.`,
           listSchema,
           page,
         );
         break;
       }
-      case 'get':
+      case "get":
         if (keyParam)
-          add('get', `Get one ${table} row by ${keyParam}.`, keyInput(), row);
+          add("get", `Get one ${table} row by ${keyParam}.`, keyInput(), row);
         break;
-      case 'create':
+      case "create":
         add(
-          'create',
+          "create",
           `Create a ${table} row. Returns the created row.`,
-          defs[`${table}Insert`] ?? { type: 'object' },
+          defs[`${table}Insert`] ?? { type: "object" },
           row,
         );
         break;
-      case 'update':
+      case "update":
         if (keyParam) {
           add(
-            'update',
+            "update",
             `Update the columns in "patch" on one ${table} row.`,
-            keyInput({ patch: defs[`${table}Update`] ?? { type: 'object' } }),
+            keyInput({ patch: defs[`${table}Update`] ?? { type: "object" } }),
             row,
           );
         }
         break;
-      case 'delete':
+      case "delete":
         if (keyParam)
-          add('delete', `Delete one ${table} row by ${keyParam}.`, keyInput());
+          add("delete", `Delete one ${table} row by ${keyParam}.`, keyInput());
         break;
       default: {
         const unknown: never = operation;
@@ -379,7 +379,7 @@ function tableTools(
 }
 
 interface JsonRpcRequest {
-  readonly jsonrpc: '2.0';
+  readonly jsonrpc: "2.0";
   readonly id?: string | number | null;
   readonly method: string;
   readonly params?: Json;
@@ -392,14 +392,14 @@ const INVALID_PARAMS = -32602;
 const HEADER_MISMATCH = -32020;
 const UNSUPPORTED_PROTOCOL_VERSION = -32022;
 
-const META_VERSION = 'io.modelcontextprotocol/protocolVersion';
-const META_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities';
-const META_SERVER_INFO = 'io.modelcontextprotocol/serverInfo';
+const META_VERSION = "io.modelcontextprotocol/protocolVersion";
+const META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
+const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 /** How long clients may cache `tools/list` and `server/discover` (per token). */
 const LIST_TTL_MS = 300_000;
 
 function rpcError(
-  id: JsonRpcRequest['id'],
+  id: JsonRpcRequest["id"],
   code: number,
   message: string,
   status = 200,
@@ -407,7 +407,7 @@ function rpcError(
 ): Response {
   return Response.json(
     {
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       id: id ?? null,
       error: { code, message, ...(data ? { data } : {}) },
     },
@@ -416,7 +416,7 @@ function rpcError(
 }
 
 const isObject = (value: unknown): value is Json =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** An `Mcp-Name` value, decoding the `=?base64?...?=` sentinel. */
 function headerName(value: string): string {
@@ -432,27 +432,27 @@ function headerName(value: string): string {
 }
 
 const quoted = (value: string): string =>
-  `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+  `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 
 function isRpcRequest(value: unknown): value is JsonRpcRequest {
   return (
     isObject(value) &&
-    value['jsonrpc'] === '2.0' &&
-    typeof value['method'] === 'string' &&
-    (value['params'] === undefined || isObject(value['params']))
+    value["jsonrpc"] === "2.0" &&
+    typeof value["method"] === "string" &&
+    (value["params"] === undefined || isObject(value["params"]))
   );
 }
 
 function textResult(value: unknown, isError = false): ToolResult {
   const structured =
-    typeof value === 'object' && value !== null && !Array.isArray(value)
+    typeof value === "object" && value !== null && !Array.isArray(value)
       ? (value as Json)
       : undefined;
   return {
     content: [
       {
-        type: 'text',
-        text: typeof value === 'string' ? value : JSON.stringify(value ?? null),
+        type: "text",
+        text: typeof value === "string" ? value : JSON.stringify(value ?? null),
       },
     ],
     ...(structured ? { structuredContent: structured } : {}),
@@ -462,7 +462,7 @@ function textResult(value: unknown, isError = false): ToolResult {
 
 function canonical(request: Request): string {
   const url = new URL(request.url);
-  return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+  return `${url.origin}${url.pathname.replace(/\/$/, "")}`;
 }
 
 /**
@@ -480,7 +480,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   const defs = buildJsonSchema({
     meta: sb.meta,
     config: { json: options.json ?? {} },
-  })['$defs'] as Record<string, Json>;
+  })["$defs"] as Record<string, Json>;
 
   /** A call `authorize` refused; `scopes` is empty for a plain tool error. */
   interface Refusal {
@@ -537,11 +537,11 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
           const result = await resource.execute(ctx.db, operation, {
             id,
             query: input,
-            data: operation === 'update' ? input['patch'] : input,
+            data: operation === "update" ? input["patch"] : input,
           });
           if (!result.ok) return failure(result.error);
           return textResult(
-            operation === 'delete' ? { deleted: true } : result.data,
+            operation === "delete" ? { deleted: true } : result.data,
           );
         },
       });
@@ -555,7 +555,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       async call(args, ctx) {
         let value: unknown = args ?? {};
         if (tool.input) {
-          const parsed = await validate(tool.input, value, 'arguments');
+          const parsed = await validate(tool.input, value, "arguments");
           if (!parsed.ok) return failure(parsed.error);
           value = parsed.data;
         }
@@ -582,17 +582,17 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   const authorizationServers = (): readonly string[] =>
     options.authorizationServers ?? [fromSupabaseUrl(server.env.url)];
   const resourceOf = (request: Request): string => {
-    if (typeof options.resource === 'function')
+    if (typeof options.resource === "function")
       return options.resource(request);
     if (options.resource) return options.resource;
     const url = new URL(canonical(request));
     return url.pathname.startsWith(WELL_KNOWN)
       ? `${url.origin}${url.pathname.slice(WELL_KNOWN.length)}`
-      : url.href.replace(/\/$/, '');
+      : url.href.replace(/\/$/, "");
   };
   const metadataUrl = (request: Request): string => {
     const resource = new URL(resourceOf(request));
-    return `${resource.origin}${WELL_KNOWN}${resource.pathname.replace(/\/$/, '')}`;
+    return `${resource.origin}${WELL_KNOWN}${resource.pathname.replace(/\/$/, "")}`;
   };
 
   const invoke = async (
@@ -604,28 +604,28 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     const entry = registry.get(name);
     try {
       if (!entry || (checkVisible && !(await isVisible(entry, ctx)))) {
-        return failure(dbError('not_found', `Unknown tool "${name}"`));
+        return failure(dbError("not_found", `Unknown tool "${name}"`));
       }
       return await entry.call(args, ctx);
     } catch (cause) {
       return failure(
         dbError(
-          'unexpected',
-          expose && cause instanceof Error ? cause.message : 'The tool failed',
+          "unexpected",
+          expose && cause instanceof Error ? cause.message : "The tool failed",
         ),
       );
     }
   };
-  const isRefusal = (value: Invocation): value is Refusal => 'refusal' in value;
-  const call: BetterMcp<M, F, E>['call'] = async (name, args, ctx) => {
+  const isRefusal = (value: Invocation): value is Refusal => "refusal" in value;
+  const call: BetterMcp<M, F, E>["call"] = async (name, args, ctx) => {
     const outcome = await invoke(name, args, ctx);
     return isRefusal(outcome)
-      ? failure(dbError('forbidden', outcome.refusal))
+      ? failure(dbError("forbidden", outcome.refusal))
       : outcome;
   };
 
   const scopes = (options.scopes ?? []).filter(
-    (scope) => scope !== 'offline_access',
+    (scope) => scope !== "offline_access",
   );
   const serverInfo = {
     name: options.name,
@@ -640,8 +640,8 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     });
     if (scopes.length > 0) {
       response.headers.set(
-        'www-authenticate',
-        `${response.headers.get('www-authenticate') ?? 'Bearer'}, scope=${quoted(scopes.join(' '))}`,
+        "www-authenticate",
+        `${response.headers.get("www-authenticate") ?? "Bearer"}, scope=${quoted(scopes.join(" "))}`,
       );
     }
     return response;
@@ -650,27 +650,27 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     request: Request,
     message: string,
     needed: readonly string[] = [],
-    id: JsonRpcRequest['id'] = null,
+    id: JsonRpcRequest["id"] = null,
   ): Response => {
     const all = [...new Set([...scopes, ...needed])];
     const challenge = [
       'Bearer error="insufficient_scope"',
       `error_description=${quoted(message)}`,
-      ...(all.length > 0 ? [`scope=${quoted(all.join(' '))}`] : []),
+      ...(all.length > 0 ? [`scope=${quoted(all.join(" "))}`] : []),
       `resource_metadata=${quoted(metadataUrl(request))}`,
-    ].join(', ');
+    ].join(", ");
     const response = rpcError(id, INVALID_REQUEST, message, 403);
-    response.headers.set('www-authenticate', challenge);
+    response.headers.set("www-authenticate", challenge);
     return response;
   };
   const unsupportedVersion = (
-    id: JsonRpcRequest['id'],
+    id: JsonRpcRequest["id"],
     requested: unknown,
   ): Response =>
     rpcError(
       id,
       UNSUPPORTED_PROTOCOL_VERSION,
-      'Unsupported protocol version',
+      "Unsupported protocol version",
       400,
       { supported: [...SUPPORTED_VERSIONS], requested },
     );
@@ -680,11 +680,11 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     header: string | null,
     headers: Headers,
   ): Response | undefined => {
-    const meta = message.params?.['_meta'];
+    const meta = message.params?.["_meta"];
     const version = isObject(meta) ? meta[META_VERSION] : undefined;
     if (
       !isObject(meta) ||
-      typeof version !== 'string' ||
+      typeof version !== "string" ||
       !isObject(meta[META_CAPABILITIES])
     ) {
       return rpcError(
@@ -702,12 +702,12 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     if (header !== version) {
       return mismatch(`MCP-Protocol-Version must be ${version}`);
     }
-    if (headers.get('mcp-method') !== message.method) {
+    if (headers.get("mcp-method") !== message.method) {
       return mismatch(`Mcp-Method must be ${message.method}`);
     }
-    const name = message.params?.['name'];
-    if (message.method === 'tools/call' && typeof name === 'string') {
-      const sent = headers.get('mcp-name');
+    const name = message.params?.["name"];
+    if (message.method === "tools/call" && typeof name === "string") {
+      const sent = headers.get("mcp-name");
       if (sent === null || headerName(sent) !== name) {
         return mismatch(`Mcp-Name must be ${name}`);
       }
@@ -716,18 +716,18 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   };
 
   const handler = async (request: Request): Promise<Response> => {
-    const origin = request.headers.get('origin');
+    const origin = request.headers.get("origin");
     if (
       origin &&
       options.allowedOrigins &&
       !options.allowedOrigins.includes(origin)
     ) {
-      return rpcError(null, INVALID_REQUEST, 'Origin not allowed', 403);
+      return rpcError(null, INVALID_REQUEST, "Origin not allowed", 403);
     }
-    if (request.method !== 'POST') {
-      return new Response(null, { status: 405, headers: { allow: 'POST' } });
+    if (request.method !== "POST") {
+      return new Response(null, { status: 405, headers: { allow: "POST" } });
     }
-    const header = request.headers.get('mcp-protocol-version');
+    const header = request.headers.get("mcp-protocol-version");
     if (header && !SUPPORTED_VERSIONS.includes(header)) {
       return unsupportedVersion(null, header);
     }
@@ -735,7 +735,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     const ctx = await server.context(request);
     const denied = guard(ctx.auth, options.allow, options.aal);
     if (denied) {
-      return denied.kind === 'unauthorized'
+      return denied.kind === "unauthorized"
         ? unauthorized(request)
         : forbidden(request, denied.message);
     }
@@ -744,17 +744,17 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     try {
       message = await request.json();
     } catch {
-      return rpcError(null, PARSE_ERROR, 'Parse error', 400);
+      return rpcError(null, PARSE_ERROR, "Parse error", 400);
     }
     if (!isRpcRequest(message)) {
       return rpcError(
         null,
         INVALID_REQUEST,
-        'Expected one JSON-RPC 2.0 message',
+        "Expected one JSON-RPC 2.0 message",
         400,
       );
     }
-    const meta = message.params?.['_meta'];
+    const meta = message.params?.["_meta"];
     const modern =
       (isObject(meta) && meta[META_VERSION] !== undefined) ||
       header === MCP_PROTOCOL_VERSION;
@@ -768,12 +768,12 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
 
     const reply = (result: object): Response =>
       Response.json({
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         id: message.id,
         result: modern
           ? {
               ...result,
-              resultType: 'complete',
+              resultType: "complete",
               _meta: { [META_SERVER_INFO]: serverInfo },
             }
           : result,
@@ -787,7 +787,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       );
 
     switch (message.method) {
-      case 'server/discover':
+      case "server/discover":
         return reply({
           supportedVersions: [...SUPPORTED_VERSIONS],
           capabilities,
@@ -795,14 +795,14 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
             ? { instructions: options.instructions }
             : {}),
           ttlMs: LIST_TTL_MS,
-          cacheScope: 'private',
+          cacheScope: "private",
         });
-      case 'initialize': {
+      case "initialize": {
         if (modern) return notFound();
-        const requested = message.params?.['protocolVersion'];
+        const requested = message.params?.["protocolVersion"];
         return reply({
           protocolVersion:
-            typeof requested === 'string' && LEGACY_VERSIONS.includes(requested)
+            typeof requested === "string" && LEGACY_VERSIONS.includes(requested)
               ? requested
               : LEGACY_VERSIONS[0],
           capabilities,
@@ -812,16 +812,16 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
             : {}),
         });
       }
-      case 'ping':
+      case "ping":
         return modern ? notFound() : reply({});
-      case 'tools/list':
+      case "tools/list":
         return reply({
           tools: await visibleTools(toolContext()),
-          ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: 'private' } : {}),
+          ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: "private" } : {}),
         });
-      case 'tools/call': {
-        const name = message.params?.['name'];
-        const entry = typeof name === 'string' ? registry.get(name) : undefined;
+      case "tools/call": {
+        const name = message.params?.["name"];
+        const entry = typeof name === "string" ? registry.get(name) : undefined;
         const context = toolContext();
         if (!entry || !(await isVisible(entry, context))) {
           return rpcError(
@@ -832,7 +832,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         }
         const outcome = await invoke(
           entry.info.name,
-          message.params?.['arguments'],
+          message.params?.["arguments"],
           context,
           false,
         );
@@ -845,7 +845,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
             message.id,
           );
         }
-        return reply(failure(dbError('forbidden', outcome.refusal)));
+        return reply(failure(dbError("forbidden", outcome.refusal)));
       }
       default:
         return notFound();
@@ -857,10 +857,10 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       {
         resource: resourceOf(request),
         authorization_servers: [...authorizationServers()],
-        bearer_methods_supported: ['header'],
+        bearer_methods_supported: ["header"],
         ...(scopes.length > 0 ? { scopes_supported: scopes } : {}),
       },
-      { headers: { 'access-control-allow-origin': '*' } },
+      { headers: { "access-control-allow-origin": "*" } },
     );
 
   const mcp: BetterMcp<M, F, E> = extendServer<BetterMcp<M, F, E>>(server, {
@@ -878,12 +878,12 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       const { pathname } = new URL(request.url);
       if (pathname.startsWith(WELL_KNOWN)) {
         return Promise.resolve(
-          request.method === 'OPTIONS'
+          request.method === "OPTIONS"
             ? new Response(null, {
                 status: 204,
                 headers: {
-                  'access-control-allow-origin': '*',
-                  'access-control-allow-methods': 'GET',
+                  "access-control-allow-origin": "*",
+                  "access-control-allow-methods": "GET",
                 },
               })
             : metadata(request),

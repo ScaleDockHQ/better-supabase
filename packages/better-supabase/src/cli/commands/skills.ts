@@ -1,15 +1,15 @@
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import type { ResolvedConfig } from '../../config/index.ts';
-import type { ParsedArgs } from '../args.ts';
-import type { CommandResult } from '../io.ts';
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { ParsedArgs } from "../args.ts";
+import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagList, flagString } from '../args.ts';
-import { display, writeIfChanged } from '../io.ts';
+import { flagBool, flagList, flagString } from "../args.ts";
+import { display, writeIfChanged } from "../io.ts";
 
 export const SKILLS_HELP = `Usage: better-supabase skills <list|install> [--agent cursor,claude,agents] [--global] [--check]
 
@@ -25,9 +25,9 @@ Options
   --check           Fail when installed skills differ from this version`;
 
 const AGENT_DIRS = {
-  cursor: '.cursor/skills',
-  claude: '.claude/skills',
-  agents: '.agents/skills',
+  cursor: ".cursor/skills",
+  claude: ".claude/skills",
+  agents: ".agents/skills",
 } as const;
 
 type Agent = keyof typeof AGENT_DIRS;
@@ -41,14 +41,14 @@ export function skillsRoot(
   let dir = dirname(from);
   for (;;) {
     if (
-      existsSync(join(dir, 'skills')) &&
-      existsSync(join(dir, 'package.json'))
+      existsSync(join(dir, "skills")) &&
+      existsSync(join(dir, "package.json"))
     ) {
-      return join(dir, 'skills');
+      return join(dir, "skills");
     }
     const parent = dirname(dir);
     if (parent === dir)
-      throw new Error('Could not find the better-supabase skills folder.');
+      throw new Error("Could not find the better-supabase skills folder.");
     dir = parent;
   }
 }
@@ -68,14 +68,14 @@ interface Skill {
   readonly files: readonly SkillFile[];
 }
 
-async function readTree(root: string, prefix = ''): Promise<SkillFile[]> {
+async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) files.push(...(await readTree(root, path)));
     else if (entry.isFile())
-      files.push({ path, contents: await readFile(join(root, path), 'utf8') });
+      files.push({ path, contents: await readFile(join(root, path), "utf8") });
   }
   return files;
 }
@@ -88,11 +88,11 @@ export async function loadSkills(
     (item) => item.isDirectory(),
   )) {
     const folder = join(root, entry.name);
-    if (!existsSync(join(folder, 'SKILL.md'))) continue;
+    if (!existsSync(join(folder, "SKILL.md"))) continue;
     const tree = await readTree(folder);
-    const main = tree.find((file) => file.path === 'SKILL.md')!;
+    const main = tree.find((file) => file.path === "SKILL.md")!;
     const files = [main, ...tree.filter((file) => file !== main)];
-    const description = /^description:\s*(.+)$/m.exec(main.contents)?.[1] ?? '';
+    const description = /^description:\s*(.+)$/m.exec(main.contents)?.[1] ?? "";
     skills.push({
       name: entry.name,
       description,
@@ -110,17 +110,17 @@ export async function runSkills(
 ): Promise<CommandResult> {
   const [action] = args.rest;
   const skills = await loadSkills(
-    flagString(args.flags, 'from') ?? skillsRoot(),
+    flagString(args.flags, "from") ?? skillsRoot(),
   );
-  if (action === 'list') {
+  if (action === "list") {
     return {
       code: 0,
       output: skills
         .map((skill) => `${skill.name}\n  ${skill.description}`)
-        .join('\n'),
+        .join("\n"),
     };
   }
-  if (action !== 'install') {
+  if (action !== "install") {
     return {
       code: 2,
       error: action
@@ -128,27 +128,27 @@ export async function runSkills(
         : SKILLS_HELP,
     };
   }
-  const global = flagBool(args.flags, 'global');
-  const base = global ? (env['HOME'] ?? homedir()) : config.root;
-  const requested = flagList(args.flags, 'agent');
+  const global = flagBool(args.flags, "global");
+  const base = global ? (env["HOME"] ?? homedir()) : config.root;
+  const requested = flagList(args.flags, "agent");
   const unknown = requested.filter((name) => !isAgent(name));
   if (unknown.length > 0) {
     return {
       code: 2,
-      error: `Unknown agent ${unknown.join(', ')}. Use ${Object.keys(AGENT_DIRS).join(', ')}.`,
+      error: `Unknown agent ${unknown.join(", ")}. Use ${Object.keys(AGENT_DIRS).join(", ")}.`,
     };
   }
   const detected = (Object.keys(AGENT_DIRS) as Agent[]).filter((agent) =>
-    existsSync(join(base, AGENT_DIRS[agent].split('/')[0]!)),
+    existsSync(join(base, AGENT_DIRS[agent].split("/")[0]!)),
   );
   const agents: Agent[] =
     requested.length > 0
       ? requested.filter(isAgent)
       : detected.length > 0
         ? detected
-        : ['agents'];
+        : ["agents"];
 
-  const check = flagBool(args.flags, 'check');
+  const check = flagBool(args.flags, "check");
   const lines: string[] = [];
   const stale: string[] = [];
   for (const agent of agents) {
@@ -161,24 +161,24 @@ export async function runSkills(
           : display(config.root, relativePath);
         if (check) {
           const current = existsSync(path)
-            ? await readFile(path, 'utf8')
+            ? await readFile(path, "utf8")
             : undefined;
           if (current !== file.contents) stale.push(shown);
           continue;
         }
         lines.push(
-          `${(await writeIfChanged(path, file.contents)) ? 'Wrote' : 'Unchanged'} ${shown}`,
+          `${(await writeIfChanged(path, file.contents)) ? "Wrote" : "Unchanged"} ${shown}`,
         );
       }
     }
   }
   if (check) {
     return stale.length === 0
-      ? { code: 0, output: 'Skills are up to date.' }
+      ? { code: 0, output: "Skills are up to date." }
       : {
           code: 1,
-          error: `Out of date: ${stale.join(', ')}. Run \`better-supabase skills install\`.`,
+          error: `Out of date: ${stale.join(", ")}. Run \`better-supabase skills install\`.`,
         };
   }
-  return { code: 0, output: lines.join('\n') };
+  return { code: 0, output: lines.join("\n") };
 }

@@ -1,27 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
-import { Pool } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createClient } from "@supabase/supabase-js";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { defineTopic } from '../realtime/index.ts';
-import { defineBucket } from '../storage/index.ts';
-import { signLocalJwt } from '../testing/local-key.ts';
+import { defineTopic } from "../realtime/index.ts";
+import { defineBucket } from "../storage/index.ts";
+import { signLocalJwt } from "../testing/local-key.ts";
 
-const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
+const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const dbUrl =
-  process.env['SUPABASE_DB_URL'] ??
-  'postgresql://postgres:postgres@127.0.0.1:55422/postgres';
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
 const publishableKey =
-  process.env['SUPABASE_PUBLISHABLE_KEY'] ??
-  'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+  process.env["SUPABASE_PUBLISHABLE_KEY"] ??
+  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 const secretKey =
-  process.env['SUPABASE_SECRET_KEY'] ??
-  'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
+  process.env["SUPABASE_SECRET_KEY"] ??
+  "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 
-const ACME = '00000000-0000-4000-8000-000000000001';
-const OTHER = '00000000-0000-4000-8000-000000000002';
-const USER = '00000000-0000-4000-8000-0000000000fe';
+const ACME = "00000000-0000-4000-8000-000000000001";
+const OTHER = "00000000-0000-4000-8000-000000000002";
+const USER = "00000000-0000-4000-8000-0000000000fe";
 /** An id with hex letters, so its uppercase form differs. */
-const HEX = 'abcdef00-0000-4000-8000-0000000000ab';
+const HEX = "abcdef00-0000-4000-8000-0000000000ab";
 const RUN = String(Date.now());
 const SCHEMA = `bs_pd_${RUN}`;
 
@@ -56,31 +56,31 @@ $$;
 
 const files = defineBucket({
   id: `bs-it-pd-${RUN}`,
-  path: '{orgId}/{file}',
+  path: "{orgId}/{file}",
   policy: {
-    permdock: { read: 'files.read', list: 'files.list', write: 'files.write' },
-    scope: 'organization',
+    permdock: { read: "files.read", list: "files.list", write: "files.write" },
+    scope: "organization",
     schema: SCHEMA,
   },
 });
 
-const board = defineTopic('pd:{orgId}:board', {
+const board = defineTopic("pd:{orgId}:board", {
   name: `pd_board_${RUN}`,
   permdock: {
-    receive: 'board.read',
-    send: 'board.write',
-    scope: 'organization',
+    receive: "board.read",
+    send: "board.write",
+    scope: "organization",
     schema: SCHEMA,
   },
 });
 
-describe.skipIf(!live)('PermDock policy mode', async () => {
+describe.skipIf(!live)("PermDock policy mode", async () => {
   const clientWith = (pd: Record<string, string[]>, pdGlobal: string[] = []) =>
     createClient(url, publishableKey, {
       accessToken: () =>
         signLocalJwt({
           sub: USER,
-          role: 'authenticated',
+          role: "authenticated",
           pd,
           pd_global: pdGlobal,
         }),
@@ -89,9 +89,9 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
     auth: { persistSession: false },
   });
   const admin = files.connect(service);
-  const reader = files.connect(clientWith({ 'files.read': [ACME] }));
-  const lister = files.connect(clientWith({ 'files.list': [ACME] }));
-  const writer = files.connect(clientWith({ 'files.write': [ACME] }));
+  const reader = files.connect(clientWith({ "files.read": [ACME] }));
+  const lister = files.connect(clientWith({ "files.list": [ACME] }));
+  const writer = files.connect(clientWith({ "files.write": [ACME] }));
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
 
   beforeAll(async () => {
@@ -99,81 +99,81 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
     await pool.query(files.sql());
     await pool.query(board.sql());
     await admin
-      .upload({ orgId: ACME, file: 'a.txt' }, new Blob(['acme']))
+      .upload({ orgId: ACME, file: "a.txt" }, new Blob(["acme"]))
       .orThrow();
     await admin
-      .upload({ orgId: OTHER, file: 'b.txt' }, new Blob(['other']))
+      .upload({ orgId: OTHER, file: "b.txt" }, new Blob(["other"]))
       .orThrow();
     for (const orgId of [HEX, HEX.toUpperCase()]) {
-      await admin.upload({ orgId, file: 'h.txt' }, new Blob([orgId])).orThrow();
+      await admin.upload({ orgId, file: "h.txt" }, new Blob([orgId])).orThrow();
     }
   });
   afterAll(async () => {
     await admin.remove([
-      { orgId: ACME, file: 'a.txt' },
-      { orgId: ACME, file: 'w.txt' },
-      { orgId: OTHER, file: 'b.txt' },
-      { orgId: HEX, file: 'h.txt' },
-      { orgId: HEX.toUpperCase(), file: 'h.txt' },
+      { orgId: ACME, file: "a.txt" },
+      { orgId: ACME, file: "w.txt" },
+      { orgId: OTHER, file: "b.txt" },
+      { orgId: HEX, file: "h.txt" },
+      { orgId: HEX.toUpperCase(), file: "h.txt" },
     ]);
     await service.storage.deleteBucket(files.id);
-    const objects = ['select', 'list', 'insert', 'update', 'delete'].map(
+    const objects = ["select", "list", "insert", "update", "delete"].map(
       (suffix) =>
         `drop policy if exists "bs_bs_it_pd_${RUN}_${suffix}" on storage.objects;`,
     );
-    const topics = ['receive', 'send'].map(
+    const topics = ["receive", "send"].map(
       (suffix) =>
         `drop policy if exists "bs_topic_pd_board_${RUN}_${suffix}" on realtime.messages;`,
     );
     await pool.query(
-      [...objects, ...topics, `drop schema ${SCHEMA} cascade;`].join('\n'),
+      [...objects, ...topics, `drop schema ${SCHEMA} cascade;`].join("\n"),
     );
     await pool.end();
   });
 
-  it('downloads with read but lists only with list', async () => {
-    const own = await reader.download({ orgId: ACME, file: 'a.txt' }).orThrow();
-    expect(await own.text()).toBe('acme');
+  it("downloads with read but lists only with list", async () => {
+    const own = await reader.download({ orgId: ACME, file: "a.txt" }).orThrow();
+    expect(await own.text()).toBe("acme");
     expect(await reader.list({ orgId: ACME }).orThrow()).toEqual([]);
-    const other = await reader.download({ orgId: OTHER, file: 'b.txt' });
+    const other = await reader.download({ orgId: OTHER, file: "b.txt" });
     expect(other.ok).toBe(false);
 
     const listed = await lister.list({ orgId: ACME }).orThrow();
     expect(listed.map((object) => object.path)).toEqual([`${ACME}/a.txt`]);
     expect(await lister.list({ orgId: OTHER }).orThrow()).toEqual([]);
-    const download = await lister.download({ orgId: ACME, file: 'a.txt' });
+    const download = await lister.download({ orgId: ACME, file: "a.txt" });
     expect(download.ok).toBe(false);
   });
 
-  it('writes only where write is permitted', async () => {
+  it("writes only where write is permitted", async () => {
     const own = await writer.upload(
-      { orgId: ACME, file: 'w.txt' },
-      new Blob(['w']),
+      { orgId: ACME, file: "w.txt" },
+      new Blob(["w"]),
     );
     expect(own.ok).toBe(true);
     const other = await writer.upload(
-      { orgId: OTHER, file: 'w.txt' },
-      new Blob(['w']),
+      { orgId: OTHER, file: "w.txt" },
+      new Blob(["w"]),
     );
-    expect(other.error?.kind).toBe('forbidden');
+    expect(other.error?.kind).toBe("forbidden");
     const readerWrite = await reader.upload(
-      { orgId: ACME, file: 'r.txt' },
-      new Blob(['r']),
+      { orgId: ACME, file: "r.txt" },
+      new Blob(["r"]),
     );
-    expect(readerWrite.error?.kind).toBe('forbidden');
+    expect(readerWrite.error?.kind).toBe("forbidden");
   });
 
-  it('compares ids as canonical lowercase text', async () => {
-    const hexReader = files.connect(clientWith({ 'files.read': [HEX] }));
-    const lower = await hexReader.download({ orgId: HEX, file: 'h.txt' });
+  it("compares ids as canonical lowercase text", async () => {
+    const hexReader = files.connect(clientWith({ "files.read": [HEX] }));
+    const lower = await hexReader.download({ orgId: HEX, file: "h.txt" });
     expect(lower.ok).toBe(true);
     const upper = await hexReader.download({
       orgId: HEX.toUpperCase(),
-      file: 'h.txt',
+      file: "h.txt",
     });
     expect(upper.ok).toBe(false);
 
-    const client = clientWith({ 'board.read': [HEX] });
+    const client = clientWith({ "board.read": [HEX] });
     const joined = board.subscribe(client, { orgId: HEX }, {});
     await joined.ready;
     await joined.unsubscribe();
@@ -183,8 +183,8 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
     client.removeAllChannels();
   }, 20_000);
 
-  it('joins and sends on topics by permission', async () => {
-    const readOnly = clientWith({ 'board.read': [ACME] });
+  it("joins and sends on topics by permission", async () => {
+    const readOnly = clientWith({ "board.read": [ACME] });
     const joined = board.subscribe(readOnly, { orgId: ACME }, {});
     await joined.ready;
     await joined.unsubscribe();
@@ -193,13 +193,13 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
     await expect(elsewhere.ready).rejects.toThrow(/./);
     await elsewhere.unsubscribe();
 
-    const denied = await board.send(readOnly, { orgId: ACME }, 'moved', {});
+    const denied = await board.send(readOnly, { orgId: ACME }, "moved", {});
     expect(denied.ok).toBe(false);
     const sender = clientWith({
-      'board.read': [ACME],
-      'board.write': [ACME],
+      "board.read": [ACME],
+      "board.write": [ACME],
     });
-    const sent = await board.send(sender, { orgId: ACME }, 'moved', {});
+    const sent = await board.send(sender, { orgId: ACME }, "moved", {});
     expect(sent.ok).toBe(true);
     readOnly.removeAllChannels();
     sender.removeAllChannels();

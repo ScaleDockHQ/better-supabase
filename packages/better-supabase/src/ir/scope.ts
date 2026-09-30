@@ -1,4 +1,4 @@
-import type { TableMeta } from '../schema/types.ts';
+import type { TableMeta } from "../schema/types.ts";
 
 import {
   and,
@@ -7,7 +7,7 @@ import {
   not,
   type Operation,
   type Selection,
-} from './types.ts';
+} from "./types.ts";
 
 /** Returns the filter that always applies to rows of `table`, if any. */
 export type ScopeFor = (table: TableMeta) => Condition | undefined;
@@ -23,34 +23,34 @@ export function scopeCondition(
 ): Condition | undefined {
   if (!condition) return undefined;
   switch (condition.kind) {
-    case 'and':
-    case 'or':
+    case "and":
+    case "or":
       return {
         kind: condition.kind,
         items: condition.items.map(
           (item) => scopeCondition(item, scopeFor) ?? item,
         ),
       };
-    case 'not':
+    case "not":
       return {
-        kind: 'not',
+        kind: "not",
         item: scopeCondition(condition.item, scopeFor) ?? condition.item,
       };
-    case 'column':
+    case "column":
       return condition;
-    case 'relation': {
+    case "relation": {
       const inner = scopeCondition(condition.where, scopeFor);
       const scope = scopeFor(condition.target);
       if (!scope) return { ...condition, where: inner };
       switch (condition.quantifier) {
-        case 'some':
-        case 'none':
+        case "some":
+        case "none":
           return { ...condition, where: and(inner, scope) };
-        case 'every':
+        case "every":
           return inner
             ? {
                 ...condition,
-                quantifier: 'none',
+                quantifier: "none",
                 where: and(scope, not(inner)),
               }
             : { ...condition, where: undefined };
@@ -104,14 +104,14 @@ export function scopeOperation(
 ): Operation {
   const own = root ? scopeFor(op.table) : undefined;
   switch (op.kind) {
-    case 'select':
+    case "select":
       return {
         ...op,
         selection: scopeSelection(op.selection, scopeFor),
         where: and(scopeCondition(op.where, scopeFor), own),
       };
-    case 'update':
-    case 'delete':
+    case "update":
+    case "delete":
       return {
         ...op,
         where: and(scopeCondition(op.where, scopeFor), own),
@@ -119,7 +119,7 @@ export function scopeOperation(
           ? scopeSelection(op.returning, scopeFor)
           : undefined,
       };
-    case 'insert':
+    case "insert":
       return {
         ...op,
         returning: op.returning

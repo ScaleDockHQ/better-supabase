@@ -1,4 +1,4 @@
-import type { StoredSession } from './session.ts';
+import type { StoredSession } from "./session.ts";
 
 export interface RefreshOptions {
   readonly url: string;
@@ -22,7 +22,7 @@ export type RefreshOutcome =
   | {
       readonly ok: false;
       /** `rejected`: the refresh token is dead, sign the user out. `network`: keep the session and retry later. */
-      readonly reason: 'rejected' | 'network';
+      readonly reason: "rejected" | "network";
       readonly status?: number;
       readonly message: string;
     };
@@ -61,12 +61,12 @@ async function request(
     response = await doFetch(
       `${options.url}/auth/v1/token?grant_type=refresh_token`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
           apikey: options.forwardedFor?.secretKey ?? options.publishableKey,
-          'content-type': 'application/json',
+          "content-type": "application/json",
           ...(options.forwardedFor
-            ? { 'sb-forwarded-for': options.forwardedFor.ip }
+            ? { "sb-forwarded-for": options.forwardedFor.ip }
             : {}),
         },
         body: JSON.stringify({ refresh_token: refreshToken }),
@@ -75,8 +75,8 @@ async function request(
   } catch (cause) {
     return {
       ok: false,
-      reason: 'network',
-      message: cause instanceof Error ? cause.message : 'fetch failed',
+      reason: "network",
+      message: cause instanceof Error ? cause.message : "fetch failed",
     };
   }
   const body = (await response.json().catch(() => null)) as Record<
@@ -86,32 +86,32 @@ async function request(
   if (
     !response.ok ||
     !body ||
-    typeof body['access_token'] !== 'string' ||
-    typeof body['refresh_token'] !== 'string'
+    typeof body["access_token"] !== "string" ||
+    typeof body["refresh_token"] !== "string"
   ) {
     const message =
-      typeof body?.['msg'] === 'string'
-        ? body['msg']
-        : typeof body?.['error_description'] === 'string'
-          ? body['error_description']
+      typeof body?.["msg"] === "string"
+        ? body["msg"]
+        : typeof body?.["error_description"] === "string"
+          ? body["error_description"]
           : `Refresh failed with ${String(response.status)}`;
     return {
       ok: false,
       reason:
         response.status >= 500 || response.status === 429
-          ? 'network'
-          : 'rejected',
+          ? "network"
+          : "rejected",
       status: response.status,
       message,
     };
   }
   const expiresIn =
-    typeof body['expires_in'] === 'number' ? body['expires_in'] : undefined;
+    typeof body["expires_in"] === "number" ? body["expires_in"] : undefined;
   const session: StoredSession = {
     ...body,
-    access_token: body['access_token'],
-    refresh_token: body['refresh_token'],
-    ...(typeof body['expires_at'] !== 'number' && expiresIn !== undefined
+    access_token: body["access_token"],
+    refresh_token: body["refresh_token"],
+    ...(typeof body["expires_at"] !== "number" && expiresIn !== undefined
       ? { expires_at: Math.floor(now / 1000) + expiresIn }
       : {}),
   };

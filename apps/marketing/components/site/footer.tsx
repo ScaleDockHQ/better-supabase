@@ -1,6 +1,6 @@
-import { LogoMark } from '@/components/site/logo';
-import { SiteLink } from '@/components/site/site-link';
-import { footerColumns, site } from '@/lib/site';
+import { LogoMark } from "@/components/site/logo";
+import { SiteLink } from "@/components/site/site-link";
+import { footerColumns, site } from "@/lib/site";
 
 export function SiteFooter() {
   return (
@@ -36,7 +36,7 @@ export function SiteFooter() {
       <div className="border-border text-muted-foreground mx-auto flex w-full max-w-6xl justify-between border-t px-6 py-4 text-xs md:px-8">
         <span>MIT License</span>
         <span>
-          Not affiliated with Supabase, Inc. Built by{' '}
+          Not affiliated with Supabase, Inc. Built by{" "}
           <SiteLink
             href={site.company.url}
             className="hover:text-foreground underline-offset-4 hover:underline"

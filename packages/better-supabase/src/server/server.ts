@@ -1,42 +1,42 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { RequestContext } from '../core/plugin.ts';
-import type { Db } from '../core/repository-types.ts';
-import type { AsyncResult } from '../core/result.ts';
-import type { Postgres, SqlClaims } from '../postgres/pool.ts';
-import type { AnyFunctions, AnyModels } from '../schema/types.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { RequestContext } from "../core/plugin.ts";
+import type { Db } from "../core/repository-types.ts";
+import type { AsyncResult } from "../core/result.ts";
+import type { Postgres, SqlClaims } from "../postgres/pool.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
-import { actClaim, type ImpersonationOptions } from '../auth/impersonation.ts';
+import { actClaim, type ImpersonationOptions } from "../auth/impersonation.ts";
 import {
   type AuthResolution,
   type AuthState,
   authContext,
   resolveAuth,
   type ResolveAuthOptions,
-} from '../auth/resolve.ts';
-import { postgrestExecutor } from '../core/postgrest-executor.ts';
-import { type DbStats, StatsRecorder } from '../core/stats.ts';
-import { type BetterSupabaseEnv, loadEnv } from '../env/index.ts';
-import { postgresExecutor } from '../postgres/executor.ts';
+} from "../auth/resolve.ts";
+import { postgrestExecutor } from "../core/postgrest-executor.ts";
+import { type DbStats, StatsRecorder } from "../core/stats.ts";
+import { type BetterSupabaseEnv, loadEnv } from "../env/index.ts";
+import { postgresExecutor } from "../postgres/executor.ts";
 import {
   deleteAccount,
   type DeleteAccountOptions,
   type DeleteAccountResult,
-} from './delete-account.ts';
+} from "./delete-account.ts";
 import {
   pinnedUntil,
   type ReplicaState,
   replicaState,
   routedExecutor,
-} from './replicas.ts';
+} from "./replicas.ts";
 
 export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
   readonly env?: BetterSupabaseEnv;
   /** Enables `ctx.sql` and `actingAs()`. */
   readonly postgres?: Postgres;
-  readonly auth?: Omit<ResolveAuthOptions, 'env'>;
+  readonly auth?: Omit<ResolveAuthOptions, "env">;
   /**
    * Extra headers on the caller's PostgREST requests, readable in Postgres as
    * `current_setting('request.headers')` (channel, request id, client IP for audit).
@@ -133,7 +133,7 @@ export interface BetterServer<
    */
   actingAs(
     userId: string,
-    claims?: Omit<SqlClaims, 'sub' | 'act'>,
+    claims?: Omit<SqlClaims, "sub" | "act">,
     impersonation?: ImpersonationOptions,
   ): Db<M, F, E, undefined>;
 }
@@ -197,7 +197,7 @@ export function createServer<
   const secretKey = (): string => {
     const key = env().secretKey;
     if (!key) {
-      throw new TypeError('admin() needs SUPABASE_SECRET_KEY; it is not set');
+      throw new TypeError("admin() needs SUPABASE_SECRET_KEY; it is not set");
     }
     return key;
   };
@@ -209,7 +209,7 @@ export function createServer<
   const readUrl = (): string | undefined =>
     options.readUrl === false
       ? undefined
-      : (options.readUrl?.replace(/\/+$/, '') ?? env().readUrl);
+      : (options.readUrl?.replace(/\/+$/, "") ?? env().readUrl);
 
   /** Clients for the primary share the service and anon clients; others don't. */
   const supabaseAt = (
@@ -221,19 +221,19 @@ export function createServer<
       Object.keys(headers).length > 0 ? { global: { headers } } : undefined;
     const shared = !global && url === env().url;
     switch (auth.kind) {
-      case 'user':
+      case "user":
         // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return createClient(url, env().publishableKey, {
           accessToken: () => Promise.resolve(auth.token),
           ...global,
         });
-      case 'service':
+      case "service":
         // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return shared
           ? serviceClient()
           : createClient(url, secretKey(), { auth: STATELESS, ...global });
-      case 'anon':
-      case 'invalid':
+      case "anon":
+      case "invalid":
         if (!shared) {
           // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
           return createClient(url, env().publishableKey, {
@@ -270,7 +270,7 @@ export function createServer<
   ): Db<M, F, E, undefined> => {
     if (!options.postgres) {
       throw new TypeError(
-        'Direct Postgres access needs createServer(sb, { postgres: createPostgres() })',
+        "Direct Postgres access needs createServer(sb, { postgres: createPostgres() })",
       );
     }
     return sb.connect(
@@ -294,10 +294,10 @@ export function createServer<
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
     const sqlClaims: SqlClaims | undefined =
-      auth.kind === 'user'
+      auth.kind === "user"
         ? auth.claims
-        : auth.kind === 'anon'
-          ? { role: 'anon' }
+        : auth.kind === "anon"
+          ? { role: "anon" }
           : undefined;
     const client = (): SupabaseClient =>
       (supabase ??= supabaseFor(auth, headers));
@@ -360,25 +360,25 @@ export function createServer<
         : {}),
       onRefresh: (event) => {
         options.auth?.onRefresh?.(event);
-        sb.events.emit('refresh', event);
+        sb.events.emit("refresh", event);
       },
     });
     // The claims schema's output is merged into every verified user's claims,
     // and the userMetadata schema's output is the profile.
     const resolution = resolved as AuthResolution<C, P>;
-    if (sb.events.has('auth')) {
+    if (sb.events.has("auth")) {
       const { auth } = resolution;
-      sb.events.emit('auth', {
+      sb.events.emit("auth", {
         source:
-          auth.kind === 'user'
-            ? auth.source === 'cookie'
-              ? 'cookie'
-              : 'bearer'
-            : auth.kind === 'service'
-              ? 'bearer'
-              : 'none',
-        ok: auth.kind !== 'invalid',
-        ...(auth.kind === 'user' ? { userId: auth.user.id } : {}),
+          auth.kind === "user"
+            ? auth.source === "cookie"
+              ? "cookie"
+              : "bearer"
+            : auth.kind === "service"
+              ? "bearer"
+              : "none",
+        ok: auth.kind !== "invalid",
+        ...(auth.kind === "user" ? { userId: auth.user.id } : {}),
       });
     }
     return resolution;
@@ -413,20 +413,20 @@ export function createServer<
         options.headers?.(request) ?? {},
         contextOptions.stats,
         contextOptions.pinnedUntil ??
-          pinnedUntil(request.headers.get('cookie')),
+          pinnedUntil(request.headers.get("cookie")),
       );
     },
     admin: (context = {}) =>
       sb.connect(serviceClient(), {
-        actor: { id: 'service', kind: 'service', role: 'service_role' },
-        claims: { role: 'service_role' },
+        actor: { id: "service", kind: "service", role: "service_role" },
+        claims: { role: "service_role" },
         ...context,
       }),
     deleteAccount: (userId, deleteOptions) =>
       deleteAccount(sb, serviceClient, userId, deleteOptions),
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
-        role: 'authenticated',
+        role: "authenticated",
         ...claims,
         sub: userId,
         ...(impersonation ? { act: actClaim(impersonation) } : {}),
@@ -434,8 +434,8 @@ export function createServer<
       return sqlFor(full, {
         actor: {
           id: userId,
-          kind: 'user',
-          role: full.role ?? 'authenticated',
+          kind: "user",
+          role: full.role ?? "authenticated",
           ...(impersonation ? { impersonator: impersonation.actor } : {}),
         },
         claims: full,

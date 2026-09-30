@@ -1,17 +1,17 @@
-import type { MutationOp, Operation } from '../../ir/types.ts';
-import type { SchemaMeta, TableMeta } from '../../schema/types.ts';
+import type { MutationOp, Operation } from "../../ir/types.ts";
+import type { SchemaMeta, TableMeta } from "../../schema/types.ts";
 
-import { claimAt, claimsOf, tenantClaimPaths } from '../../core/claims.ts';
-import { DbException, dbError } from '../../core/errors.ts';
+import { claimAt, claimsOf, tenantClaimPaths } from "../../core/claims.ts";
+import { DbException, dbError } from "../../core/errors.ts";
 import {
   definePlugin,
   type HasFlag,
   type Plugin,
   type RepositoryExtension,
   type RequestContext,
-} from '../../core/plugin.ts';
-import { scopeOperation } from '../../ir/scope.ts';
-import { dbName, equals, forbidden } from '../shared.ts';
+} from "../../core/plugin.ts";
+import { scopeOperation } from "../../ir/scope.ts";
+import { dbName, equals, forbidden } from "../shared.ts";
 
 /**
  * Dotted paths to the string claims of `C` (up to three levels), e.g.
@@ -48,7 +48,7 @@ export interface TenantOptions<C = unknown> {
    * What happens on a tenant table without a tenant in the context:
    * `error` (default) fails with `forbidden`; `skip` leaves it to RLS.
    */
-  readonly onMissing?: 'error' | 'skip';
+  readonly onMissing?: "error" | "skip";
 }
 
 export interface TenantFindArgs {
@@ -57,11 +57,11 @@ export interface TenantFindArgs {
 }
 
 export interface TenantExtension extends RepositoryExtension {
-  readonly findArgs: HasFlag<this['M'], this['T'], 'tenant'> extends true
+  readonly findArgs: HasFlag<this["M"], this["T"], "tenant"> extends true
     ? TenantFindArgs
     : unknown;
   readonly methods: unknown;
-  readonly deleteArgs: HasFlag<this['M'], this['T'], 'tenant'> extends true
+  readonly deleteArgs: HasFlag<this["M"], this["T"], "tenant"> extends true
     ? TenantFindArgs
     : unknown;
 }
@@ -73,13 +73,13 @@ export interface TenantExtension extends RepositoryExtension {
 export function resolveTenant<C = unknown>(
   context: RequestContext,
   options: TenantOptions<C> = {},
-  schema?: Pick<SchemaMeta, 'claims'>,
+  schema?: Pick<SchemaMeta, "claims">,
 ): string | undefined {
   if (options.resolve) return options.resolve(context);
-  if (typeof context.tenant === 'string') return context.tenant;
+  if (typeof context.tenant === "string") return context.tenant;
   const claim = options.claim as string | readonly string[] | undefined;
   const paths =
-    typeof claim === 'string'
+    typeof claim === "string"
       ? [claim]
       : (claim ?? tenantClaimPaths(claimsOf(schema).tenant));
   for (const path of paths) {
@@ -102,8 +102,8 @@ function tenantColumn(table: TableMeta): string | undefined {
  */
 export function tenant<C = unknown>(
   options: TenantOptions<C> = {},
-): Plugin<'tenant', TenantExtension> {
-  const onMissing = options.onMissing ?? 'error';
+): Plugin<"tenant", TenantExtension> {
+  const onMissing = options.onMissing ?? "error";
 
   const current = (
     table: TableMeta,
@@ -111,10 +111,10 @@ export function tenant<C = unknown>(
     schema: SchemaMeta,
   ): string | undefined => {
     const id = resolveTenant(context, options, schema);
-    if (id === undefined && onMissing === 'error' && tenantColumn(table)) {
+    if (id === undefined && onMissing === "error" && tenantColumn(table)) {
       throw new DbException(
         dbError(
-          'forbidden',
+          "forbidden",
           `No tenant in the request context for "${table.key}"`,
         ),
       );
@@ -122,10 +122,10 @@ export function tenant<C = unknown>(
     return id;
   };
 
-  return definePlugin<'tenant', TenantExtension>({
-    name: 'tenant',
+  return definePlugin<"tenant", TenantExtension>({
+    name: "tenant",
     transformQuery(op, { context, schema, options: call }): Operation {
-      if (call['allTenants'] === true) return op;
+      if (call["allTenants"] === true) return op;
       const id = current(op.table, context, schema);
       if (id === undefined) return op;
       return scopeOperation(op, (table) => {
@@ -135,11 +135,11 @@ export function tenant<C = unknown>(
     },
     beforeMutation(op, { table, context, schema, options: call }): MutationOp {
       const column = tenantColumn(table);
-      if (!column || call['allTenants'] === true) return op;
+      if (!column || call["allTenants"] === true) return op;
       const id = current(table, context, schema);
       if (id === undefined) return op;
       switch (op.kind) {
-        case 'insert':
+        case "insert":
           return {
             ...op,
             rows: op.rows.map((row) => {
@@ -149,12 +149,12 @@ export function tenant<C = unknown>(
               return { ...row, [column]: id };
             }),
           };
-        case 'update':
+        case "update":
           if (column in op.set && op.set[column] !== id) {
             forbidden(`Cannot move a ${table.key} row to another tenant`);
           }
           return op;
-        case 'delete':
+        case "delete":
           return op;
         default: {
           const exhaustive: never = op;

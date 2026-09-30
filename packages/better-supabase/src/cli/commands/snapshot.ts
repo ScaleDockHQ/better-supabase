@@ -1,25 +1,25 @@
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import type { ResolvedConfig } from '../../config/index.ts';
-import type { Snapshot } from '../introspect/types.ts';
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { Snapshot } from "../introspect/types.ts";
 
-import { databaseUrl } from '../config.ts';
-import { introspect } from '../introspect/index.ts';
+import { databaseUrl } from "../config.ts";
+import { introspect } from "../introspect/index.ts";
 import {
   type IntrospectionSource,
   managementSource,
   pgSource,
-} from '../introspect/source.ts';
-import { validateGeneratorMetadata } from '../introspect/typegen.ts';
-import { pgFunctionHooks, readSupabaseToml } from '../supabase-toml.ts';
+} from "../introspect/source.ts";
+import { validateGeneratorMetadata } from "../introspect/typegen.ts";
+import { pgFunctionHooks, readSupabaseToml } from "../supabase-toml.ts";
 
 export const SNAPSHOT_SCHEMA_URL =
-  'https://unpkg.com/better-supabase/schemas/snapshot-v2.json';
+  "https://unpkg.com/better-supabase/schemas/snapshot-v2.json";
 
 /** Schemas that are always read, for doctor checks on helper functions. */
-const EXTRA_SCHEMAS = ['better_supabase'];
+const EXTRA_SCHEMAS = ["better_supabase"];
 
 export interface SnapshotSource {
   readonly snapshotPath?: string;
@@ -49,7 +49,7 @@ export function managementTarget(
     (config.source.dbUrl ? undefined : config.source.projectRef);
   if (!projectRef) return undefined;
   const accessToken =
-    config.source.accessToken ?? env['SUPABASE_ACCESS_TOKEN'] ?? undefined;
+    config.source.accessToken ?? env["SUPABASE_ACCESS_TOKEN"] ?? undefined;
   if (!accessToken) {
     throw new Error(
       `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens) or pass --db-url.`,
@@ -58,7 +58,7 @@ export function managementTarget(
   return {
     projectRef,
     accessToken,
-    ...(env['SUPABASE_API_URL'] ? { apiUrl: env['SUPABASE_API_URL'] } : {}),
+    ...(env["SUPABASE_API_URL"] ? { apiUrl: env["SUPABASE_API_URL"] } : {}),
   };
 }
 
@@ -118,16 +118,16 @@ export async function readSnapshotFile(
   label: string = absolute,
 ): Promise<Snapshot> {
   if (!existsSync(absolute)) throw new Error(`Snapshot not found: ${label}`);
-  return parseSnapshot(JSON.parse(await readFile(absolute, 'utf8')), label);
+  return parseSnapshot(JSON.parse(await readFile(absolute, "utf8")), label);
 }
 
 /** Validates a parsed snapshot document. */
 export function parseSnapshot(
   data: unknown,
-  label: string = 'snapshot',
+  label: string = "snapshot",
 ): Snapshot {
   const doc = data as Partial<Snapshot> | null;
-  if (!doc || typeof doc !== 'object' || doc.version !== 2) {
+  if (!doc || typeof doc !== "object" || doc.version !== 2) {
     throw new Error(
       `${label} is not a version 2 snapshot. Run \`better-supabase introspect\` to refresh it.`,
     );

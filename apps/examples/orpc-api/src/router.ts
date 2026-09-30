@@ -1,15 +1,15 @@
-import { os } from '@orpc/server';
-import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
-import { z } from 'zod';
+import { os } from "@orpc/server";
+import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
+import { z } from "zod";
 
-import { sb } from './lib/supabase';
+import { sb } from "./lib/supabase";
 
 export const bs = createOrpc(sb);
 
 const base = os.$context<OrpcRequestContext>();
 const authed = base.use(bs.middleware());
 
-const customer = ['id', 'name', 'status', 'organizationId'] as const;
+const customer = ["id", "name", "status", "organizationId"] as const;
 
 export const router = {
   me: authed.handler(({ context }) => ({ kind: context.auth.kind })),
@@ -26,7 +26,7 @@ export const router = {
           context.db.customers.findMany({
             select: customer,
             ...(input.q ? { where: { name: { ilike: `%${input.q}%` } } } : {}),
-            orderBy: { name: 'asc' },
+            orderBy: { name: "asc" },
             limit: input.limit,
           }),
         ),

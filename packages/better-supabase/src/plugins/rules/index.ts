@@ -1,16 +1,16 @@
-import type { Operation, Selection } from '../../ir/types.ts';
-import type { SchemaMeta, TableMeta } from '../../schema/types.ts';
+import type { Operation, Selection } from "../../ir/types.ts";
+import type { SchemaMeta, TableMeta } from "../../schema/types.ts";
 
-import { claimAt, claimsOf } from '../../core/claims.ts';
-import { dbError, DbException } from '../../core/errors.ts';
+import { claimAt, claimsOf } from "../../core/claims.ts";
+import { dbError, DbException } from "../../core/errors.ts";
 import {
   definePlugin,
   type HookArgs,
   type Plugin,
   type RepositoryExtension,
-} from '../../core/plugin.ts';
+} from "../../core/plugin.ts";
 
-export type RuleLevel = 'off' | 'warn' | 'error';
+export type RuleLevel = "off" | "warn" | "error";
 
 /** A level, or a level with the rule's option: `['error', 500]`. */
 export type RuleSetting<Option = never> =
@@ -63,9 +63,9 @@ export type RuleName = keyof RuleSet;
 
 export interface RuleViolation {
   readonly rule: RuleName;
-  readonly level: 'warn' | 'error';
+  readonly level: "warn" | "error";
   readonly table: string;
-  readonly operation: Operation['kind'];
+  readonly operation: Operation["kind"];
   readonly message: string;
 }
 
@@ -90,10 +90,10 @@ export interface RulesExtension extends RepositoryExtension {
 /** Catches data-exposure and correctness mistakes; everything else off. */
 export function safe(): RuleSet {
   return {
-    noAdminInBrowser: 'error',
-    noDeleteManyWithoutWhere: 'error',
-    noSensitiveSelect: 'error',
-    requireTenantContext: 'error',
+    noAdminInBrowser: "error",
+    noDeleteManyWithoutWhere: "error",
+    noSensitiveSelect: "error",
+    requireTenantContext: "error",
   };
 }
 
@@ -101,11 +101,11 @@ export function safe(): RuleSet {
 export function recommended(): RuleSet {
   return {
     ...safe(),
-    noUnboundedFindMany: 'warn',
-    maxLimit: ['warn', 1000],
-    requireOrderByForCursor: 'warn',
-    maxIncludeDepth: ['warn', 3],
-    storagePathColumns: 'warn',
+    noUnboundedFindMany: "warn",
+    maxLimit: ["warn", 1000],
+    requireOrderByForCursor: "warn",
+    maxIncludeDepth: ["warn", 3],
+    storagePathColumns: "warn",
   };
 }
 
@@ -113,17 +113,17 @@ export function recommended(): RuleSet {
 export function strict(): RuleSet {
   return {
     ...safe(),
-    noUnboundedFindMany: 'error',
-    maxLimit: ['error', 1000],
-    requireOrderByForCursor: 'error',
-    maxIncludeDepth: ['error', 3],
-    storagePathColumns: 'error',
+    noUnboundedFindMany: "error",
+    maxLimit: ["error", 1000],
+    requireOrderByForCursor: "error",
+    maxIncludeDepth: ["error", 3],
+    storagePathColumns: "error",
   };
 }
 
 function levelOf(setting: RuleSetting<unknown> | undefined): RuleLevel {
-  if (setting === undefined) return 'off';
-  return typeof setting === 'string' ? setting : setting[0];
+  if (setting === undefined) return "off";
+  return typeof setting === "string" ? setting : setting[0];
 }
 
 function optionOf<T>(setting: RuleSetting<T> | undefined, fallback: T): T {
@@ -165,12 +165,12 @@ function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
 
 function isBrowser(): boolean {
   return (
-    typeof (globalThis as { window?: unknown }).window !== 'undefined' &&
-    typeof (globalThis as { document?: unknown }).document !== 'undefined'
+    typeof (globalThis as { window?: unknown }).window !== "undefined" &&
+    typeof (globalThis as { document?: unknown }).document !== "undefined"
   );
 }
 
-const TEXT_TYPES = new Set(['text', 'varchar', 'bpchar']);
+const TEXT_TYPES = new Set(["text", "varchar", "bpchar"]);
 const STORAGE_URL =
   /\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\//;
 
@@ -181,14 +181,14 @@ function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
   let templates = templatesBySchema.get(schema);
   if (!templates) {
     templates = Object.values(schema.buckets ?? {})
-      .filter((bucket) => bucket.path.replace(/\{[^}]*\}|\//g, '').length > 0)
+      .filter((bucket) => bucket.path.replace(/\{[^}]*\}|\//g, "").length > 0)
       .map(
         (bucket) =>
           new RegExp(
             `^${bucket.path
               .split(/\{[^}]*\}/)
-              .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-              .join('[^/]+')}$`,
+              .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+              .join("[^/]+")}$`,
           ),
       );
     templatesBySchema.set(schema, templates);
@@ -201,12 +201,12 @@ function storedObjectColumn(
   schema: SchemaMeta,
 ): string | undefined {
   const rows =
-    op.kind === 'insert' ? op.rows : op.kind === 'update' ? [op.set] : [];
+    op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
   if (rows.length === 0) return undefined;
   for (const column of Object.values(op.table.columns)) {
     if (
       !rows.some((row) => column.db in row) ||
-      !column.db.endsWith('_url') ||
+      !column.db.endsWith("_url") ||
       column.array ||
       !TEXT_TYPES.has(column.type)
     )
@@ -217,7 +217,7 @@ function storedObjectColumn(
     const stored = rows.some((row) => {
       const value = row[column.db];
       return (
-        typeof value === 'string' &&
+        typeof value === "string" &&
         (STORAGE_URL.test(value) ||
           bucketTemplates(schema).some((template) => template.test(value)))
       );
@@ -233,35 +233,35 @@ type Check = (op: Operation, hook: HookArgs) => string | undefined;
 function checks(rules: RuleSet): Record<RuleName, Check> {
   return {
     noUnboundedFindMany: (op) =>
-      op.kind === 'select' &&
+      op.kind === "select" &&
       op.single === undefined &&
       !op.head &&
       op.limit === undefined
-        ? 'findMany without limit reads every visible row'
+        ? "findMany without limit reads every visible row"
         : undefined,
     maxLimit: (op) => {
       const max = optionOf(rules.maxLimit, 1000);
-      return op.kind === 'select' && op.limit !== undefined && op.limit > max
+      return op.kind === "select" && op.limit !== undefined && op.limit > max
         ? `limit ${op.limit} is above the maximum of ${max}`
         : undefined;
     },
     requireOrderByForCursor: (op) =>
-      op.kind === 'select' &&
+      op.kind === "select" &&
       !op.head &&
       op.orderBy.length === 0 &&
       (op.offset !== undefined || (op.limit !== undefined && op.limit > 1))
-        ? 'paging without orderBy returns rows in no stable order'
+        ? "paging without orderBy returns rows in no stable order"
         : undefined,
     maxIncludeDepth: (op) => {
       const max = optionOf(rules.maxIncludeDepth, 3);
-      const selection = op.kind === 'select' ? op.selection : op.returning;
+      const selection = op.kind === "select" ? op.selection : op.returning;
       const depth = selection ? includeDepth(selection) : 0;
       return depth > max
         ? `includes nest ${depth} levels deep (maximum ${max})`
         : undefined;
     },
     requireTenantContext: (op, { context, schema }) => {
-      if (!op.table.flags.tenant || context.actor?.kind === 'service')
+      if (!op.table.flags.tenant || context.actor?.kind === "service")
         return undefined;
       const claim = optionOf(
         rules.requireTenantContext,
@@ -273,27 +273,27 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         : undefined;
     },
     noAdminInBrowser: (_op, { context }) =>
-      context.actor?.kind === 'service' && isBrowser()
-        ? 'a service-role connection is running in a browser'
+      context.actor?.kind === "service" && isBrowser()
+        ? "a service-role connection is running in a browser"
         : undefined,
     noSensitiveSelect: (op, { options }) => {
-      if (options['sensitive'] === true) return undefined;
-      const selection = op.kind === 'select' ? op.selection : op.returning;
+      if (options["sensitive"] === true) return undefined;
+      const selection = op.kind === "select" ? op.selection : op.returning;
       const columns = selection ? sensitiveColumns(selection, op.table) : [];
       return columns.length > 0
-        ? `reads sensitive column(s) ${columns.join(', ')}; pass { sensitive: true } to allow`
+        ? `reads sensitive column(s) ${columns.join(", ")}; pass { sensitive: true } to allow`
         : undefined;
     },
     noDeleteManyWithoutWhere: (op) =>
-      op.kind === 'delete' && op.where === undefined
-        ? 'delete without where removes every visible row'
+      op.kind === "delete" && op.where === undefined
+        ? "delete without where removes every visible row"
         : undefined,
     storagePathColumns: (op, { schema }) => storedObjectColumn(op, schema),
   };
 }
 
 function defaultReport(violation: RuleViolation): void {
-  if (violation.level === 'warn') {
+  if (violation.level === "warn") {
     console.warn(
       `[better-supabase] ${violation.rule} (${violation.table}): ${violation.message}`,
     );
@@ -313,18 +313,18 @@ function defaultReport(violation: RuleViolation): void {
  */
 export function rules(
   options: RulesOptions = {},
-): Plugin<'rules', RulesExtension> {
+): Plugin<"rules", RulesExtension> {
   const set = options.rules ?? recommended();
   const report = options.report ?? defaultReport;
   const all = checks(set);
   const active = (Object.keys(all) as RuleName[]).flatMap((rule) => {
     const level = levelOf(set[rule]);
-    return level === 'off' ? [] : [{ rule, level, check: all[rule] }];
+    return level === "off" ? [] : [{ rule, level, check: all[rule] }];
   });
 
-  return definePlugin<'rules', RulesExtension>({
-    name: 'rules',
-    enforce: 'pre',
+  return definePlugin<"rules", RulesExtension>({
+    name: "rules",
+    enforce: "pre",
     transformQuery(op, hook): Operation {
       for (const { rule, level, check } of active) {
         const message = check(op, hook);
@@ -337,9 +337,9 @@ export function rules(
           message,
         };
         report(violation);
-        if (level === 'error') {
+        if (level === "error") {
           throw new DbException(
-            dbError('invalid_request', `${rule}: ${message}`, {
+            dbError("invalid_request", `${rule}: ${message}`, {
               table: op.table.key,
             }),
           );

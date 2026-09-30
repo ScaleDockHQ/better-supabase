@@ -1,5 +1,5 @@
-import { customerList } from '../../../../lib/lists';
-import { next } from '../../../../lib/supabase.server';
+import { customerList } from "../../../../lib/lists";
+import { next } from "../../../../lib/supabase.server";
 
 /**
  * `GET /api/customers/list?q=&status=&sort=&page=`: one page plus the count
@@ -10,6 +10,6 @@ export const GET = next.route((request, { db }) => {
   if (!query.ok)
     return Response.json({ issues: query.issues }, { status: 400 });
   return customerList.run(db, query.value, {
-    select: ['id', 'name', 'status'],
+    select: ["id", "name", "status"],
   });
 });

@@ -7,44 +7,44 @@ import type {
   Payload,
   ReadArgs,
   WhereInput,
-} from '../ir/args.ts';
+} from "../ir/args.ts";
 import type {
   AnyModels,
   PrimaryKeyValue,
   SchemaMeta,
   TableKey,
   UniqueWhere,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 import type {
   CursorPageArgs,
   FindExt,
   OffsetPageArgs,
   PageOf,
-} from './repository-types.ts';
+} from "./repository-types.ts";
 
-import { IrBuilder } from '../ir/build.ts';
-import { touchedTables } from '../ir/tables.ts';
-import { tableMeta } from '../schema/define.ts';
+import { IrBuilder } from "../ir/build.ts";
+import { touchedTables } from "../ir/tables.ts";
+import { tableMeta } from "../schema/define.ts";
 
 export type ReadMethod =
-  | 'findMany'
-  | 'findFirst'
-  | 'findUnique'
-  | 'findById'
-  | 'count'
-  | 'aggregate'
-  | 'exists'
-  | 'paginate';
+  | "findMany"
+  | "findFirst"
+  | "findUnique"
+  | "findById"
+  | "count"
+  | "aggregate"
+  | "exists"
+  | "paginate";
 
 export const READ_METHODS: readonly ReadMethod[] = [
-  'findMany',
-  'findFirst',
-  'findUnique',
-  'findById',
-  'count',
-  'aggregate',
-  'exists',
-  'paginate',
+  "findMany",
+  "findFirst",
+  "findUnique",
+  "findById",
+  "count",
+  "aggregate",
+  "exists",
+  "paginate",
 ];
 
 declare const resultType: unique symbol;
@@ -72,41 +72,41 @@ export interface QuerySpec<
 export type InferResult<S> =
   S extends QuerySpec<string, ReadMethod, infer R> ? R : never;
 
-type NoSignal<A> = Omit<A, 'signal'>;
+type NoSignal<A> = Omit<A, "signal">;
 
 export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
   findMany<const A extends NoSignal<FindManyArgs<M, T>> & FindExt<E, M, T>>(
     args?: A,
-  ): QuerySpec<T, 'findMany', Payload<M, T, A>[]>;
+  ): QuerySpec<T, "findMany", Payload<M, T, A>[]>;
   findFirst<const A extends NoSignal<FindFirstArgs<M, T>> & FindExt<E, M, T>>(
     args?: A,
-  ): QuerySpec<T, 'findFirst', Payload<M, T, A> | null>;
+  ): QuerySpec<T, "findFirst", Payload<M, T, A> | null>;
   findUnique<
     const A extends NoSignal<ReadArgs<M, T>> & {
       readonly where: UniqueWhere<M, T>;
     } & FindExt<E, M, T>,
   >(
     args: A,
-  ): QuerySpec<T, 'findUnique', Payload<M, T, A> | null>;
+  ): QuerySpec<T, "findUnique", Payload<M, T, A> | null>;
   findById<const A extends NoSignal<ReadArgs<M, T>> & FindExt<E, M, T>>(
     id: PrimaryKeyValue<M, T>,
     args?: A,
-  ): QuerySpec<T, 'findById', Payload<M, T, A>>;
+  ): QuerySpec<T, "findById", Payload<M, T, A>>;
   count(
     args?: NoSignal<CountArgs<M, T>> & FindExt<E, M, T>,
-  ): QuerySpec<T, 'count', number>;
+  ): QuerySpec<T, "count", number>;
   aggregate<const A extends NoSignal<AggregateArgs<M, T>> & FindExt<E, M, T>>(
     args: A,
-  ): QuerySpec<T, 'aggregate', AggregateResult<M, T, A>>;
+  ): QuerySpec<T, "aggregate", AggregateResult<M, T, A>>;
   exists(
     args?: { readonly where?: WhereInput<M, T> } & FindExt<E, M, T>,
-  ): QuerySpec<T, 'exists', boolean>;
+  ): QuerySpec<T, "exists", boolean>;
   paginate<
     const A extends NoSignal<OffsetPageArgs<M, T> | CursorPageArgs<M, T>> &
       FindExt<E, M, T>,
   >(
     args: A,
-  ): QuerySpec<T, 'paginate', PageOf<M, T, A>>;
+  ): QuerySpec<T, "paginate", PageOf<M, T, A>>;
 }
 
 export type Specs<M extends AnyModels, E> = {
@@ -137,11 +137,11 @@ function trimUndefined(args: readonly unknown[]): unknown[] {
 }
 
 export function isQuerySpec(value: unknown): value is QuerySpec {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const spec = value as Partial<QuerySpec>;
   return (
     spec.v === 1 &&
-    typeof spec.table === 'string' &&
+    typeof spec.table === "string" &&
     READ_METHODS.includes(spec.method as ReadMethod) &&
     Array.isArray(spec.args)
   );
@@ -151,8 +151,8 @@ export function isQuerySpec(value: unknown): value is QuerySpec {
 export function specOptions(
   spec: QuerySpec,
 ): Readonly<Record<string, unknown>> | undefined {
-  const value = spec.method === 'findById' ? spec.args[1] : spec.args[0];
-  return typeof value === 'object' && value !== null
+  const value = spec.method === "findById" ? spec.args[1] : spec.args[0];
+  return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
     : undefined;
 }
@@ -182,20 +182,20 @@ function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   const table = tableMeta(meta, spec.table);
   const args = specOptions(spec);
   const counts =
-    spec.method === 'count' ||
-    spec.method === 'exists' ||
-    spec.method === 'aggregate';
+    spec.method === "count" ||
+    spec.method === "exists" ||
+    spec.method === "aggregate";
   return touchedTables({
-    kind: 'select',
+    kind: "select",
     table,
     selection: counts
       ? { columns: [], includes: [] }
       : builder.selection(
           table,
-          args?.['select'] as readonly string[] | undefined,
-          args?.['include'],
+          args?.["select"] as readonly string[] | undefined,
+          args?.["include"],
         ),
-    where: builder.where(table, args?.['where']),
+    where: builder.where(table, args?.["where"]),
     orderBy: [],
     limit: undefined,
     offset: undefined,

@@ -3,10 +3,10 @@ import type {
   CatalogPolicy,
   CatalogTable,
   Snapshot,
-} from '../introspect/types.ts';
-import type { DoctorContext, SqlObject } from './rules.ts';
+} from "../introspect/types.ts";
+import type { DoctorContext, SqlObject } from "./rules.ts";
 
-import { toCatalog } from '../introspect/catalog.ts';
+import { toCatalog } from "../introspect/catalog.ts";
 
 const catalogs = new WeakMap<Snapshot, Catalog>();
 
@@ -29,7 +29,7 @@ export const qualified = (table: CatalogTable): string =>
   `${table.schema}.${table.name}`;
 
 export const tableObject = (table: CatalogTable): SqlObject => ({
-  kind: 'table',
+  kind: "table",
   schema: table.schema,
   name: table.name,
 });
@@ -38,13 +38,13 @@ export const policyObject = (
   table: CatalogTable,
   policy: CatalogPolicy,
 ): SqlObject => ({
-  kind: 'policy',
+  kind: "policy",
   schema: table.schema,
   name: policy.name,
 });
 
 /** Line number (1-based) of the first line matching `pattern`. */
 export function lineOf(text: string, pattern: RegExp): number | undefined {
-  const index = text.split('\n').findIndex((line) => pattern.test(line));
+  const index = text.split("\n").findIndex((line) => pattern.test(line));
   return index === -1 ? undefined : index + 1;
 }

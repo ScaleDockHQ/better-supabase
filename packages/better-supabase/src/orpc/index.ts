@@ -3,29 +3,29 @@ import {
   type DecoratedMiddleware,
   ORPCError,
   os,
-} from '@orpc/server';
+} from "@orpc/server";
 
-import type { AuthState } from '../auth/resolve.ts';
-import type { BetterSupabase } from '../core/define.ts';
-import type { Result } from '../core/result.ts';
-import type { AnyFunctions, AnyModels } from '../schema/types.ts';
+import type { AuthState } from "../auth/resolve.ts";
+import type { BetterSupabase } from "../core/define.ts";
+import type { Result } from "../core/result.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from '../server/server.ts';
+} from "../server/server.ts";
 
-import { type DbError, dbErrorOf } from '../core/errors.ts';
-import { type ProblemDetails, toProblem } from '../core/problem.ts';
+import { type DbError, dbErrorOf } from "../core/errors.ts";
+import { type ProblemDetails, toProblem } from "../core/problem.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   settle,
-} from '../server/respond.ts';
-import { createServer, extendServer } from '../server/server.ts';
+} from "../server/respond.ts";
+import { createServer, extendServer } from "../server/server.ts";
 
-export type { GuardOptions } from '../server/respond.ts';
+export type { GuardOptions } from "../server/respond.ts";
 
 /** Initial context: pass `{ context: { request } }` to the oRPC handler. */
 export interface OrpcRequestContext {
@@ -35,7 +35,7 @@ export interface OrpcRequestContext {
 /** What `middleware()` adds to `context`. */
 export interface OrpcContext<M extends AnyModels, F extends AnyFunctions, E> {
   readonly bs: ServerContext<M, F, E>;
-  readonly db: ServerContext<M, F, E>['db'];
+  readonly db: ServerContext<M, F, E>["db"];
   readonly auth: AuthState;
 }
 
@@ -90,7 +90,7 @@ const CODES = new Map<number, string>(
 export function orpcCode(error: DbError): string {
   return (
     CODES.get(error.status) ??
-    (error.status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST')
+    (error.status >= 500 ? "INTERNAL_SERVER_ERROR" : "BAD_REQUEST")
   );
 }
 

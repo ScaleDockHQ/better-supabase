@@ -11,7 +11,7 @@ export {
   sessionCookieName,
   toSession,
   writeSession,
-} from '../auth/index.ts';
+} from "../auth/index.ts";
 export type {
   AuthResolution,
   AuthResolver,
@@ -26,4 +26,4 @@ export type {
   RefreshOutcome,
   ResolveAuthOptions,
   StoredSession,
-} from '../auth/index.ts';
+} from "../auth/index.ts";

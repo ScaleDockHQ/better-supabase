@@ -1,6 +1,6 @@
-import type { AuthSession } from 'better-supabase/react';
+import type { AuthSession } from "better-supabase/react";
 
-import type { Claims, Role } from '@/lib/claims';
+import type { Claims, Role } from "@/lib/claims";
 
 // A deliberately small, hand-written permission check that runs on the server
 // and the client, over PermDock's claim contract. A real app replaces this
@@ -17,26 +17,26 @@ import type { Claims, Role } from '@/lib/claims';
 // See https://bettersupabase.com/docs/auth/permdock.
 
 export type Permission =
-  | 'customers.read'
-  | 'customers.write'
-  | 'reports.read'
-  | 'users.manage'
-  | 'billing.manage'
-  | 'audit.read'
-  | 'settings.manage';
+  | "customers.read"
+  | "customers.write"
+  | "reports.read"
+  | "users.manage"
+  | "billing.manage"
+  | "audit.read"
+  | "settings.manage";
 
 /** Mirrors `rbac.role_permissions` (supabase/migrations/*_rbac.sql). */
 const grants: Readonly<Record<Role, readonly Permission[]>> = {
   admin: [
-    'customers.read',
-    'customers.write',
-    'reports.read',
-    'users.manage',
-    'billing.manage',
-    'audit.read',
-    'settings.manage',
+    "customers.read",
+    "customers.write",
+    "reports.read",
+    "users.manage",
+    "billing.manage",
+    "audit.read",
+    "settings.manage",
   ],
-  member: ['customers.read'],
+  member: ["customers.read"],
 };
 
 const isRole = (role: string): role is Role => Object.hasOwn(grants, role);
@@ -50,7 +50,7 @@ export function rolesOf(claims: Claims): Role[] {
   const global = claims.user_role ?? claims.app_metadata?.user_role;
   const tenant = claims.tenant_id ?? claims.app_metadata?.tenant_id;
   const membership = claims.memberships?.find(
-    (entry) => entry.scope === 'tenant' && entry.id === tenant,
+    (entry) => entry.scope === "tenant" && entry.id === tenant,
   );
   const roles = new Set<Role>(global ? [global] : []);
   for (const role of membership?.roles ?? []) {
@@ -63,7 +63,7 @@ export function can(
   session: AuthSession<Claims>,
   permission: Permission,
 ): boolean {
-  if (session.kind !== 'user') return false;
+  if (session.kind !== "user") return false;
   return rolesOf(session.claims).some((role) =>
     grants[role].includes(permission),
   );

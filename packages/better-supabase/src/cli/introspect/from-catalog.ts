@@ -1,11 +1,11 @@
-import type { GeneratorMetadata } from './typegen.ts';
+import type { GeneratorMetadata } from "./typegen.ts";
 import type {
   Catalog,
   CatalogColumn,
   CatalogFunction,
   CatalogTable,
   Snapshot,
-} from './types.ts';
+} from "./types.ts";
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
@@ -26,7 +26,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
     schemas: schemas.map((name, index) => ({
       id: 4_000_000 + index,
       name,
-      owner: 'postgres',
+      owner: "postgres",
     })),
     tables: [],
     foreignTables: [],
@@ -73,7 +73,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
     id: number,
     entry: CatalogColumn,
     index: number,
-  ): GeneratorMetadata['columns'][number] => ({
+  ): GeneratorMetadata["columns"][number] => ({
     table_id: id,
     schema: table.schema,
     table: table.name,
@@ -82,18 +82,18 @@ export function fromCatalog(catalog: Catalog): Snapshot {
     name: entry.name,
     default_value: entry.default,
     data_type: entry.isArray
-      ? 'ARRAY'
+      ? "ARRAY"
       : entry.isEnum
-        ? 'USER-DEFINED'
+        ? "USER-DEFINED"
         : entry.udt,
     format: entry.format,
     type_schema: entry.typeSchema,
     is_identity: entry.identity !== null,
     identity_generation:
-      entry.identity === 'always'
-        ? 'ALWAYS'
-        : entry.identity === 'by default'
-          ? 'BY DEFAULT'
+      entry.identity === "always"
+        ? "ALWAYS"
+        : entry.identity === "by default"
+          ? "BY DEFAULT"
           : null,
     is_generated: entry.generated,
     is_nullable: entry.nullable,
@@ -108,16 +108,16 @@ export function fromCatalog(catalog: Catalog): Snapshot {
 
   catalog.tables.forEach((table, index) => {
     const id = table.id || 1_000_000 + index;
-    if (table.kind === 'table') {
+    if (table.kind === "table") {
       meta.tables.push({
         id,
         schema: table.schema,
         name: table.name,
         rls_enabled: table.rls,
         rls_forced: table.forceRls,
-        replica_identity: table.replicaIdentity ?? 'DEFAULT',
+        replica_identity: table.replicaIdentity ?? "DEFAULT",
         bytes: 0,
-        size: '0 bytes',
+        size: "0 bytes",
         live_rows_estimate: 0,
         dead_rows_estimate: 0,
         comment: table.comment,
@@ -165,17 +165,17 @@ export function fromCatalog(catalog: Catalog): Snapshot {
     ]),
   );
   const argType = (schema: string, udt: string): number =>
-    typeId(enums.has(`${schema}.${udt}`) ? schema : 'pg_catalog', udt);
+    typeId(enums.has(`${schema}.${udt}`) ? schema : "pg_catalog", udt);
   catalog.functions.forEach((fn: CatalogFunction, index) => {
-    const args: GeneratorMetadata['functions'][number]['args'] = [
+    const args: GeneratorMetadata["functions"][number]["args"] = [
       ...fn.args.map((arg) => ({
-        mode: 'in' as const,
+        mode: "in" as const,
         name: arg.name,
         type_id: argType(fn.schema, arg.isArray ? `_${arg.udt}` : arg.udt),
         has_default: arg.hasDefault,
       })),
       ...(fn.returnsTable ?? []).map((entry) => ({
-        mode: 'table' as const,
+        mode: "table" as const,
         name: entry.name,
         type_id: argType(fn.schema, entry.udt),
         has_default: false,
@@ -186,13 +186,13 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       schema: fn.schema,
       name: fn.name,
       language: fn.language,
-      definition: '',
-      complete_statement: '',
+      definition: "",
+      complete_statement: "",
       args,
       argument_types: fn.signature,
       identity_argument_types: fn.signature,
       return_type_id: fn.returnsRelation
-        ? typeId(fn.returnsRelation.split('.')[0]!, fn.returns)
+        ? typeId(fn.returnsRelation.split(".")[0]!, fn.returns)
         : argType(fn.schema, fn.returns),
       return_type: fn.returns,
       return_type_relation_id: fn.returnsRelation
@@ -200,12 +200,12 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         : null,
       is_set_returning_function: fn.returnsSet,
       prorows: null,
-      behavior: fn.volatility.toUpperCase() as 'IMMUTABLE',
+      behavior: fn.volatility.toUpperCase() as "IMMUTABLE",
       security_definer: fn.securityDefiner,
       config_params:
         fn.searchPath === null
           ? null
-          : { search_path: fn.searchPath === '' ? '""' : fn.searchPath },
+          : { search_path: fn.searchPath === "" ? '""' : fn.searchPath },
     });
   });
 

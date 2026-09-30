@@ -9,17 +9,17 @@ import {
   SpanStatusCode,
   trace,
   type Tracer,
-} from '@opentelemetry/api';
+} from "@opentelemetry/api";
 
-import type { EventHub } from '../core/events.ts';
-import type { Executor } from '../core/executor.ts';
-import type { Operation } from '../ir/types.ts';
+import type { EventHub } from "../core/events.ts";
+import type { Executor } from "../core/executor.ts";
+import type { Operation } from "../ir/types.ts";
 
-import { VERSION } from '../cli/version.ts';
-import { definePlugin, type Plugin } from '../core/plugin.ts';
-import { SPEC_PINS } from '../core/spec-pins.ts';
+import { VERSION } from "../cli/version.ts";
+import { definePlugin, type Plugin } from "../core/plugin.ts";
+import { SPEC_PINS } from "../core/spec-pins.ts";
 
-export const INSTRUMENTATION_NAME = 'better-supabase';
+export const INSTRUMENTATION_NAME = "better-supabase";
 /** OpenTelemetry semantic conventions version the attributes follow. */
 export const SEMCONV_VERSION: typeof SPEC_PINS.otelSemconv =
   SPEC_PINS.otelSemconv;
@@ -33,23 +33,23 @@ export interface OtelOptions {
   readonly metrics?: boolean;
 }
 
-const OPERATION_NAME: { readonly [K in Operation['kind']]: string } = {
-  select: 'SELECT',
-  insert: 'INSERT',
-  update: 'UPDATE',
-  delete: 'DELETE',
+const OPERATION_NAME: { readonly [K in Operation["kind"]]: string } = {
+  select: "SELECT",
+  insert: "INSERT",
+  update: "UPDATE",
+  delete: "DELETE",
 };
 
 function operationName(op: Operation): string {
-  if (op.kind === 'insert' && op.onConflict?.action === 'update')
-    return 'UPSERT';
-  if (op.kind === 'select' && op.head) return 'COUNT';
+  if (op.kind === "insert" && op.onConflict?.action === "update")
+    return "UPSERT";
+  if (op.kind === "select" && op.head) return "COUNT";
   return OPERATION_NAME[op.kind];
 }
 
 function systemOf(executor: Executor): string {
-  return executor.name === 'postgrest' || executor.name === 'postgres'
-    ? 'postgresql'
+  return executor.name === "postgrest" || executor.name === "postgres"
+    ? "postgresql"
     : executor.name;
 }
 
@@ -62,16 +62,16 @@ function systemOf(executor: Executor): string {
  * const sb = defineSupabase(schema).use(otel());
  * ```
  */
-export function otel(options: OtelOptions = {}): Plugin<'otel'> {
+export function otel(options: OtelOptions = {}): Plugin<"otel"> {
   const tracer =
     options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
   let histogram: Histogram | undefined;
   if (options.metrics !== false) {
     const meter =
       options.meter ?? metrics.getMeter(INSTRUMENTATION_NAME, VERSION);
-    histogram = meter.createHistogram('db.client.operation.duration', {
-      unit: 's',
-      description: 'Duration of database client operations.',
+    histogram = meter.createHistogram("db.client.operation.duration", {
+      unit: "s",
+      description: "Duration of database client operations.",
       advice: {
         explicitBucketBoundaries: [
           0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10,
@@ -81,8 +81,8 @@ export function otel(options: OtelOptions = {}): Plugin<'otel'> {
   }
 
   return definePlugin({
-    name: 'otel',
-    enforce: 'post',
+    name: "otel",
+    enforce: "post",
     wrapExecutor: (executor): Executor => ({
       ...executor,
       name: executor.name,
@@ -91,12 +91,12 @@ export function otel(options: OtelOptions = {}): Plugin<'otel'> {
         const summary = `${operation} ${op.table.name}`;
         const attributes: Attributes = {
           ...options.attributes,
-          'db.system.name': systemOf(executor),
-          'db.namespace': op.table.schema,
-          'db.collection.name': op.table.name,
-          'db.operation.name': operation,
-          'db.query.summary': summary,
-          'better_supabase.executor': executor.name,
+          "db.system.name": systemOf(executor),
+          "db.namespace": op.table.schema,
+          "db.collection.name": op.table.name,
+          "db.operation.name": operation,
+          "db.query.summary": summary,
+          "better_supabase.executor": executor.name,
         };
         const started = performance.now();
         return tracer.startActiveSpan(
@@ -105,10 +105,10 @@ export function otel(options: OtelOptions = {}): Plugin<'otel'> {
           async (span) => {
             const finish = (errorType?: string) => {
               const metricAttributes: Attributes = {
-                'db.system.name': attributes['db.system.name'],
-                'db.collection.name': op.table.name,
-                'db.operation.name': operation,
-                ...(errorType ? { 'error.type': errorType } : {}),
+                "db.system.name": attributes["db.system.name"],
+                "db.collection.name": op.table.name,
+                "db.operation.name": operation,
+                ...(errorType ? { "error.type": errorType } : {}),
               };
               histogram?.record(
                 (performance.now() - started) / 1000,
@@ -120,15 +120,15 @@ export function otel(options: OtelOptions = {}): Plugin<'otel'> {
               const result = await executor.execute(op, executeContext);
               if (result.ok) {
                 span.setAttribute(
-                  'db.response.returned_rows',
+                  "db.response.returned_rows",
                   result.data.rows.length,
                 );
                 finish();
               } else {
                 span.setAttributes({
-                  'error.type': result.error.kind,
+                  "error.type": result.error.kind,
                   ...(result.error.code
-                    ? { 'db.response.status_code': result.error.code }
+                    ? { "db.response.status_code": result.error.code }
                     : {}),
                 });
                 span.setStatus({
@@ -142,7 +142,7 @@ export function otel(options: OtelOptions = {}): Plugin<'otel'> {
               const error =
                 cause instanceof Error ? cause : new Error(String(cause));
               span.recordException(error);
-              span.setAttribute('error.type', error.name);
+              span.setAttribute("error.type", error.name);
               span.setStatus({
                 code: SpanStatusCode.ERROR,
                 message: error.message,
@@ -163,30 +163,30 @@ export function otel(options: OtelOptions = {}): Plugin<'otel'> {
  */
 export function traceAuth(
   sb: { readonly events: EventHub },
-  options: Pick<OtelOptions, 'tracer' | 'attributes'> = {},
+  options: Pick<OtelOptions, "tracer" | "attributes"> = {},
 ): () => void {
   const tracer =
     options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
-  const offAuth = sb.events.on('auth', (event) => {
-    const span = tracer.startSpan('auth.resolve', {
+  const offAuth = sb.events.on("auth", (event) => {
+    const span = tracer.startSpan("auth.resolve", {
       kind: SpanKind.INTERNAL,
       attributes: {
         ...options.attributes,
-        'better_supabase.auth.source': event.source,
-        ...(event.userId ? { 'enduser.id': event.userId } : {}),
+        "better_supabase.auth.source": event.source,
+        ...(event.userId ? { "enduser.id": event.userId } : {}),
       },
     });
     if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });
     span.end();
   });
-  const offRefresh = sb.events.on('refresh', (event) => {
+  const offRefresh = sb.events.on("refresh", (event) => {
     const end = Date.now();
-    const span = tracer.startSpan('auth.refresh', {
+    const span = tracer.startSpan("auth.refresh", {
       kind: SpanKind.CLIENT,
       startTime: end - event.durationMs,
       attributes: {
         ...options.attributes,
-        'better_supabase.refresh.shared': event.shared,
+        "better_supabase.refresh.shared": event.shared,
       },
     });
     if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });

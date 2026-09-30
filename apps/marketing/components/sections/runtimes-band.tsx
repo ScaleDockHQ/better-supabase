@@ -1,4 +1,4 @@
-import { runtimes } from '@/lib/home';
+import { runtimes } from "@/lib/home";
 
 export function RuntimesBand() {
   return (

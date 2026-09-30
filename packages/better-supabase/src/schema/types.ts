@@ -1,4 +1,4 @@
-export type Casing = 'snake' | 'camel';
+export type Casing = "snake" | "camel";
 
 /** Runtime metadata for one column. Keyed by the app (cased) column name. */
 export interface ColumnMeta {
@@ -10,7 +10,7 @@ export interface ColumnMeta {
   readonly hasDefault: boolean;
   readonly generated?: boolean;
   /** Identity column; `'always'` columns can't be written. */
-  readonly identity?: 'always' | 'by default';
+  readonly identity?: "always" | "by default";
   /** `false` when inserts can't set this column (generated, identity always, view). */
   readonly insertable?: false;
   /** `false` when updates can't set this column. */
@@ -31,12 +31,12 @@ export interface ColumnMeta {
  * Runtime representation for a column: `date` decodes timestamps to `Date`,
  * `bigint` and `string` read the exact text of `int8`/`numeric` values.
  */
-export type Codec = 'date' | 'bigint' | 'string';
+export type Codec = "date" | "bigint" | "string";
 
 export interface RelationMeta {
   /** App key of the target table. */
   readonly table: string;
-  readonly kind: 'one' | 'many';
+  readonly kind: "one" | "many";
   readonly nullable: boolean;
   /** Foreign key constraint name, used as the PostgREST embed hint. */
   readonly foreignKey: string;
@@ -45,9 +45,9 @@ export interface RelationMeta {
   /** App column names on the target table. */
   readonly references: readonly string[];
   /** `forward`: this table holds the FK. `reverse`: the target holds it. */
-  readonly direction: 'forward' | 'reverse';
+  readonly direction: "forward" | "reverse";
   /** What deleting the referenced row does to the referencing rows, when it changes them. */
-  readonly onDelete?: 'cascade' | 'set null' | 'set default';
+  readonly onDelete?: "cascade" | "set null" | "set default";
 }
 
 export interface TableFlags {
@@ -70,7 +70,7 @@ export interface TableMeta {
   /** Database table name. */
   readonly name: string;
   readonly schema: string;
-  readonly kind: 'table' | 'view';
+  readonly kind: "table" | "view";
   readonly columns: Readonly<Record<string, ColumnMeta>>;
   /** App column names. */
   readonly primaryKey: readonly string[];
@@ -86,7 +86,7 @@ export interface FunctionMeta {
   readonly args: readonly { readonly name: string; readonly type: string }[];
   readonly returns: string;
   readonly returnsSet: boolean;
-  readonly volatility: 'immutable' | 'stable' | 'volatile';
+  readonly volatility: "immutable" | "stable" | "volatile";
 }
 
 export interface SchemaMeta {
@@ -157,7 +157,7 @@ export interface PermdockTopicPolicy {
   readonly schema?: string;
 }
 
-export type BucketPolicyName = 'tenant' | 'owner' | 'public' | 'none';
+export type BucketPolicyName = "tenant" | "owner" | "public" | "none";
 
 export interface BucketMeta {
   readonly id: string;
@@ -175,7 +175,7 @@ export interface BucketMeta {
 
 export interface RelationShape {
   readonly table: string;
-  readonly kind: 'one' | 'many';
+  readonly kind: "one" | "many";
   readonly nullable: boolean;
 }
 
@@ -220,7 +220,7 @@ export interface Schema<
 > {
   readonly meta: SchemaMeta;
   /** Phantom. Never present at runtime. */
-  readonly '~types'?: {
+  readonly "~types"?: {
     readonly models: M;
     readonly database: D;
     readonly functions: F;
@@ -233,29 +233,29 @@ export type FunctionsOf<S> =
   S extends Schema<AnyModels, unknown, infer F> ? F : never;
 
 export type TableKey<M extends AnyModels> = Extract<keyof M, string>;
-export type Row<M extends AnyModels, T extends keyof M> = M[T]['Row'];
-export type Insert<M extends AnyModels, T extends keyof M> = M[T]['Insert'];
-export type Update<M extends AnyModels, T extends keyof M> = M[T]['Update'];
+export type Row<M extends AnyModels, T extends keyof M> = M[T]["Row"];
+export type Insert<M extends AnyModels, T extends keyof M> = M[T]["Insert"];
+export type Update<M extends AnyModels, T extends keyof M> = M[T]["Update"];
 export type Relations<
   M extends AnyModels,
   T extends keyof M,
-> = M[T]['Relations'];
-export type Flags<M extends AnyModels, T extends keyof M> = M[T]['Flags'];
+> = M[T]["Relations"];
+export type Flags<M extends AnyModels, T extends keyof M> = M[T]["Flags"];
 export type PrimaryKeyColumn<M extends AnyModels, T extends keyof M> = Extract<
-  M[T]['PrimaryKey'],
+  M[T]["PrimaryKey"],
   keyof Row<M, T>
 >;
 export type UniqueKeyName<M extends AnyModels, T extends keyof M> = Extract<
-  keyof M[T]['UniqueKeys'],
+  keyof M[T]["UniqueKeys"],
   string
 >;
 
 type UniqueKeyColumns<
   M extends AnyModels,
   T extends keyof M,
-  K extends keyof M[T]['UniqueKeys'],
+  K extends keyof M[T]["UniqueKeys"],
 > = Extract<
-  M[T]['UniqueKeys'][K] extends readonly (infer C)[] ? C : never,
+  M[T]["UniqueKeys"][K] extends readonly (infer C)[] ? C : never,
   keyof Row<M, T>
 >;
 
@@ -266,14 +266,14 @@ type UniqueKeyColumns<
 export type UniqueWhere<M extends AnyModels, T extends keyof M> =
   | { readonly [C in PrimaryKeyColumn<M, T>]: Row<M, T>[C] }
   | {
-      [K in keyof M[T]['UniqueKeys']]: {
+      [K in keyof M[T]["UniqueKeys"]]: {
         readonly [C in UniqueKeyColumns<M, T, K>]: Row<M, T>[C];
       };
-    }[keyof M[T]['UniqueKeys']];
+    }[keyof M[T]["UniqueKeys"]];
 
 /** Every unique constraint name in the schema, for `isConflict`. */
 export type UniqueConstraint<M extends AnyModels> = {
-  [T in keyof M]: Extract<keyof M[T]['UniqueKeys'], string>;
+  [T in keyof M]: Extract<keyof M[T]["UniqueKeys"], string>;
 }[keyof M];
 
 /** Every CHECK constraint name in the schema, for `isCheck`. */

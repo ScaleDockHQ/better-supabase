@@ -1,17 +1,17 @@
-import { fileURLToPath } from 'node:url';
-import { format } from 'oxfmt';
-import { Pool } from 'pg';
-import { describe, expect, it } from 'vitest';
+import { fileURLToPath } from "node:url";
+import { format } from "oxfmt";
+import { Pool } from "pg";
+import { describe, expect, it } from "vitest";
 
-import { supabaseCli } from '../cli/exec.ts';
-import { introspect } from '../cli/introspect/index.ts';
-import { pgSource } from '../cli/introspect/source.ts';
-import { generateDatabaseTypes } from '../cli/introspect/typegen.ts';
+import { supabaseCli } from "../cli/exec.ts";
+import { introspect } from "../cli/introspect/index.ts";
+import { pgSource } from "../cli/introspect/source.ts";
+import { generateDatabaseTypes } from "../cli/introspect/typegen.ts";
 
 const dbUrl =
-  process.env['SUPABASE_DB_URL'] ??
-  'postgresql://postgres:postgres@127.0.0.1:55422/postgres';
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 
 async function reachable(): Promise<boolean> {
   const pool = new Pool({
@@ -20,7 +20,7 @@ async function reachable(): Promise<boolean> {
     connectionTimeoutMillis: 1000,
   });
   try {
-    await pool.query('select 1');
+    await pool.query("select 1");
     return true;
   } catch {
     return false;
@@ -39,7 +39,7 @@ const live = await reachable();
  * `NonNullable<Json>` for non-null json columns.
  */
 async function normalize(source: string): Promise<string> {
-  const { code, errors } = await format('database.types.ts', source, {
+  const { code, errors } = await format("database.types.ts", source, {
     semi: false,
     printWidth: 80,
   });
@@ -47,16 +47,16 @@ async function normalize(source: string): Promise<string> {
   return code
     .replace(
       /\n {2}\/\/ Allows to automatically[^\n]*\n[^\n]*\n {2}__InternalSupabase: \{\n[^\n]*\n {2}\}\n/,
-      '\n',
+      "\n",
     )
-    .replace(/NonNullable<Json>/g, 'Json')
+    .replace(/NonNullable<Json>/g, "Json")
     .trimEnd();
 }
 
-describe.skipIf(!live)('database.types.ts parity', () => {
-  it('matches `supabase gen types --local` for the fixture database', async () => {
+describe.skipIf(!live)("database.types.ts parity", () => {
+  it("matches `supabase gen types --local` for the fixture database", async () => {
     const cli = await supabaseCli(
-      ['gen', 'types', 'typescript', '--local', '--schema', 'public'],
+      ["gen", "types", "typescript", "--local", "--schema", "public"],
       repoRoot,
       process.env,
     );
@@ -65,10 +65,10 @@ describe.skipIf(!live)('database.types.ts parity', () => {
     const db = await pgSource(dbUrl);
     let ours: string;
     try {
-      const snapshot = await introspect(db.queryable, ['public']);
+      const snapshot = await introspect(db.queryable, ["public"]);
       ours = await generateDatabaseTypes(snapshot.generator, {
-        schemas: ['public'],
-        postgrestVersion: '13',
+        schemas: ["public"],
+        postgrestVersion: "13",
       });
     } finally {
       await db.close();

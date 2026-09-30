@@ -2,30 +2,30 @@
  * Twelve islands in one render, each its own private-cache scope.
  * Run with `pnpm --filter better-supabase bench`.
  */
-import { clearVerifiedTokens } from '../auth/resolve.ts';
-import { defineSupabase } from '../core/define.ts';
-import { schema } from '../fixtures/generated-camel.ts';
-import { createServer } from '../server/server.ts';
-import { createTestSigner } from '../testing/jwt.ts';
+import { clearVerifiedTokens } from "../auth/resolve.ts";
+import { defineSupabase } from "../core/define.ts";
+import { schema } from "../fixtures/generated-camel.ts";
+import { createServer } from "../server/server.ts";
+import { createTestSigner } from "../testing/jwt.ts";
 
-const PROJECT_URL = 'https://abcdefghijklmnopqrst.supabase.co';
+const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const ISLANDS = 12;
 const RENDERS = 200;
 
 const signer = await createTestSigner();
 const token = await signer.sign({
-  sub: '11111111-1111-4111-8111-111111111111',
+  sub: "11111111-1111-4111-8111-111111111111",
 });
 const server = createServer(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
-    publishableKey: 'sb_publishable_test',
+    publishableKey: "sb_publishable_test",
     jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
   },
   auth: { jwks: signer.jwks as never },
 });
 const request = (): Request =>
-  new Request('https://app.test/', {
+  new Request("https://app.test/", {
     headers: { authorization: `Bearer ${token}` },
   });
 /** Four islands query; the other eight only read the session. */
@@ -60,8 +60,8 @@ console.table({
   before: {
     verifications: ISLANDS,
     clients: ISLANDS,
-    'ms per render': slow.toFixed(2),
+    "ms per render": slow.toFixed(2),
   },
-  after: { verifications: 1, clients: 4, 'ms per render': fast.toFixed(2) },
+  after: { verifications: 1, clients: 4, "ms per render": fast.toFixed(2) },
 });
 console.log(`${(slow / fast).toFixed(1)}x faster`);

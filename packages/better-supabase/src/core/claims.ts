@@ -1,14 +1,14 @@
-import type { ClaimsMeta, SchemaMeta } from '../schema/types.ts';
+import type { ClaimsMeta, SchemaMeta } from "../schema/types.ts";
 
 export const DEFAULT_CLAIMS: ClaimsMeta = {
-  tenant: 'tenant_id',
-  scope: 'tenant',
-  features: 'features',
+  tenant: "tenant_id",
+  scope: "tenant",
+  features: "features",
 };
 
 /** The configured claim names, with defaults for the ones codegen left out. */
 export function claimsOf(
-  meta: Pick<SchemaMeta, 'claims'> | undefined,
+  meta: Pick<SchemaMeta, "claims"> | undefined,
 ): ClaimsMeta {
   return { ...DEFAULT_CLAIMS, ...meta?.claims };
 }
@@ -26,11 +26,11 @@ export function claimAt(
   path: string,
 ): string | undefined {
   let value: unknown = claims;
-  for (const segment of path.split('.')) {
+  for (const segment of path.split(".")) {
     value =
-      typeof value === 'object' && value !== null
+      typeof value === "object" && value !== null
         ? (value as Record<string, unknown>)[segment]
         : undefined;
   }
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }

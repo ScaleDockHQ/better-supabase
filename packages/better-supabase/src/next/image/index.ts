@@ -11,7 +11,7 @@ export interface ImageLoaderOptions {
   /** Project URL, e.g. `process.env.NEXT_PUBLIC_SUPABASE_URL`. */
   readonly url: string;
   /** Resize mode for the transform. Defaults to Storage's own (`cover`). */
-  readonly resize?: 'cover' | 'contain' | 'fill';
+  readonly resize?: "cover" | "contain" | "fill";
   /**
    * For images that are not public Storage objects (local files, other
    * hosts). Defaults to returning `src` unchanged.
@@ -40,7 +40,7 @@ const clamp = (value: number, min: number, max: number): number =>
  * were signed with, so sign them with `renderUrl()` at the size you render.
  */
 export function createImageLoader(options: ImageLoaderOptions): ImageLoader {
-  const storage = `${options.url.replace(/\/+$/, '')}/storage/v1`;
+  const storage = `${options.url.replace(/\/+$/, "")}/storage/v1`;
   const publicPrefixes = [
     `${storage}/object/public/`,
     `${storage}/render/image/public/`,
@@ -57,14 +57,14 @@ export function createImageLoader(options: ImageLoaderOptions): ImageLoader {
     const target = new URL(`${storage}/render/image/public/${object}`);
     for (const [key, value] of source.searchParams)
       target.searchParams.set(key, value);
-    target.searchParams.set('width', String(clamp(props.width, 1, MAX_WIDTH)));
+    target.searchParams.set("width", String(clamp(props.width, 1, MAX_WIDTH)));
     if (props.quality !== undefined) {
       target.searchParams.set(
-        'quality',
+        "quality",
         String(clamp(props.quality, QUALITY.min, QUALITY.max)),
       );
     }
-    if (options.resize) target.searchParams.set('resize', options.resize);
+    if (options.resize) target.searchParams.set("resize", options.resize);
     return target.toString();
   };
 }

@@ -1,15 +1,15 @@
-import type { AuthMode, JWTClaims, UserClaims } from '@supabase/server';
-import type { PostgresApi } from '@supabase/server/middleware/postgres';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
+import type { PostgresApi } from "@supabase/server/middleware/postgres";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { defineMiddleware, type Middleware } from '@supabase/middleware';
+import { defineMiddleware, type Middleware } from "@supabase/middleware";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { Actor, RequestContext } from '../core/plugin.ts';
-import type { Db } from '../core/repository-types.ts';
-import type { AnyFunctions, AnyModels } from '../schema/types.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { Actor, RequestContext } from "../core/plugin.ts";
+import type { Db } from "../core/repository-types.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
-import { postgresExecutor } from '../postgres/executor.ts';
+import { postgresExecutor } from "../postgres/executor.ts";
 
 /** The `withSupabase` context keys `withBetterSupabase` reads. */
 export interface SupabaseAuthContext {
@@ -21,11 +21,11 @@ export interface SupabaseAuthContext {
 /** Repository context from a `@supabase/server` context. */
 export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
   switch (ctx.authMode) {
-    case 'user': {
+    case "user": {
       if (!ctx.userClaims) break;
       const actor: Actor = {
         id: ctx.userClaims.id,
-        kind: 'user',
+        kind: "user",
         ...(ctx.userClaims.role !== undefined
           ? { role: ctx.userClaims.role }
           : {}),
@@ -35,13 +35,13 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
       };
       return { actor, claims: ctx.jwtClaims ?? {} };
     }
-    case 'secret':
+    case "secret":
       return {
-        actor: { id: 'service', kind: 'service', role: 'service_role' },
-        claims: { role: 'service_role' },
+        actor: { id: "service", kind: "service", role: "service_role" },
+        claims: { role: "service_role" },
       };
-    case 'publishable':
-    case 'none':
+    case "publishable":
+    case "none":
       break;
     default: {
       const exhaustive: never = ctx.authMode;
@@ -49,8 +49,8 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
     }
   }
   return {
-    actor: { id: 'anon', kind: 'anon', role: 'anon' },
-    claims: { role: 'anon' },
+    actor: { id: "anon", kind: "anon", role: "anon" },
+    claims: { role: "anon" },
   };
 }
 
@@ -70,13 +70,13 @@ export function withBetterSupabase<
 >(
   sb: BetterSupabase<M, D, F, E>,
 ): Middleware<
-  'db',
+  "db",
   void,
   SupabaseAuthContext & { readonly supabase: SupabaseClient },
   Db<M, F, E, SupabaseClient>
 > {
   return defineMiddleware({
-    key: 'db',
+    key: "db",
     run:
       (_config: void) =>
       (
@@ -101,13 +101,13 @@ export function withBetterPostgres<
 >(
   sb: BetterSupabase<M, D, F, E>,
 ): Middleware<
-  'sql',
+  "sql",
   void,
   SupabaseAuthContext & { readonly postgres: PostgresApi },
   Db<M, F, E, undefined>
 > {
   return defineMiddleware({
-    key: 'sql',
+    key: "sql",
     run:
       (_config: void) =>
       (

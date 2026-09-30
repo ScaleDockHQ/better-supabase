@@ -1,44 +1,44 @@
-import type { SelectOp } from '../ir/types.ts';
+import type { SelectOp } from "../ir/types.ts";
 import type {
   AnyFunctions,
   AnyModels,
   Schema,
   SchemaMeta,
   TableKey,
-} from '../schema/types.ts';
-import type { Executor } from './executor.ts';
-import type { Logger } from './logger.ts';
-import type { Db } from './repository-types.ts';
+} from "../schema/types.ts";
+import type { Executor } from "./executor.ts";
+import type { Logger } from "./logger.ts";
+import type { Db } from "./repository-types.ts";
 
-import { IrBuilder } from '../ir/build.ts';
-import { batchingExecutor } from './batch.ts';
+import { IrBuilder } from "../ir/build.ts";
+import { batchingExecutor } from "./batch.ts";
 import {
   type CacheAdapter,
   type CacheTarget,
   cacheTargetOf,
   rpcCacheTargets,
-} from './cache.ts';
-import { type DbError, type ErrorMapper, dbError } from './errors.ts';
-import { type EventHandler, EventHub, type EventName } from './events.ts';
+} from "./cache.ts";
+import { type DbError, type ErrorMapper, dbError } from "./errors.ts";
+import { type EventHandler, EventHub, type EventName } from "./events.ts";
 import {
   type AnyPlugin,
   type ExtensionOf,
   type WithExtension,
   orderPlugins,
   type RequestContext,
-} from './plugin.ts';
+} from "./plugin.ts";
 import {
   type PostgrestClientLike,
   postgrestExecutor,
-} from './postgrest-executor.ts';
+} from "./postgrest-executor.ts";
 import {
   bindParams,
   checkParams,
   containsPlaceholder,
   isReadSet,
   type ReadSet,
-} from './read-set.ts';
-import { createRepository, OperationRunner } from './repository.ts';
+} from "./read-set.ts";
+import { createRepository, OperationRunner } from "./repository.ts";
 import {
   AsyncResult,
   err,
@@ -46,17 +46,17 @@ import {
   type Result,
   type ThrowMapper,
   withErrorMapper,
-} from './result.ts';
-import { type SearchInput, vectorLiteral } from './search.ts';
+} from "./result.ts";
+import { type SearchInput, vectorLiteral } from "./search.ts";
 import {
   createSpecs,
   isQuerySpec,
   type QuerySpec,
   type Specs,
   specTables,
-} from './spec.ts';
-import { type StandardSchemaV1, validate } from './standard.ts';
-import { recordStats, StatsRecorder } from './stats.ts';
+} from "./spec.ts";
+import { type StandardSchemaV1, validate } from "./standard.ts";
+import { recordStats, StatsRecorder } from "./stats.ts";
 
 export interface DefineSupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
@@ -98,10 +98,10 @@ export interface RpcDefinition {
 
 function isExecutor(value: unknown): value is Executor {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    typeof (value as Executor).execute === 'function' &&
-    typeof (value as Executor).name === 'string'
+    typeof (value as Executor).execute === "function" &&
+    typeof (value as Executor).name === "string"
   );
 }
 
@@ -306,10 +306,10 @@ export class BetterSupabase<
         report(cause, target.table);
       }
     };
-    const offMutation = this.on('mutation', (notice) => {
+    const offMutation = this.on("mutation", (notice) => {
       invalidate(cacheTargetOf(this.meta, notice));
     });
-    const offRpc = this.on('rpc', (notice) => {
+    const offRpc = this.on("rpc", (notice) => {
       for (const target of rpcCacheTargets(this.meta, notice))
         invalidate(target);
     });
@@ -386,7 +386,7 @@ export class BetterSupabase<
         rpc(executor, errorMappers, name, rest).map((data) => {
           const registered = this.options.rpc?.[name];
           if (registered) {
-            this.events.emit('rpc', {
+            this.events.emit("rpc", {
               name,
               invalidates: registered.invalidates,
               context,
@@ -401,7 +401,7 @@ export class BetterSupabase<
       $table: (name: string) => {
         if (!Object.hasOwn(this.meta.tables, name)) {
           throw new TypeError(
-            `better-supabase: unknown table "${name}". Known: ${Object.keys(this.meta.tables).join(', ')}`,
+            `better-supabase: unknown table "${name}". Known: ${Object.keys(this.meta.tables).join(", ")}`,
           );
         }
         return db[name];
@@ -420,8 +420,8 @@ export class BetterSupabase<
         if (!Array.isArray(target)) {
           return AsyncResult.err(
             dbError(
-              'invalid_request',
-              'db.$many() expects an array of specs or a read set',
+              "invalid_request",
+              "db.$many() expects an array of specs or a read set",
             ),
           );
         }
@@ -435,7 +435,7 @@ export class BetterSupabase<
           if (!table) {
             return err(
               dbError(
-                'invalid_request',
+                "invalid_request",
                 `db.$search(): unknown table "${name}"`,
               ),
             );
@@ -443,7 +443,7 @@ export class BetterSupabase<
           if (!base.functionSources) {
             return err(
               dbError(
-                'invalid_request',
+                "invalid_request",
                 `db.$search() reads from a function; the ${base.name} executor doesn't support that`,
                 { table: table.key },
               ),
@@ -454,15 +454,15 @@ export class BetterSupabase<
           if (query === undefined || !Number.isInteger(k) || k < 1) {
             return err(
               dbError(
-                'invalid_input',
-                'db.$search() needs a vector of finite numbers and a positive integer k',
+                "invalid_input",
+                "db.$search() needs a vector of finite numbers and a positive integer k",
                 { table: table.key },
               ),
             );
           }
           const { builder } = runner.runtime;
           const op: SelectOp = {
-            kind: 'select',
+            kind: "select",
             table,
             selection: builder.selection(table, args.select, args.include),
             where: builder.where(table, args.where),
@@ -481,7 +481,7 @@ export class BetterSupabase<
           const result = await runner.run(op, {}, args.signal);
           if (result.ok) return ok(result.data.rows);
           const missing =
-            result.error.code === 'PGRST202' || result.error.code === '42883';
+            result.error.code === "PGRST202" || result.error.code === "42883";
           return missing
             ? err({
                 ...result.error,
@@ -501,7 +501,7 @@ export class BetterSupabase<
         if (invalid !== -1) {
           return err(
             dbError(
-              'invalid_request',
+              "invalid_request",
               `db.$many() entry ${invalid} is not a QuerySpec from sb.spec`,
             ),
           );
@@ -546,8 +546,8 @@ export class BetterSupabase<
         if (problems.length > 0) {
           return err(
             dbError(
-              'invalid_request',
-              `db.$many(${set.name}): ${problems.join(', ')}`,
+              "invalid_request",
+              `db.$many(${set.name}): ${problems.join(", ")}`,
             ),
           );
         }
@@ -568,7 +568,7 @@ export class BetterSupabase<
           set.functionName,
           { p: values ?? {} },
           {
-            schema: 'public',
+            schema: "public",
             get: true,
             errorMappers,
             ...(signal ? { signal } : {}),
@@ -580,7 +580,7 @@ export class BetterSupabase<
 
     const throwAs = this.options.throwAs;
     if (throwAs) {
-      for (const name of ['$rpc', '$run', '$many', '$search']) {
+      for (const name of ["$rpc", "$run", "$many", "$search"]) {
         db[name] = mapThrows(db[name] as AnyMethod, throwAs);
       }
     }
@@ -593,7 +593,7 @@ export class BetterSupabase<
             repository = this.#repository(runner, key, table, plugins);
             if (throwAs) {
               for (const [name, method] of Object.entries(repository)) {
-                if (typeof method === 'function' && name !== 'extend') {
+                if (typeof method === "function" && name !== "extend") {
                   repository[name] = mapThrows(method as AnyMethod, throwAs);
                 }
               }
@@ -628,23 +628,23 @@ export class BetterSupabase<
       if (!entry) {
         return err(
           dbError(
-            'unexpected',
+            "unexpected",
             `${set.functionName}() returned no "${key}". Run \`better-supabase gen\` and migrate.`,
           ),
         );
       }
       const rows = entry.rows ?? [];
       const stub: Executor = {
-        name: 'read-set',
+        name: "read-set",
         execute: async (op) => {
-          if (op.kind === 'select' && op.single) {
+          if (op.kind === "select" && op.single) {
             if (rows.length > 1)
               return err(
-                dbError('multiple_rows', `Expected one ${op.table.key} row`),
+                dbError("multiple_rows", `Expected one ${op.table.key} row`),
               );
-            if (rows.length === 0 && op.single === 'one')
+            if (rows.length === 0 && op.single === "one")
               return err(
-                dbError('not_found', `No ${op.table.key} row matched`),
+                dbError("not_found", `No ${op.table.key} row matched`),
               );
           }
           return ok({ rows, count: entry.count ?? null });
@@ -668,7 +668,7 @@ export class BetterSupabase<
   #repository(
     runner: OperationRunner,
     key: string,
-    table: SchemaMeta['tables'][string],
+    table: SchemaMeta["tables"][string],
     plugins: readonly AnyPlugin[],
   ): Record<string, unknown> {
     const repository = createRepository(runner, table);
@@ -689,7 +689,7 @@ export class BetterSupabase<
         repository[name] = method;
       }
     }
-    repository['extend'] = (
+    repository["extend"] = (
       build: (base: Record<string, unknown>) => Record<string, unknown>,
     ) => ({
       ...repository,
@@ -717,7 +717,7 @@ function runSpec(
 ): AsyncResult<unknown> {
   if (!isQuerySpec(spec)) {
     return AsyncResult.err(
-      dbError('invalid_request', 'db.$run() expects a QuerySpec from sb.spec'),
+      dbError("invalid_request", "db.$run() expects a QuerySpec from sb.spec"),
     );
   }
   const repository = db[spec.table] as
@@ -726,20 +726,20 @@ function runSpec(
   const method = repository?.[spec.method];
   if (!method) {
     return AsyncResult.err(
-      dbError('invalid_request', `Unknown table "${spec.table}" in QuerySpec`),
+      dbError("invalid_request", `Unknown table "${spec.table}" in QuerySpec`),
     );
   }
   if (containsPlaceholder(spec.args)) {
     return AsyncResult.err(
       dbError(
-        'invalid_request',
-        'This spec comes from a read set and still holds placeholders; run it with db.$many(readSet, params)',
+        "invalid_request",
+        "This spec comes from a read set and still holds placeholders; run it with db.$many(readSet, params)",
       ),
     );
   }
   const args = [...spec.args];
   if (signal) {
-    const index = spec.method === 'findById' ? 1 : 0;
+    const index = spec.method === "findById" ? 1 : 0;
     args[index] = { ...(args[index] as object | undefined), signal };
   }
   return method(...args);
@@ -762,13 +762,13 @@ function rpc(
     if (!executor.rpc) {
       return err(
         dbError(
-          'invalid_request',
+          "invalid_request",
           `Executor "${executor.name}" does not support rpc()`,
         ),
       );
     }
     const context = {
-      schema: options?.schema ?? 'public',
+      schema: options?.schema ?? "public",
       errorMappers,
       ...(options?.signal ? { signal: options.signal } : {}),
     };

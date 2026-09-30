@@ -1,32 +1,32 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { ValidationIssue } from '../core/errors.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { ValidationIssue } from "../core/errors.ts";
 import type {
   FindExt,
   OffsetPage,
   OffsetPageArgs,
   RepositoryOf,
-} from '../core/repository-types.ts';
-import type { AsyncResult } from '../core/result.ts';
+} from "../core/repository-types.ts";
+import type { AsyncResult } from "../core/result.ts";
 import type {
   IncludeArg,
   OrderByArg,
   Payload,
   SelectArg,
   WhereInput,
-} from '../ir/args.ts';
-import type { CountMode } from '../ir/types.ts';
+} from "../ir/args.ts";
+import type { CountMode } from "../ir/types.ts";
 import type {
   AnyFunctions,
   AnyModels,
   Row,
   TableKey,
   TableMeta,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
 /** Facet value meaning "not set": filters with `is null`. */
-export const UNSET = '__unset__';
+export const UNSET = "__unset__";
 
 type Column<M extends AnyModels, T extends keyof M> = Extract<
   keyof Row<M, T>,
@@ -109,11 +109,11 @@ export interface ParserSpec<V> {
 
 export interface OpenApiParameter {
   readonly name: string;
-  readonly in: 'query';
+  readonly in: "query";
   readonly required: false;
   readonly description: string;
   readonly schema: Readonly<Record<string, unknown>>;
-  readonly style?: 'form';
+  readonly style?: "form";
   readonly explode?: boolean;
 }
 
@@ -196,18 +196,18 @@ export type ListParsers<S extends string, F extends string> = {
   readonly size: ParserSpec<number>;
 } & { readonly [K in F]: ParserSpec<readonly string[]> };
 
-const RESERVED = new Set(['q', 'sort', 'page', 'size']);
+const RESERVED = new Set(["q", "sort", "page", "size"]);
 
 function first(
   value: string | readonly string[] | undefined,
 ): string | undefined {
-  return typeof value === 'string' ? value : value?.[0];
+  return typeof value === "string" ? value : value?.[0];
 }
 
 function all(value: string | readonly string[] | undefined): string[] {
-  const values = typeof value === 'string' ? [value] : [...(value ?? [])];
+  const values = typeof value === "string" ? [value] : [...(value ?? [])];
   return values
-    .flatMap((entry) => entry.split(','))
+    .flatMap((entry) => entry.split(","))
     .map((entry) => entry.trim())
     .filter(Boolean);
 }
@@ -215,7 +215,7 @@ function all(value: string | readonly string[] | undefined): string[] {
 function isSearchParams(value: object): value is ListSearchParams {
   return (
     value instanceof URLSearchParams ||
-    !('facets' in value && typeof value.facets === 'object')
+    !("facets" in value && typeof value.facets === "object")
   );
 }
 
@@ -229,8 +229,8 @@ function readRecord(
 }
 
 function toInt(raw: unknown): number | undefined {
-  if (typeof raw === 'number') return raw;
-  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return Number.NaN;
+  if (typeof raw === "number") return raw;
+  if (typeof raw !== "string" || !/^\d+$/.test(raw)) return Number.NaN;
   return Number(raw);
 }
 
@@ -311,37 +311,37 @@ export function defineListQuery<
     const issues: ValidationIssue[] = [];
     let q: string | undefined;
     if (raw.q !== undefined && raw.q !== null) {
-      if (typeof raw.q !== 'string')
-        issues.push({ message: 'Must be text', path: ['q'] });
+      if (typeof raw.q !== "string")
+        issues.push({ message: "Must be text", path: ["q"] });
       else if (raw.q.trim().length > maxSearch)
         issues.push({
           message: `At most ${String(maxSearch)} characters`,
-          path: ['q'],
+          path: ["q"],
         });
       else if (raw.q.trim()) q = raw.q.trim();
     }
     let sort = config.defaultSort;
-    if (raw.sort !== undefined && raw.sort !== '') {
+    if (raw.sort !== undefined && raw.sort !== "") {
       if (
-        typeof raw.sort === 'string' &&
+        typeof raw.sort === "string" &&
         (sortKeys as string[]).includes(raw.sort)
       )
         sort = raw.sort as S;
       else
         issues.push({
-          message: `Must be one of: ${sortKeys.join(', ')}`,
-          path: ['sort'],
+          message: `Must be one of: ${sortKeys.join(", ")}`,
+          path: ["sort"],
         });
     }
     const page =
-      raw.page === undefined || raw.page === '' ? 1 : toInt(raw.page);
+      raw.page === undefined || raw.page === "" ? 1 : toInt(raw.page);
     if (page === undefined || !Number.isInteger(page) || page < 1)
       issues.push({
-        message: 'Must be a whole number of at least 1',
-        path: ['page'],
+        message: "Must be a whole number of at least 1",
+        path: ["page"],
       });
     const size =
-      raw.size === undefined || raw.size === '' ? pageSize : toInt(raw.size);
+      raw.size === undefined || raw.size === "" ? pageSize : toInt(raw.size);
     if (
       size === undefined ||
       !Number.isInteger(size) ||
@@ -350,7 +350,7 @@ export function defineListQuery<
     ) {
       issues.push({
         message: `Must be a whole number from 1 to ${String(maxPageSize)}`,
-        path: ['size'],
+        path: ["size"],
       });
     }
     const facetValues: Partial<Record<F, readonly string[]>> = {};
@@ -366,9 +366,9 @@ export function defineListQuery<
           issues.push({
             message:
               value === UNSET
-                ? 'This filter cannot be empty'
-                : `Must be one of: ${(facet.values ?? []).join(', ')}`,
-            path: ['facets', facet.key],
+                ? "This filter cannot be empty"
+                : `Must be one of: ${(facet.values ?? []).join(", ")}`,
+            path: ["facets", facet.key],
           });
         }
       }
@@ -393,10 +393,10 @@ export function defineListQuery<
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- search params from JavaScript can be null.
     if (input === undefined || input === null)
       return { ok: true, value: defaults };
-    if (typeof input !== 'object')
+    if (typeof input !== "object")
       return {
         ok: false,
-        issues: [{ message: 'Expected an object or URL parameters' }],
+        issues: [{ message: "Expected an object or URL parameters" }],
       };
     if (isSearchParams(input)) {
       const record = readRecord(input);
@@ -404,10 +404,10 @@ export function defineListQuery<
       for (const facet of facets)
         facetValues[facet.key] = all(record[facet.key]);
       return normalize({
-        q: first(record['q']),
-        sort: first(record['sort']),
-        page: first(record['page']),
-        size: first(record['size']),
+        q: first(record["q"]),
+        sort: first(record["sort"]),
+        page: first(record["page"]),
+        size: first(record["size"]),
         facets: facetValues,
       });
     }
@@ -416,12 +416,12 @@ export function defineListQuery<
     for (const [key, value] of Object.entries(rawFacets)) {
       if (
         !Array.isArray(value) ||
-        value.some((entry) => typeof entry !== 'string')
+        value.some((entry) => typeof entry !== "string")
       ) {
         return {
           ok: false,
           issues: [
-            { message: 'Must be a list of values', path: ['facets', key] },
+            { message: "Must be a list of values", path: ["facets", key] },
           ],
         };
       }
@@ -486,7 +486,7 @@ export function defineListQuery<
       orderBy: config.sorts[query.sort],
       page: query.page,
       size: query.size,
-      count: config.count ?? 'exact',
+      count: config.count ?? "exact",
     } as OffsetPageArgs<M, T>;
   }
 
@@ -523,7 +523,7 @@ export function defineListQuery<
         if (!others) continue;
         const raw = group[facet.column];
         const key = raw === null || raw === undefined ? UNSET : String(raw);
-        counts[key] = (counts[key] ?? 0) + Number(group['_count'] ?? 0);
+        counts[key] = (counts[key] ?? 0) + Number(group["_count"] ?? 0);
       }
       out[facet.key] = counts;
     }
@@ -535,7 +535,7 @@ export function defineListQuery<
       const values = all(value);
       return values.length > 0 ? values : null;
     },
-    serialize: (values) => values.join(','),
+    serialize: (values) => values.join(","),
   };
   const intParser: ParserSpec<number> = {
     parse: (value) => (/^\d+$/.test(value) ? Number(value) : null),
@@ -557,9 +557,9 @@ export function defineListQuery<
   } as ListParsers<S, F>;
 
   const facetSchema = (facet: FacetInfo): Record<string, unknown> => ({
-    type: 'array',
+    type: "array",
     items: {
-      type: 'string',
+      type: "string",
       ...(facet.values
         ? { enum: [...facet.values, ...(facet.nullable ? [UNSET] : [])] }
         : {}),
@@ -568,43 +568,43 @@ export function defineListQuery<
   });
   const searchDescription = config.search
     ? Array.isArray(config.search)
-      ? `Case-insensitive search in ${(config.search as readonly string[]).join(', ')}.`
-      : 'Full-text search (web search syntax).'
+      ? `Case-insensitive search in ${(config.search as readonly string[]).join(", ")}.`
+      : "Full-text search (web search syntax)."
     : undefined;
 
   const openapi: OpenApiParameter[] = [
     ...(searchDescription
       ? [
           {
-            name: 'q',
-            in: 'query',
+            name: "q",
+            in: "query",
             required: false,
             description: searchDescription,
-            schema: { type: 'string', maxLength: maxSearch },
+            schema: { type: "string", maxLength: maxSearch },
           } as const,
         ]
       : []),
     {
-      name: 'sort',
-      in: 'query',
+      name: "sort",
+      in: "query",
       required: false,
       description: `Ordering. Default \`${config.defaultSort}\`.`,
-      schema: { type: 'string', enum: sortKeys, default: config.defaultSort },
+      schema: { type: "string", enum: sortKeys, default: config.defaultSort },
     },
     {
-      name: 'page',
-      in: 'query',
+      name: "page",
+      in: "query",
       required: false,
-      description: '1-based page number.',
-      schema: { type: 'integer', minimum: 1, default: 1 },
+      description: "1-based page number.",
+      schema: { type: "integer", minimum: 1, default: 1 },
     },
     {
-      name: 'size',
-      in: 'query',
+      name: "size",
+      in: "query",
       required: false,
-      description: 'Page size.',
+      description: "Page size.",
       schema: {
-        type: 'integer',
+        type: "integer",
         minimum: 1,
         maximum: maxPageSize,
         default: pageSize,
@@ -612,32 +612,32 @@ export function defineListQuery<
     },
     ...facets.map((facet): OpenApiParameter => ({
       name: facet.key,
-      in: 'query',
+      in: "query",
       required: false,
-      description: `Filter on ${facet.column}. Comma-separated; any value matches.${facet.nullable ? ` \`${UNSET}\` matches empty.` : ''}`,
+      description: `Filter on ${facet.column}. Comma-separated; any value matches.${facet.nullable ? ` \`${UNSET}\` matches empty.` : ""}`,
       schema: facetSchema(facet),
-      style: 'form',
+      style: "form",
       explode: false,
     })),
   ];
 
   const jsonSchema = {
-    type: 'object',
+    type: "object",
     additionalProperties: false,
     properties: {
       ...(searchDescription
         ? {
             q: {
-              type: 'string',
+              type: "string",
               maxLength: maxSearch,
               description: searchDescription,
             },
           }
         : {}),
-      sort: { type: 'string', enum: sortKeys, default: config.defaultSort },
-      page: { type: 'integer', minimum: 1, default: 1 },
+      sort: { type: "string", enum: sortKeys, default: config.defaultSort },
+      page: { type: "integer", minimum: 1, default: 1 },
       size: {
-        type: 'integer',
+        type: "integer",
         minimum: 1,
         maximum: maxPageSize,
         default: pageSize,
@@ -645,7 +645,7 @@ export function defineListQuery<
       ...(facets.length > 0
         ? {
             facets: {
-              type: 'object',
+              type: "object",
               additionalProperties: false,
               properties: Object.fromEntries(
                 facets.map((facet) => [facet.key, facetSchema(facet)]),
@@ -662,9 +662,9 @@ export function defineListQuery<
     facets,
     parse,
     schema: {
-      '~standard': {
+      "~standard": {
         version: 1,
-        vendor: 'better-supabase',
+        vendor: "better-supabase",
         validate(value) {
           const result = parse(
             value as ListQueryInput<S, F> | ListSearchParams | undefined,
@@ -677,17 +677,17 @@ export function defineListQuery<
     },
     toSearchParams(query) {
       const params = new URLSearchParams();
-      if (query.q) params.set('q', query.q);
+      if (query.q) params.set("q", query.q);
       if (query.sort && query.sort !== config.defaultSort)
-        params.set('sort', query.sort);
+        params.set("sort", query.sort);
       if (query.page && query.page !== 1)
-        params.set('page', String(query.page));
+        params.set("page", String(query.page));
       if (query.size && query.size !== pageSize)
-        params.set('size', String(query.size));
+        params.set("size", String(query.size));
       for (const facet of facets) {
         const values = query.facets?.[facet.key as F];
         if (values && values.length > 0)
-          params.set(facet.key, values.join(','));
+          params.set(facet.key, values.join(","));
       }
       return params;
     },
@@ -709,7 +709,7 @@ export function defineListQuery<
         include: _include,
         ...options
       } = (extra ?? {}) as ListExtra<M, T> & Record<string, unknown>;
-      const combined = and([extraWhere, base['where'] as Where | undefined]);
+      const combined = and([extraWhere, base["where"] as Where | undefined]);
       // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs paginate and aggregate.
       const repository = db[table] as unknown as {
         paginate: (input: Record<string, unknown>) => AsyncResult<unknown>;
@@ -718,7 +718,7 @@ export function defineListQuery<
       const page = repository.paginate({
         ...extra,
         ...base,
-        count: count ?? base['count'],
+        count: count ?? base["count"],
         ...(combined ? { where: combined } : {}),
       });
       if (!config.facetCounts) return page as AsyncResult<never>;

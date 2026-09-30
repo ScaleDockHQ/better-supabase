@@ -1,7 +1,7 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import { dbError, type ValidationIssue } from './errors.ts';
-import { err, ok, type Result } from './result.ts';
+import { dbError, type ValidationIssue } from "./errors.ts";
+import { err, ok, type Result } from "./result.ts";
 
 export type { StandardSchemaV1 };
 
@@ -9,13 +9,13 @@ export type { StandardSchemaV1 };
 export async function validate<S extends StandardSchemaV1>(
   schema: S,
   value: unknown,
-  label = 'value',
+  label = "value",
 ): Promise<Result<StandardSchemaV1.InferOutput<S>>> {
-  let outcome = schema['~standard'].validate(value);
+  let outcome = schema["~standard"].validate(value);
   if (outcome instanceof Promise) outcome = await outcome;
   if (outcome.issues) {
     return err(
-      dbError('validation', `Invalid ${label}`, {
+      dbError("validation", `Invalid ${label}`, {
         issues: toIssues(outcome.issues),
       }),
     );
@@ -28,7 +28,7 @@ export function toIssues(
 ): readonly ValidationIssue[] {
   return issues.map((issue) => {
     const path = issue.path?.map((segment) =>
-      typeof segment === 'object' ? segment.key : segment,
+      typeof segment === "object" ? segment.key : segment,
     );
     return path && path.length > 0
       ? { message: issue.message, path }

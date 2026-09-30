@@ -9,7 +9,7 @@ type Override<R, O> = {
 type EnrichTables<Tables, O> = {
   [T in keyof Tables]: T extends keyof O
     ? {
-        [P in keyof Tables[T]]: P extends 'Row' | 'Insert' | 'Update'
+        [P in keyof Tables[T]]: P extends "Row" | "Insert" | "Update"
           ? Override<Tables[T][P], O[T]>
           : Tables[T][P];
       }
@@ -17,7 +17,7 @@ type EnrichTables<Tables, O> = {
 };
 
 type EnrichSchema<S, O> = {
-  [P in keyof S]: P extends 'Tables' | 'Views' ? EnrichTables<S[P], O> : S[P];
+  [P in keyof S]: P extends "Tables" | "Views" ? EnrichTables<S[P], O> : S[P];
 };
 
 /**

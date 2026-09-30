@@ -1,11 +1,11 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 const PERMDOCK_CONFIGS = [
-  'permdock.config.ts',
-  'permdock.config.mts',
-  'permdock.config.js',
-  'permdock.config.mjs',
+  "permdock.config.ts",
+  "permdock.config.mts",
+  "permdock.config.js",
+  "permdock.config.mjs",
 ] as const;
 
 /** The PermDock config file in `root`, if there is one. */

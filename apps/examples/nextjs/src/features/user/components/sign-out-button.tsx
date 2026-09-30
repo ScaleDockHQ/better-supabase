@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 
-import { useSupabase } from '@/lib/hooks';
+import { useSupabase } from "@/lib/hooks";
 
-import { sessionChanged } from '../user-actions';
+import { sessionChanged } from "../user-actions";
 
 export function SignOutButton() {
   const supabase = useSupabase();
@@ -19,7 +19,7 @@ export function SignOutButton() {
         startTransition(async () => {
           await supabase.auth.signOut();
           await sessionChanged();
-          router.push('/login');
+          router.push("/login");
         })
       }
     >

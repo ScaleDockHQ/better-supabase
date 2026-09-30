@@ -1,37 +1,37 @@
-import { Pool } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import type { AnyModels } from '../schema/types.ts';
+import type { AnyModels } from "../schema/types.ts";
 
-import { defineSupabase } from '../core/define.ts';
-import { mapDbError, type RawDbError } from '../core/errors.ts';
-import { defineReadSet } from '../core/read-set.ts';
-import { schema } from '../fixtures/generated-camel.ts';
+import { defineSupabase } from "../core/define.ts";
+import { mapDbError, type RawDbError } from "../core/errors.ts";
+import { defineReadSet } from "../core/read-set.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 import {
   createIdempotency,
   createInbox,
   createJobs,
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
-} from '../jobs/index.ts';
-import { createPostgres } from '../postgres/pool.ts';
-import { defineSchema } from '../schema/define.ts';
-import { renderKit, SQL_MODULES } from '../sql/kit.ts';
-import { compileReadSet } from '../sql/read-sets.ts';
-import { asUser } from '../testing/as-user.ts';
-import { signLocalJwt } from '../testing/local-key.ts';
-import { signWebhook } from '../webhooks/index.ts';
+} from "../jobs/index.ts";
+import { createPostgres } from "../postgres/pool.ts";
+import { defineSchema } from "../schema/define.ts";
+import { renderKit, SQL_MODULES } from "../sql/kit.ts";
+import { compileReadSet } from "../sql/read-sets.ts";
+import { asUser } from "../testing/as-user.ts";
+import { signLocalJwt } from "../testing/local-key.ts";
+import { signWebhook } from "../webhooks/index.ts";
 
-const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
+const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const dbUrl =
-  process.env['SUPABASE_DB_URL'] ??
-  'postgresql://postgres:postgres@127.0.0.1:55422/postgres';
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
 const publishableKey =
-  process.env['SUPABASE_PUBLISHABLE_KEY'] ??
-  'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+  process.env["SUPABASE_PUBLISHABLE_KEY"] ??
+  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 
-const ACME = '00000000-0000-4000-8000-000000000001';
+const ACME = "00000000-0000-4000-8000-000000000001";
 const RUN = String(Date.now());
 
 async function reachable(): Promise<boolean> {
@@ -41,7 +41,7 @@ async function reachable(): Promise<boolean> {
     connectionTimeoutMillis: 1000,
   });
   try {
-    await pool.query('select 1');
+    await pool.query("select 1");
     return true;
   } catch {
     return false;
@@ -52,14 +52,14 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-describe.skipIf(!live)('SQL kit against the local database', () => {
+describe.skipIf(!live)("SQL kit against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 4 });
   const postgres = createPostgres({ connectionString: dbUrl, max: 4 });
   const table = `public.bs_kit_${RUN}`;
 
   beforeAll(async () => {
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target === 'schema') await pool.query(module.sql);
+      if (module.target === "schema") await pool.query(module.sql);
     }
     await pool.query(`
       create table ${table} (
@@ -83,7 +83,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     await pool.query(`drop table if exists ${table}`);
     await pool.query(
       `delete from better_supabase.audited_tables where target::text = $1`,
-      [table.replace('public.', '')],
+      [table.replace("public.", "")],
     );
     await pool.query(
       `select pgmq.drop_queue(queue_name) from pgmq.list_queues() where queue_name like $1`,
@@ -101,13 +101,13 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     await postgres.end();
   });
 
-  it('is idempotent', async () => {
+  it("is idempotent", async () => {
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target === 'schema') await pool.query(module.sql);
+      if (module.target === "schema") await pool.query(module.sql);
     }
   });
 
-  it('grants tables in expose to the Data API roles', async () => {
+  it("grants tables in expose to the Data API roles", async () => {
     const name = `bs_grants_${RUN}`;
     const read = async (): Promise<Response> => {
       for (let attempt = 0; ; attempt++) {
@@ -115,7 +115,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
           headers: { apikey: publishableKey },
         });
         const body = (await response.clone().json()) as { code?: string };
-        if (body.code !== 'PGRST205' || attempt === 20) return response;
+        if (body.code !== "PGRST205" || attempt === 20) return response;
         await new Promise((done) => setTimeout(done, 250));
       }
     };
@@ -129,14 +129,14 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       `);
       const denied = await read();
       const raw = (await denied.json()) as RawDbError;
-      expect(raw.code).toBe('42501');
+      expect(raw.code).toBe("42501");
       expect(mapDbError(raw)).toMatchObject({
-        kind: 'forbidden',
-        hint: expect.stringContaining('expose'),
+        kind: "forbidden",
+        hint: expect.stringContaining("expose"),
       });
 
-      const [file] = renderKit(['grants'], {
-        grants: [{ table: name, role: 'anon', privileges: ['select'] }],
+      const [file] = renderKit(["grants"], {
+        grants: [{ table: name, role: "anon", privileges: ["select"] }],
       });
       await pool.query(file!.contents);
       const allowed = await read();
@@ -147,9 +147,9 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     }
   });
 
-  it('stamps updated_at and actors, enforces slugs and audits changes', async () => {
+  it("stamps updated_at and actors, enforces slugs and audits changes", async () => {
     const user = crypto.randomUUID();
-    const claims = { sub: user, role: 'authenticated' };
+    const claims = { sub: user, role: "authenticated" };
     const as = postgres.asUser(claims);
     const [row] = await as.queryRaw<{
       id: string;
@@ -169,10 +169,10 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
 
     await expect(
       as.queryRaw(`insert into ${table} (slug) values ('admin')`),
-    ).rejects.toMatchObject({ code: '23514', hint: 'SLUG_RESERVED' });
+    ).rejects.toMatchObject({ code: "23514", hint: "SLUG_RESERVED" });
     await expect(
       as.queryRaw(`insert into ${table} (slug) values ('Bad Slug')`),
-    ).rejects.toMatchObject({ hint: 'SLUG_INVALID' });
+    ).rejects.toMatchObject({ hint: "SLUG_INVALID" });
 
     const log = await pool.query<{
       op: string;
@@ -185,21 +185,21 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       [table, row!.id],
     );
     expect(log.rows).toEqual([
-      { op: 'insert', changed: null, actor_id: user, org_id: ACME },
-      { op: 'update', changed: ['name'], actor_id: user, org_id: ACME },
+      { op: "insert", changed: null, actor_id: user, org_id: ACME },
+      { op: "update", changed: ["name"], actor_id: user, org_id: ACME },
     ]);
     await expect(
-      as.queryRaw('select * from better_supabase.audit_log limit 1'),
-    ).rejects.toMatchObject({ code: '42501' });
+      as.queryRaw("select * from better_supabase.audit_log limit 1"),
+    ).rejects.toMatchObject({ code: "42501" });
   });
 
-  it('stamps impersonated_by from the act claim', async () => {
+  it("stamps impersonated_by from the act claim", async () => {
     const user = crypto.randomUUID();
     const admin = crypto.randomUUID();
     const acting = postgres.asUser({
       sub: user,
-      role: 'authenticated',
-      act: { sub: admin, reason: 'support' },
+      role: "authenticated",
+      act: { sub: admin, reason: "support" },
     });
     const [row] = await acting.queryRaw<{
       id: string;
@@ -209,7 +209,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     expect(row).toMatchObject({ created_by: user, impersonated_by: admin });
 
     const [own] = await postgres
-      .asUser({ sub: user, role: 'authenticated' })
+      .asUser({ sub: user, role: "authenticated" })
       .queryRaw<{ impersonated_by: string | null }>(
         `update ${table} set name = 'Own' where id = $1 returning impersonated_by`,
         [row!.id],
@@ -221,12 +221,12 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       [table, row!.id],
     );
     expect(log.rows).toEqual([
-      { impersonated_by: admin, impersonation_reason: 'support' },
+      { impersonated_by: admin, impersonation_reason: "support" },
       { impersonated_by: null, impersonation_reason: null },
     ]);
   });
 
-  it('runs invitations through memberships and has_org_role', async () => {
+  it("runs invitations through memberships and has_org_role", async () => {
     const owner = await pool.query<{ id: string }>(
       `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
       [`owner-${RUN}@example.com`],
@@ -253,18 +253,18 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       });
 
       await expect(
-        asInvitee.queryRaw('select better_supabase.create_invitation($1, $2)', [
+        asInvitee.queryRaw("select better_supabase.create_invitation($1, $2)", [
           org,
-          'x@example.com',
+          "x@example.com",
         ]),
-      ).rejects.toMatchObject({ code: '42501' });
+      ).rejects.toMatchObject({ code: "42501" });
       const [{ token }] = (await asOwner.queryRaw<{ token: string }>(
         `select better_supabase.create_invitation($1, $2, 'admin') as token`,
         [org, `invitee-${RUN}@example.com`],
       )) as [{ token: string }];
 
       const [accepted] = await asInvitee.queryRaw<{ org: string }>(
-        'select better_supabase.accept_invitation($1) as org',
+        "select better_supabase.accept_invitation($1) as org",
         [token],
       );
       expect(accepted!.org).toBe(org);
@@ -274,37 +274,37 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       );
       expect(role!.admin).toBe(true);
       await expect(
-        asInvitee.queryRaw('select better_supabase.accept_invitation($1)', [
+        asInvitee.queryRaw("select better_supabase.accept_invitation($1)", [
           token,
         ]),
-      ).rejects.toMatchObject({ hint: 'INVITATION_INVALID' });
+      ).rejects.toMatchObject({ hint: "INVITATION_INVALID" });
     } finally {
       await pool.query(
-        'delete from better_supabase.memberships where org_id = $1',
+        "delete from better_supabase.memberships where org_id = $1",
         [org],
       );
       await pool.query(
-        'delete from better_supabase.invitations where org_id = $1',
+        "delete from better_supabase.invitations where org_id = $1",
         [org],
       );
-      await pool.query('delete from auth.users where id = any($1)', [
+      await pool.query("delete from auth.users where id = any($1)", [
         [ownerId, inviteeId],
       ]);
     }
   });
 
-  it('mfa_satisfied gates restrictive policies on aal2 once a factor is verified', async () => {
+  it("mfa_satisfied gates restrictive policies on aal2 once a factor is verified", async () => {
     const user = await pool.query<{ id: string }>(
       `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
       [`mfa-${RUN}@example.com`],
     );
     const sub = user.rows[0]!.id;
     const secrets = `public.bs_mfa_${RUN}`;
-    const satisfied = async (aal: 'aal1' | 'aal2'): Promise<boolean> => {
+    const satisfied = async (aal: "aal1" | "aal2"): Promise<boolean> => {
       const [row] = await postgres
         .asUser({ sub, aal })
         .queryRaw<{ ok: boolean }>(
-          'select better_supabase.mfa_satisfied() as ok',
+          "select better_supabase.mfa_satisfied() as ok",
         );
       return row!.ok;
     };
@@ -319,17 +319,17 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
           using ((select better_supabase.mfa_satisfied()));
         grant select on ${secrets} to authenticated;
       `);
-      expect(await satisfied('aal1')).toBe(true);
+      expect(await satisfied("aal1")).toBe(true);
 
       await pool.query(
         `insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at)
          values (gen_random_uuid(), $1, 'phone', 'totp', 'verified', now(), now())`,
         [sub],
       );
-      expect(await satisfied('aal1')).toBe(false);
-      expect(await satisfied('aal2')).toBe(true);
+      expect(await satisfied("aal1")).toBe(false);
+      expect(await satisfied("aal2")).toBe(true);
 
-      const visible = async (aal: 'aal1' | 'aal2') =>
+      const visible = async (aal: "aal1" | "aal2") =>
         (
           await postgres
             .asUser({ sub, aal })
@@ -337,21 +337,21 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
               `select count(*)::int as n from ${secrets}`,
             )
         )[0]!.n;
-      expect(await visible('aal1')).toBe(0);
-      expect(await visible('aal2')).toBe(1);
+      expect(await visible("aal1")).toBe(0);
+      expect(await visible("aal2")).toBe(1);
 
       await expect(
         postgres
-          .asUser({ sub, role: 'anon' })
-          .queryRaw('select better_supabase.mfa_satisfied()'),
-      ).rejects.toMatchObject({ code: '42501' });
+          .asUser({ sub, role: "anon" })
+          .queryRaw("select better_supabase.mfa_satisfied()"),
+      ).rejects.toMatchObject({ code: "42501" });
     } finally {
       await pool.query(`drop table if exists ${secrets}`);
-      await pool.query('delete from auth.users where id = $1', [sub]);
+      await pool.query("delete from auth.users where id = $1", [sub]);
     }
   });
 
-  it('puts memberships and Stripe features in separate claims and RLS', async () => {
+  it("puts memberships and Stripe features in separate claims and RLS", async () => {
     const billing = `bs_billing_${RUN}`;
     const hook = `public.bs_hook_${RUN}`;
     const org = crypto.randomUUID();
@@ -370,9 +370,9 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       "select to_regclass('stripe.active_entitlements') as t",
     );
     const ownsStripe = existing[0].t === null;
-    const kit = renderKit(['entitlements'], {
-      entitlements: { table: billing, column: 'customer_id', key: 'org_id' },
-    }).find((file) => file.module === 'entitlements');
+    const kit = renderKit(["entitlements"], {
+      entitlements: { table: billing, column: "customer_id", key: "org_id" },
+    }).find((file) => file.module === "entitlements");
     try {
       if (ownsStripe) {
         // Stripe Sync Engine 0.48.5, migration 0038.
@@ -418,8 +418,8 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
           )
         ).rows[0]!.event.claims;
       expect(await claimsFor(member)).toEqual({
-        memberships: [{ scope: 'tenant', id: org, roles: ['admin'] }],
-        features: { [org]: ['exports', 'sso'] },
+        memberships: [{ scope: "tenant", id: org, roles: ["admin"] }],
+        features: { [org]: ["exports", "sso"] },
       });
       expect(await claimsFor(outsider)).toEqual({
         memberships: [],
@@ -431,23 +431,23 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
           await postgres
             .asUser({ sub })
             .queryRaw<{ ok: boolean }>(
-              'select better_supabase.has_entitlement($1, $2) as ok',
+              "select better_supabase.has_entitlement($1, $2) as ok",
               [org, key],
             )
         )[0]!.ok;
-      expect(await has(member, 'exports')).toBe(true);
-      expect(await has(member, 'audit')).toBe(false);
-      expect(await has(outsider, 'exports')).toBe(false);
+      expect(await has(member, "exports")).toBe(true);
+      expect(await has(member, "audit")).toBe(false);
+      expect(await has(outsider, "exports")).toBe(false);
       await expect(
         postgres
           .asUser({ sub: member })
-          .queryRaw('select better_supabase.membership_claims($1)', [member]),
-      ).rejects.toMatchObject({ code: '42501' });
+          .queryRaw("select better_supabase.membership_claims($1)", [member]),
+      ).rejects.toMatchObject({ code: "42501" });
       await expect(
         postgres
           .asUser({ sub: member })
-          .queryRaw('select better_supabase.feature_claims($1)', [member]),
-      ).rejects.toMatchObject({ code: '42501' });
+          .queryRaw("select better_supabase.feature_claims($1)", [member]),
+      ).rejects.toMatchObject({ code: "42501" });
 
       const invalidate = await entitlementMembers(postgres.admin, {
         type: ENTITLEMENTS_UPDATED,
@@ -464,35 +464,35 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       `);
       await pool.query(
         ownsStripe
-          ? 'drop schema stripe cascade'
+          ? "drop schema stripe cascade"
           : `delete from stripe.active_entitlements where id like '%_${RUN}'`,
       );
-      await pool.query('delete from auth.users where id = any($1)', [
+      await pool.query("delete from auth.users where id = any($1)", [
         [member, outsider],
       ]);
     }
   });
 
-  it('queues, retries, dedupes and dead-letters jobs on pgmq', async () => {
+  it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `kit_${RUN}`;
     const jobs = createJobs(postgres.admin, {
       [queue]: z.object({ to: z.email() }),
     });
-    const invalid = await jobs.enqueue(queue, { to: 'nope' });
-    expect(invalid).toMatchObject({ ok: false, error: { kind: 'validation' } });
+    const invalid = await jobs.enqueue(queue, { to: "nope" });
+    expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
 
     const first = await jobs
-      .enqueue(queue, { to: 'a@example.com' }, { dedupeKey: 'a' })
+      .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
       .orThrow();
     const again = await jobs
-      .enqueue(queue, { to: 'a@example.com' }, { dedupeKey: 'a' })
+      .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
       .orThrow();
     expect(again).toBe(first);
     await jobs
-      .enqueue(queue, { to: 'b@example.com' }, { maxAttempts: 1 })
+      .enqueue(queue, { to: "b@example.com" }, { maxAttempts: 1 })
       .orThrow();
     await jobs
-      .enqueue(queue, { to: 'later@example.com' }, { delay: 3600 })
+      .enqueue(queue, { to: "later@example.com" }, { delay: 3600 })
       .orThrow();
 
     const other = createJobs(postgres.admin, {
@@ -509,17 +509,17 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       false,
     );
     expect(
-      await jobs.fail(mine[0]!, new Error('boom'), { retryIn: 0 }).orThrow(),
+      await jobs.fail(mine[0]!, new Error("boom"), { retryIn: 0 }).orThrow(),
     ).toMatch(/queued|dead/);
     expect(
-      await other.fail(theirs[0]!, 'boom', { retryIn: 0 }).orThrow(),
+      await other.fail(theirs[0]!, "boom", { retryIn: 0 }).orThrow(),
     ).toMatch(/queued|dead/);
 
     const seen: string[] = [];
     const drained = await jobs.drain(queue, (payload, job) => {
       seen.push(payload.to);
-      if (job.attempts < 3 && payload.to === 'a@example.com')
-        throw new Error('retry me');
+      if (job.attempts < 3 && payload.to === "a@example.com")
+        throw new Error("retry me");
       return undefined;
     });
     expect(drained.succeeded + drained.failed).toBeGreaterThan(0);
@@ -537,33 +537,33 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const archivedBy = new Map(
       archived.rows.map((row) => [row.message.payload.to, row]),
     );
-    expect(archivedBy.get('b@example.com')).toMatchObject({
+    expect(archivedBy.get("b@example.com")).toMatchObject({
       read_ct: 1,
       message: { dead: true },
     });
-    expect(waitingBy.get('later@example.com')).toMatchObject({ read_ct: 0 });
-    expect(waitingBy.get('a@example.com')?.message.last_error).toBe('retry me');
+    expect(waitingBy.get("later@example.com")).toMatchObject({ read_ct: 0 });
+    expect(waitingBy.get("a@example.com")?.message.last_error).toBe("retry me");
   });
 
-  it('schedules recurring jobs with pg_cron', async () => {
+  it("schedules recurring jobs with pg_cron", async () => {
     const queue = `kit_${RUN}_cron`;
     const jobs = createJobs(postgres.admin, {
       [queue]: z.object({ kind: z.string() }),
     });
     const name = `bs-kit-${RUN}`;
     await pool.query(
-      'create extension if not exists pg_cron with schema pg_catalog',
+      "create extension if not exists pg_cron with schema pg_catalog",
     );
-    await jobs.schedule(name, '0 3 * * *', queue, { kind: 'digest' }).orThrow();
+    await jobs.schedule(name, "0 3 * * *", queue, { kind: "digest" }).orThrow();
     const { rows } = await pool.query<{ command: string }>(
-      'select command from cron.job where jobname = $1',
+      "select command from cron.job where jobname = $1",
       [name],
     );
     expect(rows[0]?.command).toContain(`enqueue_job('${queue}'`);
     expect(await jobs.unschedule(name).orThrow()).toBe(true);
   });
 
-  it('works a queue until the signal aborts', async () => {
+  it("works a queue until the signal aborts", async () => {
     const queue = `kit_${RUN}_work`;
     const jobs = createJobs(postgres.admin, {
       [queue]: z.object({ n: z.number() }),
@@ -584,41 +584,41 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     expect(result).toEqual({ succeeded: 4, failed: 0 });
   });
 
-  it('replays idempotent requests and rejects reuse', async () => {
+  it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency(postgres.admin, { scope: RUN });
     let runs = 0;
     const handler = async () => {
       runs += 1;
       return Response.json({ order: runs }, { status: 201 });
     };
-    const request = (body: string, key = 'order-1') =>
-      new Request('https://api.test/orders', {
-        method: 'POST',
-        headers: { 'idempotency-key': key, 'content-type': 'application/json' },
+    const request = (body: string, key = "order-1") =>
+      new Request("https://api.test/orders", {
+        method: "POST",
+        headers: { "idempotency-key": key, "content-type": "application/json" },
         body,
       });
     const first = await idempotency.handle(request('{"sku":1}'), handler);
     expect(first.status).toBe(201);
     const replay = await idempotency.handle(request('{"sku":1}'), handler);
     expect(replay.status).toBe(201);
-    expect(replay.headers.get('idempotency-replayed')).toBe('true');
+    expect(replay.headers.get("idempotency-replayed")).toBe("true");
     expect(await replay.json()).toEqual({ order: 1 });
     expect(runs).toBe(1);
     const reused = await idempotency.handle(request('{"sku":2}'), handler);
     expect(reused.status).toBe(422);
 
     const failing = await idempotency.handle(
-      request('{}', 'order-2'),
-      () => new Response('down', { status: 503 }),
+      request("{}", "order-2"),
+      () => new Response("down", { status: 503 }),
     );
     expect(failing.status).toBe(503);
     expect(
-      (await idempotency.handle(request('{}', 'order-2'), handler)).status,
+      (await idempotency.handle(request("{}", "order-2"), handler)).status,
     ).toBe(201);
   });
 
-  it('stores verified webhooks once and processes them with retries', async () => {
-    const secret = `whsec_${btoa('a-webhook-secret-for-the-inbox-test')}`;
+  it("stores verified webhooks once and processes them with retries", async () => {
+    const secret = `whsec_${btoa("a-webhook-secret-for-the-inbox-test")}`;
     const inbox = createInbox(postgres.admin, {
       source: `kit-${RUN}`,
       secrets: secret,
@@ -627,57 +627,57 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       const body = JSON.stringify(payload);
       const headers = await signWebhook(secret, { id, body });
       return inbox.receive(
-        new Request('https://api.test/hooks', {
-          method: 'POST',
+        new Request("https://api.test/hooks", {
+          method: "POST",
           headers,
           body,
         }),
       );
     };
     expect(
-      (await deliver('msg_1', { type: 'invoice.paid', n: 1 })).status,
+      (await deliver("msg_1", { type: "invoice.paid", n: 1 })).status,
     ).toBe(202);
     expect(
-      (await deliver('msg_1', { type: 'invoice.paid', n: 1 })).status,
+      (await deliver("msg_1", { type: "invoice.paid", n: 1 })).status,
     ).toBe(200);
     expect(
-      (await deliver('msg_2', { type: 'invoice.failed', n: 2 })).status,
+      (await deliver("msg_2", { type: "invoice.failed", n: 2 })).status,
     ).toBe(202);
     const forged = await inbox.receive(
-      new Request('https://api.test/hooks', {
-        method: 'POST',
+      new Request("https://api.test/hooks", {
+        method: "POST",
         headers: {
-          'webhook-id': 'x',
-          'webhook-timestamp': '1',
-          'webhook-signature': 'v1,AAAA',
+          "webhook-id": "x",
+          "webhook-timestamp": "1",
+          "webhook-signature": "v1,AAAA",
         },
-        body: '{}',
+        body: "{}",
       }),
     );
     expect(forged.status).toBe(401);
 
     const types: string[] = [];
     const result = await inbox.process((message) => {
-      types.push(message.type ?? '');
-      if (message.type === 'invoice.failed') throw new Error('try later');
+      types.push(message.type ?? "");
+      if (message.type === "invoice.failed") throw new Error("try later");
       return undefined;
     });
     expect(result).toEqual({ succeeded: 1, failed: 1 });
-    expect(types.sort()).toEqual(['invoice.failed', 'invoice.paid']);
+    expect(types.sort()).toEqual(["invoice.failed", "invoice.paid"]);
     expect(await inbox.process(() => undefined)).toEqual({
       succeeded: 0,
       failed: 0,
     });
   });
 
-  it('pgTAP helpers authenticate as a user under RLS', async () => {
+  it("pgTAP helpers authenticate as a user under RLS", async () => {
     const client = await pool.connect();
     try {
-      await client.query('begin');
+      await client.query("begin");
       const installed = await client.query<{ pass: string }>(
-        SQL_MODULES['pgtap']!.sql,
+        SQL_MODULES["pgtap"]!.sql,
       );
-      expect(JSON.stringify(installed)).toContain('ok 1');
+      expect(JSON.stringify(installed)).toContain("ok 1");
       const user = await client.query<{ id: string }>(
         `select tests.create_user($1) as id`,
         [`pgtap-${RUN}@example.com`],
@@ -691,7 +691,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         [ACME],
       );
       expect(visible.rows[0]!.n).toBe(0);
-      await client.query('select tests.clear_authentication()');
+      await client.query("select tests.clear_authentication()");
       const rls = await client.query<{ result: string }>(
         `select tests.rls_enabled('public') as result`,
       );
@@ -703,12 +703,12 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       );
       expect(fixed.rows[0]!.result).toMatch(/^ok/);
     } finally {
-      await client.query('rollback');
+      await client.query("rollback");
       client.release();
     }
   });
 
-  it('asUser runs PostgREST and SQL as the same user', async () => {
+  it("asUser runs PostgREST and SQL as the same user", async () => {
     const sb = defineSupabase(schema);
     const alice = await asUser(
       sb,
@@ -727,35 +727,35 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     expect(await stranger.db.customers.count().orThrow()).toBe(0);
   });
 
-  it('read sets run as one GET and one transaction, under RLS', async () => {
+  it("read sets run as one GET and one transaction, under RLS", async () => {
     const sb = defineSupabase(schema);
     const chrome = defineReadSet(
       sb,
       `kit_${RUN}`,
-      { params: { orgId: 'uuid', kinds: 'public.note_kind[]' } },
+      { params: { orgId: "uuid", kinds: "public.note_kind[]" } },
       (s, p) => ({
         customers: s.customers.count({ where: { organizationId: p.orgId } }),
         notes: s.notes.findMany({
-          select: ['id', 'kind', 'customerId'],
+          select: ["id", "kind", "customerId"],
           where: {
             organizationId: p.orgId,
-            kind: { in: p.kinds as readonly ('call' | 'meeting')[] },
+            kind: { in: p.kinds as readonly ("call" | "meeting")[] },
           },
-          orderBy: { id: 'asc' },
+          orderBy: { id: "asc" },
         }),
         org: s.organizations.findFirst({
-          select: ['id', 'name'],
+          select: ["id", "name"],
           where: { id: p.orgId },
         }),
         busiest: s.customers.findFirst({
-          select: ['id'],
+          select: ["id"],
           include: { _count: { notes: true } },
           where: { organizationId: p.orgId },
-          orderBy: { name: 'asc' },
+          orderBy: { name: "asc" },
         }),
       }),
     );
-    const [file] = renderKit(['read-sets'], {
+    const [file] = renderKit(["read-sets"], {
       readSets: [await compileReadSet(chrome)],
     });
     await pool.query(file!.contents);
@@ -767,7 +767,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         { sub: crypto.randomUUID(), tenant_id: ACME },
         { url, publishableKey, postgres },
       );
-      const params = { orgId: ACME, kinds: ['call', 'meeting'] };
+      const params = { orgId: ACME, kinds: ["call", "meeting"] };
       let rest = await alice.db.$many(chrome, params);
       for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 250));
@@ -782,7 +782,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
           .count({ where: { organizationId: ACME } })
           .orThrow(),
         org: await alice.db.organizations
-          .findFirst({ select: ['id', 'name'], where: { id: ACME } })
+          .findFirst({ select: ["id", "name"], where: { id: ACME } })
           .orThrow(),
       };
       await expect(alice.db.$run(chrome.specs.org).orThrow()).rejects.toThrow(
@@ -813,7 +813,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     }
   });
 
-  it('db.$many batches ad-hoc specs in one SQL transaction', async () => {
+  it("db.$many batches ad-hoc specs in one SQL transaction", async () => {
     const sb = defineSupabase(schema);
     const alice = await asUser(
       sb,
@@ -822,7 +822,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     );
     const specs = [
       sb.spec.customers.count(),
-      sb.spec.notes.findMany({ select: ['id'], orderBy: { id: 'asc' } }),
+      sb.spec.notes.findMany({ select: ["id"], orderBy: { id: "asc" } }),
     ] as const;
     const rest = await alice.db.$many(specs).orThrow();
     const sql = await alice.sql!.$many(specs).orThrow();
@@ -830,7 +830,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     expect(rest[0]).toBeGreaterThan(0);
   });
 
-  it('searches the nearest rows the caller can read', async () => {
+  it("searches the nearest rows the caller can read", async () => {
     const name = `bs_chunks_${RUN}`;
     const mine = crypto.randomUUID();
     const theirs = crypto.randomUUID();
@@ -843,14 +843,14 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const table = (key: string, db: string) => ({
       key,
       name: db,
-      schema: 'public',
-      kind: 'table' as const,
+      schema: "public",
+      kind: "table" as const,
       columns: {
-        id: column('id', 'int4'),
-        orgId: column('org_id', 'uuid'),
-        content: column('content', 'text'),
+        id: column("id", "int4"),
+        orgId: column("org_id", "uuid"),
+        content: column("content", "text"),
       },
-      primaryKey: ['id'],
+      primaryKey: ["id"],
       uniqueKeys: {},
       relations: {},
       flags: {},
@@ -858,10 +858,10 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const sb = defineSupabase(
       defineSchema<AnyModels>({
         version: 1,
-        casing: 'camel',
+        casing: "camel",
         tables: {
-          chunks: table('chunks', name),
-          unsearched: table('unsearched', `bs_unsearched_${RUN}`),
+          chunks: table("chunks", name),
+          unsearched: table("unsearched", `bs_unsearched_${RUN}`),
         },
         enums: {},
         functions: {},
@@ -876,8 +876,8 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       `(102, '${mine}', 'b', '[0.5,0.5,0]')`,
       `(103, '${mine}', 'c', '[0.9,0.1,0]')`,
     ];
-    const [kit] = renderKit(['vector-search'], {
-      vectorSearch: [{ table: name, column: 'embedding', distance: 'cosine' }],
+    const [kit] = renderKit(["vector-search"], {
+      vectorSearch: [{ table: name, column: "embedding", distance: "cosine" }],
     });
     try {
       await pool.query(`
@@ -886,7 +886,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
           id int primary key, org_id uuid not null, content text not null,
           embedding extensions.vector(3)
         );
-        insert into public.${name} values ${rows.join(', ')};
+        insert into public.${name} values ${rows.join(", ")};
         create index on public.${name} using hnsw (embedding extensions.vector_cosine_ops);
         alter table public.${name} enable row level security;
         create policy "own org" on public.${name} for select to authenticated
@@ -900,36 +900,36 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         { sub: crypto.randomUUID(), tenant_id: mine },
         { url, publishableKey, postgres },
       );
-      const query = { vector: [1, 0, 0], k: 2, select: ['id', 'content'] };
+      const query = { vector: [1, 0, 0], k: 2, select: ["id", "content"] };
       // The ad-hoc schema is untyped (`AnyModels`), so the args are too.
       const search = (
-        db: Pick<typeof alice.db, '$search'>,
-        table: 'chunks' | 'unsearched',
+        db: Pick<typeof alice.db, "$search">,
+        table: "chunks" | "unsearched",
         args: object = query,
       ) => db.$search(table, args as never);
       await expect
-        .poll(async () => (await search(alice.db, 'chunks')).ok, {
+        .poll(async () => (await search(alice.db, "chunks")).ok, {
           timeout: 10_000,
         })
         .toBe(true);
 
-      const rest = await search(alice.db, 'chunks').orThrow();
+      const rest = await search(alice.db, "chunks").orThrow();
       expect(rest).toEqual([
-        { id: 103, content: 'c' },
-        { id: 102, content: 'b' },
+        { id: 103, content: "c" },
+        { id: 102, content: "b" },
       ]);
-      const sql = await search(alice.sql!, 'chunks').orThrow();
+      const sql = await search(alice.sql!, "chunks").orThrow();
       expect(sql).toEqual(rest);
-      const filtered = await search(alice.db, 'chunks', {
+      const filtered = await search(alice.db, "chunks", {
         ...query,
         k: 3,
-        where: { content: 'a' },
+        where: { content: "a" },
       }).orThrow();
-      expect(filtered).toEqual([{ id: 101, content: 'a' }]);
+      expect(filtered).toEqual([{ id: 101, content: "a" }]);
 
-      const missing = await search(alice.db, 'unsearched');
+      const missing = await search(alice.db, "unsearched");
       expect(missing.ok).toBe(false);
-      expect(missing.error?.hint).toContain('vectorSearch');
+      expect(missing.error?.hint).toContain("vectorSearch");
     } finally {
       await pool.query(`drop table if exists public.${name} cascade`);
       await pool.query(
@@ -938,19 +938,19 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     }
   });
 
-  it('answers writes over the limit with 429 and Retry-After', async () => {
+  it("answers writes over the limit with 429 and Retry-After", async () => {
     const probe = `bs_rate_probe_${RUN}`;
     const scope = `/rpc/${probe}`;
     const token = await signLocalJwt({ sub: crypto.randomUUID() });
-    const call = (method: 'GET' | 'POST') =>
+    const call = (method: "GET" | "POST") =>
       fetch(`${url}/rest/v1/rpc/${probe}`, {
         method,
         headers: {
           apikey: publishableKey,
           authorization: `Bearer ${token}`,
-          'content-type': 'application/json',
+          "content-type": "application/json",
         },
-        ...(method === 'POST' ? { body: '{}' } : {}),
+        ...(method === "POST" ? { body: "{}" } : {}),
       });
     try {
       await pool.query(`
@@ -959,7 +959,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         notify pgrst, 'reload schema';
       `);
       await expect
-        .poll(async () => (await call('GET')).status, { timeout: 10_000 })
+        .poll(async () => (await call("GET")).status, { timeout: 10_000 })
         .toBe(200);
       const { rows } = await pool.query(
         `select setting from pg_db_role_setting s join pg_roles r on r.oid = s.setrole,
@@ -967,33 +967,33 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
          where r.rolname = 'authenticator' and setting like 'pgrst.db_pre_request=%'`,
       );
       expect(rows[0]?.setting).toBe(
-        'pgrst.db_pre_request=better_supabase.check_request',
+        "pgrst.db_pre_request=better_supabase.check_request",
       );
       await pool.query(
         `select better_supabase.set_rate_limit($1, 2, interval '1 minute')`,
         [scope],
       );
 
-      expect((await call('POST')).status).toBe(200);
-      expect((await call('POST')).status).toBe(200);
-      const limited = await call('POST');
+      expect((await call("POST")).status).toBe(200);
+      expect((await call("POST")).status).toBe(200);
+      const limited = await call("POST");
       expect(limited.status).toBe(429);
-      const retryAfter = Number(limited.headers.get('retry-after'));
+      const retryAfter = Number(limited.headers.get("retry-after"));
       expect(retryAfter).toBeGreaterThan(0);
       expect(retryAfter).toBeLessThanOrEqual(60);
       const error = mapDbError((await limited.json()) as RawDbError);
       expect(error).toMatchObject({
-        kind: 'rate_limited',
+        kind: "rate_limited",
         status: 429,
-        code: 'BS429',
+        code: "BS429",
         retryAfter,
       });
-      expect((await call('GET')).status).toBe(200);
+      expect((await call("GET")).status).toBe(200);
 
       await pool.query(`select better_supabase.set_rate_limit($1, null)`, [
         scope,
       ]);
-      expect((await call('POST')).status).toBe(200);
+      expect((await call("POST")).status).toBe(200);
     } finally {
       await pool.query(`select better_supabase.set_rate_limit($1, null)`, [
         scope,

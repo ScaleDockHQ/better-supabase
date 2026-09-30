@@ -1,14 +1,14 @@
-import type { FunctionSource, Operation } from '../ir/types.ts';
-import type { ExecuteContext, ExecuteResult, Executor } from './executor.ts';
+import type { FunctionSource, Operation } from "../ir/types.ts";
+import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 
-import { compilePostgrest, type PostgrestPlan } from '../compile/postgrest.ts';
+import { compilePostgrest, type PostgrestPlan } from "../compile/postgrest.ts";
 import {
   type DbError,
   dbError,
   mapDbError,
   type RawDbError,
-} from './errors.ts';
-import { err, ok, type Result, toDbError } from './result.ts';
+} from "./errors.ts";
+import { err, ok, type Result, toDbError } from "./result.ts";
 
 interface PostgrestResponseLike {
   readonly data: unknown;
@@ -82,7 +82,7 @@ interface LooseClient extends ScopedClient {
 function scope(client: PostgrestClientLike, schema: string): ScopedClient {
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PostgrestClientLike is structural and `schema()` is optional at runtime.
   const loose = client as unknown as LooseClient;
-  return schema !== 'public' && loose.schema ? loose.schema(schema) : loose;
+  return schema !== "public" && loose.schema ? loose.schema(schema) : loose;
 }
 
 function fromTable(
@@ -112,7 +112,7 @@ function applyFilters(builder: BuilderLike, plan: PostgrestPlan): BuilderLike {
   let query = builder;
   for (const filter of plan.filters) {
     query =
-      filter.kind === 'filter'
+      filter.kind === "filter"
         ? query.filter(filter.path, filter.operator, filter.value)
         : query.or(
             filter.expression,
@@ -155,7 +155,7 @@ function build(
 ): BuilderLike {
   const base = fromTable(client, op.table.schema, op.table.name);
   switch (op.kind) {
-    case 'select': {
+    case "select": {
       const options: { count?: string; head?: boolean } = {};
       if (op.count) options.count = op.count;
       if (op.head) options.head = true;
@@ -163,17 +163,17 @@ function build(
         ? fromFunction(client, op.source, options).select(plan.select)
         : base.select(plan.select, options);
       let query = applyShape(applyFilters(selected, plan), plan);
-      if (op.single === 'one') query = query.single();
-      if (op.single === 'maybe') query = query.maybeSingle();
+      if (op.single === "one") query = query.single();
+      if (op.single === "maybe") query = query.maybeSingle();
       return query;
     }
-    case 'insert': {
+    case "insert": {
       const rows = op.rows.length === 1 ? op.rows[0] : op.rows;
-      const count = plan.select === undefined ? { count: 'exact' } : {};
+      const count = plan.select === undefined ? { count: "exact" } : {};
       let query = op.onConflict
         ? base.upsert(rows, {
-            onConflict: op.onConflict.columns.join(','),
-            ignoreDuplicates: op.onConflict.action === 'ignore',
+            onConflict: op.onConflict.columns.join(","),
+            ignoreDuplicates: op.onConflict.action === "ignore",
             defaultToNull: op.defaultToNull,
             ...count,
           })
@@ -181,14 +181,14 @@ function build(
       if (plan.select !== undefined) query = query.select(plan.select);
       return query;
     }
-    case 'update': {
-      const count = plan.select === undefined ? { count: 'exact' } : {};
+    case "update": {
+      const count = plan.select === undefined ? { count: "exact" } : {};
       let query = applyFilters(base.update(op.set, count), plan);
       if (plan.select !== undefined) query = query.select(plan.select);
       return query;
     }
-    case 'delete': {
-      const count = plan.select === undefined ? { count: 'exact' } : {};
+    case "delete": {
+      const count = plan.select === undefined ? { count: "exact" } : {};
       let query = applyFilters(base.delete(count), plan);
       if (plan.select !== undefined) query = query.select(plan.select);
       return query;
@@ -207,11 +207,11 @@ function rowsOf(data: unknown): readonly Record<string, unknown>[] {
 }
 
 /** Executes IR operations through a supabase-js client. */
-const aborted = (): DbError => dbError('aborted', 'The request was aborted');
+const aborted = (): DbError => dbError("aborted", "The request was aborted");
 
 export function postgrestExecutor(client: PostgrestClientLike): Executor {
   return {
-    name: 'postgrest',
+    name: "postgrest",
     functionSources: true,
     async execute(
       op: Operation,
@@ -239,7 +239,7 @@ export function postgrestExecutor(client: PostgrestClientLike): Executor {
     async rpc(name, args, context): Promise<Result<unknown>> {
       const scoped = scope(client, context.schema);
       if (!scoped.rpc) {
-        return err(toDbError(new Error('The client does not support rpc()')));
+        return err(toDbError(new Error("The client does not support rpc()")));
       }
       if (context.signal?.aborted) return err(aborted());
       let query = (
@@ -268,7 +268,7 @@ function queryArgs(
   return Object.fromEntries(
     Object.entries(args).map(([key, value]) => [
       key,
-      typeof value === 'object' && value !== null && !Array.isArray(value)
+      typeof value === "object" && value !== null && !Array.isArray(value)
         ? JSON.stringify(value)
         : value,
     ]),

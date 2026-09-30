@@ -1,9 +1,9 @@
-import type { ExtrasHook, ExtrasHookFunction } from '../introspect/types.ts';
-import type { DoctorContext, FindingInput, Location, Rule } from './rules.ts';
+import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
+import type { DoctorContext, FindingInput, Location, Rule } from "./rules.ts";
 
-import { type PgFunctionHook, pgFunctionHooks } from '../supabase-toml.ts';
-import { errorText, ident, literal, type LiveDatabase } from './live.ts';
-import { lineOf } from './shared.ts';
+import { type PgFunctionHook, pgFunctionHooks } from "../supabase-toml.ts";
+import { errorText, ident, literal, type LiveDatabase } from "./live.ts";
+import { lineOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */
 export const HOOK_CLAIMS_LIMIT = 2048;
@@ -35,11 +35,11 @@ const PERMDOCK_CALL = /\bpermdock\w*\s*\(|permdock\s*\./i;
 const PERMDOCK_HOOK = /'\{\s*(?:claims\s*,\s*)?memberships_truncated\s*\}'/i;
 
 const escapeRegExp = (text: string): string =>
-  text.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The claims PermDock's hook writes that a second writer would contradict. */
 function ownedClaims(tenant: string): readonly string[] {
-  return ['roles', 'user_role', 'memberships', tenant];
+  return ["roles", "user_role", "memberships", tenant];
 }
 
 /** Which of `claims` the hook body writes through `jsonb_set` or `jsonb_build_object`. */
@@ -49,16 +49,16 @@ function writtenClaims(source: string, claims: readonly string[]): string[] {
     return (
       new RegExp(
         `jsonb_set\\s*\\([^;]*?'\\{\\s*(?:claims\\s*,\\s*)?${name}\\s*\\}'`,
-        'i',
+        "i",
       ).test(source) ||
-      new RegExp(`jsonb_build_object\\s*\\([^;]*?'${name}'\\s*,`, 'i').test(
+      new RegExp(`jsonb_build_object\\s*\\([^;]*?'${name}'\\s*,`, "i").test(
         source,
       )
     );
   });
 }
 
-const API_ROLES = ['authenticated', 'anon'] as const;
+const API_ROLES = ["authenticated", "anon"] as const;
 
 interface ConfiguredHook {
   readonly config: PgFunctionHook;
@@ -103,21 +103,21 @@ function grantProblems(fn: ExtrasHookFunction): {
 } {
   const problems: string[] = [];
   const fix: string[] = [];
-  if (!fn.schemaUsage.includes('supabase_auth_admin')) {
+  if (!fn.schemaUsage.includes("supabase_auth_admin")) {
     problems.push(`supabase_auth_admin has no usage on schema ${fn.schema}`);
     fix.push(`grant usage on schema ${fn.schema} to supabase_auth_admin;`);
   }
-  if (!fn.execute.includes('supabase_auth_admin')) {
-    problems.push('supabase_auth_admin may not execute it');
+  if (!fn.execute.includes("supabase_auth_admin")) {
+    problems.push("supabase_auth_admin may not execute it");
     fix.push(
       `grant execute on function ${signatureOf(fn)} to supabase_auth_admin;`,
     );
   }
   const exposedTo = API_ROLES.filter((role) => fn.execute.includes(role));
   if (exposedTo.length > 0 || fn.publicExecute) {
-    const roles = [...exposedTo, ...(fn.publicExecute ? ['public'] : [])];
+    const roles = [...exposedTo, ...(fn.publicExecute ? ["public"] : [])];
     problems.push(
-      `${roles.join(', ')} may execute it, so any client can call it through the API`,
+      `${roles.join(", ")} may execute it, so any client can call it through the API`,
     );
     fix.push(
       `revoke execute on function ${signatureOf(fn)} from authenticated, anon, public;`,
@@ -127,8 +127,8 @@ function grantProblems(fn: ExtrasHookFunction): {
 }
 
 const emptySearchPath = (fn: ExtrasHookFunction): boolean => {
-  const value = fn.settings['search_path'];
-  return value === '' || value === '""' || value === "''";
+  const value = fn.settings["search_path"];
+  return value === "" || value === '""' || value === "''";
 };
 
 /**
@@ -149,7 +149,7 @@ async function hookClaimsSize(
   userId: string,
 ): Promise<ClaimsSize | undefined> {
   const call = `${ident(fn.schema)}.${ident(fn.name)}`;
-  await db.query('begin');
+  await db.query("begin");
   try {
     await db.query(`set local statement_timeout = '10s'`);
     const [user] = await db.query<{ event: string | null }>(
@@ -175,7 +175,7 @@ async function hookClaimsSize(
       `select case when exists(select 1 from pg_roles where rolname = 'supabase_auth_admin')
         then pg_has_role('supabase_auth_admin', 'member') else false end as member`,
     );
-    if (role?.member) await db.query('set local role supabase_auth_admin');
+    if (role?.member) await db.query("set local role supabase_auth_admin");
     const [row] = await db.query<{
       bytes: number | string | null;
       memberships: number | string | null;
@@ -196,17 +196,17 @@ async function hookClaimsSize(
       truncated: row?.truncated === true,
     };
   } finally {
-    await db.query('rollback');
+    await db.query("rollback");
   }
 }
 
 export const HOOK_RULES: readonly Rule[] = [
   {
-    code: 'BS404',
-    severity: 'error',
-    title: 'Auth hook function grants',
+    code: "BS404",
+    severity: "error",
+    title: "Auth hook function grants",
     description:
-      'Auth calls Postgres hook functions as `supabase_auth_admin`, which needs usage on the schema and execute on the function. Nobody else should be able to call them: a client calling the custom access token hook through the API sees what it adds for any user id.',
+      "Auth calls Postgres hook functions as `supabase_auth_admin`, which needs usage on the schema and execute on the function. Nobody else should be able to call them: a client calling the custom access token hook through the API sees what it adds for any user id.",
     check: (context) =>
       configuredHooks(context).flatMap(({ config, extras }): FindingInput[] => {
         if (!extras) return [];
@@ -226,32 +226,32 @@ export const HOOK_RULES: readonly Rule[] = [
           if (problems.length === 0) return [];
           return [
             {
-              message: `${signatureOf(fn)} ([auth.hook.${config.hook}]): ${problems.join('; ')}. Run:\n${fix.join('\n')}`,
+              message: `${signatureOf(fn)} ([auth.hook.${config.hook}]): ${problems.join("; ")}. Run:\n${fix.join("\n")}`,
               target: signatureOf(fn),
-              object: { kind: 'function', schema: fn.schema, name: fn.name },
+              object: { kind: "function", schema: fn.schema, name: fn.name },
             },
           ];
         });
       }),
   },
   {
-    code: 'BS405',
-    severity: 'warning',
-    title: 'Custom access token hook shape',
+    code: "BS405",
+    severity: "warning",
+    title: "Custom access token hook shape",
     description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back. It warns when the whole token's claims pass ${HOOK_CLAIMS_LIMIT} bytes (\`doctor.claimsLimit\` without PermDock). With a \`permdock.config.ts\` it also warns when \`memberships\` plus \`attrs\` pass PermDock's budget, ${PERMDOCK_CLAIMS_LIMIT} bytes or \`doctor.claimsLimit\`, measured with \`octet_length\` as PermDock's hook measures it.`,
     async check(context) {
       const findings: FindingInput[] = [];
       const limits = claimsLimits(context);
       for (const { config, extras } of configuredHooks(context)) {
-        if (config.hook !== 'custom_access_token' || !extras) continue;
+        if (config.hook !== "custom_access_token" || !extras) continue;
         for (const fn of extras.functions) {
           const object = {
-            kind: 'function' as const,
+            kind: "function" as const,
             schema: fn.schema,
             name: fn.name,
           };
           const shape: string[] = [];
-          if (fn.volatility !== 'stable') {
+          if (fn.volatility !== "stable") {
             shape.push(`it is ${fn.volatility}; declare it \`stable\``);
           }
           if (!emptySearchPath(fn)) {
@@ -261,17 +261,17 @@ export const HOOK_RULES: readonly Rule[] = [
           }
           if (shape.length > 0) {
             findings.push({
-              message: `${signatureOf(fn)}: ${shape.join('; ')}.`,
+              message: `${signatureOf(fn)}: ${shape.join("; ")}.`,
               target: signatureOf(fn),
               object,
             });
           }
           if (!context.hookUser) continue;
           const db = context.database;
-          if (!db || 'skipped' in db || !db.session) {
+          if (!db || "skipped" in db || !db.session) {
             findings.push({
-              severity: 'info',
-              message: `Measuring the hook's claims needs a direct database connection (local stack or --db-url)${db && 'skipped' in db ? `: ${db.skipped}` : '.'}`,
+              severity: "info",
+              message: `Measuring the hook's claims needs a direct database connection (local stack or --db-url)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
               target: `${signatureOf(fn)}:claims`,
             });
             continue;
@@ -280,7 +280,7 @@ export const HOOK_RULES: readonly Rule[] = [
             const size = await hookClaimsSize(db, fn, context.hookUser);
             if (size === undefined) {
               findings.push({
-                severity: 'info',
+                severity: "info",
                 message: `--as ${context.hookUser}: no such user in auth.users, so the hook was not called.`,
                 target: `${signatureOf(fn)}:claims`,
               });
@@ -302,7 +302,7 @@ export const HOOK_RULES: readonly Rule[] = [
             }
             if (size.truncated) {
               findings.push({
-                severity: 'info',
+                severity: "info",
                 message: `${signatureOf(fn)} sets memberships_truncated for ${context.hookUser}: the token lists only some memberships (${size.memberships} bytes). Server checks for this user need a database lookup (PermDock's claimsFirst falls back to one).`,
                 target: `${signatureOf(fn)}:truncated`,
                 object,
@@ -321,14 +321,14 @@ export const HOOK_RULES: readonly Rule[] = [
     },
   },
   {
-    code: 'BS407',
-    severity: 'error',
-    title: 'Two authorization hooks',
+    code: "BS407",
+    severity: "error",
+    title: "Two authorization hooks",
     description:
       "A `permdock.config.ts` (or a hook that calls PermDock's functions) means PermDock writes `user_role`, `roles`, `memberships` and the tenant claim (`claims.tenant`) into the token. A custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the extra writes. Other claims, such as the entitlements module's `features`, are not PermDock's and are not reported.",
     check: (context) =>
       configuredHooks(context).flatMap(({ config, extras }): FindingInput[] => {
-        if (config.hook !== 'custom_access_token' || !extras) return [];
+        if (config.hook !== "custom_access_token" || !extras) return [];
         return extras.functions.flatMap((fn): FindingInput[] => {
           if (fn.source === undefined) return [];
           const kit = KIT_MEMBERSHIPS.test(fn.source);
@@ -341,18 +341,18 @@ export const HOOK_RULES: readonly Rule[] = [
           if (!kit && written.length === 0) return [];
           const permdock =
             context.permdock ??
-            (PERMDOCK_CALL.test(fn.source) ? 'the hook body' : undefined);
+            (PERMDOCK_CALL.test(fn.source) ? "the hook body" : undefined);
           if (!permdock) return [];
           const location = hookLocation(context, config.hook);
           const what = [
-            ...(kit ? ['calls better_supabase.membership_claims'] : []),
-            ...(written.length > 0 ? [`writes ${written.join(', ')}`] : []),
-          ].join(' and ');
+            ...(kit ? ["calls better_supabase.membership_claims"] : []),
+            ...(written.length > 0 ? [`writes ${written.join(", ")}`] : []),
+          ].join(" and ");
           return [
             {
               message: `${signatureOf(fn)} ${what}, and ${permdock} says PermDock owns those claims. Keep one source: run \`permdock supabase hook generate\` and remove these writes from your hook.`,
               target: signatureOf(fn),
-              object: { kind: 'function', schema: fn.schema, name: fn.name },
+              object: { kind: "function", schema: fn.schema, name: fn.name },
               ...(location ? { location } : {}),
             },
           ];

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useTransition } from 'react';
+import { useTransition } from "react";
 
-import { markAllRead, notifyMe } from '../inbox-actions';
+import { markAllRead, notifyMe } from "../inbox-actions";
 
 export function InboxActions() {
   const [pending, start] = useTransition();
@@ -13,12 +13,12 @@ export function InboxActions() {
         disabled={pending}
         onClick={() =>
           start(async () => {
-            await notifyMe({ title: 'Hello from the inbox' });
+            await notifyMe({ title: "Hello from the inbox" });
           })
         }
       >
         Notify me
-      </button>{' '}
+      </button>{" "}
       <button
         type="button"
         disabled={pending}

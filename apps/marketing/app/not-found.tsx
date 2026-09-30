@@ -1,7 +1,7 @@
-import Link from 'next/link';
+import Link from "next/link";
 
-import { Button } from '@/components/ui/button';
-import { site } from '@/lib/site';
+import { Button } from "@/components/ui/button";
+import { site } from "@/lib/site";
 
 export default function NotFound() {
   return (

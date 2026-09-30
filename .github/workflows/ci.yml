@@ -4,15 +4,15 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '.cursor/**'
-      - '.claude/**'
-      - '.agents/**'
+      - ".cursor/**"
+      - ".claude/**"
+      - ".agents/**"
   pull_request:
     branches: [main]
     paths-ignore:
-      - '.cursor/**'
-      - '.claude/**'
-      - '.agents/**'
+      - ".cursor/**"
+      - ".claude/**"
+      - ".agents/**"
 
 permissions:
   contents: read

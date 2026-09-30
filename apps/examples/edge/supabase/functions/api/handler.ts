@@ -1,6 +1,6 @@
-import { createEdge } from 'better-supabase/edge';
+import { createEdge } from "better-supabase/edge";
 
-import { sb } from '../_shared/supabase.ts';
+import { sb } from "../_shared/supabase.ts";
 
 const bs = createEdge(sb, { cors: true });
 
@@ -8,13 +8,13 @@ const me = bs.handler((_request, { auth }) => ({ kind: auth.kind }));
 
 const resources = bs.resources(
   {
-    customers: { select: ['id', 'name', 'status', 'organizationId'] },
+    customers: { select: ["id", "name", "status", "organizationId"] },
     tags: true,
   },
-  { basePath: '/api' },
+  { basePath: "/api" },
 );
 
 export const handler = (request: Request): Promise<Response> =>
-  new URL(request.url).pathname === '/api/me'
+  new URL(request.url).pathname === "/api/me"
     ? me(request)
     : resources(request);

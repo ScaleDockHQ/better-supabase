@@ -1,14 +1,14 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, expectTypeOf, it } from "vitest";
 
-import type { AsyncResult } from '../core/result.ts';
+import type { AsyncResult } from "../core/result.ts";
 
-import { defineSupabase } from '../core/define.ts';
-import { schema } from '../fixtures/generated-camel.ts';
-import { softDelete } from './soft-delete/index.ts';
-import { tenant } from './tenant/index.ts';
-import { timestamps } from './timestamps/index.ts';
+import { defineSupabase } from "../core/define.ts";
+import { schema } from "../fixtures/generated-camel.ts";
+import { softDelete } from "./soft-delete/index.ts";
+import { tenant } from "./tenant/index.ts";
+import { timestamps } from "./timestamps/index.ts";
 
 declare const client: SupabaseClient;
 const db = defineSupabase(schema)
@@ -17,8 +17,8 @@ const db = defineSupabase(schema)
   .use(tenant())
   .connect(client);
 
-describe('plugin extensions', () => {
-  it('adds restore only to soft-delete tables', () => {
+describe("plugin extensions", () => {
+  it("adds restore only to soft-delete tables", () => {
     expectTypeOf(db.customers.restore).toEqualTypeOf<
       (
         key: string,
@@ -26,22 +26,22 @@ describe('plugin extensions', () => {
       ) => AsyncResult<void>
     >();
     // @ts-expect-error tags has no softDelete flag
-    db.tags.restore('t');
+    db.tags.restore("t");
   });
 
-  it('adds per-call options only where the flag is set', () => {
+  it("adds per-call options only where the flag is set", () => {
     db.customers.findMany({ withDeleted: true, allTenants: true });
-    db.customers.delete('c', { hard: true });
+    db.customers.delete("c", { hard: true });
     db.tags.findMany({ allTenants: true });
     // @ts-expect-error tags has no softDelete flag
     db.tags.findMany({ withDeleted: true });
     // @ts-expect-error tags has no softDelete flag
-    db.tags.delete('t', { hard: true });
+    db.tags.delete("t", { hard: true });
   });
 
-  it('keeps the base API intact', async () => {
+  it("keeps the base API intact", async () => {
     const rows = await db.customers
-      .findMany({ select: ['id'], withDeleted: true })
+      .findMany({ select: ["id"], withDeleted: true })
       .orThrow();
     expectTypeOf(rows).toEqualTypeOf<{ id: string }[]>();
   });

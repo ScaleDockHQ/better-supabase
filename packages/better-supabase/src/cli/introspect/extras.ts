@@ -1,4 +1,4 @@
-import type { Queryable } from './typegen.ts';
+import type { Queryable } from "./typegen.ts";
 import type {
   CatalogPolicy,
   CatalogTrigger,
@@ -9,7 +9,7 @@ import type {
   ForeignKeyAction,
   SnapshotBucket,
   SnapshotExtras,
-} from './types.ts';
+} from "./types.ts";
 
 /**
  * Catalog details `@supabase/postgrest-typegen` leaves out: named unique and
@@ -20,7 +20,7 @@ import type {
  * accepts a query string; schema names are inlined as escaped literals.
  */
 const literalArray = (values: readonly string[]): string =>
-  `array[${values.map((value) => `'${value.replace(/'/g, "''")}'`).join(', ')}]::text[]`;
+  `array[${values.map((value) => `'${value.replace(/'/g, "''")}'`).join(", ")}]::text[]`;
 
 /** Row estimate from which a table counts as large in the snapshot. */
 export const LARGE_TABLE_ROWS = 10_000;
@@ -104,9 +104,9 @@ order by 1, 2, 3`;
 
 /** Roles the hook checks care about: the one Auth calls it as, and the API roles. */
 const HOOK_ROLES = literalArray([
-  'supabase_auth_admin',
-  'authenticated',
-  'anon',
+  "supabase_auth_admin",
+  "authenticated",
+  "anon",
 ]);
 
 // Auth hook functions by qualified name, with who may call them.
@@ -183,17 +183,17 @@ const HAS_TABLE = (qualified: string) =>
   `select to_regclass('${qualified}') is not null as present`;
 
 const ACTIONS: Record<string, ForeignKeyAction> = {
-  a: 'no action',
-  r: 'restrict',
-  c: 'cascade',
-  n: 'set null',
-  d: 'set default',
+  a: "no action",
+  r: "restrict",
+  c: "cascade",
+  n: "set null",
+  d: "set default",
 };
 
 interface ConstraintRow {
   table_id: number | string;
   name: string;
-  type: 'p' | 'u' | 'f' | 'c';
+  type: "p" | "u" | "f" | "c";
   columns: string[];
   on_delete: string;
   on_update: string;
@@ -214,7 +214,7 @@ interface PolicyRow {
   name: string;
   permissive: boolean;
   roles: string[];
-  command: CatalogPolicy['command'];
+  command: CatalogPolicy["command"];
   using_expr: string | null;
   check_expr: string | null;
   functions: string[] | null;
@@ -225,25 +225,25 @@ interface FunctionRow {
   name: string;
   signature: string;
   language: string;
-  volatility: 'i' | 's' | 'v';
+  volatility: "i" | "s" | "v";
   security_definer: boolean;
   config: string[] | null;
 }
 
 const VOLATILITY: Record<
-  FunctionRow['volatility'],
-  ExtrasFunction['volatility']
+  FunctionRow["volatility"],
+  ExtrasFunction["volatility"]
 > = {
-  i: 'immutable',
-  s: 'stable',
-  v: 'volatile',
+  i: "immutable",
+  s: "stable",
+  v: "volatile",
 };
 
 /** `['statement_timeout=5s']` as `{ statement_timeout: '5s' }`. */
 function settingsOf(config: readonly string[] | null): Record<string, string> {
   const settings: Record<string, string> = {};
   for (const entry of config ?? []) {
-    const at = entry.indexOf('=');
+    const at = entry.indexOf("=");
     if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
   }
   return settings;
@@ -303,9 +303,9 @@ interface TriggerRow {
   table_id: number | string;
   name: string;
   function: string;
-  timing: CatalogTrigger['timing'];
-  events: CatalogTrigger['events'][number][];
-  level: CatalogTrigger['level'];
+  timing: CatalogTrigger["timing"];
+  events: CatalogTrigger["events"][number][];
+  level: CatalogTrigger["level"];
 }
 
 interface GrantRow {
@@ -368,10 +368,10 @@ export async function readExtras(
   const policies = groupById(await rows<PolicyRow>(db, POLICIES(list)));
   const triggers = groupById(await rows<TriggerRow>(db, TRIGGERS(list)));
   const grants = groupById(await rows<GrantRow>(db, GRANTS(list)));
-  const buckets = await serviceRows<BucketRow>(db, 'storage.buckets', BUCKETS);
+  const buckets = await serviceRows<BucketRow>(db, "storage.buckets", BUCKETS);
   const realtime = await serviceRows<{ name: string }>(
     db,
-    'pg_catalog.pg_publication_tables',
+    "pg_catalog.pg_publication_tables",
     REALTIME,
   );
   const functions = await rows<FunctionRow>(db, FUNCTIONS(list));
@@ -388,7 +388,7 @@ export async function readExtras(
     const own = constraints.get(id) ?? [];
     const ownIndexes = indexes.get(id) ?? [];
     const uniques = own
-      .filter((con) => con.type === 'u')
+      .filter((con) => con.type === "u")
       .map((con) => ({ name: con.name, columns: con.columns }));
     const constraintNames = new Set(own.map((con) => con.name));
     for (const index of ownIndexes) {
@@ -405,17 +405,17 @@ export async function readExtras(
       id,
       schema: relation.schema,
       name: relation.name,
-      primaryKey: own.find((con) => con.type === 'p')?.columns ?? [],
+      primaryKey: own.find((con) => con.type === "p")?.columns ?? [],
       uniques,
       foreignKeys: own
-        .filter((con) => con.type === 'f')
+        .filter((con) => con.type === "f")
         .map((con) => ({
           name: con.name,
-          onDelete: ACTIONS[con.on_delete] ?? 'no action',
-          onUpdate: ACTIONS[con.on_update] ?? 'no action',
+          onDelete: ACTIONS[con.on_delete] ?? "no action",
+          onUpdate: ACTIONS[con.on_update] ?? "no action",
         })),
       checks: own
-        .filter((con) => con.type === 'c')
+        .filter((con) => con.type === "c")
         .map((con) => ({ name: con.name, definition: con.definition })),
       indexes: ownIndexes.map((index) => ({
         name: index.name,

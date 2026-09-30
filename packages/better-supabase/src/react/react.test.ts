@@ -1,13 +1,13 @@
-import { createElement, Suspense } from 'react';
-import { renderToReadableStream, renderToString } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { createElement, Suspense } from "react";
+import { renderToReadableStream, renderToString } from "react-dom/server";
+import { describe, expect, it } from "vitest";
 
-import type { AuthSession } from '../auth/view.ts';
+import type { AuthSession } from "../auth/view.ts";
 
-import { createBrowser } from '../client/index.ts';
-import { defineSupabase } from '../core/define.ts';
-import { capturingClient } from '../fixtures/client.ts';
-import { schema } from '../fixtures/generated-camel.ts';
+import { createBrowser } from "../client/index.ts";
+import { defineSupabase } from "../core/define.ts";
+import { capturingClient } from "../fixtures/client.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 import {
   BetterSupabaseProvider,
   createHooks,
@@ -15,7 +15,7 @@ import {
   useAuth,
   useLiveCount,
   useSession,
-} from './index.ts';
+} from "./index.ts";
 
 const sb = defineSupabase(schema);
 const browser = createBrowser(sb, { client: capturingClient().client });
@@ -25,21 +25,21 @@ function Status() {
   const auth = useAuth();
   const db = hooks.useDb();
   return createElement(
-    'p',
+    "p",
     null,
     `${auth.status}:${String(db.$context.actor?.kind)}`,
   );
 }
 
-describe('react', () => {
-  it('provides the browser to hooks, loading on the server', () => {
+describe("react", () => {
+  it("provides the browser to hooks, loading on the server", () => {
     const html = renderToString(
       createElement(BetterSupabaseProvider, { browser }, createElement(Status)),
     );
-    expect(html).toBe('<p>loading:anon</p>');
+    expect(html).toBe("<p>loading:anon</p>");
   });
 
-  it('renders a live count seed on the server without fetching', () => {
+  it("renders a live count seed on the server without fetching", () => {
     const { client, requests } = capturingClient();
     const seeded = createBrowser(sb, { client });
     function Badge() {
@@ -47,7 +47,7 @@ describe('react', () => {
         spec: sb.spec.notes.count(),
         count: 3,
       });
-      return createElement('span', null, `${String(count)}:${status}`);
+      return createElement("span", null, `${String(count)}:${status}`);
     }
     const html = renderToString(
       createElement(
@@ -56,30 +56,30 @@ describe('react', () => {
         createElement(Badge),
       ),
     );
-    expect(html).toBe('<span>3:closed</span>');
+    expect(html).toBe("<span>3:closed</span>");
     expect(requests).toHaveLength(0);
   });
 
-  it('explains a missing provider', () => {
+  it("explains a missing provider", () => {
     expect(() => renderToString(createElement(Status))).toThrow(
       /BetterSupabaseProvider/,
     );
   });
 
-  it('resolves the session promise inside Suspense', async () => {
+  it("resolves the session promise inside Suspense", async () => {
     function Who() {
       const session = useSession();
       return createElement(
-        'p',
+        "p",
         null,
-        session.kind === 'user' ? session.user.email : session.kind,
+        session.kind === "user" ? session.user.email : session.kind,
       );
     }
     const render = async (session: AuthSession) => {
       const stream = await renderToReadableStream(
         createElement(
           Suspense,
-          { fallback: 'loading' },
+          { fallback: "loading" },
           createElement(
             SessionProvider,
             { sessionPromise: Promise.resolve(session) },
@@ -93,20 +93,20 @@ describe('react', () => {
 
     expect(
       await render({
-        kind: 'user',
-        user: { id: 'u1', email: 'ada@example.com' },
-        claims: { sub: 'u1' },
+        kind: "user",
+        user: { id: "u1", email: "ada@example.com" },
+        claims: { sub: "u1" },
         expiresAt: null,
-        aal: 'aal1',
+        aal: "aal1",
         amr: [],
       }),
-    ).toContain('<p>ada@example.com</p>');
-    expect(await render({ kind: 'anon', reason: 'none' })).toContain(
-      '<p>anon</p>',
+    ).toContain("<p>ada@example.com</p>");
+    expect(await render({ kind: "anon", reason: "none" })).toContain(
+      "<p>anon</p>",
     );
   });
 
-  it('explains a missing SessionProvider', () => {
+  it("explains a missing SessionProvider", () => {
     function Who() {
       useSession();
       return null;

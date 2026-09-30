@@ -4,7 +4,7 @@ import type {
   RelationShape,
   Row,
   Simplify,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
 // ---------------------------------------------------------------------------
 // Column filters
@@ -74,7 +74,7 @@ export type FieldFilter<V> = V | OpsFor<V>;
 
 type RelationFilter<M extends AnyModels, R> = R extends {
   readonly table: infer X extends keyof M;
-  readonly kind: 'many';
+  readonly kind: "many";
 }
   ? {
       /** At least one related row matches. `{}` means at least one exists. */
@@ -110,12 +110,12 @@ export type WhereInput<M extends AnyModels, T extends keyof M> = {
 // ---------------------------------------------------------------------------
 // Ordering, selection, includes
 
-export type SortDirection = 'asc' | 'desc';
+export type SortDirection = "asc" | "desc";
 
 export type OrderByInput<M extends AnyModels, T extends keyof M> = {
   readonly [K in keyof Row<M, T>]?:
     | SortDirection
-    | { readonly direction: SortDirection; readonly nulls?: 'first' | 'last' };
+    | { readonly direction: SortDirection; readonly nulls?: "first" | "last" };
 };
 
 export type OrderByArg<M extends AnyModels, T extends keyof M> =
@@ -160,7 +160,7 @@ type NumericKey<M extends AnyModels, T extends keyof M> = {
     : never;
 }[keyof Row<M, T>];
 
-export type MeasureKey = '_sum' | '_avg' | '_min' | '_max';
+export type MeasureKey = "_sum" | "_avg" | "_min" | "_max";
 
 /** Columns to aggregate: `{ amount: true }`. */
 export type MeasureArg<M extends AnyModels, T extends keyof M> = {
@@ -182,7 +182,7 @@ export type RelationMeasureArg<M extends AnyModels, T extends keyof M> = {
 
 type ManyRelations<M extends AnyModels, T extends keyof M> = {
   [R in keyof Relations<M, T>]: Relations<M, T>[R] extends {
-    readonly kind: 'many';
+    readonly kind: "many";
   }
     ? R
     : never;
@@ -219,12 +219,12 @@ export interface FindManyArgs<
 
 export type FindFirstArgs<M extends AnyModels, T extends keyof M> = Omit<
   FindManyArgs<M, T>,
-  'limit'
+  "limit"
 >;
 
 export interface CountArgs<M extends AnyModels, T extends keyof M> {
   readonly where?: WhereInput<M, T>;
-  readonly mode?: 'exact' | 'planned' | 'estimated';
+  readonly mode?: "exact" | "planned" | "estimated";
   readonly signal?: AbortSignal;
 }
 
@@ -255,15 +255,15 @@ type SelectPart<M extends AnyModels, T extends keyof M, A> = A extends {
   : Row<M, T>;
 
 type RelationPayload<M extends AnyModels, R, V> = R extends RelationShape
-  ? R['kind'] extends 'many'
-    ? Payload<M, Extract<R['table'], keyof M>, V extends true ? unknown : V>[]
-    : R['nullable'] extends true
+  ? R["kind"] extends "many"
+    ? Payload<M, Extract<R["table"], keyof M>, V extends true ? unknown : V>[]
+    : R["nullable"] extends true
       ? Payload<
           M,
-          Extract<R['table'], keyof M>,
+          Extract<R["table"], keyof M>,
           V extends true ? unknown : V
         > | null
-      : Payload<M, Extract<R['table'], keyof M>, V extends true ? unknown : V>
+      : Payload<M, Extract<R["table"], keyof M>, V extends true ? unknown : V>
   : never;
 
 type IncludePart<M extends AnyModels, T extends keyof M, A> = A extends {
@@ -289,9 +289,9 @@ type CountPart<I> = I extends { readonly _count: infer C }
  * `_avg` is a number; `_sum` keeps exact `bigint` and `string` (numeric)
  * columns; `_min`/`_max` have the column's type. All are `null` without rows.
  */
-type MeasureValue<K extends MeasureKey, V> = K extends '_avg'
+type MeasureValue<K extends MeasureKey, V> = K extends "_avg"
   ? number | null
-  : K extends '_sum'
+  : K extends "_sum"
     ? [NonNullable<V>] extends [bigint]
       ? bigint | null
       : [NonNullable<V>] extends [string]
@@ -334,10 +334,10 @@ export type AggregateRow<M extends AnyModels, T extends keyof M, A> = Simplify<
     ? Pick<Row<M, T>, Extract<K, keyof Row<M, T>>>
     : unknown) &
     (A extends { readonly _count: true } ? { _count: number } : unknown) &
-    RootMeasures<M, T, A, '_sum'> &
-    RootMeasures<M, T, A, '_avg'> &
-    RootMeasures<M, T, A, '_min'> &
-    RootMeasures<M, T, A, '_max'>
+    RootMeasures<M, T, A, "_sum"> &
+    RootMeasures<M, T, A, "_avg"> &
+    RootMeasures<M, T, A, "_min"> &
+    RootMeasures<M, T, A, "_max">
 >;
 
 /** `aggregate()` returns one row per group with `groupBy`, else one row. */

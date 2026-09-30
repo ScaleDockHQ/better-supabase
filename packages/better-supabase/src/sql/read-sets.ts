@@ -1,15 +1,15 @@
-import type { Executor } from '../core/executor.ts';
-import type { ReadSet } from '../core/read-set.ts';
-import type { Operation } from '../ir/types.ts';
+import type { Executor } from "../core/executor.ts";
+import type { ReadSet } from "../core/read-set.ts";
+import type { Operation } from "../ir/types.ts";
 
-import { compileSql, type SqlQuery } from '../compile/sql.ts';
+import { compileSql, type SqlQuery } from "../compile/sql.ts";
 import {
   hasPlaceholder,
   placeholderOf,
   splitPlaceholders,
-} from '../core/read-set.ts';
-import { ok } from '../core/result.ts';
-import { sqlString } from '../core/template.ts';
+} from "../core/read-set.ts";
+import { ok } from "../core/result.ts";
+import { sqlString } from "../core/template.ts";
 
 /** A read set compiled to the SQL of its function. */
 export interface CompiledReadSet {
@@ -17,7 +17,7 @@ export interface CompiledReadSet {
   readonly sql: string;
 }
 
-const TAG = '$rs$';
+const TAG = "$rs$";
 
 /** The operation each spec of the set runs, without plugins. */
 async function operations(set: ReadSet): Promise<Map<string, Operation>> {
@@ -25,7 +25,7 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
   for (const [key, spec] of Object.entries(set.specs)) {
     const seen: Operation[] = [];
     const capture: Executor = {
-      name: 'read-set-compiler',
+      name: "read-set-compiler",
       execute: async (op) => {
         seen.push(op);
         return ok({ rows: [], count: 0 });
@@ -53,10 +53,10 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
     const [op, ...more] = seen;
     if (!op) {
       throw new TypeError(
-        `Read set "${set.name}" entry "${key}": ${result.error?.message ?? 'runs no query'}`,
+        `Read set "${set.name}" entry "${key}": ${result.error?.message ?? "runs no query"}`,
       );
     }
-    if (more.length > 0 || op.kind !== 'select') {
+    if (more.length > 0 || op.kind !== "select") {
       throw new TypeError(
         `Read set "${set.name}" entry "${key}": ${spec.method} needs more than one query; read sets take one select per entry`,
       );
@@ -70,9 +70,9 @@ function paramRef(set: ReadSet, name: string, array: boolean): string {
   const type = set.params[name];
   if (!type)
     throw new TypeError(`Read set "${set.name}" has no parameter "${name}"`);
-  if (array !== type.endsWith('[]')) {
+  if (array !== type.endsWith("[]")) {
     throw new TypeError(
-      `Read set "${set.name}": parameter "${name}" (${type}) is used as ${array ? 'a list' : 'a single value'}`,
+      `Read set "${set.name}": parameter "${name}" (${type}) is used as ${array ? "a list" : "a single value"}`,
     );
   }
   const key = sqlString(name);
@@ -82,35 +82,35 @@ function paramRef(set: ReadSet, name: string, array: boolean): string {
 }
 
 function arrayElement(value: unknown): string {
-  if (value === null || value === undefined) return 'NULL';
+  if (value === null || value === undefined) return "NULL";
   const text = value instanceof Date ? value.toISOString() : String(value);
   if (hasPlaceholder(text)) {
-    throw new TypeError('A placeholder cannot sit inside a literal list');
+    throw new TypeError("A placeholder cannot sit inside a literal list");
   }
-  return `"${text.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+  return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 /** A parameter value as SQL: a reference to `p` for placeholders, else a literal. */
 function literal(set: ReadSet, value: unknown): string {
   const placeholder = placeholderOf(value);
   if (placeholder) return paramRef(set, placeholder.name, placeholder.array);
-  if (value === null || value === undefined) return 'null';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'number') {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new TypeError(`Cannot inline ${value}`);
     return String(value);
   }
-  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === "bigint") return value.toString();
   if (value instanceof Date) return sqlString(value.toISOString());
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     if (!hasPlaceholder(value)) return sqlString(value);
     const parts = splitPlaceholders(value).map((part) =>
-      'text' in part ? sqlString(part.text) : `(p->>${sqlString(part.param)})`,
+      "text" in part ? sqlString(part.text) : `(p->>${sqlString(part.param)})`,
     );
-    return `(${parts.join(' || ')})`;
+    return `(${parts.join(" || ")})`;
   }
   if (Array.isArray(value)) {
-    return sqlString(`{${value.map(arrayElement).join(',')}}`);
+    return sqlString(`{${value.map(arrayElement).join(",")}}`);
   }
   throw new TypeError(`Cannot inline a ${typeof value} parameter`);
 }
@@ -127,7 +127,7 @@ function entry(set: ReadSet, op: Operation): string {
   const rows = plan.rows
     ? `(select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (${inline(set, plan.rows)}) s)`
     : `'[]'::jsonb`;
-  const count = plan.count ? `(${inline(set, plan.count)})` : 'null';
+  const count = plan.count ? `(${inline(set, plan.count)})` : "null";
   return `jsonb_build_object('rows', ${rows}, 'count', ${count})`;
 }
 
@@ -141,7 +141,7 @@ export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
   const entries = [...ops].map(
     ([key, op]) => `    ${sqlString(key)}, ${entry(set, op)}`,
   );
-  const body = `  select jsonb_build_object(\n${entries.join(',\n')}\n  )`;
+  const body = `  select jsonb_build_object(\n${entries.join(",\n")}\n  )`;
   if (body.includes(TAG)) {
     throw new TypeError(`Read set "${set.name}" contains "${TAG}"`);
   }
@@ -152,14 +152,14 @@ export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
   );
   const sql = [
     `create or replace function ${fn}(p jsonb)`,
-    '  returns jsonb',
+    "  returns jsonb",
     "  language sql stable security invoker set search_path = ''",
     `as ${TAG}`,
     body,
     `${TAG};`,
     `revoke execute on function ${fn}(jsonb) from public, anon, authenticated;`,
     ...grants,
-  ].join('\n');
+  ].join("\n");
   return { name: set.name, sql };
 }
 

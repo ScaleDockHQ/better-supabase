@@ -1,12 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, expectTypeOf, it } from "vitest";
 
-import type { AsyncResult } from './result.ts';
+import type { AsyncResult } from "./result.ts";
 
-import { schema } from '../fixtures/generated-camel.ts';
-import { defineSupabase } from './define.ts';
-import { defineReadSet } from './read-set.ts';
+import { schema } from "../fixtures/generated-camel.ts";
+import { defineSupabase } from "./define.ts";
+import { defineReadSet } from "./read-set.ts";
 
 declare const client: SupabaseClient;
 
@@ -15,15 +15,15 @@ const db = sb.connect(client);
 
 const chrome = defineReadSet(
   sb,
-  'app_chrome',
-  { params: { orgId: 'uuid', kinds: 'text[]', limit: 'int4' } },
+  "app_chrome",
+  { params: { orgId: "uuid", kinds: "text[]", limit: "int4" } },
   (s, p) => {
     expectTypeOf(p.orgId).toEqualTypeOf<string>();
     expectTypeOf(p.kinds).toEqualTypeOf<readonly string[]>();
     expectTypeOf(p.limit).toEqualTypeOf<number>();
     return {
       names: s.customers.findMany({
-        select: ['id', 'name'],
+        select: ["id", "name"],
         where: { organizationId: p.orgId },
       }),
       calls: s.notes.count({ where: { organizationId: p.orgId } }),
@@ -31,10 +31,10 @@ const chrome = defineReadSet(
   },
 );
 
-describe('db.$many', () => {
-  it('types a read set result by key', () => {
+describe("db.$many", () => {
+  it("types a read set result by key", () => {
     expectTypeOf(
-      db.$many(chrome, { orgId: 'o', kinds: ['call'], limit: 5 }),
+      db.$many(chrome, { orgId: "o", kinds: ["call"], limit: 5 }),
     ).toEqualTypeOf<
       AsyncResult<{
         readonly names: { id: string; name: string }[];
@@ -43,18 +43,18 @@ describe('db.$many', () => {
     >();
   });
 
-  it('requires every parameter with its type', () => {
+  it("requires every parameter with its type", () => {
     // @ts-expect-error kinds is missing
-    void db.$many(chrome, { orgId: 'o', limit: 5 });
+    void db.$many(chrome, { orgId: "o", limit: 5 });
     // @ts-expect-error limit is a number
-    void db.$many(chrome, { orgId: 'o', kinds: [], limit: '5' });
+    void db.$many(chrome, { orgId: "o", kinds: [], limit: "5" });
   });
 
-  it('returns a tuple for ad-hoc specs', () => {
+  it("returns a tuple for ad-hoc specs", () => {
     expectTypeOf(
       db.$many([
         sb.spec.tags.count(),
-        sb.spec.customers.findFirst({ select: ['id'] }),
+        sb.spec.customers.findFirst({ select: ["id"] }),
       ]),
     ).toEqualTypeOf<AsyncResult<[number, { id: string } | null]>>();
   });

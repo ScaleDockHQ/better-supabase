@@ -1,28 +1,28 @@
-import type { BetterSupabase } from '../core/define.ts';
-import type { AnyFunctions, AnyModels, TableKey } from '../schema/types.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from '../server/server.ts';
+} from "../server/server.ts";
 
-import { dbError } from '../core/errors.ts';
-import { problemResponse } from '../core/problem.ts';
+import { dbError } from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
 import {
   defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
-} from '../server/resource.ts';
+} from "../server/resource.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   respond,
-} from '../server/respond.ts';
-import { createServer, extendServer } from '../server/server.ts';
+} from "../server/respond.ts";
+import { createServer, extendServer } from "../server/server.ts";
 
-export type { GuardOptions } from '../server/respond.ts';
-export type { ResourceRouteOptions } from '../server/resource.ts';
+export type { GuardOptions } from "../server/respond.ts";
+export type { ResourceRouteOptions } from "../server/resource.ts";
 
 export interface CorsOptions {
   /** Allowed origins, or `*`. Defaults to `*`. */
@@ -74,38 +74,38 @@ export interface BetterEdge<
 }
 
 export const SUPABASE_CORS_HEADERS: readonly string[] = [
-  'authorization',
-  'x-client-info',
-  'apikey',
-  'content-type',
+  "authorization",
+  "x-client-info",
+  "apikey",
+  "content-type",
 ];
 
 function corsHeaders(
   request: Request,
   cors: CorsOptions,
 ): Record<string, string> | undefined {
-  const origin = request.headers.get('origin');
-  const allowed = cors.origin ?? '*';
+  const origin = request.headers.get("origin");
+  const allowed = cors.origin ?? "*";
   let value: string | undefined;
-  if (allowed === '*') value = '*';
+  if (allowed === "*") value = "*";
   else if (
     origin &&
-    (typeof allowed === 'string' ? [allowed] : allowed).includes(origin)
+    (typeof allowed === "string" ? [allowed] : allowed).includes(origin)
   )
     value = origin;
   if (!value) return undefined;
   return {
-    'access-control-allow-origin': value,
-    'access-control-allow-headers': (
+    "access-control-allow-origin": value,
+    "access-control-allow-headers": (
       cors.headers ?? SUPABASE_CORS_HEADERS
-    ).join(', '),
-    'access-control-allow-methods': (
-      cors.methods ?? ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS']
-    ).join(', '),
+    ).join(", "),
+    "access-control-allow-methods": (
+      cors.methods ?? ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+    ).join(", "),
     ...(cors.maxAge === undefined
       ? {}
-      : { 'access-control-max-age': String(cors.maxAge) }),
-    ...(value === '*' ? {} : { vary: 'origin' }),
+      : { "access-control-max-age": String(cors.maxAge) }),
+    ...(value === "*" ? {} : { vary: "origin" }),
   };
 }
 
@@ -145,7 +145,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
   ): EdgeHandler => {
     return async (request) => {
       const extra = cors ? corsHeaders(request, cors) : undefined;
-      if (cors && request.method === 'OPTIONS') {
+      if (cors && request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: extra ?? {} });
       }
       const ctx = await server.context(request, {
@@ -161,10 +161,10 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
       } catch (cause) {
         response = problemResponse(
           dbError(
-            'unexpected',
+            "unexpected",
             expose && cause instanceof Error
               ? cause.message
-              : 'Internal server error',
+              : "Internal server error",
           ),
           { instance, expose },
         );
@@ -187,7 +187,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
     },
 
     resources(map, resourcesOptions = {}) {
-      const base = (resourcesOptions.basePath ?? '').replace(/\/$/, '');
+      const base = (resourcesOptions.basePath ?? "").replace(/\/$/, "");
       const handlers = new Map<string, ResourceHandler>();
       for (const [table, resource] of Object.entries(map)) {
         if (!resource) continue;
@@ -208,7 +208,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
         const rest = pathname.startsWith(`${base}/`)
           ? pathname.slice(base.length + 1)
           : undefined;
-        const [table, id, extra] = rest?.split('/') ?? [];
+        const [table, id, extra] = rest?.split("/") ?? [];
         const handler = table ? handlers.get(table) : undefined;
         if (
           !handler ||
@@ -216,7 +216,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
           (id !== undefined && !handler.keyParam)
         ) {
           return problemResponse(
-            dbError('not_found', `No route for ${pathname}`),
+            dbError("not_found", `No route for ${pathname}`),
             {
               instance,
             },
@@ -225,7 +225,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
         return handler.handle(
           request,
           ctx.db,
-          id === undefined || id === '' ? undefined : decodeURIComponent(id),
+          id === undefined || id === "" ? undefined : decodeURIComponent(id),
           { instance, expose },
         );
       }, resourcesOptions);

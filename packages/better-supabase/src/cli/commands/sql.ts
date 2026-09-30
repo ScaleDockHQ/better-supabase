@@ -1,24 +1,24 @@
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import type { ResolvedConfig } from '../../config/index.ts';
-import type { ParsedArgs } from '../args.ts';
-import type { CommandResult } from '../io.ts';
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { ParsedArgs } from "../args.ts";
+import type { CommandResult } from "../io.ts";
 
-import { resolveJsonSchema } from '../../config/index.ts';
+import { resolveJsonSchema } from "../../config/index.ts";
 import {
   type KitLayout,
   renderKit,
   resolveModules,
   sameKitFile,
   SQL_MODULES,
-} from '../../sql/kit.ts';
-import { flagBool, flagString } from '../args.ts';
-import { display, writeIfChanged } from '../io.ts';
-import { permdockConfig } from '../permdock.ts';
-import { compiledReadSets } from '../read-sets.ts';
-import { VERSION } from '../version.ts';
+} from "../../sql/kit.ts";
+import { flagBool, flagString } from "../args.ts";
+import { display, writeIfChanged } from "../io.ts";
+import { permdockConfig } from "../permdock.ts";
+import { compiledReadSets } from "../read-sets.ts";
+import { VERSION } from "../version.ts";
 
 export const SQL_HELP = `Usage: better-supabase sql <list|add|sync|print> [modules...]
 
@@ -33,13 +33,13 @@ Options
   --force              Write tenant even though a permdock.config.ts is present`;
 
 /** Modules that fill a claim PermDock's hook also writes (`memberships`). */
-const PERMDOCK_OWNED: ReadonlySet<string> = new Set(['tenant']);
+const PERMDOCK_OWNED: ReadonlySet<string> = new Set(["tenant"]);
 
 /** Where and how `sql add` writes kit files for this config. */
 export function kitLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
-  readSets: KitLayout['readSets'] = [],
+  readSets: KitLayout["readSets"] = [],
 ): KitLayout {
   return {
     dir: config.sql.dir,
@@ -52,16 +52,16 @@ export function kitLayout(
     claims: config.claims,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
-      { table, role: 'anon' as const, privileges: roles.anon },
+      { table, role: "anon" as const, privileges: roles.anon },
       {
         table,
-        role: 'authenticated' as const,
+        role: "authenticated" as const,
         privileges: roles.authenticated,
       },
     ]),
     jsonSchemas: Object.entries(config.json).flatMap(([key, entry]) => {
       if (!entry.schema) return [];
-      const dot = key.lastIndexOf('.');
+      const dot = key.lastIndexOf(".");
       return [
         {
           table: key.slice(0, dot),
@@ -77,7 +77,7 @@ export function kitLayout(
 }
 
 function layout(config: ResolvedConfig, args: ParsedArgs): KitLayout {
-  return kitLayout(config, flagString(args.flags, 'tests-dir'));
+  return kitLayout(config, flagString(args.flags, "tests-dir"));
 }
 
 /** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
@@ -87,11 +87,11 @@ async function layoutFor(
   names: readonly string[],
 ): Promise<KitLayout> {
   const needsReadSets = resolveModules(names).some(
-    (module) => module.name === 'read-sets',
+    (module) => module.name === "read-sets",
   );
   return kitLayout(
     config,
-    flagString(args.flags, 'tests-dir'),
+    flagString(args.flags, "tests-dir"),
     needsReadSets ? await compiledReadSets(config) : [],
   );
 }
@@ -102,7 +102,7 @@ async function write(
   names: readonly string[],
 ): Promise<string[]> {
   const lines: string[] = [];
-  const dryRun = flagBool(args.flags, 'dry-run');
+  const dryRun = flagBool(args.flags, "dry-run");
   for (const file of renderKit(names, await layoutFor(config, args, names))) {
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
@@ -111,7 +111,7 @@ async function write(
       continue;
     }
     const wrote = await writeIfChanged(path, file.contents);
-    lines.push(`${wrote ? 'Wrote' : 'Unchanged'} ${shown} (${file.module})`);
+    lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (${file.module})`);
   }
   return lines;
 }
@@ -122,7 +122,7 @@ export async function runSql(
 ): Promise<CommandResult> {
   const [action, ...names] = args.rest;
   switch (action) {
-    case 'list': {
+    case "list": {
       const files = new Map(
         renderKit(Object.keys(SQL_MODULES), layout(config, args)).map(
           (file) => [file.module, file.path],
@@ -132,19 +132,19 @@ export async function runSql(
         const path = files.get(module.name)!;
         const installed = existsSync(resolve(config.root, path));
         const tracked = config.sql.kit.includes(module.name);
-        const mark = installed ? (tracked ? '●' : '○') : ' ';
+        const mark = installed ? (tracked ? "●" : "○") : " ";
         const needs =
           module.requires.length > 0
-            ? ` (needs ${module.requires.join(', ')})`
-            : '';
+            ? ` (needs ${module.requires.join(", ")})`
+            : "";
         return `${mark} ${module.name.padEnd(15)} ${module.description}${needs}`;
       });
       return {
         code: 0,
-        output: `${lines.join('\n')}\n\n● installed and in sql.kit   ○ installed, not in sql.kit`,
+        output: `${lines.join("\n")}\n\n● installed and in sql.kit   ○ installed, not in sql.kit`,
       };
     }
-    case 'add': {
+    case "add": {
       if (names.length === 0) {
         return { code: 2, error: `Name at least one module.\n\n${SQL_HELP}` };
       }
@@ -152,7 +152,7 @@ export async function runSql(
       if (unknown.length > 0) {
         return {
           code: 2,
-          error: `Unknown module ${unknown.join(', ')}. Available: ${Object.keys(SQL_MODULES).join(', ')}`,
+          error: `Unknown module ${unknown.join(", ")}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
         };
       }
       const permdock = permdockConfig(config.root);
@@ -160,15 +160,15 @@ export async function runSql(
       if (
         permdock &&
         hookModules.length > 0 &&
-        !flagBool(args.flags, 'force')
+        !flagBool(args.flags, "force")
       ) {
         return {
           code: 1,
           error: [
             `${permdock} is present, so PermDock owns the access token hook and the memberships claim.`,
-            `${hookModules.join(' and ')} would add a second source for them. Use \`permdock supabase hook generate\` instead,`,
-            'or pass --force to write the modules anyway.',
-          ].join('\n'),
+            `${hookModules.join(" and ")} would add a second source for them. Use \`permdock supabase hook generate\` instead,`,
+            "or pass --force to write the modules anyway.",
+          ].join("\n"),
         };
       }
       const lines = await write(config, args, names);
@@ -177,10 +177,10 @@ export async function runSql(
         .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));
       if (permdock && pulledIn.length > 0) {
         lines.push(
-          '',
-          `${pulledIn.join(' and ')} came along as a dependency: its memberships table backs has_org_role() and has_entitlement().`,
+          "",
+          `${pulledIn.join(" and ")} came along as a dependency: its memberships table backs has_org_role() and has_entitlement().`,
           `PermDock's hook still owns the memberships claim, so don't call better_supabase.membership_claims from a hook.`,
-          'List better_supabase.memberships as a PermDock membership source if both should agree.',
+          "List better_supabase.memberships as a PermDock membership source if both should agree.",
         );
       }
       const untracked = resolveModules(names)
@@ -188,25 +188,25 @@ export async function runSql(
         .filter((name) => !config.sql.kit.includes(name));
       if (untracked.length > 0) {
         lines.push(
-          '',
+          "",
           `Add them to your config so \`sql sync --check\` keeps them current:`,
-          `  sql: { kit: [${[...config.sql.kit, ...untracked].map((name) => `'${name}'`).join(', ')}] }`,
+          `  sql: { kit: [${[...config.sql.kit, ...untracked].map((name) => `'${name}'`).join(", ")}] }`,
         );
       }
       lines.push(
-        '',
-        'Then create a migration: supabase db diff -f better_supabase_kit',
+        "",
+        "Then create a migration: supabase db diff -f better_supabase_kit",
       );
-      return { code: 0, output: lines.join('\n') };
+      return { code: 0, output: lines.join("\n") };
     }
-    case 'sync': {
+    case "sync": {
       if (config.sql.kit.length === 0) {
-        return { code: 0, output: 'sql.kit is empty; nothing to sync.' };
+        return { code: 0, output: "sql.kit is empty; nothing to sync." };
       }
-      if (!flagBool(args.flags, 'check')) {
+      if (!flagBool(args.flags, "check")) {
         return {
           code: 0,
-          output: (await write(config, args, config.sql.kit)).join('\n'),
+          output: (await write(config, args, config.sql.kit)).join("\n"),
         };
       }
       const stale: string[] = [];
@@ -216,25 +216,25 @@ export async function runSql(
       )) {
         const current = await readFile(
           resolve(config.root, file.path),
-          'utf8',
+          "utf8",
         ).catch(() => undefined);
         if (!sameKitFile(current, file.contents))
           stale.push(display(config.root, file.path));
       }
       return stale.length === 0
-        ? { code: 0, output: 'SQL kit files are up to date.' }
+        ? { code: 0, output: "SQL kit files are up to date." }
         : {
             code: 1,
-            error: `Out of date: ${stale.join(', ')}. Run \`better-supabase sql sync\`.`,
+            error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
           };
     }
-    case 'print': {
+    case "print": {
       const [name] = names;
       const module = name ? SQL_MODULES[name] : undefined;
       if (!module) {
         return {
           code: 2,
-          error: `Name one module: ${Object.keys(SQL_MODULES).join(', ')}`,
+          error: `Name one module: ${Object.keys(SQL_MODULES).join(", ")}`,
         };
       }
       return {

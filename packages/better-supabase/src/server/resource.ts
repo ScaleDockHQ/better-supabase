@@ -1,9 +1,9 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { RepositoryOf } from '../core/repository-types.ts';
-import type { SelectArg } from '../ir/args.ts';
-import type { ResourceOperation } from '../openapi/index.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { RepositoryOf } from "../core/repository-types.ts";
+import type { SelectArg } from "../ir/args.ts";
+import type { ResourceOperation } from "../openapi/index.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -11,12 +11,12 @@ import type {
   TableKey,
   TableMeta,
   Update,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
-import { dbError, type ValidationIssue } from '../core/errors.ts';
-import { err, ok, type Result } from '../core/result.ts';
-import { validate } from '../core/standard.ts';
-import { respond, type RespondOptions } from './respond.ts';
+import { dbError, type ValidationIssue } from "../core/errors.ts";
+import { err, ok, type Result } from "../core/result.ts";
+import { validate } from "../core/standard.ts";
+import { respond, type RespondOptions } from "./respond.ts";
 
 /** What a resource needs from `defineListQuery`. */
 export interface ResourceList {
@@ -84,61 +84,61 @@ export interface ResourceHandler {
 
 type AnyRepository = RepositoryOf<AnyModels, string, unknown>;
 
-const INTEGER = new Set(['int2', 'int4', 'int8']);
+const INTEGER = new Set(["int2", "int4", "int8"]);
 
 function keyValue(table: TableMeta, raw: unknown): Result<unknown> {
   const invalid = err(
     dbError(
-      'invalid_request',
+      "invalid_request",
       `${JSON.stringify(raw)} is not a valid ${table.key} key`,
     ),
   );
   const column = table.columns[table.primaryKey[0]!];
   if (column && INTEGER.has(column.type)) {
-    const value = typeof raw === 'string' ? Number(raw) : raw;
-    return typeof value === 'number' && Number.isSafeInteger(value)
+    const value = typeof raw === "string" ? Number(raw) : raw;
+    return typeof value === "number" && Number.isSafeInteger(value)
       ? ok(value)
       : invalid;
   }
-  return typeof raw === 'string' && raw !== '' ? ok(raw) : invalid;
+  return typeof raw === "string" && raw !== "" ? ok(raw) : invalid;
 }
 
 async function readBody(request: Request): Promise<Result<unknown>> {
   try {
     const body: unknown = await request.json();
-    if (typeof body === 'object' && body !== null && !Array.isArray(body)) {
+    if (typeof body === "object" && body !== null && !Array.isArray(body)) {
       return ok(body);
     }
   } catch {
     // Reported below.
   }
   return err(
-    dbError('invalid_request', 'The request body must be a JSON object'),
+    dbError("invalid_request", "The request body must be a JSON object"),
   );
 }
 
 function pageArgs(
-  query: ResourceInput['query'],
+  query: ResourceInput["query"],
   max: number,
 ): Result<{ page: number; size: number }> {
   const read = (name: string, fallback: number): number | undefined => {
     const raw: unknown =
       query instanceof URLSearchParams ? query.get(name) : query?.[name];
-    if (raw === null || raw === undefined || raw === '') return fallback;
+    if (raw === null || raw === undefined || raw === "") return fallback;
     const value = Number(raw);
     return Number.isSafeInteger(value) && value >= 1 ? value : undefined;
   };
-  const page = read('page', 1);
-  const size = read('size', 50);
+  const page = read("page", 1);
+  const size = read("size", 50);
   if (page === undefined || size === undefined || size > max) {
     return err(
-      dbError('validation', 'Invalid page parameters', {
+      dbError("validation", "Invalid page parameters", {
         issues: [
           ...(page === undefined
-            ? [{ message: 'Must be a positive integer', path: ['page'] }]
+            ? [{ message: "Must be a positive integer", path: ["page"] }]
             : []),
           ...(size === undefined || size > max
-            ? [{ message: `Must be between 1 and ${max}`, path: ['size'] }]
+            ? [{ message: `Must be between 1 and ${max}`, path: ["size"] }]
             : []),
         ],
       }),
@@ -148,9 +148,9 @@ function pageArgs(
 }
 
 function asObject(value: unknown): Result<unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(value)
     ? ok(value)
-    : err(dbError('invalid_request', 'Expected an object of column values'));
+    : err(dbError("invalid_request", "Expected an object of column values"));
 }
 
 async function settled(value: unknown): Promise<Result<unknown>> {
@@ -160,7 +160,7 @@ async function settled(value: unknown): Promise<Result<unknown>> {
 function notAllowed(allowed: readonly string[]): Response {
   return new Response(null, {
     status: 405,
-    headers: { allow: allowed.join(', ') },
+    headers: { allow: allowed.join(", ") },
   });
 }
 
@@ -189,9 +189,9 @@ export function defineResource<
   }
   const operations: readonly ResourceOperation[] =
     options.operations ??
-    (meta.kind === 'view'
-      ? ['list', 'get']
-      : ['list', 'get', 'create', 'update', 'delete']);
+    (meta.kind === "view"
+      ? ["list", "get"]
+      : ["list", "get", "create", "update", "delete"]);
   const keyParam =
     meta.primaryKey.length === 1 ? meta.primaryKey[0] : undefined;
   const has = (operation: ResourceOperation): boolean =>
@@ -209,21 +209,21 @@ export function defineResource<
     if (!repository) throw new TypeError(`The db has no "${table}" repository`);
     if (!has(operation)) {
       return err(
-        dbError('forbidden', `${operation} is not enabled for ${table}`),
+        dbError("forbidden", `${operation} is not enabled for ${table}`),
       );
     }
     const key = (): Result<unknown> =>
       keyParam
         ? keyValue(meta, input.id)
-        : err(dbError('invalid_request', `${table} has no single-column key`));
+        : err(dbError("invalid_request", `${table} has no single-column key`));
 
     switch (operation) {
-      case 'list': {
+      case "list": {
         if (list) {
           const query = list.parse((input.query ?? {}) as never);
           if (!query.ok) {
             return err(
-              dbError('validation', 'Invalid list query', {
+              dbError("validation", "Invalid list query", {
                 issues: query.issues,
               }),
             );
@@ -238,31 +238,31 @@ export function defineResource<
           repository.paginate({
             ...extra,
             ...page.data,
-            count: 'exact',
+            count: "exact",
           } as never),
         );
       }
-      case 'get': {
+      case "get": {
         const id = key();
         if (!id.ok) return id;
         return settled(repository.findById(id.data as never, extra as never));
       }
-      case 'create': {
+      case "create": {
         const body = asObject(input.data);
         if (!body.ok) return body;
         const data = options.input?.create
-          ? await validate(options.input.create, body.data, 'data')
+          ? await validate(options.input.create, body.data, "data")
           : body;
         if (!data.ok) return data;
         return settled(repository.create(data.data as never, extra as never));
       }
-      case 'update': {
+      case "update": {
         const id = key();
         if (!id.ok) return id;
         const body = asObject(input.data);
         if (!body.ok) return body;
         const data = options.input?.update
-          ? await validate(options.input.update, body.data, 'data')
+          ? await validate(options.input.update, body.data, "data")
           : body;
         if (!data.ok) return data;
         return settled(
@@ -273,7 +273,7 @@ export function defineResource<
           ),
         );
       }
-      case 'delete': {
+      case "delete": {
         const id = key();
         if (!id.ok) return id;
         return settled(repository.delete(id.data as never));
@@ -286,13 +286,13 @@ export function defineResource<
   };
 
   const collectionMethods = [
-    ...(has('list') ? ['GET'] : []),
-    ...(has('create') ? ['POST'] : []),
+    ...(has("list") ? ["GET"] : []),
+    ...(has("create") ? ["POST"] : []),
   ];
   const itemMethods = [
-    ...(has('get') ? ['GET'] : []),
-    ...(has('update') ? ['PATCH'] : []),
-    ...(has('delete') ? ['DELETE'] : []),
+    ...(has("get") ? ["GET"] : []),
+    ...(has("update") ? ["PATCH"] : []),
+    ...(has("delete") ? ["DELETE"] : []),
   ];
 
   const route = async (
@@ -301,26 +301,26 @@ export function defineResource<
     id: string | undefined,
   ): Promise<unknown> => {
     if (id === undefined) {
-      if (request.method === 'GET' && has('list')) {
-        return execute(db, 'list', {
+      if (request.method === "GET" && has("list")) {
+        return execute(db, "list", {
           query: new URL(request.url).searchParams,
         });
       }
-      if (request.method === 'POST' && has('create')) {
+      if (request.method === "POST" && has("create")) {
         const body = await readBody(request);
-        return body.ok ? execute(db, 'create', { data: body.data }) : body;
+        return body.ok ? execute(db, "create", { data: body.data }) : body;
       }
       return notAllowed(collectionMethods);
     }
     if (!keyParam) return new Response(null, { status: 404 });
-    if (request.method === 'GET' && has('get'))
-      return execute(db, 'get', { id });
-    if (request.method === 'PATCH' && has('update')) {
+    if (request.method === "GET" && has("get"))
+      return execute(db, "get", { id });
+    if (request.method === "PATCH" && has("update")) {
       const body = await readBody(request);
-      return body.ok ? execute(db, 'update', { id, data: body.data }) : body;
+      return body.ok ? execute(db, "update", { id, data: body.data }) : body;
     }
-    if (request.method === 'DELETE' && has('delete')) {
-      return execute(db, 'delete', { id });
+    if (request.method === "DELETE" && has("delete")) {
+      return execute(db, "delete", { id });
     }
     return notAllowed(itemMethods);
   };
@@ -335,7 +335,7 @@ export function defineResource<
     execute,
     handle(request, db, id, respondOptions = {}) {
       const status =
-        id === undefined && request.method === 'POST' ? 201 : undefined;
+        id === undefined && request.method === "POST" ? 201 : undefined;
       return respond(
         () => route(request, db, id),
         status === undefined ? respondOptions : { ...respondOptions, status },

@@ -1,4 +1,4 @@
-import type { Executor } from './executor.ts';
+import type { Executor } from "./executor.ts";
 
 /** Database work for one request (or one `db`). */
 export interface DbStats {

@@ -1,22 +1,22 @@
 export type {
   DeleteAccountOptions,
   DeleteAccountResult,
-} from './delete-account.ts';
-export { PRIMARY_COOKIE } from './replicas.ts';
-export type { ReplicaState } from './replicas.ts';
-export { createServer } from './server.ts';
+} from "./delete-account.ts";
+export { PRIMARY_COOKIE } from "./replicas.ts";
+export type { ReplicaState } from "./replicas.ts";
+export { createServer } from "./server.ts";
 export type {
   BetterServer,
   ContextOptions,
   ServerContext,
   ServerOptions,
-} from './server.ts';
+} from "./server.ts";
 export {
   contextFromSupabase,
   withBetterPostgres,
   withBetterSupabase,
-} from './middleware.ts';
-export type { SupabaseAuthContext } from './middleware.ts';
+} from "./middleware.ts";
+export type { SupabaseAuthContext } from "./middleware.ts";
 export {
   aalOf,
   amrOf,
@@ -30,7 +30,7 @@ export {
   resolveAuth,
   sessionCookieName,
   writeSession,
-} from '../auth/index.ts';
+} from "../auth/index.ts";
 export type {
   Aal,
   AmrEntry,
@@ -47,7 +47,7 @@ export type {
   ResolveAuthOptions,
   ResolvedState,
   StoredSession,
-} from '../auth/index.ts';
+} from "../auth/index.ts";
 export {
   fromProblem,
   isProblem,
@@ -55,23 +55,23 @@ export {
   PROBLEM_TYPE_BASE,
   problemResponse,
   toProblem,
-} from '../core/problem.ts';
+} from "../core/problem.ts";
 export type {
   ProblemDetails,
   ProblemOptions,
   ProblemResponseOptions,
-} from '../core/problem.ts';
-export { guard, isResult, respond, settle } from './respond.ts';
+} from "../core/problem.ts";
+export { guard, isResult, respond, settle } from "./respond.ts";
 export type {
   AuthKind,
   GuardOptions,
   RespondOptions,
   Settled,
-} from './respond.ts';
-export { defineResource } from './resource.ts';
+} from "./respond.ts";
+export { defineResource } from "./resource.ts";
 export type {
   ResourceHandler,
   ResourceInput,
   ResourceList,
   ResourceRouteOptions,
-} from './resource.ts';
+} from "./resource.ts";

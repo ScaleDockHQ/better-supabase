@@ -1,24 +1,24 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import type { BetterSupabase } from '../core/define.ts';
-import type { RequestContext } from '../core/plugin.ts';
-import type { Db } from '../core/repository-types.ts';
-import type { Postgres } from '../postgres/pool.ts';
-import type { AnyFunctions, AnyModels } from '../schema/types.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { RequestContext } from "../core/plugin.ts";
+import type { Db } from "../core/repository-types.ts";
+import type { Postgres } from "../postgres/pool.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
-import { ENV_VARIABLES } from '../env/index.ts';
-import { postgresExecutor } from '../postgres/executor.ts';
+import { ENV_VARIABLES } from "../env/index.ts";
+import { postgresExecutor } from "../postgres/executor.ts";
 import {
   type SigningJwk,
   signTestJwt,
   signTestJwtWithKey,
   type TestJwtClaims,
-} from './jwt.ts';
-import { localSigningKey } from './local-key.ts';
+} from "./jwt.ts";
+import { localSigningKey } from "./local-key.ts";
 
 /** The local CLI stack's default JWT secret. */
 export const LOCAL_JWT_SECRET =
-  'super-secret-jwt-token-with-at-least-32-characters-long';
+  "super-secret-jwt-token-with-at-least-32-characters-long";
 
 export interface LocalStack {
   /** Defaults to `$SUPABASE_URL`, then `http://127.0.0.1:54321`. */
@@ -30,7 +30,7 @@ export interface LocalStack {
    * the hosted project's asymmetric keys do. `HS256` signs with the shared
    * JWT secret and only works against a local stack.
    */
-  readonly alg?: 'ES256' | 'HS256';
+  readonly alg?: "ES256" | "HS256";
   /** The private ES256 key. Defaults to the first key in `signingKeysPath`. */
   readonly signingKey?: SigningJwk;
   /** Defaults to `$SUPABASE_SIGNING_KEYS_PATH`, then `signing_keys_path` in `supabase/config.toml`. */
@@ -55,7 +55,7 @@ export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
 }
 
 function env(...names: readonly string[]): string | undefined {
-  if (typeof process === 'undefined') return undefined;
+  if (typeof process === "undefined") return undefined;
   for (const name of names) {
     const value = process.env[name];
     if (value) return value;
@@ -64,10 +64,10 @@ function env(...names: readonly string[]): string | undefined {
 }
 
 const LOCAL_HOSTS = new Set([
-  'localhost',
-  '127.0.0.1',
-  '[::1]',
-  'host.docker.internal',
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+  "host.docker.internal",
 ]);
 
 async function signFor(
@@ -75,21 +75,21 @@ async function signFor(
   url: string,
   claims: TestJwtClaims,
 ): Promise<string> {
-  const alg = stack.alg ?? 'ES256';
+  const alg = stack.alg ?? "ES256";
   switch (alg) {
-    case 'ES256':
+    case "ES256":
       return signTestJwtWithKey(
         stack.signingKey ?? (await localSigningKey(stack.signingKeysPath)),
         claims,
       );
-    case 'HS256': {
+    case "HS256": {
       if (!LOCAL_HOSTS.has(new URL(url).hostname)) {
         throw new TypeError(
           `asUser signs HS256 tokens only for a local stack, not ${url}. Use the ES256 key from \`better-supabase keys\`.`,
         );
       }
       const secret =
-        stack.jwtSecret ?? env('SUPABASE_JWT_SECRET') ?? LOCAL_JWT_SECRET;
+        stack.jwtSecret ?? env("SUPABASE_JWT_SECRET") ?? LOCAL_JWT_SECRET;
       return signTestJwt(secret, claims);
     }
     default: {
@@ -116,23 +116,23 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
   stack: LocalStack = {},
 ): Promise<TestUser<M, F, E>> {
   const url =
-    stack.url ?? env(...ENV_VARIABLES.url) ?? 'http://127.0.0.1:54321';
+    stack.url ?? env(...ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
   const publishableKey =
     stack.publishableKey ??
-    env(...ENV_VARIABLES.publishableKey, 'SUPABASE_ANON_KEY');
+    env(...ENV_VARIABLES.publishableKey, "SUPABASE_ANON_KEY");
   if (!publishableKey) {
     throw new TypeError(
-      'asUser needs publishableKey or $SUPABASE_PUBLISHABLE_KEY. Run `better-supabase env` to write it to .env.local.',
+      "asUser needs publishableKey or $SUPABASE_PUBLISHABLE_KEY. Run `better-supabase env` to write it to .env.local.",
     );
   }
   const token = await signFor(stack, url, claims);
-  const full: TestJwtClaims = { role: 'authenticated', ...claims };
+  const full: TestJwtClaims = { role: "authenticated", ...claims };
   const context: RequestContext = {
     actor: {
       id: claims.sub,
-      kind: 'user',
-      role: full.role ?? 'authenticated',
-      ...(typeof claims.email === 'string' ? { email: claims.email } : {}),
+      kind: "user",
+      role: full.role ?? "authenticated",
+      ...(typeof claims.email === "string" ? { email: claims.email } : {}),
     },
     claims: full,
   };

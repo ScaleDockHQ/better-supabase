@@ -1,10 +1,10 @@
-import { resolve } from 'node:path';
+import { resolve } from "node:path";
 
-import type { ResolvedConfig } from '../config/index.ts';
+import type { ResolvedConfig } from "../config/index.ts";
 
-import { isReadSet, type ReadSet } from '../core/read-set.ts';
-import { type CompiledReadSet, compileReadSets } from '../sql/read-sets.ts';
-import { importModule } from './config.ts';
+import { isReadSet, type ReadSet } from "../core/read-set.ts";
+import { type CompiledReadSet, compileReadSets } from "../sql/read-sets.ts";
+import { importModule } from "./config.ts";
 
 /** Every read set exported by the modules in `config.readSets`. */
 export async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {

@@ -1,27 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
-import { Pool } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createClient } from "@supabase/supabase-js";
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { MutationNotice } from '../core/events.ts';
+import type { MutationNotice } from "../core/events.ts";
 
-import { defineSupabase } from '../core/define.ts';
-import { schema } from '../fixtures/generated-camel.ts';
-import { createServer } from '../server/server.ts';
-import { defineBucket } from '../storage/index.ts';
+import { defineSupabase } from "../core/define.ts";
+import { schema } from "../fixtures/generated-camel.ts";
+import { createServer } from "../server/server.ts";
+import { defineBucket } from "../storage/index.ts";
 
-const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
+const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const dbUrl =
-  process.env['SUPABASE_DB_URL'] ??
-  'postgresql://postgres:postgres@127.0.0.1:55422/postgres';
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
 const publishableKey =
-  process.env['SUPABASE_PUBLISHABLE_KEY'] ??
-  'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+  process.env["SUPABASE_PUBLISHABLE_KEY"] ??
+  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 const secretKey =
-  process.env['SUPABASE_SECRET_KEY'] ??
-  'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
+  process.env["SUPABASE_SECRET_KEY"] ??
+  "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 
 const RUN = String(Date.now());
-const ORG = '00000000-0000-4000-8000-000000000001';
+const ORG = "00000000-0000-4000-8000-000000000001";
 
 async function reachable(): Promise<boolean> {
   try {
@@ -35,18 +35,18 @@ async function reachable(): Promise<boolean> {
 }
 
 const documents = defineBucket({
-  id: 'bs-it-documents',
-  path: '{userId}/{file}',
-  policy: 'owner',
+  id: "bs-it-documents",
+  path: "{userId}/{file}",
+  policy: "owner",
 });
 // `{userId}` is not the first segment: the whole bucket is listed and filtered.
 const shared = defineBucket({
-  id: 'bs-it-shared',
-  path: '{orgId}/{userId}/{file}',
+  id: "bs-it-shared",
+  path: "{orgId}/{userId}/{file}",
 });
-const logos = defineBucket({ id: 'bs-it-logos', path: '{orgId}/{file}' });
+const logos = defineBucket({ id: "bs-it-logos", path: "{orgId}/{file}" });
 
-describe.skipIf(!(await reachable()))('deleteAccount', () => {
+describe.skipIf(!(await reachable()))("deleteAccount", () => {
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
@@ -58,7 +58,7 @@ describe.skipIf(!(await reachable()))('deleteAccount', () => {
       url,
       publishableKey,
       secretKey,
-      jwksUrl: new URL('/auth/v1/.well-known/jwks.json', url),
+      jwksUrl: new URL("/auth/v1/.well-known/jwks.json", url),
     },
   });
   let userId: string;
@@ -73,22 +73,22 @@ describe.skipIf(!(await reachable()))('deleteAccount', () => {
     if (error) throw error;
     return data.user.id;
   };
-  const file = (text: string) => new Blob([text], { type: 'text/plain' });
+  const file = (text: string) => new Blob([text], { type: "text/plain" });
 
   beforeAll(async () => {
     await pool.query(documents.sql());
     await pool.query(shared.sql());
     [userId, otherId] = await Promise.all([
-      createUser('delete-me'),
-      createUser('keep-me'),
+      createUser("delete-me"),
+      createUser("keep-me"),
     ]);
     const docs = documents.connect(service);
     const org = shared.connect(service);
     for (const owner of [userId, otherId]) {
-      for (const name of ['a.txt', 'b.txt'])
+      for (const name of ["a.txt", "b.txt"])
         await docs.upload({ userId: owner, file: name }, file(name)).orThrow();
       await org
-        .upload({ orgId: ORG, userId: owner, file: 'c.txt' }, file('c'))
+        .upload({ orgId: ORG, userId: owner, file: "c.txt" }, file("c"))
         .orThrow();
     }
     await pool.query(
@@ -112,27 +112,27 @@ describe.skipIf(!(await reachable()))('deleteAccount', () => {
     await pool.end();
   });
 
-  it('returns a conflict naming BS406 while a foreign key blocks the delete', async () => {
+  it("returns a conflict naming BS406 while a foreign key blocks the delete", async () => {
     const result = await server.deleteAccount(userId);
     expect(result).toMatchObject({
       ok: false,
-      error: { kind: 'conflict', table: 'auth.users' },
+      error: { kind: "conflict", table: "auth.users" },
     });
-    expect(!result.ok && result.error.hint).toContain('BS406');
+    expect(!result.ok && result.error.hint).toContain("BS406");
     const { data } = await service.auth.admin.getUserById(userId);
     expect(data.user?.id).toBe(userId);
   });
 
-  it('removes the user’s objects, the user and their cascaded rows', async () => {
+  it("removes the user’s objects, the user and their cascaded rows", async () => {
     await pool.query(`alter table public.${table}
       drop constraint ${table}_user_id_fkey,
       add foreign key (user_id) references auth.users (id) on delete cascade`);
     const notices: MutationNotice[] = [];
-    const off = sb.on('mutation', (notice) => notices.push(notice));
+    const off = sb.on("mutation", (notice) => notices.push(notice));
 
     const result = await server.deleteAccount(userId, {
       buckets: [documents, shared, logos],
-      cascades: ['customers'],
+      cascades: ["customers"],
     });
     off();
 
@@ -140,7 +140,7 @@ describe.skipIf(!(await reachable()))('deleteAccount', () => {
       ok: true,
       data: {
         userId,
-        removed: { 'bs-it-documents': 2, 'bs-it-shared': 1 },
+        removed: { "bs-it-documents": 2, "bs-it-shared": 1 },
       },
     });
     expect(await documents.connect(service).list({ userId }).orThrow()).toEqual(
@@ -159,15 +159,15 @@ describe.skipIf(!(await reachable()))('deleteAccount', () => {
     const { rows } = await pool.query(`select 1 from public.${table}`);
     expect(rows).toEqual([]);
     expect(notices.map(({ table: t, kind, rows: r }) => [t, kind, r])).toEqual([
-      ['auth.users', 'delete', [{ id: userId }]],
-      ['customers', 'delete', []],
+      ["auth.users", "delete", [{ id: userId }]],
+      ["customers", "delete", []],
     ]);
   });
 
-  it('returns not_found for a user that no longer exists', async () => {
+  it("returns not_found for a user that no longer exists", async () => {
     expect(await server.deleteAccount(userId)).toMatchObject({
       ok: false,
-      error: { kind: 'not_found' },
+      error: { kind: "not_found" },
     });
   });
 });

@@ -22,9 +22,9 @@ export function actClaim(options: ImpersonationOptions): {
 export function impersonatorOf(
   claims: Readonly<Record<string, unknown>>,
 ): Impersonator | undefined {
-  const act = claims['act'];
-  if (typeof act !== 'object' || act === null) return undefined;
+  const act = claims["act"];
+  if (typeof act !== "object" || act === null) return undefined;
   const { sub, reason } = act as Record<string, unknown>;
-  if (typeof sub !== 'string' || sub === '') return undefined;
-  return typeof reason === 'string' ? { id: sub, reason } : { id: sub };
+  if (typeof sub !== "string" || sub === "") return undefined;
+  return typeof reason === "string" ? { id: sub, reason } : { id: sub };
 }

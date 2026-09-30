@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from '../../config/index.ts';
+import type { ResolvedConfig } from "../../config/index.ts";
 import type {
   Casing,
   ClaimsMeta,
@@ -9,22 +9,22 @@ import type {
   RelationMeta,
   SchemaMeta,
   TableMeta,
-} from '../../schema/types.ts';
+} from "../../schema/types.ts";
 import type {
   Catalog,
   CatalogColumn,
   CatalogTable,
   Snapshot,
-} from '../introspect/types.ts';
+} from "../introspect/types.ts";
 
-import { applyCasing, toCamel } from '../../casing/index.ts';
-import { DEFAULT_CLAIMS, tenantClaimPaths } from '../../core/claims.ts';
-import { toCatalog } from '../introspect/catalog.ts';
+import { applyCasing, toCamel } from "../../casing/index.ts";
+import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../core/claims.ts";
+import { toCatalog } from "../introspect/catalog.ts";
 import {
   type GeneratorMetadata,
   restrictSchemas,
   tsTypeOf,
-} from '../introspect/typegen.ts';
+} from "../introspect/typegen.ts";
 import {
   arrayOf,
   isJsonUdt,
@@ -32,7 +32,7 @@ import {
   sameColumns,
   singular,
   toSnake,
-} from './shared.ts';
+} from "./shared.ts";
 
 export interface ColumnModel {
   readonly app: string;
@@ -107,29 +107,29 @@ function tableKey(
   schemas: readonly string[],
 ): string {
   const base = applyCasing(table.name, casing);
-  if (schemas.length === 1 || table.schema === 'public') return base;
+  if (schemas.length === 1 || table.schema === "public") return base;
   return applyCasing(`${table.schema}_${table.name}`, casing);
 }
 
 const CODEC_TYPE: Record<Codec, string> = {
-  date: 'Date',
-  bigint: 'bigint',
-  string: 'string',
+  date: "Date",
+  bigint: "bigint",
+  string: "string",
 };
 
 function codecFor(udt: string, config: ResolvedConfig): Codec | undefined {
   const { codecs } = config;
   if (
-    (udt === 'timestamptz' || udt === 'timestamp') &&
-    codecs.timestamptz === 'date'
+    (udt === "timestamptz" || udt === "timestamp") &&
+    codecs.timestamptz === "date"
   )
-    return 'date';
-  if (udt === 'int8' && codecs.int8 !== 'number') return codecs.int8;
-  if (udt === 'numeric' && codecs.numeric === 'string') return 'string';
+    return "date";
+  if (udt === "int8" && codecs.int8 !== "number") return codecs.int8;
+  if (udt === "numeric" && codecs.numeric === "string") return "string";
   return undefined;
 }
 
-const TEXT_UDTS = new Set(['text', 'varchar', 'bpchar']);
+const TEXT_UDTS = new Set(["text", "varchar", "bpchar"]);
 
 /** `config.storagePaths` resolved to bucket ids, with a check that every key is used. */
 function storagePathsOf(config: ResolvedConfig) {
@@ -167,7 +167,7 @@ function storagePathsOf(config: ResolvedConfig) {
 }
 
 function enumType(values: readonly string[]): string {
-  return values.map((value) => JSON.stringify(value)).join(' | ');
+  return values.map((value) => JSON.stringify(value)).join(" | ");
 }
 
 /** Builds the codegen model from a snapshot and config. */
@@ -177,7 +177,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const tsType = (schema: string, format: string, typeSchema?: string) =>
     tsTypeOf(introspection, schema, format, typeSchema).replace(
       /\(([\w.$]+)\)\[\]/g,
-      '$1[]',
+      "$1[]",
     );
   const enumsByName = new Map<string, readonly string[]>();
   for (const entry of catalog.enums) {
@@ -188,8 +188,8 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const jsonTypeFor = (table: string, column: string): string | undefined => {
     const override = config.json[`${table}.${column}`];
     if (!override) return undefined;
-    if ('type' in override) return override.type;
-    const [from, name] = override.import.split('#');
+    if ("type" in override) return override.type;
+    const [from, name] = override.import.split("#");
     if (!from || !name) {
       throw new TypeError(
         `json["${table}.${column}"].import must look like "./path.ts#TypeName"`,
@@ -253,7 +253,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           : column.isArray
             ? arrayOf(base)
             : base;
-      const readonly = column.generated || column.identity === 'always';
+      const readonly = column.generated || column.identity === "always";
       const insertable = !readonly && table.insertable;
       const updatable = !readonly && table.updatable && column.updatable;
       return {
@@ -311,26 +311,26 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         (column) => columns.find((col) => col.db === column)?.nullable ?? true,
       );
       const onDelete =
-        fk.onDelete === 'cascade' ||
-        fk.onDelete === 'set null' ||
-        fk.onDelete === 'set default'
+        fk.onDelete === "cascade" ||
+        fk.onDelete === "set null" ||
+        fk.onDelete === "set default"
           ? { onDelete: fk.onDelete }
           : {};
       const [only] = fk.columns;
       const forwardBase =
-        fk.columns.length === 1 && only?.endsWith('_id')
+        fk.columns.length === 1 && only?.endsWith("_id")
           ? only.slice(0, -3)
           : singular(fk.refTable);
       push(sourceId, {
         name: applyCasing(forwardBase, casing),
         meta: {
           table: targetKey,
-          kind: 'one',
+          kind: "one",
           nullable,
           foreignKey: fk.name,
           columns: sourceColumns,
           references: targetColumns,
-          direction: 'forward',
+          direction: "forward",
           ...onDelete,
         },
       });
@@ -346,12 +346,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         ),
         meta: {
           table: keyOf.get(sourceId) ?? table.name,
-          kind: unique ? 'one' : 'many',
+          kind: unique ? "one" : "many",
           nullable: true,
           foreignKey: fk.name,
           columns: targetColumns,
           references: sourceColumns,
-          direction: 'reverse',
+          direction: "reverse",
           ...onDelete,
         },
       });
@@ -476,8 +476,8 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const seen = new Set<string>();
   const functions: FunctionModel[] = catalog.functions
     .filter((fn) => config.schemas.includes(fn.schema))
-    .filter((fn) => fn.returns !== 'trigger' && fn.returns !== 'event_trigger')
-    .filter((fn) => !fn.args.some((arg) => arg.udt === 'internal'))
+    .filter((fn) => fn.returns !== "trigger" && fn.returns !== "event_trigger")
+    .filter((fn) => !fn.args.some((arg) => arg.udt === "internal"))
     .filter((fn) => {
       // Overloads share one entry; the first signature wins.
       if (seen.has(fn.name)) return false;
@@ -486,7 +486,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     })
     .map((fn) => {
       const typeOf = (format: string): string => {
-        const isArray = format.startsWith('_');
+        const isArray = format.startsWith("_");
         const values = enumsByName.get(
           `${fn.schema}.${isArray ? format.slice(1) : format}`,
         );
@@ -500,7 +500,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           .map(
             (column) => `${JSON.stringify(column.name)}: ${typeOf(column.udt)}`,
           )
-          .join('; ')} }[]`;
+          .join("; ")} }[]`;
       } else {
         returns = typeOf(fn.returns);
         if (fn.returnsSet) returns = arrayOf(returns);
@@ -560,7 +560,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
                 public: bucket.public ?? false,
                 path: bucket.path,
                 ...(bucket.policy ? { policy: bucket.policy } : {}),
-                ...(bucket.policy === 'tenant' && tenantClaim
+                ...(bucket.policy === "tenant" && tenantClaim
                   ? { tenant: { claim: tenantClaim } }
                   : {}),
                 ...(bucket.fileSizeLimit
@@ -612,14 +612,14 @@ function dedupeRelations(
     let name = relation.name;
     if ((counts.get(name) ?? 0) > 1 || columns.has(name)) {
       const via =
-        relation.meta.direction === 'forward'
+        relation.meta.direction === "forward"
           ? relation.meta.columns
           : relation.meta.references;
       const suffix = via
-        .map((column) => column.replace(/_?[iI]d$/, ''))
-        .join('_');
+        .map((column) => column.replace(/_?[iI]d$/, ""))
+        .join("_");
       name = applyCasing(
-        `${casing === 'camel' ? toSnake(name) : name}_by_${casing === 'camel' ? toSnake(suffix) : suffix}`,
+        `${casing === "camel" ? toSnake(name) : name}_by_${casing === "camel" ? toSnake(suffix) : suffix}`,
         casing,
       );
     }

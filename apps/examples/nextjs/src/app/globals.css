@@ -5,7 +5,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-areas: 'header header' 'aside main';
+  grid-template-areas: "header header" "aside main";
   grid-template-columns: 12rem 1fr;
   min-height: 100vh;
 }
@@ -38,7 +38,7 @@ nav ul {
   gap: 0.5rem;
 }
 
-nav [aria-current='page'] {
+nav [aria-current="page"] {
   font-weight: 600;
 }
 

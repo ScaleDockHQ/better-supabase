@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { run } from './index.ts';
+import { run } from "./index.ts";
 
 const controller = new AbortController();
-process.once('SIGINT', () => controller.abort());
-process.once('SIGTERM', () => controller.abort());
+process.once("SIGINT", () => controller.abort());
+process.once("SIGTERM", () => controller.abort());
 
 const result = await run(process.argv.slice(2), {
   signal: controller.signal,

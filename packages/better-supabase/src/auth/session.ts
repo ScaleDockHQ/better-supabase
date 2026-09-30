@@ -7,7 +7,7 @@ import {
   serializeCookieHeader,
   stringFromBase64URL,
   stringToBase64URL,
-} from '@supabase/ssr';
+} from "@supabase/ssr";
 
 export type { CookieOptions };
 
@@ -33,18 +33,18 @@ export interface CookieWrite {
   readonly options: CookieOptions;
 }
 
-const BASE64_PREFIX = 'base64-';
+const BASE64_PREFIX = "base64-";
 
 /** Headers that keep responses carrying session cookies out of shared caches. */
 export const AUTH_CACHE_HEADERS: Readonly<Record<string, string>> = {
-  'Cache-Control': 'private, no-cache, no-store, must-revalidate, max-age=0',
-  Expires: '0',
-  Pragma: 'no-cache',
+  "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
+  Expires: "0",
+  Pragma: "no-cache",
 };
 
 /** `sb-<first label of the hostname>-auth-token`, the supabase-js default. */
 export function sessionCookieName(url: string): string {
-  return `sb-${new URL(url).hostname.split('.')[0] ?? ''}-auth-token`;
+  return `sb-${new URL(url).hostname.split(".")[0] ?? ""}-auth-token`;
 }
 
 export function parseCookies(
@@ -70,15 +70,15 @@ function combine(
     if (!part) break;
     parts.push(part);
   }
-  return parts.length > 0 ? parts.join('') : undefined;
+  return parts.length > 0 ? parts.join("") : undefined;
 }
 
 function isStoredSession(value: unknown): value is StoredSession {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const session = value as Record<string, unknown>;
   return (
-    typeof session['access_token'] === 'string' &&
-    typeof session['refresh_token'] === 'string'
+    typeof session["access_token"] === "string" &&
+    typeof session["refresh_token"] === "string"
   );
 }
 
@@ -127,7 +127,7 @@ export function writeSession(
     )
     .map((cookie) => ({
       name: cookie.name,
-      value: '',
+      value: "",
       options: { ...base, maxAge: 0 },
     }));
   return [

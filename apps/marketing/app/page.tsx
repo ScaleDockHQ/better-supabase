@@ -1,12 +1,12 @@
-import { CliSection } from '@/components/sections/cli';
-import { Closer } from '@/components/sections/closer';
-import { FaqSection } from '@/components/sections/faq';
-import { FeatureGrid } from '@/components/sections/feature-grid';
-import { GetStarted } from '@/components/sections/get-started';
-import { HomeHero } from '@/components/sections/home-hero';
-import { RuntimesBand } from '@/components/sections/runtimes-band';
-import { Section } from '@/components/sections/section';
-import { features, frameworks } from '@/lib/home';
+import { CliSection } from "@/components/sections/cli";
+import { Closer } from "@/components/sections/closer";
+import { FaqSection } from "@/components/sections/faq";
+import { FeatureGrid } from "@/components/sections/feature-grid";
+import { GetStarted } from "@/components/sections/get-started";
+import { HomeHero } from "@/components/sections/home-hero";
+import { RuntimesBand } from "@/components/sections/runtimes-band";
+import { Section } from "@/components/sections/section";
+import { features, frameworks } from "@/lib/home";
 
 export default function HomePage() {
   return (

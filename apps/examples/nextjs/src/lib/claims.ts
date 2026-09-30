@@ -1,8 +1,8 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-const Role = z.enum(['admin', 'member']);
+const Role = z.enum(["admin", "member"]);
 /** Stripe entitlement lookup keys the app sells. */
-export const Entitlement = z.enum(['exports', 'sso', 'audit']);
+export const Entitlement = z.enum(["exports", "sso", "audit"]);
 
 const isEntitlement = (key: string): key is Entitlement =>
   Entitlement.safeParse(key).success;

@@ -1,18 +1,18 @@
-import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
-import { RootProvider } from 'fumadocs-ui/provider/next';
+import { RootProvider } from "fumadocs-ui/provider/next";
 
-import './global.css';
+import "./global.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://bettersupabase.com'),
+  metadataBase: new URL("https://bettersupabase.com"),
   title: {
-    default: 'better-supabase',
-    template: '%s | better-supabase',
+    default: "better-supabase",
+    template: "%s | better-supabase",
   },
   description:
-    'Strongly typed repositories, auth glue, framework adapters and cache helpers for Supabase.',
+    "Strongly typed repositories, auth glue, framework adapters and cache helpers for Supabase.",
 };
 
 export default function Layout({ children }: { children: ReactNode }) {

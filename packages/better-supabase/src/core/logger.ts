@@ -13,7 +13,7 @@ export interface Logger {
 }
 
 const log =
-  (method: 'debug' | 'info' | 'warn' | 'error') =>
+  (method: "debug" | "info" | "warn" | "error") =>
   (message: string, fields?: LogFields): void => {
     if (fields === undefined) console[method](`better-supabase: ${message}`);
     else console[method](`better-supabase: ${message}`, fields);
@@ -21,10 +21,10 @@ const log =
 
 /** The default: `console`, with a `better-supabase:` prefix. */
 export const consoleLogger: Logger = {
-  debug: log('debug'),
-  info: log('info'),
-  warn: log('warn'),
-  error: log('error'),
+  debug: log("debug"),
+  info: log("info"),
+  warn: log("warn"),
+  error: log("error"),
 };
 
 const noop = (): void => {};

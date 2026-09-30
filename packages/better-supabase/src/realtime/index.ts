@@ -1,12 +1,12 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import {
   type RealtimeChannel,
   REALTIME_SUBSCRIBE_STATES,
   type SupabaseClient,
-} from '@supabase/supabase-js';
+} from "@supabase/supabase-js";
 
-import type { BetterSupabase } from '../core/define.ts';
+import type { BetterSupabase } from "../core/define.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -14,12 +14,12 @@ import type {
   Row,
   TableKey,
   TableMeta,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
-import { tenantClaimPaths } from '../core/claims.ts';
-import { dbError, type DbError, type ValidationIssue } from '../core/errors.ts';
-import { permdockCheck } from '../core/permdock-sql.ts';
-import { AsyncResult, err, ok } from '../core/result.ts';
+import { tenantClaimPaths } from "../core/claims.ts";
+import { dbError, type DbError, type ValidationIssue } from "../core/errors.ts";
+import { permdockCheck } from "../core/permdock-sql.ts";
+import { AsyncResult, err, ok } from "../core/result.ts";
 import {
   parseTemplate,
   slug,
@@ -28,12 +28,12 @@ import {
   type Template,
   type TemplateParams,
   type TemplateValues,
-} from '../core/template.ts';
-import { toApp } from '../plugins/shared.ts';
+} from "../core/template.ts";
+import { toApp } from "../plugins/shared.ts";
 
-export type { TemplateParams, TemplateValues } from '../core/template.ts';
-export type { PermdockTopicPolicy } from '../schema/types.ts';
-export { liveCount, liveQuery, liveTopic } from './live.ts';
+export type { TemplateParams, TemplateValues } from "../core/template.ts";
+export type { PermdockTopicPolicy } from "../schema/types.ts";
+export { liveCount, liveQuery, liveTopic } from "./live.ts";
 export type {
   CountRunner,
   LiveCountOptions,
@@ -41,7 +41,7 @@ export type {
   LiveQueryOptions,
   LiveSource,
   LiveSubscription,
-} from './live.ts';
+} from "./live.ts";
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -107,7 +107,7 @@ export type TopicHandlers<E extends EventSchemas> = [keyof E] extends [never]
         message: TopicMessage,
       ) => void;
     } & {
-      readonly '*'?: (payload: unknown, message: TopicMessage) => void;
+      readonly "*"?: (payload: unknown, message: TopicMessage) => void;
     };
 
 export type TopicEvent<E extends EventSchemas> = [keyof E] extends [never]
@@ -119,7 +119,7 @@ export type TopicPayload<E extends EventSchemas, K extends string> = [
   ? unknown
   : Input<E[K]>;
 
-export type SubscriptionStatus = 'joining' | 'subscribed' | 'closed' | 'error';
+export type SubscriptionStatus = "joining" | "subscribed" | "closed" | "error";
 
 export interface SubscribeOptions {
   /** Receive your own broadcasts. */
@@ -142,7 +142,7 @@ export interface Subscription extends Disposable, AsyncDisposable {
 
 export type RealtimeClient = Pick<
   SupabaseClient,
-  'channel' | 'removeChannel' | 'realtime'
+  "channel" | "removeChannel" | "realtime"
 >;
 
 export interface TriggerOptions<
@@ -155,13 +155,13 @@ export interface TriggerOptions<
     readonly [K in TemplateParams<P>]: Extract<keyof Row<M, T>, string>;
   };
   /** Defaults to all three. */
-  readonly events?: readonly ('insert' | 'update' | 'delete')[];
+  readonly events?: readonly ("insert" | "update" | "delete")[];
   /** Schema for the generated function. Defaults to `public`. */
   readonly functionSchema?: string;
 }
 
 export interface RowChange<R> {
-  readonly operation: 'INSERT' | 'UPDATE' | 'DELETE';
+  readonly operation: "INSERT" | "UPDATE" | "DELETE";
   readonly table: string;
   readonly record: R | null;
   readonly oldRecord: Partial<R> | null;
@@ -208,19 +208,19 @@ const VALUE = /^[\w.@+=-]+$/;
 function validateValue(_name: string, value: string): string | undefined {
   return VALUE.test(value)
     ? undefined
-    : 'contains characters topics do not allow';
+    : "contains characters topics do not allow";
 }
 
 function claimSql(claim: string | readonly string[]): string {
-  const paths = typeof claim === 'string' ? [claim] : claim;
+  const paths = typeof claim === "string" ? [claim] : claim;
   const expressions = paths.map((path) => {
-    const keys = path.split('.');
+    const keys = path.split(".");
     const last = keys.pop()!;
-    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join('')} ->> ${sqlString(last)}`;
+    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
   });
   return expressions.length === 1
     ? expressions[0]!
-    : `coalesce(${expressions.join(', ')})`;
+    : `coalesce(${expressions.join(", ")})`;
 }
 
 async function validate(
@@ -231,7 +231,7 @@ async function validate(
   | { ok: false; issues: readonly ValidationIssue[] }
 > {
   if (!schema) return { ok: true, value };
-  const result = await schema['~standard'].validate(value);
+  const result = await schema["~standard"].validate(value);
   if (result.issues) {
     return {
       ok: false,
@@ -240,7 +240,7 @@ async function validate(
         ...(issue.path
           ? {
               path: issue.path.map((part) =>
-                typeof part === 'object' ? part.key : part,
+                typeof part === "object" ? part.key : part,
               ),
             }
           : {}),
@@ -251,11 +251,11 @@ async function validate(
 }
 
 function sendError(status: number, message: string): DbError {
-  if (status === 401) return dbError('unauthorized', message);
-  if (status === 403) return dbError('forbidden', message);
+  if (status === 401) return dbError("unauthorized", message);
+  if (status === 403) return dbError("forbidden", message);
   if (status === 429 || status >= 500 || status === 0)
-    return dbError('network', message, status ? { status } : {});
-  return dbError('invalid_request', message, { status });
+    return dbError("network", message, status ? { status } : {});
+  return dbError("invalid_request", message, { status });
 }
 
 /**
@@ -273,9 +273,9 @@ export function defineTopic<
   const P extends string,
   const E extends EventSchemas = Record<never, never>,
 >(template: P, options: TopicOptions<E> = {}): Topic<P, E> {
-  const parsed: Template = parseTemplate(template, ':', validateValue);
-  const literal = template.replace(/\{[^}]+\}/g, ' ');
-  const name = slug(options.name ?? literal) || 'topic';
+  const parsed: Template = parseTemplate(template, ":", validateValue);
+  const literal = template.replace(/\{[^}]+\}/g, " ");
+  const name = slug(options.name ?? literal) || "topic";
   const isPrivate = options.private ?? true;
   const schemas: EventSchemas = options.events ?? {};
 
@@ -291,14 +291,14 @@ export function defineTopic<
   const checks: string[] = [];
   const permdock = options.permdock;
   const tenantParam =
-    options.tenant === false ? undefined : (options.tenant?.param ?? 'orgId');
+    options.tenant === false ? undefined : (options.tenant?.param ?? "orgId");
   const permdockChecks = ((): { receive: string; send: string } | undefined => {
     if (!permdock) return undefined;
     const where = `defineTopic(${template})`;
     const id =
-      permdock.scope === 'global'
+      permdock.scope === "global"
         ? undefined
-        : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? 'orgId', 'PermDock'))})`;
+        : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? "orgId", "PermDock"))})`;
     const receive = permdockCheck(where, permdock, permdock.receive, id);
     return {
       receive,
@@ -317,14 +317,14 @@ export function defineTopic<
     const expression =
       tenant.sql ?? claimSql(tenant.claim ?? tenantClaimPaths());
     checks.push(
-      `split_part((select realtime.topic()), ':', ${String(segment(tenantParam, 'tenant'))}) = (${expression})`,
+      `split_part((select realtime.topic()), ':', ${String(segment(tenantParam, "tenant"))}) = (${expression})`,
     );
   }
   const ownerParam =
-    options.owner === false ? undefined : (options.owner?.param ?? 'userId');
+    options.owner === false ? undefined : (options.owner?.param ?? "userId");
   if (ownerParam && (options.owner || parsed.params.includes(ownerParam))) {
     checks.push(
-      `split_part((select realtime.topic()), ':', ${String(segment(ownerParam, 'owner'))}) = (select auth.uid())::text`,
+      `split_part((select realtime.topic()), ':', ${String(segment(ownerParam, "owner"))}) = (select auth.uid())::text`,
     );
   }
 
@@ -347,16 +347,16 @@ export function defineTopic<
           `realtime.messages.extension in ${extensions}`,
           ...checks,
           ...(extra === undefined ? [] : [extra]),
-        ].join('\n    and ');
+        ].join("\n    and ");
       const lines = [`-- better-supabase: topic ${template}`];
-      const policies: [string, string, 'using' | 'with check', string][] = [
-        ['receive', 'select', 'using', condition(permdockChecks?.receive)],
+      const policies: [string, string, "using" | "with check", string][] = [
+        ["receive", "select", "using", condition(permdockChecks?.receive)],
       ];
       if (options.send || options.presence || permdock?.send !== undefined)
         policies.push([
-          'send',
-          'insert',
-          'with check',
+          "send",
+          "insert",
+          "with check",
           condition(permdockChecks?.send),
         ]);
       for (const [suffix, command, clause, check] of policies) {
@@ -366,7 +366,7 @@ export function defineTopic<
           `create policy ${policy} on realtime.messages for ${command} to authenticated\n  ${clause} (\n    ${check}\n  );`,
         );
       }
-      return `${lines.join('\n')}\n`;
+      return `${lines.join("\n")}\n`;
     },
     triggerSql(sb, table, trigger) {
       const meta: TableMeta | undefined = sb.meta.tables[table];
@@ -387,39 +387,39 @@ export function defineTopic<
             );
           return `rec.${sqlIdent(db)}::text`;
         });
-      const schema = trigger.functionSchema ?? 'public';
+      const schema = trigger.functionSchema ?? "public";
       const fn = `${sqlIdent(schema)}.${sqlIdent(`bs_broadcast_${name}_${slug(meta.name)}`)}`;
       const triggerName = sqlIdent(`bs_broadcast_${name}`);
       const target = `${sqlIdent(meta.schema)}.${sqlIdent(meta.name)}`;
-      const events = (trigger.events ?? ['insert', 'update', 'delete']).join(
-        ' or ',
+      const events = (trigger.events ?? ["insert", "update", "delete"]).join(
+        " or ",
       );
       return [
         `-- better-supabase: broadcast ${meta.name} changes to ${template}`,
         `create or replace function ${fn}()`,
-        'returns trigger',
-        'language plpgsql',
-        'security definer',
+        "returns trigger",
+        "language plpgsql",
+        "security definer",
         "set search_path = ''",
-        'as $$',
-        'declare',
-        '  rec record;',
-        'begin',
+        "as $$",
+        "declare",
+        "  rec record;",
+        "begin",
         "  if tg_op = 'DELETE' then rec := old; else rec := new; end if;",
-        '  perform realtime.broadcast_changes(',
-        `    ${parts.join(' || ')},`,
-        '    tg_op, tg_op, tg_table_name, tg_table_schema, new, old',
-        '  );',
-        '  return null;',
-        'end;',
-        '$$;',
+        "  perform realtime.broadcast_changes(",
+        `    ${parts.join(" || ")},`,
+        "    tg_op, tg_op, tg_table_name, tg_table_schema, new, old",
+        "  );",
+        "  return null;",
+        "end;",
+        "$$;",
         `revoke execute on function ${fn}() from public, anon, authenticated;`,
-        '',
+        "",
         `drop trigger if exists ${triggerName} on ${target};`,
         `create trigger ${triggerName} after ${events} on ${target}`,
         `  for each row execute function ${fn}();`,
-        '',
-      ].join('\n');
+        "",
+      ].join("\n");
     },
     subscribe(client, values, handlers, subscribeOptions = {}) {
       const topic = topicOf(values);
@@ -435,13 +435,13 @@ export function defineTopic<
           ((payload: unknown, message: TopicMessage) => void) | undefined
         >
       >;
-      channel.on('broadcast', { event: '*' }, (raw) => {
+      channel.on("broadcast", { event: "*" }, (raw) => {
         const message: TopicMessage = {
           event: raw.event,
-          payload: raw['payload'],
+          payload: raw["payload"],
           topic,
         };
-        const handler = table[message.event] ?? table['*'];
+        const handler = table[message.event] ?? table["*"];
         if (!handler) return;
         void validate(schemas[message.event], message.payload).then(
           (checked) => {
@@ -451,7 +451,7 @@ export function defineTopic<
         );
       });
       let closed = false;
-      subscribeOptions.onStatus?.('joining');
+      subscribeOptions.onStatus?.("joining");
       const ready = (async () => {
         if (isPrivate) await client.realtime.setAuth();
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- `close()` can run while `setAuth` is awaited.
@@ -460,11 +460,11 @@ export function defineTopic<
           channel.subscribe((status, error) => {
             switch (status) {
               case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
-                subscribeOptions.onStatus?.('subscribed');
+                subscribeOptions.onStatus?.("subscribed");
                 resolve();
                 return;
               case REALTIME_SUBSCRIBE_STATES.CLOSED:
-                subscribeOptions.onStatus?.('closed');
+                subscribeOptions.onStatus?.("closed");
                 resolve();
                 return;
               case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
@@ -472,7 +472,7 @@ export function defineTopic<
                 const failure =
                   error ??
                   new Error(`Realtime ${status.toLowerCase()} on ${topic}`);
-                subscribeOptions.onStatus?.('error', failure);
+                subscribeOptions.onStatus?.("error", failure);
                 reject(failure);
                 return;
               }
@@ -505,7 +505,7 @@ export function defineTopic<
         const checked = await validate(schemas[event], payload);
         if (!checked.ok)
           return err(
-            dbError('validation', `Invalid payload for ${event}`, {
+            dbError("validation", `Invalid payload for ${event}`, {
               issues: checked.issues,
             }),
           );
@@ -558,9 +558,9 @@ export function rowChange<
     return null;
   const operation = payload.operation ?? message.event;
   if (
-    operation !== 'INSERT' &&
-    operation !== 'UPDATE' &&
-    operation !== 'DELETE'
+    operation !== "INSERT" &&
+    operation !== "UPDATE" &&
+    operation !== "DELETE"
   )
     return null;
   return {

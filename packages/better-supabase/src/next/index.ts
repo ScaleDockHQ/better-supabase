@@ -1,39 +1,39 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import { cacheLife, cacheTag, revalidateTag, updateTag } from 'next/cache.js';
-import { cookies, headers } from 'next/headers.js';
-import { type NextRequest, NextResponse } from 'next/server.js';
-import { cache } from 'react';
+import { cacheLife, cacheTag, revalidateTag, updateTag } from "next/cache.js";
+import { cookies, headers } from "next/headers.js";
+import { type NextRequest, NextResponse } from "next/server.js";
+import { cache } from "react";
 
-import type { AuthState } from '../auth/resolve.ts';
-import type { AuthSession } from '../auth/view.ts';
-import type { CacheAdapter } from '../core/cache.ts';
-import type { BetterSupabase } from '../core/define.ts';
-import type { DbError } from '../core/errors.ts';
-import type { QuerySpec } from '../core/spec.ts';
-import type { CountRunner, LiveCountSeed } from '../realtime/live.ts';
-import type { AnyFunctions, AnyModels } from '../schema/types.ts';
+import type { AuthState } from "../auth/resolve.ts";
+import type { AuthSession } from "../auth/view.ts";
+import type { CacheAdapter } from "../core/cache.ts";
+import type { BetterSupabase } from "../core/define.ts";
+import type { DbError } from "../core/errors.ts";
+import type { QuerySpec } from "../core/spec.ts";
+import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
-import { type Aal, checkAal } from '../auth/mfa.ts';
-import { toSession } from '../auth/view.ts';
-import { dbError } from '../core/errors.ts';
-import { isList } from '../core/guards.ts';
-import { problemResponse } from '../core/problem.ts';
-import { isReadSet, type ReadSet } from '../core/read-set.ts';
-import { validate } from '../core/standard.ts';
-import { EMPTY_STATS } from '../core/stats.ts';
+import { type Aal, checkAal } from "../auth/mfa.ts";
+import { toSession } from "../auth/view.ts";
+import { dbError } from "../core/errors.ts";
+import { isList } from "../core/guards.ts";
+import { problemResponse } from "../core/problem.ts";
+import { isReadSet, type ReadSet } from "../core/read-set.ts";
+import { validate } from "../core/standard.ts";
+import { EMPTY_STATS } from "../core/stats.ts";
 import {
   DEFAULT_PIN_MS,
   PRIMARY_COOKIE,
   primaryCookie,
-} from '../server/replicas.ts';
+} from "../server/replicas.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   respond,
   settle,
-} from '../server/respond.ts';
+} from "../server/respond.ts";
 import {
   type BetterServer,
   type ContextOptions,
@@ -42,19 +42,19 @@ import {
   type ServerContext,
   type ServerOptions,
   withExtra,
-} from '../server/server.ts';
+} from "../server/server.ts";
 import {
   type DbBudget,
   formatStats,
   REQUEST_ID_HEADER,
   sharedCollector,
-} from './collector.ts';
+} from "./collector.ts";
 import {
   isRedirect,
   mutableResponse,
   overrideRequestHeaders,
   serverTimingValue,
-} from './proxy.ts';
+} from "./proxy.ts";
 
 export interface NextOptions extends ServerOptions {
   /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
@@ -77,18 +77,18 @@ export interface NextDebugOptions {
 }
 
 /** Response header with the URL of the request's totals on `next.debugRoute()`. */
-export const STATS_URL_HEADER = 'x-bs-stats';
+export const STATS_URL_HEADER = "x-bs-stats";
 
-export { REQUEST_ID_HEADER, type DbBudget } from './collector.ts';
-export type { DbStats } from '../core/stats.ts';
+export { REQUEST_ID_HEADER, type DbBudget } from "./collector.ts";
+export type { DbStats } from "../core/stats.ts";
 
-export type { AuthKind, GuardOptions } from '../server/respond.ts';
-export type { AuthSession } from '../auth/view.ts';
-export type { Aal, AmrEntry } from '../auth/mfa.ts';
-export type { Impersonator } from '../auth/impersonation.ts';
-export { toSession } from '../auth/view.ts';
-export { hasEntitlement } from '../auth/entitlements.ts';
-export type { EntitlementKey, MembershipClaim } from '../auth/entitlements.ts';
+export type { AuthKind, GuardOptions } from "../server/respond.ts";
+export type { AuthSession } from "../auth/view.ts";
+export type { Aal, AmrEntry } from "../auth/mfa.ts";
+export type { Impersonator } from "../auth/impersonation.ts";
+export { toSession } from "../auth/view.ts";
+export { hasEntitlement } from "../auth/entitlements.ts";
+export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";
 
 export interface ProxyOptions<C = unknown, U = unknown> {
   /**
@@ -189,7 +189,7 @@ export interface BetterNext<
    * count gives `count: null` instead of throwing.
    */
   liveCount<T extends Extract<keyof M, string>>(
-    spec: QuerySpec<T, 'count', number>,
+    spec: QuerySpec<T, "count", number>,
     db?: CountRunner,
   ): Promise<LiveCountSeed<T>>;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
@@ -249,7 +249,7 @@ export function sessionStale(
 ): number {
   const min = options.min ?? 30;
   const max = options.max ?? 300;
-  if (session.kind !== 'user' || session.expiresAt === null) return max;
+  if (session.kind !== "user" || session.expiresAt === null) return max;
   const remaining = session.expiresAt - Math.floor(now / 1000);
   return Math.min(max, Math.max(min, remaining));
 }
@@ -285,7 +285,7 @@ function invalidate(tag: string): void {
     updateTag(tag);
   } catch {
     try {
-      revalidateTag(tag, 'max');
+      revalidateTag(tag, "max");
     } catch {
       // Outside a Next.js request (jobs, scripts): nothing to invalidate.
     }
@@ -299,7 +299,7 @@ function invalidate(tag: string): void {
  */
 export function nextCache(): CacheAdapter {
   return {
-    name: 'next',
+    name: "next",
     invalidate: (target) => {
       for (const table of target.tables) invalidate(tagFor(table));
       for (const id of target.ids) invalidate(tagFor(target.table, id));
@@ -352,7 +352,7 @@ export function requireAal(
     if (!denied) return undefined;
     if (options.redirect === undefined) return problemResponse(denied);
     const target = new URL(options.redirect, request.url);
-    target.searchParams.set('next', `${pathname}${search}`);
+    target.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(target);
   };
 }
@@ -360,19 +360,19 @@ export function requireAal(
 /** Page loads, client navigations and server actions; never prefetches or assets. */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
-  if (request.method !== 'GET' && request.method !== 'HEAD')
-    return h.has('next-action');
+  if (request.method !== "GET" && request.method !== "HEAD")
+    return h.has("next-action");
   if (
-    h.has('next-router-prefetch') ||
-    h.get('purpose') === 'prefetch' ||
-    h.get('sec-purpose')?.includes('prefetch')
+    h.has("next-router-prefetch") ||
+    h.get("purpose") === "prefetch" ||
+    h.get("sec-purpose")?.includes("prefetch")
   ) {
     return false;
   }
-  if (h.get('rsc') === '1') return true;
-  const dest = h.get('sec-fetch-dest');
-  if (dest) return dest === 'document';
-  return h.get('accept')?.includes('text/html') ?? false;
+  if (h.get("rsc") === "1") return true;
+  const dest = h.get("sec-fetch-dest");
+  if (dest) return dest === "document";
+  return h.get("accept")?.includes("text/html") ?? false;
 }
 
 /**
@@ -401,11 +401,11 @@ export function createNext<
   if (options.cacheTags !== false) sb.cache(nextCache());
 
   const debug = options.debug;
-  const statsHeader = debug?.header ?? 'x-bs-db-calls';
-  const statsRoute = debug?.route ?? '/api/bs-stats';
+  const statsHeader = debug?.header ?? "x-bs-db-calls";
+  const statsRoute = debug?.route ?? "/api/bs-stats";
   const development =
     // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
-    typeof process !== 'undefined' && process.env['NODE_ENV'] === 'development';
+    typeof process !== "undefined" && process.env["NODE_ENV"] === "development";
   const collector =
     // oxlint-disable-next-line typescript/prefer-optional-chain -- without debug options there is no collector, even in development.
     debug && (debug.enabled ?? development)
@@ -421,7 +421,7 @@ export function createNext<
   };
 
   const incomingRequest = async (): Promise<Request> =>
-    new Request('http://next.local/', {
+    new Request("http://next.local/", {
       headers: new Headers(await headers()),
     });
 
@@ -441,21 +441,21 @@ export function createNext<
     view: AuthSession<C, U>,
     { token }: { readonly token: string | null },
   ): Promise<ServerContext<M, F, E, C, U>> => {
-    const request = new Request('http://next.local/', {
+    const request = new Request("http://next.local/", {
       headers: token ? { authorization: `Bearer ${token}` } : {},
     });
     const ctx = await base.context(request);
     const matches =
-      ctx.auth.kind === 'user'
-        ? view.kind === 'user' && view.user.id === ctx.auth.user.id
-        : view.kind !== 'user';
+      ctx.auth.kind === "user"
+        ? view.kind === "user" && view.user.id === ctx.auth.user.id
+        : view.kind !== "user";
     if (matches) return ctx;
     return base.contextFor({
-      kind: 'invalid',
-      reason: 'token',
+      kind: "invalid",
+      reason: "token",
       error: dbError(
-        'unauthorized',
-        'The token does not belong to the session passed to serverFor()',
+        "unauthorized",
+        "The token does not belong to the session passed to serverFor()",
       ),
     });
   };
@@ -465,7 +465,7 @@ export function createNext<
       base.deleteAccount(userId, deleteOptions).map((result) => {
         invalidate(sessionTag(userId));
         return result;
-      })) satisfies BetterServer<M, F, E, C, U>['deleteAccount'],
+      })) satisfies BetterServer<M, F, E, C, U>["deleteAccount"],
   });
 
   return extendServer<BetterNext<M, F, E, C, U>>(withAccounts, {
@@ -483,7 +483,7 @@ export function createNext<
           : { revalidate: life.revalidate }),
         ...(life?.expire === undefined ? {} : { expire: life.expire }),
       });
-      if (view.kind === 'user') cacheTag(sessionTag(view.user.id));
+      if (view.kind === "user") cacheTag(sessionTag(view.user.id));
       return withExtra(ctx, { session: view });
     },
 
@@ -497,7 +497,7 @@ export function createNext<
       return {
         spec,
         count:
-          result.ok && typeof result.data === 'number' ? result.data : null,
+          result.ok && typeof result.data === "number" ? result.data : null,
       };
     },
 
@@ -533,11 +533,11 @@ export function createNext<
       if (!custom && !isRedirect(response)) {
         const forwarded: Record<string, string> = {};
         if (resolution.cookies.length > 0) {
-          forwarded['cookie'] = resolution.requestCookies
+          forwarded["cookie"] = resolution.requestCookies
             .map(
               (cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`,
             )
-            .join('; ');
+            .join("; ");
         }
         if (id) forwarded[REQUEST_ID_HEADER] = id;
         if (Object.keys(forwarded).length > 0 || early) {
@@ -554,10 +554,10 @@ export function createNext<
       }
       if (proxyOptions.serverTiming) {
         response.headers.append(
-          'server-timing',
+          "server-timing",
           serverTimingValue({
-            'bs-proxy': performance.now() - started,
-            'bs-verify': verifyMs,
+            "bs-proxy": performance.now() - started,
+            "bs-verify": verifyMs,
           }),
         );
       }
@@ -577,7 +577,7 @@ export function createNext<
         );
         if (ctx.replica?.wrote) {
           try {
-            response.headers.append('set-cookie', primaryCookie(pinMs));
+            response.headers.append("set-cookie", primaryCookie(pinMs));
           } catch {
             // A handler returned a Response with immutable headers.
           }
@@ -595,11 +595,11 @@ export function createNext<
 
     debugRoute() {
       return async (request) => {
-        const id = new URL(request.url).searchParams.get('id');
+        const id = new URL(request.url).searchParams.get("id");
         if (!collector || !id) {
           return Response.json(
-            { error: collector ? 'missing ?id=' : 'debug is off' },
-            { status: 404, headers: { 'cache-control': 'no-store' } },
+            { error: collector ? "missing ?id=" : "debug is off" },
+            { status: 404, headers: { "cache-control": "no-store" } },
           );
         }
         // A render served from private caches never records: it made no calls.
@@ -607,7 +607,7 @@ export function createNext<
         return Response.json(stats, {
           headers: {
             [statsHeader]: formatStats(stats),
-            'cache-control': 'no-store',
+            "cache-control": "no-store",
           },
         });
       };
@@ -622,7 +622,7 @@ export function createNext<
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;
         if (actionOptions.input) {
-          const checked = await validate(actionOptions.input, parsed, 'input');
+          const checked = await validate(actionOptions.input, parsed, "input");
           if (!checked.ok)
             return { ok: false, data: null, error: checked.error };
           parsed = checked.data;
@@ -630,10 +630,10 @@ export function createNext<
         const settled = await settle(() => fn(parsed as never, ctx));
         if (ctx.replica?.wrote) {
           (await cookies()).set(PRIMARY_COOKIE, String(Date.now() + pinMs), {
-            path: '/',
+            path: "/",
             maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
             httpOnly: true,
-            sameSite: 'lax',
+            sameSite: "lax",
           });
         }
         return (
@@ -659,8 +659,8 @@ export function createNext<
         for (const table of sb.tablesOf(spec)) tags.add(tagFor(table));
         const [id] = spec.args;
         if (
-          spec.method === 'findById' &&
-          (typeof id === 'string' || typeof id === 'number')
+          spec.method === "findById" &&
+          (typeof id === "string" || typeof id === "number")
         ) {
           tags.add(tagFor(spec.table, id));
         }

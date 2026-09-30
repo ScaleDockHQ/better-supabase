@@ -68,8 +68,8 @@ jobs:
       - name: Create or update the release pull request
         uses: changesets/action/version@v2
         with:
-          pr-title: 'chore: version packages'
-          commit-message: 'chore: version packages'
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
 
   # npm trusted publishing: the registry trusts this workflow file and the `npm`
   # environment through OIDC, so no npm token exists anywhere. Publishing stays
@@ -116,5 +116,5 @@ jobs:
         with:
           script: pnpm exec changeset publish
         env:
-          PNPM_CONFIG_PROVENANCE: 'true'
-          NPM_CONFIG_PROVENANCE: 'true'
+          PNPM_CONFIG_PROVENANCE: "true"
+          NPM_CONFIG_PROVENANCE: "true"

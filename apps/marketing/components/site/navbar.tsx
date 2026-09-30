@@ -1,10 +1,10 @@
-import Link from 'next/link';
+import Link from "next/link";
 
-import { LogoMark } from '@/components/site/logo';
-import { SiteLink } from '@/components/site/site-link';
-import { ThemeToggle } from '@/components/site/theme-toggle';
-import { Button } from '@/components/ui/button';
-import { navLinks, site } from '@/lib/site';
+import { LogoMark } from "@/components/site/logo";
+import { SiteLink } from "@/components/site/site-link";
+import { ThemeToggle } from "@/components/site/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { navLinks, site } from "@/lib/site";
 
 export function Navbar() {
   return (

@@ -1,12 +1,12 @@
-import { createServerClient } from '@supabase/ssr';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createServerClient } from "@supabase/ssr";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import { stack } from './stack-config.ts';
+import { stack } from "./stack-config.ts";
 
 export { stack };
 
-export const ACME = '00000000-0000-4000-8000-000000000001';
-export const OTHER = '00000000-0000-4000-8000-000000000002';
+export const ACME = "00000000-0000-4000-8000-000000000001";
+export const OTHER = "00000000-0000-4000-8000-000000000002";
 
 export async function reachable(): Promise<boolean> {
   try {
@@ -41,10 +41,10 @@ export interface TestUser {
  */
 export async function createUser(
   orgId: string,
-  options: { readonly role?: 'admin' | 'member' } = {},
+  options: { readonly role?: "admin" | "member" } = {},
 ): Promise<TestUser> {
   const email = `e2e-${crypto.randomUUID()}@example.com`;
-  const password = 'correct horse battery staple';
+  const password = "correct horse battery staple";
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
@@ -83,7 +83,7 @@ export async function createUser(
       if (cookieError) throw cookieError;
       return [...jar]
         .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
-        .join('; ');
+        .join("; ");
     },
     remove: async () => {
       await admin.auth.admin.deleteUser(data.user.id);
@@ -100,7 +100,7 @@ export function cleanup(table: string): {
   return {
     track: (id) => void ids.push(id),
     run: async () => {
-      if (ids.length > 0) await admin.from(table).delete().in('id', ids);
+      if (ids.length > 0) await admin.from(table).delete().in("id", ids);
     },
   };
 }

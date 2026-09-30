@@ -1,4 +1,4 @@
-import type { Codec, RelationMeta, TableMeta } from '../schema/types.ts';
+import type { Codec, RelationMeta, TableMeta } from "../schema/types.ts";
 
 /**
  * The query IR. Every repository call becomes one of these operations; the
@@ -6,29 +6,29 @@ import type { Codec, RelationMeta, TableMeta } from '../schema/types.ts';
  * database names; `Selection` carries the app aliases.
  */
 export type ColumnOp =
-  | 'eq'
-  | 'neq'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'in'
-  | 'is'
-  | 'like'
-  | 'ilike'
-  | 'contains'
-  | 'containedBy'
-  | 'overlaps'
-  | 'fts';
+  | "eq"
+  | "neq"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "in"
+  | "is"
+  | "like"
+  | "ilike"
+  | "contains"
+  | "containedBy"
+  | "overlaps"
+  | "fts";
 
-export type Quantifier = 'some' | 'none' | 'every';
+export type Quantifier = "some" | "none" | "every";
 
 export type Condition =
-  | { readonly kind: 'and'; readonly items: readonly Condition[] }
-  | { readonly kind: 'or'; readonly items: readonly Condition[] }
-  | { readonly kind: 'not'; readonly item: Condition }
+  | { readonly kind: "and"; readonly items: readonly Condition[] }
+  | { readonly kind: "or"; readonly items: readonly Condition[] }
+  | { readonly kind: "not"; readonly item: Condition }
   | {
-      readonly kind: 'column';
+      readonly kind: "column";
       readonly column: string;
       readonly op: ColumnOp;
       readonly value: unknown;
@@ -36,7 +36,7 @@ export type Condition =
       readonly config?: string;
     }
   | {
-      readonly kind: 'relation';
+      readonly kind: "relation";
       readonly name: string;
       readonly relation: RelationMeta;
       readonly target: TableMeta;
@@ -50,15 +50,15 @@ export interface SelectColumn {
   /** Database column name. */
   readonly column: string;
   /** Read the column as text, so exact `int8`/`numeric` values survive JSON. */
-  readonly cast?: 'text';
+  readonly cast?: "text";
   /** Decodes the returned value (see `ColumnMeta.codec`). */
   readonly codec?: Codec;
 }
 
 export interface OrderTerm {
   readonly column: string;
-  readonly direction: 'asc' | 'desc';
-  readonly nulls?: 'first' | 'last';
+  readonly direction: "asc" | "desc";
+  readonly nulls?: "first" | "last";
 }
 
 export interface Include {
@@ -83,7 +83,7 @@ export interface Include {
   readonly aggregate?: { readonly fn: AggregateFn; readonly name: string };
 }
 
-export type AggregateFn = 'sum' | 'avg' | 'min' | 'max';
+export type AggregateFn = "sum" | "avg" | "min" | "max";
 
 export interface Measure {
   readonly fn: AggregateFn;
@@ -94,7 +94,7 @@ export interface Measure {
   /** Database column name. */
   readonly column: string;
   /** Read the result as text, so exact `int8`/`numeric` values survive JSON. */
-  readonly cast?: 'text';
+  readonly cast?: "text";
   readonly codec?: Codec;
 }
 
@@ -114,10 +114,10 @@ export interface Selection {
   readonly aggregate?: Aggregation;
 }
 
-export type CountMode = 'exact' | 'planned' | 'estimated';
+export type CountMode = "exact" | "planned" | "estimated";
 
 export interface SelectOp {
-  readonly kind: 'select';
+  readonly kind: "select";
   readonly table: TableMeta;
   readonly selection: Selection;
   readonly where: Condition | undefined;
@@ -127,7 +127,7 @@ export interface SelectOp {
   readonly count: CountMode | undefined;
   /** Only count, return no rows. */
   readonly head: boolean;
-  readonly single: 'one' | 'maybe' | undefined;
+  readonly single: "one" | "maybe" | undefined;
   /**
    * Read from this set-returning function instead of the table (`db.$search`).
    * Only executors with `functionSources` honor it.
@@ -143,7 +143,7 @@ export interface FunctionSource {
 }
 
 export interface InsertOp {
-  readonly kind: 'insert';
+  readonly kind: "insert";
   readonly table: TableMeta;
   /** Rows keyed by database column names. */
   readonly rows: readonly Readonly<Record<string, unknown>>[];
@@ -151,7 +151,7 @@ export interface InsertOp {
   readonly onConflict:
     | {
         readonly columns: readonly string[];
-        readonly action: 'update' | 'ignore';
+        readonly action: "update" | "ignore";
       }
     | undefined;
   /** Missing columns become `null` instead of their default in bulk inserts. */
@@ -159,7 +159,7 @@ export interface InsertOp {
 }
 
 export interface UpdateOp {
-  readonly kind: 'update';
+  readonly kind: "update";
   readonly table: TableMeta;
   /** Keyed by database column names. */
   readonly set: Readonly<Record<string, unknown>>;
@@ -168,7 +168,7 @@ export interface UpdateOp {
 }
 
 export interface DeleteOp {
-  readonly kind: 'delete';
+  readonly kind: "delete";
   readonly table: TableMeta;
   readonly where: Condition | undefined;
   readonly returning: Selection | undefined;
@@ -183,18 +183,18 @@ export const and = (
   const present = items.filter((item): item is Condition => item !== undefined);
   if (present.length === 0) return undefined;
   if (present.length === 1) return present[0];
-  return { kind: 'and', items: present };
+  return { kind: "and", items: present };
 };
 
 export const or = (...items: Condition[]): Condition => {
   if (items.length === 1 && items[0]) return items[0];
-  return { kind: 'or', items };
+  return { kind: "or", items };
 };
 
-export const not = (item: Condition): Condition => ({ kind: 'not', item });
+export const not = (item: Condition): Condition => ({ kind: "not", item });
 
 export const column = (
   name: string,
   op: ColumnOp,
   value: unknown,
-): Condition => ({ kind: 'column', column: name, op, value });
+): Condition => ({ kind: "column", column: name, op, value });

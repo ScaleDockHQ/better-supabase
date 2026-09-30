@@ -1,6 +1,6 @@
-import { ImageResponse } from 'next/og';
+import { ImageResponse } from "next/og";
 
-import { site } from './site';
+import { site } from "./site";
 
 export const ogSize = { width: 1200, height: 630 };
 
@@ -14,17 +14,17 @@ export function OgImage({
   return new ImageResponse(
     <div
       style={{
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
+        height: "100%",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
         padding: 80,
-        background: '#0a0a0a',
-        color: '#fafafa',
+        background: "#0a0a0a",
+        color: "#fafafa",
       }}
     >
-      <div style={{ fontSize: 28, color: '#3ecf8e', marginBottom: 16 }}>
+      <div style={{ fontSize: 28, color: "#3ecf8e", marginBottom: 16 }}>
         {site.name}
       </div>
       <div style={{ fontSize: 64, fontWeight: 600, lineHeight: 1.1 }}>

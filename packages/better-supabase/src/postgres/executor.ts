@@ -2,13 +2,13 @@ import type {
   ExecuteContext,
   ExecuteResult,
   Executor,
-} from '../core/executor.ts';
-import type { Result } from '../core/result.ts';
-import type { Operation } from '../ir/types.ts';
+} from "../core/executor.ts";
+import type { Result } from "../core/result.ts";
+import type { Operation } from "../ir/types.ts";
 
-import { compileSql, type SqlPlan } from '../compile/sql.ts';
-import { dbError, mapDbError, type RawDbError } from '../core/errors.ts';
-import { err, ok, toDbError } from '../core/result.ts';
+import { compileSql, type SqlPlan } from "../compile/sql.ts";
+import { dbError, mapDbError, type RawDbError } from "../core/errors.ts";
+import { err, ok, toDbError } from "../core/result.ts";
 
 /**
  * Anything that runs parameterized SQL: `ctx.postgres` from
@@ -38,9 +38,9 @@ interface PgErrorLike {
 
 function isPgError(value: unknown): value is PgErrorLike {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    typeof (value as PgErrorLike).code === 'string'
+    typeof (value as PgErrorLike).code === "string"
   );
 }
 
@@ -77,7 +77,7 @@ async function run(
       ...plan.count.params,
     ]);
     count = first?.count ?? 0;
-  } else if (op.kind !== 'select') {
+  } else if (op.kind !== "select") {
     count = rows.length;
   }
   return { rows, count };
@@ -90,7 +90,7 @@ async function run(
  */
 export function postgresExecutor(client: SqlClient): Executor {
   return {
-    name: 'postgres',
+    name: "postgres",
     functionSources: true,
     execute: (op, context) => executeOn(client, op, context),
     async batch(ops, context) {
@@ -132,7 +132,7 @@ async function executeOn(
   }
   if (plan.never) return ok({ rows: [], count: 0 });
   if (context.signal?.aborted)
-    return err(dbError('aborted', 'The request was aborted'));
+    return err(dbError("aborted", "The request was aborted"));
   let result: ExecuteResult;
   try {
     result = await run(client, plan, op);
@@ -140,11 +140,11 @@ async function executeOn(
     const raw = fromPgError(cause);
     return err(raw ? mapDbError(raw, context.errorMappers) : toDbError(cause));
   }
-  if (op.kind === 'select' && op.single) {
+  if (op.kind === "select" && op.single) {
     if (result.rows.length > 1)
-      return err(dbError('multiple_rows', `Expected one ${op.table.key} row`));
-    if (result.rows.length === 0 && op.single === 'one') {
-      return err(dbError('not_found', `No ${op.table.key} row matched`));
+      return err(dbError("multiple_rows", `Expected one ${op.table.key} row`));
+    if (result.rows.length === 0 && op.single === "one") {
+      return err(dbError("not_found", `No ${op.table.key} row matched`));
     }
   }
   return ok(result);

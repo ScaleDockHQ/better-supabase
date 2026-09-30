@@ -1,4 +1,4 @@
-import type { Condition } from './types.ts';
+import type { Condition } from "./types.ts";
 
 /**
  * Folds constant conditions. `true` means "no filter", `false` means "matches
@@ -9,7 +9,7 @@ export function simplify(
 ): Condition | boolean {
   if (condition === undefined) return true;
   switch (condition.kind) {
-    case 'and': {
+    case "and": {
       const items: Condition[] = [];
       for (const item of condition.items) {
         const simple = simplify(item);
@@ -17,9 +17,9 @@ export function simplify(
         if (simple !== true) items.push(simple);
       }
       if (items.length === 0) return true;
-      return items.length === 1 && items[0] ? items[0] : { kind: 'and', items };
+      return items.length === 1 && items[0] ? items[0] : { kind: "and", items };
     }
-    case 'or': {
+    case "or": {
       const items: Condition[] = [];
       for (const item of condition.items) {
         const simple = simplify(item);
@@ -27,33 +27,33 @@ export function simplify(
         if (simple !== false) items.push(simple);
       }
       if (items.length === 0) return false;
-      return items.length === 1 && items[0] ? items[0] : { kind: 'or', items };
+      return items.length === 1 && items[0] ? items[0] : { kind: "or", items };
     }
-    case 'not': {
+    case "not": {
       const inner = simplify(condition.item);
-      if (typeof inner === 'boolean') return !inner;
-      if (inner.kind === 'not') return inner.item;
-      return { kind: 'not', item: inner };
+      if (typeof inner === "boolean") return !inner;
+      if (inner.kind === "not") return inner.item;
+      return { kind: "not", item: inner };
     }
-    case 'relation': {
+    case "relation": {
       const where = simplify(condition.where);
       if (where === true) {
         // every(true) holds for every parent row.
-        if (condition.quantifier === 'every') return true;
+        if (condition.quantifier === "every") return true;
         return { ...condition, where: undefined };
       }
       if (where === false) {
         // some(false) matches nothing, none(false) matches everything and
         // every(false) holds only when there are no related rows.
-        if (condition.quantifier === 'some') return false;
-        if (condition.quantifier === 'none') return true;
-        return { ...condition, quantifier: 'none', where: undefined };
+        if (condition.quantifier === "some") return false;
+        if (condition.quantifier === "none") return true;
+        return { ...condition, quantifier: "none", where: undefined };
       }
       return { ...condition, where };
     }
-    case 'column':
+    case "column":
       if (
-        condition.op === 'in' &&
+        condition.op === "in" &&
         Array.isArray(condition.value) &&
         condition.value.length === 0
       ) {

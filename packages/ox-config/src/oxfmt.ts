@@ -1,13 +1,13 @@
-import { type OxfmtConfig, defineConfig } from 'oxfmt';
+import { type OxfmtConfig, defineConfig } from "oxfmt";
 
 const ignorePatterns: readonly string[] = [
-  '**/node_modules/**',
-  '**/.turbo/**',
-  '**/dist/**',
-  '**/.next/**',
-  '**/.source/**',
-  '**/coverage/**',
-  '**/*.mdx',
+  "**/node_modules/**",
+  "**/.turbo/**",
+  "**/dist/**",
+  "**/.next/**",
+  "**/.source/**",
+  "**/coverage/**",
+  "**/*.mdx",
 ];
 
 export interface OxfmtOptions {
@@ -23,18 +23,19 @@ export function oxfmt(options: OxfmtOptions = {}): OxfmtConfig {
   return defineConfig({
     printWidth: 80,
     semi: true,
-    singleQuote: true,
-    trailingComma: 'all',
+    singleQuote: false,
+    trailingComma: "all",
     ignorePatterns: [...ignorePatterns, ...(options.ignorePatterns ?? [])],
     sortImports: {
+      internalPattern: ["@/", "@better-supabase/"],
       groups: [
-        'type-import',
-        ['value-builtin', 'value-external'],
-        'type-internal',
-        'value-internal',
-        ['type-parent', 'type-sibling', 'type-index'],
-        ['value-parent', 'value-sibling', 'value-index'],
-        'unknown',
+        "type-import",
+        ["value-builtin", "value-external"],
+        "type-internal",
+        "value-internal",
+        ["type-parent", "type-sibling", "type-index"],
+        ["value-parent", "value-sibling", "value-index"],
+        "unknown",
       ],
     },
     sortPackageJson: {

@@ -1,10 +1,10 @@
-import type { Codec } from '../schema/types.ts';
-import type { Measure, Selection } from './types.ts';
+import type { Codec } from "../schema/types.ts";
+import type { Measure, Selection } from "./types.ts";
 
 /** Wire form of an app value: `Date` to ISO text, `bigint` to decimal text. */
 export function encodeValue(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === "bigint") return value.toString();
   if (Array.isArray(value)) return value.map(encodeValue);
   return value;
 }
@@ -12,11 +12,11 @@ export function encodeValue(value: unknown): unknown {
 function decodeScalar(codec: Codec, value: unknown): unknown {
   if (value === null || value === undefined) return value;
   switch (codec) {
-    case 'date':
+    case "date":
       return new Date(value as string);
-    case 'bigint':
+    case "bigint":
       return BigInt(value as string);
-    case 'string':
+    case "string":
       return String(value);
     default: {
       const exhaustive: never = codec;
@@ -80,7 +80,7 @@ function decodeRow(
       out[column.alias] = decode(column.codec, out[column.alias]);
   }
   if (selection.aggregate) {
-    if (selection.aggregate.count) out['_count'] = countOf(out['_count']);
+    if (selection.aggregate.count) out["_count"] = countOf(out["_count"]);
     for (const measure of selection.aggregate.measures) {
       const value = out[measure.key];
       delete out[measure.key];
@@ -92,7 +92,7 @@ function decodeRow(
     if (include.count !== undefined) {
       if (!(include.alias in out)) continue;
       delete out[include.alias];
-      fold(out, '_count', include.count, countOf(value));
+      fold(out, "_count", include.count, countOf(value));
       continue;
     }
     if (include.aggregate !== undefined) {
@@ -114,7 +114,7 @@ function decodeRow(
       out[include.alias] = value.map((item: Record<string, unknown>) =>
         decodeRow(include.selection, item),
       );
-    } else if (value && typeof value === 'object') {
+    } else if (value && typeof value === "object") {
       out[include.alias] = decodeRow(
         include.selection,
         value as Record<string, unknown>,

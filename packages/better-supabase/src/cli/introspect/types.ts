@@ -1,4 +1,4 @@
-import type { GeneratorMetadata } from './typegen.ts';
+import type { GeneratorMetadata } from "./typegen.ts";
 
 export type { GeneratorMetadata };
 
@@ -75,7 +75,7 @@ export interface ExtrasFunction {
   readonly signature: string;
   /** `sql`, `plpgsql`, `c`, ... */
   readonly language: string;
-  readonly volatility: 'immutable' | 'stable' | 'volatile';
+  readonly volatility: "immutable" | "stable" | "volatile";
   readonly securityDefiner: boolean;
   /** `set` options, e.g. `{ statement_timeout: '5s' }`. */
   readonly settings: Readonly<Record<string, string>>;
@@ -104,11 +104,11 @@ export interface ExtrasTable {
 }
 
 export type ForeignKeyAction =
-  | 'no action'
-  | 'restrict'
-  | 'cascade'
-  | 'set null'
-  | 'set default';
+  | "no action"
+  | "restrict"
+  | "cascade"
+  | "set null"
+  | "set default";
 
 export interface CatalogUnique {
   readonly name: string;
@@ -130,7 +130,7 @@ export interface CatalogIndex {
 
 export interface CatalogPolicy {
   readonly name: string;
-  readonly command: 'all' | 'select' | 'insert' | 'update' | 'delete';
+  readonly command: "all" | "select" | "insert" | "update" | "delete";
   readonly roles: readonly string[];
   readonly permissive: boolean;
   readonly using: string | null;
@@ -144,9 +144,9 @@ export interface CatalogPolicy {
 
 export interface CatalogTrigger {
   readonly name: string;
-  readonly timing: 'before' | 'after' | 'instead of';
-  readonly events: readonly ('insert' | 'update' | 'delete' | 'truncate')[];
-  readonly level: 'row' | 'statement';
+  readonly timing: "before" | "after" | "instead of";
+  readonly events: readonly ("insert" | "update" | "delete" | "truncate")[];
+  readonly level: "row" | "statement";
   readonly function: string;
 }
 
@@ -180,10 +180,10 @@ export interface CatalogTable {
   readonly schema: string;
   readonly name: string;
   /** Materialized views count as views; foreign tables as tables. */
-  readonly kind: 'table' | 'view';
+  readonly kind: "table" | "view";
   readonly rls: boolean;
   readonly forceRls: boolean;
-  readonly replicaIdentity: 'DEFAULT' | 'INDEX' | 'FULL' | 'NOTHING' | null;
+  readonly replicaIdentity: "DEFAULT" | "INDEX" | "FULL" | "NOTHING" | null;
   /** Inserts work (always true for tables). */
   readonly insertable: boolean;
   /** Updates work (always true for tables). */
@@ -212,7 +212,7 @@ export interface CatalogColumn {
   readonly nullable: boolean;
   readonly hasDefault: boolean;
   readonly default: string | null;
-  readonly identity: 'always' | 'by default' | null;
+  readonly identity: "always" | "by default" | null;
   readonly generated: boolean;
   readonly updatable: boolean;
   readonly comment: string | null;
@@ -250,7 +250,7 @@ export interface CatalogFunction {
   /** `schema.table` when the function returns rows of a table or view. */
   readonly returnsRelation: string | null;
   readonly returnsSet: boolean;
-  readonly volatility: 'immutable' | 'stable' | 'volatile';
+  readonly volatility: "immutable" | "stable" | "volatile";
   readonly securityDefiner: boolean;
   readonly language: string;
   /** `search_path` from `SET search_path`, or `null` when unset. */

@@ -1,11 +1,12 @@
+import { defineConfig } from "oxlint";
+
 import {
   core,
   ignorePatterns,
   library,
   node,
   test,
-} from '@better-supabase/ox-config/oxlint';
-import { defineConfig } from 'oxlint';
+} from "@better-supabase/ox-config/oxlint";
 
 export default defineConfig({
   extends: [core, node, library, test],
@@ -13,8 +14,8 @@ export default defineConfig({
   overrides: [
     {
       // Oxlint loads JS plugins from the module's default export.
-      files: ['src/anti-slop/index.ts'],
-      rules: { 'import/no-default-export': 'off' },
+      files: ["src/anti-slop/index.ts"],
+      rules: { "import/no-default-export": "off" },
     },
   ],
 });

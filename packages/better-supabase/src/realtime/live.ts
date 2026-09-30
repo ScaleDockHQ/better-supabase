@@ -1,13 +1,13 @@
 import {
   type RealtimeChannel,
   REALTIME_SUBSCRIBE_STATES,
-} from '@supabase/supabase-js';
+} from "@supabase/supabase-js";
 
-import type { DbError } from '../core/errors.ts';
-import type { Result } from '../core/result.ts';
-import type { QuerySpec } from '../core/spec.ts';
-import type { SchemaMeta } from '../schema/types.ts';
-import type { RealtimeClient, SubscriptionStatus } from './index.ts';
+import type { DbError } from "../core/errors.ts";
+import type { Result } from "../core/result.ts";
+import type { QuerySpec } from "../core/spec.ts";
+import type { SchemaMeta } from "../schema/types.ts";
+import type { RealtimeClient, SubscriptionStatus } from "./index.ts";
 
 /** What `liveQuery` needs from `sb`: metadata and the tables a spec reads. */
 export interface LiveSource {
@@ -40,7 +40,7 @@ export interface LiveSubscription extends Disposable, AsyncDisposable {
  * is `null` when the server read failed; the client then fetches it.
  */
 export interface LiveCountSeed<T extends string = string> {
-  readonly spec: QuerySpec<T, 'count', number>;
+  readonly spec: QuerySpec<T, "count", number>;
   readonly count: number | null;
 }
 
@@ -84,7 +84,7 @@ function join(
   if (!shared) {
     const channel = client.channel(topic, { config: { private: true } });
     const listeners = new Set<() => void>();
-    channel.on('broadcast', { event: 'change' }, () => {
+    channel.on("broadcast", { event: "change" }, () => {
       for (const notify of listeners) notify();
     });
     let joined = false;
@@ -179,14 +179,14 @@ export function liveQuery(
     }),
   );
 
-  options.onStatus?.(tables.length === 0 ? 'closed' : 'joining');
+  options.onStatus?.(tables.length === 0 ? "closed" : "joining");
   const ready = Promise.all(memberships.map((member) => member.ready)).then(
     () => {
-      if (!closed && tables.length > 0) options.onStatus?.('subscribed');
+      if (!closed && tables.length > 0) options.onStatus?.("subscribed");
     },
     (cause: unknown) => {
       const error = cause instanceof Error ? cause : new Error(String(cause));
-      options.onStatus?.('error', error);
+      options.onStatus?.("error", error);
       throw error;
     },
   );
@@ -197,7 +197,7 @@ export function liveQuery(
     closed = true;
     if (timer !== undefined) clearTimeout(timer);
     await Promise.all(memberships.map((member) => member.leave()));
-    options.onStatus?.('closed');
+    options.onStatus?.("closed");
   };
 
   return {
@@ -215,7 +215,7 @@ export interface CountRunner {
   $run(spec: QuerySpec): PromiseLike<Result<unknown>>;
 }
 
-export interface LiveCountOptions extends Omit<LiveQueryOptions, 'onChange'> {
+export interface LiveCountOptions extends Omit<LiveQueryOptions, "onChange"> {
   readonly onCount: (count: number) => void;
   /** A failed refetch; the previous count stays valid. */
   readonly onError?: (error: DbError) => void;
@@ -238,7 +238,7 @@ export function liveCount(
   sb: LiveSource,
   client: RealtimeClient,
   db: CountRunner,
-  spec: QuerySpec<string, 'count', number>,
+  spec: QuerySpec<string, "count", number>,
   options: LiveCountOptions,
 ): LiveSubscription {
   let latest = 0;

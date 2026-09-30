@@ -5,7 +5,7 @@ import type {
   Schema,
   SchemaMeta,
   TableMeta,
-} from './types.ts';
+} from "./types.ts";
 
 /**
  * Binds generated model types to runtime metadata. Called from the generated

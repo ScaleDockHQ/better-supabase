@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-import './globals.css';
-import { Providers } from './providers';
+import "./globals.css";
+import { Providers } from "./providers";
 
-export const metadata = { title: 'better-supabase + Next.js' };
+export const metadata = { title: "better-supabase + Next.js" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

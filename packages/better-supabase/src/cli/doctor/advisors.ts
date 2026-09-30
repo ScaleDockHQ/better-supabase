@@ -1,27 +1,27 @@
-import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
-import type { Queryable } from '../introspect/source.ts';
+import type { Queryable } from "../introspect/source.ts";
 
 /**
  * splinter (https://github.com/supabase/splinter), the linter behind the
  * dashboard's Security and Performance Advisors. It has no license, so it is
  * downloaded at this commit and checked against the hash instead of bundled.
  */
-export const SPLINTER_COMMIT = 'e74a9e36cb12258cb67d1464bc1cb196e9cd8446';
+export const SPLINTER_COMMIT = "e74a9e36cb12258cb67d1464bc1cb196e9cd8446";
 export const SPLINTER_SHA256 =
-  'd8d558baad3e03832e521c527907fa50a9a172fabd899dd0f5c2504a5a0e9349';
+  "d8d558baad3e03832e521c527907fa50a9a172fabd899dd0f5c2504a5a0e9349";
 export const SPLINTER_URL: string = `https://raw.githubusercontent.com/supabase/splinter/${SPLINTER_COMMIT}/splinter.sql`;
 
-export type AdvisorCategory = 'security' | 'performance';
+export type AdvisorCategory = "security" | "performance";
 
 /** One advisor result, as returned by splinter and the Management API. */
 export interface Lint {
   readonly name: string;
   readonly title: string;
-  readonly level: 'ERROR' | 'WARN' | 'INFO';
+  readonly level: "ERROR" | "WARN" | "INFO";
   readonly facing: string;
   readonly categories: readonly string[];
   readonly description: string;
@@ -42,10 +42,10 @@ type Fetch = typeof fetch;
 function isLint(value: unknown): value is Lint {
   const lint = value as Partial<Lint> | null;
   return (
-    typeof lint === 'object' &&
+    typeof lint === "object" &&
     lint !== null &&
-    typeof lint.name === 'string' &&
-    typeof lint.level === 'string' &&
+    typeof lint.name === "string" &&
+    typeof lint.level === "string" &&
     Array.isArray(lint.categories)
   );
 }
@@ -61,9 +61,9 @@ export interface ManagementAdvisorOptions {
 export function managementAdvisors(
   options: ManagementAdvisorOptions,
 ): AdvisorSource {
-  const base = (options.apiUrl ?? 'https://api.supabase.com').replace(
+  const base = (options.apiUrl ?? "https://api.supabase.com").replace(
     /\/$/,
-    '',
+    "",
   );
   const doFetch = options.fetch ?? fetch;
   return {
@@ -97,13 +97,13 @@ export interface SplinterOptions {
 }
 
 const sha256 = (text: string): string =>
-  createHash('sha256').update(text).digest('hex');
+  createHash("sha256").update(text).digest("hex");
 
 /** Downloads (once) and verifies the pinned `splinter.sql`. */
 export async function splinterSql(options: SplinterOptions): Promise<string> {
   const file = resolve(options.cacheDir, `splinter-${SPLINTER_COMMIT}.sql`);
   if (existsSync(file)) {
-    const cached = await readFile(file, 'utf8');
+    const cached = await readFile(file, "utf8");
     if (sha256(cached) === SPLINTER_SHA256) return cached;
   }
   const response = await (options.fetch ?? fetch)(SPLINTER_URL);
@@ -134,7 +134,7 @@ function lintRows(result: unknown): readonly unknown[] {
     Array.isArray(result) ? result : [result]
   ) as QueryResultLike[];
   const match = results.find((entry) =>
-    entry.fields?.some((field) => field.name === 'cache_key'),
+    entry.fields?.some((field) => field.name === "cache_key"),
   );
   return match?.rows ?? results.at(-1)?.rows ?? [];
 }

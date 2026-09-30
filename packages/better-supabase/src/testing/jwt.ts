@@ -1,14 +1,14 @@
-import type { JWTClaims } from '@supabase/server';
+import type { JWTClaims } from "@supabase/server";
 
-import type { AuthResolver } from '../auth/resolve.ts';
+import type { AuthResolver } from "../auth/resolve.ts";
 
-import { dbError } from '../core/errors.ts';
+import { dbError } from "../core/errors.ts";
 
 export interface TestJwtClaims {
   readonly sub: string;
   readonly role?: string;
   readonly email?: string;
-  readonly aal?: 'aal1' | 'aal2';
+  readonly aal?: "aal1" | "aal2";
   readonly expiresIn?: number;
   readonly [claim: string]: unknown;
 }
@@ -16,13 +16,13 @@ export interface TestJwtClaims {
 const encoder = new TextEncoder();
 
 function base64url(input: Uint8Array | string): string {
-  const bytes = typeof input === 'string' ? encoder.encode(input) : input;
-  let binary = '';
+  const bytes = typeof input === "string" ? encoder.encode(input) : input;
+  let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary)
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/=+$/, '');
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
 }
 
 /**
@@ -36,24 +36,24 @@ export async function signTestJwt(
   const { expiresIn = 3600, ...rest } = claims;
   const now = Math.floor(Date.now() / 1000);
   const payload = {
-    aud: 'authenticated',
-    role: 'authenticated',
-    aal: 'aal1',
+    aud: "authenticated",
+    role: "authenticated",
+    aal: "aal1",
     iat: now,
     exp: now + expiresIn,
     ...rest,
   };
-  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = base64url(JSON.stringify(payload));
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign'],
+    ["sign"],
   );
   const signature = await crypto.subtle.sign(
-    'HMAC',
+    "HMAC",
     key,
     encoder.encode(`${header}.${body}`),
   );
@@ -61,7 +61,7 @@ export async function signTestJwt(
 }
 
 function base64urlDecode(input: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(input.replaceAll('-', '+').replaceAll('_', '/'));
+  const binary = atob(input.replaceAll("-", "+").replaceAll("_", "/"));
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
@@ -72,23 +72,23 @@ function base64urlDecode(input: string): Uint8Array<ArrayBuffer> {
  */
 export function localAuth(secret: string): AuthResolver {
   const key = crypto.subtle.importKey(
-    'raw',
+    "raw",
     encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['verify'],
+    ["verify"],
   );
   return {
-    name: 'local-hs256',
+    name: "local-hs256",
     async resolve(request) {
       const token = /^Bearer (.+)$/i.exec(
-        request.headers.get('authorization') ?? '',
+        request.headers.get("authorization") ?? "",
       )?.[1];
-      const [header, body, signature] = token?.split('.') ?? [];
+      const [header, body, signature] = token?.split(".") ?? [];
       if (!token || !header || !body || !signature) return undefined;
       const valid = await crypto.subtle
         .verify(
-          'HMAC',
+          "HMAC",
           await key,
           base64urlDecode(signature),
           encoder.encode(`${header}.${body}`),
@@ -98,23 +98,23 @@ export function localAuth(secret: string): AuthResolver {
       const claims = JSON.parse(
         new TextDecoder().decode(base64urlDecode(body)),
       ) as JWTClaims;
-      if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) {
+      if (typeof claims.exp === "number" && claims.exp * 1000 < Date.now()) {
         return {
-          kind: 'invalid',
-          error: dbError('unauthorized', 'The token has expired'),
+          kind: "invalid",
+          error: dbError("unauthorized", "The token has expired"),
         };
       }
       return {
-        kind: 'user',
+        kind: "user",
         token,
         claims,
         user: {
           id: claims.sub,
-          ...(typeof claims.role === 'string' ? { role: claims.role } : {}),
-          ...(typeof claims.email === 'string' ? { email: claims.email } : {}),
+          ...(typeof claims.role === "string" ? { role: claims.role } : {}),
+          ...(typeof claims.email === "string" ? { email: claims.email } : {}),
         },
-        source: 'bearer',
-        expiresAt: typeof claims.exp === 'number' ? claims.exp : null,
+        source: "bearer",
+        expiresAt: typeof claims.exp === "number" ? claims.exp : null,
       };
     },
   };
@@ -139,17 +139,17 @@ async function signEs256(
   const { expiresIn = 3600, ...rest } = claims;
   const now = Math.floor(Date.now() / 1000);
   const payload = {
-    aud: 'authenticated',
-    role: 'authenticated',
-    aal: 'aal1',
+    aud: "authenticated",
+    role: "authenticated",
+    aal: "aal1",
     iat: now,
     exp: now + expiresIn,
     ...rest,
   };
-  const header = base64url(JSON.stringify({ alg: 'ES256', typ: 'JWT', kid }));
+  const header = base64url(JSON.stringify({ alg: "ES256", typ: "JWT", kid }));
   const body = base64url(JSON.stringify(payload));
   const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
+    { name: "ECDSA", hash: "SHA-256" },
     key,
     encoder.encode(`${header}.${body}`),
   );
@@ -166,11 +166,11 @@ export async function signTestJwtWithKey(
 ): Promise<string> {
   const { kid, ...jwk } = key;
   const privateKey = await crypto.subtle.importKey(
-    'jwk',
+    "jwk",
     jwk,
-    { name: 'ECDSA', namedCurve: 'P-256' },
+    { name: "ECDSA", namedCurve: "P-256" },
     false,
-    ['sign'],
+    ["sign"],
   );
   return signEs256(privateKey, kid, claims);
 }
@@ -178,13 +178,13 @@ export async function signTestJwtWithKey(
 /** An in-memory ES256 key pair that signs tokens like Supabase Auth's asymmetric keys. */
 export async function createTestSigner(): Promise<TestSigner> {
   const pair = await crypto.subtle.generateKey(
-    { name: 'ECDSA', namedCurve: 'P-256' },
+    { name: "ECDSA", namedCurve: "P-256" },
     true,
-    ['sign', 'verify'],
+    ["sign", "verify"],
   );
   const kid = crypto.randomUUID();
-  const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
-  const published: SigningJwk = { ...publicJwk, kid, alg: 'ES256', use: 'sig' };
+  const publicJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
+  const published: SigningJwk = { ...publicJwk, kid, alg: "ES256", use: "sig" };
   return {
     jwks: { keys: [published] },
     sign: (claims) => signEs256(pair.privateKey, kid, claims),

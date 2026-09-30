@@ -1,24 +1,24 @@
-import type { GeneratorMetadata } from '../cli/introspect/typegen.ts';
-import type { SnapshotExtras } from '../cli/introspect/types.ts';
+import type { GeneratorMetadata } from "../cli/introspect/typegen.ts";
+import type { SnapshotExtras } from "../cli/introspect/types.ts";
 import type {
   BucketPolicyName,
   Casing,
   PermdockBucketPolicy,
   SchemaMeta,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
-import { DEFAULT_CLAIMS } from '../core/claims.ts';
+import { DEFAULT_CLAIMS } from "../core/claims.ts";
 
 export {
   buildJsonSchema,
   jsonSchema,
   type JsonSchemaGeneratorOptions,
-} from '../generators/json-schema.ts';
+} from "../generators/json-schema.ts";
 export {
   valibot,
   type ValibotGeneratorOptions,
-} from '../generators/valibot.ts';
-export { zod, type ZodGeneratorOptions } from '../generators/zod.ts';
+} from "../generators/valibot.ts";
+export { zod, type ZodGeneratorOptions } from "../generators/zod.ts";
 
 export type { Casing };
 
@@ -50,7 +50,7 @@ export interface SourceConfig {
 export type JsonSchemaSource =
   | Readonly<Record<string, unknown>>
   | {
-      readonly '~standard': {
+      readonly "~standard": {
         readonly jsonSchema: {
           readonly input: (options: {
             readonly target: string;
@@ -71,17 +71,17 @@ export type JsonTypeConfig = (
 export function resolveJsonSchema(
   source: JsonSchemaSource,
 ): Readonly<Record<string, unknown>> {
-  const standard = (source as { '~standard'?: unknown })['~standard'];
+  const standard = (source as { "~standard"?: unknown })["~standard"];
   if (standard === undefined) return source;
   const jsonSchema = (standard as { jsonSchema?: unknown }).jsonSchema as
     | { input?: (options: { target: string }) => Record<string, unknown> }
     | undefined;
-  if (typeof jsonSchema?.input !== 'function') {
+  if (typeof jsonSchema?.input !== "function") {
     throw new TypeError(
-      'json[...].schema: this Standard Schema library does not implement Standard JSON Schema; pass a JSON Schema object instead',
+      "json[...].schema: this Standard Schema library does not implement Standard JSON Schema; pass a JSON Schema object instead",
     );
   }
-  return jsonSchema.input({ target: 'draft-2020-12' });
+  return jsonSchema.input({ target: "draft-2020-12" });
 }
 
 export interface TableConfig {
@@ -197,11 +197,11 @@ export interface DoctorConfig {
  */
 export interface CodecsConfig {
   /** `'date'` decodes `timestamptz`/`timestamp` columns to `Date`. */
-  readonly timestamptz?: 'string' | 'date';
+  readonly timestamptz?: "string" | "date";
   /** `'bigint'` or `'string'` read `int8` exactly (above 2^53). */
-  readonly int8?: 'number' | 'string' | 'bigint';
+  readonly int8?: "number" | "string" | "bigint";
   /** `'string'` reads `numeric` exactly. */
-  readonly numeric?: 'number' | 'string';
+  readonly numeric?: "number" | "string";
 }
 
 export interface GeneratedFile {
@@ -258,7 +258,7 @@ export interface EntitlementsConfig {
 }
 
 /** pgvector distance: `<=>` (cosine), `<->` (l2) or `<#>` (negative inner product). */
-export type VectorDistance = 'cosine' | 'l2' | 'inner_product';
+export type VectorDistance = "cosine" | "l2" | "inner_product";
 
 /** The embedding column, or the column and its distance (default `cosine`). */
 export type VectorSearchConfig =
@@ -266,7 +266,7 @@ export type VectorSearchConfig =
   | { readonly column: string; readonly distance?: VectorDistance };
 
 /** A privilege the Data API roles can be granted on a table or view. */
-export type Privilege = 'select' | 'insert' | 'update' | 'delete';
+export type Privilege = "select" | "insert" | "update" | "delete";
 
 /**
  * Data API grants for one table: privileges for `authenticated`, or per
@@ -356,9 +356,9 @@ export interface BetterSupabaseConfig {
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
-): ResolvedConfig['entitlements'] {
-  const customer = config.customer ?? 'organizations.stripe_customer_id';
-  const dot = customer.lastIndexOf('.');
+): ResolvedConfig["entitlements"] {
+  const customer = config.customer ?? "organizations.stripe_customer_id";
+  const dot = customer.lastIndexOf(".");
   if (dot <= 0) {
     throw new TypeError(
       `entitlements.customer must be "table.column", got "${customer}"`,
@@ -367,17 +367,17 @@ function entitlementsOf(
   return {
     table: customer.slice(0, dot),
     column: customer.slice(dot + 1),
-    key: config.key ?? 'id',
+    key: config.key ?? "id",
   };
 }
 
 function vectorSearchOf(
   config: Readonly<Record<string, VectorSearchConfig>> = {},
-): ResolvedConfig['vectorSearch'] {
+): ResolvedConfig["vectorSearch"] {
   return Object.entries(config).map(([table, entry]) =>
-    typeof entry === 'string'
-      ? { table, column: entry, distance: 'cosine' }
-      : { table, column: entry.column, distance: entry.distance ?? 'cosine' },
+    typeof entry === "string"
+      ? { table, column: entry, distance: "cosine" }
+      : { table, column: entry.column, distance: entry.distance ?? "cosine" },
   );
 }
 
@@ -422,12 +422,12 @@ export interface ResolvedConfig {
   readonly sql: Required<SqlConfig>;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
-  readonly doctor: Required<Omit<DoctorConfig, 'claimsLimit'>> &
-    Pick<DoctorConfig, 'claimsLimit'>;
+  readonly doctor: Required<Omit<DoctorConfig, "claimsLimit">> &
+    Pick<DoctorConfig, "claimsLimit">;
 }
 
 export const CONFIG_SCHEMA_URL =
-  'https://unpkg.com/better-supabase/schemas/config-v1.json';
+  "https://unpkg.com/better-supabase/schemas/config-v1.json";
 
 /** Identity helper that types `better-supabase.config.ts`. */
 export function defineConfig(
@@ -456,21 +456,21 @@ export function resolveConfig(
   config: BetterSupabaseConfig,
   root: string,
 ): ResolvedConfig {
-  const output = config.output ?? 'src/lib/supabase/generated.ts';
+  const output = config.output ?? "src/lib/supabase/generated.ts";
   return {
     root,
     source: config.source ?? {},
-    schemas: config.schemas ?? ['public'],
-    casing: config.casing ?? 'snake',
+    schemas: config.schemas ?? ["public"],
+    casing: config.casing ?? "snake",
     tables: config.tables ?? {},
     output,
-    databaseTypesOutput: output.replace(/[^/]+$/, 'database.types.ts'),
-    postgrestVersion: config.postgrestVersion ?? '13',
+    databaseTypesOutput: output.replace(/[^/]+$/, "database.types.ts"),
+    postgrestVersion: config.postgrestVersion ?? "13",
     json: config.json ?? {},
     codecs: {
-      timestamptz: config.codecs?.timestamptz ?? 'string',
-      int8: config.codecs?.int8 ?? 'number',
-      numeric: config.codecs?.numeric ?? 'number',
+      timestamptz: config.codecs?.timestamptz ?? "string",
+      int8: config.codecs?.int8 ?? "number",
+      numeric: config.codecs?.numeric ?? "number",
     },
     sensitive: config.sensitive ?? [],
     storagePaths: config.storagePaths ?? {},
@@ -484,14 +484,14 @@ export function resolveConfig(
     generators: config.generators ?? [],
     plugins: {
       timestamps: pick(config.plugins?.timestamps, {
-        createdAt: 'created_at',
-        updatedAt: 'updated_at',
+        createdAt: "created_at",
+        updatedAt: "updated_at",
       }),
-      softDelete: pick(config.plugins?.softDelete, { column: 'deleted_at' }),
-      tenant: pick(config.plugins?.tenant, { column: 'organization_id' }),
+      softDelete: pick(config.plugins?.softDelete, { column: "deleted_at" }),
+      tenant: pick(config.plugins?.tenant, { column: "organization_id" }),
       actor: pick(config.plugins?.actor, {
-        createdBy: 'created_by',
-        updatedBy: 'updated_by',
+        createdBy: "created_by",
+        updatedBy: "updated_by",
       }),
     },
     claims: { ...DEFAULT_CLAIMS, ...config.claims },
@@ -501,23 +501,23 @@ export function resolveConfig(
     entitlements: entitlementsOf(config.entitlements),
     vectorSearch: vectorSearchOf(config.vectorSearch),
     sql: {
-      dir: config.sql?.dir ?? 'supabase/schemas',
-      prefix: config.sql?.prefix ?? '900_better_supabase',
-      testsDir: config.sql?.testsDir ?? 'supabase/tests',
+      dir: config.sql?.dir ?? "supabase/schemas",
+      prefix: config.sql?.prefix ?? "900_better_supabase",
+      testsDir: config.sql?.testsDir ?? "supabase/tests",
       kit: config.sql?.kit ?? [],
     },
     seed: {
-      entry: config.seed?.entry ?? 'supabase/seed.ts',
-      output: config.seed?.output ?? 'supabase/seeds/000_better_supabase.sql',
+      entry: config.seed?.entry ?? "supabase/seed.ts",
+      output: config.seed?.output ?? "supabase/seeds/000_better_supabase.sql",
     },
     openapi: {
-      entry: config.openapi?.entry ?? 'src/lib/openapi.ts',
-      output: config.openapi?.output ?? 'openapi.json',
+      entry: config.openapi?.entry ?? "src/lib/openapi.ts",
+      output: config.openapi?.output ?? "openapi.json",
     },
     doctor: {
       ignore: config.doctor?.ignore ?? [],
       strict: config.doctor?.strict ?? false,
-      sources: config.doctor?.sources ?? ['src/**/*.{ts,tsx}'],
+      sources: config.doctor?.sources ?? ["src/**/*.{ts,tsx}"],
       policyHelperLimit: config.doctor?.policyHelperLimit ?? 5,
       ...(config.doctor?.claimsLimit === undefined
         ? {}

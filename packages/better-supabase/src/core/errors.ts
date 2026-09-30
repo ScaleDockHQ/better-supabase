@@ -7,7 +7,7 @@ export interface DbErrorKinds {
   not_found: Record<never, never>;
   unauthorized: Record<never, never>;
   /** `required`: the assurance level the route needs, when a second factor is missing. */
-  forbidden: { required?: 'aal1' | 'aal2' };
+  forbidden: { required?: "aal1" | "aal2" };
   conflict: { constraint?: string; columns?: readonly string[] };
   foreign_key: { constraint?: string; columns?: readonly string[] };
   check: { constraint?: string };
@@ -88,8 +88,8 @@ export function statusOf(kind: DbErrorKind): number {
 
 type ExtraOf<K extends DbErrorKind> =
   Record<never, never> extends DbErrorKinds[K]
-    ? [extra?: DbErrorKinds[K] & Partial<Omit<DbErrorBase<K>, 'kind'>>]
-    : [extra: DbErrorKinds[K] & Partial<Omit<DbErrorBase<K>, 'kind'>>];
+    ? [extra?: DbErrorKinds[K] & Partial<Omit<DbErrorBase<K>, "kind">>]
+    : [extra: DbErrorKinds[K] & Partial<Omit<DbErrorBase<K>, "kind">>];
 
 /** Creates a `DbError` with the default status for its kind. */
 export function dbError<K extends DbErrorKind>(
@@ -113,11 +113,11 @@ export function dbError<K extends DbErrorKind>(
 
 export function isDbError(value: unknown): value is DbError {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    typeof (value as { kind?: unknown }).kind === 'string' &&
-    typeof (value as { message?: unknown }).message === 'string' &&
-    typeof (value as { status?: unknown }).status === 'number'
+    typeof (value as { kind?: unknown }).kind === "string" &&
+    typeof (value as { message?: unknown }).message === "string" &&
+    typeof (value as { status?: unknown }).status === "number"
   );
 }
 
@@ -131,7 +131,7 @@ export function dbErrorOf(value: unknown): DbError | undefined {
   return isDbError(value) ? value : undefined;
 }
 
-function constraintGuard<K extends 'conflict' | 'check' | 'foreign_key'>(
+function constraintGuard<K extends "conflict" | "check" | "foreign_key">(
   kind: K,
 ) {
   return <C extends string = string>(
@@ -155,26 +155,26 @@ function constraintGuard<K extends 'conflict' | 'check' | 'foreign_key'>(
 export const isConflict: <C extends string = string>(
   error: unknown,
   constraint?: NoInfer<C>,
-) => error is DbErrorOf<'conflict'> & { readonly constraint: C } =
-  constraintGuard('conflict');
+) => error is DbErrorOf<"conflict"> & { readonly constraint: C } =
+  constraintGuard("conflict");
 
 /** A CHECK violation, optionally for one constraint (`CheckConstraint`). */
 export const isCheck: <C extends string = string>(
   error: unknown,
   constraint?: NoInfer<C>,
-) => error is DbErrorOf<'check'> & { readonly constraint: C } =
-  constraintGuard('check');
+) => error is DbErrorOf<"check"> & { readonly constraint: C } =
+  constraintGuard("check");
 
 /** A foreign key violation, optionally for one constraint (`ForeignKeyConstraint`). */
 export const isForeignKey: <C extends string = string>(
   error: unknown,
   constraint?: NoInfer<C>,
-) => error is DbErrorOf<'foreign_key'> & { readonly constraint: C } =
-  constraintGuard('foreign_key');
+) => error is DbErrorOf<"foreign_key"> & { readonly constraint: C } =
+  constraintGuard("foreign_key");
 
 /** Thrown by `.orThrow()`. Carries the plain `DbError` as `error`. */
 export class DbException extends Error {
-  override readonly name = 'DbException';
+  override readonly name = "DbException";
   readonly error: DbError;
 
   constructor(error: DbError) {
@@ -212,12 +212,12 @@ const PERMISSION_DENIED =
   /^permission denied for (table|view|sequence|function|schema) (\S+)/;
 
 function constraintOf(raw: RawDbError): string | undefined {
-  return raw.constraint ?? CONSTRAINT_IN_MESSAGE.exec(raw.message ?? '')?.[1];
+  return raw.constraint ?? CONSTRAINT_IN_MESSAGE.exec(raw.message ?? "")?.[1];
 }
 
 function columnsOf(raw: RawDbError): readonly string[] | undefined {
-  const match = KEY_COLUMNS_IN_DETAILS.exec(raw.details ?? '');
-  return match?.[1]?.split(',').map((column) => column.trim());
+  const match = KEY_COLUMNS_IN_DETAILS.exec(raw.details ?? "");
+  return match?.[1]?.split(",").map((column) => column.trim());
 }
 
 function optional(raw: RawDbError): {
@@ -249,96 +249,96 @@ export function mapDbError(
 }
 
 function mapBuiltin(raw: RawDbError): DbError {
-  const message = raw.message ?? 'Unknown database error';
+  const message = raw.message ?? "Unknown database error";
   const base = optional(raw);
-  const code = raw.code ?? '';
+  const code = raw.code ?? "";
 
   if (
-    raw.name === 'AbortError' ||
-    code === '20' ||
-    message.startsWith('AbortError:')
+    raw.name === "AbortError" ||
+    code === "20" ||
+    message.startsWith("AbortError:")
   ) {
-    return dbError('aborted', message, base);
+    return dbError("aborted", message, base);
   }
 
   switch (code) {
-    case '23505': {
-      const extra: DbErrorKinds['conflict'] = {};
+    case "23505": {
+      const extra: DbErrorKinds["conflict"] = {};
       const constraint = constraintOf(raw);
       const columns = columnsOf(raw);
       if (constraint) extra.constraint = constraint;
       if (columns) extra.columns = columns;
-      return dbError('conflict', message, { ...base, ...extra });
+      return dbError("conflict", message, { ...base, ...extra });
     }
-    case '23503': {
-      const extra: DbErrorKinds['foreign_key'] = {};
+    case "23503": {
+      const extra: DbErrorKinds["foreign_key"] = {};
       const constraint = constraintOf(raw);
       const columns = columnsOf(raw);
       if (constraint) extra.constraint = constraint;
       if (columns) extra.columns = columns;
-      return dbError('foreign_key', message, { ...base, ...extra });
+      return dbError("foreign_key", message, { ...base, ...extra });
     }
-    case '23514': {
+    case "23514": {
       const constraint = constraintOf(raw);
-      return dbError('check', message, {
+      return dbError("check", message, {
         ...base,
         ...(constraint ? { constraint } : {}),
       });
     }
-    case '23502': {
+    case "23502": {
       const column = raw.column ?? COLUMN_IN_MESSAGE.exec(message)?.[1];
-      return dbError('not_null', message, {
+      return dbError("not_null", message, {
         ...base,
         ...(column ? { column } : {}),
       });
     }
-    case '23P01': {
+    case "23P01": {
       const constraint = constraintOf(raw);
-      return dbError('exclusion', message, {
+      return dbError("exclusion", message, {
         ...base,
         ...(constraint ? { constraint } : {}),
       });
     }
-    case '42501': {
+    case "42501": {
       const object = PERMISSION_DENIED.exec(message);
-      const postgrestHint = base.hint?.startsWith('Grant the required');
+      const postgrestHint = base.hint?.startsWith("Grant the required");
       if (!object || (base.hint && !postgrestHint))
-        return dbError('forbidden', message, base);
+        return dbError("forbidden", message, base);
       const advice =
-        object[1] === 'table' || object[1] === 'view'
+        object[1] === "table" || object[1] === "view"
           ? `Supabase no longer grants new tables to the Data API roles: add ${object[2]} to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
-          : `Supabase no longer grants new objects to the Data API roles automatically; grant ${object[1] === 'function' ? 'execute' : 'usage'} on ${object[1]} ${object[2]} to the role that needs it.`;
-      return dbError('forbidden', message, {
+          : `Supabase no longer grants new objects to the Data API roles automatically; grant ${object[1] === "function" ? "execute" : "usage"} on ${object[1]} ${object[2]} to the role that needs it.`;
+      return dbError("forbidden", message, {
         ...base,
         hint: postgrestHint ? `${base.hint} ${advice}` : advice,
       });
     }
-    case 'P0001':
-      return dbError('raised', message, base);
-    case '57014':
-      return dbError('timeout', message, base);
-    case '40001':
-    case '40P01':
-      return dbError('serialization', message, base);
-    case 'PGRST116':
+    case "P0001":
+      return dbError("raised", message, base);
+    case "57014":
+      return dbError("timeout", message, base);
+    case "40001":
+    case "40P01":
+      return dbError("serialization", message, base);
+    case "PGRST116":
       return /multiple|more than one/i.test(raw.details ?? message)
-        ? dbError('multiple_rows', message, base)
-        : dbError('not_found', message, base);
-    case 'PGRST301':
-    case 'PGRST302':
-    case 'PGRST303':
-      return dbError('unauthorized', message, base);
-    case 'PGRST123':
-      return dbError('invalid_request', message, {
+        ? dbError("multiple_rows", message, base)
+        : dbError("not_found", message, base);
+    case "PGRST301":
+    case "PGRST302":
+    case "PGRST303":
+      return dbError("unauthorized", message, base);
+    case "PGRST123":
+      return dbError("invalid_request", message, {
         ...base,
         hint:
           base.hint ??
           "PostgREST aggregates are off. Run `alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';` (see BS210), or use better-supabase/postgres.",
       });
-    case 'BS429':
-    case 'PT429': {
-      const seconds = RETRY_AFTER.exec(raw.details ?? '')?.[1];
-      return dbError('rate_limited', message, {
+    case "BS429":
+    case "PT429": {
+      const seconds = RETRY_AFTER.exec(raw.details ?? "")?.[1];
+      return dbError("rate_limited", message, {
         ...base,
         ...(seconds ? { retryAfter: Number(seconds) } : {}),
       });
@@ -347,12 +347,12 @@ function mapBuiltin(raw: RawDbError): DbError {
       break;
   }
 
-  if (code.startsWith('22')) return dbError('invalid_input', message, base);
-  if (code.startsWith('PGRST1') || code.startsWith('PGRST2')) {
-    return dbError('invalid_request', message, base);
+  if (code.startsWith("22")) return dbError("invalid_input", message, base);
+  if (code.startsWith("PGRST1") || code.startsWith("PGRST2")) {
+    return dbError("invalid_request", message, base);
   }
-  if (code.startsWith('08') || /fetch failed|network/i.test(message)) {
-    return dbError('network', message, base);
+  if (code.startsWith("08") || /fetch failed|network/i.test(message)) {
+    return dbError("network", message, base);
   }
-  return dbError('unexpected', message, base);
+  return dbError("unexpected", message, base);
 }

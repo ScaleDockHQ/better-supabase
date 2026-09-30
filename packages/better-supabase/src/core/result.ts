@@ -1,4 +1,4 @@
-import { type DbError, DbException, dbError, dbErrorOf } from './errors.ts';
+import { type DbError, DbException, dbError, dbErrorOf } from "./errors.ts";
 
 /** Turns a `DbError` into the error `.orThrow()` throws; set with `sb.mapError()`. */
 export type ThrowMapper = (error: DbError) => unknown;
@@ -126,8 +126,8 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
 
 /** What `toBetterResult` returns: the `status`/`value`/`error` fields every better-result value has. */
 export type BetterResultShape<T, E> =
-  | { readonly status: 'ok'; readonly value: T }
-  | { readonly status: 'error'; readonly error: E };
+  | { readonly status: "ok"; readonly value: T }
+  | { readonly status: "error"; readonly error: E };
 
 /** The part of better-result's `Result` namespace `toBetterResult` calls. */
 export interface BetterResultApi<T, E> {
@@ -192,9 +192,9 @@ export function fromBetterResult<T>(
   mapError: (error: unknown) => DbError = toDbError,
 ): Result<T> {
   switch (result.status) {
-    case 'ok':
+    case "ok":
       return ok(result.value);
-    case 'error':
+    case "error":
       return err(dbErrorOf(result.error) ?? mapError(result.error));
     default: {
       const never: never = result;
@@ -207,9 +207,9 @@ export function fromBetterResult<T>(
 
 export function toDbError(cause: unknown): DbError {
   if (cause instanceof DbException) return cause.error;
-  if (cause instanceof Error && cause.name === 'AbortError') {
-    return dbError('aborted', cause.message || 'The operation was aborted');
+  if (cause instanceof Error && cause.name === "AbortError") {
+    return dbError("aborted", cause.message || "The operation was aborted");
   }
   const message = cause instanceof Error ? cause.message : String(cause);
-  return dbError('unexpected', message);
+  return dbError("unexpected", message);
 }

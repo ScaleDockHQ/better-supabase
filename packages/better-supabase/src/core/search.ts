@@ -1,10 +1,10 @@
-import type { FindManyArgs } from '../ir/args.ts';
-import type { AnyModels } from '../schema/types.ts';
+import type { FindManyArgs } from "../ir/args.ts";
+import type { AnyModels } from "../schema/types.ts";
 
 /** `db.$search(table, args)`: the `k` rows nearest to `vector`. */
 export type SearchArgs<M extends AnyModels, T extends keyof M> = Pick<
   FindManyArgs<M, T>,
-  'select' | 'include' | 'where' | 'signal'
+  "select" | "include" | "where" | "signal"
 > & {
   /** The query embedding, as numbers or pgvector text (`'[0.1,0.2]'`). */
   readonly vector: readonly number[] | string;
@@ -25,9 +25,9 @@ export interface SearchInput {
 export function vectorLiteral(
   vector: readonly number[] | string,
 ): string | undefined {
-  if (typeof vector === 'string') {
+  if (typeof vector === "string") {
     return /^\[[^\]]+\]$/.test(vector.trim()) ? vector.trim() : undefined;
   }
   if (vector.length === 0 || !vector.every(Number.isFinite)) return undefined;
-  return `[${vector.join(',')}]`;
+  return `[${vector.join(",")}]`;
 }

@@ -1,12 +1,12 @@
-import { loader } from 'fumadocs-core/source';
-import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
-import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
-import { defineDocs } from 'fumadocs-mdx/macro';
+import { loader } from "fumadocs-core/source";
+import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
+import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
+import { defineDocs } from "fumadocs-mdx/macro";
 
-import { docsContentRoute, docsRoute } from './shared';
+import { docsContentRoute, docsRoute } from "./shared";
 
 const docs = defineDocs({
-  dir: 'content/docs',
+  dir: "content/docs",
   docs: {
     schema: pageSchema,
     postprocess: { includeProcessedMarkdown: true },
@@ -20,19 +20,19 @@ export const source = loader({
   plugins: [lucideIconsPlugin()],
 });
 
-export type DocsPage = (typeof source)['$inferPage'];
+export type DocsPage = (typeof source)["$inferPage"];
 
 export function getPageMarkdownUrl(page: DocsPage) {
-  const segments = [...page.slugs, 'content.md'];
+  const segments = [...page.slugs, "content.md"];
   return {
     segments,
     url:
-      '/' +
-      [...docsContentRoute.split('/'), ...segments].filter(Boolean).join('/'),
+      "/" +
+      [...docsContentRoute.split("/"), ...segments].filter(Boolean).join("/"),
   };
 }
 
 export async function getLLMText(page: DocsPage) {
-  const processed = await page.data.getText('processed');
+  const processed = await page.data.getText("processed");
   return `# ${page.data.title} (${page.url})\n\n${processed}`;
 }

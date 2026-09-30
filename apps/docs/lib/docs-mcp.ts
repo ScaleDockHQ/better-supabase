@@ -2,7 +2,7 @@ import {
   DEFAULT_SEARCH_LIMIT,
   MAX_SEARCH_LIMIT,
   type DocsPageSummary,
-} from './docs-mcp-pages';
+} from "./docs-mcp-pages";
 
 export {
   DEFAULT_SEARCH_LIMIT,
@@ -10,17 +10,17 @@ export {
   MAX_SEARCH_LIMIT,
   normalizeDocsPath,
   searchDocs,
-} from './docs-mcp-pages';
-export type { DocsPageSummary } from './docs-mcp-pages';
+} from "./docs-mcp-pages";
+export type { DocsPageSummary } from "./docs-mcp-pages";
 
-export const DOCS_MCP_NAME = 'better-supabase-docs';
-export const DOCS_MCP_VERSION = '0.0.0';
+export const DOCS_MCP_NAME = "better-supabase-docs";
+export const DOCS_MCP_VERSION = "0.0.0";
 
 /** Handshake revisions; the stateless 2026-07-28 protocol lives in `better-supabase/mcp`. */
 export const MCP_PROTOCOL_VERSIONS = [
-  '2025-11-25',
-  '2025-06-18',
-  '2025-03-26',
+  "2025-11-25",
+  "2025-06-18",
+  "2025-03-26",
 ] as const;
 
 export type McpProtocolVersion = (typeof MCP_PROTOCOL_VERSIONS)[number];
@@ -33,20 +33,20 @@ export type DocsMcpTools = {
 export type JsonRpcId = string | number | null;
 
 export type JsonRpcRequest = {
-  readonly jsonrpc: '2.0';
+  readonly jsonrpc: "2.0";
   readonly id?: JsonRpcId;
   readonly method: string;
   readonly params?: unknown;
 };
 
 export type JsonRpcSuccess = {
-  readonly jsonrpc: '2.0';
+  readonly jsonrpc: "2.0";
   readonly id: JsonRpcId;
   readonly result: unknown;
 };
 
 export type JsonRpcFailure = {
-  readonly jsonrpc: '2.0';
+  readonly jsonrpc: "2.0";
   readonly id: JsonRpcId;
   readonly error: {
     readonly code: number;
@@ -63,56 +63,56 @@ export type McpHttpResult = {
 
 export const DOCS_MCP_TOOLS = [
   {
-    name: 'search_docs',
+    name: "search_docs",
     description:
-      'Search better-supabase documentation by title, description and path. Returns urls an agent can pass to get_page.',
+      "Search better-supabase documentation by title, description and path. Returns urls an agent can pass to get_page.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
         query: {
-          type: 'string',
-          description: 'Keywords to search for',
+          type: "string",
+          description: "Keywords to search for",
         },
         limit: {
-          type: 'integer',
+          type: "integer",
           minimum: 1,
           maximum: MAX_SEARCH_LIMIT,
           description: `Max results (default ${String(DEFAULT_SEARCH_LIMIT)})`,
         },
       },
-      required: ['query'],
+      required: ["query"],
     },
   },
   {
-    name: 'get_page',
+    name: "get_page",
     description:
-      'Fetch one better-supabase docs page as Markdown. Path is frameworks/hono or /docs/frameworks/hono.',
+      "Fetch one better-supabase docs page as Markdown. Path is frameworks/hono or /docs/frameworks/hono.",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
         path: {
-          type: 'string',
-          description: 'Page path or url under /docs',
+          type: "string",
+          description: "Page path or url under /docs",
         },
       },
-      required: ['path'],
+      required: ["path"],
     },
   },
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isJsonRpcId(value: unknown): value is Exclude<JsonRpcId, null> {
-  return typeof value === 'string' || typeof value === 'number';
+  return typeof value === "string" || typeof value === "number";
 }
 
 export function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
-  if (!isRecord(value) || value['jsonrpc'] !== '2.0') {
+  if (!isRecord(value) || value["jsonrpc"] !== "2.0") {
     return false;
   }
-  return typeof value['method'] === 'string';
+  return typeof value["method"] === "string";
 }
 
 export function isProtocolVersion(value: unknown): value is McpProtocolVersion {
@@ -122,7 +122,7 @@ export function isProtocolVersion(value: unknown): value is McpProtocolVersion {
 export function negotiateProtocolVersion(
   requested: unknown,
 ): McpProtocolVersion {
-  return isProtocolVersion(requested) ? requested : '2025-03-26';
+  return isProtocolVersion(requested) ? requested : "2025-03-26";
 }
 
 function jsonRpcError(
@@ -130,16 +130,16 @@ function jsonRpcError(
   code: number,
   message: string,
 ): JsonRpcFailure {
-  return { jsonrpc: '2.0', id, error: { code, message } };
+  return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
 function jsonRpcResult(id: JsonRpcId, result: unknown): JsonRpcSuccess {
-  return { jsonrpc: '2.0', id, result };
+  return { jsonrpc: "2.0", id, result };
 }
 
 function toolText(text: string, isError = false): unknown {
   return {
-    content: [{ type: 'text', text }],
+    content: [{ type: "text", text }],
     ...(isError ? { isError: true } : {}),
   };
 }
@@ -148,43 +148,43 @@ async function callTool(
   tools: DocsMcpTools,
   params: unknown,
 ): Promise<unknown> {
-  if (!isRecord(params) || typeof params['name'] !== 'string') {
-    return toolText('tools/call requires name', true);
+  if (!isRecord(params) || typeof params["name"] !== "string") {
+    return toolText("tools/call requires name", true);
   }
-  const args = isRecord(params['arguments']) ? params['arguments'] : {};
-  switch (params['name']) {
-    case 'search_docs': {
-      if (typeof args['query'] !== 'string' || args['query'].trim() === '') {
-        return toolText('search_docs requires query', true);
+  const args = isRecord(params["arguments"]) ? params["arguments"] : {};
+  switch (params["name"]) {
+    case "search_docs": {
+      if (typeof args["query"] !== "string" || args["query"].trim() === "") {
+        return toolText("search_docs requires query", true);
       }
       const limit =
-        typeof args['limit'] === 'number'
-          ? args['limit']
+        typeof args["limit"] === "number"
+          ? args["limit"]
           : DEFAULT_SEARCH_LIMIT;
-      const hits = tools.search(args['query'], limit);
+      const hits = tools.search(args["query"], limit);
       return toolText(JSON.stringify({ hits }, null, 2));
     }
-    case 'get_page': {
-      if (typeof args['path'] !== 'string' || args['path'].trim() === '') {
-        return toolText('get_page requires path', true);
+    case "get_page": {
+      if (typeof args["path"] !== "string" || args["path"].trim() === "") {
+        return toolText("get_page requires path", true);
       }
-      const markdown = await tools.getPage(args['path']);
+      const markdown = await tools.getPage(args["path"]);
       if (markdown === null) {
-        return toolText(`Unknown page: ${args['path']}`, true);
+        return toolText(`Unknown page: ${args["path"]}`, true);
       }
       return toolText(markdown);
     }
     default:
-      return toolText(`Unknown tool: ${params['name']}`, true);
+      return toolText(`Unknown tool: ${params["name"]}`, true);
   }
 }
 
 function requestId(request: JsonRpcRequest): JsonRpcId {
-  return 'id' in request ? (request.id ?? null) : null;
+  return "id" in request ? (request.id ?? null) : null;
 }
 
 function isNotification(request: JsonRpcRequest): boolean {
-  return !('id' in request);
+  return !("id" in request);
 }
 
 async function handleSingle(
@@ -193,29 +193,29 @@ async function handleSingle(
 ): Promise<JsonRpcResponse | null> {
   const id = requestId(request);
   switch (request.method) {
-    case 'initialize': {
+    case "initialize": {
       const params = isRecord(request.params) ? request.params : {};
       return jsonRpcResult(id, {
-        protocolVersion: negotiateProtocolVersion(params['protocolVersion']),
+        protocolVersion: negotiateProtocolVersion(params["protocolVersion"]),
         capabilities: { tools: {} },
         serverInfo: { name: DOCS_MCP_NAME, version: DOCS_MCP_VERSION },
         instructions:
-          'Public better-supabase documentation. Tools are read-only. Never send an access token, key or connection string.',
+          "Public better-supabase documentation. Tools are read-only. Never send an access token, key or connection string.",
       });
     }
-    case 'notifications/initialized':
-    case 'notifications/cancelled':
+    case "notifications/initialized":
+    case "notifications/cancelled":
       return null;
-    case 'ping':
+    case "ping":
       return isNotification(request) ? null : jsonRpcResult(id, {});
-    case 'tools/list':
+    case "tools/list":
       return jsonRpcResult(id, { tools: DOCS_MCP_TOOLS });
-    case 'tools/call':
+    case "tools/call":
       return jsonRpcResult(id, await callTool(tools, request.params));
-    case 'resources/list':
-    case 'prompts/list':
+    case "resources/list":
+    case "prompts/list":
       return jsonRpcResult(id, {
-        [request.method === 'resources/list' ? 'resources' : 'prompts']: [],
+        [request.method === "resources/list" ? "resources" : "prompts"]: [],
       });
     default:
       if (isNotification(request)) {
@@ -233,13 +233,13 @@ export async function handleMcpBody(
     if (body.length === 0) {
       return {
         status: 400,
-        body: jsonRpcError(null, -32600, 'Empty batch'),
+        body: jsonRpcError(null, -32600, "Empty batch"),
       };
     }
     const settled = await Promise.all(
       body.map(async (item) => {
         if (!isJsonRpcRequest(item)) {
-          return jsonRpcError(null, -32600, 'Invalid Request');
+          return jsonRpcError(null, -32600, "Invalid Request");
         }
         const response = await handleSingle(item, tools);
         return response;
@@ -257,9 +257,9 @@ export async function handleMcpBody(
     return {
       status: 400,
       body: jsonRpcError(
-        isRecord(body) && isJsonRpcId(body['id']) ? body['id'] : null,
+        isRecord(body) && isJsonRpcId(body["id"]) ? body["id"] : null,
         -32600,
-        'Invalid Request',
+        "Invalid Request",
       ),
     };
   }
@@ -272,10 +272,10 @@ export async function handleMcpBody(
 
 export function mcpCorsHeaders(): HeadersInit {
   return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, GET, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers':
-      'Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id',
-    'Access-Control-Max-Age': '86400',
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id",
+    "Access-Control-Max-Age": "86400",
   };
 }

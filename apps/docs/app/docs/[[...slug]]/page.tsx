@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
 import {
   DocsBody,
@@ -7,13 +7,13 @@ import {
   DocsTitle,
   MarkdownCopyButton,
   ViewOptionsPopover,
-} from 'fumadocs-ui/layouts/docs/page';
-import { createRelativeLink } from 'fumadocs-ui/mdx';
-import { notFound } from 'next/navigation';
+} from "fumadocs-ui/layouts/docs/page";
+import { createRelativeLink } from "fumadocs-ui/mdx";
+import { notFound } from "next/navigation";
 
-import { getMDXComponents } from '@/components/mdx';
-import { gitConfig } from '@/lib/shared';
-import { getPageMarkdownUrl, source } from '@/lib/source';
+import { getMDXComponents } from "@/components/mdx";
+import { gitConfig } from "@/lib/shared";
+import { getPageMarkdownUrl, source } from "@/lib/source";
 
 type DocsPageProps = {
   params: Promise<{ slug?: string[] }>;

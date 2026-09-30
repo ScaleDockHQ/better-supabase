@@ -1,12 +1,12 @@
-import type { AuthSession } from 'better-supabase/react';
+import type { AuthSession } from "better-supabase/react";
 
-import { defineMiddleware, pipeline } from '@supabase/middleware';
-import { withSupabase } from '@supabase/server';
-import { withBetterSupabase } from 'better-supabase/server';
+import { defineMiddleware, pipeline } from "@supabase/middleware";
+import { withSupabase } from "@supabase/server";
+import { withBetterSupabase } from "better-supabase/server";
 
-import type { Claims } from '@/lib/claims';
+import type { Claims } from "@/lib/claims";
 
-import { sb } from '@/lib/supabase';
+import { sb } from "@/lib/supabase";
 
 // Compile-time only. `permdock` is not on npm yet, so these stand-ins copy
 // the shapes `permdock/supabase/middleware` and `permdock/supabase` export:
@@ -24,7 +24,7 @@ type SupabaseSessionLike = { readonly kind: string; readonly claims?: unknown };
 type PermDockLike = { can(permission: string, resource?: unknown): boolean };
 
 const withPermDock = defineMiddleware({
-  key: 'permdock',
+  key: "permdock",
   run:
     (_config: void) =>
     (
@@ -38,12 +38,12 @@ declare function subjectFromSupabaseSession(
 ): unknown;
 
 export const handler = pipeline(
-  [withSupabase({ auth: 'user' }), withBetterSupabase(sb)(), withPermDock()],
+  [withSupabase({ auth: "user" }), withBetterSupabase(sb)(), withPermDock()],
   async (_req, ctx) => {
-    if (!ctx.permdock.can('customers.read')) {
+    if (!ctx.permdock.can("customers.read")) {
       return new Response(null, { status: 403 });
     }
-    const tenant: unknown = ctx.jwtClaims?.['tenant_id'];
+    const tenant: unknown = ctx.jwtClaims?.["tenant_id"];
     const count = await ctx.db.customers.count().orThrow();
     return Response.json({ count, tenant });
   },

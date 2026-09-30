@@ -1,5 +1,5 @@
-import { getUnreadSeed } from '../inbox-queries';
-import { UnreadSummary } from './unread-badge';
+import { getUnreadSeed } from "../inbox-queries";
+import { UnreadSummary } from "./unread-badge";
 
 /**
  * Render inside `<Suspense>`: counts on the server with `next.liveCount`,

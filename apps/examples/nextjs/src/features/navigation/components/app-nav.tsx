@@ -1,8 +1,8 @@
-import { SessionProvider } from 'better-supabase/react';
+import { SessionProvider } from "better-supabase/react";
 
-import { getSession } from '@/features/user/user-queries';
+import { getSession } from "@/features/user/user-queries";
 
-import { SideNav } from './side-nav';
+import { SideNav } from "./side-nav";
 
 /**
  * Render inside `<Suspense>`: the session promise is created here, behind

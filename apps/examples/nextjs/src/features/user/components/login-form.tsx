@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { useActionState } from 'react';
+import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 
-import { useSupabase } from '@/lib/hooks';
+import { useSupabase } from "@/lib/hooks";
 
-import { sessionChanged } from '../user-actions';
+import { sessionChanged } from "../user-actions";
 
 export function LoginForm() {
   const supabase = useSupabase();
@@ -13,12 +13,12 @@ export function LoginForm() {
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: String(form.get('email')),
-        password: String(form.get('password')),
+        email: String(form.get("email")),
+        password: String(form.get("password")),
       });
       if (signInError) return signInError.message;
       await sessionChanged();
-      router.push('/');
+      router.push("/");
       return null;
     },
     null,

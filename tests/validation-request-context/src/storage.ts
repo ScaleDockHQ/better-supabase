@@ -2,22 +2,22 @@ import {
   defineBucket,
   type StorageClient,
   type TransformOptions,
-} from 'better-supabase/storage';
+} from "better-supabase/storage";
 
 export const IMAGE_TYPES = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
 } as const;
 
 export type ImageType = keyof typeof IMAGE_TYPES;
 
 export const avatars = defineBucket({
-  id: 'avatars',
-  path: '{userId}/avatar.{ext}',
+  id: "avatars",
+  path: "{userId}/avatar.{ext}",
   public: true,
-  policy: 'owner',
-  fileSizeLimit: '5MiB',
+  policy: "owner",
+  fileSizeLimit: "5MiB",
   allowedMimeTypes: Object.keys(IMAGE_TYPES),
 });
 

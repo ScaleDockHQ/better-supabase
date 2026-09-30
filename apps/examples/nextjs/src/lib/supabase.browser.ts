@@ -1,6 +1,6 @@
-import { createBrowser } from 'better-supabase/client';
+import { createBrowser } from "better-supabase/client";
 
-import { sb } from './supabase';
+import { sb } from "./supabase";
 
 export const browser = createBrowser(sb, {
   env: {

@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server.js';
+import { NextResponse } from "next/server.js";
 
-const OVERRIDE = 'x-middleware-override-headers';
-const REQUEST_PREFIX = 'x-middleware-request-';
+const OVERRIDE = "x-middleware-override-headers";
+const REQUEST_PREFIX = "x-middleware-request-";
 
 /** A response whose headers can be changed (`Response.redirect()`'s cannot). */
 export function mutableResponse(response: Response): Response {
   try {
-    response.headers.append('x-bs-probe', '1');
-    response.headers.delete('x-bs-probe');
+    response.headers.append("x-bs-probe", "1");
+    response.headers.delete("x-bs-probe");
     return response;
   } catch {
     return new NextResponse(response.body, {
@@ -21,7 +21,7 @@ export function mutableResponse(response: Response): Response {
 export const isRedirect = (response: Response): boolean =>
   response.status >= 300 &&
   response.status < 400 &&
-  response.headers.has('location');
+  response.headers.has("location");
 
 /**
  * Sets request headers the rest of the request sees, the way
@@ -40,7 +40,7 @@ export function overrideRequestHeaders(
   if (listed === null) {
     for (const [name, value] of request.headers) current.set(name, value);
   } else {
-    for (const name of listed.split(',')) {
+    for (const name of listed.split(",")) {
       const value = response.headers.get(`${REQUEST_PREFIX}${name.trim()}`);
       if (name.trim() && value !== null) current.set(name.trim(), value);
     }
@@ -49,7 +49,7 @@ export function overrideRequestHeaders(
   for (const name of [...response.headers.keys()]) {
     if (name.startsWith(REQUEST_PREFIX)) response.headers.delete(name);
   }
-  response.headers.set(OVERRIDE, [...current.keys()].join(','));
+  response.headers.set(OVERRIDE, [...current.keys()].join(","));
   for (const [name, value] of current) {
     response.headers.set(`${REQUEST_PREFIX}${name}`, value);
   }
@@ -61,5 +61,5 @@ export function serverTimingValue(
 ): string {
   return Object.entries(metrics)
     .map(([name, ms]) => `${name};dur=${ms.toFixed(1)}`)
-    .join(', ');
+    .join(", ");
 }

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   type InfiniteData,
@@ -7,24 +7,24 @@ import {
   useInfiniteQuery,
   useMutation,
   useQuery,
-} from '@tanstack/react-query';
-import { describe, expectTypeOf, it } from 'vitest';
+} from "@tanstack/react-query";
+import { describe, expectTypeOf, it } from "vitest";
 
-import type { DbException } from '../core/errors.ts';
-import type { CursorPage, OffsetPage } from '../core/repository-types.ts';
+import type { DbException } from "../core/errors.ts";
+import type { CursorPage, OffsetPage } from "../core/repository-types.ts";
 
-import { defineSupabase } from '../core/define.ts';
-import { type CustomersStatus, schema } from '../fixtures/generated-camel.ts';
-import { softDelete } from '../plugins/soft-delete/index.ts';
-import { createQueries } from './index.ts';
+import { defineSupabase } from "../core/define.ts";
+import { type CustomersStatus, schema } from "../fixtures/generated-camel.ts";
+import { softDelete } from "../plugins/soft-delete/index.ts";
+import { createQueries } from "./index.ts";
 
 declare const client: SupabaseClient;
 const sb = defineSupabase(schema).use(softDelete());
 const q = createQueries(sb, sb.connect(client));
 
-describe('query option types', () => {
-  it('flows payload types into useQuery and the cache', () => {
-    const options = q.customers.findMany({ select: ['id', 'status'] });
+describe("query option types", () => {
+  it("flows payload types into useQuery and the cache", () => {
+    const options = q.customers.findMany({ select: ["id", "status"] });
     const { data, error } = useQuery(options);
     expectTypeOf(data).toEqualTypeOf<
       { id: string; status: CustomersStatus }[] | undefined
@@ -37,43 +37,43 @@ describe('query option types', () => {
     ).toEqualTypeOf<{ id: string; status: CustomersStatus }[] | undefined>();
   });
 
-  it('types infinite queries and mutations', () => {
+  it("types infinite queries and mutations", () => {
     const { data } = useInfiniteQuery(
-      q.customers.infinite({ select: ['id'], size: 20 }),
+      q.customers.infinite({ select: ["id"], size: 20 }),
     );
     expectTypeOf(data).toEqualTypeOf<
       InfiniteData<CursorPage<{ id: string }>> | undefined
     >();
 
-    const create = useMutation(q.customers.create({ select: ['id'] }));
+    const create = useMutation(q.customers.create({ select: ["id"] }));
     expectTypeOf(create.data).toEqualTypeOf<{ id: string } | undefined>();
     const update = useMutation(q.customers.update());
-    expectTypeOf(update.mutate).parameter(0).toHaveProperty('patch');
+    expectTypeOf(update.mutate).parameter(0).toHaveProperty("patch");
   });
 
-  it('keeps plugin arguments', () => {
+  it("keeps plugin arguments", () => {
     q.customers.findMany({ withDeleted: true });
     // @ts-expect-error unknown column
-    q.customers.findMany({ select: ['nope'] });
+    q.customers.findMany({ select: ["nope"] });
   });
 
-  it('accepts skipToken and keeps the payload type', () => {
+  it("accepts skipToken and keeps the payload type", () => {
     const id: string | undefined = undefined as string | undefined;
     const { data } = useQuery(
-      q.customers.findById(id ?? skipToken, { select: ['id'] }),
+      q.customers.findById(id ?? skipToken, { select: ["id"] }),
     );
     expectTypeOf(data).toEqualTypeOf<{ id: string } | undefined>();
   });
 
-  it('types offset infinite queries and specs', () => {
+  it("types offset infinite queries and specs", () => {
     const { data } = useInfiniteQuery(
-      q.customers.infinitePages({ select: ['id'], size: 20 }),
+      q.customers.infinitePages({ select: ["id"], size: 20 }),
     );
     expectTypeOf(data).toEqualTypeOf<
       InfiniteData<OffsetPage<{ id: string }>> | undefined
     >();
     const fromSpec = useQuery(
-      q.$spec(sb.spec.customers.findFirst({ select: ['status'] })),
+      q.$spec(sb.spec.customers.findFirst({ select: ["status"] })),
     );
     expectTypeOf(fromSpec.data).toEqualTypeOf<
       { status: CustomersStatus } | null | undefined

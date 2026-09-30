@@ -5,15 +5,15 @@ import {
   searchDocs,
   type DocsMcpTools,
   type DocsPageSummary,
-} from '@/lib/docs-mcp';
-import { getLLMText, source } from '@/lib/source';
+} from "@/lib/docs-mcp";
+import { getLLMText, source } from "@/lib/source";
 
 export const revalidate = false;
 
 function pages(): readonly DocsPageSummary[] {
   return source.getPages().map((page) => ({
     title: page.data.title,
-    description: page.data.description ?? '',
+    description: page.data.description ?? "",
     url: page.url,
     slugs: page.slugs,
   }));
@@ -50,7 +50,7 @@ function mcpResponse(
   if (body === null) {
     return new Response(null, { status, headers });
   }
-  headers.set('Content-Type', 'application/json');
+  headers.set("Content-Type", "application/json");
   return new Response(JSON.stringify(body), { status, headers });
 }
 
@@ -61,9 +61,9 @@ export function OPTIONS(): Response {
 export function GET(): Response {
   return mcpResponse(
     405,
-    { error: 'Use POST for the MCP Streamable HTTP transport' },
+    { error: "Use POST for the MCP Streamable HTTP transport" },
     {
-      Allow: 'POST, OPTIONS, DELETE',
+      Allow: "POST, OPTIONS, DELETE",
     },
   );
 }
@@ -78,9 +78,9 @@ export async function POST(request: Request): Promise<Response> {
     body = await request.json();
   } catch {
     return mcpResponse(400, {
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       id: null,
-      error: { code: -32700, message: 'Parse error' },
+      error: { code: -32700, message: "Parse error" },
     });
   }
   const result = await handleMcpBody(body, tools());

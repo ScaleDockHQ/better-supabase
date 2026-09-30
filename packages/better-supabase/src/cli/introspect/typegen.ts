@@ -10,11 +10,11 @@ import {
   type Queryable,
   serializeGeneratorMetadata,
   sortGeneratorMetadata,
-} from '@supabase/postgrest-typegen';
+} from "@supabase/postgrest-typegen";
 import {
   generateTypescript,
   pgTypeToTsType,
-} from '@supabase/postgrest-typegen/generation';
+} from "@supabase/postgrest-typegen/generation";
 
 export type {
   GeneratorMetadata,
@@ -22,7 +22,7 @@ export type {
   PostgresFunction,
   PostgresType,
   Queryable,
-} from '@supabase/postgrest-typegen';
+} from "@supabase/postgrest-typegen";
 
 /** Introspects `schemas`, keeping only the types they reference. */
 export async function readGeneratorMetadata(
@@ -95,7 +95,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
       ...entry,
       id: map(entry.id),
       bytes: 0,
-      size: '0 bytes',
+      size: "0 bytes",
       live_rows_estimate: 0,
       dead_rows_estimate: 0,
     })),
@@ -216,7 +216,7 @@ export function tsTypeOf(
   const owner = metadata.schemas.find((entry) => entry.name === schema) ?? {
     id: 0,
     name: schema,
-    owner: '',
+    owner: "",
   };
   return pgTypeToTsType(
     owner,
@@ -259,7 +259,7 @@ function pruneTypes(
   for (const column of metadata.columns) {
     visit(byName.get(`${column.type_schema}.${column.format}`)?.id);
     visit(
-      byName.get(`${column.type_schema}.${column.format.replace(/^_/, '')}`)
+      byName.get(`${column.type_schema}.${column.format.replace(/^_/, "")}`)
         ?.id,
     );
   }

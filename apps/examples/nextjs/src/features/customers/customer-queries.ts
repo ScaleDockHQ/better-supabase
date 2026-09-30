@@ -1,7 +1,7 @@
-import 'server-only';
-import { logos } from '@/lib/buckets';
-import { customerList } from '@/lib/lists';
-import { next } from '@/lib/supabase.server';
+import "server-only";
+import { logos } from "@/lib/buckets";
+import { customerList } from "@/lib/lists";
+import { next } from "@/lib/supabase.server";
 
 /**
  * The first page of the caller's customers plus the count per status.
@@ -12,11 +12,11 @@ import { next } from '@/lib/supabase.server';
  * `/api/customers/list`.
  */
 export async function getCustomers() {
-  'use cache: private';
+  "use cache: private";
   const { db, supabase } = await next.cached();
   const page = await customerList
     .run(db, customerList.defaults, {
-      select: ['id', 'name', 'status', 'logoPath'],
+      select: ["id", "name", "status", "logoPath"],
       // Counted and maxed in the database, in the same request.
       include: {
         _count: { notes: true },

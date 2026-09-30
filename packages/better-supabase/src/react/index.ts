@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { QueryClient } from '@tanstack/query-core';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { QueryClient } from "@tanstack/query-core";
 
 import {
   createContext,
@@ -14,12 +14,12 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-} from 'react';
+} from "react";
 
-import type { AuthSession } from '../auth/view.ts';
-import type { AuthSnapshot, BrowserAuth } from '../client/index.ts';
-import type { DbError } from '../core/errors.ts';
-import type { QuerySpec } from '../core/spec.ts';
+import type { AuthSession } from "../auth/view.ts";
+import type { AuthSnapshot, BrowserAuth } from "../client/index.ts";
+import type { DbError } from "../core/errors.ts";
+import type { QuerySpec } from "../core/spec.ts";
 import type {
   EventSchemas,
   SubscribeOptions,
@@ -28,26 +28,26 @@ import type {
   Topic,
   TopicHandlers,
   TopicMessage,
-} from '../realtime/index.ts';
+} from "../realtime/index.ts";
 import type {
   CountRunner,
   LiveCountSeed,
   LiveSource,
-} from '../realtime/live.ts';
-import type { SchemaMeta } from '../schema/types.ts';
+} from "../realtime/live.ts";
+import type { SchemaMeta } from "../schema/types.ts";
 
-import { claimAt, claimsOf, tenantClaimPaths } from '../core/claims.ts';
-import { invalidateTables } from '../query/invalidate.ts';
-import { liveCount, liveQuery } from '../realtime/live.ts';
-import { useSession } from './session.ts';
+import { claimAt, claimsOf, tenantClaimPaths } from "../core/claims.ts";
+import { invalidateTables } from "../query/invalidate.ts";
+import { liveCount, liveQuery } from "../realtime/live.ts";
+import { useSession } from "./session.ts";
 
-export { SessionProvider, useSession } from './session.ts';
-export type { SessionProviderProps } from './session.ts';
-export type { AuthSession } from '../auth/view.ts';
-export type { Impersonator } from '../auth/impersonation.ts';
-export { hasEntitlement } from '../auth/entitlements.ts';
-export type { EntitlementKey, MembershipClaim } from '../auth/entitlements.ts';
-export type { LiveCountSeed } from '../realtime/live.ts';
+export { SessionProvider, useSession } from "./session.ts";
+export type { SessionProviderProps } from "./session.ts";
+export type { AuthSession } from "../auth/view.ts";
+export type { Impersonator } from "../auth/impersonation.ts";
+export { hasEntitlement } from "../auth/entitlements.ts";
+export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";
+export type { LiveCountSeed } from "../realtime/live.ts";
 
 /** The parts of `createBrowser()` the provider needs. */
 export interface BrowserLike {
@@ -65,7 +65,7 @@ interface ContextValue {
 
 const BrowserContext = createContext<ContextValue | null>(null);
 
-const LOADING: AuthSnapshot = { status: 'loading', user: null, claims: null };
+const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
 
 export interface BetterSupabaseProviderProps {
   readonly browser: BrowserLike;
@@ -85,10 +85,10 @@ export function BetterSupabaseProvider(
     () =>
       browser.auth.subscribe(() => {
         const snapshot = browser.auth.current();
-        if (snapshot.status === 'loading') return;
+        if (snapshot.status === "loading") return;
         const id = snapshot.user?.id ?? null;
         if (user.current !== undefined && user.current !== id) {
-          queryClient?.removeQueries({ queryKey: ['bs'] });
+          queryClient?.removeQueries({ queryKey: ["bs"] });
         }
         user.current = id;
       }),
@@ -106,7 +106,7 @@ function useBrowserContext(): ContextValue {
   const value = useContext(BrowserContext);
   if (!value) {
     throw new Error(
-      'better-supabase: wrap your app in <BetterSupabaseProvider browser={browser}>',
+      "better-supabase: wrap your app in <BetterSupabaseProvider browser={browser}>",
     );
   }
   return value;
@@ -132,9 +132,9 @@ export function useSupabase(): SupabaseClient {
 
 export interface BetterHooks<B extends BrowserLike> {
   /** Repositories bound to the current session. Re-renders when the user changes. */
-  readonly useDb: () => B['db'];
+  readonly useDb: () => B["db"];
   /** TanStack Query option factories: `useQuery(useQueries().customers.findMany())`. */
-  readonly useQueries: () => B['queries'];
+  readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => AuthSnapshot;
   /** `useSession()` typed by the browser's `sb.claims(schema)` and `sb.userMetadata(schema)`. */
@@ -142,14 +142,14 @@ export interface BetterHooks<B extends BrowserLike> {
 }
 
 /** The claims type of a browser's `sb.claims(schema)`, `unknown` without one. */
-export type ClaimsOf<B extends BrowserLike> = B['sb'] extends {
+export type ClaimsOf<B extends BrowserLike> = B["sb"] extends {
   readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
 }
   ? C
   : unknown;
 
 /** The profile type of a browser's `sb.userMetadata(schema)`, `unknown` without one. */
-export type ProfileOf<B extends BrowserLike> = B['sb'] extends {
+export type ProfileOf<B extends BrowserLike> = B["sb"] extends {
   readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
 }
   ? P
@@ -180,7 +180,7 @@ export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
   };
 }
 
-export interface BroadcastOptions extends Omit<SubscribeOptions, 'onStatus'> {
+export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
   /**
    * Refetch after each message: table keys (every query that read one of
    * them), or a function returning query keys. Needs `queryClient` on the
@@ -207,7 +207,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
 ): SubscriptionStatus {
   const { browser, queryClient } = useBrowserContext();
   const auth = useAuth();
-  const [status, setStatus] = useState<SubscriptionStatus>('closed');
+  const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const latest = useRef({ handlers, options });
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current = { handlers, options };
@@ -215,12 +215,12 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   const userId = auth.user?.id ?? null;
   if (options?.invalidate && !queryClient) {
     throw new Error(
-      'better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}>',
+      "better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}>",
     );
   }
 
   useEffect(() => {
-    if (!name || auth.status === 'loading') return undefined;
+    if (!name || auth.status === "loading") return undefined;
     const matched = topic.match(name);
     if (!matched) return undefined;
     const forward = (payload: unknown, message: TopicMessage) => {
@@ -233,10 +233,10 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
             >
           >
         | undefined;
-      (table?.[message.event] ?? table?.['*'])?.(payload, message);
+      (table?.[message.event] ?? table?.["*"])?.(payload, message);
       const invalidate = current.options?.invalidate;
       if (!invalidate || !queryClient) return;
-      if (typeof invalidate !== 'function') {
+      if (typeof invalidate !== "function") {
         void invalidateTables(queryClient, invalidate);
         return;
       }
@@ -246,7 +246,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
     const subscription = topic.subscribe(
       browser.supabase,
       matched,
-      { '*': forward },
+      { "*": forward },
       {
         ...(latest.current.options?.self === undefined
           ? {}
@@ -258,7 +258,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
     );
     return () => {
       void subscription.unsubscribe();
-      setStatus('closed');
+      setStatus("closed");
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [browser, topic, name, userId, auth.status, queryClient]);
@@ -280,7 +280,7 @@ function claimedTenant(
   auth: AuthSnapshot,
   meta: SchemaMeta,
 ): string | undefined {
-  if (auth.status !== 'signed-in') return undefined;
+  if (auth.status !== "signed-in") return undefined;
   for (const path of tenantClaimPaths(claimsOf(meta).tenant)) {
     const value = claimAt(auth.claims, path);
     if (value !== undefined) return value;
@@ -305,10 +305,10 @@ export function useLiveQuery(
 ): SubscriptionStatus {
   const { browser, queryClient } = useBrowserContext();
   const auth = useAuth();
-  const [status, setStatus] = useState<SubscriptionStatus>('closed');
+  const [status, setStatus] = useState<SubscriptionStatus>("closed");
   if (spec && !queryClient) {
     throw new Error(
-      'better-supabase: useLiveQuery needs <BetterSupabaseProvider queryClient={...}>',
+      "better-supabase: useLiveQuery needs <BetterSupabaseProvider queryClient={...}>",
     );
   }
   const key = spec ? JSON.stringify(spec) : null;
@@ -317,7 +317,7 @@ export function useLiveQuery(
   const debounceMs = options.debounceMs;
 
   useEffect(() => {
-    if (!key || !queryClient || auth.status === 'loading') return undefined;
+    if (!key || !queryClient || auth.status === "loading") return undefined;
     const live = liveQuery(
       browser.sb,
       browser.supabase,
@@ -362,12 +362,12 @@ export interface LiveCount {
  * ```
  */
 export function useLiveCount(
-  source: QuerySpec<string, 'count', number> | LiveCountSeed | null | undefined,
+  source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options: LiveCountHookOptions = {},
 ): LiveCount {
   const { browser } = useBrowserContext();
   const auth = useAuth();
-  const seed = source && 'spec' in source ? source : undefined;
+  const seed = source && "spec" in source ? source : undefined;
   const spec = seed ? seed.spec : (source as QuerySpec | null | undefined);
   const initial = seed?.count ?? options.initial;
   const [state, setState] = useState<{
@@ -375,7 +375,7 @@ export function useLiveCount(
     readonly count: number | undefined;
     readonly error: DbError | undefined;
   }>({ key: null, count: undefined, error: undefined });
-  const [status, setStatus] = useState<SubscriptionStatus>('closed');
+  const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const key = spec ? JSON.stringify(spec) : null;
   const tenant = options.tenant ?? claimedTenant(auth, browser.sb.meta);
   const userId = auth.user?.id ?? null;
@@ -383,12 +383,12 @@ export function useLiveCount(
   const hasInitial = initial !== undefined;
 
   useEffect(() => {
-    if (!key || auth.status === 'loading') return undefined;
+    if (!key || auth.status === "loading") return undefined;
     const live = liveCount(
       browser.sb,
       browser.supabase,
       browser.db as CountRunner,
-      JSON.parse(key) as QuerySpec<string, 'count', number>,
+      JSON.parse(key) as QuerySpec<string, "count", number>,
       {
         immediate: !hasInitial,
         onCount: (count) => setState({ key, count, error: undefined }),

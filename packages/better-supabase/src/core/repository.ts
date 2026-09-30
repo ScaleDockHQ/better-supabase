@@ -1,6 +1,6 @@
-import type { SchemaMeta, TableMeta } from '../schema/types.ts';
-import type { EventHub } from './events.ts';
-import type { ExecuteResult, Executor } from './executor.ts';
+import type { SchemaMeta, TableMeta } from "../schema/types.ts";
+import type { EventHub } from "./events.ts";
+import type { ExecuteResult, Executor } from "./executor.ts";
 import type {
   AnyPlugin,
   CallOptions,
@@ -8,10 +8,10 @@ import type {
   MutationEvent,
   MutationKind,
   RequestContext,
-} from './plugin.ts';
+} from "./plugin.ts";
 
-import { type IrBuilder, invalidRequest } from '../ir/build.ts';
-import { decodeRows, encodeValue, needsDecoding } from '../ir/codec.ts';
+import { type IrBuilder, invalidRequest } from "../ir/build.ts";
+import { decodeRows, encodeValue, needsDecoding } from "../ir/codec.ts";
 import {
   type Condition,
   type DeleteOp,
@@ -24,15 +24,15 @@ import {
   type UpdateOp,
   and,
   or,
-} from '../ir/types.ts';
-import { decodeCursor, encodeCursor } from './cursor.ts';
+} from "../ir/types.ts";
+import { decodeCursor, encodeCursor } from "./cursor.ts";
 import {
   type DbError,
   DbException,
   type ErrorMapper,
   dbError,
-} from './errors.ts';
-import { AsyncResult, err, ok, type Result } from './result.ts';
+} from "./errors.ts";
+import { AsyncResult, err, ok, type Result } from "./result.ts";
 
 export interface Runtime {
   readonly meta: SchemaMeta;
@@ -53,29 +53,29 @@ type Args = Readonly<Record<string, unknown>>;
 type Row = Record<string, unknown>;
 
 const KNOWN_KEYS = new Set([
-  'select',
-  'include',
-  'where',
-  'orderBy',
-  'limit',
-  'offset',
-  'signal',
-  'returning',
-  'expect',
-  'onConflict',
-  'ignoreDuplicates',
-  'page',
-  'size',
-  'count',
-  'after',
-  'mode',
-  'data',
-  'groupBy',
-  '_count',
-  '_sum',
-  '_avg',
-  '_min',
-  '_max',
+  "select",
+  "include",
+  "where",
+  "orderBy",
+  "limit",
+  "offset",
+  "signal",
+  "returning",
+  "expect",
+  "onConflict",
+  "ignoreDuplicates",
+  "page",
+  "size",
+  "count",
+  "after",
+  "mode",
+  "data",
+  "groupBy",
+  "_count",
+  "_sum",
+  "_avg",
+  "_min",
+  "_max",
 ]);
 
 function optionsOf(args: Args | undefined): CallOptions {
@@ -88,12 +88,12 @@ function optionsOf(args: Args | undefined): CallOptions {
 }
 
 function signalOf(args: Args | undefined): AbortSignal | undefined {
-  const signal = args?.['signal'];
+  const signal = args?.["signal"];
   return signal instanceof AbortSignal ? signal : undefined;
 }
 
 function mutationKind(op: MutationOp): MutationKind {
-  if (op.kind === 'insert') return op.onConflict ? 'upsert' : 'insert';
+  if (op.kind === "insert") return op.onConflict ? "upsert" : "insert";
   return op.kind;
 }
 
@@ -128,7 +128,7 @@ export class OperationRunner {
         if (plugin.transformQuery)
           current = plugin.transformQuery(current, hook);
       }
-      if (current.kind !== 'select') {
+      if (current.kind !== "select") {
         let mutation: MutationOp = current;
         for (const plugin of runtime.plugins) {
           if (plugin.beforeMutation)
@@ -147,7 +147,7 @@ export class OperationRunner {
       : { errorMappers: runtime.errorMappers };
     const executed = await runtime.executor.execute(current, context);
     const selection =
-      current.kind === 'select' ? current.selection : current.returning;
+      current.kind === "select" ? current.selection : current.returning;
     const result: Result<ExecuteResult> =
       executed.ok && selection && needsDecoding(selection)
         ? ok({
@@ -158,7 +158,7 @@ export class OperationRunner {
 
     const rows = result.ok ? result.data.rows.length : 0;
     const truncated =
-      current.kind === 'select' &&
+      current.kind === "select" &&
       current.limit === undefined &&
       current.single === undefined &&
       !current.head &&
@@ -170,8 +170,8 @@ export class OperationRunner {
         { table: op.table.key, maxRows: runtime.maxRows },
       );
     }
-    if (runtime.events.has('query')) {
-      runtime.events.emit('query', {
+    if (runtime.events.has("query")) {
+      runtime.events.emit("query", {
         table: op.table.key,
         operation: current.kind,
         ok: result.ok,
@@ -182,7 +182,7 @@ export class OperationRunner {
     }
     if (!result.ok) return this.fail(op.table, result.error);
 
-    if (current.kind !== 'select') {
+    if (current.kind !== "select") {
       await this.afterMutation(current, result.data);
     }
     return result;
@@ -210,7 +210,7 @@ export class OperationRunner {
         );
       }
     }
-    runtime.events.emit('mutation', {
+    runtime.events.emit("mutation", {
       table: op.table.key,
       kind: event.kind,
       rows: event.rows,
@@ -220,7 +220,7 @@ export class OperationRunner {
 
   fail<T>(table: TableMeta, error: DbError): Result<T> {
     const withTable = error.table ? error : { ...error, table: table.key };
-    this.runtime.events.emit('error', { table: table.key, error: withTable });
+    this.runtime.events.emit("error", { table: table.key, error: withTable });
     return err(withTable);
   }
 }
@@ -235,21 +235,21 @@ export function createRepository(
   const selection = (args: Args | undefined): Selection =>
     builder.selection(
       table,
-      args?.['select'] as readonly string[] | undefined,
-      args?.['include'],
+      args?.["select"] as readonly string[] | undefined,
+      args?.["include"],
     );
 
   const selectOp = (
     args: Args | undefined,
     patch: Partial<SelectOp> = {},
   ): SelectOp => ({
-    kind: 'select',
+    kind: "select",
     table,
     selection: selection(args),
-    where: builder.where(table, args?.['where']),
-    orderBy: builder.orderBy(table, args?.['orderBy']),
-    limit: typeof args?.['limit'] === 'number' ? args['limit'] : undefined,
-    offset: typeof args?.['offset'] === 'number' ? args['offset'] : undefined,
+    where: builder.where(table, args?.["where"]),
+    orderBy: builder.orderBy(table, args?.["orderBy"]),
+    limit: typeof args?.["limit"] === "number" ? args["limit"] : undefined,
+    offset: typeof args?.["offset"] === "number" ? args["offset"] : undefined,
     count: undefined,
     head: false,
     single: undefined,
@@ -257,7 +257,7 @@ export function createRepository(
   });
 
   const returning = (args: Args | undefined): Selection | undefined =>
-    args?.['returning'] === false ? undefined : selection(args);
+    args?.["returning"] === false ? undefined : selection(args);
 
   const run = (
     op: Operation,
@@ -266,7 +266,7 @@ export function createRepository(
     runner.run(op, optionsOf(args), signalOf(args));
 
   const notFound = <T>(): Result<T> =>
-    runner.fail(table, dbError('not_found', `No ${table.key} row matched`));
+    runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
 
   const base = {
     $table: table.key,
@@ -282,7 +282,7 @@ export function createRepository(
                 ...op,
                 orderBy: table.primaryKey.map((column): OrderTerm => ({
                   column,
-                  direction: 'asc',
+                  direction: "asc",
                 })),
               };
         const result = await run(ordered, args);
@@ -300,7 +300,7 @@ export function createRepository(
     findUnique(args: Args) {
       return AsyncResult.from(async () => {
         const op = selectOp(args, {
-          where: builder.uniqueKey(table, args['where']),
+          where: builder.uniqueKey(table, args["where"]),
           limit: 1,
         });
         const result = await run(op, args);
@@ -323,12 +323,12 @@ export function createRepository(
 
     count(args?: Args) {
       return AsyncResult.from(async () => {
-        const mode = args?.['mode'];
+        const mode = args?.["mode"];
         const op = selectOp(
-          { where: args?.['where'] },
+          { where: args?.["where"] },
           {
             selection: { columns: [], includes: [] },
-            count: mode === 'planned' || mode === 'estimated' ? mode : 'exact',
+            count: mode === "planned" || mode === "estimated" ? mode : "exact",
             head: true,
           },
         );
@@ -340,29 +340,29 @@ export function createRepository(
     aggregate(args: Args) {
       return AsyncResult.from(async () => {
         const aggregation = builder.aggregation(table, args);
-        const orderBy = builder.orderBy(table, args['orderBy']);
+        const orderBy = builder.orderBy(table, args["orderBy"]);
         const grouped = new Set(aggregation.columns.map((c) => c.column));
         const loose = orderBy.find((term) => !grouped.has(term.column));
         if (loose) {
           return runner.fail(
             table,
             dbError(
-              'invalid_request',
+              "invalid_request",
               `aggregate on "${table.key}" can only sort by groupBy columns, not "${loose.column}"`,
             ),
           );
         }
         const op = selectOp(
           {
-            where: args['where'],
-            limit: args['limit'],
-            offset: args['offset'],
+            where: args["where"],
+            limit: args["limit"],
+            offset: args["offset"],
           },
           { selection: aggregation, orderBy },
         );
         const result = await run(op, args);
         if (!result.ok) return result;
-        if (args['groupBy'] !== undefined) return ok(result.data.rows);
+        if (args["groupBy"] !== undefined) return ok(result.data.rows);
         // Without groups the database returns one row, unless nothing can match.
         return ok(
           result.data.rows[0] ?? decodeRows(aggregation, [{}])[0] ?? {},
@@ -376,7 +376,7 @@ export function createRepository(
           .slice(0, 1)
           .map((alias) => builder.selectColumn(table, alias));
         const op = selectOp(
-          { where: args?.['where'] },
+          { where: args?.["where"] },
           {
             selection: { columns, includes: [] },
             limit: 1,
@@ -389,7 +389,7 @@ export function createRepository(
 
     paginate(args: Args) {
       return AsyncResult.from(async () =>
-        'after' in args ? cursorPage(args) : offsetPage(args),
+        "after" in args ? cursorPage(args) : offsetPage(args),
       );
     },
 
@@ -399,7 +399,7 @@ export function createRepository(
         const result = await run(op, args);
         if (!result.ok) return result;
         return ok(
-          args?.['returning'] === false ? null : (result.data.rows[0] ?? null),
+          args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
         );
       });
     },
@@ -407,11 +407,11 @@ export function createRepository(
     createMany(rows: readonly unknown[], args?: Args) {
       return AsyncResult.from(async () => {
         if (rows.length === 0)
-          return ok(args?.['returning'] === false ? { count: 0 } : []);
+          return ok(args?.["returning"] === false ? { count: 0 } : []);
         const result = await run(insertOp(rows, args, undefined), args);
         if (!result.ok) return result;
         return ok(
-          args?.['returning'] === false
+          args?.["returning"] === false
             ? { count: result.data.count ?? rows.length }
             : result.data.rows,
         );
@@ -421,13 +421,13 @@ export function createRepository(
     update(id: unknown, patch: unknown, args?: Args) {
       return AsyncResult.from(async () => {
         const key = builder.primaryKey(table, id);
-        const expect = args?.['expect']
-          ? builder.where(table, args['expect'])
+        const expect = args?.["expect"]
+          ? builder.where(table, args["expect"])
           : undefined;
         const op: UpdateOp = {
-          kind: 'update',
+          kind: "update",
           table,
-          set: builder.row(table, patch, 'update'),
+          set: builder.row(table, patch, "update"),
           where: and(key, expect),
           returning: returning(args),
         };
@@ -442,7 +442,7 @@ export function createRepository(
             selectOp(undefined, {
               where: key,
               selection: { columns: [], includes: [] },
-              count: 'exact',
+              count: "exact",
               head: true,
             }),
             args,
@@ -451,7 +451,7 @@ export function createRepository(
             return runner.fail(
               table,
               dbError(
-                'stale',
+                "stale",
                 `The ${table.key} row changed since it was read`,
               ),
             );
@@ -465,10 +465,10 @@ export function createRepository(
     updateMany(args: Args) {
       return AsyncResult.from(async () => {
         const op: UpdateOp = {
-          kind: 'update',
+          kind: "update",
           table,
-          set: builder.row(table, args['data'], 'update'),
-          where: builder.where(table, args['where']),
+          set: builder.row(table, args["data"], "update"),
+          where: builder.where(table, args["where"]),
           returning: undefined,
         };
         const result = await run(op, args);
@@ -481,12 +481,12 @@ export function createRepository(
         const op = insertOp(
           [data],
           args,
-          conflictColumns(args?.['onConflict']),
+          conflictColumns(args?.["onConflict"]),
         );
         const result = await run(op, args);
         if (!result.ok) return result;
         return ok(
-          args?.['returning'] === false ? null : (result.data.rows[0] ?? null),
+          args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
         );
       });
     },
@@ -494,12 +494,12 @@ export function createRepository(
     upsertMany(rows: readonly unknown[], args?: Args) {
       return AsyncResult.from(async () => {
         if (rows.length === 0)
-          return ok(args?.['returning'] === false ? { count: 0 } : []);
-        const op = insertOp(rows, args, conflictColumns(args?.['onConflict']));
+          return ok(args?.["returning"] === false ? { count: 0 } : []);
+        const op = insertOp(rows, args, conflictColumns(args?.["onConflict"]));
         const result = await run(op, args);
         if (!result.ok) return result;
         return ok(
-          args?.['returning'] === false
+          args?.["returning"] === false
             ? { count: result.data.count ?? rows.length }
             : result.data.rows,
         );
@@ -509,7 +509,7 @@ export function createRepository(
     delete(id: unknown, args?: Args) {
       return AsyncResult.from(async () => {
         const op: DeleteOp = {
-          kind: 'delete',
+          kind: "delete",
           table,
           where: builder.primaryKey(table, id),
           returning: builder.selection(table, table.primaryKey, undefined),
@@ -524,15 +524,15 @@ export function createRepository(
 
     deleteMany(args: Args) {
       return AsyncResult.from(async () => {
-        const where = builder.where(table, args['where']);
+        const where = builder.where(table, args["where"]);
         if (!where) {
           return runner.fail(
             table,
-            dbError('invalid_request', 'deleteMany needs a non-empty "where"'),
+            dbError("invalid_request", 'deleteMany needs a non-empty "where"'),
           );
         }
         const op: DeleteOp = {
-          kind: 'delete',
+          kind: "delete",
           table,
           where,
           returning: undefined,
@@ -549,14 +549,14 @@ export function createRepository(
     conflict: readonly string[] | undefined,
   ): InsertOp {
     return {
-      kind: 'insert',
+      kind: "insert",
       table,
       rows: rows.map((row) => builder.row(table, row)),
       returning: returning(args),
       onConflict: conflict
         ? {
             columns: conflict,
-            action: args?.['ignoreDuplicates'] === true ? 'ignore' : 'update',
+            action: args?.["ignoreDuplicates"] === true ? "ignore" : "update",
           }
         : undefined,
       defaultToNull: false,
@@ -564,10 +564,10 @@ export function createRepository(
   }
 
   function conflictColumns(target: unknown): readonly string[] {
-    if (target === undefined || target === 'primaryKey') {
+    if (target === undefined || target === "primaryKey") {
       return table.primaryKey.map((name) => builder.column(table, name));
     }
-    if (typeof target === 'string') {
+    if (typeof target === "string") {
       const columns = table.uniqueKeys[target];
       if (!columns)
         invalidRequest(
@@ -583,26 +583,26 @@ export function createRepository(
   }
 
   async function offsetPage(args: Args): Promise<Result<unknown>> {
-    const size = Number(args['size']);
+    const size = Number(args["size"]);
     if (!Number.isInteger(size) || size < 1) {
       return runner.fail(
         table,
-        dbError('invalid_request', '"size" must be a positive integer'),
+        dbError("invalid_request", '"size" must be a positive integer'),
       );
     }
-    const number = args['page'] === undefined ? 1 : Number(args['page']);
+    const number = args["page"] === undefined ? 1 : Number(args["page"]);
     if (!Number.isInteger(number) || number < 1) {
       return runner.fail(
         table,
-        dbError('invalid_request', '"page" must be a positive integer'),
+        dbError("invalid_request", '"page" must be a positive integer'),
       );
     }
-    const count = args['count'];
+    const count = args["count"];
     const op = selectOp(args, {
       limit: size + 1,
       offset: (number - 1) * size,
       count:
-        count === 'exact' || count === 'planned' || count === 'estimated'
+        count === "exact" || count === "planned" || count === "estimated"
           ? count
           : undefined,
     });
@@ -623,29 +623,29 @@ export function createRepository(
   }
 
   async function cursorPage(args: Args): Promise<Result<unknown>> {
-    const size = Number(args['size']);
+    const size = Number(args["size"]);
     if (!Number.isInteger(size) || size < 1) {
       return runner.fail(
         table,
-        dbError('invalid_request', '"size" must be a positive integer'),
+        dbError("invalid_request", '"size" must be a positive integer'),
       );
     }
-    const orderBy = withTieBreaker(builder.orderBy(table, args['orderBy']));
+    const orderBy = withTieBreaker(builder.orderBy(table, args["orderBy"]));
     const base = selection(args);
     const { selection: withSort, added } = ensureColumns(base, orderBy);
 
     let after: Condition | undefined;
-    if (typeof args['after'] === 'string') {
-      const values = decodeCursor(args['after']);
+    if (typeof args["after"] === "string") {
+      const values = decodeCursor(args["after"]);
       if (!values || values.length !== orderBy.length) {
-        return runner.fail(table, dbError('invalid_request', 'Invalid cursor'));
+        return runner.fail(table, dbError("invalid_request", "Invalid cursor"));
       }
       after = keysetCondition(orderBy, values);
     }
 
     const op = selectOp(args, {
       selection: withSort,
-      where: and(builder.where(table, args['where']), after),
+      where: and(builder.where(table, args["where"]), after),
       orderBy,
       limit: size + 1,
       offset: undefined,
@@ -676,7 +676,7 @@ export function createRepository(
     for (const name of table.primaryKey) {
       const column = builder.column(table, name);
       if (!terms.some((term) => term.column === column)) {
-        terms.push({ column, direction: terms[0]?.direction ?? 'asc' });
+        terms.push({ column, direction: terms[0]?.direction ?? "asc" });
       }
     }
     return terms;
@@ -724,15 +724,15 @@ function keysetCondition(
     const equal: Condition[] = orderBy
       .slice(0, index)
       .map((prev, prevIndex) => ({
-        kind: 'column',
+        kind: "column",
         column: prev.column,
-        op: 'eq',
+        op: "eq",
         value: values[prevIndex],
       }));
     const step: Condition = {
-      kind: 'column',
+      kind: "column",
       column: term.column,
-      op: term.direction === 'asc' ? 'gt' : 'lt',
+      op: term.direction === "asc" ? "gt" : "lt",
       value: values[index],
     };
     return and(...equal, step) ?? step;

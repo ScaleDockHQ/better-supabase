@@ -4,12 +4,12 @@ import {
   type CatalogTable,
   fromCatalog,
   type Snapshot,
-} from 'better-supabase/cli';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+} from "better-supabase/cli";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 interface Measurement {
   readonly types: number;
@@ -27,21 +27,21 @@ const QUERIED = 40;
 const TOLERANCE = 0.1;
 
 const here = dirname(fileURLToPath(import.meta.url));
-const work = join(here, 'tmp');
+const work = join(here, "tmp");
 const require = createRequire(import.meta.url);
 const tsc = join(
-  dirname(require.resolve('typescript/package.json')),
-  'bin',
-  'tsc',
+  dirname(require.resolve("typescript/package.json")),
+  "bin",
+  "tsc",
 );
 const cli = join(
-  dirname(require.resolve('better-supabase/package.json')),
-  'dist',
-  'cli',
-  'bin.js',
+  dirname(require.resolve("better-supabase/package.json")),
+  "dist",
+  "cli",
+  "bin.js",
 );
 
-const name = (i: number): string => `t${String(i).padStart(3, '0')}`;
+const name = (i: number): string => `t${String(i).padStart(3, "0")}`;
 
 function column(
   columnName: string,
@@ -52,7 +52,7 @@ function column(
     name: columnName,
     udt,
     format: udt,
-    typeSchema: 'pg_catalog',
+    typeSchema: "pg_catalog",
     isArray: false,
     isEnum: false,
     nullable: options.nullable ?? false,
@@ -73,12 +73,12 @@ function foreignKey(
   return {
     name: `${table}_${col}_fkey`,
     columns: [col],
-    refSchema: 'public',
+    refSchema: "public",
     refTable: ref,
-    refColumns: ['id'],
+    refColumns: ["id"],
     oneToOne: false,
-    onDelete: 'cascade',
-    onUpdate: 'no action',
+    onDelete: "cascade",
+    onUpdate: "no action",
   };
 }
 
@@ -89,17 +89,17 @@ function table(
 ): CatalogTable {
   return {
     id: 0,
-    schema: 'public',
+    schema: "public",
     name: tableName,
-    kind: 'table',
+    kind: "table",
     rls: true,
     forceRls: false,
-    replicaIdentity: 'DEFAULT',
+    replicaIdentity: "DEFAULT",
     insertable: true,
     updatable: true,
     comment: null,
     columns,
-    primaryKey: ['id'],
+    primaryKey: ["id"],
     uniques: [],
     foreignKeys,
     checks: [],
@@ -113,10 +113,10 @@ function table(
 function snapshot(): Snapshot {
   const tables = [
     table(
-      'organizations',
+      "organizations",
       [
-        column('id', 'uuid', { default: 'gen_random_uuid()' }),
-        column('name', 'text'),
+        column("id", "uuid", { default: "gen_random_uuid()" }),
+        column("name", "text"),
       ],
       [],
     ),
@@ -124,27 +124,27 @@ function snapshot(): Snapshot {
   for (let i = 0; i < TABLES; i++) {
     const tableName = name(i);
     const columns = [
-      column('id', 'uuid', { default: 'gen_random_uuid()' }),
-      column('organization_id', 'uuid'),
-      column('parent_id', 'uuid', { nullable: true }),
-      column('name', 'text'),
-      column('description', 'text', { nullable: true }),
-      column('amount', 'numeric', { nullable: true }),
-      column('quantity', 'int4', { default: '0' }),
-      column('active', 'bool', { default: 'true' }),
-      column('metadata', 'jsonb', { nullable: true }),
-      column('created_at', 'timestamptz', { default: 'now()' }),
-      column('updated_at', 'timestamptz', { default: 'now()' }),
-      column('archived_at', 'timestamptz', { nullable: true }),
+      column("id", "uuid", { default: "gen_random_uuid()" }),
+      column("organization_id", "uuid"),
+      column("parent_id", "uuid", { nullable: true }),
+      column("name", "text"),
+      column("description", "text", { nullable: true }),
+      column("amount", "numeric", { nullable: true }),
+      column("quantity", "int4", { default: "0" }),
+      column("active", "bool", { default: "true" }),
+      column("metadata", "jsonb", { nullable: true }),
+      column("created_at", "timestamptz", { default: "now()" }),
+      column("updated_at", "timestamptz", { default: "now()" }),
+      column("archived_at", "timestamptz", { nullable: true }),
     ];
     for (let c = 0; c < 8; c++)
-      columns.push(column(`field_${String(c)}`, 'text', { nullable: true }));
-    const keys = [foreignKey(tableName, 'organization_id', 'organizations')];
-    if (i > 0) keys.push(foreignKey(tableName, 'parent_id', name(i - 1)));
+      columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
+    const keys = [foreignKey(tableName, "organization_id", "organizations")];
+    if (i > 0) keys.push(foreignKey(tableName, "parent_id", name(i - 1)));
     tables.push(table(tableName, columns, keys));
   }
   return fromCatalog({
-    schemas: ['public'],
+    schemas: ["public"],
     tables,
     enums: [],
     functions: [],
@@ -161,10 +161,10 @@ function consumer(): string {
     "import { tenant } from 'better-supabase/plugins/tenant';",
     "import { timestamps } from 'better-supabase/plugins/timestamps';",
     "import { schema } from './generated.ts';",
-    'declare const client: SupabaseClient;',
-    'const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);',
-    'export async function run(): Promise<unknown[]> {',
-    '  return [',
+    "declare const client: SupabaseClient;",
+    "const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);",
+    "export async function run(): Promise<unknown[]> {",
+    "  return [",
   ];
   for (let i = 1; i <= QUERIED; i++) {
     const key = name(i);
@@ -175,16 +175,16 @@ function consumer(): string {
       `    await db.${key}.update('id', { name: 'x' }).orThrow(),`,
     );
   }
-  lines.push('  ];', '}', '');
-  return lines.join('\n');
+  lines.push("  ];", "}", "");
+  return lines.join("\n");
 }
 
 function measure(): Measurement & { checkTime: string } {
   const result = spawnSync(
     process.execPath,
-    [tsc, '-p', join(work, 'tsconfig.json'), '--extendedDiagnostics'],
+    [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
     {
-      encoding: 'utf8',
+      encoding: "utf8",
     },
   );
   const output = `${result.stdout}${result.stderr}`;
@@ -192,59 +192,59 @@ function measure(): Measurement & { checkTime: string } {
     throw new Error(`tsc failed on the benchmark schema:\n${output}`);
   }
   const read = (label: string): string => {
-    const match = new RegExp(`^${label}:\\s+(\\S+)`, 'm').exec(output);
+    const match = new RegExp(`^${label}:\\s+(\\S+)`, "m").exec(output);
     if (!match?.[1]) throw new Error(`tsc output has no "${label}" line`);
     return match[1];
   };
   return {
-    types: Number(read('Types')),
-    instantiations: Number(read('Instantiations')),
-    checkTime: read('Check time'),
+    types: Number(read("Types")),
+    instantiations: Number(read("Instantiations")),
+    checkTime: read("Check time"),
   };
 }
 
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
-writeFileSync(join(work, 'snapshot.json'), JSON.stringify(snapshot()));
+writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot()));
 writeFileSync(
-  join(work, 'better-supabase.config.json'),
+  join(work, "better-supabase.config.json"),
   JSON.stringify({
-    source: { snapshot: 'snapshot.json' },
-    casing: 'camel',
-    output: 'generated.ts',
+    source: { snapshot: "snapshot.json" },
+    casing: "camel",
+    output: "generated.ts",
     plugins: {
       timestamps: true,
-      softDelete: { column: 'archived_at' },
-      tenant: { column: 'organization_id' },
+      softDelete: { column: "archived_at" },
+      tenant: { column: "organization_id" },
     },
   }),
 );
-writeFileSync(join(work, 'consumer.ts'), consumer());
+writeFileSync(join(work, "consumer.ts"), consumer());
 writeFileSync(
-  join(work, 'tsconfig.json'),
+  join(work, "tsconfig.json"),
   JSON.stringify({
     compilerOptions: {
       strict: true,
       exactOptionalPropertyTypes: true,
-      module: 'nodenext',
-      moduleResolution: 'nodenext',
-      target: 'es2024',
-      lib: ['ES2024', 'DOM'],
+      module: "nodenext",
+      moduleResolution: "nodenext",
+      target: "es2024",
+      lib: ["ES2024", "DOM"],
       types: [],
       allowImportingTsExtensions: true,
       skipLibCheck: true,
       noEmit: true,
     },
-    files: ['consumer.ts'],
+    files: ["consumer.ts"],
   }),
 );
-execFileSync(process.execPath, [cli, 'gen', '--cwd', work], { stdio: 'pipe' });
+execFileSync(process.execPath, [cli, "gen", "--cwd", work], { stdio: "pipe" });
 
 const current = measure();
-const baselinePath = join(here, 'baseline.json');
+const baselinePath = join(here, "baseline.json");
 const summary = `${String(TABLES)} tables, ${String(QUERIED)} queried: ${String(current.instantiations)} instantiations, ${String(current.types)} types, check ${current.checkTime}`;
 
-if (process.env.BENCH_UPDATE === '1') {
+if (process.env.BENCH_UPDATE === "1") {
   const baseline: Baseline = {
     tables: TABLES,
     queried: QUERIED,
@@ -256,8 +256,8 @@ if (process.env.BENCH_UPDATE === '1') {
   writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
   console.log(`baseline updated: ${summary}`);
 } else {
-  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')) as Baseline;
-  const failures = (['instantiations', 'types'] as const).filter(
+  const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
+  const failures = (["instantiations", "types"] as const).filter(
     (metric) =>
       current[metric] > baseline.measurement[metric] * (1 + TOLERANCE),
   );

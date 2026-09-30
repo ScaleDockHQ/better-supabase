@@ -1,16 +1,16 @@
-import type { BetterSupabase } from '../core/define.ts';
-import type { SqlClient } from '../postgres/executor.ts';
+import type { BetterSupabase } from "../core/define.ts";
+import type { SqlClient } from "../postgres/executor.ts";
 import type {
   AnyFunctions,
   AnyModels,
   ColumnMeta,
   SchemaMeta,
   TableMeta,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
 /** Named rows per table, in app casing: `{ customers: { acme: { ... } } }`. */
 export type SeedFixtures<M extends AnyModels> = {
-  readonly [K in keyof M]?: Readonly<Record<string, M[K]['Insert']>>;
+  readonly [K in keyof M]?: Readonly<Record<string, M[K]["Insert"]>>;
 };
 
 /** Rejects columns that are not in the table's Insert type. */
@@ -18,7 +18,7 @@ export type ExactSeed<M extends AnyModels, S> = {
   readonly [K in keyof S]: K extends keyof M
     ? {
         readonly [N in keyof S[K]]: {
-          readonly [C in keyof S[K][N]]: C extends keyof M[K]['Insert']
+          readonly [C in keyof S[K][N]]: C extends keyof M[K]["Insert"]
             ? S[K][N][C]
             : never;
         };
@@ -26,7 +26,7 @@ export type ExactSeed<M extends AnyModels, S> = {
     : never;
 };
 
-const SEED: unique symbol = Symbol.for('better-supabase.seed') as never;
+const SEED: unique symbol = Symbol.for("better-supabase.seed") as never;
 
 export interface Seed<S> {
   readonly [SEED]: true;
@@ -40,43 +40,43 @@ export interface Seed<S> {
 }
 
 export function isSeed(value: unknown): value is Seed<unknown> {
-  return typeof value === 'object' && value !== null && SEED in value;
+  return typeof value === "object" && value !== null && SEED in value;
 }
 
 const quote = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 
 function arrayLiteral(values: readonly unknown[]): string {
   const items = values.map((value) => {
-    if (value === null) return 'NULL';
+    if (value === null) return "NULL";
     if (Array.isArray(value)) return arrayLiteral(value);
     const text = value instanceof Date ? value.toISOString() : String(value);
-    return `"${text.replace(/[\\"]/g, '\\$&')}"`;
+    return `"${text.replace(/[\\"]/g, "\\$&")}"`;
   });
-  return `{${items.join(',')}}`;
+  return `{${items.join(",")}}`;
 }
 
 function literal(value: unknown, column: ColumnMeta, where: string): string {
-  if (value === null) return 'null';
+  if (value === null) return "null";
   if (column.json) return quote(JSON.stringify(value));
   if (Array.isArray(value)) return quote(arrayLiteral(value));
   if (value instanceof Date) return quote(value.toISOString());
   const kind = typeof value;
   switch (kind) {
-    case 'string':
+    case "string":
       return quote(value as string);
-    case 'boolean':
-    case 'bigint':
+    case "boolean":
+    case "bigint":
       return String(value);
-    case 'number':
+    case "number":
       if (!Number.isFinite(value))
         throw new TypeError(
           `${where}: ${String(value)} is not a finite number`,
         );
       return String(value);
-    case 'object':
-    case 'function':
-    case 'symbol':
-    case 'undefined':
+    case "object":
+    case "function":
+    case "symbol":
+    case "undefined":
       throw new TypeError(`${where}: unsupported value of type ${kind}`);
     default: {
       const unreachable: never = kind;
@@ -98,7 +98,7 @@ function order(meta: SchemaMeta, keys: readonly string[]): string[] {
     visiting.add(key);
     for (const relation of Object.values(meta.tables[key]?.relations ?? {})) {
       if (
-        relation.direction === 'forward' &&
+        relation.direction === "forward" &&
         relation.table !== key &&
         keys.includes(relation.table)
       ) {
@@ -135,18 +135,18 @@ function statement(
   const values = entries.map(([name, row]) => {
     const cells = columns.map((key) =>
       row[key] === undefined
-        ? 'default'
+        ? "default"
         : literal(
             row[key],
             table.columns[key]!,
             `seed ${table.key}.${name}.${key}`,
           ),
     );
-    return `  (${cells.join(', ')})`;
+    return `  (${cells.join(", ")})`;
   });
   const target = `${ident(table.schema)}.${ident(table.name)}`;
-  const list = columns.map((key) => ident(table.columns[key]!.db)).join(', ');
-  return `insert into ${target} (${list}) values\n${values.join(',\n')}\non conflict do nothing;`;
+  const list = columns.map((key) => ident(table.columns[key]!.db)).join(", ");
+  return `insert into ${target} (${list}) values\n${values.join(",\n")}\non conflict do nothing;`;
 }
 
 /**
@@ -175,7 +175,7 @@ export function defineSeed<
     for (const key of keys) {
       const table = meta.tables[key];
       if (!table) throw new TypeError(`seed: unknown table "${key}"`);
-      if (table.kind === 'view')
+      if (table.kind === "view")
         throw new TypeError(`seed: "${key}" is a view`);
     }
     return order(meta, keys).flatMap((key) => {
@@ -190,7 +190,7 @@ export function defineSeed<
     [SEED]: true,
     rows: fixtures,
     statements,
-    sql: () => statements().join('\n\n'),
+    sql: () => statements().join("\n\n"),
     async insert(sql) {
       for (const text of statements()) await sql.queryRaw(text);
     },

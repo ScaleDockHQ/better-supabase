@@ -1,7 +1,7 @@
-import type { Executor } from '../core/executor.ts';
+import type { Executor } from "../core/executor.ts";
 
 /** Cookie holding the epoch ms until which reads stay on the primary. */
-export const PRIMARY_COOKIE = 'bs-primary-until';
+export const PRIMARY_COOKIE = "bs-primary-until";
 
 /** Default time reads stay on the primary after a write. */
 export const DEFAULT_PIN_MS = 5000;
@@ -38,8 +38,8 @@ export function replicaState(
 /** `bs-primary-until` from a `cookie` header, or 0. */
 export function pinnedUntil(cookieHeader: string | null): number {
   if (!cookieHeader) return 0;
-  for (const part of cookieHeader.split(';')) {
-    const [name, value] = part.trim().split('=', 2);
+  for (const part of cookieHeader.split(";")) {
+    const [name, value] = part.trim().split("=", 2);
     if (name === PRIMARY_COOKIE) {
       const until = Number(value);
       return Number.isFinite(until) ? until : 0;
@@ -71,10 +71,10 @@ export function routedExecutor(
       ? { functionSources: true }
       : {}),
     async execute(op, context) {
-      if (op.kind === 'select' && !state.pinned)
+      if (op.kind === "select" && !state.pinned)
         return replica.execute(op, context);
       const result = await primary.execute(op, context);
-      if (op.kind !== 'select' && result.ok) state.pin();
+      if (op.kind !== "select" && result.ok) state.pin();
       return result;
     },
     ...(primary.rpc

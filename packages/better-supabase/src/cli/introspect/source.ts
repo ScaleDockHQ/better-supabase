@@ -1,6 +1,6 @@
-import type { Queryable } from './typegen.ts';
+import type { Queryable } from "./typegen.ts";
 
-import { connect } from '../db.ts';
+import { connect } from "../db.ts";
 
 export type { Queryable };
 
@@ -43,19 +43,19 @@ export interface ManagementSourceOptions {
 export function managementSource(
   options: ManagementSourceOptions,
 ): IntrospectionSource {
-  const base = (options.apiUrl ?? 'https://api.supabase.com').replace(
+  const base = (options.apiUrl ?? "https://api.supabase.com").replace(
     /\/$/,
-    '',
+    "",
   );
   const doFetch = options.fetch ?? fetch;
   const endpoint = `${base}/v1/projects/${encodeURIComponent(options.projectRef)}/database/query/read-only`;
   const queryable: Queryable = {
     async query(sql: string) {
       const response = await doFetch(endpoint, {
-        method: 'POST',
+        method: "POST",
         headers: {
           authorization: `Bearer ${options.accessToken}`,
-          'content-type': 'application/json',
+          "content-type": "application/json",
         },
         body: JSON.stringify({ query: sql }),
       });

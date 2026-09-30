@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { Section } from '@/components/sections/section';
+import { Section } from "@/components/sections/section";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { faq } from '@/lib/home';
+} from "@/components/ui/accordion";
+import { faq } from "@/lib/home";
 
 export function FaqSection() {
   return (

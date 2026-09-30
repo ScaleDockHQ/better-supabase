@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { type LiveCountSeed, useLiveCount } from 'better-supabase/react';
-import Link from 'next/link';
+import { type LiveCountSeed, useLiveCount } from "better-supabase/react";
+import Link from "next/link";
 
-import { unreadSpec } from '../inbox-specs';
+import { unreadSpec } from "../inbox-specs";
 
 /**
  * The header badge. Part of the static shell, so it counts from the browser
@@ -18,7 +18,7 @@ export function UnreadBadge() {
       data-testid="unread-badge"
       data-status={status}
     >
-      Inbox <span data-testid="unread-count">{count ?? '–'}</span>
+      Inbox <span data-testid="unread-count">{count ?? "–"}</span>
     </Link>
   );
 }
@@ -28,7 +28,7 @@ export function UnreadSummary({ seed }: { seed: LiveCountSeed }) {
   const { count } = useLiveCount(seed);
   return (
     <p data-testid="unread-summary">
-      {count === undefined ? 'Counting…' : `${String(count)} unread`}
+      {count === undefined ? "Counting…" : `${String(count)} unread`}
     </p>
   );
 }

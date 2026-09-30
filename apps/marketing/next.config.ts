@@ -1,17 +1,17 @@
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
-import { env } from './env.ts';
+import { env } from "./env.ts";
 
 const docsOrigin = env.DOCS_ORIGIN;
 
 const docsPaths = [
-  '/docs',
-  '/docs/:path*',
-  '/api/search',
-  '/llms.txt',
-  '/llms-full.txt',
-  '/llms.mdx/:path*',
-  '/mcp',
+  "/docs",
+  "/docs/:path*",
+  "/api/search",
+  "/llms.txt",
+  "/llms-full.txt",
+  "/llms.mdx/:path*",
+  "/mcp",
 ];
 
 const config: NextConfig = {
@@ -19,19 +19,19 @@ const config: NextConfig = {
   // `next build` needs the TypeScript 6 compiler API; the Turbo `typecheck`
   // task runs TypeScript 7 instead.
   typescript: { ignoreBuildErrors: true },
-  allowedDevOrigins: ['127.0.0.1'],
+  allowedDevOrigins: ["127.0.0.1"],
   redirects() {
     return Promise.resolve([
       {
-        source: '/problems/:type',
-        destination: '/docs/auth/problems',
+        source: "/problems/:type",
+        destination: "/docs/auth/problems",
         permanent: false,
       },
     ]);
   },
   rewrites() {
     // In production Vercel Services routes these paths to apps/docs.
-    if (env.NODE_ENV === 'production') {
+    if (env.NODE_ENV === "production") {
       return Promise.resolve([]);
     }
     return Promise.resolve(

@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from "vitest";
 
-import { parseChangelog } from './changelog';
+import { parseChangelog } from "./changelog";
 
 const sample = `# better-supabase
 
@@ -23,27 +23,27 @@ const sample = `# better-supabase
 - abcdef0: First release.
 `;
 
-describe('parseChangelog', () => {
-  test('groups versions, kinds and hashed bullets', () => {
+describe("parseChangelog", () => {
+  test("groups versions, kinds and hashed bullets", () => {
     const releases = parseChangelog(sample);
     expect(releases).toHaveLength(3);
-    expect(releases[0]).toMatchObject({ version: '0.2.0', kind: 'Minor' });
+    expect(releases[0]).toMatchObject({ version: "0.2.0", kind: "Minor" });
     expect(releases[0]?.changes[0]).toEqual({
-      hash: '258e0aa',
-      text: 'Add the storage kit.',
+      hash: "258e0aa",
+      text: "Add the storage kit.",
     });
-    expect(releases[1]?.kind).toBe('Patch');
-    expect(releases[2]?.version).toBe('0.1.0');
+    expect(releases[1]?.kind).toBe("Patch");
+    expect(releases[2]?.version).toBe("0.1.0");
   });
 
-  test('joins wrapped bullet lines', () => {
+  test("joins wrapped bullet lines", () => {
     const releases = parseChangelog(sample);
     expect(releases[0]?.changes[1]).toEqual({
-      text: 'Thread casing through includes, including nested filters.',
+      text: "Thread casing through includes, including nested filters.",
     });
   });
 
-  test('returns nothing for an empty changelog', () => {
-    expect(parseChangelog('# better-supabase\n')).toEqual([]);
+  test("returns nothing for an empty changelog", () => {
+    expect(parseChangelog("# better-supabase\n")).toEqual([]);
   });
 });

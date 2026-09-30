@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-import type { Result } from '../core/result.ts';
+import type { Result } from "../core/result.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -8,18 +8,18 @@ import type {
   TableKey,
   TableMeta,
   Update,
-} from '../schema/types.ts';
-import type { TestJwtClaims } from './jwt.ts';
+} from "../schema/types.ts";
+import type { TestJwtClaims } from "./jwt.ts";
 
-import { BetterSupabase } from '../core/define.ts';
-import { ENV_VARIABLES } from '../env/index.ts';
-import { asUser, type LocalStack } from './as-user.ts';
+import { BetterSupabase } from "../core/define.ts";
+import { ENV_VARIABLES } from "../env/index.ts";
+import { asUser, type LocalStack } from "./as-user.ts";
 import {
   type Check,
   type ConformanceReport,
   conform,
   expect,
-} from './conformance.ts';
+} from "./conformance.ts";
 
 export interface IsolationTenant {
   /** Handed to each table's `row`, usually the tenant's id. */
@@ -64,9 +64,9 @@ interface Repository {
 type Repositories = Readonly<Record<string, Repository>>;
 
 const scalar = (value: unknown): boolean =>
-  typeof value === 'string' ||
-  typeof value === 'number' ||
-  typeof value === 'boolean';
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean";
 
 function keyOf(table: TableMeta, row: Row): Row {
   return Object.fromEntries(
@@ -81,7 +81,7 @@ async function rowsOf(outcome: Outcome): Promise<Row[]> {
 }
 
 function env(names: readonly string[]): string | undefined {
-  if (typeof process === 'undefined') return undefined;
+  if (typeof process === "undefined") return undefined;
   for (const name of names) {
     const value = process.env[name];
     if (value) return value;
@@ -122,11 +122,11 @@ export async function expectTenantIsolation<
 ): Promise<ConformanceReport> {
   const stack = options.stack ?? {};
   const bare = new BetterSupabase(sb.schema);
-  const url = stack.url ?? env(ENV_VARIABLES.url) ?? 'http://127.0.0.1:54321';
+  const url = stack.url ?? env(ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
   const secretKey = stack.secretKey ?? env(ENV_VARIABLES.secretKey);
   if (!secretKey) {
     throw new TypeError(
-      'expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.',
+      "expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.",
     );
   }
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the harness indexes repositories by table name for any schema.
@@ -216,7 +216,7 @@ export async function expectTenantIsolation<
                 `insert of a row for ${whose} tenant succeeded`,
               );
               expect(
-                result.error.kind === 'forbidden',
+                result.error.kind === "forbidden",
                 `insert failed with ${result.error.kind} (${result.error.message}), not an RLS error; check the row factory`,
               );
             },
@@ -230,7 +230,7 @@ export async function expectTenantIsolation<
                 Object.entries(patch).some(
                   ([column, value]) => before?.[column] !== value,
                 ),
-                'update must change the row to detect a leak',
+                "update must change the row to detect a leak",
               );
               await user.updateMany({
                 where: target,
@@ -259,7 +259,7 @@ export async function expectTenantIsolation<
         ]);
       }
     }
-    return await conform('Tenant isolation', [...reads, ...deletes]);
+    return await conform("Tenant isolation", [...reads, ...deletes]);
   } finally {
     for (const remove of cleanup.reverse()) await remove();
   }

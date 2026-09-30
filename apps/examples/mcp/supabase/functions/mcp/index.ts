@@ -1,3 +1,3 @@
-import { mcp } from './server.ts';
+import { mcp } from "./server.ts";
 
 Deno.serve(mcp.fetch);

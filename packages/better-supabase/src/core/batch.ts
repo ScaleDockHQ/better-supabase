@@ -1,7 +1,7 @@
-import type { Operation } from '../ir/types.ts';
-import type { ExecuteContext, ExecuteResult, Executor } from './executor.ts';
+import type { Operation } from "../ir/types.ts";
+import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 
-import { err, type Result, toDbError } from './result.ts';
+import { err, type Result, toDbError } from "./result.ts";
 
 interface Pending {
   readonly op: Operation;
@@ -21,7 +21,7 @@ export interface BatchingExecutor {
  * runs a second operation joins the next batch.
  */
 export function batchingExecutor(
-  base: Executor & { readonly batch: NonNullable<Executor['batch']> },
+  base: Executor & { readonly batch: NonNullable<Executor["batch"]> },
   readers: number,
 ): BatchingExecutor {
   let running = readers;

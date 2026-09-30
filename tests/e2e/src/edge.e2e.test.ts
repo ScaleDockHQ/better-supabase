@@ -1,5 +1,6 @@
-import { handler } from '@better-supabase/example-edge/handler';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { handler } from "@better-supabase/example-edge/handler";
 
 import {
   ACME,
@@ -7,11 +8,11 @@ import {
   createUser,
   reachable,
   type TestUser,
-} from './stack.ts';
+} from "./stack.ts";
 
-describe.skipIf(!(await reachable()))('edge example', () => {
+describe.skipIf(!(await reachable()))("edge example", () => {
   let acme: TestUser;
-  const rows = cleanup('customers');
+  const rows = cleanup("customers");
 
   beforeAll(async () => {
     acme = await createUser(ACME);
@@ -32,22 +33,22 @@ describe.skipIf(!(await reachable()))('edge example', () => {
   ) =>
     handler(
       new Request(`http://127.0.0.1:54321${path}`, {
-        method: init.method ?? 'GET',
+        method: init.method ?? "GET",
         headers: {
           ...(init.token ? { authorization: `Bearer ${init.token}` } : {}),
           ...(init.origin ? { origin: init.origin } : {}),
           ...(init.body === undefined
             ? {}
-            : { 'content-type': 'application/json' }),
+            : { "content-type": "application/json" }),
         },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       }),
     );
 
-  it('serves REST resources as the caller', async () => {
+  it("serves REST resources as the caller", async () => {
     const name = `Edge e2e ${crypto.randomUUID()}`;
-    const created = await request('/api/customers', {
-      method: 'POST',
+    const created = await request("/api/customers", {
+      method: "POST",
       token: acme.accessToken,
       body: { name, organizationId: ACME },
     });
@@ -67,25 +68,25 @@ describe.skipIf(!(await reachable()))('edge example', () => {
     expect(
       (
         await request(`/api/customers/${row.id}`, {
-          method: 'DELETE',
+          method: "DELETE",
           token: acme.accessToken,
         })
       ).status,
     ).toBe(204);
   });
 
-  it('answers /api/me and CORS preflights', async () => {
+  it("answers /api/me and CORS preflights", async () => {
     expect(
-      await (await request('/api/me', { token: acme.accessToken })).json(),
-    ).toEqual({ kind: 'user' });
-    const preflight = await request('/api/customers', {
-      method: 'OPTIONS',
-      origin: 'https://app.test',
+      await (await request("/api/me", { token: acme.accessToken })).json(),
+    ).toEqual({ kind: "user" });
+    const preflight = await request("/api/customers", {
+      method: "OPTIONS",
+      origin: "https://app.test",
     });
     expect(preflight.status).toBeLessThan(300);
-    expect(preflight.headers.get('access-control-allow-headers')).toContain(
-      'authorization',
+    expect(preflight.headers.get("access-control-allow-headers")).toContain(
+      "authorization",
     );
-    expect((await request('/api/customers')).status).toBe(401);
+    expect((await request("/api/customers")).status).toBe(401);
   });
 });

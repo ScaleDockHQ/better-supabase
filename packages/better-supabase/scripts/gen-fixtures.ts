@@ -3,15 +3,15 @@
  * The snapshot itself comes from the repo's fixture database:
  * `node src/cli/bin.ts introspect --cwd ../.. --out packages/better-supabase/src/fixtures/snapshot.json`
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from "node:fs/promises";
 
-import { renderFixtures } from '../src/fixtures/render.ts';
+import { renderFixtures } from "../src/fixtures/render.ts";
 
-const check = process.argv.includes('--check');
+const check = process.argv.includes("--check");
 let stale = false;
 for (const file of await renderFixtures()) {
   if (check) {
-    const current = await readFile(file.path, 'utf8').catch(() => '');
+    const current = await readFile(file.path, "utf8").catch(() => "");
     if (current !== file.contents) {
       console.error(`stale: ${file.path}`);
       stale = true;

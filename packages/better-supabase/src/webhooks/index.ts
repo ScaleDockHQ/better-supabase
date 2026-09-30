@@ -1,15 +1,15 @@
-import type { BetterSupabase } from '../core/define.ts';
+import type { BetterSupabase } from "../core/define.ts";
 import type {
   AnyFunctions,
   AnyModels,
   Row,
   TableKey,
   TableMeta,
-} from '../schema/types.ts';
+} from "../schema/types.ts";
 
-import { type DbError, dbError } from '../core/errors.ts';
-import { err, ok, type Result } from '../core/result.ts';
-import { toApp } from '../plugins/shared.ts';
+import { type DbError, dbError } from "../core/errors.ts";
+import { err, ok, type Result } from "../core/result.ts";
+import { toApp } from "../plugins/shared.ts";
 
 // ---------------------------------------------------------------------------
 // Standard Webhooks
@@ -38,26 +38,26 @@ const encoder = new TextEncoder();
 
 /** Accepts `whsec_…`, `v1,whsec_…` (Supabase Auth hooks) or raw base64. */
 function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
-  const raw = secret.replace(/^v1,/, '').replace(/^whsec_/, '');
+  const raw = secret.replace(/^v1,/, "").replace(/^whsec_/, "");
   try {
     return Uint8Array.from(atob(raw), (char) => char.charCodeAt(0));
   } catch {
-    throw new TypeError('Webhook secret is not valid base64');
+    throw new TypeError("Webhook secret is not valid base64");
   }
 }
 
 async function signature(secret: string, content: string): Promise<string> {
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     secretBytes(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign'],
+    ["sign"],
   );
   const mac = new Uint8Array(
-    await crypto.subtle.sign('HMAC', key, encoder.encode(content)),
+    await crypto.subtle.sign("HMAC", key, encoder.encode(content)),
   );
-  let binary = '';
+  let binary = "";
   for (const byte of mac) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
@@ -85,7 +85,7 @@ function header(
 }
 
 const unauthorized = (code: string, message: string): DbError =>
-  dbError('unauthorized', message, { code });
+  dbError("unauthorized", message, { code });
 
 /** Headers for a signed Standard Webhooks request. */
 export async function signWebhook(
@@ -100,9 +100,9 @@ export async function signWebhook(
     Math.floor((message.timestamp ?? new Date()).getTime() / 1000),
   );
   return {
-    'webhook-id': message.id,
-    'webhook-timestamp': timestamp,
-    'webhook-signature': `v1,${await signature(secret, `${message.id}.${timestamp}.${message.body}`)}`,
+    "webhook-id": message.id,
+    "webhook-timestamp": timestamp,
+    "webhook-signature": `v1,${await signature(secret, `${message.id}.${timestamp}.${message.body}`)}`,
   };
 }
 
@@ -118,50 +118,50 @@ export async function verifyWebhook<T = unknown>(
 ): Promise<Result<VerifiedWebhook<T>>> {
   const headers = input.headers;
   const body = input instanceof Request ? await input.text() : input.body;
-  const id = header(headers, 'webhook-id');
-  const timestamp = header(headers, 'webhook-timestamp');
-  const signatures = header(headers, 'webhook-signature');
+  const id = header(headers, "webhook-id");
+  const timestamp = header(headers, "webhook-timestamp");
+  const signatures = header(headers, "webhook-signature");
   if (!id || !timestamp || !signatures)
     return err(
       unauthorized(
-        'WEBHOOK_MISSING_HEADERS',
-        'Missing webhook signature headers',
+        "WEBHOOK_MISSING_HEADERS",
+        "Missing webhook signature headers",
       ),
     );
   const seconds = Number(timestamp);
   if (!/^\d+$/.test(timestamp))
     return err(
-      unauthorized('WEBHOOK_INVALID_TIMESTAMP', 'Invalid webhook timestamp'),
+      unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
     );
   const now = (options.now?.() ?? Date.now()) / 1000;
   const tolerance = options.tolerance ?? 300;
   if (seconds < now - tolerance)
     return err(
-      unauthorized('WEBHOOK_TIMESTAMP_TOO_OLD', 'Webhook timestamp is too old'),
+      unauthorized("WEBHOOK_TIMESTAMP_TOO_OLD", "Webhook timestamp is too old"),
     );
   if (seconds > now + tolerance)
     return err(
       unauthorized(
-        'WEBHOOK_TIMESTAMP_TOO_NEW',
-        'Webhook timestamp is in the future',
+        "WEBHOOK_TIMESTAMP_TOO_NEW",
+        "Webhook timestamp is in the future",
       ),
     );
 
   const content = `${id}.${timestamp}.${body}`;
   const offered = signatures
-    .split(' ')
-    .map((entry) => entry.split(','))
-    .filter(([version, value]) => version === 'v1' && value)
+    .split(" ")
+    .map((entry) => entry.split(","))
+    .filter(([version, value]) => version === "v1" && value)
     .map(([, value]) => value!);
   let valid = false;
-  for (const secret of typeof secrets === 'string' ? [secrets] : secrets) {
+  for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
     const expected = await signature(secret, content);
     for (const candidate of offered)
       if (timingSafeEqual(candidate, expected)) valid = true;
   }
   if (!valid)
     return err(
-      unauthorized('WEBHOOK_INVALID_SIGNATURE', 'Invalid webhook signature'),
+      unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
     );
 
   try {
@@ -172,7 +172,7 @@ export async function verifyWebhook<T = unknown>(
       body,
     });
   } catch {
-    return err(dbError('invalid_request', 'Webhook body is not JSON'));
+    return err(dbError("invalid_request", "Webhook body is not JSON"));
   }
 }
 
@@ -180,10 +180,10 @@ export async function verifyWebhook<T = unknown>(
 export function verifySharedSecret(
   request: Request,
   secret: string,
-  headerName = 'authorization',
+  headerName = "authorization",
 ): boolean {
-  const value = request.headers.get(headerName) ?? '';
-  const token = value.replace(/^Bearer\s+/i, '');
+  const value = request.headers.get(headerName) ?? "";
+  const token = value.replace(/^Bearer\s+/i, "");
   return timingSafeEqual(token, secret);
 }
 
@@ -242,14 +242,14 @@ export interface AuthHooks {
       readonly valid: boolean;
     };
     output: {
-      readonly decision: 'continue' | 'reject';
+      readonly decision: "continue" | "reject";
       readonly message?: string;
     };
   };
   password_verification_attempt: {
     input: { readonly user_id: string; readonly valid: boolean };
     output: {
-      readonly decision: 'continue' | 'reject';
+      readonly decision: "continue" | "reject";
       readonly message?: string;
       readonly should_logout_user?: boolean;
     };
@@ -284,16 +284,16 @@ export function authHook<K extends AuthHookKind>(
   _kind: K,
   secret: string | readonly string[],
   handler: (
-    payload: AuthHooks[K]['input'],
-    webhook: VerifiedWebhook<AuthHooks[K]['input']>,
+    payload: AuthHooks[K]["input"],
+    webhook: VerifiedWebhook<AuthHooks[K]["input"]>,
   ) =>
-    | AuthHooks[K]['output']
+    | AuthHooks[K]["output"]
     | AuthHookError
-    | Promise<AuthHooks[K]['output'] | AuthHookError>,
+    | Promise<AuthHooks[K]["output"] | AuthHookError>,
   options?: VerifyOptions,
 ): (request: Request) => Promise<Response> {
   return async (request) => {
-    const verified = await verifyWebhook<AuthHooks[K]['input']>(
+    const verified = await verifyWebhook<AuthHooks[K]["input"]>(
       request,
       secret,
       options,
@@ -305,11 +305,11 @@ export function authHook<K extends AuthHookKind>(
       );
     try {
       const answer = await handler(verified.data.payload, verified.data);
-      const status = 'error' in answer ? answer.error.http_code : 200;
+      const status = "error" in answer ? answer.error.http_code : 200;
       return Response.json(answer, { status });
     } catch (cause) {
-      console.error('better-supabase: auth hook failed', cause);
-      return Response.json(hookError(500, 'Hook failed'), { status: 500 });
+      console.error("better-supabase: auth hook failed", cause);
+      return Response.json(hookError(500, "Hook failed"), { status: 500 });
     }
   };
 }
@@ -318,7 +318,7 @@ export function authHook<K extends AuthHookKind>(
 // Database webhooks (pg_net / Supabase dashboard)
 
 export interface DatabaseWebhookPayload {
-  readonly type: 'INSERT' | 'UPDATE' | 'DELETE';
+  readonly type: "INSERT" | "UPDATE" | "DELETE";
   readonly table: string;
   readonly schema: string;
   readonly record: Readonly<Record<string, unknown>> | null;
@@ -326,7 +326,7 @@ export interface DatabaseWebhookPayload {
 }
 
 export interface DatabaseChange<R> {
-  readonly type: 'INSERT' | 'UPDATE' | 'DELETE';
+  readonly type: "INSERT" | "UPDATE" | "DELETE";
   readonly table: string;
   readonly record: R | null;
   readonly oldRecord: Partial<R> | null;
@@ -335,14 +335,14 @@ export interface DatabaseChange<R> {
 export function isDatabaseWebhook(
   value: unknown,
 ): value is DatabaseWebhookPayload {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const payload = value as Record<string, unknown>;
   return (
-    (payload['type'] === 'INSERT' ||
-      payload['type'] === 'UPDATE' ||
-      payload['type'] === 'DELETE') &&
-    typeof payload['table'] === 'string' &&
-    typeof payload['schema'] === 'string'
+    (payload["type"] === "INSERT" ||
+      payload["type"] === "UPDATE" ||
+      payload["type"] === "DELETE") &&
+    typeof payload["table"] === "string" &&
+    typeof payload["schema"] === "string"
   );
 }
 

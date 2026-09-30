@@ -1,8 +1,8 @@
-import { defineReadSet } from 'better-supabase';
+import { defineReadSet } from "better-supabase";
 
 // `better-supabase gen` imports this file with Node, so relative imports keep
 // their `.ts` extension.
-import { sb } from './supabase.ts';
+import { sb } from "./supabase.ts";
 
 /**
  * The dashboard's numbers as one round trip: `gen` compiles this into
@@ -11,15 +11,15 @@ import { sb } from './supabase.ts';
  */
 export const workspaceSummary = defineReadSet(
   sb,
-  'workspace_summary',
-  { params: { userId: 'uuid' } },
+  "workspace_summary",
+  { params: { userId: "uuid" } },
   (s, p) => ({
     customers: s.customers.count(),
-    active: s.customers.count({ where: { status: 'active' } }),
+    active: s.customers.count({ where: { status: "active" } }),
     mine: s.customers.count({ where: { createdBy: p.userId } }),
     latestNote: s.notes.findFirst({
-      select: ['body', 'createdAt'],
-      orderBy: { createdAt: 'desc' },
+      select: ["body", "createdAt"],
+      orderBy: { createdAt: "desc" },
     }),
   }),
 );

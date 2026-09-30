@@ -1,24 +1,24 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, expectTypeOf, it } from "vitest";
 
-import type { InferResult } from './spec.ts';
+import type { InferResult } from "./spec.ts";
 
 import {
   schema as camel,
   type CustomersStatus,
-} from '../fixtures/generated-camel.ts';
-import { defineSupabase } from './define.ts';
+} from "../fixtures/generated-camel.ts";
+import { defineSupabase } from "./define.ts";
 
 declare const client: SupabaseClient;
 const sb = defineSupabase(camel);
 const db = sb.connect(client);
 
-describe('aggregate types', () => {
-  it('types relation aggregates next to the row', async () => {
+describe("aggregate types", () => {
+  it("types relation aggregates next to the row", async () => {
     const rows = await db.customers
       .findMany({
-        select: ['id'],
+        select: ["id"],
         include: {
           _sum: { notes: { id: true } },
           _max: { notes: { createdAt: true } },
@@ -36,10 +36,10 @@ describe('aggregate types', () => {
     >();
   });
 
-  it('types grouped and single aggregates', async () => {
+  it("types grouped and single aggregates", async () => {
     const groups = await db.customers
       .aggregate({
-        groupBy: ['status'],
+        groupBy: ["status"],
         _count: true,
         _min: { createdAt: true },
       })
@@ -61,7 +61,7 @@ describe('aggregate types', () => {
     }>();
   });
 
-  it('only sums numeric columns and only aggregates to-many relations', () => {
+  it("only sums numeric columns and only aggregates to-many relations", () => {
     // @ts-expect-error jsonb is not numeric
     void db.customers.aggregate({ _sum: { metadata: true } });
     void db.customers.findMany({
@@ -70,9 +70,9 @@ describe('aggregate types', () => {
     });
   });
 
-  it('infers spec results', () => {
+  it("infers spec results", () => {
     const spec = sb.spec.customers.aggregate({
-      groupBy: ['status'],
+      groupBy: ["status"],
       _count: true,
     });
     expectTypeOf<InferResult<typeof spec>>().toEqualTypeOf<

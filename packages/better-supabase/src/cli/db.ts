@@ -24,7 +24,7 @@ export async function connect(url: string): Promise<{
   let pg: PgModule;
   try {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- pg is an optional peer loaded without its types.
-    const mod = (await import('pg')) as unknown as {
+    const mod = (await import("pg")) as unknown as {
       default?: PgModule;
     } & PgModule;
     pg = mod.default ?? mod;
@@ -47,5 +47,5 @@ export async function connect(url: string): Promise<{
 }
 
 export function redact(url: string): string {
-  return url.replace(/\/\/([^:@/]+):([^@/]+)@/, '//$1:***@');
+  return url.replace(/\/\/([^:@/]+):([^@/]+)@/, "//$1:***@");
 }

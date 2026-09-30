@@ -1,5 +1,5 @@
-import type { AuthSession } from '../auth/view.ts';
-import type { BetterHooks, BrowserLike } from './index.ts';
+import type { AuthSession } from "../auth/view.ts";
+import type { BetterHooks, BrowserLike } from "./index.ts";
 
 export {
   BetterSupabaseProvider,
@@ -7,10 +7,10 @@ export {
   useBroadcast,
   useLiveQuery,
   useSupabase,
-} from './index.ts';
+} from "./index.ts";
 // Kept external by tsdown so it stays a `'use client'` module: a Server
 // Component layout can render it and pass the session promise across.
-export { SessionProvider } from './session.js';
+export { SessionProvider } from "./session.js";
 export type {
   BetterHooks,
   BetterSupabaseProviderProps,
@@ -19,9 +19,9 @@ export type {
   ClaimsOf,
   LiveQueryHookOptions,
   ProfileOf,
-} from './index.ts';
-export type { SessionProviderProps } from './session.ts';
-export type { AuthSession } from '../auth/view.ts';
+} from "./index.ts";
+export type { SessionProviderProps } from "./session.ts";
+export type { AuthSession } from "../auth/view.ts";
 
 function clientOnly(name: string): () => never {
   return () => {
@@ -33,7 +33,7 @@ function clientOnly(name: string): () => never {
 
 /** The `react-server` build of `useSession`: await `next.session()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
-  clientOnly('useSession');
+  clientOnly("useSession");
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates
@@ -41,10 +41,10 @@ export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
  */
 export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
   return {
-    useDb: clientOnly('useDb'),
-    useQueries: clientOnly('useQueries'),
-    useSupabase: clientOnly('useSupabase'),
-    useAuth: clientOnly('useAuth'),
-    useSession: clientOnly('useSession'),
+    useDb: clientOnly("useDb"),
+    useQueries: clientOnly("useQueries"),
+    useSupabase: clientOnly("useSupabase"),
+    useAuth: clientOnly("useAuth"),
+    useSession: clientOnly("useSession"),
   };
 }

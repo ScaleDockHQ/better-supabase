@@ -1,4 +1,4 @@
-import type { Query, QueryClient } from '@tanstack/query-core';
+import type { Query, QueryClient } from "@tanstack/query-core";
 
 /** Carried by every better-supabase query: the tables whose changes make it stale. */
 export interface BetterQueryMeta {
@@ -7,10 +7,10 @@ export interface BetterQueryMeta {
 }
 
 function queryTables(query: Query): readonly string[] | undefined {
-  const tables = query.meta?.['bsTables'];
-  if (Array.isArray(tables)) return tables.filter((t) => typeof t === 'string');
+  const tables = query.meta?.["bsTables"];
+  if (Array.isArray(tables)) return tables.filter((t) => typeof t === "string");
   const [prefix, table] = query.queryKey;
-  return prefix === 'bs' && typeof table === 'string' ? [table] : undefined;
+  return prefix === "bs" && typeof table === "string" ? [table] : undefined;
 }
 
 /**

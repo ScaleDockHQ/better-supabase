@@ -2,7 +2,7 @@ import type {
   GeneratorMetadata,
   PostgresColumn,
   PostgresFunction,
-} from './typegen.ts';
+} from "./typegen.ts";
 import type {
   Catalog,
   CatalogColumn,
@@ -12,7 +12,7 @@ import type {
   CatalogTable,
   ExtrasTable,
   Snapshot,
-} from './types.ts';
+} from "./types.ts";
 
 const byName = (a: { schema: string; name: string }, b: typeof a): number =>
   a.schema === b.schema
@@ -26,8 +26,8 @@ const byName = (a: { schema: string; name: string }, b: typeof a): number =>
       : 1;
 
 function toColumn(column: PostgresColumn): CatalogColumn {
-  const isArray = column.data_type === 'ARRAY';
-  const udt = isArray ? column.format.replace(/^_/, '') : column.format;
+  const isArray = column.data_type === "ARRAY";
+  const udt = isArray ? column.format.replace(/^_/, "") : column.format;
   const defaultValue =
     column.default_value === null || column.default_value === undefined
       ? null
@@ -46,10 +46,10 @@ function toColumn(column: PostgresColumn): CatalogColumn {
       column.is_generated,
     default: defaultValue,
     identity:
-      column.identity_generation === 'ALWAYS'
-        ? 'always'
-        : column.identity_generation === 'BY DEFAULT'
-          ? 'by default'
+      column.identity_generation === "ALWAYS"
+        ? "always"
+        : column.identity_generation === "BY DEFAULT"
+          ? "by default"
           : null,
     generated: column.is_generated,
     updatable: column.is_updatable,
@@ -62,13 +62,13 @@ function toFunction(
   typeName: (id: number) => string | undefined,
   relationName: (id: number | null) => string | null,
 ): CatalogFunction {
-  const args: CatalogFunction['args'][number][] = [];
+  const args: CatalogFunction["args"][number][] = [];
   const table: { name: string; udt: string }[] = [];
   fn.args.forEach((arg, index) => {
-    const raw = typeName(arg.type_id) ?? 'unknown';
+    const raw = typeName(arg.type_id) ?? "unknown";
     const name = arg.name || `arg${index + 1}`;
-    if (arg.mode === 'in' || arg.mode === 'inout' || arg.mode === 'variadic') {
-      const isArray = raw.startsWith('_');
+    if (arg.mode === "in" || arg.mode === "inout" || arg.mode === "variadic") {
+      const isArray = raw.startsWith("_");
       args.push({
         name,
         udt: isArray ? raw.slice(1) : raw,
@@ -76,24 +76,24 @@ function toFunction(
         hasDefault: arg.has_default === true,
       });
     }
-    if (arg.mode === 'table' || arg.mode === 'out' || arg.mode === 'inout')
+    if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout")
       table.push({ name, udt: raw });
   });
-  const searchPath = fn.config_params?.['search_path'];
+  const searchPath = fn.config_params?.["search_path"];
   return {
     schema: fn.schema,
     name: fn.name,
     signature: fn.identity_argument_types,
     args,
-    returnsTable: fn.args.some((arg) => arg.mode === 'table') ? table : null,
+    returnsTable: fn.args.some((arg) => arg.mode === "table") ? table : null,
     returns: typeName(fn.return_type_id) ?? fn.return_type,
     returnsRelation: relationName(fn.return_type_relation_id),
     returnsSet: fn.is_set_returning_function,
-    volatility: fn.behavior.toLowerCase() as CatalogFunction['volatility'],
+    volatility: fn.behavior.toLowerCase() as CatalogFunction["volatility"],
     securityDefiner: fn.security_definer,
     language: fn.language,
     searchPath:
-      searchPath === undefined ? null : searchPath.replace(/^""$/, ''),
+      searchPath === undefined ? null : searchPath.replace(/^""$/, ""),
   };
 }
 
@@ -150,8 +150,8 @@ export function toCatalog(snapshot: Snapshot): Catalog {
           refTable: rel.referenced_relation,
           refColumns: rel.referenced_columns,
           oneToOne: rel.is_one_to_one,
-          onDelete: action?.onDelete ?? 'no action',
-          onUpdate: action?.onUpdate ?? 'no action',
+          onDelete: action?.onDelete ?? "no action",
+          onUpdate: action?.onUpdate ?? "no action",
         };
       })
       .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
@@ -161,12 +161,12 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     entry: { id: number; schema: string; name: string; comment: string | null },
     shape: Pick<
       CatalogTable,
-      | 'kind'
-      | 'rls'
-      | 'forceRls'
-      | 'replicaIdentity'
-      | 'insertable'
-      | 'updatable'
+      | "kind"
+      | "rls"
+      | "forceRls"
+      | "replicaIdentity"
+      | "insertable"
+      | "updatable"
     >,
   ): CatalogTable => {
     const extra = extras.get(entry.id);
@@ -197,7 +197,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
   const tables: CatalogTable[] = [
     ...meta.tables.map((table) =>
       build(table, {
-        kind: 'table',
+        kind: "table",
         rls: table.rls_enabled,
         forceRls: table.rls_forced,
         replicaIdentity: table.replica_identity,
@@ -207,7 +207,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     ),
     ...meta.foreignTables.map((table) =>
       build(table, {
-        kind: 'table',
+        kind: "table",
         rls: false,
         forceRls: false,
         replicaIdentity: null,
@@ -217,7 +217,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     ),
     ...meta.views.map((view) =>
       build(view, {
-        kind: 'view',
+        kind: "view",
         rls: false,
         forceRls: false,
         replicaIdentity: null,
@@ -227,7 +227,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     ),
     ...meta.materializedViews.map((view) =>
       build(view, {
-        kind: 'view',
+        kind: "view",
         rls: false,
         forceRls: false,
         replicaIdentity: null,

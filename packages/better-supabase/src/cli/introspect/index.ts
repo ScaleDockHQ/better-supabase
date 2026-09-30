@@ -1,11 +1,11 @@
-import type { Snapshot } from './types.ts';
+import type { Snapshot } from "./types.ts";
 
-import { type HookTarget, readExtras } from './extras.ts';
+import { type HookTarget, readExtras } from "./extras.ts";
 import {
   type Queryable,
   readGeneratorMetadata,
   stabilizeMetadata,
-} from './typegen.ts';
+} from "./typegen.ts";
 
 export interface IntrospectOptions {
   /** Auth hook functions to read too, in any schema (`[auth.hook.*]`). */
@@ -37,8 +37,8 @@ export async function introspect(
   };
 }
 
-export { toCatalog } from './catalog.ts';
-export { managementSource, pgSource } from './source.ts';
-export type { IntrospectionSource, ManagementSourceOptions } from './source.ts';
-export type { HookTarget } from './extras.ts';
-export type { Queryable } from './typegen.ts';
+export { toCatalog } from "./catalog.ts";
+export { managementSource, pgSource } from "./source.ts";
+export type { IntrospectionSource, ManagementSourceOptions } from "./source.ts";
+export type { HookTarget } from "./extras.ts";
+export type { Queryable } from "./typegen.ts";

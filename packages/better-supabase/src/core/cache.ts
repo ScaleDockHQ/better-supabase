@@ -1,7 +1,7 @@
-import type { SchemaMeta, TableMeta } from '../schema/types.ts';
-import type { MutationNotice, RpcNotice } from './events.ts';
+import type { SchemaMeta, TableMeta } from "../schema/types.ts";
+import type { MutationNotice, RpcNotice } from "./events.ts";
 
-import { invalidationTargets } from '../ir/tables.ts';
+import { invalidationTargets } from "../ir/tables.ts";
 
 /** What a mutation changed: a table, the primary keys of its rows and the tenant. */
 export interface CacheTarget {
@@ -38,7 +38,7 @@ export function rowKey(
   const parts = table.primaryKey.map((column) => row[column]);
   if (parts.some((part) => part === undefined || part === null))
     return undefined;
-  return parts.map(String).join(',');
+  return parts.map(String).join(",");
 }
 
 export function cacheTargetOf(
@@ -53,7 +53,7 @@ export function cacheTargetOf(
   return {
     table: notice.table,
     tables:
-      notice.kind === 'delete'
+      notice.kind === "delete"
         ? invalidationTargets(meta, notice.table)
         : [notice.table],
     ids,
@@ -84,7 +84,7 @@ export interface MemoryCache extends CacheAdapter {
 export function memoryCache(): MemoryCache {
   const invalidated: CacheTarget[] = [];
   return {
-    name: 'memory',
+    name: "memory",
     invalidated,
     invalidate: (target) => {
       invalidated.push(target);

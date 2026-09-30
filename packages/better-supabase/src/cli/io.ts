@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, relative, resolve, sep } from 'node:path';
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve, sep } from "node:path";
 
 export interface CliIo {
   readonly stdout: (text: string) => void;
@@ -28,7 +28,7 @@ export async function writeIfChanged(
   contents: string,
 ): Promise<boolean> {
   if (existsSync(path)) {
-    const current = await readFile(path, 'utf8');
+    const current = await readFile(path, "utf8");
     if (current === contents) return false;
   }
   await mkdir(dirname(path), { recursive: true });
@@ -38,11 +38,11 @@ export async function writeIfChanged(
 
 /** Relative ESM import specifier from one file to another, keeping `.ts`. */
 export function importPath(fromFile: string, toFile: string): string {
-  let path = relative(dirname(fromFile), toFile).split(sep).join('/');
-  if (!path.startsWith('.')) path = `./${path}`;
+  let path = relative(dirname(fromFile), toFile).split(sep).join("/");
+  if (!path.startsWith(".")) path = `./${path}`;
   return path;
 }
 
 export function display(root: string, path: string): string {
-  return relative(root, resolve(root, path)).split(sep).join('/') || '.';
+  return relative(root, resolve(root, path)).split(sep).join("/") || ".";
 }

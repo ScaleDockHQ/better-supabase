@@ -1,15 +1,15 @@
-import type { AuthState } from '../auth/resolve.ts';
+import type { AuthState } from "../auth/resolve.ts";
 
-import { type Aal, checkAal } from '../auth/mfa.ts';
-import { type DbError, dbError, dbErrorOf, isDbError } from '../core/errors.ts';
-import { problemResponse } from '../core/problem.ts';
-import { toDbError } from '../core/result.ts';
+import { type Aal, checkAal } from "../auth/mfa.ts";
+import { type DbError, dbError, dbErrorOf, isDbError } from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
+import { toDbError } from "../core/result.ts";
 
-export type AuthKind = AuthState['kind'];
+export type AuthKind = AuthState["kind"];
 
 export interface GuardOptions {
   /** Auth kinds allowed through. Defaults to `['user']`. */
-  readonly allow?: readonly Exclude<AuthKind, 'invalid'>[];
+  readonly allow?: readonly Exclude<AuthKind, "invalid">[];
   /**
    * Assurance level user sessions need. `aal2` answers 403 with
    * `required: 'aal2'` until the user verifies a second factor.
@@ -20,28 +20,28 @@ export interface GuardOptions {
 /** `undefined` when `auth` may pass; otherwise the 401/403 error to send. */
 export function guard(
   auth: AuthState,
-  allow: GuardOptions['allow'] = ['user'],
-  aal: Aal = 'aal1',
+  allow: GuardOptions["allow"] = ["user"],
+  aal: Aal = "aal1",
 ): DbError | undefined {
-  if (auth.kind === 'invalid') return auth.error;
+  if (auth.kind === "invalid") return auth.error;
   if ((allow as readonly AuthKind[]).includes(auth.kind))
     return checkAal(auth, aal);
-  return auth.kind === 'anon'
-    ? dbError('unauthorized', 'Sign in to continue', {
-        code: 'MISSING_CREDENTIALS',
+  return auth.kind === "anon"
+    ? dbError("unauthorized", "Sign in to continue", {
+        code: "MISSING_CREDENTIALS",
       })
-    : dbError('forbidden', `A ${auth.kind} caller is not allowed here`);
+    : dbError("forbidden", `A ${auth.kind} caller is not allowed here`);
 }
 
 export function isResult(
   value: unknown,
 ): value is { ok: boolean; data: unknown; error: unknown } {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    'ok' in value &&
-    'data' in value &&
-    'error' in value
+    "ok" in value &&
+    "data" in value &&
+    "error" in value
   );
 }
 
@@ -93,6 +93,6 @@ export async function respond(
 export function defaultExpose(): boolean {
   return (
     // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
-    typeof process !== 'undefined' && process.env['NODE_ENV'] === 'development'
+    typeof process !== "undefined" && process.env["NODE_ENV"] === "development"
   );
 }

@@ -1,9 +1,9 @@
-import { defineReadSet, defineSupabase } from 'better-supabase';
-import { defineListQuery } from 'better-supabase/list';
-import { tenant } from 'better-supabase/plugins/tenant';
-import { z } from 'zod';
+import { defineReadSet, defineSupabase } from "better-supabase";
+import { defineListQuery } from "better-supabase/list";
+import { tenant } from "better-supabase/plugins/tenant";
+import { z } from "zod";
 
-import { schema } from './generated.ts';
+import { schema } from "./generated.ts";
 
 export const sb = defineSupabase(schema);
 
@@ -12,14 +12,14 @@ export const sb = defineSupabase(schema);
  * row's contact count and latest update of a location, in two requests
  * that run in parallel. The original service ran up to six sequential queries.
  */
-export const customerOverview = defineListQuery(sb, 'customers', {
-  search: ['companyName', 'sortName', 'billingEmail'],
-  facets: { status: 'status', business: 'isBusiness' },
+export const customerOverview = defineListQuery(sb, "customers", {
+  search: ["companyName", "sortName", "billingEmail"],
+  facets: { status: "status", business: "isBusiness" },
   sorts: {
-    name: [{ sortName: 'asc' }, { id: 'asc' }],
-    updated: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    name: [{ sortName: "asc" }, { id: "asc" }],
+    updated: [{ updatedAt: "desc" }, { id: "asc" }],
   },
-  defaultSort: 'name',
+  defaultSort: "name",
   pageSize: 25,
   facetCounts: true,
 });
@@ -31,20 +31,20 @@ export const customerOverview = defineListQuery(sb, 'customers', {
  */
 export const appChrome = defineReadSet(
   sb,
-  'app_chrome',
-  { params: { userId: 'uuid' } },
+  "app_chrome",
+  { params: { userId: "uuid" } },
   (s, p) => ({
     unread: s.notificationRecipients.count({
       where: { recipientUserId: p.userId, readAt: null, dismissedAt: null },
     }),
     openTasks: s.tasks.count({
       where: {
-        status: { in: ['todo', 'in_progress'] },
+        status: { in: ["todo", "in_progress"] },
         taskAssignees: { some: { userId: p.userId } },
       },
     }),
     approvals: s.approvalRequests.count({
-      where: { status: 'requested', approverUserId: p.userId },
+      where: { status: "requested", approverUserId: p.userId },
     }),
   }),
 );
@@ -64,8 +64,8 @@ const portalMeta = {
   tables: Object.fromEntries(
     Object.entries(schema.meta.tables).map(([key, table]) => [
       key,
-      table.columns['customerId']
-        ? { ...table, flags: { ...table.flags, tenant: 'customerId' } }
+      table.columns["customerId"]
+        ? { ...table, flags: { ...table.flags, tenant: "customerId" } }
         : table,
     ]),
   ),
@@ -73,4 +73,4 @@ const portalMeta = {
 
 export const portal = defineSupabase({ ...schema, meta: portalMeta })
   .claims(PortalClaims)
-  .use(tenant<z.output<typeof PortalClaims>>({ claim: 'customer_id' }));
+  .use(tenant<z.output<typeof PortalClaims>>({ claim: "customer_id" }));

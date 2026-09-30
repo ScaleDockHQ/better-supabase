@@ -1,14 +1,14 @@
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import type { ResolvedConfig } from '../../config/index.ts';
-import type { ParsedArgs } from '../args.ts';
-import type { CommandResult } from '../io.ts';
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { ParsedArgs } from "../args.ts";
+import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagString } from '../args.ts';
-import { importExport } from '../config.ts';
-import { display, writeIfChanged } from '../io.ts';
+import { flagBool, flagString } from "../args.ts";
+import { importExport } from "../config.ts";
+import { display, writeIfChanged } from "../io.ts";
 
 export const OPENAPI_HELP = `Usage: better-supabase openapi emit [--check] [--entry src/lib/openapi.ts] [--out openapi.json]
 
@@ -25,7 +25,7 @@ export async function runOpenApi(
   args: ParsedArgs,
 ): Promise<CommandResult> {
   const [action] = args.rest;
-  if (action !== 'emit') {
+  if (action !== "emit") {
     return {
       code: 2,
       error: action
@@ -33,17 +33,17 @@ export async function runOpenApi(
         : OPENAPI_HELP,
     };
   }
-  const entry = flagString(args.flags, 'entry') ?? config.openapi.entry;
-  const out = flagString(args.flags, 'out') ?? config.openapi.output;
-  const exported = await importExport(resolve(config.root, entry), 'openapi');
+  const entry = flagString(args.flags, "entry") ?? config.openapi.entry;
+  const out = flagString(args.flags, "out") ?? config.openapi.output;
+  const exported = await importExport(resolve(config.root, entry), "openapi");
   const document: unknown =
-    typeof exported === 'function'
+    typeof exported === "function"
       ? await (exported as () => unknown)()
       : exported;
   if (
-    typeof document !== 'object' ||
+    typeof document !== "object" ||
     document === null ||
-    !('openapi' in document)
+    !("openapi" in document)
   ) {
     return {
       code: 1,
@@ -52,8 +52,8 @@ export async function runOpenApi(
   }
   const contents = `${JSON.stringify(document, null, 2)}\n`;
   const path = resolve(config.root, out);
-  if (flagBool(args.flags, 'check')) {
-    const current = existsSync(path) ? await readFile(path, 'utf8') : undefined;
+  if (flagBool(args.flags, "check")) {
+    const current = existsSync(path) ? await readFile(path, "utf8") : undefined;
     return current === contents
       ? { code: 0, output: `${display(config.root, out)} is up to date.` }
       : {
@@ -64,6 +64,6 @@ export async function runOpenApi(
   const wrote = await writeIfChanged(path, contents);
   return {
     code: 0,
-    output: `${wrote ? 'Wrote' : 'Unchanged'} ${display(config.root, out)}`,
+    output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)}`,
   };
 }

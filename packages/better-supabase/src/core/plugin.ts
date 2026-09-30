@@ -1,12 +1,12 @@
-import type { MutationOp, Operation } from '../ir/types.ts';
-import type { AnyModels, SchemaMeta, TableMeta } from '../schema/types.ts';
-import type { ErrorMapper } from './errors.ts';
-import type { Executor } from './executor.ts';
+import type { MutationOp, Operation } from "../ir/types.ts";
+import type { AnyModels, SchemaMeta, TableMeta } from "../schema/types.ts";
+import type { ErrorMapper } from "./errors.ts";
+import type { Executor } from "./executor.ts";
 
 /** Who is making the request. */
 export interface Actor {
   readonly id: string;
-  readonly kind: 'user' | 'service' | 'anon';
+  readonly kind: "user" | "service" | "anon";
   readonly role?: string;
   readonly email?: string;
   /** The admin acting as this user (the `act` claim's `sub`). */
@@ -35,7 +35,7 @@ export interface HookArgs {
   readonly now: () => Date;
 }
 
-export type MutationKind = 'insert' | 'upsert' | 'update' | 'delete';
+export type MutationKind = "insert" | "upsert" | "update" | "delete";
 
 export interface MutationEvent {
   readonly table: TableMeta;
@@ -78,14 +78,14 @@ export interface RepositoryExtension {
  */
 /** Default extension of plugins that add no repository types. */
 export interface NoExtension extends RepositoryExtension {
-  readonly '~none': true;
+  readonly "~none": true;
 }
 
 export type ApplyExtension<
   E,
   M extends AnyModels,
   T extends keyof M,
-  K extends 'methods' | 'findArgs' | 'deleteArgs',
+  K extends "methods" | "findArgs" | "deleteArgs",
 > = E extends readonly [infer Head, ...infer Rest]
   ? ApplyOne<Head, M, T, K> & ApplyExtension<Rest, M, T, K>
   : ApplyOne<E, M, T, K>;
@@ -94,7 +94,7 @@ type ApplyOne<
   E,
   M extends AnyModels,
   T extends keyof M,
-  K extends 'methods' | 'findArgs' | 'deleteArgs',
+  K extends "methods" | "findArgs" | "deleteArgs",
 > = E extends RepositoryExtension
   ? (E & { readonly M: M; readonly T: T })[K]
   : unknown;
@@ -102,7 +102,7 @@ type ApplyOne<
 /** True when table `T` has the flag set by codegen. */
 export type HasFlag<M, T, F extends string> = M extends AnyModels
   ? T extends keyof M
-    ? M[T]['Flags'] extends { readonly [K in F]: unknown }
+    ? M[T]["Flags"] extends { readonly [K in F]: unknown }
       ? true
       : false
     : false
@@ -123,7 +123,7 @@ export interface Plugin<
    * Hook order: `pre` plugins run first, `post` plugins last, the rest in
    * `use()` order. Validation is `post` so it sees columns other plugins fill.
    */
-  readonly enforce?: 'pre' | 'post';
+  readonly enforce?: "pre" | "post";
   /** `ir`: rewrite an operation before it runs (filters, defaults). */
   readonly transformQuery?: (op: Operation, args: HookArgs) => Operation;
   /** `mutation`: rewrite a mutation or reject it by throwing a `DbException`. */
@@ -142,7 +142,7 @@ export interface Plugin<
     api: RepositoryApi,
   ) => Readonly<Record<string, (...args: never[]) => unknown>> | undefined;
   /** Phantom carrying the repository extension type. */
-  readonly '~ext'?: Ext;
+  readonly "~ext"?: Ext;
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any
@@ -173,8 +173,8 @@ export function orderPlugins(plugins: readonly AnyPlugin[]): AnyPlugin[] {
     .map((plugin, index) => ({ plugin, index }))
     .sort(
       (a, b) =>
-        RANK[a.plugin.enforce ?? 'normal'] -
-          RANK[b.plugin.enforce ?? 'normal'] || a.index - b.index,
+        RANK[a.plugin.enforce ?? "normal"] -
+          RANK[b.plugin.enforce ?? "normal"] || a.index - b.index,
     )
     .map(({ plugin }) => plugin);
 }
@@ -184,7 +184,7 @@ export function definePlugin<
   const Name extends string,
   Ext extends RepositoryExtension = NoExtension,
 >(
-  plugin: Omit<Plugin<Name, Ext>, 'apiVersion'> & { readonly apiVersion?: 1 },
+  plugin: Omit<Plugin<Name, Ext>, "apiVersion"> & { readonly apiVersion?: 1 },
 ): Plugin<Name, Ext> {
   return { ...plugin, apiVersion: 1 };
 }

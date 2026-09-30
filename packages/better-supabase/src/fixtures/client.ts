@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export interface CapturedRequest {
   readonly method: string;
@@ -31,11 +31,11 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const headers = new Headers(init?.headers);
     const request: CapturedRequest = {
-      method: init?.method ?? 'GET',
+      method: init?.method ?? "GET",
       path: url.pathname,
       params: url.searchParams,
       headers,
-      body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
     };
     requests.push(request);
     const answer = respond(request);
@@ -44,11 +44,11 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
       status === 204 ? null : JSON.stringify(answer.body ?? []),
       {
         status,
-        headers: { 'content-type': 'application/json', ...answer.headers },
+        headers: { "content-type": "application/json", ...answer.headers },
       },
     );
   };
-  const client = createClient('http://localhost:54321', 'sb_publishable_test', {
+  const client = createClient("http://localhost:54321", "sb_publishable_test", {
     global: { fetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -57,7 +57,7 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
     requests,
     last: () => {
       const request = requests.at(-1);
-      if (!request) throw new Error('No request captured');
+      if (!request) throw new Error("No request captured");
       return request;
     },
   };

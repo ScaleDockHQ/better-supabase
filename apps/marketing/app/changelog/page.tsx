@@ -1,16 +1,16 @@
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
-import { Badge } from '@/components/reui/badge';
-import { Button } from '@/components/ui/button';
-import { loadChangelog } from '@/lib/changelogs';
-import { site } from '@/lib/site';
+import { Badge } from "@/components/reui/badge";
+import { Button } from "@/components/ui/button";
+import { loadChangelog } from "@/lib/changelogs";
+import { site } from "@/lib/site";
 
-export const dynamic = 'force-static';
+export const dynamic = "force-static";
 
 export const metadata: Metadata = {
-  title: 'Changelog',
+  title: "Changelog",
   description:
-    'Every better-supabase release, built from the package changelog.',
+    "Every better-supabase release, built from the package changelog.",
 };
 
 export default function ChangelogPage() {
@@ -67,7 +67,7 @@ export default function ChangelogPage() {
                         {change.hash}
                       </a>
                     ) : null}
-                    {change.hash ? ' ' : null}
+                    {change.hash ? " " : null}
                     {change.text}
                   </li>
                 ))}

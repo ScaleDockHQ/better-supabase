@@ -1,6 +1,6 @@
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient } from "pg";
 
-import type { SqlClient } from './executor.ts';
+import type { SqlClient } from "./executor.ts";
 
 export interface PostgresOptions {
   /** Defaults to `$SUPABASE_DB_URL`, then `$DATABASE_URL`. */
@@ -33,10 +33,10 @@ export interface Postgres {
   [Symbol.asyncDispose](): Promise<void>;
 }
 
-const ROLES = new Set(['authenticated', 'anon']);
+const ROLES = new Set(["authenticated", "anon"]);
 
 function roleOf(claims: SqlClaims): string {
-  const role = claims.role ?? (claims.sub ? 'authenticated' : 'anon');
+  const role = claims.role ?? (claims.sub ? "authenticated" : "anon");
   if (!ROLES.has(role)) {
     throw new TypeError(
       `Cannot run as role "${role}": only "authenticated" and "anon" are assumed. Use postgres.admin for service work.`,
@@ -57,17 +57,17 @@ type Session =
 export function createPostgres(options: PostgresOptions = {}): Postgres {
   const connectionString =
     options.connectionString ??
-    process.env['SUPABASE_DB_URL'] ??
-    process.env['DATABASE_URL'];
+    process.env["SUPABASE_DB_URL"] ??
+    process.env["DATABASE_URL"];
   if (!connectionString) {
     throw new TypeError(
-      'createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL',
+      "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
     );
   }
   const pool = new Pool({ connectionString, max: options.max ?? 10 });
 
   async function begin(client: PoolClient, session: Session): Promise<void> {
-    await client.query('begin');
+    await client.query("begin");
     if (options.statementTimeout !== undefined) {
       await client.query(
         `set local statement_timeout = ${Math.trunc(options.statementTimeout)}`,
@@ -94,10 +94,10 @@ export function createPostgres(options: PostgresOptions = {}): Postgres {
         transaction: (inner) => inner(scoped),
       };
       const result = await fn(scoped);
-      await client.query('commit');
+      await client.query("commit");
       return result;
     } catch (cause) {
-      await client.query('rollback').catch(() => undefined);
+      await client.query("rollback").catch(() => undefined);
       throw cause;
     } finally {
       client.release();
@@ -117,7 +117,7 @@ export function createPostgres(options: PostgresOptions = {}): Postgres {
 
   return {
     admin: clientFor(undefined),
-    anon: clientFor({ claims: { role: 'anon' }, role: 'anon' }),
+    anon: clientFor({ claims: { role: "anon" }, role: "anon" }),
     asUser: (claims) => clientFor(sessionFor(claims)),
     transaction: (fn, txOptions) =>
       transaction(

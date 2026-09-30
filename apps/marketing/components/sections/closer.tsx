@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { site } from '@/lib/site';
+import { Button } from "@/components/ui/button";
+import { site } from "@/lib/site";
 
 export function Closer() {
   return (

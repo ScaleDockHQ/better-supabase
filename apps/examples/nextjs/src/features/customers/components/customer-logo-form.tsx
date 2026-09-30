@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useActionState } from 'react';
+import { useActionState } from "react";
 
-import { uploadCustomerLogo } from '../customer-actions';
+import { uploadCustomerLogo } from "../customer-actions";
 
 type State = Awaited<ReturnType<typeof uploadCustomerLogo>> | null;
 

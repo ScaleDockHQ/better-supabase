@@ -1,7 +1,7 @@
-import { Suspense } from 'react';
+import { Suspense } from "react";
 
-import { Panel, PanelSkeleton } from '@/components/ui/panel';
-import { PermissionGate } from '@/features/user/components/permission-gate';
+import { Panel, PanelSkeleton } from "@/components/ui/panel";
+import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export const instant = true;
 

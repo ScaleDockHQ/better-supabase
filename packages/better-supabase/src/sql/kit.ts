@@ -1,7 +1,7 @@
-import type { ClaimsMeta } from '../schema/types.ts';
+import type { ClaimsMeta } from "../schema/types.ts";
 
-import { DEFAULT_CLAIMS } from '../core/claims.ts';
-import { sqlIdent, sqlString } from '../core/template.ts';
+import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { sqlIdent, sqlString } from "../core/template.ts";
 
 /**
  * SQL kit modules for `better-supabase sql add`. Every module is idempotent
@@ -14,7 +14,7 @@ export interface SqlModule {
   /** Modules this one needs, added along with it. */
   readonly requires: readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
-  readonly target: 'schema' | 'test';
+  readonly target: "schema" | "test";
   /** The module with the default claim names. */
   readonly sql: string;
   /** The module for configured claim names (`config.claims`), when it reads claims. */
@@ -29,11 +29,11 @@ const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 
 const UPDATED_AT: SqlModule = {
-  name: 'updated-at',
-  title: 'updated_at triggers',
-  description: 'Keeps an updated_at column current on every update.',
+  name: "updated-at",
+  title: "updated_at triggers",
+  description: "Keeps an updated_at column current on every update.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 create or replace function better_supabase.set_updated_at()
@@ -71,12 +71,12 @@ $$;`,
 };
 
 const ACTOR: SqlModule = {
-  name: 'actor',
-  title: 'Actor stamping',
+  name: "actor",
+  title: "Actor stamping",
   description:
-    'Sets created_by on insert and updated_by on update from auth.uid(). Service writes keep the values they send.',
+    "Sets created_by on insert and updated_by on update from auth.uid(). Service writes keep the values they send.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 create or replace function better_supabase.set_actor()
@@ -132,12 +132,12 @@ $$;`,
 };
 
 const AUDIT: SqlModule = {
-  name: 'audit',
-  title: 'Audit log',
+  name: "audit",
+  title: "Audit log",
   description:
-    'Records inserts, updates and deletes with the actor and changed columns, for tables you register.',
+    "Records inserts, updates and deletes with the actor and changed columns, for tables you register.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 create table if not exists better_supabase.audited_tables (
@@ -326,23 +326,23 @@ revoke execute on function better_supabase.membership_claims(uuid) from public, 
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`;
 
 const TENANT: SqlModule = {
-  name: 'tenant',
-  title: 'Tenant memberships and permission helper',
+  name: "tenant",
+  title: "Tenant memberships and permission helper",
   description:
-    'Memberships with roles, has_org_role() for RLS policies and membership_claims() for the access token hook. A template: edit the roles to fit your app.',
+    "Memberships with roles, has_org_role() for RLS policies and membership_claims() for the access token hook. A template: edit the roles to fit your app.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: tenantSql(DEFAULT_CLAIMS),
   render: tenantSql,
 };
 
 const MFA: SqlModule = {
-  name: 'mfa',
-  title: 'MFA enforcement',
+  name: "mfa",
+  title: "MFA enforcement",
   description:
-    'mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).',
+    "mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 -- authenticated can't read auth.mfa_factors, so the check runs as the owner.
@@ -440,23 +440,23 @@ revoke execute on function better_supabase.feature_claims(uuid) from public, ano
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
 
 const ENTITLEMENTS: SqlModule = {
-  name: 'entitlements',
-  title: 'Stripe entitlements',
+  name: "entitlements",
+  title: "Stripe entitlements",
   description:
-    'Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.',
-  requires: ['tenant'],
-  target: 'schema',
+    "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.",
+  requires: ["tenant"],
+  target: "schema",
   sql: entitlementsSql(DEFAULT_CLAIMS),
   render: entitlementsSql,
 };
 
 const INVITATIONS: SqlModule = {
-  name: 'invitations',
-  title: 'Invitations',
+  name: "invitations",
+  title: "Invitations",
   description:
-    'Owners and admins invite by email; the invitee accepts with a one-time token and becomes a member.',
-  requires: ['tenant'],
-  target: 'schema',
+    "Owners and admins invite by email; the invitee accepts with a one-time token and becomes a member.",
+  requires: ["tenant"],
+  target: "schema",
   sql: `${SCHEMA}
 
 create table if not exists better_supabase.invitations (
@@ -560,12 +560,12 @@ grant execute on function better_supabase.accept_invitation(text) to authenticat
 };
 
 const RESERVED_SLUGS: SqlModule = {
-  name: 'reserved-slugs',
-  title: 'Reserved slugs',
+  name: "reserved-slugs",
+  title: "Reserved slugs",
   description:
-    'A slug format check and a list of reserved words (admin, api, www, ...), enforced by a trigger.',
+    "A slug format check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 create table if not exists better_supabase.reserved_slugs (
@@ -639,12 +639,12 @@ $$;`,
 };
 
 const JOBS: SqlModule = {
-  name: 'jobs',
-  title: 'Job queue',
+  name: "jobs",
+  title: "Job queue",
   description:
-    'Typed jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, deduplication keys, and pg_cron schedules.',
+    "Typed jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, deduplication keys, and pg_cron schedules.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
@@ -843,12 +843,12 @@ $$;`,
 };
 
 const IDEMPOTENCY: SqlModule = {
-  name: 'idempotency',
-  title: 'Idempotency keys',
+  name: "idempotency",
+  title: "Idempotency keys",
   description:
-    'Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.',
+    "Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 create table if not exists better_supabase.idempotency_keys (
@@ -969,12 +969,12 @@ $$;`,
 };
 
 const WEBHOOK_INBOX: SqlModule = {
-  name: 'webhook-inbox',
-  title: 'Webhook inbox',
+  name: "webhook-inbox",
+  title: "Webhook inbox",
   description:
-    'Stores verified webhooks once per message id, then processes them with leases and retries.',
+    "Stores verified webhooks once per message id, then processes them with leases and retries.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 create table if not exists better_supabase.webhook_inbox (
@@ -1216,33 +1216,33 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
   );`;
 
 const REALTIME_TABLES: SqlModule = {
-  name: 'realtime-tables',
-  title: 'Realtime table changes',
+  name: "realtime-tables",
+  title: "Realtime table changes",
   description:
-    'Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.',
+    "Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: realtimeTablesSql(DEFAULT_CLAIMS),
   render: realtimeTablesSql,
 };
 
 const JSONB_SCHEMAS: SqlModule = {
-  name: 'jsonb-schemas',
-  title: 'JSON Schema checks for jsonb',
+  name: "jsonb-schemas",
+  title: "JSON Schema checks for jsonb",
   description:
-    'pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types.',
+    "pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `create extension if not exists pg_jsonschema with schema extensions;`,
 };
 
 const PGTAP: SqlModule = {
-  name: 'pgtap',
-  title: 'pgTAP helpers',
+  name: "pgtap",
+  title: "pgTAP helpers",
   description:
-    'tests.create_user, tests.authenticate_as and tests.rls_enabled for `supabase test db`. Written to supabase/tests, never to your schema.',
+    "tests.create_user, tests.authenticate_as and tests.rls_enabled for `supabase test db`. Written to supabase/tests, never to your schema.",
   requires: [],
-  target: 'test',
+  target: "test",
   sql: `-- Runs first (000_) and commits, so later test files can use the helpers.
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
@@ -1338,34 +1338,34 @@ select * from extensions.finish();`,
 };
 
 const GRANTS: SqlModule = {
-  name: 'grants',
-  title: 'Data API grants',
+  name: "grants",
+  title: "Data API grants",
   description:
-    'Grants the tables in the `expose` config to anon and authenticated. Supabase no longer grants new tables to the Data API roles automatically.',
+    "Grants the tables in the `expose` config to anon and authenticated. Supabase no longer grants new tables to the Data API roles automatically.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `-- List tables in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
 };
 
 const READ_SETS: SqlModule = {
-  name: 'read-sets',
-  title: 'Read sets',
+  name: "read-sets",
+  title: "Read sets",
   description:
-    'One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.',
+    "One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `-- Functions for the read sets in \`readSets\` (better-supabase.config.ts); \`gen\` and \`sql sync\` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.`,
 };
 
 const RATE_LIMIT: SqlModule = {
-  name: 'rate-limit',
-  title: 'Write rate limits',
+  name: "rate-limit",
+  title: "Write rate limits",
   description:
-    'Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.',
+    "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `${SCHEMA}
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
@@ -1503,12 +1503,12 @@ notify pgrst, 'reload config';`,
 };
 
 const VECTOR_SEARCH: SqlModule = {
-  name: 'vector-search',
-  title: 'Vector search',
+  name: "vector-search",
+  title: "Vector search",
   description:
-    'search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.',
+    "search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.",
   requires: [],
-  target: 'schema',
+  target: "schema",
   sql: `create extension if not exists vector with schema extensions;
 
 -- Functions for the tables in \`vectorSearch\` (better-supabase.config.ts); \`sql sync\` rewrites them.
@@ -1551,7 +1551,7 @@ export function resolveModules(names: readonly string[]): SqlModule[] {
     const module = SQL_MODULES[name];
     if (!module) {
       throw new TypeError(
-        `Unknown SQL kit module "${name}"${from ? ` (required by ${from})` : ''}. Available: ${Object.keys(SQL_MODULES).join(', ')}`,
+        `Unknown SQL kit module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
       );
     }
     if (ordered.includes(module)) return;
@@ -1603,23 +1603,23 @@ export interface VectorSearchTable {
   /** `table` or `schema.table`. */
   readonly table: string;
   readonly column: string;
-  readonly distance: 'cosine' | 'l2' | 'inner_product';
+  readonly distance: "cosine" | "l2" | "inner_product";
 }
 
 const DISTANCE_OPERATORS: Readonly<
-  Record<VectorSearchTable['distance'], string>
+  Record<VectorSearchTable["distance"], string>
 > = {
-  cosine: '<=>',
-  l2: '<->',
-  inner_product: '<#>',
+  cosine: "<=>",
+  l2: "<->",
+  inner_product: "<#>",
 };
 
 function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
-  if (tables.length === 0) return '';
+  if (tables.length === 0) return "";
   const functions = tables.map((entry) => {
-    const [schema, table] = entry.table.includes('.')
-      ? entry.table.split('.', 2)
-      : ['public', entry.table];
+    const [schema, table] = entry.table.includes(".")
+      ? entry.table.split(".", 2)
+      : ["public", entry.table];
     const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
     const fn = `${sqlIdent(schema!)}.${sqlIdent(`search_${table!}`)}`;
     const column = `t.${sqlIdent(entry.column)}`;
@@ -1643,7 +1643,7 @@ $$;
 revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
   });
-  return `\n-- config.vectorSearch\n${functions.join('\n\n')}\n`;
+  return `\n-- config.vectorSearch\n${functions.join("\n\n")}\n`;
 }
 
 /** The table holding each tenant's Stripe customer id. */
@@ -1660,21 +1660,21 @@ export interface EntitlementsSource {
 export interface TableGrant {
   /** `table` or `schema.table`. */
   readonly table: string;
-  readonly role: 'anon' | 'authenticated';
-  readonly privileges: readonly ('select' | 'insert' | 'update' | 'delete')[];
+  readonly role: "anon" | "authenticated";
+  readonly privileges: readonly ("select" | "insert" | "update" | "delete")[];
 }
 
 function tableGrants(grants: readonly TableGrant[]): string {
   const statements = grants
     .filter((grant) => grant.privileges.length > 0)
     .map((grant) => {
-      const [schema, table] = grant.table.includes('.')
-        ? grant.table.split('.', 2)
-        : ['public', grant.table];
-      return `grant ${grant.privileges.join(', ')} on table ${sqlIdent(schema!)}.${sqlIdent(table!)} to ${grant.role};`;
+      const [schema, table] = grant.table.includes(".")
+        ? grant.table.split(".", 2)
+        : ["public", grant.table];
+      return `grant ${grant.privileges.join(", ")} on table ${sqlIdent(schema!)}.${sqlIdent(table!)} to ${grant.role};`;
     });
-  if (statements.length === 0) return '';
-  return `\n-- config.expose\n${statements.join('\n')}\n`;
+  if (statements.length === 0) return "";
+  return `\n-- config.expose\n${statements.join("\n")}\n`;
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
@@ -1686,26 +1686,26 @@ export interface JsonSchemaCheck {
 }
 
 function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
-  if (checks.length === 0) return '';
+  if (checks.length === 0) return "";
   const statements = checks.map((check) => {
-    const [schema, table] = check.table.includes('.')
-      ? check.table.split('.', 2)
-      : ['public', check.table];
+    const [schema, table] = check.table.includes(".")
+      ? check.table.split(".", 2)
+      : ["public", check.table];
     const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
     const name = sqlIdent(`bs_json_${check.column}`.slice(0, 63));
     return [
       `alter table ${target} drop constraint if exists ${name};`,
       `alter table ${target} add constraint ${name}`,
       `  check (extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)}));`,
-    ].join('\n');
+    ].join("\n");
   });
-  return `\n-- config.json schemas\n${statements.join('\n\n')}\n`;
+  return `\n-- config.json schemas\n${statements.join("\n\n")}\n`;
 }
 
 function entitlementsSource(source: EntitlementsSource): string {
-  const [schema, table] = source.table.includes('.')
-    ? source.table.split('.', 2)
-    : ['public', source.table];
+  const [schema, table] = source.table.includes(".")
+    ? source.table.split(".", 2)
+    : ["public", source.table];
   const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
@@ -1746,30 +1746,30 @@ grant execute on function better_supabase.entitlement_members(text) to service_r
 }
 
 function moduleExtras(module: SqlModule, layout: KitLayout): string {
-  if (module.name === 'entitlements')
+  if (module.name === "entitlements")
     return entitlementsSource(
       layout.entitlements ?? {
-        table: 'organizations',
-        column: 'stripe_customer_id',
-        key: 'id',
+        table: "organizations",
+        column: "stripe_customer_id",
+        key: "id",
       },
     );
-  if (module.name === 'realtime-tables')
+  if (module.name === "realtime-tables")
     return realtimeRegistrations(
       layout.realtimeTables ?? [],
       layout.tenantColumn,
     );
-  if (module.name === 'jsonb-schemas')
+  if (module.name === "jsonb-schemas")
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
-  if (module.name === 'grants') return tableGrants(layout.grants ?? []);
-  if (module.name === 'vector-search')
+  if (module.name === "grants") return tableGrants(layout.grants ?? []);
+  if (module.name === "vector-search")
     return vectorSearchFunctions(layout.vectorSearch ?? []);
-  if (module.name === 'read-sets') {
+  if (module.name === "read-sets") {
     const sets = layout.readSets ?? [];
-    if (sets.length === 0) return '';
-    return `\n-- config.readSets\n${sets.map((set) => `-- ${set.name}\n${set.sql}`).join('\n\n')}\n`;
+    if (sets.length === 0) return "";
+    return `\n-- config.readSets\n${sets.map((set) => `-- ${set.name}\n${set.sql}`).join("\n\n")}\n`;
   }
-  return '';
+  return "";
 }
 
 /** Whether an installed file matches, ignoring the version stamped in its header. */
@@ -1781,7 +1781,7 @@ export function sameKitFile(
   const strip = (text: string): string =>
     text.replace(
       /^(-- better-supabase SQL kit: [^\n(]*?)(?: \([^)]*\))?\n/,
-      '$1\n',
+      "$1\n",
     );
   return strip(current) === strip(expected);
 }
@@ -1791,20 +1791,20 @@ export function renderKit(
   names: readonly string[],
   layout: KitLayout = {},
 ): KitFile[] {
-  const dir = (layout.dir ?? 'supabase/schemas').replace(/\/$/, '');
-  const prefix = layout.prefix ?? '900_better_supabase';
-  const testsDir = (layout.testsDir ?? 'supabase/tests').replace(/\/$/, '');
+  const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
+  const prefix = layout.prefix ?? "900_better_supabase";
+  const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
   return resolveModules(names).map((module) => {
-    const slug = module.name.replace(/-/g, '_');
+    const slug = module.name.replace(/-/g, "_");
     const path =
-      module.target === 'test'
+      module.target === "test"
         ? `${testsDir}/000_better_supabase_${slug}.test.sql`
-        : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, '0')}_${slug}.sql`;
+        : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
     const header = [
-      `-- better-supabase SQL kit: ${module.name}${layout.version ? ` (${layout.version})` : ''}`,
+      `-- better-supabase SQL kit: ${module.name}${layout.version ? ` (${layout.version})` : ""}`,
       `-- ${module.description}`,
-      '-- Managed by `better-supabase sql add`; re-running it overwrites this file.',
-    ].join('\n');
+      "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
+    ].join("\n");
     const extra = moduleExtras(module, layout);
     const sql =
       module.render && layout.claims
@@ -1822,11 +1822,11 @@ function realtimeRegistrations(
   tables: readonly string[],
   tenantColumn: string | undefined,
 ): string {
-  if (tables.length === 0) return '';
-  const tenant = tenantColumn ? `, ${sqlString(tenantColumn)}` : '';
+  if (tables.length === 0) return "";
+  const tenant = tenantColumn ? `, ${sqlString(tenantColumn)}` : "";
   const lines = tables.map((table) => {
-    const target = table.includes('.') ? table : `public.${table}`;
+    const target = table.includes(".") ? table : `public.${table}`;
     return `select better_supabase.track_realtime(${sqlString(target)}${tenant});`;
   });
-  return `\n-- config.realtime.tables\n${lines.join('\n')}\n`;
+  return `\n-- config.realtime.tables\n${lines.join("\n")}\n`;
 }

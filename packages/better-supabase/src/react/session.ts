@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -6,9 +6,9 @@ import {
   type ReactNode,
   use,
   useContext,
-} from 'react';
+} from "react";
 
-import type { AuthSession } from '../auth/view.ts';
+import type { AuthSession } from "../auth/view.ts";
 
 const SessionContext = createContext<Promise<AuthSession> | null>(null);
 
@@ -40,7 +40,7 @@ export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
   const promise = useContext(SessionContext);
   if (!promise) {
     throw new Error(
-      'better-supabase: useSession() needs <SessionProvider sessionPromise={...}>',
+      "better-supabase: useSession() needs <SessionProvider sessionPromise={...}>",
     );
   }
   // SAFETY: the provider receives `next.session()` from the same `sb`, whose schemas fix `C` and `P`.

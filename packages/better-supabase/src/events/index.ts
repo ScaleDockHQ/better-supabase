@@ -1,11 +1,11 @@
-import type { MutationNotice } from '../core/events.ts';
-import type { EventHub } from '../core/events.ts';
-import type { MutationKind } from '../core/plugin.ts';
-import type { SchemaMeta } from '../schema/types.ts';
+import type { MutationNotice } from "../core/events.ts";
+import type { EventHub } from "../core/events.ts";
+import type { MutationKind } from "../core/plugin.ts";
+import type { SchemaMeta } from "../schema/types.ts";
 
 /** A CloudEvents 1.0 event. Extension attributes are lowercase alphanumerics. */
 export interface CloudEvent<T = unknown> {
-  readonly specversion: '1.0';
+  readonly specversion: "1.0";
   readonly id: string;
   readonly source: string;
   readonly type: string;
@@ -18,10 +18,10 @@ export interface CloudEvent<T = unknown> {
 }
 
 export const ROW_EVENT_TYPES: { readonly [K in MutationKind]: string } = {
-  insert: 'dev.better-supabase.row.created',
-  upsert: 'dev.better-supabase.row.upserted',
-  update: 'dev.better-supabase.row.updated',
-  delete: 'dev.better-supabase.row.deleted',
+  insert: "dev.better-supabase.row.created",
+  upsert: "dev.better-supabase.row.upserted",
+  update: "dev.better-supabase.row.updated",
+  delete: "dev.better-supabase.row.deleted",
 };
 
 export interface RowEventData {
@@ -53,7 +53,7 @@ function subjectOf(
   const values = key.map((column) => row[column]);
   if (values.some((value) => value === undefined || value === null))
     return undefined;
-  return `${table}/${values.map((value) => encodeURIComponent(String(value))).join(',')}`;
+  return `${table}/${values.map((value) => encodeURIComponent(String(value))).join(",")}`;
 }
 
 /**
@@ -66,19 +66,19 @@ export function toCloudEvents(
   options: CloudEventOptions & { readonly meta?: SchemaMeta },
 ): CloudEvent<RowEventData>[] {
   const type = options.typePrefix
-    ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[notice.kind].split('.').at(-1)!}`
+    ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[notice.kind].split(".").at(-1)!}`
     : ROW_EVENT_TYPES[notice.kind];
   const time = (options.now?.() ?? new Date()).toISOString();
   return notice.rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
     return {
-      specversion: '1.0',
+      specversion: "1.0",
       id: options.id?.() ?? crypto.randomUUID(),
       source: options.source,
       type,
       ...(subject ? { subject } : {}),
       time,
-      datacontenttype: 'application/json',
+      datacontenttype: "application/json",
       data: { table: notice.table, row },
       ...(notice.context.tenant ? { partitionkey: notice.context.tenant } : {}),
       ...(notice.context.actor?.id ? { actorid: notice.context.actor.id } : {}),
@@ -102,14 +102,14 @@ export function forwardMutations(
   sink: EventSink,
   options: ForwardOptions,
 ): () => void {
-  return sb.events.on('mutation', (notice) => {
+  return sb.events.on("mutation", (notice) => {
     if (options.filter && !options.filter(notice)) return;
     const events = toCloudEvents(notice, { ...options, meta: sb.meta });
     if (events.length === 0) return;
     const report = (error: unknown) =>
       (
         options.onError ??
-        ((cause) => sb.events.logger.error('event sink failed', { cause }))
+        ((cause) => sb.events.logger.error("event sink failed", { cause }))
       )(error, events);
     try {
       void Promise.resolve(sink.send(events)).catch(report);
@@ -119,48 +119,48 @@ export function forwardMutations(
   });
 }
 
-export type HttpMode = 'structured' | 'binary' | 'batch';
+export type HttpMode = "structured" | "binary" | "batch";
 
-const STRUCTURED = 'application/cloudevents+json';
-const BATCH = 'application/cloudevents-batch+json';
+const STRUCTURED = "application/cloudevents+json";
+const BATCH = "application/cloudevents-batch+json";
 
 /** The HTTP protocol binding: headers and body for one event (or a batch). */
 export function toHttp(
   events: CloudEvent | readonly CloudEvent[],
-  mode: HttpMode = 'structured',
+  mode: HttpMode = "structured",
 ): { headers: Record<string, string>; body: string }[] {
   const list: readonly CloudEvent[] = Array.isArray(events)
     ? events
     : [events as CloudEvent];
   switch (mode) {
-    case 'batch':
+    case "batch":
       return [
-        { headers: { 'content-type': BATCH }, body: JSON.stringify(list) },
+        { headers: { "content-type": BATCH }, body: JSON.stringify(list) },
       ];
-    case 'structured':
+    case "structured":
       return list.map((event) => ({
-        headers: { 'content-type': STRUCTURED },
+        headers: { "content-type": STRUCTURED },
         body: JSON.stringify(event),
       }));
-    case 'binary':
+    case "binary":
       return list.map((event) => {
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(event)) {
           if (
-            key === 'data' ||
-            key === 'datacontenttype' ||
+            key === "data" ||
+            key === "datacontenttype" ||
             value === undefined
           )
             continue;
           headers[`ce-${key}`] = encodeURIComponent(String(value)).replace(
             /%20/g,
-            ' ',
+            " ",
           );
         }
-        headers['content-type'] = event.datacontenttype ?? 'application/json';
+        headers["content-type"] = event.datacontenttype ?? "application/json";
         return {
           headers,
-          body: event.data === undefined ? '' : JSON.stringify(event.data),
+          body: event.data === undefined ? "" : JSON.stringify(event.data),
         };
       });
     default: {
@@ -171,41 +171,41 @@ export function toHttp(
 }
 
 export function isCloudEvent(value: unknown): value is CloudEvent {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const event = value as Record<string, unknown>;
   return (
-    event['specversion'] === '1.0' &&
-    typeof event['id'] === 'string' &&
-    typeof event['source'] === 'string' &&
-    typeof event['type'] === 'string'
+    event["specversion"] === "1.0" &&
+    typeof event["id"] === "string" &&
+    typeof event["source"] === "string" &&
+    typeof event["type"] === "string"
   );
 }
 
 /** Reads CloudEvents from a request in any of the three HTTP modes. */
 export async function fromHttp(request: Request): Promise<CloudEvent[]> {
-  const contentType = request.headers.get('content-type') ?? '';
+  const contentType = request.headers.get("content-type") ?? "";
   const text = await request.text();
   if (contentType.startsWith(BATCH)) {
     const parsed: unknown = JSON.parse(text);
     if (!Array.isArray(parsed) || !parsed.every(isCloudEvent))
-      throw new TypeError('Invalid CloudEvents batch');
+      throw new TypeError("Invalid CloudEvents batch");
     return parsed;
   }
   if (contentType.startsWith(STRUCTURED)) {
     const parsed: unknown = JSON.parse(text);
-    if (!isCloudEvent(parsed)) throw new TypeError('Invalid CloudEvent');
+    if (!isCloudEvent(parsed)) throw new TypeError("Invalid CloudEvent");
     return [parsed];
   }
   const event: Record<string, unknown> = {};
   for (const [key, value] of request.headers) {
-    if (key.startsWith('ce-')) event[key.slice(3)] = decodeURIComponent(value);
+    if (key.startsWith("ce-")) event[key.slice(3)] = decodeURIComponent(value);
   }
-  if (contentType) event['datacontenttype'] = contentType;
+  if (contentType) event["datacontenttype"] = contentType;
   if (text)
-    event['data'] = /json/.test(contentType)
+    event["data"] = /json/.test(contentType)
       ? (JSON.parse(text) as unknown)
       : text;
-  if (!isCloudEvent(event)) throw new TypeError('Request is not a CloudEvent');
+  if (!isCloudEvent(event)) throw new TypeError("Request is not a CloudEvent");
   return [event];
 }
 
@@ -223,9 +223,9 @@ export function httpSink(
   const send = options.fetch ?? fetch;
   return {
     async send(events) {
-      for (const message of toHttp(events, options.mode ?? 'batch')) {
+      for (const message of toHttp(events, options.mode ?? "batch")) {
         const response = await send(url, {
-          method: 'POST',
+          method: "POST",
           headers: { ...options.headers, ...message.headers },
           body: message.body,
         });

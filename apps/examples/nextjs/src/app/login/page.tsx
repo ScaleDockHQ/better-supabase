@@ -1,4 +1,4 @@
-import { LoginForm } from '@/features/user/components/login-form';
+import { LoginForm } from "@/features/user/components/login-form";
 
 export const instant = true;
 

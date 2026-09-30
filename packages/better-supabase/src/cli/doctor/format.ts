@@ -1,21 +1,21 @@
-import type { Finding, Rule, Severity } from './rules.ts';
+import type { Finding, Rule, Severity } from "./rules.ts";
 
-import { DOCS_URL } from './rules.ts';
+import { DOCS_URL } from "./rules.ts";
 
-export type DoctorFormat = 'text' | 'json' | 'sarif' | 'github';
+export type DoctorFormat = "text" | "json" | "sarif" | "github";
 
 export const DOCTOR_FORMATS: readonly DoctorFormat[] = [
-  'text',
-  'json',
-  'sarif',
-  'github',
+  "text",
+  "json",
+  "sarif",
+  "github",
 ];
 
 export const DOCTOR_REPORT_SCHEMA_URL =
-  'https://unpkg.com/better-supabase/schemas/doctor-report-v1.json';
+  "https://unpkg.com/better-supabase/schemas/doctor-report-v1.json";
 
 const SARIF_SCHEMA_URL =
-  'https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json';
+  "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
 
 export interface DoctorSummary {
   readonly errors: number;
@@ -25,19 +25,19 @@ export interface DoctorSummary {
 
 export function summarize(findings: readonly Finding[]): DoctorSummary {
   return {
-    errors: findings.filter((finding) => finding.severity === 'error').length,
-    warnings: findings.filter((finding) => finding.severity === 'warning')
+    errors: findings.filter((finding) => finding.severity === "error").length,
+    warnings: findings.filter((finding) => finding.severity === "warning")
       .length,
-    infos: findings.filter((finding) => finding.severity === 'info').length,
+    infos: findings.filter((finding) => finding.severity === "info").length,
   };
 }
 
 const plural = (count: number, word: string): string =>
-  `${count} ${word}${count === 1 ? '' : 's'}`;
+  `${count} ${word}${count === 1 ? "" : "s"}`;
 
 function text(findings: readonly Finding[]): string {
-  if (findings.length === 0) return 'No problems found.';
-  const order: readonly Severity[] = ['error', 'warning', 'info'];
+  if (findings.length === 0) return "No problems found.";
+  const order: readonly Severity[] = ["error", "warning", "info"];
   const lines = [...findings]
     .sort(
       (a, b) =>
@@ -45,26 +45,26 @@ function text(findings: readonly Finding[]): string {
         a.code.localeCompare(b.code),
     )
     .flatMap((finding) => [
-      `${finding.severity.padEnd(7)} ${finding.code} ${finding.title}${finding.location ? `  ${finding.location.file}:${finding.location.line}` : ''}`,
+      `${finding.severity.padEnd(7)} ${finding.code} ${finding.title}${finding.location ? `  ${finding.location.file}:${finding.location.line}` : ""}`,
       `        ${finding.message}`,
       `        ${finding.help}`,
     ]);
   const summary = summarize(findings);
   lines.push(
-    '',
-    `${plural(summary.errors, 'error')}, ${plural(summary.warnings, 'warning')}, ${plural(summary.infos, 'note')}.`,
+    "",
+    `${plural(summary.errors, "error")}, ${plural(summary.warnings, "warning")}, ${plural(summary.infos, "note")}.`,
   );
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
-function sarifLevel(severity: Severity): 'error' | 'warning' | 'note' {
+function sarifLevel(severity: Severity): "error" | "warning" | "note" {
   switch (severity) {
-    case 'error':
-      return 'error';
-    case 'warning':
-      return 'warning';
-    case 'info':
-      return 'note';
+    case "error":
+      return "error";
+    case "warning":
+      return "warning";
+    case "info":
+      return "note";
     default: {
       const unreachable: never = severity;
       return unreachable;
@@ -80,19 +80,19 @@ function sarif(
 ): unknown {
   return {
     $schema: SARIF_SCHEMA_URL,
-    version: '2.1.0',
+    version: "2.1.0",
     runs: [
       {
         tool: {
           driver: {
-            name: 'better-supabase doctor',
+            name: "better-supabase doctor",
             version,
             informationUri: DOCS_URL,
             rules: rules.map((rule) => ({
               id: rule.code,
               name: rule.title.replace(
                 /[^A-Za-z0-9]+(.)?/g,
-                (_, char: string | undefined) => (char ?? '').toUpperCase(),
+                (_, char: string | undefined) => (char ?? "").toUpperCase(),
               ),
               shortDescription: { text: rule.title },
               fullDescription: { text: rule.description },
@@ -124,14 +124,14 @@ function sarif(
 }
 
 const escapeData = (value: string): string =>
-  value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+  value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 const escapeProperty = (value: string): string =>
-  escapeData(value).replaceAll(':', '%3A').replaceAll(',', '%2C');
+  escapeData(value).replaceAll(":", "%3A").replaceAll(",", "%2C");
 
 function github(findings: readonly Finding[]): string {
   return findings
     .map((finding) => {
-      const command = finding.severity === 'info' ? 'notice' : finding.severity;
+      const command = finding.severity === "info" ? "notice" : finding.severity;
       const properties = [
         ...(finding.location
           ? [
@@ -141,9 +141,9 @@ function github(findings: readonly Finding[]): string {
           : []),
         `title=${escapeProperty(`${finding.code} ${finding.title}`)}`,
       ];
-      return `::${command} ${properties.join(',')}::${escapeData(`${finding.message} (${finding.help})`)}`;
+      return `::${command} ${properties.join(",")}::${escapeData(`${finding.message} (${finding.help})`)}`;
     })
-    .join('\n');
+    .join("\n");
 }
 
 export interface FormatOptions {
@@ -159,27 +159,27 @@ export function formatReport(
   options: FormatOptions,
 ): string {
   switch (options.format) {
-    case 'text':
+    case "text":
       return text(findings);
-    case 'json':
+    case "json":
       return JSON.stringify(
         {
           $schema: DOCTOR_REPORT_SCHEMA_URL,
           version: 1,
-          tool: { name: 'better-supabase', version: options.version },
+          tool: { name: "better-supabase", version: options.version },
           summary: summarize(findings),
           findings,
         },
         null,
         2,
       );
-    case 'sarif':
+    case "sarif":
       return JSON.stringify(
         sarif(findings, options.rules, options.version, options.fallbackFile),
         null,
         2,
       );
-    case 'github':
+    case "github":
       return github(findings);
     default: {
       const unreachable: never = options.format;

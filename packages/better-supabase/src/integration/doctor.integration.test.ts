@@ -1,25 +1,25 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { LiveDatabase } from '../cli/doctor/live.ts';
-import type { IntrospectionSource } from '../cli/introspect/source.ts';
-import type { Snapshot } from '../cli/introspect/types.ts';
+import type { LiveDatabase } from "../cli/doctor/live.ts";
+import type { IntrospectionSource } from "../cli/introspect/source.ts";
+import type { Snapshot } from "../cli/introspect/types.ts";
 
-import { type DoctorContext, RULES, runRules } from '../cli/doctor/rules.ts';
-import { introspect } from '../cli/introspect/index.ts';
-import { pgSource } from '../cli/introspect/source.ts';
-import { parseTomlSubset } from '../cli/supabase-toml.ts';
-import { resolveConfig } from '../config/index.ts';
+import { type DoctorContext, RULES, runRules } from "../cli/doctor/rules.ts";
+import { introspect } from "../cli/introspect/index.ts";
+import { pgSource } from "../cli/introspect/source.ts";
+import { parseTomlSubset } from "../cli/supabase-toml.ts";
+import { resolveConfig } from "../config/index.ts";
 
 const dbUrl =
-  process.env['SUPABASE_DB_URL'] ??
-  'postgresql://postgres:postgres@127.0.0.1:55422/postgres';
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
 const SCHEMA = `bs_doctor_${Date.now()}`;
-const ORG = '00000000-0000-4000-8000-000000000001';
+const ORG = "00000000-0000-4000-8000-000000000001";
 
 async function open(): Promise<IntrospectionSource | undefined> {
   try {
     const source = await pgSource(dbUrl);
-    await source.queryable.query('select 1');
+    await source.queryable.query("select 1");
     return source;
   } catch {
     return undefined;
@@ -28,22 +28,22 @@ async function open(): Promise<IntrospectionSource | undefined> {
 
 const source = await open();
 
-describe.skipIf(!source)('doctor against the local stack', () => {
+describe.skipIf(!source)("doctor against the local stack", () => {
   const db = source!;
   let snapshot: Snapshot;
   const database: LiveDatabase = {
-    describe: 'local stack',
+    describe: "local stack",
     session: true,
     async query<R>(sql: string) {
       return (await db.queryable.query(sql)).rows as R[];
     },
   };
   const context = (extra: Partial<DoctorContext> = {}): DoctorContext => ({
-    config: resolveConfig({ schemas: [SCHEMA] }, '/project'),
+    config: resolveConfig({ schemas: [SCHEMA] }, "/project"),
     snapshot,
     configToml: undefined,
     envFiles: [],
-    gitignore: '',
+    gitignore: "",
     sources: [],
     database,
     ...extra,
@@ -80,64 +80,64 @@ describe.skipIf(!source)('doctor against the local stack', () => {
     await db.close();
   });
 
-  it('reads the functions a policy calls from pg_depend', () => {
+  it("reads the functions a policy calls from pg_depend", () => {
     const table = snapshot.extras.tables.find(
-      (entry) => entry.name === 'projects',
+      (entry) => entry.name === "projects",
     )!;
     expect(
       table.policies.map((policy) => [policy.name, policy.functions]),
     ).toEqual([
-      ['projects_member', [`${SCHEMA}.is_member`]],
-      ['projects_open', []],
+      ["projects_member", [`${SCHEMA}.is_member`]],
+      ["projects_open", []],
     ]);
     expect(snapshot.extras.functions).toContainEqual({
       schema: SCHEMA,
-      name: 'is_member',
-      signature: 'org uuid',
-      language: 'plpgsql',
-      volatility: 'stable',
+      name: "is_member",
+      signature: "org uuid",
+      language: "plpgsql",
+      volatility: "stable",
       securityDefiner: false,
       settings: { search_path: '""' },
     });
   });
 
-  it('flags the per-row helper and the overlapping policies', async () => {
-    const findings = await runRules(context(), only('BS205', 'BS207'));
+  it("flags the per-row helper and the overlapping policies", async () => {
+    const findings = await runRules(context(), only("BS205", "BS207"));
     expect(findings).toMatchObject([
       {
-        code: 'BS205',
+        code: "BS205",
         message: expect.stringContaining(`${SCHEMA}.is_member(org_id)`),
       },
       {
-        code: 'BS207',
+        code: "BS207",
         message: expect.stringContaining(
-          'select for authenticated: projects_member, projects_open',
+          "select for authenticated: projects_member, projects_open",
         ),
       },
     ]);
   });
 
-  it('reads statistics without failing', async () => {
+  it("reads statistics without failing", async () => {
     const findings = await runRules(
       context({ stats: true }),
-      only('BS208', 'BS209'),
+      only("BS208", "BS209"),
     );
     for (const finding of findings)
       expect(finding.message).not.toMatch(/^Could not read/);
   });
 
-  it('plans a table under RLS as the given claims and rolls back', async () => {
+  it("plans a table under RLS as the given claims and rolls back", async () => {
     const [finding] = await runRules(
       context({
         explain: {
-          tables: ['projects'],
-          claims: { role: 'authenticated', org_id: ORG },
+          tables: ["projects"],
+          claims: { role: "authenticated", org_id: ORG },
         },
       }),
-      only('BS212'),
+      only("BS212"),
     );
     expect(finding).toMatchObject({
-      code: 'BS212',
+      code: "BS212",
       target: `${SCHEMA}.projects:explain`,
       message: expect.stringMatching(
         new RegExp(
@@ -152,8 +152,8 @@ describe.skipIf(!source)('doctor against the local stack', () => {
       )
     ).rows as { role: string; claims: string | null }[];
     expect(who).toEqual({
-      role: 'postgres',
-      claims: expect.toBeOneOf(['', null]),
+      role: "postgres",
+      claims: expect.toBeOneOf(["", null]),
     });
   });
 });
@@ -161,13 +161,13 @@ describe.skipIf(!source)('doctor against the local stack', () => {
 const hookSource = await open();
 
 describe.skipIf(!hookSource)(
-  'doctor Auth hooks against the local stack',
+  "doctor Auth hooks against the local stack",
   () => {
     const db = hookSource!;
     const HOOKS = `bs_doctor_hooks_${Date.now()}`;
     const USER = crypto.randomUUID();
     const database: LiveDatabase = {
-      describe: 'local stack',
+      describe: "local stack",
       session: true,
       async query<R>(sql: string) {
         return (await db.queryable.query(sql)).rows as R[];
@@ -179,10 +179,10 @@ enabled = true
 uri = "pg-functions://postgres/${HOOKS}/${fn}"
 `;
       return {
-        path: 'supabase/config.toml',
+        path: "supabase/config.toml",
         text,
         document: parseTomlSubset(text),
-        parser: 'builtin' as const,
+        parser: "builtin" as const,
       };
     };
     const run = async (
@@ -191,16 +191,16 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       hookUser?: string,
       permdock?: string,
     ) => {
-      const snapshot = await introspect(db.queryable, ['public'], {
-        hooks: [{ hook: 'custom_access_token', schema: HOOKS, name: fn }],
+      const snapshot = await introspect(db.queryable, ["public"], {
+        hooks: [{ hook: "custom_access_token", schema: HOOKS, name: fn }],
       });
       return runRules(
         {
-          config: resolveConfig({ schemas: ['public'] }, '/project'),
+          config: resolveConfig({ schemas: ["public"] }, "/project"),
           snapshot,
           configToml: toml(fn),
           envFiles: [],
-          gitignore: '',
+          gitignore: "",
           sources: [],
           database,
           ...(hookUser ? { hookUser } : {}),
@@ -257,72 +257,72 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       await db.close();
     });
 
-    it('introspects hook functions outside the configured schemas', async () => {
-      const snapshot = await introspect(db.queryable, ['public'], {
-        hooks: [{ hook: 'custom_access_token', schema: HOOKS, name: 'good' }],
+    it("introspects hook functions outside the configured schemas", async () => {
+      const snapshot = await introspect(db.queryable, ["public"], {
+        hooks: [{ hook: "custom_access_token", schema: HOOKS, name: "good" }],
       });
       expect(snapshot.extras.hooks).toEqual([
         {
-          hook: 'custom_access_token',
+          hook: "custom_access_token",
           schema: HOOKS,
-          name: 'good',
+          name: "good",
           functions: [
             expect.objectContaining({
-              signature: 'event jsonb',
-              volatility: 'stable',
+              signature: "event jsonb",
+              volatility: "stable",
               settings: { search_path: '""' },
-              execute: ['supabase_auth_admin'],
+              execute: ["supabase_auth_admin"],
               publicExecute: false,
-              schemaUsage: ['supabase_auth_admin'],
+              schemaUsage: ["supabase_auth_admin"],
             }),
           ],
         },
       ]);
     });
 
-    it('flags default grants and a volatile hook without search_path', async () => {
-      const findings = await run('bad', ['BS404', 'BS405']);
+    it("flags default grants and a volatile hook without search_path", async () => {
+      const findings = await run("bad", ["BS404", "BS405"]);
       expect(findings.map((finding) => finding.code)).toEqual([
-        'BS404',
-        'BS405',
+        "BS404",
+        "BS405",
       ]);
       // `public` may execute a new function, so Auth can call it, and so can everyone else.
       expect(findings[0]!.message).toContain(
-        'authenticated, anon, public may execute it',
+        "authenticated, anon, public may execute it",
       );
       expect(findings[0]!.message).toContain(
         `revoke execute on function ${HOOKS}.bad(event jsonb) from authenticated, anon, public;`,
       );
-      expect(await run('good', ['BS404', 'BS405'])).toEqual([]);
+      expect(await run("good", ["BS404", "BS405"])).toEqual([]);
     });
 
-    it('calls the hook as supabase_auth_admin for --as and measures the claims', async () => {
-      const findings = await run('good', ['BS405'], USER);
+    it("calls the hook as supabase_auth_admin for --as and measures the claims", async () => {
+      const findings = await run("good", ["BS405"], USER);
       expect(findings).toMatchObject([
         {
-          code: 'BS405',
-          severity: 'warning',
+          code: "BS405",
+          severity: "warning",
           message: expect.stringMatching(/returns \d{4} bytes of claims/),
         },
       ]);
-      const [who] = (await db.queryable.query('select current_user as role'))
+      const [who] = (await db.queryable.query("select current_user as role"))
         .rows as { role: string }[];
-      expect(who?.role).toBe('postgres');
+      expect(who?.role).toBe("postgres");
     });
 
     it("measures PermDock's budget apart from the whole token", async () => {
-      const permdock = 'permdock.config.ts';
-      expect(await run('permdock_fits', ['BS405'], USER, permdock)).toEqual([]);
-      const findings = await run('permdock_over', ['BS405'], USER, permdock);
+      const permdock = "permdock.config.ts";
+      expect(await run("permdock_fits", ["BS405"], USER, permdock)).toEqual([]);
+      const findings = await run("permdock_over", ["BS405"], USER, permdock);
       expect(findings).toMatchObject([
         {
-          code: 'BS405',
+          code: "BS405",
           message: expect.stringMatching(
             /returns \d{4} bytes of memberships and attrs .*over PermDock's budget of 1024/,
           ),
         },
       ]);
-      expect(await run('permdock_over', ['BS405'], USER)).toEqual([]);
+      expect(await run("permdock_over", ["BS405"], USER)).toEqual([]);
     });
   },
 );

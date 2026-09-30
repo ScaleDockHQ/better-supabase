@@ -1,26 +1,26 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { SqlClient } from '../postgres/executor.ts';
+import type { SqlClient } from "../postgres/executor.ts";
 
 import {
   type DbError,
   dbError,
   DbException,
   mapDbError,
-} from '../core/errors.ts';
-import { problemResponse } from '../core/problem.ts';
+} from "../core/errors.ts";
+import { problemResponse } from "../core/problem.ts";
 import {
   AsyncResult,
   err,
   ok,
   type Result,
   toDbError,
-} from '../core/result.ts';
-import { validate } from '../core/standard.ts';
-import { fromPgError } from '../postgres/executor.ts';
-import { verifyWebhook } from '../webhooks/index.ts';
+} from "../core/result.ts";
+import { validate } from "../core/standard.ts";
+import { fromPgError } from "../postgres/executor.ts";
+import { verifyWebhook } from "../webhooks/index.ts";
 
-export type { SqlClient } from '../postgres/executor.ts';
+export type { SqlClient } from "../postgres/executor.ts";
 
 function run<T>(fn: () => Promise<T>): AsyncResult<T> {
   return AsyncResult.from(async () => {
@@ -34,7 +34,7 @@ function run<T>(fn: () => Promise<T>): AsyncResult<T> {
 }
 
 function seconds(value: number | string): string {
-  return typeof value === 'number' ? `${String(value)} seconds` : value;
+  return typeof value === "number" ? `${String(value)} seconds` : value;
 }
 
 function workerId(): string {
@@ -47,10 +47,10 @@ const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
     const timer = setTimeout(done, ms);
     function done(): void {
       clearTimeout(timer);
-      signal?.removeEventListener('abort', done);
+      signal?.removeEventListener("abort", done);
       resolve();
     }
-    signal?.addEventListener('abort', done, { once: true });
+    signal?.addEventListener("abort", done, { once: true });
   });
 
 // ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ export interface Jobs<Q extends QueueSchemas> {
     job: Job,
     error: unknown,
     options?: FailOptions,
-  ): AsyncResult<'queued' | 'dead' | null>;
+  ): AsyncResult<"queued" | "dead" | null>;
   /** Pushes the lease out by `lease` seconds. `false` when it was lost or the transport can't. */
   extend(job: Job, lease: number): AsyncResult<boolean>;
   /**
@@ -164,7 +164,7 @@ export interface Jobs<Q extends QueueSchemas> {
   drain<N extends Extract<keyof Q, string>>(
     queue: N,
     handler: JobHandler<PayloadOut<Q, N>>,
-    options?: Omit<WorkOptions, 'pollInterval' | 'signal'>,
+    options?: Omit<WorkOptions, "pollInterval" | "signal">,
   ): Promise<DrainResult>;
   /** Polls and processes jobs until `signal` aborts. */
   work<N extends Extract<keyof Q, string>>(
@@ -199,7 +199,7 @@ export interface QueueRpcClient {
 }
 
 interface JobTransport {
-  readonly name: 'sql' | 'postgrest';
+  readonly name: "sql" | "postgrest";
   send(
     queue: string,
     payload: unknown,
@@ -213,7 +213,7 @@ interface JobTransport {
     job: Job,
     error: string,
     retryIn: number | undefined,
-  ): Promise<'queued' | 'dead' | null>;
+  ): Promise<"queued" | "dead" | null>;
   extend(job: Job, lease: number): Promise<boolean>;
   schedule(
     name: string,
@@ -226,10 +226,10 @@ interface JobTransport {
 
 function sqlTransport(sql: SqlClient): JobTransport {
   return {
-    name: 'sql',
+    name: "sql",
     async send(queue, payload, delay, maxAttempts, dedupeKey) {
       const [row] = await sql.queryRaw<{ id: string | number }>(
-        'select better_supabase.enqueue_job($1, $2, $3, $4, $5) as id',
+        "select better_supabase.enqueue_job($1, $2, $3, $4, $5) as id",
         [
           queue,
           JSON.stringify(payload ?? {}),
@@ -242,39 +242,39 @@ function sqlTransport(sql: SqlClient): JobTransport {
     },
     read: (queue, lease, batch) =>
       sql.queryRaw<MessageRow>(
-        'select * from better_supabase.claim_jobs($1, $2, $3)',
+        "select * from better_supabase.claim_jobs($1, $2, $3)",
         [queue, lease, batch],
       ),
     async complete(job) {
       const [row] = await sql.queryRaw<{ done: boolean }>(
-        'select better_supabase.complete_job($1, $2, $3) as done',
+        "select better_supabase.complete_job($1, $2, $3) as done",
         [job.queue, job.id, job.attempts],
       );
       return row?.done ?? false;
     },
     async fail(job, error, retryIn) {
-      const [row] = await sql.queryRaw<{ status: 'queued' | 'dead' | null }>(
-        'select better_supabase.fail_job($1, $2, $3, $4, $5) as status',
+      const [row] = await sql.queryRaw<{ status: "queued" | "dead" | null }>(
+        "select better_supabase.fail_job($1, $2, $3, $4, $5) as status",
         [job.queue, job.id, job.attempts, error, retryIn ?? null],
       );
       return row?.status ?? null;
     },
     async extend(job, lease) {
       const [row] = await sql.queryRaw<{ extended: boolean }>(
-        'select better_supabase.extend_job_lease($1, $2, $3, $4) as extended',
+        "select better_supabase.extend_job_lease($1, $2, $3, $4) as extended",
         [job.queue, job.id, job.attempts, lease],
       );
       return row?.extended ?? false;
     },
     async schedule(name, cron, queue, payload) {
       await sql.queryRaw(
-        'select better_supabase.schedule_job($1, $2, $3, $4)',
+        "select better_supabase.schedule_job($1, $2, $3, $4)",
         [name, cron, queue, JSON.stringify(payload ?? {})],
       );
     },
     async unschedule(name) {
       const [row] = await sql.queryRaw<{ done: boolean }>(
-        'select better_supabase.unschedule_job($1) as done',
+        "select better_supabase.unschedule_job($1) as done",
         [name],
       );
       return row?.done ?? false;
@@ -285,7 +285,7 @@ function sqlTransport(sql: SqlClient): JobTransport {
 function sqlOnly(feature: string): never {
   throw new DbException(
     dbError(
-      'invalid_request',
+      "invalid_request",
       `${feature} needs a SQL connection; pgmq_public (PostgREST) does not support it`,
     ),
   );
@@ -301,10 +301,10 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
     fn: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<T> => {
-    const { data, error } = await client.schema('pgmq_public').rpc(fn, args);
+    const { data, error } = await client.schema("pgmq_public").rpc(fn, args);
     if (error) {
       const message =
-        typeof error === 'object' && 'message' in error
+        typeof error === "object" && "message" in error
           ? String(error.message)
           : String(error);
       throw new Error(`pgmq_public.${fn}: ${message}`, { cause: error });
@@ -312,12 +312,12 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
     return data as T;
   };
   const archive = (job: Job): Promise<boolean> =>
-    call<boolean>('archive', { queue_name: job.queue, message_id: job.id });
+    call<boolean>("archive", { queue_name: job.queue, message_id: job.id });
   return {
-    name: 'postgrest',
+    name: "postgrest",
     async send(queue, payload, delay, maxAttempts, dedupeKey) {
-      if (dedupeKey !== undefined) sqlOnly('dedupeKey');
-      const ids = await call<readonly (number | string)[]>('send', {
+      if (dedupeKey !== undefined) sqlOnly("dedupeKey");
+      const ids = await call<readonly (number | string)[]>("send", {
         queue_name: queue,
         message: { payload: payload ?? {}, max_attempts: maxAttempts },
         sleep_seconds: delay,
@@ -333,7 +333,7 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
           vt: string;
           message: QueueMessage | null;
         }[]
-      >('read', { queue_name: queue, sleep_seconds: lease, n: batch });
+      >("read", { queue_name: queue, sleep_seconds: lease, n: batch });
       return rows.map((row) => ({
         id: row.msg_id,
         attempts: row.read_ct,
@@ -344,13 +344,13 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
     },
     complete: archive,
     async fail(job) {
-      if (job.attempts < job.maxAttempts) return 'queued';
+      if (job.attempts < job.maxAttempts) return "queued";
       await archive(job);
-      return 'dead';
+      return "dead";
     },
     extend: () => Promise.resolve(false),
-    schedule: () => sqlOnly('schedule'),
-    unschedule: () => sqlOnly('unschedule'),
+    schedule: () => sqlOnly("schedule"),
+    unschedule: () => sqlOnly("unschedule"),
   };
 }
 
@@ -373,7 +373,7 @@ function toJob(queue: string, row: MessageRow): Job {
 
 function errorText(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && error !== null && 'message' in error) {
+  if (typeof error === "object" && error !== null && "message" in error) {
     return String(error.message);
   }
   return String(error);
@@ -382,7 +382,7 @@ function errorText(error: unknown): string {
 const QUEUE_NAME = /^[a-z_][a-z0-9_]{0,46}$/;
 
 function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
-  return typeof (source as Partial<SqlClient>).queryRaw === 'function';
+  return typeof (source as Partial<SqlClient>).queryRaw === "function";
 }
 
 /**
@@ -412,7 +412,7 @@ export function createJobs<const Q extends QueueSchemas>(
     const schema = queues[queue];
     if (!schema) {
       throw new TypeError(
-        `Unknown queue "${queue}". Queues: ${Object.keys(queues).join(', ')}`,
+        `Unknown queue "${queue}". Queues: ${Object.keys(queues).join(", ")}`,
       );
     }
     return schema;
@@ -424,7 +424,7 @@ export function createJobs<const Q extends QueueSchemas>(
     job: Job,
     error: unknown,
     failOptions: FailOptions = {},
-  ): AsyncResult<'queued' | 'dead' | null> =>
+  ): AsyncResult<"queued" | "dead" | null> =>
     run(() => transport.fail(job, errorText(error), failOptions.retryIn));
   const claim = (
     queue: string,
@@ -448,7 +448,7 @@ export function createJobs<const Q extends QueueSchemas>(
     const controller = new AbortController();
     const lease = workOptions.lease ?? 300;
     const heartbeat =
-      transport.name === 'sql'
+      transport.name === "sql"
         ? setInterval(
             () => {
               void run(() => transport.extend(job, lease));
@@ -460,7 +460,7 @@ export function createJobs<const Q extends QueueSchemas>(
       const payload = await validate(
         schemaOf(job.queue),
         job.payload,
-        'payload',
+        "payload",
       );
       if (!payload.ok) {
         await fail(job, payload.error.message);
@@ -473,11 +473,11 @@ export function createJobs<const Q extends QueueSchemas>(
         controller.signal,
       );
       if (
-        typeof outcome === 'object' &&
+        typeof outcome === "object" &&
         outcome !== null &&
-        'ok' in outcome &&
+        "ok" in outcome &&
         outcome.ok === false &&
-        'error' in outcome
+        "error" in outcome
       ) {
         throw (outcome as { error: unknown }).error;
       }
@@ -487,7 +487,7 @@ export function createJobs<const Q extends QueueSchemas>(
       controller.abort();
       await fail(job, cause);
       workOptions.onError?.(
-        typeof cause === 'object' && cause !== null && 'kind' in cause
+        typeof cause === "object" && cause !== null && "kind" in cause
           ? (cause as DbError)
           : toDbError(cause),
         job,
@@ -533,7 +533,7 @@ export function createJobs<const Q extends QueueSchemas>(
   return {
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
-        const valid = await validate(schemaOf(queue), payload, 'payload');
+        const valid = await validate(schemaOf(queue), payload, "payload");
         if (!valid.ok) return valid;
         const delay =
           enqueueOptions.delay ??
@@ -560,7 +560,7 @@ export function createJobs<const Q extends QueueSchemas>(
     extend: (job, lease) => run(() => transport.extend(job, lease)),
     schedule(name, cron, queue, payload) {
       return AsyncResult.from(async () => {
-        const valid = await validate(schemaOf(queue), payload, 'payload');
+        const valid = await validate(schemaOf(queue), payload, "payload");
         if (!valid.ok) return valid;
         return run(() => transport.schedule(name, cron, queue, valid.data));
       });
@@ -589,7 +589,7 @@ export interface IdempotencyOptions {
   readonly header?: string;
 }
 
-export type IdempotencyState = 'started' | 'replay' | 'running' | 'mismatch';
+export type IdempotencyState = "started" | "replay" | "running" | "mismatch";
 
 export interface Idempotency {
   /**
@@ -621,12 +621,12 @@ export interface Idempotency {
 
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest(
-    'SHA-256',
+    "SHA-256",
     new TextEncoder().encode(text),
   );
   return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('');
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 interface StoredResponse {
@@ -639,18 +639,18 @@ export function createIdempotency(
   sql: SqlClient,
   options: IdempotencyOptions = {},
 ): Idempotency {
-  const headerName = options.header ?? 'idempotency-key';
-  const ttl = seconds(options.ttl ?? '24 hours');
-  const lock = seconds(options.lock ?? '1 minute');
+  const headerName = options.header ?? "idempotency-key";
+  const ttl = seconds(options.ttl ?? "24 hours");
+  const lock = seconds(options.lock ?? "1 minute");
 
-  const begin: Idempotency['begin'] = (key, fingerprint, scope = '') =>
+  const begin: Idempotency["begin"] = (key, fingerprint, scope = "") =>
     run(async () => {
       const [row] = await sql.queryRaw<{
         state: IdempotencyState;
         status_code: number | null;
         response: unknown;
       }>(
-        'select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)',
+        "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
         [scope, key, fingerprint, ttl, lock],
       );
       return {
@@ -659,16 +659,16 @@ export function createIdempotency(
         body: row!.response,
       };
     });
-  const complete: Idempotency['complete'] = (key, status, body, scope = '') =>
+  const complete: Idempotency["complete"] = (key, status, body, scope = "") =>
     run(async () => {
       await sql.queryRaw(
-        'select better_supabase.complete_idempotent($1, $2, $3, $4)',
+        "select better_supabase.complete_idempotent($1, $2, $3, $4)",
         [scope, key, status, JSON.stringify(body)],
       );
     });
-  const release: Idempotency['release'] = (key, scope = '') =>
+  const release: Idempotency["release"] = (key, scope = "") =>
     run(async () => {
-      await sql.queryRaw('select better_supabase.release_idempotent($1, $2)', [
+      await sql.queryRaw("select better_supabase.release_idempotent($1, $2)", [
         scope,
         key,
       ]);
@@ -685,10 +685,10 @@ export function createIdempotency(
         return options.required
           ? problemResponse(
               dbError(
-                'invalid_request',
+                "invalid_request",
                 `The ${headerName} header is required`,
                 {
-                  code: 'IDEMPOTENCY_KEY_MISSING',
+                  code: "IDEMPOTENCY_KEY_MISSING",
                 },
               ),
               { instance },
@@ -697,16 +697,16 @@ export function createIdempotency(
       }
       if (key.length > 255) {
         return problemResponse(
-          dbError('invalid_request', `The ${headerName} header is too long`, {
-            code: 'IDEMPOTENCY_KEY_INVALID',
+          dbError("invalid_request", `The ${headerName} header is too long`, {
+            code: "IDEMPOTENCY_KEY_INVALID",
           }),
           { instance },
         );
       }
       const scope =
-        typeof options.scope === 'function'
+        typeof options.scope === "function"
           ? options.scope(request)
-          : (options.scope ?? '');
+          : (options.scope ?? "");
       const body = await request.clone().text();
       const fingerprint = await sha256(
         `${request.method} ${instance}\n${body}`,
@@ -715,39 +715,39 @@ export function createIdempotency(
       if (!started.ok) return problemResponse(started.error, { instance });
       const { state } = started.data;
       switch (state) {
-        case 'replay': {
+        case "replay": {
           const stored = started.data.body as StoredResponse;
           return new Response(stored.body, {
             status: started.data.status ?? 200,
             headers: {
               ...(stored.contentType
-                ? { 'content-type': stored.contentType }
+                ? { "content-type": stored.contentType }
                 : {}),
-              'idempotency-replayed': 'true',
+              "idempotency-replayed": "true",
             },
           });
         }
-        case 'running':
+        case "running":
           return problemResponse(
             dbError(
-              'conflict',
-              'A request with this idempotency key is still running',
+              "conflict",
+              "A request with this idempotency key is still running",
               {
-                code: 'IDEMPOTENCY_KEY_IN_USE',
+                code: "IDEMPOTENCY_KEY_IN_USE",
               },
             ),
-            { instance, headers: { 'retry-after': '1' } },
+            { instance, headers: { "retry-after": "1" } },
           );
-        case 'mismatch':
+        case "mismatch":
           return problemResponse(
             dbError(
-              'validation',
-              'This idempotency key was used for a different request',
+              "validation",
+              "This idempotency key was used for a different request",
               {
-                code: 'IDEMPOTENCY_KEY_REUSED',
+                code: "IDEMPOTENCY_KEY_REUSED",
                 issues: [
                   {
-                    message: 'Use a new key for a new request',
+                    message: "Use a new key for a new request",
                     path: [headerName],
                   },
                 ],
@@ -755,7 +755,7 @@ export function createIdempotency(
             ),
             { instance },
           );
-        case 'started':
+        case "started":
           break;
         default: {
           const unknown: never = state;
@@ -775,7 +775,7 @@ export function createIdempotency(
       }
       const stored: StoredResponse = {
         body: await response.clone().text(),
-        contentType: response.headers.get('content-type'),
+        contentType: response.headers.get("content-type"),
       };
       await complete(key, response.status, stored, scope);
       return response;
@@ -836,9 +836,9 @@ interface InboxRow {
 }
 
 function defaultType(payload: unknown): string | null {
-  if (typeof payload !== 'object' || payload === null) return null;
+  if (typeof payload !== "object" || payload === null) return null;
   const type = (payload as { type?: unknown }).type;
-  return typeof type === 'string' ? type : null;
+  return typeof type === "string" ? type : null;
 }
 
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
@@ -846,7 +846,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   const worker = options.worker ?? workerId();
   if (!options.secrets && !options.verify) {
     throw new TypeError(
-      'createInbox needs `secrets` (Standard Webhooks) or `verify`',
+      "createInbox needs `secrets` (Standard Webhooks) or `verify`",
     );
   }
 
@@ -864,8 +864,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   return {
     async receive(request) {
       const instance = new URL(request.url).pathname;
-      if (request.method !== 'POST') {
-        return new Response(null, { status: 405, headers: { allow: 'POST' } });
+      if (request.method !== "POST") {
+        return new Response(null, { status: 405, headers: { allow: "POST" } });
       }
       const message = await verified(request);
       if (!message.ok) return problemResponse(message.error, { instance });
@@ -877,7 +877,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       );
       const stored = await run(() =>
         sql.queryRaw<{ id: string | number; duplicate: boolean }>(
-          'select * from better_supabase.receive_webhook($1, $2, $3, $4, $5)',
+          "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5)",
           [
             options.source,
             message.data.id,
@@ -900,7 +900,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       let failed = 0;
       for (;;) {
         const rows = await sql.queryRaw<InboxRow>(
-          'select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)',
+          "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
           [
             options.source,
             worker,
@@ -923,26 +923,26 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           try {
             const outcome: unknown = await handler(message);
             if (
-              typeof outcome === 'object' &&
+              typeof outcome === "object" &&
               outcome !== null &&
-              'ok' in outcome &&
+              "ok" in outcome &&
               outcome.ok === false
             ) {
               throw new Error(
                 errorText(
                   (outcome as { error?: unknown }).error ??
-                    'The handler failed',
+                    "The handler failed",
                 ),
               );
             }
             await sql.queryRaw(
-              'select better_supabase.complete_webhook($1, $2)',
+              "select better_supabase.complete_webhook($1, $2)",
               [message.id, worker],
             );
             succeeded += 1;
           } catch (cause) {
             await sql.queryRaw(
-              'select better_supabase.fail_webhook($1, $2, $3)',
+              "select better_supabase.fail_webhook($1, $2, $3)",
               [message.id, worker, errorText(cause)],
             );
             failed += 1;
@@ -958,16 +958,16 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
 
 /** The Stripe event sent when a customer's active entitlements change. */
 export const ENTITLEMENTS_UPDATED =
-  'entitlements.active_entitlement_summary.updated';
+  "entitlements.active_entitlement_summary.updated";
 
 function stripeCustomerOf(payload: unknown): string | undefined {
-  if (typeof payload !== 'object' || payload === null) return undefined;
+  if (typeof payload !== "object" || payload === null) return undefined;
   const object = (payload as { data?: { object?: { customer?: unknown } } })
     .data?.object;
   const customer = object?.customer;
-  if (typeof customer === 'string') return customer;
+  if (typeof customer === "string") return customer;
   const id = (customer as { id?: unknown } | undefined)?.id;
-  return typeof id === 'string' ? id : undefined;
+  return typeof id === "string" ? id : undefined;
 }
 
 /**
@@ -983,7 +983,7 @@ export function entitlementMembers(
   if (customer === undefined) return AsyncResult.ok([]);
   return run(() =>
     sql.queryRaw<{ user_id: string }>(
-      'select user_id from better_supabase.entitlement_members($1) as user_id',
+      "select user_id from better_supabase.entitlement_members($1) as user_id",
       [customer],
     ),
   ).map((rows) => rows.map((row) => row.user_id));

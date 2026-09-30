@@ -1,11 +1,11 @@
-export { BetterSupabase, defineSupabase } from './core/define.ts';
+export { BetterSupabase, defineSupabase } from "./core/define.ts";
 export type {
   ConnectOptions,
   DefineSupabaseOptions,
   RpcDefinition,
-} from './core/define.ts';
-export { EMPTY_STATS, recordStats, StatsRecorder } from './core/stats.ts';
-export type { DbStats } from './core/stats.ts';
+} from "./core/define.ts";
+export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
+export type { DbStats } from "./core/stats.ts";
 export {
   AsyncResult,
   err,
@@ -13,14 +13,14 @@ export {
   ok,
   toBetterResult,
   toDbError,
-} from './core/result.ts';
+} from "./core/result.ts";
 export type {
   BetterResultApi,
   BetterResultShape,
   Err,
   Ok,
   Result,
-} from './core/result.ts';
+} from "./core/result.ts";
 export {
   DbException,
   dbError,
@@ -30,7 +30,7 @@ export {
   isForeignKey,
   mapDbError,
   statusOf,
-} from './core/errors.ts';
+} from "./core/errors.ts";
 export type {
   DbError,
   DbErrorKind,
@@ -39,25 +39,25 @@ export type {
   ErrorMapper,
   RawDbError,
   ValidationIssue,
-} from './core/errors.ts';
-export { definePlugin, PLUGIN_API_VERSION } from './core/plugin.ts';
-export { defineRepository } from './core/define-repository.ts';
-export type { TableRepositoryExtension } from './core/define-repository.ts';
+} from "./core/errors.ts";
+export { definePlugin, PLUGIN_API_VERSION } from "./core/plugin.ts";
+export { defineRepository } from "./core/define-repository.ts";
+export type { TableRepositoryExtension } from "./core/define-repository.ts";
 export {
   cacheTargetOf,
   memoryCache,
   rowKey,
   rpcCacheTargets,
-} from './core/cache.ts';
-export { isQuerySpec, specTables } from './core/spec.ts';
+} from "./core/cache.ts";
+export { isQuerySpec, specTables } from "./core/spec.ts";
 export type {
   InferResult,
   QuerySpec,
   ReadMethod,
   Specs,
   TableSpecs,
-} from './core/spec.ts';
-export { defineReadSet, isReadSet, readSetTables } from './core/read-set.ts';
+} from "./core/spec.ts";
+export { defineReadSet, isReadSet, readSetTables } from "./core/read-set.ts";
 export type {
   InferReadSetParams,
   ReadSet,
@@ -67,13 +67,13 @@ export type {
   ReadSetParamTypes,
   ReadSetParamValue,
   ReadSetResult,
-} from './core/read-set.ts';
-export { invalidationTargets, touchedTables } from './ir/tables.ts';
-export type { CacheAdapter, CacheTarget, MemoryCache } from './core/cache.ts';
-export { consoleLogger, silentLogger } from './core/logger.ts';
-export type { LogFields, Logger } from './core/logger.ts';
-export { postgrestCompiler } from './core/compiler.ts';
-export type { Compiler } from './core/compiler.ts';
+} from "./core/read-set.ts";
+export { invalidationTargets, touchedTables } from "./ir/tables.ts";
+export type { CacheAdapter, CacheTarget, MemoryCache } from "./core/cache.ts";
+export { consoleLogger, silentLogger } from "./core/logger.ts";
+export type { LogFields, Logger } from "./core/logger.ts";
+export { postgrestCompiler } from "./core/compiler.ts";
+export type { Compiler } from "./core/compiler.ts";
 export type {
   Actor,
   AnyPlugin,
@@ -90,19 +90,19 @@ export type {
   RepositoryApi,
   RepositoryExtension,
   RequestContext,
-} from './core/plugin.ts';
+} from "./core/plugin.ts";
 export type {
   ExecuteContext,
   ExecuteResult,
   Executor,
   RpcContext,
-} from './core/executor.ts';
+} from "./core/executor.ts";
 export {
   explainPostgrest,
   postgrestExecutor,
-} from './core/postgrest-executor.ts';
-export type { PostgrestClientLike } from './core/postgrest-executor.ts';
-export { EventHub } from './core/events.ts';
+} from "./core/postgrest-executor.ts";
+export type { PostgrestClientLike } from "./core/postgrest-executor.ts";
+export { EventHub } from "./core/events.ts";
 export type {
   AuthEvent,
   BetterSupabaseEvents,
@@ -113,7 +113,7 @@ export type {
   QueryEvent,
   RefreshEvent,
   RpcNotice,
-} from './core/events.ts';
+} from "./core/events.ts";
 export type {
   ConflictTarget,
   CursorPage,
@@ -133,8 +133,8 @@ export type {
   UpdateArgs,
   UpsertArgs,
   WriteArgs,
-} from './core/repository-types.ts';
-export { encodeCursor, decodeCursor } from './core/cursor.ts';
+} from "./core/repository-types.ts";
+export { encodeCursor, decodeCursor } from "./core/cursor.ts";
 export {
   fromProblem,
   isProblem,
@@ -142,35 +142,35 @@ export {
   PROBLEM_TYPE_BASE,
   problemResponse,
   toProblem,
-} from './core/problem.ts';
+} from "./core/problem.ts";
 export type {
   ProblemDetails,
   ProblemOptions,
   ProblemResponseOptions,
-} from './core/problem.ts';
-export { validate } from './core/standard.ts';
-export type { StandardSchemaV1 } from './core/standard.ts';
-export { SPEC_PINS } from './core/spec-pins.ts';
+} from "./core/problem.ts";
+export { validate } from "./core/standard.ts";
+export type { StandardSchemaV1 } from "./core/standard.ts";
+export { SPEC_PINS } from "./core/spec-pins.ts";
 
-export { defineSchema, tableMeta } from './schema/define.ts';
-export type { EnrichDatabase } from './schema/enrich.ts';
-export type { StoragePath } from './storage/path.ts';
-export type * from './schema/types.ts';
+export { defineSchema, tableMeta } from "./schema/define.ts";
+export type { EnrichDatabase } from "./schema/enrich.ts";
+export type { StoragePath } from "./storage/path.ts";
+export type * from "./schema/types.ts";
 
-export type { SearchArgs } from './core/search.ts';
-export type * from './ir/args.ts';
-export type * from './ir/types.ts';
-export { escapeLike } from './ir/build.ts';
-export { decodeRows, encodeValue } from './ir/codec.ts';
-export { and, column, not, or } from './ir/types.ts';
-export { scopeCondition, scopeOperation, scopeSelection } from './ir/scope.ts';
-export type { ScopeFor } from './ir/scope.ts';
-export { simplify } from './ir/simplify.ts';
-export { compilePostgrest } from './compile/postgrest.ts';
+export type { SearchArgs } from "./core/search.ts";
+export type * from "./ir/args.ts";
+export type * from "./ir/types.ts";
+export { escapeLike } from "./ir/build.ts";
+export { decodeRows, encodeValue } from "./ir/codec.ts";
+export { and, column, not, or } from "./ir/types.ts";
+export { scopeCondition, scopeOperation, scopeSelection } from "./ir/scope.ts";
+export type { ScopeFor } from "./ir/scope.ts";
+export { simplify } from "./ir/simplify.ts";
+export { compilePostgrest } from "./compile/postgrest.ts";
 export type {
   PlanFilter,
   PlanLimit,
   PlanOrder,
   PostgrestPlan,
-} from './compile/postgrest.ts';
-export { toCamel, toSnake } from './casing/index.ts';
+} from "./compile/postgrest.ts";
+export { toCamel, toSnake } from "./casing/index.ts";

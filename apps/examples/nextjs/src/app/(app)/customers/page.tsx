@@ -1,14 +1,14 @@
-import { Suspense } from 'react';
+import { Suspense } from "react";
 
 import {
   CustomerList,
   CustomerListSkeleton,
-} from '@/features/customers/components/customer-list';
+} from "@/features/customers/components/customer-list";
 import {
   SimilarNotes,
   SimilarNotesSkeleton,
-} from '@/features/notes/components/similar-notes';
-import { PermissionGate } from '@/features/user/components/permission-gate';
+} from "@/features/notes/components/similar-notes";
+import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export const instant = true;
 

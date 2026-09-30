@@ -7,11 +7,11 @@ import type {
   OrderTerm,
   SelectColumn,
   Selection,
-} from '../ir/types.ts';
-import type { RelationMeta, TableMeta } from '../schema/types.ts';
+} from "../ir/types.ts";
+import type { RelationMeta, TableMeta } from "../schema/types.ts";
 
-import { invalidRequest } from '../ir/build.ts';
-import { simplifyOrFalse } from '../ir/simplify.ts';
+import { invalidRequest } from "../ir/build.ts";
+import { simplifyOrFalse } from "../ir/simplify.ts";
 
 /**
  * A compiled PostgREST request, expressed as calls on the public
@@ -30,13 +30,13 @@ export interface PostgrestPlan {
 
 export type PlanFilter =
   | {
-      readonly kind: 'filter';
+      readonly kind: "filter";
       readonly path: string;
       readonly operator: string;
       readonly value: string;
     }
   | {
-      readonly kind: 'or';
+      readonly kind: "or";
       readonly expression: string;
       readonly referencedTable: string | undefined;
     };
@@ -71,68 +71,68 @@ interface EmbedNode {
 
 function scalar(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'string') return value;
+  if (typeof value === "string") return value;
   if (
-    typeof value === 'number' ||
-    typeof value === 'bigint' ||
-    typeof value === 'boolean'
+    typeof value === "number" ||
+    typeof value === "bigint" ||
+    typeof value === "boolean"
   ) {
     return String(value);
   }
-  if (value === null) return 'null';
+  if (value === null) return "null";
   return JSON.stringify(value);
 }
 
 /** Double-quotes a value for PostgREST lists and logic trees. */
 export function quote(value: unknown): string {
   const text = scalar(value);
-  return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 function list(values: readonly unknown[], open: string, close: string): string {
-  return `${open}${values.map(quote).join(',')}${close}`;
+  return `${open}${values.map(quote).join(",")}${close}`;
 }
 
 function isBoolLike(value: unknown): value is null | boolean {
-  return value === null || typeof value === 'boolean';
+  return value === null || typeof value === "boolean";
 }
 
 function operatorAndValue(
-  condition: Extract<Condition, { kind: 'column' }>,
+  condition: Extract<Condition, { kind: "column" }>,
   inLogic: boolean,
 ): { operator: string; value: string } {
   const { op, value } = condition;
   const plain = (text: unknown): string =>
     inLogic ? quote(text) : scalar(text);
   switch (op) {
-    case 'eq':
-    case 'neq':
-    case 'gt':
-    case 'gte':
-    case 'lt':
-    case 'lte':
-    case 'like':
-    case 'ilike':
+    case "eq":
+    case "neq":
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+    case "like":
+    case "ilike":
       return { operator: op, value: plain(value) };
-    case 'in':
+    case "in":
       if (!Array.isArray(value)) invalidRequest('"in" needs an array');
-      return { operator: 'in', value: list(value, '(', ')') };
-    case 'is':
+      return { operator: "in", value: list(value, "(", ")") };
+    case "is":
       if (!isBoolLike(value)) invalidRequest('"is" needs null, true or false');
-      return { operator: 'is', value: String(value) };
-    case 'contains':
-    case 'containedBy':
-    case 'overlaps': {
+      return { operator: "is", value: String(value) };
+    case "contains":
+    case "containedBy":
+    case "overlaps": {
       const operator =
-        op === 'contains' ? 'cs' : op === 'containedBy' ? 'cd' : 'ov';
+        op === "contains" ? "cs" : op === "containedBy" ? "cd" : "ov";
       if (Array.isArray(value)) {
-        return { operator, value: list(value, '{', '}') };
+        return { operator, value: list(value, "{", "}") };
       }
       const json = JSON.stringify(value);
       return { operator, value: inLogic ? quote(json) : json };
     }
-    case 'fts': {
-      const operator = condition.config ? `wfts(${condition.config})` : 'wfts';
+    case "fts": {
+      const operator = condition.config ? `wfts(${condition.config})` : "wfts";
       return { operator, value: plain(value) };
     }
     default: {
@@ -163,56 +163,56 @@ class PostgrestCompiler {
     embeds: EmbedNode[],
   ): void {
     switch (condition.kind) {
-      case 'and':
+      case "and":
         for (const item of condition.items) this.andContext(item, path, embeds);
         return;
-      case 'column': {
+      case "column": {
         const { operator, value } = operatorAndValue(condition, false);
         this.filters.push({
-          kind: 'filter',
+          kind: "filter",
           path: path ? `${path}.${condition.column}` : condition.column,
           operator,
           value,
         });
         return;
       }
-      case 'not': {
+      case "not": {
         const inner = condition.item;
-        if (inner.kind === 'column') {
+        if (inner.kind === "column") {
           const { operator, value } = operatorAndValue(inner, false);
           this.filters.push({
-            kind: 'filter',
+            kind: "filter",
             path: path ? `${path}.${inner.column}` : inner.column,
             operator: `not.${operator}`,
             value,
           });
           return;
         }
-        if (inner.kind === 'relation') {
+        if (inner.kind === "relation") {
           this.relationAnd(negateRelation(inner), path, embeds);
           return;
         }
-        if (inner.kind === 'not') {
+        if (inner.kind === "not") {
           this.andContext(inner.item, path, embeds);
           return;
         }
         this.filters.push({
-          kind: 'or',
+          kind: "or",
           expression: this.logic(condition, embeds),
           referencedTable: path,
         });
         return;
       }
-      case 'or':
+      case "or":
         this.filters.push({
-          kind: 'or',
+          kind: "or",
           expression: this.logic(condition, embeds)
-            .replace(/^or\(/, '')
-            .replace(/\)$/, ''),
+            .replace(/^or\(/, "")
+            .replace(/\)$/, ""),
           referencedTable: path,
         });
         return;
-      case 'relation':
+      case "relation":
         this.relationAnd(condition, path, embeds);
         return;
       default: {
@@ -223,28 +223,28 @@ class PostgrestCompiler {
   }
 
   private relationAnd(
-    condition: Extract<Condition, { kind: 'relation' }>,
+    condition: Extract<Condition, { kind: "relation" }>,
     path: string | undefined,
     embeds: EmbedNode[],
   ): void {
-    if (condition.quantifier === 'every' && !condition.where) return;
+    if (condition.quantifier === "every" && !condition.where) return;
     const alias = this.nextAlias();
     const aliasPath = path ? `${path}.${alias}` : alias;
-    const node = filterEmbed(alias, condition, condition.quantifier === 'some');
+    const node = filterEmbed(alias, condition, condition.quantifier === "some");
     this.withPath(node.children, aliasPath);
     embeds.push(node);
 
     const where =
-      condition.quantifier === 'every' && condition.where
-        ? ({ kind: 'not', item: condition.where } as const)
+      condition.quantifier === "every" && condition.where
+        ? ({ kind: "not", item: condition.where } as const)
         : condition.where;
     if (where) this.andContext(where, aliasPath, node.children);
-    if (condition.quantifier !== 'some') {
+    if (condition.quantifier !== "some") {
       this.filters.push({
-        kind: 'filter',
+        kind: "filter",
         path: aliasPath,
-        operator: 'is',
-        value: 'null',
+        operator: "is",
+        value: "null",
       });
     }
   }
@@ -252,30 +252,30 @@ class PostgrestCompiler {
   /** Compiles a condition into a PostgREST logic-tree term. */
   logic(condition: Condition, embeds: EmbedNode[]): string {
     switch (condition.kind) {
-      case 'and':
-      case 'or':
+      case "and":
+      case "or":
         return `${condition.kind}(${condition.items
           .map((item) => this.logic(item, embeds))
-          .join(',')})`;
-      case 'not': {
+          .join(",")})`;
+      case "not": {
         const inner = condition.item;
-        if (inner.kind === 'column') {
+        if (inner.kind === "column") {
           const { operator, value } = operatorAndValue(inner, true);
           return `${inner.column}.not.${operator}.${value}`;
         }
-        if (inner.kind === 'relation') {
+        if (inner.kind === "relation") {
           return this.logic(negateRelation(inner), embeds);
         }
-        if (inner.kind === 'not') return this.logic(inner.item, embeds);
+        if (inner.kind === "not") return this.logic(inner.item, embeds);
         return `not.${this.logic(inner, embeds)}`;
       }
-      case 'column': {
+      case "column": {
         const { operator, value } = operatorAndValue(condition, true);
         return `${condition.column}.${operator}.${value}`;
       }
-      case 'relation': {
-        if (condition.quantifier === 'every' && !condition.where) {
-          invalidRequest('every({}) must be simplified before compiling');
+      case "relation": {
+        if (condition.quantifier === "every" && !condition.where) {
+          invalidRequest("every({}) must be simplified before compiling");
         }
         const alias = this.nextAlias();
         const node = filterEmbed(alias, condition, false);
@@ -283,13 +283,13 @@ class PostgrestCompiler {
         this.withPath(node.children, nodePath);
         embeds.push(node);
         const where =
-          condition.quantifier === 'every' && condition.where
-            ? ({ kind: 'not', item: condition.where } as const)
+          condition.quantifier === "every" && condition.where
+            ? ({ kind: "not", item: condition.where } as const)
             : condition.where;
         // The embed's own filters are request parameters under the embed
         // path; only the null check goes in the logic tree.
         if (where) this.andContext(where, nodePath, node.children);
-        return condition.quantifier === 'some'
+        return condition.quantifier === "some"
           ? `${alias}.not.is.null`
           : `${alias}.is.null`;
       }
@@ -344,16 +344,16 @@ class PostgrestCompiler {
       if (!column)
         invalidRequest(`Cannot filter "${include.alias}" to nothing`);
       this.filters.push({
-        kind: 'filter',
+        kind: "filter",
         path: `${aliasPath}.${column}`,
-        operator: 'is',
-        value: 'null',
+        operator: "is",
+        value: "null",
       });
       this.filters.push({
-        kind: 'filter',
+        kind: "filter",
         path: `${aliasPath}.${column}`,
-        operator: 'not.is',
-        value: 'null',
+        operator: "not.is",
+        value: "null",
       });
     } else if (where.condition) {
       this.andContext(where.condition, aliasPath, node.children);
@@ -367,27 +367,27 @@ class PostgrestCompiler {
   order(term: OrderTerm, referencedTable: string | undefined): void {
     this.orders.push({
       column: term.column,
-      ascending: term.direction === 'asc',
-      nullsFirst: term.nulls === undefined ? undefined : term.nulls === 'first',
+      ascending: term.direction === "asc",
+      nullsFirst: term.nulls === undefined ? undefined : term.nulls === "first",
       referencedTable,
     });
   }
 }
 
 function negateRelation(
-  condition: Extract<Condition, { kind: 'relation' }>,
-): Extract<Condition, { kind: 'relation' }> {
+  condition: Extract<Condition, { kind: "relation" }>,
+): Extract<Condition, { kind: "relation" }> {
   switch (condition.quantifier) {
-    case 'some':
-      return { ...condition, quantifier: 'none' };
-    case 'none':
-      return { ...condition, quantifier: 'some' };
-    case 'every':
+    case "some":
+      return { ...condition, quantifier: "none" };
+    case "none":
+      return { ...condition, quantifier: "some" };
+    case "every":
       return {
         ...condition,
-        quantifier: 'some',
+        quantifier: "some",
         where: condition.where
-          ? { kind: 'not', item: condition.where }
+          ? { kind: "not", item: condition.where }
           : undefined,
       };
     default: {
@@ -399,7 +399,7 @@ function negateRelation(
 
 function filterEmbed(
   alias: string,
-  condition: Extract<Condition, { kind: 'relation' }>,
+  condition: Extract<Condition, { kind: "relation" }>,
   inner: boolean,
 ): EmbedNode {
   return {
@@ -423,28 +423,28 @@ function columnList(columns: readonly SelectColumn[]): string[] {
 function measureList(measures: readonly Measure[]): string[] {
   return measures.map(
     ({ key, column, fn, cast }) =>
-      `${key}:${column}.${fn}()${cast ? `::${cast}` : ''}`,
+      `${key}:${column}.${fn}()${cast ? `::${cast}` : ""}`,
   );
 }
 
 function aggregateList(aggregate: Aggregation): string[] {
   return [
-    ...(aggregate.count ? ['_count:count()'] : []),
+    ...(aggregate.count ? ["_count:count()"] : []),
     ...measureList(aggregate.measures),
   ];
 }
 
 function renderEmbeds(embeds: readonly EmbedNode[]): string[] {
   return embeds.map((node) => {
-    const hint = `${node.target.name}!${node.relation.foreignKey}${node.inner ? '!inner' : ''}`;
+    const hint = `${node.target.name}!${node.relation.foreignKey}${node.inner ? "!inner" : ""}`;
     if (node.count) return `${node.alias}:${hint}(count)`;
     if (node.measures)
-      return `${node.alias}:${hint}(${measureList(node.measures).join(',')})`;
+      return `${node.alias}:${hint}(${measureList(node.measures).join(",")})`;
     const inside = [
       ...columnList(node.columns),
       ...renderEmbeds(node.children),
     ];
-    return `${node.alias}:${hint}(${inside.join(',')})`;
+    return `${node.alias}:${hint}(${inside.join(",")})`;
   });
 }
 
@@ -457,7 +457,7 @@ function renderSelect(
     ...(selection.aggregate ? aggregateList(selection.aggregate) : []),
     ...renderEmbeds(embeds),
   ];
-  return parts.length > 0 ? parts.join(',') : '*';
+  return parts.length > 0 ? parts.join(",") : "*";
 }
 
 function applyWhere(
@@ -477,9 +477,9 @@ export function compilePostgrest(op: Operation): PostgrestPlan {
   const embeds = compiler.withPath([], undefined);
 
   const selection =
-    op.kind === 'select'
+    op.kind === "select"
       ? op.selection
-      : op.kind === 'insert'
+      : op.kind === "insert"
         ? op.returning
         : op.returning;
 
@@ -489,10 +489,10 @@ export function compilePostgrest(op: Operation): PostgrestPlan {
   }
 
   let matches = true;
-  if (op.kind === 'select' || op.kind === 'update' || op.kind === 'delete') {
+  if (op.kind === "select" || op.kind === "update" || op.kind === "delete") {
     const before = embeds.length;
     matches = applyWhere(compiler, op.where, embeds);
-    if (op.kind !== 'select' && embeds.length > before) {
+    if (op.kind !== "select" && embeds.length > before) {
       invalidRequest(
         `Relation filters are not supported in ${op.kind} on PostgREST; filter by key instead`,
         op.table.key,
@@ -500,8 +500,8 @@ export function compilePostgrest(op: Operation): PostgrestPlan {
     }
   }
 
-  let range: PostgrestPlan['range'];
-  if (op.kind === 'select') {
+  let range: PostgrestPlan["range"];
+  if (op.kind === "select") {
     for (const term of op.orderBy) compiler.order(term, undefined);
     if (op.offset !== undefined) {
       const from = op.offset;

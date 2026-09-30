@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type {
   Catalog,
@@ -10,33 +10,33 @@ import type {
   ExtrasFunction,
   ExtrasHookFunction,
   Snapshot,
-} from '../introspect/types.ts';
-import type { AdvisorSource, Lint } from './advisors.ts';
-import type { LiveDatabase } from './live.ts';
+} from "../introspect/types.ts";
+import type { AdvisorSource, Lint } from "./advisors.ts";
+import type { LiveDatabase } from "./live.ts";
 
-import { resolveConfig } from '../../config/index.ts';
-import fixture from '../../fixtures/snapshot.json' with { type: 'json' };
-import { locate } from '../commands/doctor.ts';
-import { parseSnapshot } from '../commands/snapshot.ts';
-import { toCatalog } from '../introspect/catalog.ts';
-import { fromCatalog } from '../introspect/from-catalog.ts';
-import { run } from '../run.ts';
+import { resolveConfig } from "../../config/index.ts";
+import fixture from "../../fixtures/snapshot.json" with { type: "json" };
+import { locate } from "../commands/doctor.ts";
+import { parseSnapshot } from "../commands/snapshot.ts";
+import { toCatalog } from "../introspect/catalog.ts";
+import { fromCatalog } from "../introspect/from-catalog.ts";
+import { run } from "../run.ts";
 import {
   parseTomlSubset,
   pgFunctionHooks,
   type SupabaseToml,
-} from '../supabase-toml.ts';
-import { formatReport } from './format.ts';
-import { summarizePlan } from './live.ts';
-import { type DoctorContext, RULE_CODES, RULES, runRules } from './rules.ts';
+} from "../supabase-toml.ts";
+import { formatReport } from "./format.ts";
+import { summarizePlan } from "./live.ts";
+import { type DoctorContext, RULE_CODES, RULES, runRules } from "./rules.ts";
 
 const base = parseSnapshot(fixture);
 
 const toml = (text: string): SupabaseToml => ({
-  path: 'supabase/config.toml',
+  path: "supabase/config.toml",
   text,
   document: parseTomlSubset(text),
-  parser: 'builtin',
+  parser: "builtin",
 });
 
 function snapshot(
@@ -61,13 +61,13 @@ function context(
 ): DoctorContext {
   return {
     config: resolveConfig(
-      { plugins: { tenant: true, softDelete: { column: 'archived_at' } } },
-      '/project',
+      { plugins: { tenant: true, softDelete: { column: "archived_at" } } },
+      "/project",
     ),
     snapshot: snap,
     configToml: undefined,
     envFiles: [],
-    gitignore: '',
+    gitignore: "",
     sources: [],
     ...extra,
   };
@@ -78,83 +78,83 @@ const codes = async (ctx: DoctorContext, only?: string): Promise<string[]> =>
     await runRules(
       ctx,
       RULES.filter(
-        (rule) => rule.code !== 'BS303' && (!only || rule.code === only),
+        (rule) => rule.code !== "BS303" && (!only || rule.code === only),
       ),
     )
   ).map((finding) => finding.code);
 
-describe('doctor rules', () => {
-  it('passes the fixture schema', async () => {
+describe("doctor rules", () => {
+  it("passes the fixture schema", async () => {
     expect(await codes(context(base))).toEqual([]);
   });
 
-  it('flags live query tables without broadcasts and keyless realtime deletes', async () => {
+  it("flags live query tables without broadcasts and keyless realtime deletes", async () => {
     const catalog = structuredClone(toCatalog(base)) as {
       -readonly [K in keyof Catalog]: Catalog[K];
     };
-    catalog.realtime = ['public.tags', 'public.customers'];
-    table(catalog.tables as CatalogTable[], 'tags').replicaIdentity = 'NOTHING';
-    edit(table(catalog.tables as CatalogTable[], 'notes').triggers).push({
-      name: 'bs_realtime',
-      timing: 'after',
-      events: ['insert', 'update', 'delete'],
-      level: 'statement',
-      function: 'better_supabase.broadcast_changes',
+    catalog.realtime = ["public.tags", "public.customers"];
+    table(catalog.tables as CatalogTable[], "tags").replicaIdentity = "NOTHING";
+    edit(table(catalog.tables as CatalogTable[], "notes").triggers).push({
+      name: "bs_realtime",
+      timing: "after",
+      events: ["insert", "update", "delete"],
+      level: "statement",
+      function: "better_supabase.broadcast_changes",
     });
     const ctx = context(fromCatalog(catalog), {
       config: resolveConfig(
-        { realtime: { tables: ['customers', 'public.notes', 'missing'] } },
-        '/project',
+        { realtime: { tables: ["customers", "public.notes", "missing"] } },
+        "/project",
       ),
     });
     const findings = await runRules(
       ctx,
-      RULES.filter((rule) => rule.code === 'BS305' || rule.code === 'BS306'),
+      RULES.filter((rule) => rule.code === "BS305" || rule.code === "BS306"),
     );
     expect(findings.map((finding) => finding.target)).toEqual([
-      'public.customers',
-      'missing',
-      'public.tags',
+      "public.customers",
+      "missing",
+      "public.tags",
     ]);
   });
 
-  it('flags anonymous write policies', async () => {
+  it("flags anonymous write policies", async () => {
     const snap = snapshot((tables) => {
-      edit(table(tables, 'notes').policies).push({
-        name: 'anyone',
-        command: 'insert',
-        roles: ['anon'],
+      edit(table(tables, "notes").policies).push({
+        name: "anyone",
+        command: "insert",
+        roles: ["anon"],
         permissive: true,
         using: null,
-        check: 'true',
+        check: "true",
       });
     });
     const [finding, ...rest] = await runRules(
       context(snap),
-      RULES.filter((rule) => rule.code === 'BS103'),
+      RULES.filter((rule) => rule.code === "BS103"),
     );
     expect(rest).toEqual([]);
     expect(finding).toMatchObject({
-      target: 'public.notes.anyone',
-      object: { kind: 'policy', schema: 'public', name: 'anyone' },
-      help: 'https://bettersupabase.com/docs/cli/doctor#bs103',
+      target: "public.notes.anyone",
+      object: { kind: "policy", schema: "public", name: "anyone" },
+      help: "https://bettersupabase.com/docs/cli/doctor#bs103",
     });
   });
 
-  it('flags tables the Data API roles cannot reach', async () => {
+  it("flags tables the Data API roles cannot reach", async () => {
     const snap = snapshot((tables) => {
-      table(tables, 'tags').grants = [];
-      table(tables, 'notes').grants = [
-        { role: 'PUBLIC', privileges: ['SELECT'] },
+      table(tables, "tags").grants = [];
+      table(tables, "notes").grants = [
+        { role: "PUBLIC", privileges: ["SELECT"] },
       ];
     });
-    const only = RULES.filter((rule) => rule.code === 'BS106');
+    const only = RULES.filter((rule) => rule.code === "BS106");
     const plain = await runRules(context(snap), only);
     expect(plain.map((finding) => finding.target)).toEqual([
-      'public.tags:authenticated',
+      "public.tags:authenticated",
     ]);
     expect(plain[0]!.message).toContain(
-      'grant select on table public.tags to authenticated;',
+      "grant select on table public.tags to authenticated;",
     );
 
     const exposed = await runRules(
@@ -162,250 +162,250 @@ describe('doctor rules', () => {
         config: resolveConfig(
           {
             expose: {
-              notes: ['select', 'insert'],
-              'public.organizations': { anon: ['select'] },
+              notes: ["select", "insert"],
+              "public.organizations": { anon: ["select"] },
             },
             tables: { tags: { exclude: true } },
           },
-          '/project',
+          "/project",
         ),
-        configToml: toml('[api]\nauto_expose_new_tables = false\n'),
+        configToml: toml("[api]\nauto_expose_new_tables = false\n"),
       }),
       only,
     );
     expect(exposed.map((finding) => finding.target)).toEqual([
-      'public.notes:authenticated',
-      'public.organizations:anon',
+      "public.notes:authenticated",
+      "public.organizations:anon",
     ]);
     expect(exposed[0]!.message).toMatch(/no insert on public\.notes/);
-    expect(exposed[0]!.message).toContain('auto_expose_new_tables = false');
+    expect(exposed[0]!.message).toContain("auto_expose_new_tables = false");
   });
 
-  it('flags tenant tables whose policies skip a command', async () => {
+  it("flags tenant tables whose policies skip a command", async () => {
     const policy = (
       name: string,
-      command: 'all' | 'select' | 'insert' | 'update' | 'delete',
+      command: "all" | "select" | "insert" | "update" | "delete",
       using: string,
     ) => ({
       name,
       command,
-      roles: ['authenticated'],
+      roles: ["authenticated"],
       permissive: true,
       using,
       check: null,
       functions: [],
     });
     const snap = snapshot((tables) => {
-      table(tables, 'tags').policies = [
-        policy('tags_read', 'select', 'organization_id = current_tenant_id()'),
-        policy('tags_add', 'insert', 'organization_id = current_tenant_id()'),
+      table(tables, "tags").policies = [
+        policy("tags_read", "select", "organization_id = current_tenant_id()"),
+        policy("tags_add", "insert", "organization_id = current_tenant_id()"),
       ];
-      table(tables, 'organizations').policies = [
-        policy('organizations_read', 'select', 'id = current_tenant_id()'),
+      table(tables, "organizations").policies = [
+        policy("organizations_read", "select", "id = current_tenant_id()"),
       ];
     });
-    const only = RULES.filter((rule) => rule.code === 'BS107');
+    const only = RULES.filter((rule) => rule.code === "BS107");
     const findings = await runRules(context(snap), only);
-    expect(findings.map((finding) => finding.target)).toEqual(['public.tags']);
-    expect(findings[0]!.message).toContain('no update, delete policy');
+    expect(findings.map((finding) => finding.target)).toEqual(["public.tags"]);
+    expect(findings[0]!.message).toContain("no update, delete policy");
   });
 
-  it('flags policies that read auth.mfa_factors directly', async () => {
+  it("flags policies that read auth.mfa_factors directly", async () => {
     const snap = snapshot((tables) => {
-      edit(table(tables, 'notes').policies).push({
-        name: 'notes_mfa',
-        command: 'select',
-        roles: ['authenticated'],
+      edit(table(tables, "notes").policies).push({
+        name: "notes_mfa",
+        command: "select",
+        roles: ["authenticated"],
         permissive: false,
         using:
-          'EXISTS ( SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = auth.uid())',
+          "EXISTS ( SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = auth.uid())",
         check: null,
         functions: [],
       });
     });
     const findings = await runRules(
       context(snap),
-      RULES.filter((rule) => rule.code === 'BS108'),
+      RULES.filter((rule) => rule.code === "BS108"),
     );
     expect(findings).toMatchObject([
       {
-        code: 'BS108',
-        severity: 'error',
-        target: 'public.notes.notes_mfa',
-        message: expect.stringContaining('better_supabase.mfa_satisfied()'),
+        code: "BS108",
+        severity: "error",
+        target: "public.notes.notes_mfa",
+        message: expect.stringContaining("better_supabase.mfa_satisfied()"),
       },
     ]);
   });
 
-  it('flags foreign keys to auth.users that block deleting the user', async () => {
+  it("flags foreign keys to auth.users that block deleting the user", async () => {
     const snap = snapshot((tables) => {
       const key = {
-        columns: ['created_by'],
-        refSchema: 'auth',
-        refTable: 'users',
-        refColumns: ['id'],
+        columns: ["created_by"],
+        refSchema: "auth",
+        refTable: "users",
+        refColumns: ["id"],
         oneToOne: false,
-        onUpdate: 'no action',
+        onUpdate: "no action",
       } as const;
-      edit(table(tables, 'notes').foreignKeys).push(
-        { ...key, name: 'notes_created_by_fkey', onDelete: 'no action' },
-        { ...key, name: 'notes_updated_by_fkey', onDelete: 'set null' },
+      edit(table(tables, "notes").foreignKeys).push(
+        { ...key, name: "notes_created_by_fkey", onDelete: "no action" },
+        { ...key, name: "notes_updated_by_fkey", onDelete: "set null" },
       );
     });
     const findings = await runRules(
       context(snap),
-      RULES.filter((rule) => rule.code === 'BS406'),
+      RULES.filter((rule) => rule.code === "BS406"),
     );
     expect(findings).toMatchObject([
       {
-        code: 'BS406',
-        severity: 'warning',
-        target: 'public.notes.notes_created_by_fkey',
-        message: expect.stringContaining('on delete no action'),
+        code: "BS406",
+        severity: "warning",
+        target: "public.notes.notes_created_by_fkey",
+        message: expect.stringContaining("on delete no action"),
       },
     ]);
   });
 
-  it('reports Supabase advisor lints with their own severity and links', async () => {
+  it("reports Supabase advisor lints with their own severity and links", async () => {
     const lint = (overrides: Partial<Lint>): Lint => ({
-      name: 'rls_disabled_in_public',
-      title: 'RLS Disabled in Public',
-      level: 'ERROR',
-      facing: 'EXTERNAL',
-      categories: ['SECURITY'],
-      description: '',
+      name: "rls_disabled_in_public",
+      title: "RLS Disabled in Public",
+      level: "ERROR",
+      facing: "EXTERNAL",
+      categories: ["SECURITY"],
+      description: "",
       detail:
-        'Table \\`public.customers\\` is public, but RLS has not been enabled.',
+        "Table \\`public.customers\\` is public, but RLS has not been enabled.",
       remediation:
-        'https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public',
-      metadata: { schema: 'public', name: 'customers', type: 'table' },
-      cache_key: 'rls_disabled_in_public_public_customers',
+        "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
+      metadata: { schema: "public", name: "customers", type: "table" },
+      cache_key: "rls_disabled_in_public_public_customers",
       ...overrides,
     });
     const requested: string[] = [];
     const advisors: AdvisorSource = {
-      describe: 'test',
+      describe: "test",
       lints: (category) => {
         requested.push(category);
         return Promise.resolve(
-          category === 'security'
+          category === "security"
             ? [lint({})]
             : [
                 lint({
-                  name: 'unindexed_foreign_keys',
-                  title: 'Unindexed foreign keys',
-                  level: 'INFO',
-                  categories: ['PERFORMANCE'],
-                  detail: 'No index.',
+                  name: "unindexed_foreign_keys",
+                  title: "Unindexed foreign keys",
+                  level: "INFO",
+                  categories: ["PERFORMANCE"],
+                  detail: "No index.",
                   metadata: null,
-                  cache_key: 'unindexed_x',
+                  cache_key: "unindexed_x",
                 }),
               ],
         );
       },
     };
     const advisorRules = RULES.filter((rule) =>
-      ['BS100', 'BS200'].includes(rule.code),
+      ["BS100", "BS200"].includes(rule.code),
     );
     const findings = await runRules(context(base, { advisors }), advisorRules);
-    expect(requested).toEqual(['security', 'performance']);
+    expect(requested).toEqual(["security", "performance"]);
     expect(findings).toEqual([
       {
-        code: 'BS100',
-        severity: 'error',
-        title: 'RLS Disabled in Public',
+        code: "BS100",
+        severity: "error",
+        title: "RLS Disabled in Public",
         message:
-          'Table `public.customers` is public, but RLS has not been enabled. [rls_disabled_in_public]',
-        target: 'public.customers',
-        object: { kind: 'table', schema: 'public', name: 'customers' },
-        help: 'https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public',
+          "Table `public.customers` is public, but RLS has not been enabled. [rls_disabled_in_public]",
+        target: "public.customers",
+        object: { kind: "table", schema: "public", name: "customers" },
+        help: "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
       },
       expect.objectContaining({
-        code: 'BS200',
-        severity: 'info',
-        target: 'unindexed_x',
+        code: "BS200",
+        severity: "info",
+        target: "unindexed_x",
       }),
     ]);
 
     const skipped = await runRules(
-      context(base, { advisors: { skipped: 'offline' } }),
+      context(base, { advisors: { skipped: "offline" } }),
       advisorRules,
     );
     expect(skipped.map((finding) => finding.severity)).toEqual([
-      'info',
-      'info',
+      "info",
+      "info",
     ]);
     const failing = await runRules(
       context(base, {
         advisors: {
-          describe: 'splinter',
-          lints: () => Promise.reject(new Error('boom')),
+          describe: "splinter",
+          lints: () => Promise.reject(new Error("boom")),
         },
       }),
       advisorRules,
     );
     expect(failing[0]).toMatchObject({
-      severity: 'warning',
-      message: expect.stringContaining('boom'),
+      severity: "warning",
+      message: expect.stringContaining("boom"),
     });
   });
 
-  it('flags tenant columns without an index', async () => {
+  it("flags tenant columns without an index", async () => {
     const snap = snapshot((tables) => {
-      const notes = table(tables, 'notes');
+      const notes = table(tables, "notes");
       notes.indexes = notes.indexes.filter(
-        (index) => index.columns[0] !== 'organization_id',
+        (index) => index.columns[0] !== "organization_id",
       );
     });
-    expect(await codes(context(snap))).toEqual(['BS204']);
+    expect(await codes(context(snap))).toEqual(["BS204"]);
   });
 
-  it('flags aggregates while PostgREST disables them', async () => {
+  it("flags aggregates while PostgREST disables them", async () => {
     const withSettings = (settings: Record<string, string>): Snapshot => ({
       ...base,
       extras: { ...base.extras, roleSettings: { authenticator: settings } },
     });
     const sources = [
-      { path: 'src/a.ts', text: 'db.customers.findMany()\n' },
+      { path: "src/a.ts", text: "db.customers.findMany()\n" },
       {
-        path: 'src/b.ts',
-        text: 'const x = 1;\nawait db.orders.aggregate({ _count: true });\n',
+        path: "src/b.ts",
+        text: "const x = 1;\nawait db.orders.aggregate({ _count: true });\n",
       },
     ];
     const off = await runRules(
       context(withSettings({}), { sources }),
-      RULES.filter((rule) => rule.code === 'BS210'),
+      RULES.filter((rule) => rule.code === "BS210"),
     );
     expect(off).toMatchObject([
       {
-        code: 'BS210',
-        location: { file: 'src/b.ts', line: 2 },
-        message: expect.stringContaining('pgrst.db_aggregates_enabled'),
+        code: "BS210",
+        location: { file: "src/b.ts", line: 2 },
+        message: expect.stringContaining("pgrst.db_aggregates_enabled"),
       },
     ]);
     const include = [
-      { path: 'src/c.tsx', text: 'include: { _sum: { invoices: {} } }' },
+      { path: "src/c.tsx", text: "include: { _sum: { invoices: {} } }" },
     ];
     expect(
-      await codes(context(withSettings({}), { sources: include }), 'BS210'),
-    ).toEqual(['BS210']);
-    const lists = [{ path: 'src/d.ts', text: 'facetCounts: true,' }];
+      await codes(context(withSettings({}), { sources: include }), "BS210"),
+    ).toEqual(["BS210"]);
+    const lists = [{ path: "src/d.ts", text: "facetCounts: true," }];
     expect(
-      await codes(context(withSettings({}), { sources: lists }), 'BS210'),
-    ).toEqual(['BS210']);
-    const on = withSettings({ 'pgrst.db_aggregates_enabled': 'true' });
-    expect(await codes(context(on, { sources }), 'BS210')).toEqual([]);
+      await codes(context(withSettings({}), { sources: lists }), "BS210"),
+    ).toEqual(["BS210"]);
+    const on = withSettings({ "pgrst.db_aggregates_enabled": "true" });
+    expect(await codes(context(on, { sources }), "BS210")).toEqual([]);
     // Older snapshots carry no role settings, so there is nothing to check.
-    expect(await codes(context(base, { sources }), 'BS210')).toEqual([]);
+    expect(await codes(context(base, { sources }), "BS210")).toEqual([]);
   });
 
-  describe('RLS performance', () => {
+  describe("RLS performance", () => {
     const helper = (overrides: Partial<ExtrasFunction>): ExtrasFunction => ({
-      schema: 'private',
-      name: 'is_member',
-      signature: 'org uuid',
-      language: 'plpgsql',
-      volatility: 'stable',
+      schema: "private",
+      name: "is_member",
+      signature: "org uuid",
+      language: "plpgsql",
+      volatility: "stable",
       securityDefiner: true,
       settings: {},
       ...overrides,
@@ -424,199 +424,199 @@ describe('doctor rules', () => {
     });
     const memberPolicy = (name: string, using: string) => ({
       name,
-      command: 'select' as const,
-      roles: ['authenticated'],
+      command: "select" as const,
+      roles: ["authenticated"],
       permissive: true,
       using,
       check: null,
-      functions: ['private.is_member'],
+      functions: ["private.is_member"],
     });
 
-    it('flags slow helpers called with a row column (BS205)', async () => {
+    it("flags slow helpers called with a row column (BS205)", async () => {
       const snap = snapshot((tables) => {
-        table(tables, 'customers').policies = [
+        table(tables, "customers").policies = [
           memberPolicy(
-            'customers_member',
-            '( SELECT private.is_member(customers.organization_id) AS is_member)',
+            "customers_member",
+            "( SELECT private.is_member(customers.organization_id) AS is_member)",
           ),
         ];
       });
       const findings = await runRules(
         context(withFunctions(snap, [helper({})])),
-        RULES.filter((rule) => rule.code === 'BS205'),
+        RULES.filter((rule) => rule.code === "BS205"),
       );
       expect(findings).toMatchObject([
         {
-          code: 'BS205',
+          code: "BS205",
           message: expect.stringContaining(
-            'private.is_member(organization_id), a plpgsql function',
+            "private.is_member(organization_id), a plpgsql function",
           ),
-          object: { kind: 'policy', name: 'customers_member' },
+          object: { kind: "policy", name: "customers_member" },
         },
       ]);
       // Inlinable SQL helpers, and calls without a column, are fine.
-      const sql = withFunctions(snap, [helper({ language: 'sql' })]);
-      expect(await codes(context(sql), 'BS205')).toEqual([]);
+      const sql = withFunctions(snap, [helper({ language: "sql" })]);
+      expect(await codes(context(sql), "BS205")).toEqual([]);
       const constant = snapshot((tables) => {
-        table(tables, 'customers').policies = [
+        table(tables, "customers").policies = [
           memberPolicy(
-            'customers_member',
+            "customers_member",
             "private.is_member('00000000-0000-4000-8000-000000000001'::uuid)",
           ),
         ];
       });
       expect(
-        await codes(context(withFunctions(constant, [helper({})])), 'BS205'),
+        await codes(context(withFunctions(constant, [helper({})])), "BS205"),
       ).toEqual([]);
     });
 
-    it('flags security definer helpers used in many policies (BS206)', async () => {
-      const names = ['customers', 'notes', 'tags', 'contacts', 'locations'];
+    it("flags security definer helpers used in many policies (BS206)", async () => {
+      const names = ["customers", "notes", "tags", "contacts", "locations"];
       const snap = snapshot((tables) => {
         for (const name of names) {
           table(tables, name).policies = [
-            memberPolicy(`${name}_member`, '(select private.is_member())'),
+            memberPolicy(`${name}_member`, "(select private.is_member())"),
           ];
         }
       });
       const five = withFunctions(snap, [helper({})]);
-      expect(await codes(context(five), 'BS206')).toEqual([]);
+      expect(await codes(context(five), "BS206")).toEqual([]);
       const tight = context(five, {
-        config: resolveConfig({ doctor: { policyHelperLimit: 4 } }, '/p'),
+        config: resolveConfig({ doctor: { policyHelperLimit: 4 } }, "/p"),
       });
       const [finding] = await runRules(
         tight,
-        RULES.filter((rule) => rule.code === 'BS206'),
+        RULES.filter((rule) => rule.code === "BS206"),
       );
       expect(finding).toMatchObject({
-        target: 'private.is_member',
-        message: expect.stringContaining('used in 5 policies'),
-        object: { kind: 'function', schema: 'private', name: 'is_member' },
+        target: "private.is_member",
+        message: expect.stringContaining("used in 5 policies"),
+        object: { kind: "function", schema: "private", name: "is_member" },
       });
-      const inlinable = withFunctions(snap, [helper({ language: 'sql' })]);
+      const inlinable = withFunctions(snap, [helper({ language: "sql" })]);
       expect(
-        await codes(context(inlinable, { config: tight.config }), 'BS206'),
+        await codes(context(inlinable, { config: tight.config }), "BS206"),
       ).toEqual([]);
     });
 
-    it('flags overlapping permissive policies and drops the splinter duplicate (BS207)', async () => {
+    it("flags overlapping permissive policies and drops the splinter duplicate (BS207)", async () => {
       const snap = snapshot((tables) => {
-        edit(table(tables, 'notes').policies).push({
-          name: 'notes_public_read',
-          command: 'select',
-          roles: ['public'],
+        edit(table(tables, "notes").policies).push({
+          name: "notes_public_read",
+          command: "select",
+          roles: ["public"],
           permissive: true,
-          using: 'true',
+          using: "true",
           check: null,
         });
       });
       const findings = await runRules(
         context(snap),
-        RULES.filter((rule) => rule.code === 'BS207'),
+        RULES.filter((rule) => rule.code === "BS207"),
       );
       expect(findings).toMatchObject([
         {
-          target: 'public.notes',
+          target: "public.notes",
           message: expect.stringContaining(
-            'select for authenticated: notes_tenant, notes_public_read',
+            "select for authenticated: notes_tenant, notes_public_read",
           ),
         },
       ]);
       const lint = {
-        name: 'multiple_permissive_policies',
-        title: 'Multiple Permissive Policies',
-        level: 'WARN',
-        facing: 'EXTERNAL',
-        categories: ['PERFORMANCE'],
-        description: '',
-        detail: 'notes has several',
-        remediation: '',
-        metadata: { schema: 'public', name: 'notes', type: 'table' },
-        cache_key: 'multiple_permissive_policies_public_notes',
+        name: "multiple_permissive_policies",
+        title: "Multiple Permissive Policies",
+        level: "WARN",
+        facing: "EXTERNAL",
+        categories: ["PERFORMANCE"],
+        description: "",
+        detail: "notes has several",
+        remediation: "",
+        metadata: { schema: "public", name: "notes", type: "table" },
+        cache_key: "multiple_permissive_policies_public_notes",
       } satisfies Lint;
       const advisors: AdvisorSource = {
-        describe: 'test',
+        describe: "test",
         lints: () => Promise.resolve([lint]),
       };
       const both = RULES.filter((rule) =>
-        ['BS200', 'BS207'].includes(rule.code),
+        ["BS200", "BS207"].includes(rule.code),
       );
       expect(await codes(context(snap, { advisors }), undefined)).toContain(
-        'BS207',
+        "BS207",
       );
       expect(
         (await runRules(context(snap, { advisors }), both)).map(
           (finding) => finding.code,
         ),
-      ).toEqual(['BS207']);
+      ).toEqual(["BS207"]);
       // Without BS207 in the run, splinter's lint stays.
       expect(
         (
           await runRules(
             context(snap, { advisors }),
-            RULES.filter((rule) => rule.code === 'BS200'),
+            RULES.filter((rule) => rule.code === "BS200"),
           )
         ).map((finding) => finding.code),
-      ).toEqual(['BS200']);
+      ).toEqual(["BS200"]);
     });
 
-    it('reports role timeouts and unhoisted function timeouts (BS211)', async () => {
+    it("reports role timeouts and unhoisted function timeouts (BS211)", async () => {
       const roles = {
-        anon: { statement_timeout: '3s' },
-        authenticated: { statement_timeout: '8s' },
+        anon: { statement_timeout: "3s" },
+        authenticated: { statement_timeout: "8s" },
         authenticator: {
-          statement_timeout: '8s',
-          'pgrst.db_hoisted_tx_settings': 'default_transaction_isolation',
+          statement_timeout: "8s",
+          "pgrst.db_hoisted_tx_settings": "default_transaction_isolation",
         },
       };
       const slow = helper({
-        schema: 'public',
-        name: 'report',
-        signature: '',
-        language: 'sql',
-        settings: { statement_timeout: '60s' },
+        schema: "public",
+        name: "report",
+        signature: "",
+        language: "sql",
+        settings: { statement_timeout: "60s" },
       });
       const findings = await runRules(
         context(withFunctions(base, [slow], roles)),
-        RULES.filter((rule) => rule.code === 'BS211'),
+        RULES.filter((rule) => rule.code === "BS211"),
       );
       expect(findings).toMatchObject([
         {
-          severity: 'info',
+          severity: "info",
           message:
-            'statement_timeout: anon 3s, authenticated 8s, authenticator 8s. Unset roles use the database default.',
+            "statement_timeout: anon 3s, authenticated 8s, authenticator 8s. Unset roles use the database default.",
         },
         {
-          severity: 'warning',
-          target: 'public.report:statement_timeout',
-          object: { kind: 'function', name: 'report' },
+          severity: "warning",
+          target: "public.report:statement_timeout",
+          object: { kind: "function", name: "report" },
         },
       ]);
       const hoisted = {
         ...roles,
-        authenticator: { statement_timeout: '8s' },
+        authenticator: { statement_timeout: "8s" },
       };
       expect(
-        await codes(context(withFunctions(base, [slow], hoisted)), 'BS211'),
-      ).toEqual(['BS211']);
+        await codes(context(withFunctions(base, [slow], hoisted)), "BS211"),
+      ).toEqual(["BS211"]);
     });
 
-    it('reads temp spills and slow statements from a live database (BS208, BS209)', async () => {
+    it("reads temp spills and slow statements from a live database (BS208, BS209)", async () => {
       const answers: [RegExp, Record<string, unknown>[]][] = [
         [
           /pg_stat_database/,
-          [{ temp_files: 3, temp_bytes: 3145728, work_mem: '4MB' }],
+          [{ temp_files: 3, temp_bytes: 3145728, work_mem: "4MB" }],
         ],
-        [/pg_extension/, [{ schema: 'extensions' }]],
+        [/pg_extension/, [{ schema: "extensions" }]],
         [
           /temp_blks_written > 0/,
-          [{ query: 'select * from big order by x', temp_blks_written: 90 }],
+          [{ query: "select * from big order by x", temp_blks_written: 90 }],
         ],
         [
           /mean_exec_time >/,
           [
             {
-              queryid: '42',
+              queryid: "42",
               query: 'SELECT "public"."customers".* FROM "public"."customers"',
               calls: 5000,
               mean_exec_time: 81.25,
@@ -625,7 +625,7 @@ describe('doctor rules', () => {
         ],
       ];
       const database: LiveDatabase = {
-        describe: 'test',
+        describe: "test",
         session: true,
         query: <R>(sql: string) =>
           Promise.resolve(
@@ -633,12 +633,12 @@ describe('doctor rules', () => {
           ),
       };
       const live = RULES.filter((rule) =>
-        ['BS208', 'BS209'].includes(rule.code),
+        ["BS208", "BS209"].includes(rule.code),
       );
       const withoutStats = await runRules(context(base, { database }), live);
       expect(withoutStats).toMatchObject([
         {
-          code: 'BS208',
+          code: "BS208",
           message: expect.stringMatching(
             /^3 temporary files \(3\.0 MB\).*work_mem is 4MB.*select \* from big order by x \(90 blocks\)/,
           ),
@@ -649,60 +649,60 @@ describe('doctor rules', () => {
         live,
       );
       expect(withStats[1]).toMatchObject({
-        code: 'BS209',
-        message: expect.stringContaining('81.3 ms mean over 5000 calls'),
-        target: 'pg_stat_statements:42',
-        object: { kind: 'table', schema: 'public', name: 'customers' },
+        code: "BS209",
+        message: expect.stringContaining("81.3 ms mean over 5000 calls"),
+        target: "pg_stat_statements:42",
+        object: { kind: "table", schema: "public", name: "customers" },
       });
       expect(
-        await codes(context(base, { database: { skipped: 'x' } })),
+        await codes(context(base, { database: { skipped: "x" } })),
       ).toEqual([]);
     });
 
-    it('summarizes plans without rows (BS212)', () => {
+    it("summarizes plans without rows (BS212)", () => {
       const summary = summarizePlan({
-        'Execution Time': 4.5,
+        "Execution Time": 4.5,
         Plan: {
-          'Node Type': 'Seq Scan',
-          'Relation Name': 'notes',
-          'Actual Total Time': 4.1,
-          'Actual Loops': 1,
+          "Node Type": "Seq Scan",
+          "Relation Name": "notes",
+          "Actual Total Time": 4.1,
+          "Actual Loops": 1,
           Plans: [
             {
-              'Node Type': 'Result',
-              'Parent Relationship': 'InitPlan',
-              'Subplan Name': 'InitPlan 1',
-              'Actual Total Time': 0.02,
-              'Actual Loops': 1,
+              "Node Type": "Result",
+              "Parent Relationship": "InitPlan",
+              "Subplan Name": "InitPlan 1",
+              "Actual Total Time": 0.02,
+              "Actual Loops": 1,
             },
             {
-              'Node Type': 'Index Scan',
-              'Relation Name': 'memberships',
-              'Parent Relationship': 'SubPlan',
-              'Subplan Name': 'SubPlan 2',
-              'Actual Total Time': 0.01,
-              'Actual Loops': 250,
+              "Node Type": "Index Scan",
+              "Relation Name": "memberships",
+              "Parent Relationship": "SubPlan",
+              "Subplan Name": "SubPlan 2",
+              "Actual Total Time": 0.01,
+              "Actual Loops": 250,
             },
           ],
         },
       });
       expect(summary).toEqual({
         nodes: [
-          'Seq Scan on notes 4.10 ms ×1',
-          'InitPlan 1: Result 0.02 ms ×1',
-          'SubPlan 2: Index Scan on memberships 0.01 ms ×250',
+          "Seq Scan on notes 4.10 ms ×1",
+          "InitPlan 1: Result 0.02 ms ×1",
+          "SubPlan 2: Index Scan on memberships 0.01 ms ×250",
         ],
         initPlans: 1,
-        perRowSubPlans: ['SubPlan 2: Index Scan on memberships ×250'],
+        perRowSubPlans: ["SubPlan 2: Index Scan on memberships ×250"],
         executionMs: 4.5,
       });
     });
 
-    it('needs a direct connection for --explain (BS212)', async () => {
-      const explain = { tables: ['customers'], claims: { role: 'anon' } };
-      const rule = RULES.filter((entry) => entry.code === 'BS212');
+    it("needs a direct connection for --explain (BS212)", async () => {
+      const explain = { tables: ["customers"], claims: { role: "anon" } };
+      const rule = RULES.filter((entry) => entry.code === "BS212");
       const database: LiveDatabase = {
-        describe: 'management',
+        describe: "management",
         session: false,
         query: () => Promise.resolve([]),
       };
@@ -710,15 +710,15 @@ describe('doctor rules', () => {
         await runRules(context(base, { database, explain }), rule),
       ).toMatchObject([
         {
-          severity: 'warning',
-          message: expect.stringContaining('direct database connection'),
+          severity: "warning",
+          message: expect.stringContaining("direct database connection"),
         },
       ]);
       expect(await runRules(context(base, { database }), rule)).toEqual([]);
     });
   });
 
-  describe('Auth hooks', () => {
+  describe("Auth hooks", () => {
     const HOOK_TOML = `[auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/rbac/custom_access_token_hook"
@@ -726,16 +726,16 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
     const hookFn = (
       overrides: Partial<ExtrasHookFunction> = {},
     ): ExtrasHookFunction => ({
-      schema: 'rbac',
-      name: 'custom_access_token_hook',
-      signature: 'event jsonb',
-      language: 'plpgsql',
-      volatility: 'stable',
+      schema: "rbac",
+      name: "custom_access_token_hook",
+      signature: "event jsonb",
+      language: "plpgsql",
+      volatility: "stable",
       securityDefiner: false,
       settings: { search_path: '""' },
-      execute: ['supabase_auth_admin'],
+      execute: ["supabase_auth_admin"],
       publicExecute: false,
-      schemaUsage: ['supabase_auth_admin'],
+      schemaUsage: ["supabase_auth_admin"],
       ...overrides,
     });
     const withHook = (functions: ExtrasHookFunction[]): Snapshot => ({
@@ -744,9 +744,9 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
         ...base.extras,
         hooks: [
           {
-            hook: 'custom_access_token',
-            schema: 'rbac',
-            name: 'custom_access_token_hook',
+            hook: "custom_access_token",
+            schema: "rbac",
+            name: "custom_access_token_hook",
             functions,
           },
         ],
@@ -759,7 +759,7 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
       context(snap, { configToml: toml(HOOK_TOML), ...extra });
     const only = (code: string) => RULES.filter((rule) => rule.code === code);
 
-    it('parses pg-functions hooks from config.toml', () => {
+    it("parses pg-functions hooks from config.toml", () => {
       expect(
         pgFunctionHooks(
           parseTomlSubset(`${HOOK_TOML}
@@ -774,95 +774,95 @@ uri = "https://example.com/hook"
         ),
       ).toEqual([
         {
-          hook: 'custom_access_token',
-          uri: 'pg-functions://postgres/rbac/custom_access_token_hook',
-          schema: 'rbac',
-          name: 'custom_access_token_hook',
+          hook: "custom_access_token",
+          uri: "pg-functions://postgres/rbac/custom_access_token_hook",
+          schema: "rbac",
+          name: "custom_access_token_hook",
         },
       ]);
     });
 
-    it('keeps functions, role settings and hooks from saved snapshots', () => {
+    it("keeps functions, role settings and hooks from saved snapshots", () => {
       expect(base.extras.functions).toHaveLength(4);
       expect(base.extras.hooks?.map((hook) => hook.name)).toEqual([
-        'custom_access_token_hook',
+        "custom_access_token_hook",
       ]);
     });
 
-    it('passes the fixture hook and a well-formed one', async () => {
-      expect(await codes(hookContext(base), 'BS404')).toEqual([]);
-      expect(await codes(hookContext(base), 'BS405')).toEqual([]);
+    it("passes the fixture hook and a well-formed one", async () => {
+      expect(await codes(hookContext(base), "BS404")).toEqual([]);
+      expect(await codes(hookContext(base), "BS405")).toEqual([]);
       expect(await codes(hookContext(withHook([hookFn()])))).not.toContain(
-        'BS404',
+        "BS404",
       );
     });
 
-    it('flags missing grants and API access (BS404)', async () => {
+    it("flags missing grants and API access (BS404)", async () => {
       const findings = await runRules(
         hookContext(
           withHook([
             hookFn({
-              execute: ['anon', 'authenticated'],
+              execute: ["anon", "authenticated"],
               publicExecute: true,
               schemaUsage: [],
             }),
           ]),
         ),
-        only('BS404'),
+        only("BS404"),
       );
       expect(findings).toHaveLength(1);
       expect(findings[0]).toMatchObject({
-        code: 'BS404',
-        severity: 'error',
-        object: { kind: 'function', name: 'custom_access_token_hook' },
+        code: "BS404",
+        severity: "error",
+        object: { kind: "function", name: "custom_access_token_hook" },
       });
       const message = findings[0]!.message;
       expect(message).toContain(
-        'grant usage on schema rbac to supabase_auth_admin;',
+        "grant usage on schema rbac to supabase_auth_admin;",
       );
       expect(message).toContain(
-        'grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase_auth_admin;',
+        "grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase_auth_admin;",
       );
-      expect(message).toContain('authenticated, anon, public may execute it');
-      expect(message).toContain('from authenticated, anon, public;');
+      expect(message).toContain("authenticated, anon, public may execute it");
+      expect(message).toContain("from authenticated, anon, public;");
     });
 
-    it('flags a hook function that does not exist, located in config.toml', async () => {
-      const findings = await runRules(hookContext(withHook([])), only('BS404'));
+    it("flags a hook function that does not exist, located in config.toml", async () => {
+      const findings = await runRules(hookContext(withHook([])), only("BS404"));
       expect(findings).toMatchObject([
         {
-          message: expect.stringContaining('does not exist'),
-          location: { file: 'supabase/config.toml', line: 1 },
+          message: expect.stringContaining("does not exist"),
+          location: { file: "supabase/config.toml", line: 1 },
         },
       ]);
     });
 
-    it('skips hooks a snapshot predates', async () => {
+    it("skips hooks a snapshot predates", async () => {
       expect(
         await codes(
           hookContext({ ...base, extras: { ...base.extras, hooks: [] } }),
         ),
-      ).not.toContain('BS404');
+      ).not.toContain("BS404");
     });
 
-    it('flags a volatile hook without an empty search_path (BS405)', async () => {
+    it("flags a volatile hook without an empty search_path (BS405)", async () => {
       const findings = await runRules(
         hookContext(
-          withHook([hookFn({ volatility: 'volatile', settings: {} })]),
+          withHook([hookFn({ volatility: "volatile", settings: {} })]),
         ),
-        only('BS405'),
+        only("BS405"),
       );
       expect(findings).toMatchObject([
         {
-          code: 'BS405',
-          severity: 'warning',
+          code: "BS405",
+          severity: "warning",
           message: expect.stringMatching(/volatile.*search_path/),
         },
       ]);
     });
 
-    it('measures the claims the hook returns with --as (BS405)', async () => {
-      const USER_ID = '11111111-1111-4111-8111-111111111111';
+    it("measures the claims the hook returns with --as (BS405)", async () => {
+      const USER_ID = "11111111-1111-4111-8111-111111111111";
       const run = async (
         bytes: number | null,
         user = true,
@@ -875,17 +875,17 @@ uri = "https://example.com/hook"
       ) => {
         const queries: string[] = [];
         const database: LiveDatabase = {
-          describe: 'test',
+          describe: "test",
           session: true,
           async query<R>(sql: string) {
             queries.push(sql);
             if (
-              sql.includes('better_supabase.hook_event') &&
-              sql.includes('auth.users')
+              sql.includes("better_supabase.hook_event") &&
+              sql.includes("auth.users")
             )
-              return (user ? [{ event: '{}' }] : []) as R[];
-            if (sql.includes('pg_roles')) return [{ member: true }] as R[];
-            if (sql.includes('octet_length'))
+              return (user ? [{ event: "{}" }] : []) as R[];
+            if (sql.includes("pg_roles")) return [{ member: true }] as R[];
+            if (sql.includes("octet_length"))
               return [
                 {
                   bytes,
@@ -899,26 +899,26 @@ uri = "https://example.com/hook"
         };
         const findings = await runRules(
           hookContext(base, { database, hookUser: USER_ID, ...extra }),
-          only('BS405'),
+          only("BS405"),
         );
         return { findings, queries };
       };
       const big = await run(4096);
       expect(big.findings).toMatchObject([
         {
-          severity: 'warning',
-          message: expect.stringContaining('returns 4096 bytes of claims'),
+          severity: "warning",
+          message: expect.stringContaining("returns 4096 bytes of claims"),
         },
       ]);
-      expect(big.queries[0]).toBe('begin');
-      expect(big.queries).toContain('set local role supabase_auth_admin');
-      expect(big.queries.at(-1)).toBe('rollback');
+      expect(big.queries[0]).toBe("begin");
+      expect(big.queries).toContain("set local role supabase_auth_admin");
+      expect(big.queries.at(-1)).toBe("rollback");
       expect((await run(300)).findings).toEqual([]);
       expect((await run(300, false)).findings).toMatchObject([
-        { severity: 'info', message: expect.stringContaining('no such user') },
+        { severity: "info", message: expect.stringContaining("no such user") },
       ]);
       expect((await run(1500)).findings).toEqual([]);
-      const permdock = { permdock: 'permdock.config.ts' };
+      const permdock = { permdock: "permdock.config.ts" };
       // A normal PermDock token: 1.5 KB in total, memberships and attrs within the budget.
       expect(
         (await run(1500, true, permdock, { memberships: 600, attrs: 300 }))
@@ -929,7 +929,7 @@ uri = "https://example.com/hook"
           .findings,
       ).toMatchObject([
         {
-          severity: 'warning',
+          severity: "warning",
           message: expect.stringContaining(
             "1100 bytes of memberships and attrs for 11111111-1111-4111-8111-111111111111, over PermDock's budget of 1024",
           ),
@@ -940,16 +940,16 @@ uri = "https://example.com/hook"
         (await run(2500, true, permdock, { memberships: 400 })).findings,
       ).toMatchObject([
         {
-          message: expect.stringContaining('(limit 2048, memberships 400)'),
+          message: expect.stringContaining("(limit 2048, memberships 400)"),
           target: expect.stringMatching(/:claims$/),
         },
       ]);
       const custom = resolveConfig(
         { doctor: { claimsLimit: 512 } },
-        '/project',
+        "/project",
       );
       expect((await run(600, true, { config: custom })).findings).toMatchObject(
-        [{ message: expect.stringContaining('limit 512') }],
+        [{ message: expect.stringContaining("limit 512") }],
       );
       expect(
         (
@@ -967,49 +967,49 @@ uri = "https://example.com/hook"
         (await run(300, true, {}, { truncated: true })).findings,
       ).toMatchObject([
         {
-          severity: 'info',
-          message: expect.stringContaining('memberships_truncated'),
+          severity: "info",
+          message: expect.stringContaining("memberships_truncated"),
         },
       ]);
     });
 
-    it('flags a kit hook next to PermDock (BS407)', async () => {
+    it("flags a kit hook next to PermDock (BS407)", async () => {
       const kitHook = hookFn({
         source:
           "begin claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid)); end",
       });
-      expect(await codes(hookContext(withHook([kitHook])), 'BS407')).toEqual(
+      expect(await codes(hookContext(withHook([kitHook])), "BS407")).toEqual(
         [],
       );
       expect(
         await codes(
-          hookContext(withHook([kitHook]), { permdock: 'permdock.config.ts' }),
-          'BS407',
+          hookContext(withHook([kitHook]), { permdock: "permdock.config.ts" }),
+          "BS407",
         ),
-      ).toEqual(['BS407']);
+      ).toEqual(["BS407"]);
       const both = hookFn({
-        source: `${kitHook.source ?? ''} perform permdock.permdock_claims(event);`,
+        source: `${kitHook.source ?? ""} perform permdock.permdock_claims(event);`,
       });
-      expect(await codes(hookContext(withHook([both])), 'BS407')).toEqual([
-        'BS407',
+      expect(await codes(hookContext(withHook([both])), "BS407")).toEqual([
+        "BS407",
       ]);
       expect(
         await codes(
-          hookContext(withHook([hookFn({ source: 'select 1' })]), {
-            permdock: 'permdock.config.ts',
+          hookContext(withHook([hookFn({ source: "select 1" })]), {
+            permdock: "permdock.config.ts",
           }),
-          'BS407',
+          "BS407",
         ),
       ).toEqual([]);
     });
 
-    it('leaves the features claim and the generated PermDock hook alone (BS407)', async () => {
+    it("leaves the features claim and the generated PermDock hook alone (BS407)", async () => {
       const withPermdock = (source: string) =>
         codes(
           hookContext(withHook([hookFn({ source })]), {
-            permdock: 'permdock.config.ts',
+            permdock: "permdock.config.ts",
           }),
-          'BS407',
+          "BS407",
         );
       expect(
         await withPermdock(
@@ -1023,37 +1023,37 @@ uri = "https://example.com/hook"
       ).toEqual([]);
     });
 
-    it('flags a hook that writes the PermDock claims itself (BS407)', async () => {
+    it("flags a hook that writes the PermDock claims itself (BS407)", async () => {
       const findings = async (source: string, extra = {}) =>
         runRules(
           hookContext(withHook([hookFn({ source })]), {
-            permdock: 'permdock.config.ts',
+            permdock: "permdock.config.ts",
             ...extra,
           }),
-          only('BS407'),
+          only("BS407"),
         );
       expect(
         await findings(
           "begin return jsonb_set(event, '{claims,roles}', '[\"admin\"]'); end",
         ),
-      ).toMatchObject([{ message: expect.stringContaining('writes roles') }]);
+      ).toMatchObject([{ message: expect.stringContaining("writes roles") }]);
       expect(
         await findings(
           "begin claims := claims || jsonb_build_object('memberships', m, 'tenant_id', t); end",
         ),
       ).toMatchObject([
-        { message: expect.stringContaining('writes memberships, tenant_id') },
+        { message: expect.stringContaining("writes memberships, tenant_id") },
       ]);
       const renamed = resolveConfig(
-        { claims: { tenant: 'org_id' } },
-        '/project',
+        { claims: { tenant: "org_id" } },
+        "/project",
       );
       expect(
         await findings(
           "begin return jsonb_set(event, '{claims,org_id}', to_jsonb(t)); end",
           { config: renamed },
         ),
-      ).toMatchObject([{ message: expect.stringContaining('writes org_id') }]);
+      ).toMatchObject([{ message: expect.stringContaining("writes org_id") }]);
       expect(
         await findings(
           "begin return jsonb_set(event, '{claims,org_id}', to_jsonb(t)); end",
@@ -1063,64 +1063,64 @@ uri = "https://example.com/hook"
         source:
           "begin event := public.permdock_hook(event); return jsonb_set(event, '{claims,user_role}', '\"admin\"'); end",
       });
-      expect(await codes(hookContext(withHook([wrapped])), 'BS407')).toEqual([
-        'BS407',
+      expect(await codes(hookContext(withHook([wrapped])), "BS407")).toEqual([
+        "BS407",
       ]);
     });
   });
 
-  it('flags soft delete hidden by a select policy and bucket drift', async () => {
+  it("flags soft delete hidden by a select policy and bucket drift", async () => {
     const snap = snapshot((tables) => {
-      edit(table(tables, 'customers').policies).push({
-        name: 'live_only',
-        command: 'select',
-        roles: ['authenticated'],
+      edit(table(tables, "customers").policies).push({
+        name: "live_only",
+        command: "select",
+        roles: ["authenticated"],
         permissive: false,
-        using: '(archived_at IS NULL)',
+        using: "(archived_at IS NULL)",
         check: null,
       });
     });
     const ctx = context(snap, {
       config: resolveConfig(
         {
-          plugins: { softDelete: { column: 'archived_at' } },
+          plugins: { softDelete: { column: "archived_at" } },
           buckets: {
-            customerLogos: { path: '{orgId}/logo.webp', fileSizeLimit: '1MiB' },
-            avatars: { path: '{userId}.png' },
+            customerLogos: { path: "{orgId}/logo.webp", fileSizeLimit: "1MiB" },
+            avatars: { path: "{userId}.png" },
           },
         },
-        '/project',
+        "/project",
       ),
     });
     const findings = await runRules(
       ctx,
-      RULES.filter((rule) => ['BS301', 'BS302'].includes(rule.code)),
+      RULES.filter((rule) => ["BS301", "BS302"].includes(rule.code)),
     );
     expect(findings.map((finding) => finding.code)).toEqual([
-      'BS301',
-      'BS302',
-      'BS302',
-      'BS302',
+      "BS301",
+      "BS302",
+      "BS302",
+      "BS302",
     ]);
-    expect(findings.map((finding) => finding.message).join('\n')).toMatch(
+    expect(findings.map((finding) => finding.message).join("\n")).toMatch(
       /avatars/,
     );
   });
 
-  it('reads supabase/config.toml', async () => {
+  it("reads supabase/config.toml", async () => {
     const configToml = toml(
-      '[api]\nport = 1\n\n[auth]\njwt_expiry = 7200\nenable_refresh_token_rotation = true\nrefresh_token_reuse_interval = 0\n\n[db]\nport = 2\n',
+      "[api]\nport = 1\n\n[auth]\njwt_expiry = 7200\nenable_refresh_token_rotation = true\nrefresh_token_reuse_interval = 0\n\n[db]\nport = 2\n",
     );
     const findings = await runRules(
       context(base, { configToml }),
-      RULES.filter((rule) => rule.code.startsWith('BS4')),
+      RULES.filter((rule) => rule.code.startsWith("BS4")),
     );
     expect(
       findings.map((finding) => [finding.code, finding.location?.line]),
     ).toEqual([
-      ['BS401', 7],
-      ['BS402', 5],
-      ['BS403', 4],
+      ["BS401", 7],
+      ["BS402", 5],
+      ["BS403", 4],
     ]);
     const fine = toml(
       '[auth]\nsigning_keys_path = "./signing_keys.json"\nrefresh_token_reuse_interval = 10\n',
@@ -1128,19 +1128,19 @@ uri = "https://example.com/hook"
     expect(await codes(context(base, { configToml: fine }))).toEqual([]);
   });
 
-  it('compares configured buckets with config.toml', async () => {
+  it("compares configured buckets with config.toml", async () => {
     const ctx = context(base, {
       config: resolveConfig(
         {
           buckets: {
             customerLogos: {
-              path: '{orgId}/logo.webp',
-              fileSizeLimit: '1MiB',
-              allowedMimeTypes: ['image/webp'],
+              path: "{orgId}/logo.webp",
+              fileSizeLimit: "1MiB",
+              allowedMimeTypes: ["image/webp"],
             },
           },
         },
-        '/project',
+        "/project",
       ),
       configToml: toml(
         '[storage]\nenabled = true\n\n[storage.buckets.customer-logos]\npublic = true\nfile_size_limit = "1MiB"\nallowed_mime_types = ["image/webp"] # logos\n',
@@ -1148,23 +1148,23 @@ uri = "https://example.com/hook"
     });
     const findings = await runRules(
       ctx,
-      RULES.filter((rule) => rule.code === 'BS302'),
+      RULES.filter((rule) => rule.code === "BS302"),
     );
     expect(
       findings
         .filter(
-          (finding) => finding.target === '[storage.buckets.customer-logos]',
+          (finding) => finding.target === "[storage.buckets.customer-logos]",
         )
         .map((finding) => [finding.message, finding.location?.line]),
     ).toEqual([
       [
-        'supabase/config.toml [storage.buckets.customer-logos]: public is true',
+        "supabase/config.toml [storage.buckets.customer-logos]: public is true",
         4,
       ],
     ]);
   });
 
-  it('parses the config.toml subset supabase init writes', () => {
+  it("parses the config.toml subset supabase init writes", () => {
     expect(
       parseTomlSubset(
         '# c\n[db]\nport = 54_322\n[auth.email]\nenable_confirmations = false\nsite_url = "http://x" # note\nredirects = ["a", \'b\']\n[storage.buckets."my-bucket"]\npublic = true\n',
@@ -1174,26 +1174,26 @@ uri = "https://example.com/hook"
       auth: {
         email: {
           enable_confirmations: false,
-          site_url: 'http://x',
-          redirects: ['a', 'b'],
+          site_url: "http://x",
+          redirects: ["a", "b"],
         },
       },
-      storage: { buckets: { 'my-bucket': { public: true } } },
+      storage: { buckets: { "my-bucket": { public: true } } },
     });
   });
 
-  it('checks env files without printing values', async () => {
+  it("checks env files without printing values", async () => {
     const envFiles = [
       {
-        path: '.env.local',
+        path: ".env.local",
         text: 'NEXT_PUBLIC_SUPABASE_URL=http://x\nNEXT_PUBLIC_SUPABASE_SECRET_KEY="sb_secret_abc"\n',
       },
-      { path: '.env', text: 'SUPABASE_DB_URL=postgresql://u:p@h/db\n' },
-      { path: 'apps/web/.env.example', text: 'SUPABASE_SECRET_KEY=\n' },
+      { path: ".env", text: "SUPABASE_DB_URL=postgresql://u:p@h/db\n" },
+      { path: "apps/web/.env.example", text: "SUPABASE_SECRET_KEY=\n" },
     ];
     const findings = await runRules(
-      context(base, { envFiles, gitignore: '# env\n.env*.local\n' }),
-      RULES.filter((rule) => rule.code.startsWith('BS5')),
+      context(base, { envFiles, gitignore: "# env\n.env*.local\n" }),
+      RULES.filter((rule) => rule.code.startsWith("BS5")),
     );
     expect(
       findings.map((finding) => [
@@ -1202,41 +1202,41 @@ uri = "https://example.com/hook"
         finding.location?.line,
       ]),
     ).toEqual([
-      ['BS501', '.env.local:NEXT_PUBLIC_SUPABASE_SECRET_KEY', 2],
-      ['BS502', '.env', 1],
+      ["BS501", ".env.local:NEXT_PUBLIC_SUPABASE_SECRET_KEY", 2],
+      ["BS502", ".env", 1],
     ]);
-    expect(JSON.stringify(findings)).not.toContain('sb_secret_abc');
+    expect(JSON.stringify(findings)).not.toContain("sb_secret_abc");
   });
 });
 
-describe('doctor formats', () => {
+describe("doctor formats", () => {
   const findings = [
     {
-      code: 'BS103',
-      severity: 'error' as const,
-      title: 'Policy allows anonymous writes',
-      message: 'public.x has RLS disabled, really: 100%',
-      target: 'public.x',
-      location: { file: 'supabase/schemas/x.sql', line: 3 },
-      help: 'https://bettersupabase.com/docs/cli/doctor#bs103',
+      code: "BS103",
+      severity: "error" as const,
+      title: "Policy allows anonymous writes",
+      message: "public.x has RLS disabled, really: 100%",
+      target: "public.x",
+      location: { file: "supabase/schemas/x.sql", line: 3 },
+      help: "https://bettersupabase.com/docs/cli/doctor#bs103",
     },
     {
-      code: 'BS403',
-      severity: 'info' as const,
-      title: 'Local stack signs tokens with a shared secret',
-      message: 'No signing keys.',
-      help: 'https://bettersupabase.com/docs/cli/doctor#bs403',
+      code: "BS403",
+      severity: "info" as const,
+      title: "Local stack signs tokens with a shared secret",
+      message: "No signing keys.",
+      help: "https://bettersupabase.com/docs/cli/doctor#bs403",
     },
   ];
   const options = {
     rules: RULES,
-    version: '1.0.0',
-    fallbackFile: 'supabase/config.toml',
+    version: "1.0.0",
+    fallbackFile: "supabase/config.toml",
   };
 
-  it('writes SARIF 2.1.0 with rules and locations', () => {
+  it("writes SARIF 2.1.0 with rules and locations", () => {
     const sarif = JSON.parse(
-      formatReport(findings, { ...options, format: 'sarif' }),
+      formatReport(findings, { ...options, format: "sarif" }),
     ) as {
       version: string;
       runs: {
@@ -1244,66 +1244,66 @@ describe('doctor formats', () => {
         results: Record<string, unknown>[];
       }[];
     };
-    expect(sarif.version).toBe('2.1.0');
+    expect(sarif.version).toBe("2.1.0");
     const [runEntry] = sarif.runs;
     expect(runEntry!.tool.driver.rules.map((rule) => rule.id)).toEqual(
       RULE_CODES,
     );
     expect(runEntry!.tool.driver.rules[0]!.name).toBe(
-      'SupabaseSecurityAdvisor',
+      "SupabaseSecurityAdvisor",
     );
     expect(runEntry!.results[0]).toMatchObject({
-      ruleId: 'BS103',
-      level: 'error',
+      ruleId: "BS103",
+      level: "error",
       locations: [
         {
           physicalLocation: {
-            artifactLocation: { uri: 'supabase/schemas/x.sql' },
+            artifactLocation: { uri: "supabase/schemas/x.sql" },
             region: { startLine: 3 },
           },
         },
       ],
     });
     expect(runEntry!.results[1]).toMatchObject({
-      level: 'note',
+      level: "note",
       locations: [
         {
           physicalLocation: {
-            artifactLocation: { uri: 'supabase/config.toml' },
+            artifactLocation: { uri: "supabase/config.toml" },
           },
         },
       ],
     });
   });
 
-  it('writes GitHub annotations and JSON with a $schema', () => {
+  it("writes GitHub annotations and JSON with a $schema", () => {
     const github = formatReport(findings, {
       ...options,
-      format: 'github',
-    }).split('\n');
+      format: "github",
+    }).split("\n");
     expect(github[0]).toBe(
-      '::error file=supabase/schemas/x.sql,line=3,title=BS103 Policy allows anonymous writes::public.x has RLS disabled, really: 100%25 (https://bettersupabase.com/docs/cli/doctor#bs103)',
+      "::error file=supabase/schemas/x.sql,line=3,title=BS103 Policy allows anonymous writes::public.x has RLS disabled, really: 100%25 (https://bettersupabase.com/docs/cli/doctor#bs103)",
     );
     expect(github[1]).toMatch(/^::notice title=BS403/);
     const json = JSON.parse(
-      formatReport(findings, { ...options, format: 'json' }),
+      formatReport(findings, { ...options, format: "json" }),
     ) as Record<string, unknown>;
     expect(json).toMatchObject({
       $schema:
-        'https://unpkg.com/better-supabase/schemas/doctor-report-v1.json',
+        "https://unpkg.com/better-supabase/schemas/doctor-report-v1.json",
       summary: { errors: 1, warnings: 0, infos: 1 },
     });
-    expect(formatReport([], { ...options, format: 'text' })).toBe(
-      'No problems found.',
+    expect(formatReport([], { ...options, format: "text" })).toBe(
+      "No problems found.",
     );
   });
 });
 
-describe('doctor command', () => {
+describe("doctor command", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'better-supabase-doctor-'));
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-doctor-"));
   });
 
   afterEach(async () => {
@@ -1315,45 +1315,45 @@ describe('doctor command', () => {
     await writeFile(join(dir, path), contents);
   }
 
-  it('locates findings in SQL files and sets the exit code', async () => {
+  it("locates findings in SQL files and sets the exit code", async () => {
     const snap = snapshot((tables) => {
-      edit(table(tables, 'notes').policies).push({
-        name: 'anyone',
-        command: 'insert',
-        roles: ['anon'],
+      edit(table(tables, "notes").policies).push({
+        name: "anyone",
+        command: "insert",
+        roles: ["anon"],
         permissive: true,
         using: null,
-        check: 'true',
+        check: "true",
       });
-      const notes = table(tables, 'notes');
+      const notes = table(tables, "notes");
       notes.indexes = notes.indexes.filter(
-        (index) => index.columns[0] !== 'organization_id',
+        (index) => index.columns[0] !== "organization_id",
       );
     });
-    await write('snapshot.json', JSON.stringify(snap));
+    await write("snapshot.json", JSON.stringify(snap));
     await write(
-      'supabase/migrations/001_init.sql',
+      "supabase/migrations/001_init.sql",
       'create policy "anyone" on public.notes;\n',
     );
     await write(
-      'supabase/migrations/002_more.sql',
+      "supabase/migrations/002_more.sql",
       '\n\ncreate policy anyone on "public"."notes" (\n);\n',
     );
     await write(
-      'better-supabase.config.json',
+      "better-supabase.config.json",
       JSON.stringify({
-        doctor: { ignore: ['BS303'] },
+        doctor: { ignore: ["BS303"] },
         plugins: { tenant: true },
       }),
     );
 
     const result = await run([
-      'doctor',
-      '--snapshot',
-      'snapshot.json',
-      '--format',
-      'json',
-      '--cwd',
+      "doctor",
+      "--snapshot",
+      "snapshot.json",
+      "--format",
+      "json",
+      "--cwd",
       dir,
     ]);
     expect(result.code).toBe(1);
@@ -1361,33 +1361,33 @@ describe('doctor command', () => {
       findings: { code: string; location?: unknown }[];
     };
     expect(
-      report.findings.find((finding) => finding.code === 'BS103')?.location,
+      report.findings.find((finding) => finding.code === "BS103")?.location,
     ).toEqual({
-      file: 'supabase/migrations/002_more.sql',
+      file: "supabase/migrations/002_more.sql",
       line: 3,
     });
 
     const warnings = await run([
-      'doctor',
-      '--snapshot',
-      'snapshot.json',
-      '--only',
-      'BS204',
-      '--cwd',
+      "doctor",
+      "--snapshot",
+      "snapshot.json",
+      "--only",
+      "BS204",
+      "--cwd",
       dir,
     ]);
     expect(warnings.code).toBe(0);
-    expect(warnings.stdout).toContain('BS204');
+    expect(warnings.stdout).toContain("BS204");
     expect(
       (
         await run([
-          'doctor',
-          '--snapshot',
-          'snapshot.json',
-          '--only',
-          'BS204',
-          '--strict',
-          '--cwd',
+          "doctor",
+          "--snapshot",
+          "snapshot.json",
+          "--only",
+          "BS204",
+          "--strict",
+          "--cwd",
           dir,
         ])
       ).code,
@@ -1395,12 +1395,12 @@ describe('doctor command', () => {
     expect(
       (
         await run([
-          'doctor',
-          '--snapshot',
-          'snapshot.json',
-          '--only',
-          'BS999',
-          '--cwd',
+          "doctor",
+          "--snapshot",
+          "snapshot.json",
+          "--only",
+          "BS999",
+          "--cwd",
           dir,
         ])
       ).code,
@@ -1408,69 +1408,69 @@ describe('doctor command', () => {
     expect(
       (
         await run([
-          'doctor',
-          '--snapshot',
-          'snapshot.json',
-          '--format',
-          'xml',
-          '--cwd',
+          "doctor",
+          "--snapshot",
+          "snapshot.json",
+          "--format",
+          "xml",
+          "--cwd",
           dir,
         ])
       ).code,
     ).toBe(2);
 
     const sarif = await run([
-      'doctor',
-      '--snapshot',
-      'snapshot.json',
-      '--format',
-      'sarif',
-      '--out',
-      'doctor.sarif',
-      '--cwd',
+      "doctor",
+      "--snapshot",
+      "snapshot.json",
+      "--format",
+      "sarif",
+      "--out",
+      "doctor.sarif",
+      "--cwd",
       dir,
     ]);
-    expect(sarif.stdout).toContain('Wrote doctor.sarif: 1 errors');
+    expect(sarif.stdout).toContain("Wrote doctor.sarif: 1 errors");
     expect(
-      JSON.parse(await readFile(join(dir, 'doctor.sarif'), 'utf8')),
-    ).toMatchObject({ version: '2.1.0' });
+      JSON.parse(await readFile(join(dir, "doctor.sarif"), "utf8")),
+    ).toMatchObject({ version: "2.1.0" });
   });
 
-  it('locates functions and policies', () => {
+  it("locates functions and policies", () => {
     const files = [
       {
-        path: 'supabase/schemas/a.sql',
-        text: 'create or replace function public.do_it()\nreturns void',
+        path: "supabase/schemas/a.sql",
+        text: "create or replace function public.do_it()\nreturns void",
       },
       {
-        path: 'supabase/schemas/b.sql',
+        path: "supabase/schemas/b.sql",
         text: '\ncreate policy "Tenant read" on public.x',
       },
     ];
     expect(
-      locate(files, { kind: 'function', schema: 'public', name: 'do_it' }),
-    ).toEqual({ file: 'supabase/schemas/a.sql', line: 1 });
+      locate(files, { kind: "function", schema: "public", name: "do_it" }),
+    ).toEqual({ file: "supabase/schemas/a.sql", line: 1 });
     expect(
-      locate(files, { kind: 'policy', schema: 'public', name: 'Tenant read' }),
-    ).toEqual({ file: 'supabase/schemas/b.sql', line: 2 });
+      locate(files, { kind: "policy", schema: "public", name: "Tenant read" }),
+    ).toEqual({ file: "supabase/schemas/b.sql", line: 2 });
     expect(
-      locate(files, { kind: 'table', schema: 'public', name: 'do_it' }),
+      locate(files, { kind: "table", schema: "public", name: "do_it" }),
     ).toBeUndefined();
   });
 
-  it('documents every check', async () => {
+  it("documents every check", async () => {
     const docs = await readFile(
       new URL(
-        '../../../../../apps/docs/content/docs/cli/doctor.mdx',
+        "../../../../../apps/docs/content/docs/cli/doctor.mdx",
         import.meta.url,
       ),
-      'utf8',
+      "utf8",
     );
     for (const code of RULE_CODES) expect(docs).toContain(`### ${code}`);
     const schema = JSON.parse(
       await readFile(
-        new URL('../../../schemas/doctor-report-v1.json', import.meta.url),
-        'utf8',
+        new URL("../../../schemas/doctor-report-v1.json", import.meta.url),
+        "utf8",
       ),
     ) as {
       properties: {

@@ -1,22 +1,22 @@
-import type { AnyFunctions, AnyModels, SchemaMeta } from '../schema/types.ts';
-import type { BetterSupabase } from './define.ts';
-import type { InferResult, QuerySpec, Specs } from './spec.ts';
+import type { AnyFunctions, AnyModels, SchemaMeta } from "../schema/types.ts";
+import type { BetterSupabase } from "./define.ts";
+import type { InferResult, QuerySpec, Specs } from "./spec.ts";
 
-import { isQuerySpec, specTables } from './spec.ts';
+import { isQuerySpec, specTables } from "./spec.ts";
 
 type ScalarParamType =
-  | 'uuid'
-  | 'text'
-  | 'bool'
-  | 'int2'
-  | 'int4'
-  | 'int8'
-  | 'float4'
-  | 'float8'
-  | 'numeric'
-  | 'date'
-  | 'timestamp'
-  | 'timestamptz';
+  | "uuid"
+  | "text"
+  | "bool"
+  | "int2"
+  | "int4"
+  | "int8"
+  | "float4"
+  | "float8"
+  | "numeric"
+  | "date"
+  | "timestamp"
+  | "timestamptz";
 
 /**
  * The Postgres type of a read-set parameter. `[]` types take an array. Name
@@ -31,14 +31,14 @@ export type ReadSetParamType =
 export type ReadSetParamTypes = Readonly<Record<string, ReadSetParamType>>;
 
 type ScalarValue<T> = T extends
-  | 'int2'
-  | 'int4'
-  | 'int8'
-  | 'float4'
-  | 'float8'
-  | 'numeric'
+  | "int2"
+  | "int4"
+  | "int8"
+  | "float4"
+  | "float8"
+  | "numeric"
   ? number
-  : T extends 'bool'
+  : T extends "bool"
     ? boolean
     : string;
 
@@ -51,7 +51,7 @@ export type ReadSetParams<P extends ReadSetParamTypes> = {
   readonly [K in keyof P]: ReadSetParamValue<P[K]>;
 };
 
-type ReadSetRole = 'anon' | 'authenticated';
+type ReadSetRole = "anon" | "authenticated";
 
 /**
  * Named reads that run together: one `stable` function over PostgREST (a
@@ -65,7 +65,7 @@ export interface ReadSet<
     Record<string, QuerySpec>
   >,
 > {
-  readonly kind: 'read-set';
+  readonly kind: "read-set";
   readonly name: N;
   /** The database function `better-supabase gen` writes for this set. */
   readonly functionName: `rs_${N}`;
@@ -100,8 +100,8 @@ const TYPE = /^(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*(?:\[\])?$/;
 const MAX_ENTRIES = 50;
 /** Placeholders are `NUL bs:<name> NUL`: no real parameter value holds a NUL. */
 const NUL = String.fromCharCode(0);
-const SENTINEL = new RegExp(`${NUL}bs:([a-z_][a-z0-9_]*)${NUL}`, 'gi');
-const EXACT = new RegExp(`^${NUL}bs:([a-z_][a-z0-9_]*)${NUL}$`, 'i');
+const SENTINEL = new RegExp(`${NUL}bs:([a-z_][a-z0-9_]*)${NUL}`, "gi");
+const EXACT = new RegExp(`^${NUL}bs:([a-z_][a-z0-9_]*)${NUL}$`, "i");
 
 function sentinel(name: string): string {
   return `${NUL}bs:${name}${NUL}`;
@@ -157,7 +157,7 @@ export function defineReadSet<
         `better-supabase: read set "${name}" parameter "${key}" has an invalid type "${type}"`,
       );
     }
-    placeholders[key] = type.endsWith('[]') ? [sentinel(key)] : sentinel(key);
+    placeholders[key] = type.endsWith("[]") ? [sentinel(key)] : sentinel(key);
   }
   const specs = build(sb.spec, placeholders as ReadSetParams<P>);
   const entries = Object.entries(specs);
@@ -174,23 +174,23 @@ export function defineReadSet<
     }
   }
   return {
-    kind: 'read-set',
+    kind: "read-set",
     name,
     functionName: `rs_${name}`,
     params,
-    roles: options.roles ?? ['authenticated'],
+    roles: options.roles ?? ["authenticated"],
     specs,
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
-    definition: sb as unknown as ReadSet['definition'],
+    definition: sb as unknown as ReadSet["definition"],
   };
 }
 
 export function isReadSet(value: unknown): value is ReadSet {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    (value as Partial<ReadSet>).kind === 'read-set' &&
-    typeof (value as Partial<ReadSet>).name === 'string'
+    (value as Partial<ReadSet>).kind === "read-set" &&
+    typeof (value as Partial<ReadSet>).name === "string"
   );
 }
 
@@ -198,7 +198,7 @@ export function isReadSet(value: unknown): value is ReadSet {
 export function placeholderOf(
   value: unknown,
 ): { readonly name: string; readonly array: boolean } | undefined {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const match = EXACT.exec(value);
     return match ? { name: match[1]!, array: false } : undefined;
   }
@@ -231,9 +231,9 @@ export function hasPlaceholder(value: string): boolean {
 
 /** Whether any string inside `value` is (or holds) a placeholder. */
 export function containsPlaceholder(value: unknown): boolean {
-  if (typeof value === 'string') return hasPlaceholder(value);
+  if (typeof value === "string") return hasPlaceholder(value);
   if (Array.isArray(value)) return value.some(containsPlaceholder);
-  if (typeof value === 'object' && value !== null) {
+  if (typeof value === "object" && value !== null) {
     return Object.values(value).some(containsPlaceholder);
   }
   return false;
@@ -249,9 +249,9 @@ export function checkParams(
     const value = values?.[key];
     if (value === undefined || value === null) {
       problems.push(`missing parameter "${key}"`);
-    } else if (type.endsWith('[]') !== Array.isArray(value)) {
+    } else if (type.endsWith("[]") !== Array.isArray(value)) {
       problems.push(
-        `parameter "${key}" must be ${type.endsWith('[]') ? 'an array' : 'a single value'}`,
+        `parameter "${key}" must be ${type.endsWith("[]") ? "an array" : "a single value"}`,
       );
     }
   }
@@ -266,16 +266,16 @@ export function bindParams(
   const bind = (value: unknown): unknown => {
     const placeholder = placeholderOf(value);
     if (placeholder) return values[placeholder.name];
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       if (!hasPlaceholder(value)) return value;
       return splitPlaceholders(value)
         .map((part) =>
-          'text' in part ? part.text : String(values[part.param] ?? ''),
+          "text" in part ? part.text : String(values[part.param] ?? ""),
         )
-        .join('');
+        .join("");
     }
     if (Array.isArray(value)) return value.map(bind);
-    if (typeof value === 'object' && value !== null) {
+    if (typeof value === "object" && value !== null) {
       if (Object.getPrototypeOf(value) !== Object.prototype) return value;
       return Object.fromEntries(
         Object.entries(value).map(([key, entry]) => [key, bind(entry)]),

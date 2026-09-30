@@ -1,7 +1,7 @@
-import { isMarkdownPreferred, rewritePath } from 'fumadocs-core/negotiation';
-import { type NextRequest, NextResponse } from 'next/server';
+import { isMarkdownPreferred, rewritePath } from "fumadocs-core/negotiation";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { docsContentRoute, docsRoute } from '@/lib/shared';
+import { docsContentRoute, docsRoute } from "@/lib/shared";
 
 const docsPath = rewritePath(
   `${docsRoute}{/*path}`,
@@ -22,7 +22,7 @@ export default function proxy(request: NextRequest): NextResponse {
     const markdownPath = docsPath.rewrite(request.nextUrl.pathname);
     if (markdownPath !== false) {
       return NextResponse.rewrite(new URL(markdownPath, request.nextUrl), {
-        headers: { Vary: 'Accept' },
+        headers: { Vary: "Accept" },
       });
     }
   }

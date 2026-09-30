@@ -1,8 +1,8 @@
-import { codeToHtml } from 'shiki';
+import { codeToHtml } from "shiki";
 
-import type { Snippet } from '@/lib/snippets';
+import type { Snippet } from "@/lib/snippets";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 export async function CodeBlock({
   snippet,
@@ -13,13 +13,13 @@ export async function CodeBlock({
 }) {
   const html = await codeToHtml(snippet.code, {
     lang: snippet.language,
-    themes: { light: 'github-light', dark: 'github-dark' },
-    defaultColor: 'light',
+    themes: { light: "github-light", dark: "github-dark" },
+    defaultColor: "light",
   });
   return (
     <figure
       className={cn(
-        'border-border bg-card overflow-hidden rounded-xl border text-left shadow-xs',
+        "border-border bg-card overflow-hidden rounded-xl border text-left shadow-xs",
         className,
       )}
     >

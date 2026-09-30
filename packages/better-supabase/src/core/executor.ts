@@ -1,6 +1,6 @@
-import type { Operation } from '../ir/types.ts';
-import type { ErrorMapper } from './errors.ts';
-import type { Result } from './result.ts';
+import type { Operation } from "../ir/types.ts";
+import type { ErrorMapper } from "./errors.ts";
+import type { Result } from "./result.ts";
 
 export interface ExecuteContext {
   readonly signal?: AbortSignal;

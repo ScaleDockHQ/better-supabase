@@ -15,20 +15,20 @@ export function arrayOf(type: string): string {
 }
 
 export function indent(lines: readonly string[], depth: number): string[] {
-  const pad = '  '.repeat(depth);
+  const pad = "  ".repeat(depth);
   return lines
-    .flatMap((line) => line.split('\n'))
-    .map((line) => (line === '' ? line : pad + line));
+    .flatMap((line) => line.split("\n"))
+    .map((line) => (line === "" ? line : pad + line));
 }
 
 /** `name: {` + indented children + `};`, or an inline empty type. */
 export function block(
   name: string,
   children: readonly string[],
-  empty = '{ [_ in never]: never }',
+  empty = "{ [_ in never]: never }",
 ): string[] {
   if (children.length === 0) return [`${name}: ${empty};`];
-  return [`${name}: {`, ...indent(children, 1), '};'];
+  return [`${name}: {`, ...indent(children, 1), "};"];
 }
 
 export function sameColumns(
@@ -42,9 +42,9 @@ export function sameColumns(
 }
 
 export function singular(name: string): string {
-  if (name.endsWith('ies')) return `${name.slice(0, -3)}y`;
-  if (name.endsWith('sses')) return name.slice(0, -2);
-  if (name.endsWith('s') && !name.endsWith('ss')) return name.slice(0, -1);
+  if (name.endsWith("ies")) return `${name.slice(0, -3)}y`;
+  if (name.endsWith("sses")) return name.slice(0, -2);
+  if (name.endsWith("s") && !name.endsWith("ss")) return name.slice(0, -1);
   return name;
 }
 
@@ -57,11 +57,11 @@ export function pascal(name: string): string {
 }
 
 export function toSnake(name: string): string {
-  return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
 }
 
 export function isJsonUdt(udt: string): boolean {
-  return udt === 'json' || udt === 'jsonb';
+  return udt === "json" || udt === "jsonb";
 }
 
 const CHECK_ANY =
@@ -80,7 +80,7 @@ export function parseCheckUnion(
   const any = CHECK_ANY.exec(definition);
   if (any?.[1] && any[2]) {
     const values = [...any[2].matchAll(LITERAL)].map((match) =>
-      (match[1] ?? '').replace(/''/g, "'"),
+      (match[1] ?? "").replace(/''/g, "'"),
     );
     return values.length > 0 ? { column: any[1], values } : undefined;
   }
@@ -94,7 +94,7 @@ export function parseCheckUnion(
       if (!match?.[1]) return undefined;
       if (column && column !== match[1]) return undefined;
       column = match[1];
-      values.push((match[2] ?? '').replace(/''/g, "'"));
+      values.push((match[2] ?? "").replace(/''/g, "'"));
     }
     return column && values.length > 1 ? { column, values } : undefined;
   }

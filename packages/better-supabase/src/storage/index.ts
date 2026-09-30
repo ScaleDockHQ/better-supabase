@@ -1,20 +1,20 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   BucketPolicyName,
   PermdockBucketPolicy,
-} from '../schema/types.ts';
-import type { PathIn, StoragePath } from './path.ts';
+} from "../schema/types.ts";
+import type { PathIn, StoragePath } from "./path.ts";
 
-import { tenantClaimPaths } from '../core/claims.ts';
+import { tenantClaimPaths } from "../core/claims.ts";
 import {
   type DbError,
   DbException,
   dbError,
   isDbError,
-} from '../core/errors.ts';
-import { permdockCheck } from '../core/permdock-sql.ts';
-import { AsyncResult, err, ok, toDbError } from '../core/result.ts';
+} from "../core/errors.ts";
+import { permdockCheck } from "../core/permdock-sql.ts";
+import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import {
   parseTemplate,
   slug,
@@ -23,17 +23,17 @@ import {
   type Template,
   type TemplateParams,
   type TemplateValues,
-} from '../core/template.ts';
+} from "../core/template.ts";
 
-export type { TemplateParams, TemplateValues } from '../core/template.ts';
-export type { PathIn, StoragePath } from './path.ts';
+export type { TemplateParams, TemplateValues } from "../core/template.ts";
+export type { PathIn, StoragePath } from "./path.ts";
 
-export type { PermdockBucketPolicy } from '../schema/types.ts';
+export type { PermdockBucketPolicy } from "../schema/types.ts";
 
 export type BucketPolicy = BucketPolicyName | PermdockBucketPolicy;
 
 /** Storage operations that list objects; every other `select` is a read. */
-const LIST_OPERATIONS = ['object.list', 'object.list_v2', 's3.object.list'];
+const LIST_OPERATIONS = ["object.list", "object.list_v2", "s3.object.list"];
 
 interface PermdockChecks {
   readonly read: string;
@@ -101,9 +101,9 @@ export type TtlPreset = keyof typeof TTL;
 export interface TransformOptions {
   readonly width?: number;
   readonly height?: number;
-  readonly resize?: 'cover' | 'contain' | 'fill';
+  readonly resize?: "cover" | "contain" | "fill";
   readonly quality?: number;
-  readonly format?: 'origin';
+  readonly format?: "origin";
 }
 
 export type UploadBody =
@@ -185,7 +185,7 @@ export interface SweepResult {
 }
 
 export interface BucketDrift {
-  readonly field: 'missing' | 'public' | 'fileSizeLimit' | 'allowedMimeTypes';
+  readonly field: "missing" | "public" | "fileSizeLimit" | "allowedMimeTypes";
   readonly expected: unknown;
   readonly actual: unknown;
   readonly message: string;
@@ -198,7 +198,7 @@ export interface ActualBucket {
   readonly allowedMimeTypes?: readonly string[] | null;
 }
 
-export type StorageClient = Pick<SupabaseClient, 'storage'>;
+export type StorageClient = Pick<SupabaseClient, "storage">;
 
 export interface BucketClient<P extends string, Id extends string = string> {
   readonly bucket: Bucket<P, Id>;
@@ -225,18 +225,18 @@ export interface BucketClient<P extends string, Id extends string = string> {
   ): AsyncResult<string>;
   signedUrls(
     targets: readonly ObjectTarget<P, Id>[],
-    options?: Omit<UrlOptions, 'transform'>,
+    options?: Omit<UrlOptions, "transform">,
   ): AsyncResult<readonly string[]>;
   /** URL for public buckets. No request is made. */
   publicUrl(
     target: ObjectTarget<P, Id>,
-    options?: Omit<UrlOptions, 'ttl'>,
+    options?: Omit<UrlOptions, "ttl">,
   ): string;
   /** Image transform URL: public for public buckets, signed otherwise. */
   renderUrl(
     target: ObjectTarget<P, Id>,
     transform: TransformOptions,
-    options?: Omit<UrlOptions, 'transform'>,
+    options?: Omit<UrlOptions, "transform">,
   ): AsyncResult<string>;
   /** Upload the new object, run `commit`, then remove the previous object. */
   replace(
@@ -250,7 +250,7 @@ export interface BucketClient<P extends string, Id extends string = string> {
     options?: { upsert?: boolean },
   ): AsyncResult<Reservation>;
   uploadReserved(
-    reservation: Pick<Reservation, 'path' | 'token'>,
+    reservation: Pick<Reservation, "path" | "token">,
     body: UploadBody,
     options?: UploadOptions,
   ): AsyncResult<{ path: StoragePath<Id> }>;
@@ -297,10 +297,10 @@ const SIZE_UNITS: Readonly<Record<string, number>> = {
 };
 
 export function parseSize(value: string | number): number {
-  if (typeof value === 'number') return value;
+  if (typeof value === "number") return value;
   const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$/i.exec(value);
   // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty unit means bytes.
-  const unit = SIZE_UNITS[(match?.[2] || 'b').toLowerCase()];
+  const unit = SIZE_UNITS[(match?.[2] || "b").toLowerCase()];
   if (!match || unit === undefined)
     throw new TypeError(`Invalid size "${value}"`);
   return Math.round(Number(match[1]) * unit);
@@ -310,29 +310,29 @@ export function parseSize(value: string | number): number {
 const SAFE_SEGMENT = /^[\w!\-.*'() &$@=;:+,?]+$/;
 
 function validateSegment(_name: string, value: string): string | undefined {
-  if (value === '.' || value === '..') return 'is a relative path';
+  if (value === "." || value === "..") return "is a relative path";
   if (!SAFE_SEGMENT.test(value))
-    return 'contains characters Storage does not allow';
+    return "contains characters Storage does not allow";
   return undefined;
 }
 
 function claimSql(claim: string | readonly string[]): string {
-  const paths = typeof claim === 'string' ? [claim] : claim;
+  const paths = typeof claim === "string" ? [claim] : claim;
   const expressions = paths.map((path) => {
-    const keys = path.split('.');
+    const keys = path.split(".");
     const last = keys.pop()!;
-    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join('')} ->> ${sqlString(last)}`;
+    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
   });
   return expressions.length === 1
     ? expressions[0]!
-    : `coalesce(${expressions.join(', ')})`;
+    : `coalesce(${expressions.join(", ")})`;
 }
 
 function mimeAllowed(allowed: readonly string[], type: string): boolean {
-  const base = type.split(';')[0]!.trim().toLowerCase();
+  const base = type.split(";")[0]!.trim().toLowerCase();
   return allowed.some((entry) => {
     const pattern = entry.toLowerCase();
-    return pattern.endsWith('/*')
+    return pattern.endsWith("/*")
       ? base.startsWith(pattern.slice(0, -1))
       : base === pattern;
   });
@@ -340,9 +340,9 @@ function mimeAllowed(allowed: readonly string[], type: string): boolean {
 
 function sizeLabel(bytes: number): string {
   for (const [unit, size] of [
-    ['GiB', 1024 ** 3],
-    ['MiB', 1024 ** 2],
-    ['KiB', 1024],
+    ["GiB", 1024 ** 3],
+    ["MiB", 1024 ** 2],
+    ["KiB", 1024],
   ] as const) {
     if (bytes >= size && bytes % size === 0)
       return `${String(bytes / size)}${unit}`;
@@ -362,10 +362,10 @@ interface StorageFailure {
 export function fromStorageError(raw: unknown, table?: string): DbError {
   if (isDbError(raw)) return raw;
   if (raw instanceof DbException) return raw.error;
-  if (typeof raw !== 'object' || raw === null) return toDbError(raw);
+  if (typeof raw !== "object" || raw === null) return toDbError(raw);
   const failure = raw as StorageFailure;
-  if (failure.name === 'AbortError') return toDbError(raw);
-  const message = failure.message ?? 'Storage request failed';
+  if (failure.name === "AbortError") return toDbError(raw);
+  const message = failure.message ?? "Storage request failed";
   const code = failure.code ?? failure.statusCode;
   const base = { ...(code ? { code } : {}), ...(table ? { table } : {}) };
   const statusCode = Number(failure.statusCode);
@@ -375,36 +375,36 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
       : (failure.status ?? 0);
   if (
     /row-level security|unauthorized to|AccessDenied/i.test(
-      `${message} ${code ?? ''}`,
+      `${message} ${code ?? ""}`,
     )
   ) {
-    return dbError('forbidden', message, base);
+    return dbError("forbidden", message, base);
   }
-  if (/already exists|duplicate/i.test(`${message} ${code ?? ''}`))
-    return dbError('conflict', message, base);
-  if (failure.name === 'StorageUnknownError' && status === 0)
-    return dbError('network', message, base);
+  if (/already exists|duplicate/i.test(`${message} ${code ?? ""}`))
+    return dbError("conflict", message, base);
+  if (failure.name === "StorageUnknownError" && status === 0)
+    return dbError("network", message, base);
   switch (status) {
     case 400:
-      return dbError('invalid_request', message, base);
+      return dbError("invalid_request", message, base);
     case 401:
-      return dbError('unauthorized', message, base);
+      return dbError("unauthorized", message, base);
     case 403:
-      return dbError('forbidden', message, base);
+      return dbError("forbidden", message, base);
     case 404:
-      return dbError('not_found', message, base);
+      return dbError("not_found", message, base);
     case 409:
-      return dbError('conflict', message, base);
+      return dbError("conflict", message, base);
     case 413:
     case 415:
-      return dbError('invalid_input', message, { ...base, status });
+      return dbError("invalid_input", message, { ...base, status });
     case 408:
     case 429:
-      return dbError('network', message, { ...base, status });
+      return dbError("network", message, { ...base, status });
     default:
       return status >= 500
-        ? dbError('network', message, base)
-        : dbError('unexpected', message, base);
+        ? dbError("network", message, base)
+        : dbError("unexpected", message, base);
   }
 }
 
@@ -427,8 +427,8 @@ export function defineBucket<
   const P extends string,
   const Id extends string = string,
 >(config: BucketConfig<P, Id>): Bucket<P, Id> {
-  const template: Template = parseTemplate(config.path, '/', validateSegment);
-  const policy = config.policy ?? 'none';
+  const template: Template = parseTemplate(config.path, "/", validateSegment);
+  const policy = config.policy ?? "none";
   const fileSizeLimit =
     config.fileSizeLimit === undefined
       ? undefined
@@ -444,23 +444,23 @@ export function defineBucket<
     }
     return index;
   }
-  const mode = typeof policy === 'string' ? policy : 'permdock';
+  const mode = typeof policy === "string" ? policy : "permdock";
   const accessCheck = ((): string | undefined => {
     switch (mode) {
-      case 'tenant': {
-        const index = segmentFor(config.tenant?.param ?? 'orgId', 'tenant');
+      case "tenant": {
+        const index = segmentFor(config.tenant?.param ?? "orgId", "tenant");
         const expression =
           config.tenant?.sql ??
           claimSql(config.tenant?.claim ?? tenantClaimPaths());
         return `split_part(name, '/', ${String(index)}) = (${expression})`;
       }
-      case 'owner': {
-        const index = segmentFor(config.owner?.param ?? 'userId', 'owner');
+      case "owner": {
+        const index = segmentFor(config.owner?.param ?? "userId", "owner");
         return `split_part(name, '/', ${String(index)}) = (select auth.uid())::text`;
       }
-      case 'public':
-      case 'none':
-      case 'permdock':
+      case "public":
+      case "none":
+      case "permdock":
         return undefined;
       default: {
         const unknown: never = mode;
@@ -471,12 +471,12 @@ export function defineBucket<
     }
   })();
   const permdock = ((): PermdockChecks | undefined => {
-    if (typeof policy === 'string') return undefined;
+    if (typeof policy === "string") return undefined;
     const where = `defineBucket(${config.id})`;
     const id =
-      policy.scope === 'global'
+      policy.scope === "global"
         ? undefined
-        : `split_part(name, '/', ${String(policy.segment ?? segmentFor(config.tenant?.param ?? 'orgId', 'PermDock'))})`;
+        : `split_part(name, '/', ${String(policy.segment ?? segmentFor(config.tenant?.param ?? "orgId", "PermDock"))})`;
     const check = (key: string) => permdockCheck(where, policy, key, id);
     const keys = policy.permdock;
     return {
@@ -488,12 +488,12 @@ export function defineBucket<
   })();
 
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
-    if (typeof target !== 'string')
+    if (typeof target !== "string")
       return template.build(target) as StoragePath<Id>;
     if (!template.match(target)) {
       throw new DbException(
         dbError(
-          'invalid_input',
+          "invalid_input",
           `Path "${target}" does not match "${config.path}"`,
         ),
       );
@@ -511,7 +511,7 @@ export function defineBucket<
       file.size > fileSizeLimit
     ) {
       return dbError(
-        'invalid_input',
+        "invalid_input",
         `File is larger than ${sizeLabel(fileSizeLimit)}`,
         { status: 413 },
       );
@@ -521,7 +521,7 @@ export function defineBucket<
       file.type &&
       !mimeAllowed(allowedMimeTypes, file.type)
     ) {
-      return dbError('invalid_input', `File type ${file.type} is not allowed`, {
+      return dbError("invalid_input", `File type ${file.type} is not allowed`, {
         status: 415,
       });
     }
@@ -533,10 +533,10 @@ export function defineBucket<
     template: config.path,
     params: template.params as TemplateParams<P>[],
     owner:
-      policy === 'owner'
-        ? (config.owner?.param ?? 'userId')
-        : template.params.includes('userId')
-          ? 'userId'
+      policy === "owner"
+        ? (config.owner?.param ?? "userId")
+        : template.params.includes("userId")
+          ? "userId"
           : undefined,
     public: config.public ?? false,
     policy,
@@ -551,14 +551,14 @@ export function defineBucket<
       const name = slug(config.id);
       const lines = [
         `-- better-supabase: bucket ${config.id} (${config.path})`,
-        'insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)',
-        `values (${id}, ${id}, ${String(bucket.public)}, ${fileSizeLimit === undefined ? 'null' : String(fileSizeLimit)}, ${
+        "insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)",
+        `values (${id}, ${id}, ${String(bucket.public)}, ${fileSizeLimit === undefined ? "null" : String(fileSizeLimit)}, ${
           allowedMimeTypes
-            ? `array[${allowedMimeTypes.map(sqlString).join(', ')}]`
-            : 'null'
+            ? `array[${allowedMimeTypes.map(sqlString).join(", ")}]`
+            : "null"
         })`,
-        'on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit,',
-        '  allowed_mime_types = excluded.allowed_mime_types;',
+        "on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit,",
+        "  allowed_mime_types = excluded.allowed_mime_types;",
       ];
       const policies: [
         string,
@@ -573,43 +573,43 @@ export function defineBucket<
         const using = `${inBucket} and ${accessCheck}`;
         const write = `${using} and ${shape}`;
         policies.push(
-          ['select', 'select', 'authenticated', using, undefined],
-          ['insert', 'insert', 'authenticated', undefined, write],
-          ['update', 'update', 'authenticated', using, write],
-          ['delete', 'delete', 'authenticated', using, undefined],
+          ["select", "select", "authenticated", using, undefined],
+          ["insert", "insert", "authenticated", undefined, write],
+          ["update", "update", "authenticated", using, write],
+          ["delete", "delete", "authenticated", using, undefined],
         );
-      } else if (policy === 'public') {
+      } else if (policy === "public") {
         policies.push([
-          'select',
-          'select',
-          'anon, authenticated',
+          "select",
+          "select",
+          "anon, authenticated",
           inBucket,
           undefined,
         ]);
       } else if (permdock) {
-        const listing = `storage.allow_any_operation(array[${LIST_OPERATIONS.map(sqlString).join(', ')}])`;
+        const listing = `storage.allow_any_operation(array[${LIST_OPERATIONS.map(sqlString).join(", ")}])`;
         if (permdock.list) {
           policies.push(
             [
-              'select',
-              'select',
-              'authenticated',
+              "select",
+              "select",
+              "authenticated",
               `${inBucket} and not ${listing} and ${permdock.read}`,
               undefined,
             ],
             [
-              'list',
-              'select',
-              'authenticated',
+              "list",
+              "select",
+              "authenticated",
               `${inBucket} and ${listing} and ${permdock.list}`,
               undefined,
             ],
           );
         } else {
           policies.push([
-            'select',
-            'select',
-            'authenticated',
+            "select",
+            "select",
+            "authenticated",
             `${inBucket} and ${permdock.read}`,
             undefined,
           ]);
@@ -617,17 +617,17 @@ export function defineBucket<
         const write = `${inBucket} and ${permdock.write}`;
         policies.push(
           [
-            'insert',
-            'insert',
-            'authenticated',
+            "insert",
+            "insert",
+            "authenticated",
             undefined,
             `${write} and ${shape}`,
           ],
-          ['update', 'update', 'authenticated', write, `${write} and ${shape}`],
+          ["update", "update", "authenticated", write, `${write} and ${shape}`],
           [
-            'delete',
-            'delete',
-            'authenticated',
+            "delete",
+            "delete",
+            "authenticated",
             `${inBucket} and ${permdock.delete}`,
             undefined,
           ],
@@ -636,20 +636,20 @@ export function defineBucket<
       for (const [suffix, command, roles, using, withCheck] of policies) {
         const policyName = sqlIdent(`bs_${name}_${suffix}`);
         lines.push(
-          '',
+          "",
           `drop policy if exists ${policyName} on storage.objects;`,
           `create policy ${policyName} on storage.objects for ${command} to ${roles}${
-            using ? `\n  using (${using})` : ''
-          }${withCheck ? `\n  with check (${withCheck})` : ''};`,
+            using ? `\n  using (${using})` : ""
+          }${withCheck ? `\n  with check (${withCheck})` : ""};`,
         );
       }
       if (permdock && !permdock.list) {
         lines.push(
-          '',
+          "",
           `drop policy if exists ${sqlIdent(`bs_${name}_list`)} on storage.objects;`,
         );
       }
-      return `${lines.join('\n')}\n`;
+      return `${lines.join("\n")}\n`;
     },
     toml() {
       const lines = [
@@ -658,20 +658,20 @@ export function defineBucket<
       ];
       if (config.fileSizeLimit !== undefined) {
         lines.push(
-          `file_size_limit = "${typeof config.fileSizeLimit === 'number' ? sizeLabel(config.fileSizeLimit) : config.fileSizeLimit}"`,
+          `file_size_limit = "${typeof config.fileSizeLimit === "number" ? sizeLabel(config.fileSizeLimit) : config.fileSizeLimit}"`,
         );
       }
       if (allowedMimeTypes)
         lines.push(
-          `allowed_mime_types = [${allowedMimeTypes.map((type) => JSON.stringify(type)).join(', ')}]`,
+          `allowed_mime_types = [${allowedMimeTypes.map((type) => JSON.stringify(type)).join(", ")}]`,
         );
-      return `${lines.join('\n')}\n`;
+      return `${lines.join("\n")}\n`;
     },
     drift(actual) {
       if (!actual) {
         return [
           {
-            field: 'missing',
+            field: "missing",
             expected: config.id,
             actual: undefined,
             message: `Bucket "${config.id}" does not exist`,
@@ -681,7 +681,7 @@ export function defineBucket<
       const issues: BucketDrift[] = [];
       if (actual.public !== bucket.public) {
         issues.push({
-          field: 'public',
+          field: "public",
           expected: bucket.public,
           actual: actual.public,
           message: `Bucket "${config.id}" public is ${String(actual.public)}`,
@@ -689,17 +689,17 @@ export function defineBucket<
       }
       if ((actual.fileSizeLimit ?? undefined) !== fileSizeLimit) {
         issues.push({
-          field: 'fileSizeLimit',
+          field: "fileSizeLimit",
           expected: fileSizeLimit,
           actual: actual.fileSizeLimit,
           message: `Bucket "${config.id}" file size limit differs`,
         });
       }
       const sorted = (list: readonly string[] | null | undefined) =>
-        list ? [...list].sort().join(',') : '';
+        list ? [...list].sort().join(",") : "";
       if (sorted(actual.allowedMimeTypes) !== sorted(allowedMimeTypes)) {
         issues.push({
-          field: 'allowedMimeTypes',
+          field: "allowedMimeTypes",
           expected: allowedMimeTypes,
           actual: actual.allowedMimeTypes,
           message: `Bucket "${config.id}" allowed MIME types differ`,
@@ -717,7 +717,7 @@ function bodyInfo(
   contentType: string | undefined,
 ): { size?: number; type?: string } {
   const info: { size?: number; type?: string } = {};
-  if (typeof Blob !== 'undefined' && body instanceof Blob) {
+  if (typeof Blob !== "undefined" && body instanceof Blob) {
     info.size = body.size;
     if (body.type) info.type = body.type;
   } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
@@ -728,15 +728,15 @@ function bodyInfo(
 }
 
 function ttlSeconds(ttl: number | TtlPreset | undefined): number {
-  return typeof ttl === 'number' ? ttl : TTL[ttl ?? 'hour'];
+  return typeof ttl === "number" ? ttl : TTL[ttl ?? "hour"];
 }
 
 function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
     (value as { ok?: unknown }).ok === false &&
-    'error' in value
+    "error" in value
   );
 }
 
@@ -771,7 +771,7 @@ function connectBucket<P extends string, Id extends string>(
   const download = (value: boolean | string | undefined) =>
     value === undefined ? {} : { download: value };
 
-  const upload: BucketClient<P, Id>['upload'] = (target, body, options) =>
+  const upload: BucketClient<P, Id>["upload"] = (target, body, options) =>
     AsyncResult.from(async () => {
       options?.signal?.throwIfAborted();
       const path = resolve(target);
@@ -783,7 +783,7 @@ function connectBucket<P extends string, Id extends string>(
       ).map(() => ({ path }));
     });
 
-  const remove: BucketClient<P, Id>['remove'] = (targets) =>
+  const remove: BucketClient<P, Id>["remove"] = (targets) =>
     AsyncResult.from(async () => {
       const paths = targets.map(resolve);
       if (paths.length === 0) return ok([]);
@@ -800,7 +800,7 @@ function connectBucket<P extends string, Id extends string>(
       signal?.throwIfAborted();
       const { data, error } = await api().list(
         folder,
-        { limit, offset, sortBy: { column: 'name', order: 'asc' } },
+        { limit, offset, sortBy: { column: "name", order: "asc" } },
         signal ? { signal } : {},
       );
       if (error) throw new DbException(fromStorageError(error, bucket.id));
@@ -814,7 +814,7 @@ function connectBucket<P extends string, Id extends string>(
           };
           out.push({
             path,
-            ...(typeof metadata.size === 'number'
+            ...(typeof metadata.size === "number"
               ? { size: metadata.size }
               : {}),
             ...(metadata.mimetype ? { contentType: metadata.mimetype } : {}),
@@ -827,14 +827,14 @@ function connectBucket<P extends string, Id extends string>(
     }
   };
 
-  const list: BucketClient<P, Id>['list'] = (within, options) =>
+  const list: BucketClient<P, Id>["list"] = (within, options) =>
     AsyncResult.from(async () => {
       const out: StoredObject[] = [];
       await walk(bucket.prefix(within ?? {}), options?.signal, out);
       return ok(out);
     }).mapError((error) => ({ ...error, table: bucket.id }));
 
-  const signedUrl: BucketClient<P, Id>['signedUrl'] = (target, options) =>
+  const signedUrl: BucketClient<P, Id>["signedUrl"] = (target, options) =>
     AsyncResult.from(async () => {
       const path = resolve(target);
       return run(() =>
@@ -890,7 +890,7 @@ function connectBucket<P extends string, Id extends string>(
           if (failed)
             return err(
               dbError(
-                'not_found',
+                "not_found",
                 failed.error ?? `No URL for ${String(failed.path)}`,
                 { table: bucket.id },
               ),
@@ -990,7 +990,7 @@ function connectBucket<P extends string, Id extends string>(
           .filter((object) => bucket.match(object.path) !== null)
           .filter((object) => {
             const created = Date.parse(
-              object.createdAt ?? object.updatedAt ?? '',
+              object.createdAt ?? object.updatedAt ?? "",
             );
             return Number.isFinite(created) && created < cutoff;
           })

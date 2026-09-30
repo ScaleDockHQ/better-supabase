@@ -1,9 +1,9 @@
-import type { Logger } from '../core/logger.ts';
+import type { Logger } from "../core/logger.ts";
 
-import { type DbStats, StatsRecorder } from '../core/stats.ts';
+import { type DbStats, StatsRecorder } from "../core/stats.ts";
 
 /** Forwarded by the proxy so every scope of one render shares an id. */
-export const REQUEST_ID_HEADER = 'x-bs-request-id';
+export const REQUEST_ID_HEADER = "x-bs-request-id";
 
 export interface DbBudget {
   readonly calls?: number;
@@ -99,7 +99,7 @@ export class StatsCollector {
   }
 }
 
-const SHARED = Symbol.for('better-supabase.next.stats-collector');
+const SHARED = Symbol.for("better-supabase.next.stats-collector");
 
 /**
  * One collector per process. Next.js can load the proxy, pages and route
@@ -124,7 +124,7 @@ function describeBudget(budget: DbBudget): string {
     budget.waves === undefined ? undefined : `${budget.waves} waves`,
   ]
     .filter(Boolean)
-    .join(' and ');
+    .join(" and ");
 }
 
 /** `calls;waves;ms`, the value of the debug header. */

@@ -1,33 +1,33 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import type { ResolvedConfig } from '../config/index.ts';
+import type { ResolvedConfig } from "../config/index.ts";
 
-import { flagBool, flagString, type ParsedArgs, parseArgs } from './args.ts';
-import { DOCTOR_HELP, runDoctor } from './commands/doctor.ts';
-import { ENV_HELP, runEnv } from './commands/env.ts';
-import { runGen } from './commands/gen.ts';
-import { ADD_HELP, INIT_HELP, runAdd, runInit } from './commands/init.ts';
-import { KEYS_HELP, runKeys } from './commands/keys.ts';
-import { OPENAPI_HELP, runOpenApi } from './commands/openapi.ts';
-import { runSeed, SEED_HELP } from './commands/seed.ts';
-import { runSkills, SKILLS_HELP } from './commands/skills.ts';
+import { flagBool, flagString, type ParsedArgs, parseArgs } from "./args.ts";
+import { DOCTOR_HELP, runDoctor } from "./commands/doctor.ts";
+import { ENV_HELP, runEnv } from "./commands/env.ts";
+import { runGen } from "./commands/gen.ts";
+import { ADD_HELP, INIT_HELP, runAdd, runInit } from "./commands/init.ts";
+import { KEYS_HELP, runKeys } from "./commands/keys.ts";
+import { OPENAPI_HELP, runOpenApi } from "./commands/openapi.ts";
+import { runSeed, SEED_HELP } from "./commands/seed.ts";
+import { runSkills, SKILLS_HELP } from "./commands/skills.ts";
 import {
   loadSnapshot,
   serializeSnapshot,
   type SnapshotSource,
-} from './commands/snapshot.ts';
-import { runSql, SQL_HELP } from './commands/sql.ts';
-import { loadConfig } from './config.ts';
-import { restrictSchemas, serializeGenerator } from './introspect/typegen.ts';
+} from "./commands/snapshot.ts";
+import { runSql, SQL_HELP } from "./commands/sql.ts";
+import { loadConfig } from "./config.ts";
+import { restrictSchemas, serializeGenerator } from "./introspect/typegen.ts";
 import {
   type CliIo,
   type CommandResult,
   display,
   type RunResult,
   writeIfChanged,
-} from './io.ts';
-import { VERSION } from './version.ts';
+} from "./io.ts";
+import { VERSION } from "./version.ts";
 
 export const HELP: string = `better-supabase ${VERSION}
 
@@ -83,9 +83,9 @@ export function registerCommand(
 }
 
 function sourceFlags(args: ParsedArgs): SnapshotSource {
-  const snapshotPath = flagString(args.flags, 'snapshot');
-  const dbUrl = flagString(args.flags, 'db-url');
-  const projectRef = flagString(args.flags, 'project-ref');
+  const snapshotPath = flagString(args.flags, "snapshot");
+  const dbUrl = flagString(args.flags, "db-url");
+  const projectRef = flagString(args.flags, "project-ref");
   return {
     ...(snapshotPath ? { snapshotPath } : {}),
     ...(dbUrl ? { dbUrl } : {}),
@@ -93,18 +93,18 @@ function sourceFlags(args: ParsedArgs): SnapshotSource {
   };
 }
 
-registerCommand('gen', async ({ args, config, env, io, signal }) => {
+registerCommand("gen", async ({ args, config, env, io, signal }) => {
   const options = {
     config,
     env,
-    check: flagBool(args.flags, 'check'),
+    check: flagBool(args.flags, "check"),
     ...sourceFlags(args),
   } as const;
 
-  if (!flagBool(args.flags, 'watch')) return runGen(options);
+  if (!flagBool(args.flags, "watch")) return runGen(options);
 
-  const interval = Number(flagString(args.flags, 'interval') ?? 2000);
-  let last = '';
+  const interval = Number(flagString(args.flags, "interval") ?? 2000);
+  let last = "";
   const aborted = (): boolean => signal?.aborted ?? false;
   while (!aborted()) {
     try {
@@ -124,9 +124,9 @@ registerCommand('gen', async ({ args, config, env, io, signal }) => {
   return { code: 0 };
 });
 
-registerCommand('introspect', async ({ args, config, env }) => {
-  const format = flagString(args.flags, 'format') ?? 'snapshot';
-  if (format !== 'snapshot' && format !== 'generator-metadata') {
+registerCommand("introspect", async ({ args, config, env }) => {
+  const format = flagString(args.flags, "format") ?? "snapshot";
+  if (format !== "snapshot" && format !== "generator-metadata") {
     return {
       code: 2,
       error: '--format must be "snapshot" or "generator-metadata"',
@@ -135,16 +135,16 @@ registerCommand('introspect', async ({ args, config, env }) => {
   const { snapshotPath: _ignored, ...source } = sourceFlags(args);
   const snapshot = await loadSnapshot(config, env, { ...source, live: true });
   const out =
-    flagString(args.flags, 'out') ??
-    (format === 'snapshot'
-      ? 'supabase/snapshot.json'
-      : 'supabase/generator-metadata.json');
+    flagString(args.flags, "out") ??
+    (format === "snapshot"
+      ? "supabase/snapshot.json"
+      : "supabase/generator-metadata.json");
   const contents =
-    format === 'snapshot'
+    format === "snapshot"
       ? serializeSnapshot(snapshot)
       : `${serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
-  if (flagBool(args.flags, 'check')) {
-    const current = await readFile(resolve(config.root, out), 'utf8').catch(
+  if (flagBool(args.flags, "check")) {
+    const current = await readFile(resolve(config.root, out), "utf8").catch(
       () => undefined,
     );
     return current === contents
@@ -157,36 +157,36 @@ registerCommand('introspect', async ({ args, config, env }) => {
   const wrote = await writeIfChanged(resolve(config.root, out), contents);
   return {
     code: 0,
-    output: `${wrote ? 'Wrote' : 'Unchanged'} ${display(config.root, out)} (${snapshot.extras.tables.length} tables).`,
+    output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)} (${snapshot.extras.tables.length} tables).`,
   };
 });
 
-registerCommand('sql', ({ args, config }) => runSql(config, args), SQL_HELP);
-registerCommand('init', ({ args, config }) => runInit(config, args), INIT_HELP);
-registerCommand('add', ({ args, config }) => runAdd(config, args), ADD_HELP);
+registerCommand("sql", ({ args, config }) => runSql(config, args), SQL_HELP);
+registerCommand("init", ({ args, config }) => runInit(config, args), INIT_HELP);
+registerCommand("add", ({ args, config }) => runAdd(config, args), ADD_HELP);
 registerCommand(
-  'env',
+  "env",
   ({ args, config, env }) => runEnv(config, args, env),
   ENV_HELP,
 );
-registerCommand('keys', ({ args, config }) => runKeys(config, args), KEYS_HELP);
+registerCommand("keys", ({ args, config }) => runKeys(config, args), KEYS_HELP);
 registerCommand(
-  'seed',
+  "seed",
   ({ args, config, env }) => runSeed(config, args, env),
   SEED_HELP,
 );
 registerCommand(
-  'openapi',
+  "openapi",
   ({ args, config }) => runOpenApi(config, args),
   OPENAPI_HELP,
 );
 registerCommand(
-  'skills',
+  "skills",
   ({ args, config, env }) => runSkills(config, args, env),
   SKILLS_HELP,
 );
 registerCommand(
-  'doctor',
+  "doctor",
   ({ args, config, env }) => runDoctor(config, args, env),
   DOCTOR_HELP,
 );
@@ -194,7 +194,7 @@ registerCommand(
 function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
   return new Promise((done) => {
     const timer = setTimeout(done, ms);
-    signal?.addEventListener('abort', () => {
+    signal?.addEventListener("abort", () => {
       clearTimeout(timer);
       done();
     });
@@ -219,41 +219,41 @@ export async function run(
     stderr: (text) => stderr.push(text),
   };
   const out = (text: string): void => {
-    const line = text.endsWith('\n') ? text : `${text}\n`;
+    const line = text.endsWith("\n") ? text : `${text}\n`;
     if (options.io) stdout.push(line);
     io.stdout(line);
   };
   const fail = (text: string): void => {
-    const line = text.endsWith('\n') ? text : `${text}\n`;
+    const line = text.endsWith("\n") ? text : `${text}\n`;
     if (options.io) stderr.push(line);
     io.stderr(line);
   };
   const finish = (code: number): RunResult => ({
     code,
-    stdout: stdout.join(''),
-    stderr: stderr.join(''),
+    stdout: stdout.join(""),
+    stderr: stderr.join(""),
   });
 
   const args = parseArgs(argv);
-  if (flagBool(args.flags, 'version') || args.command === 'version') {
+  if (flagBool(args.flags, "version") || args.command === "version") {
     out(VERSION);
     return finish(0);
   }
   const commandHelp = args.command ? COMMAND_HELP.get(args.command) : undefined;
-  if (commandHelp && flagBool(args.flags, 'help')) {
+  if (commandHelp && flagBool(args.flags, "help")) {
     out(commandHelp);
     return finish(0);
   }
   if (
-    flagBool(args.flags, 'help') ||
-    args.command === 'help' ||
+    flagBool(args.flags, "help") ||
+    args.command === "help" ||
     args.command === undefined
   ) {
-    (args.command === undefined && !flagBool(args.flags, 'help') ? fail : out)(
+    (args.command === undefined && !flagBool(args.flags, "help") ? fail : out)(
       HELP,
     );
     return finish(
-      args.command === undefined && !flagBool(args.flags, 'help') ? 2 : 0,
+      args.command === undefined && !flagBool(args.flags, "help") ? 2 : 0,
     );
   }
 
@@ -265,12 +265,12 @@ export async function run(
 
   const cwd = resolve(
     options.cwd ?? process.cwd(),
-    flagString(args.flags, 'cwd') ?? '.',
+    flagString(args.flags, "cwd") ?? ".",
   );
   const env = io.env ?? process.env;
   let config: ResolvedConfig;
   try {
-    config = await loadConfig(cwd, flagString(args.flags, 'config'));
+    config = await loadConfig(cwd, flagString(args.flags, "config"));
   } catch (cause) {
     fail(cause instanceof Error ? cause.message : String(cause));
     return finish(2);
