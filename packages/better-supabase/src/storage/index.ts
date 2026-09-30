@@ -363,6 +363,8 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
   if (isDbError(raw)) return raw;
   if (raw instanceof DbException) return raw.error;
   if (typeof raw !== "object" || raw === null) return toDbError(raw);
+  // SAFETY: the check above narrows raw to an object; every StorageFailure
+  // field is optional.
   const failure = raw as StorageFailure;
   if (failure.name === "AbortError") return toDbError(raw);
   const message = failure.message ?? "Storage request failed";
@@ -489,6 +491,8 @@ export function defineBucket<
 
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
     if (typeof target !== "string")
+      // SAFETY: the template builds the path from typed values, so it matches
+      // the bucket's path.
       return template.build(target) as StoragePath<Id>;
     if (!template.match(target)) {
       throw new DbException(
@@ -498,6 +502,7 @@ export function defineBucket<
         ),
       );
     }
+    // SAFETY: template.match accepted the path above.
     return target as StoragePath<Id>;
   };
 
@@ -528,6 +533,7 @@ export function defineBucket<
     return undefined;
   };
 
+  // SAFETY: the template parser returns the parameter names written in P.
   const bucket: Bucket<P, Id> = {
     id: config.id,
     template: config.path,
@@ -542,6 +548,8 @@ export function defineBucket<
     policy,
     fileSizeLimit,
     allowedMimeTypes,
+    // SAFETY: the template builds the path from typed values, and match returns
+    // the parameters of P.
     path: (values) => template.build(values) as StoragePath<Id>,
     match: (path) => template.match(path) as TemplateValues<P> | null,
     prefix: (values = {}) => template.prefix(values, template.segments - 1),
@@ -732,6 +740,7 @@ function ttlSeconds(ttl: number | TtlPreset | undefined): number {
 }
 
 function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
+  // SAFETY: value is a non-null object here, and each property read is type-checked.
   return (
     typeof value === "object" &&
     value !== null &&
@@ -752,6 +761,7 @@ function connectBucket<P extends string, Id extends string>(
     AsyncResult.from(async () => {
       try {
         const { data, error } = await fn();
+        // SAFETY: the null check above excludes null data.
         return error || data === null
           ? err(fromStorageError(error, bucket.id))
           : ok(data as NonNullable<T>);
@@ -808,6 +818,8 @@ function connectBucket<P extends string, Id extends string>(
         const path = folder ? `${folder}/${item.name}` : item.name;
         if (item.id === null) await walk(path, signal, out);
         else {
+          // SAFETY: Storage returns object metadata as JSON with optional size
+          // and type fields.
           const metadata = (item.metadata ?? {}) as {
             size?: number;
             mimetype?: string;
@@ -895,6 +907,8 @@ function connectBucket<P extends string, Id extends string>(
                 { table: bucket.id },
               ),
             );
+          // SAFETY: the failure check above returned early, so every entry has
+          // a signed URL.
           return ok(data.map((entry) => entry.signedUrl as string));
         });
       }),

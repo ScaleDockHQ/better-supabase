@@ -232,6 +232,7 @@ export function createRepository(
 ): Record<string, unknown> {
   const { builder } = runner.runtime;
 
+  // SAFETY: the select option of every read method is a column list.
   const selection = (args: Args | undefined): Selection =>
     builder.selection(
       table,

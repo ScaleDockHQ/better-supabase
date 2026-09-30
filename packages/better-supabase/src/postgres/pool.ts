@@ -88,6 +88,7 @@ export function createPostgres(options: PostgresOptions = {}): Postgres {
     const client = await pool.connect();
     try {
       await begin(client, session);
+      // SAFETY: each caller passes the row type that its SQL selects.
       const scoped: SqlClient = {
         queryRaw: async <R>(text: string, params?: unknown[]) =>
           (await client.query(text, params)).rows as R[],

@@ -141,6 +141,8 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
     async unwrap(value: unknown): Promise<never> {
       const settled = await settle(() => value);
       if (!settled.ok) throw toORPCError(settled.error);
+      // SAFETY: unwrap returns the settled data, and callers type it through
+      // the procedure output.
       return settled.data as never;
     },
   });

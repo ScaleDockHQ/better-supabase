@@ -40,6 +40,7 @@ async function readJson(
   if (!existsSync(path)) return undefined;
   const text = await readFile(path, "utf8");
   try {
+    // SAFETY: callers only read optional fields and check their types.
     return JSON.parse(
       text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"),
     ) as Record<string, unknown>;
@@ -68,6 +69,7 @@ export async function detectProject(root: string): Promise<Project> {
     Object.assign(dependencies, pkg[field] ?? {});
   }
   const tsconfig = await readJson(join(root, "tsconfig.json"));
+  // SAFETY: compilerOptions is an object in a valid tsconfig, and callers check each option.
   const options = (tsconfig?.["compilerOptions"] ?? {}) as Record<
     string,
     unknown

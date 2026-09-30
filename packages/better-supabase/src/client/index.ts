@@ -84,6 +84,7 @@ function decodeClaims(token: string): Record<string, unknown> {
       (char) => char.charCodeAt(0),
     );
     const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    // SAFETY: parsed is a non-null object, and callers check each claim they read.
     return typeof parsed === "object" && parsed !== null
       ? (parsed as Record<string, unknown>)
       : {};

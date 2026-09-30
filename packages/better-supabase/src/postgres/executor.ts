@@ -37,6 +37,7 @@ interface PgErrorLike {
 }
 
 function isPgError(value: unknown): value is PgErrorLike {
+  // SAFETY: value is a non-null object here, and the code field is checked before use.
   return (
     typeof value === "object" &&
     value !== null &&

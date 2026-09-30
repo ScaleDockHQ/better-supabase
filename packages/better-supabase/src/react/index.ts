@@ -225,6 +225,8 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
     if (!matched) return undefined;
     const forward = (payload: unknown, message: TopicMessage) => {
       const current = latest.current;
+      // SAFETY: handlers are keyed by table and event, and the payload comes
+      // from that table's topic.
       const table = current.handlers as
         | Readonly<
             Record<
@@ -318,6 +320,7 @@ export function useLiveQuery(
 
   useEffect(() => {
     if (!key || !queryClient || auth.status === "loading") return undefined;
+    // SAFETY: key is JSON.stringify of the QuerySpec this hook received.
     const live = liveQuery(
       browser.sb,
       browser.supabase,
@@ -368,6 +371,8 @@ export function useLiveCount(
   const { browser } = useBrowserContext();
   const auth = useAuth();
   const seed = source && "spec" in source ? source : undefined;
+  // SAFETY: source is a seed with a spec or a plain spec, and the in check
+  // ruled out the seed.
   const spec = seed ? seed.spec : (source as QuerySpec | null | undefined);
   const initial = seed?.count ?? options.initial;
   const [state, setState] = useState<{
@@ -384,6 +389,7 @@ export function useLiveCount(
 
   useEffect(() => {
     if (!key || auth.status === "loading") return undefined;
+    // SAFETY: the browser db runs count specs, and key is JSON.stringify of a count spec.
     const live = liveCount(
       browser.sb,
       browser.supabase,

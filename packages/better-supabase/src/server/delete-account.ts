@@ -43,6 +43,8 @@ interface AuthFailure {
 /** Maps an `AuthApiError` from `auth.admin.deleteUser` to a `DbError`. */
 function fromAuthError(raw: unknown): DbError {
   if (isDbError(raw)) return raw;
+  // SAFETY: every AuthFailure field is optional and read with a fallback, so
+  // any object fits.
   const failure = (
     typeof raw === "object" && raw !== null ? raw : {}
   ) as AuthFailure;
@@ -99,6 +101,8 @@ export function deleteAccount<
       const paths = listed.data
         .map((object) => object.path)
         .filter((path) => {
+          // SAFETY: the bucket's path template returns its named parameters, or
+          // null when the path does not match.
           const values = bucket.match(path) as Record<string, unknown> | null;
           return values?.[param] === userId;
         });

@@ -77,6 +77,8 @@ export function resolveTenant<C = unknown>(
 ): string | undefined {
   if (options.resolve) return options.resolve(context);
   if (typeof context.tenant === "string") return context.tenant;
+  // SAFETY: TenantOptions types claim as ClaimPath<C> or a list of them, and
+  // both are strings at runtime.
   const claim = options.claim as string | readonly string[] | undefined;
   const paths =
     typeof claim === "string"

@@ -219,6 +219,7 @@ function isSkip(value: unknown): value is SkipToken {
 
 function withoutSignal(value: unknown): unknown {
   if (typeof value !== "object" || value === null) return value;
+  // SAFETY: value is a non-null object here, and only the signal key is removed.
   const { signal: _signal, ...rest } = value as Record<string, unknown>;
   return rest;
 }
@@ -263,6 +264,7 @@ function tableQueries(
   table: string,
 ): Record<string, unknown> {
   const key = ["bs", table] as const;
+  // SAFETY: spec is generic over the schema; entries are looked up by table name.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `spec` is generic over the schema; entries are looked up by table name.
   const tables = runtime.sb.spec as unknown as SpecTables;
   const specs = tables[table]!;
@@ -275,6 +277,7 @@ function tableQueries(
         ? specQuery(runtime, args, [...key, method, "$skip"])
         : specQuery(runtime, specs[method]!(withoutSignal(args)));
   const repo = (): AnyRepository => {
+    // SAFETY: the db is indexed by table name, and a missing repository is checked below.
     const found = runtime.db()[table] as AnyRepository | undefined;
     if (!found)
       throw new TypeError(`better-supabase: unknown table "${table}"`);
@@ -317,6 +320,7 @@ function tableQueries(
         ? specQuery(runtime, id, [...key, "findById", "$skip"])
         : specQuery(runtime, specs["findById"]!(id, withoutSignal(args))),
     infinite: (args: object) => {
+      // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as object;
       return {
         queryKey: [...key, "infinite", base],
@@ -343,6 +347,7 @@ function tableQueries(
       };
     },
     infinitePages: (args: { page?: number }) => {
+      // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as { page?: number };
       return {
         queryKey: [...key, "infinitePages", base],
@@ -406,6 +411,7 @@ export function createQueries<
   db: Db<M, F, E, unknown> | (() => Db<M, F, E, unknown>),
   options: CreateQueriesOptions = {},
 ): Queries<M, E, F> {
+  // SAFETY: the runtime erases schema generics and Queries<M, E, F> restores them.
   const runtime: Runtime = {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
     sb: sb as unknown as Runtime["sb"],
@@ -415,6 +421,8 @@ export function createQueries<
   };
   const stale =
     options.staleTime === undefined ? {} : { staleTime: options.staleTime };
+  // SAFETY: specQuery returns query options that prefetchQuery accepts; the
+  // generics differ only by the erased schema.
   const queries: Record<string, unknown> = {
     key: ["bs"],
     $spec: (spec: QuerySpec | SkipToken) => specQuery(runtime, spec),
@@ -468,6 +476,8 @@ export function createQueries<
       },
     });
   }
+  // SAFETY: queries has one entry per table and procedure, which is the shape
+  // of Queries<M, E, F>.
   return queries as Queries<M, E, F>;
 }
 

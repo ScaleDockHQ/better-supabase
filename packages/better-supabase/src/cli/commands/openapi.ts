@@ -36,6 +36,7 @@ export async function runOpenApi(
   const entry = flagString(args.flags, "entry") ?? config.openapi.entry;
   const out = flagString(args.flags, "out") ?? config.openapi.output;
   const exported = await importExport(resolve(config.root, entry), "openapi");
+  // SAFETY: an exported openapi function takes no arguments and returns the document.
   const document: unknown =
     typeof exported === "function"
       ? await (exported as () => unknown)()

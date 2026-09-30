@@ -127,6 +127,8 @@ function levelOf(setting: RuleSetting<unknown> | undefined): RuleLevel {
 }
 
 function optionOf<T>(setting: RuleSetting<T> | undefined, fallback: T): T {
+  // SAFETY: a rule setting is a level or a [level, options] tuple, and
+  // Array.isArray picked the tuple.
   return Array.isArray(setting)
     ? (setting as readonly [RuleLevel, T])[1]
     : fallback;
@@ -164,6 +166,7 @@ function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
 }
 
 function isBrowser(): boolean {
+  // SAFETY: window and document are only read to check whether they exist.
   return (
     typeof (globalThis as { window?: unknown }).window !== "undefined" &&
     typeof (globalThis as { document?: unknown }).document !== "undefined"
@@ -317,6 +320,8 @@ export function rules(
   const set = options.rules ?? recommended();
   const report = options.report ?? defaultReport;
   const all = checks(set);
+  // SAFETY: checks() returns one entry per rule name, and Object.keys widens
+  // the keys to string.
   const active = (Object.keys(all) as RuleName[]).flatMap((rule) => {
     const level = levelOf(set[rule]);
     return level === "off" ? [] : [{ rule, level, check: all[rule] }];

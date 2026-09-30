@@ -20,6 +20,8 @@ export async function validate<S extends StandardSchemaV1>(
       }),
     );
   }
+  // SAFETY: a result without issues carries the schema's output type, which the
+  // spec types as unknown here.
   return ok(outcome.value as StandardSchemaV1.InferOutput<S>);
 }
 

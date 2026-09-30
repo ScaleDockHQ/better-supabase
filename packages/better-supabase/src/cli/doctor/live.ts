@@ -183,6 +183,7 @@ async function explainTable(
       `explain (analyze, buffers, format json) select * from ${ident(table.schema)}.${ident(table.name)} limit ${EXPLAIN_LIMIT}`,
     );
     const raw = row?.["QUERY PLAN"];
+    // SAFETY: EXPLAIN (FORMAT JSON) returns an array of plans, as JSON or as text.
     const plan = (typeof raw === "string" ? JSON.parse(raw) : raw) as
       | ExplainOutput[]
       | undefined;

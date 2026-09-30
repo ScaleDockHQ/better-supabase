@@ -200,6 +200,8 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         : null,
       is_set_returning_function: fn.returnsSet,
       prorows: null,
+      // SAFETY: volatility is immutable, stable or volatile, so the upper-cased
+      // value is one of the typegen behaviors.
       behavior: fn.volatility.toUpperCase() as "IMMUTABLE",
       security_definer: fn.securityDefiner,
       config_params:

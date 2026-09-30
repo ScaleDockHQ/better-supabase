@@ -23,6 +23,7 @@ export async function connect(url: string): Promise<{
 }> {
   let pg: PgModule;
   try {
+    // SAFETY: pg is an optional peer loaded without its types.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- pg is an optional peer loaded without its types.
     const mod = (await import("pg")) as unknown as {
       default?: PgModule;

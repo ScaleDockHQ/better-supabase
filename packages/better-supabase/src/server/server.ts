@@ -151,6 +151,7 @@ export function extendServer<R extends object>(
   server: object,
   extra: Omit<R, ServerKeys>,
 ): R {
+  // SAFETY: the descriptors copy every property of server and extra, getters included.
   return Object.defineProperties(
     {},
     {
@@ -165,6 +166,7 @@ export function withExtra<T extends object, X extends object>(
   base: T,
   extra: X,
 ): T & X {
+  // SAFETY: the descriptors copy every property of base and extra, getters included.
   return Object.defineProperties(
     {},
     {
@@ -365,6 +367,8 @@ export function createServer<
     });
     // The claims schema's output is merged into every verified user's claims,
     // and the userMetadata schema's output is the profile.
+    // SAFETY: the resolver ran the claims and userMetadata schemas, so resolved
+    // has their output types.
     const resolution = resolved as AuthResolution<C, P>;
     if (sb.events.has("auth")) {
       const { auth } = resolution;

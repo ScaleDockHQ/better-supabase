@@ -50,6 +50,8 @@ export function defineRepository<
     TableRepositoryExtension<Table, Methods>
   >({
     name: `repository:${table}`,
+    // SAFETY: meta.key === table, so base is this table's repository, and build
+    // returns a method map.
     repository: ({ table: meta, base }) =>
       meta.key === table
         ? // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `base` is the repository for `table`, checked by `meta.key` above.

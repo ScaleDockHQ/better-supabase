@@ -77,6 +77,7 @@ function keyOf(table: TableMeta, row: Row): Row {
 async function rowsOf(outcome: Outcome): Promise<Row[]> {
   const result = await outcome;
   if (!result.ok) throw new Error(result.error.message);
+  // SAFETY: repository reads and writes return rows of the table, one or many.
   return (Array.isArray(result.data) ? result.data : [result.data]) as Row[];
 }
 
@@ -129,6 +130,8 @@ export async function expectTenantIsolation<
       "expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.",
     );
   }
+  // SAFETY: repositories are indexed by table name; the harness only uses the
+  // tables in options.tables.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the harness indexes repositories by table name for any schema.
   const admin = bare.connect(
     createClient(url, secretKey, {
@@ -138,6 +141,8 @@ export async function expectTenantIsolation<
 
   await options.seed?.();
   const tenants = options.tenants;
+  // SAFETY: repositories are indexed by table name; the harness only uses the
+  // tables in options.tables.
   const users = await Promise.all(
     tenants.map(
       async (tenant) =>
@@ -151,6 +156,8 @@ export async function expectTenantIsolation<
   const reads: Check[] = [];
   const deletes: Check[] = [];
 
+  // SAFETY: options.tables maps table keys of M to IsolationTable, and
+  // Object.entries widens it.
   try {
     for (const [key, spec] of Object.entries(options.tables) as [
       string,
@@ -203,6 +210,7 @@ export async function expectTenantIsolation<
           [
             `${key}: ${who} can't insert ${whose} rows`,
             async () => {
+              // SAFETY: spec.row returns an insert row for this table, passed on untyped.
               const row = spec.row(tenants[other], 1) as Row;
               const result = await user.create(row, { returning: false });
               if (result.ok) {
@@ -225,6 +233,7 @@ export async function expectTenantIsolation<
             `${key}: ${who} can't update ${whose} rows`,
             async () => {
               const before = await current();
+              // SAFETY: spec.update is an update patch for this table, passed on untyped.
               const patch = spec.update as Row;
               expect(
                 Object.entries(patch).some(

@@ -158,6 +158,7 @@ function decodePayload(token: string): Record<string, unknown> | undefined {
   try {
     const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
     const parsed: unknown = JSON.parse(json);
+    // SAFETY: parsed is a non-null object, and callers check each claim they read.
     return typeof parsed === "object" && parsed !== null
       ? (parsed as Record<string, unknown>)
       : undefined;

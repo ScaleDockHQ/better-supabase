@@ -31,6 +31,8 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
         return ok({ rows: [], count: 0 });
       },
     };
+    // SAFETY: the capture executor only records queries, and repositories are
+    // indexed by table name.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the capture executor only records queries; repositories are indexed by name.
     const db = set.definition
       .connect(capture)

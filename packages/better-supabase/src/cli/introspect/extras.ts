@@ -322,6 +322,7 @@ interface BucketRow {
 }
 
 async function rows<R>(db: Queryable, sql: string): Promise<R[]> {
+  // SAFETY: each caller passes the row type that its SQL selects.
   return (await db.query(sql)).rows as R[];
 }
 

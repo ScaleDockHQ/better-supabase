@@ -42,6 +42,7 @@ export function parseChangelog(markdown: string): ChangelogRelease[] {
     const kindMatch = kindHeading.exec(line);
     if (kindMatch?.groups?.["kind"] !== undefined) {
       flush();
+      // SAFETY: kindHeading only matches Major, Minor or Patch in the kind group.
       kind = kindMatch.groups["kind"] as ChangelogKind;
       continue;
     }

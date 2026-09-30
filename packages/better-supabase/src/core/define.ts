@@ -97,6 +97,7 @@ export interface RpcDefinition {
 }
 
 function isExecutor(value: unknown): value is Executor {
+  // SAFETY: value is a non-null object here, and each property read is type-checked.
   return (
     typeof value === "object" &&
     value !== null &&
@@ -140,6 +141,8 @@ export class BetterSupabase<
 
   /** The schema set by `claims()`; its output types `session.claims`. */
   get claimsSchema(): StandardSchemaV1<unknown, C> | undefined {
+    // SAFETY: claims() stores the schema whose output is C; the constructor
+    // option is untyped.
     return this.options.claims as StandardSchemaV1<unknown, C> | undefined;
   }
 
@@ -222,6 +225,8 @@ export class BetterSupabase<
    * as the repository: `sb.spec.customers.findMany({ select: ['id'] })`.
    */
   get spec(): Specs<M, E> {
+    // SAFETY: createSpecs builds one spec builder per table in meta, which is
+    // the table set of M.
     this.#specs ??= createSpecs(this.meta) as Specs<M, E>;
     return this.#specs;
   }
@@ -410,12 +415,14 @@ export class BetterSupabase<
         runSpec(db, spec, options?.signal),
       $many: (target: unknown, ...rest: unknown[]) => {
         if (isReadSet(target)) {
+          // SAFETY: the $many overloads take values and options after a read set.
           const [values, options] = rest as [
             Readonly<Record<string, unknown>> | undefined,
             { signal?: AbortSignal } | undefined,
           ];
           return readSet(target, values, options?.signal);
         }
+        // SAFETY: the $many overloads take only options after a spec or a list of specs.
         const [options] = rest as [{ signal?: AbortSignal } | undefined];
         if (!Array.isArray(target)) {
           return AsyncResult.err(
@@ -512,6 +519,7 @@ export class BetterSupabase<
           batch && specs.length > 1
             ? batchingExecutor({ ...base, batch }, specs.length)
             : undefined;
+        // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
         const target = (
           batching
             ? this.#db(client, batching.executor, context, active, recorder)
@@ -581,6 +589,7 @@ export class BetterSupabase<
     const throwAs = this.options.throwAs;
     if (throwAs) {
       for (const name of ["$rpc", "$run", "$many", "$search"]) {
+        // SAFETY: these $ methods are functions on every db this method builds.
         db[name] = mapThrows(db[name] as AnyMethod, throwAs);
       }
     }
@@ -594,6 +603,7 @@ export class BetterSupabase<
             if (throwAs) {
               for (const [name, method] of Object.entries(repository)) {
                 if (typeof method === "function" && name !== "extend") {
+                  // SAFETY: the typeof check above narrows method to a function.
                   repository[name] = mapThrows(method as AnyMethod, throwAs);
                 }
               }
@@ -618,6 +628,7 @@ export class BetterSupabase<
     specs: Readonly<Record<string, QuerySpec>>,
     data: unknown,
   ): Promise<Result<Record<string, unknown>>> {
+    // SAFETY: the read set function returns one rows and count object per spec key.
     const payload = (data ?? {}) as Record<
       string,
       { rows?: Record<string, unknown>[] | null; count?: number | null }
@@ -650,6 +661,7 @@ export class BetterSupabase<
           return ok({ rows, count: entry.count ?? null });
         },
       };
+      // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
       const decoder = this.#db(
         client,
         stub,
@@ -673,6 +685,7 @@ export class BetterSupabase<
   ): Record<string, unknown> {
     const repository = createRepository(runner, table);
     for (const plugin of plugins) {
+      // SAFETY: a repository is a map of methods; plugins receive it untyped.
       const methods = plugin.repository?.({
         table,
         base: repository as Readonly<
@@ -720,6 +733,7 @@ function runSpec(
       dbError("invalid_request", "db.$run() expects a QuerySpec from sb.spec"),
     );
   }
+  // SAFETY: isQuerySpec checked the spec, so db[spec.table] is a repository or undefined.
   const repository = db[spec.table] as
     | Record<string, (...args: unknown[]) => AsyncResult<unknown>>
     | undefined;
@@ -740,6 +754,7 @@ function runSpec(
   const args = [...spec.args];
   if (signal) {
     const index = spec.method === "findById" ? 1 : 0;
+    // SAFETY: the options argument of a repository method is an object or undefined.
     args[index] = { ...(args[index] as object | undefined), signal };
   }
   return method(...args);
@@ -751,6 +766,7 @@ function rpc(
   name: string,
   rest: unknown[],
 ): AsyncResult<unknown> {
+  // SAFETY: the $rpc overloads take args and then options.
   const [args, options] = rest as [
     Readonly<Record<string, unknown>> | undefined,
     (

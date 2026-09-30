@@ -152,6 +152,7 @@ export function locate(
 
 function parseFormat(value: string | undefined): DoctorFormat | undefined {
   if (value === undefined) return "text";
+  // SAFETY: includes only compares values; the check makes value a DoctorFormat.
   return (DOCTOR_FORMATS as readonly string[]).includes(value)
     ? (value as DoctorFormat)
     : undefined;
@@ -204,6 +205,7 @@ function openLive(
     session: !target,
     async query<R>(sql: string) {
       const result = await (await open()).queryable.query(sql);
+      // SAFETY: R is the row type the caller declares for its query.
       return result.rows as R[];
     },
   };
@@ -241,9 +243,11 @@ function explainClaims(
   }
   if (!claims) return { role: "anon" };
   try {
+    // SAFETY: JSON.parse returns any, and the object check below narrows it.
     const parsed = JSON.parse(claims) as unknown;
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
       return { error: "--claims takes a JSON object" };
+    // SAFETY: the check above narrows parsed to a plain object.
     return { role: "anon", ...(parsed as Record<string, unknown>) };
   } catch (cause) {
     return {

@@ -26,6 +26,8 @@ export type ExactSeed<M extends AnyModels, S> = {
     : never;
 };
 
+// SAFETY: the symbol is only read through this constant, so typing it as unique
+// symbol is sound.
 const SEED: unique symbol = Symbol.for("better-supabase.seed") as never;
 
 export interface Seed<S> {
@@ -63,6 +65,7 @@ function literal(value: unknown, column: ColumnMeta, where: string): string {
   const kind = typeof value;
   switch (kind) {
     case "string":
+      // SAFETY: kind is typeof value, so this case only runs for strings.
       return quote(value as string);
     case "boolean":
     case "bigint":
@@ -179,6 +182,8 @@ export function defineSeed<
         throw new TypeError(`seed: "${key}" is a view`);
     }
     return order(meta, keys).flatMap((key) => {
+      // SAFETY: the loop above rejected unknown tables, and each fixture maps
+      // row names to rows.
       const sql = statement(
         meta.tables[key]!,
         fixtures[key] as Readonly<Record<string, Record<string, unknown>>>,

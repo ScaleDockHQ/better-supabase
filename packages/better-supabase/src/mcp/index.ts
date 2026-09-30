@@ -225,6 +225,8 @@ export function defineTool<
       `Invalid tool name "${definition.name}": use 1-64 letters, digits, "_", "-" or "."`,
     );
   }
+  // SAFETY: a Standard Schema input carries ~standard, and every JSON Schema
+  // field on it is optional.
   const standard = definition.input?.["~standard"] as
     | Partial<StandardJSONSchemaV1.Props>
     | undefined;
@@ -292,6 +294,7 @@ function tableTools(
 ): { info: ToolInfo; operation: ResourceOperation }[] {
   const { table, keyParam } = resource;
   const row = defs[`${table}Row`] ?? { type: "object" };
+  // SAFETY: buildJsonSchema writes row schemas with a properties object of JSON Schemas.
   const key: Json | undefined = keyParam
     ? ((row["properties"] as Record<string, Json> | undefined)?.[keyParam] ?? {
         type: "string",
@@ -333,6 +336,7 @@ function tableTools(
   for (const operation of resource.operations) {
     switch (operation) {
       case "list": {
+        // SAFETY: list schemas are JSON Schema objects.
         const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
           pageSchema(resource.maxPageSize)) as Record<string, unknown>;
         add(
@@ -444,6 +448,7 @@ function isRpcRequest(value: unknown): value is JsonRpcRequest {
 }
 
 function textResult(value: unknown, isError = false): ToolResult {
+  // SAFETY: the check above narrows value to a non-array object, which is a JSON object.
   const structured =
     typeof value === "object" && value !== null && !Array.isArray(value)
       ? (value as Json)
@@ -477,6 +482,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
 ): BetterMcp<M, F, E> {
   const server = createServer(sb, options);
   const expose = options.exposeErrors ?? defaultExpose();
+  // SAFETY: buildJsonSchema always writes a $defs map of JSON Schemas.
   const defs = buildJsonSchema({
     meta: sb.meta,
     config: { json: options.json ?? {} },
@@ -520,6 +526,8 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
 
   for (const [table, raw] of Object.entries(options.resources ?? {})) {
     if (!raw) continue;
+    // SAFETY: options.resources is keyed by table names of M, and
+    // Object.entries widens the keys.
     const resource = defineResource(
       sb,
       table as TableKey<M>,
@@ -530,6 +538,8 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       register({
         ...ref,
         async call(args, ctx) {
+          // SAFETY: resource tools declare an object input schema, and the
+          // arguments default to an empty object.
           const input = (args ?? {}) as Record<string, unknown>;
           const refusal = await refused(ref, input, ctx);
           if (refusal) return refusal;
@@ -561,6 +571,8 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         }
         const refusal = await refused(ref, value, ctx);
         if (refusal) return refusal;
+        // SAFETY: value passed the tool's input schema above, so it has the
+        // tool's input type.
         const outcome = await settle(() => tool.run(value as never, ctx));
         return outcome.ok ? textResult(outcome.data) : failure(outcome.error);
       },

@@ -40,6 +40,7 @@ export interface AdvisorSource {
 type Fetch = typeof fetch;
 
 function isLint(value: unknown): value is Lint {
+  // SAFETY: every field is checked below before value counts as a Lint.
   const lint = value as Partial<Lint> | null;
   return (
     typeof lint === "object" &&
@@ -79,6 +80,7 @@ export function managementAdvisors(
           `Management API ${category} advisors failed (${response.status}): ${text.slice(0, 300)}`,
         );
       }
+      // SAFETY: JSON.parse returns any, and lints is checked below.
       const body = JSON.parse(text) as { lints?: unknown };
       if (!Array.isArray(body.lints)) {
         throw new Error(
@@ -130,6 +132,7 @@ interface QueryResultLike {
 
 /** `pg` returns one result per statement for a multi-statement query. */
 function lintRows(result: unknown): readonly unknown[] {
+  // SAFETY: pg returns one result object, or one per statement for a multi-statement query.
   const results = (
     Array.isArray(result) ? result : [result]
   ) as QueryResultLike[];

@@ -106,6 +106,7 @@ const SHARED = Symbol.for("better-supabase.next.stats-collector");
  * handlers as separate module instances, and they must see the same totals.
  */
 export function sharedCollector(options: CollectorOptions): StatsCollector {
+  // SAFETY: SHARED is a module symbol, so nothing else writes to that global slot.
   const scope = globalThis as { [SHARED]?: StatsCollector };
   scope[SHARED] ??= new StatsCollector(options);
   return scope[SHARED];

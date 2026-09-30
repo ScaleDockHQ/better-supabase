@@ -89,6 +89,8 @@ function toFunction(
     returns: typeName(fn.return_type_id) ?? fn.return_type,
     returnsRelation: relationName(fn.return_type_relation_id),
     returnsSet: fn.is_set_returning_function,
+    // SAFETY: typegen reports behavior as IMMUTABLE, STABLE or VOLATILE, so the
+    // lower-cased value is a volatility.
     volatility: fn.behavior.toLowerCase() as CatalogFunction["volatility"],
     securityDefiner: fn.security_definer,
     language: fn.language,

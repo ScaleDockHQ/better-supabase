@@ -627,6 +627,8 @@ export function createNext<
             return { ok: false, data: null, error: checked.error };
           parsed = checked.data;
         }
+        // SAFETY: parsed is the validated input, or the raw input when the
+        // action has no schema.
         const settled = await settle(() => fn(parsed as never, ctx));
         if (ctx.replica?.wrote) {
           (await cookies()).set(PRIMARY_COOKIE, String(Date.now() + pinMs), {
@@ -636,6 +638,7 @@ export function createNext<
             sameSite: "lax",
           });
         }
+        // SAFETY: Out is the Result of the action's return type, which both branches build.
         return (
           settled.ok
             ? { ok: true, data: settled.data, error: null }

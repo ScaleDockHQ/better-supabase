@@ -71,6 +71,7 @@ type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
+// SAFETY: T extends true, so true is its only value.
 const assert = <T extends true>(): T => true as T;
 
 declare const client: SupabaseClient;

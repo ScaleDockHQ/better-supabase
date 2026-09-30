@@ -136,6 +136,7 @@ export async function runSkills(
       error: `Unknown agent ${unknown.join(", ")}. Use ${Object.keys(AGENT_DIRS).join(", ")}.`,
     };
   }
+  // SAFETY: AGENT_DIRS is keyed by Agent, and Object.keys widens the keys to string.
   const detected = (Object.keys(AGENT_DIRS) as Agent[]).filter((agent) =>
     existsSync(join(base, AGENT_DIRS[agent].split("/")[0]!)),
   );

@@ -40,6 +40,8 @@ interface SupabaseConfigIo {
 async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
   const specifier = "@supabase/config/io";
   try {
+    // SAFETY: @supabase/config/io exports this interface; the catch falls back
+    // when it is missing.
     return (await import(specifier)) as SupabaseConfigIo;
   } catch {
     return undefined;
@@ -88,6 +90,8 @@ export function parseTomlSubset(text: string): TomlTable {
         if (typeof next !== "object" || Array.isArray(next)) {
           table[part] = {};
         }
+        // SAFETY: the check above replaced any non-table value at this key with
+        // an empty table.
         table = table[part] as Record<string, TomlValue>;
       }
       continue;
@@ -116,6 +120,7 @@ export async function readSupabaseToml(
         search: false,
       });
       if (loaded?.document) {
+        // SAFETY: @supabase/config parses config.toml into plain TOML values.
         return {
           path: CONFIG_TOML,
           text,
@@ -143,6 +148,7 @@ export function tomlGet(
   let value: TomlValue | undefined = document;
   for (const key of path) {
     if (typeof value !== "object" || Array.isArray(value)) return undefined;
+    // SAFETY: the check above narrows value to a TOML table.
     value = (value as TomlTable)[key];
   }
   return value;
@@ -183,8 +189,10 @@ function parsePgFunctionUri(
 export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
   const hooks = tomlGet(document, ["auth", "hook"]);
   if (typeof hooks !== "object" || Array.isArray(hooks)) return [];
+  // SAFETY: the check above narrows hooks to a TOML table.
   return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
     if (typeof table !== "object" || Array.isArray(table)) return [];
+    // SAFETY: the check above narrows table to a TOML table.
     const { enabled, uri } = table as TomlTable;
     if ((enabled !== true && enabled !== "true") || typeof uri !== "string")
       return [];

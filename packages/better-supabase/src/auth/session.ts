@@ -75,6 +75,7 @@ function combine(
 
 function isStoredSession(value: unknown): value is StoredSession {
   if (typeof value !== "object" || value === null) return false;
+  // SAFETY: value is a non-null object here, and every field is checked below.
   const session = value as Record<string, unknown>;
   return (
     typeof session["access_token"] === "string" &&

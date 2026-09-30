@@ -101,6 +101,7 @@ export async function expectDbBudget(
         `expectDbBudget: ${url} answered ${reply.status()}. Mount next.debugRoute() at that path.`,
       );
     }
+    // SAFETY: the stats endpoint always responds with a DbStats object.
     renders.push({
       url: response.url(),
       requestId: id,

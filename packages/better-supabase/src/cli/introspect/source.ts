@@ -65,6 +65,7 @@ export function managementSource(
           `Management API query failed (${response.status}) for project ${options.projectRef}: ${text.slice(0, 500)}`,
         );
       }
+      // SAFETY: widens the any from JSON.parse to unknown; the shape is checked below.
       const rows = JSON.parse(text) as unknown;
       if (!Array.isArray(rows)) {
         throw new Error(

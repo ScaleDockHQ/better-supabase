@@ -330,6 +330,7 @@ export function defineTopic<
 
   const topicOf = (values: TemplateValues<P>): string => parsed.build(values);
 
+  // SAFETY: the template parser returns the parameter names written in P.
   return {
     template,
     name,
@@ -371,6 +372,8 @@ export function defineTopic<
     triggerSql(sb, table, trigger) {
       const meta: TableMeta | undefined = sb.meta.tables[table];
       if (!meta) throw new TypeError(`defineTopic: unknown table "${table}"`);
+      // SAFETY: trigger values name table columns by topic parameter, and
+      // templates hold strings.
       const values = trigger.values as Readonly<Record<string, string>>;
       const parts = template
         .split(/(\{[^}]+\})/)
@@ -429,6 +432,8 @@ export function defineTopic<
           broadcast: { self: subscribeOptions.self ?? false },
         },
       });
+      // SAFETY: handlers maps event names to callbacks; the per-event payload
+      // types stop at this boundary.
       const table = handlers as Readonly<
         Record<
           string,
@@ -542,6 +547,7 @@ export function rowChange<
   message: TopicMessage,
 ): RowChange<Row<M, T>> | null {
   const meta: TableMeta | undefined = sb.meta.tables[table];
+  // SAFETY: the broadcast trigger sends this payload shape, and every field is checked below.
   const payload = message.payload as {
     table?: string;
     schema?: string;

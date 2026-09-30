@@ -547,6 +547,7 @@ const OWN_RULES: readonly Rule[] = [
           Array.isArray(declared)
         )
           return inDatabase;
+        // SAFETY: the check above narrows declared to a TOML table.
         const entry = declared as Readonly<Record<string, TomlValue>>;
         const size = entry["file_size_limit"];
         const mimes = entry["allowed_mime_types"];

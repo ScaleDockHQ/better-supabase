@@ -153,6 +153,7 @@ function storagePathsOf(config: ResolvedConfig) {
           `storagePaths["${key}"]: ${schema}.${table}.${column} is ${udt}, not a text column`,
         );
       }
+      // SAFETY: the check above found this key in storagePaths, whose values are strings.
       return bucketId(config.storagePaths[key] as string);
     },
     assertUsed(): void {
@@ -532,6 +533,8 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   for (const fn of functions) functionsMeta[fn.key] = fn.meta;
 
   const claimOverrides: Partial<Record<keyof ClaimsMeta, string>> = {};
+  // SAFETY: DEFAULT_CLAIMS has one entry per ClaimsMeta key, and Object.keys
+  // widens the keys to string.
   for (const key of Object.keys(DEFAULT_CLAIMS) as (keyof ClaimsMeta)[]) {
     if (config.claims[key] !== DEFAULT_CLAIMS[key]) {
       claimOverrides[key] = config.claims[key];

@@ -144,6 +144,7 @@ export function defineReadSet<
       `better-supabase: read set name "${name}" must be snake_case and at most 60 characters`,
     );
   }
+  // SAFETY: params defaults to no parameters, which every P accepts.
   const params = (options.params ?? {}) as P;
   const placeholders: Record<string, unknown> = {};
   for (const [key, type] of Object.entries(params)) {
@@ -159,6 +160,7 @@ export function defineReadSet<
     }
     placeholders[key] = type.endsWith("[]") ? [sentinel(key)] : sentinel(key);
   }
+  // SAFETY: the loop above filled a placeholder for every parameter in P.
   const specs = build(sb.spec, placeholders as ReadSetParams<P>);
   const entries = Object.entries(specs);
   if (entries.length === 0 || entries.length > MAX_ENTRIES) {
@@ -180,12 +182,14 @@ export function defineReadSet<
     params,
     roles: options.roles ?? ["authenticated"],
     specs,
+    // SAFETY: the read set stores the definition without its schema generics.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
     definition: sb as unknown as ReadSet["definition"],
   };
 }
 
 export function isReadSet(value: unknown): value is ReadSet {
+  // SAFETY: value is a non-null object here, and each property read is type-checked.
   return (
     typeof value === "object" &&
     value !== null &&

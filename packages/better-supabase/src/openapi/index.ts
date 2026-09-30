@@ -160,6 +160,7 @@ export function createOpenApi(
   sb: { readonly meta: SchemaMeta },
   options: OpenApiOptions,
 ): OpenApiDocument {
+  // SAFETY: buildJsonSchema always returns a $defs object of JSON schemas.
   const defs = buildJsonSchema({
     meta: sb.meta,
     config: { json: options.json ?? {} },
@@ -216,6 +217,7 @@ export function createOpenApi(
     const collection = `${base}${resource.path ?? `/${key}`}`;
     const keyColumn =
       table.primaryKey.length === 1 ? table.primaryKey[0]! : undefined;
+    // SAFETY: every Row definition from buildJsonSchema is an object schema with properties.
     const idSchema = keyColumn
       ? ((
           defs[`${key}Row`]?.["properties"] as Record<string, Json> | undefined

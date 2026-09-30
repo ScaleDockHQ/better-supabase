@@ -82,6 +82,7 @@ export interface BetterHono<
 function contextOf<M extends AnyModels, F extends AnyFunctions, E>(
   c: Context<BetterEnv<M, F, E>>,
 ): ServerContext<M, F, E> {
+  // SAFETY: the middleware stores the ServerContext for this app's generics under "bs".
   const ctx = c.get("bs") as ServerContext<M, F, E> | undefined;
   if (!ctx) {
     throw new TypeError(

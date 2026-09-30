@@ -256,6 +256,7 @@ if (process.env.BENCH_UPDATE === "1") {
   writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
   console.log(`baseline updated: ${summary}`);
 } else {
+  // SAFETY: this script writes the baseline file in the Baseline shape.
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
   const failures = (["instantiations", "types"] as const).filter(
     (metric) =>

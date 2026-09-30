@@ -191,6 +191,8 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
       const handlers = new Map<string, ResourceHandler>();
       for (const [table, resource] of Object.entries(map)) {
         if (!resource) continue;
+        // SAFETY: the resources option is keyed by table names of M, and a
+        // value that is not true is its options object.
         handlers.set(
           table,
           defineResource(

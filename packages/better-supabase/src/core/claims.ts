@@ -27,6 +27,7 @@ export function claimAt(
 ): string | undefined {
   let value: unknown = claims;
   for (const segment of path.split(".")) {
+    // SAFETY: the condition narrows value to a non-null object, and claims are JSON objects.
     value =
       typeof value === "object" && value !== null
         ? (value as Record<string, unknown>)[segment]

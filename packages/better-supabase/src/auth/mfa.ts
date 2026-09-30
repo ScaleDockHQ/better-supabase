@@ -26,6 +26,7 @@ export function amrOf(
   if (!Array.isArray(amr)) return [];
   return amr.flatMap((entry: unknown): AmrEntry[] => {
     if (typeof entry !== "object" || entry === null) return [];
+    // SAFETY: entry is a non-null object here, and each field is checked below.
     const { method, timestamp, provider } = entry as Record<string, unknown>;
     if (typeof method !== "string" || typeof timestamp !== "number") return [];
     return [
@@ -49,6 +50,7 @@ export function checkAal(
 ): DbError | undefined {
   if (required === "aal1" || auth.kind !== "user" || !("claims" in auth))
     return undefined;
+  // SAFETY: user claims are a JWT payload object, and aalOf checks the field it reads.
   if (aalOf(auth.claims as Record<string, unknown>) === "aal2")
     return undefined;
   return dbError("forbidden", "Verify a second factor to continue", {

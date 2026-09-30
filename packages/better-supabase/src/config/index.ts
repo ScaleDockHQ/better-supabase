@@ -71,8 +71,12 @@ export type JsonTypeConfig = (
 export function resolveJsonSchema(
   source: JsonSchemaSource,
 ): Readonly<Record<string, unknown>> {
+  // SAFETY: a Standard Schema carries ~standard; any other source is a JSON
+  // Schema object without it.
   const standard = (source as { "~standard"?: unknown })["~standard"];
   if (standard === undefined) return source;
+  // SAFETY: Standard JSON Schema puts jsonSchema.input on ~standard; its
+  // absence is handled below.
   const jsonSchema = (standard as { jsonSchema?: unknown }).jsonSchema as
     | { input?: (options: { target: string }) => Record<string, unknown> }
     | undefined;
@@ -447,6 +451,7 @@ function pick<T extends object>(
 
 function resolveExpose(entry: ExposeConfig): ResolvedExpose {
   if (Array.isArray(entry)) return { anon: [], authenticated: entry };
+  // SAFETY: the Array.isArray check above removed the privilege-list form.
   const roles = entry as Exclude<ExposeConfig, readonly Privilege[]>;
   return { anon: roles.anon ?? [], authenticated: roles.authenticated ?? [] };
 }

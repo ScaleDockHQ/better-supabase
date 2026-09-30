@@ -79,6 +79,8 @@ async function request(
       message: cause instanceof Error ? cause.message : "fetch failed",
     };
   }
+  // SAFETY: the Auth server responds with a JSON object, and every field is
+  // checked before use.
   const body = (await response.json().catch(() => null)) as Record<
     string,
     unknown

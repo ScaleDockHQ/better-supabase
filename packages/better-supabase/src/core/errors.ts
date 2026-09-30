@@ -107,11 +107,13 @@ export function dbError<K extends DbErrorKind>(
       if (value !== undefined) error[key] = value;
     }
   }
+  // SAFETY: the loop above copied the detail fields for K onto the error.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from the detail map for K above.
   return error as unknown as DbErrorOf<K>;
 }
 
 export function isDbError(value: unknown): value is DbError {
+  // SAFETY: value is a non-null object here, and each property read is type-checked.
   return (
     typeof value === "object" &&
     value !== null &&
@@ -140,6 +142,8 @@ function constraintGuard<K extends "conflict" | "check" | "foreign_key">(
   ): error is DbErrorOf<K> & { readonly constraint: C } => {
     const found = dbErrorOf(error);
     if (found?.kind !== kind) return false;
+    // SAFETY: found.kind === kind, and every kind that takes a constraint has
+    // the constraint field.
     return (
       constraint === undefined ||
       (found as { constraint?: string }).constraint === constraint

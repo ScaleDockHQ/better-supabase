@@ -132,6 +132,7 @@ function keySet(
     return undefined;
   }
   const keys: Record<string, string> = {};
+  // SAFETY: the filter above kept only entries with string values.
   for (const [key, value] of entries as [string, string][]) {
     if (checkKey(value, kind, [name], issues)) keys[key] = value;
   }
@@ -287,6 +288,7 @@ export function parseEnv(
 }
 
 function processEnv(): EnvSource {
+  // SAFETY: process is optional here; every property read is guarded.
   const runtime = globalThis as { process?: { env?: EnvSource } };
   return runtime.process?.env ?? {};
 }
@@ -313,6 +315,8 @@ export function envSchema(
         if (typeof value !== "object" || value === null) {
           return { issues: [{ message: "Expected an environment object" }] };
         }
+        // SAFETY: the check above narrows value to an object, and parseEnv
+        // checks each key.
         const result = parseEnv(value as EnvSource, options);
         if (result.ok) return { value: result.env };
         return {

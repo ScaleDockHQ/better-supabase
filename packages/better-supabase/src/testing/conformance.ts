@@ -82,6 +82,7 @@ function deepFreeze<T>(value: T): T {
   if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
     Object.freeze(value);
     for (const key of Reflect.ownKeys(value))
+      // SAFETY: value is a non-null object here, and Reflect.ownKeys lists its keys.
       deepFreeze((value as Record<PropertyKey, unknown>)[key]);
   }
   return value;
@@ -236,6 +237,7 @@ export function testExecutor(
       "returns failures as results instead of throwing",
       async () => {
         const op = await read();
+        // SAFETY: only the table name changes, so the copy is still an Operation.
         const missing = {
           ...op,
           table: { ...op.table, name: "__better_supabase_missing__" },
@@ -287,6 +289,7 @@ export function testExecutor(
       async () => {
         const rows = await read();
         const count = await captureOp(sb, (db) => db[table]!["count"]!());
+        // SAFETY: only the table name changes, so the copy is still an Operation.
         const missing = {
           ...rows,
           table: { ...rows.table, name: "__better_supabase_missing__" },
@@ -314,10 +317,13 @@ export function testExecutor(
     create && [
       "round-trips a write",
       async () => {
+        // SAFETY: the kit runs against any schema, so it indexes repositories
+        // by table name.
         // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
         const repository = (sb.connect(executor) as unknown as AnyDb)[table]!;
         const created = await repository["create"]!(create);
         expect(created.ok, `create failed: ${JSON.stringify(created.error)}`);
+        // SAFETY: the ok check above means create returned the inserted row.
         const row = created.data as Record<string, unknown>;
         for (const [key, value] of Object.entries(create)) {
           expect(
@@ -661,6 +667,8 @@ export function testPlugin(
     [
       "installs and builds repositories",
       () => {
+        // SAFETY: the kit runs against any schema, so it indexes repositories
+        // by table name.
         // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
         const db = sb
           .use(plugin)

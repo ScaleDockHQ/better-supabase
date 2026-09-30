@@ -165,6 +165,8 @@ export async function verifyWebhook<T = unknown>(
     );
 
   try {
+    // SAFETY: the caller names the payload type T; the signature check above
+    // proves the sender, not the shape.
     return ok({
       id,
       timestamp: new Date(seconds * 1000),
@@ -336,6 +338,8 @@ export function isDatabaseWebhook(
   value: unknown,
 ): value is DatabaseWebhookPayload {
   if (typeof value !== "object" || value === null) return false;
+  // SAFETY: the check above narrows value to a non-null object, and each field
+  // is checked below.
   const payload = value as Record<string, unknown>;
   return (
     (payload["type"] === "INSERT" ||

@@ -373,6 +373,7 @@ export function resolveIntegrations(
 }
 
 export function isIntegration(name: string): name is Integration {
+  // SAFETY: includes only compares values, so any name is safe to look up.
   return (INTEGRATIONS as readonly string[]).includes(name);
 }
 

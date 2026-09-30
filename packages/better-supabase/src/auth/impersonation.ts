@@ -24,6 +24,7 @@ export function impersonatorOf(
 ): Impersonator | undefined {
   const act = claims["act"];
   if (typeof act !== "object" || act === null) return undefined;
+  // SAFETY: the check above narrows act to a non-null object; each field is checked below.
   const { sub, reason } = act as Record<string, unknown>;
   if (typeof sub !== "string" || sub === "") return undefined;
   return typeof reason === "string" ? { id: sub, reason } : { id: sub };

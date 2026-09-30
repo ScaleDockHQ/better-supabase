@@ -96,6 +96,7 @@ export function toProblem(
   if ("issues" in error) problem["issues"] = error.issues;
   if ("required" in error) problem["required"] = error.required;
   if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
+  // SAFETY: the fields were copied from a DbError, whose shape matches ProblemDetails.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
   return problem as unknown as ProblemDetails;
 }
@@ -126,6 +127,7 @@ export function problemResponse(
 
 export function isProblem(value: unknown): value is ProblemDetails {
   if (typeof value !== "object" || value === null) return false;
+  // SAFETY: value is a non-null object here, and every field is checked below.
   const problem = value as Record<string, unknown>;
   return (
     typeof problem["type"] === "string" &&
@@ -155,6 +157,8 @@ export function fromProblem(problem: ProblemDetails): DbError {
   }
   extra["issues"] = problem.issues ?? [];
   if (kind !== "validation") delete extra["issues"];
+  // SAFETY: extra holds the extension fields of the problem, which are optional
+  // on every DbError kind.
   return dbError(
     kind,
     problem.detail ?? problem.title,

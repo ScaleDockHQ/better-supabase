@@ -67,6 +67,7 @@ export async function runKeys(
       error: `${display(config.root, out)} exists. Use --rotate to add a key or --force to replace it.`,
     };
   }
+  // SAFETY: the keys file is a JSON list that this command writes.
   const previous: unknown[] =
     exists && rotate
       ? (JSON.parse(await readFile(path, "utf8")) as unknown[])

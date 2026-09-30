@@ -35,6 +35,8 @@ async function check(
   const result = await validate(schema, toApp(table, row), label);
   if (result.ok) {
     const output = result.data;
+    // SAFETY: the condition narrows output to a non-null object, and schemas
+    // for rows output records.
     return typeof output === "object" && output !== null
       ? toDb(table, output as Record<string, unknown>)
       : { ...row };

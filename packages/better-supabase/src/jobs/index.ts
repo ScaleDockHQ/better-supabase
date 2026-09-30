@@ -309,6 +309,7 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
           : String(error);
       throw new Error(`pgmq_public.${fn}: ${message}`, { cause: error });
     }
+    // SAFETY: T is the return type the caller declares for this pgmq_public function.
     return data as T;
   };
   const archive = (job: Job): Promise<boolean> =>
@@ -382,6 +383,8 @@ function errorText(error: unknown): string {
 const QUEUE_NAME = /^[a-z_][a-z0-9_]{0,46}$/;
 
 function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
+  // SAFETY: reading queryRaw from either client is safe; only a SqlClient has
+  // it as a function.
   return typeof (source as Partial<SqlClient>).queryRaw === "function";
 }
 
@@ -479,6 +482,7 @@ export function createJobs<const Q extends QueueSchemas>(
         outcome.ok === false &&
         "error" in outcome
       ) {
+        // SAFETY: the in check above proves outcome has an error field.
         throw (outcome as { error: unknown }).error;
       }
       await complete(job);
@@ -486,6 +490,7 @@ export function createJobs<const Q extends QueueSchemas>(
     } catch (cause) {
       controller.abort();
       await fail(job, cause);
+      // SAFETY: repositories only reject with DbError objects, which carry a kind field.
       workOptions.onError?.(
         typeof cause === "object" && cause !== null && "kind" in cause
           ? (cause as DbError)
@@ -716,6 +721,8 @@ export function createIdempotency(
       const { state } = started.data;
       switch (state) {
         case "replay": {
+          // SAFETY: the replay state is only written with the stored response
+          // of the first request.
           const stored = started.data.body as StoredResponse;
           return new Response(stored.body, {
             status: started.data.status ?? 200,
@@ -837,6 +844,7 @@ interface InboxRow {
 
 function defaultType(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) return null;
+  // SAFETY: payload is a non-null object here, and type is checked below.
   const type = (payload as { type?: unknown }).type;
   return typeof type === "string" ? type : null;
 }
@@ -910,6 +918,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
         );
         if (rows.length === 0) return { succeeded, failed };
         for (const row of rows) {
+          // SAFETY: the handler's payload type comes from its event type, and
+          // the inbox stores the payload as JSON.
           const message = {
             id: Number(row.id),
             source: row.source,
@@ -928,6 +938,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
               "ok" in outcome &&
               outcome.ok === false
             ) {
+              // SAFETY: the check above proves outcome is a failed Result,
+              // which has an error field.
               throw new Error(
                 errorText(
                   (outcome as { error?: unknown }).error ??
@@ -962,10 +974,13 @@ export const ENTITLEMENTS_UPDATED =
 
 function stripeCustomerOf(payload: unknown): string | undefined {
   if (typeof payload !== "object" || payload === null) return undefined;
+  // SAFETY: payload is a non-null object, and every nested field is optional and checked.
   const object = (payload as { data?: { object?: { customer?: unknown } } })
     .data?.object;
   const customer = object?.customer;
   if (typeof customer === "string") return customer;
+  // SAFETY: a Stripe customer is an id string or an object with an id; the
+  // string case returned above.
   const id = (customer as { id?: unknown } | undefined)?.id;
   return typeof id === "string" ? id : undefined;
 }

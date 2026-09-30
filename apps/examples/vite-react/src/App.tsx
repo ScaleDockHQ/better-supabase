@@ -9,6 +9,8 @@ function organizationOf(
 ): string | undefined {
   const metadata = claims["app_metadata"];
   if (typeof metadata !== "object" || metadata === null) return undefined;
+  // SAFETY: the check above narrows metadata to a non-null object; the property
+  // is type-checked below.
   const orgId = (metadata as Record<string, unknown>)["tenant_id"];
   return typeof orgId === "string" ? orgId : undefined;
 }

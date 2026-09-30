@@ -154,6 +154,7 @@ function asObject(value: unknown): Result<unknown> {
 }
 
 async function settled(value: unknown): Promise<Result<unknown>> {
+  // SAFETY: repository methods resolve to a Result, and every caller passes one.
   return (await value) as Result<unknown>;
 }
 
@@ -205,6 +206,7 @@ export function defineResource<
     operation: ResourceOperation,
     input: ResourceInput = {},
   ): Promise<Result<unknown>> => {
+    // SAFETY: the db is indexed by table name, and a missing repository is checked below.
     const repository = (db as Record<string, AnyRepository>)[table];
     if (!repository) throw new TypeError(`The db has no "${table}" repository`);
     if (!has(operation)) {
@@ -220,6 +222,8 @@ export function defineResource<
     switch (operation) {
       case "list": {
         if (list) {
+          // SAFETY: the resource erases table generics; the list config and its
+          // repository come from the same table.
           const query = list.parse((input.query ?? {}) as never);
           if (!query.ok) {
             return err(
@@ -228,12 +232,16 @@ export function defineResource<
               }),
             );
           }
+          // SAFETY: the resource erases table generics; the list config and its
+          // repository come from the same table.
           return settled(
             list.run(db as never, query.value as never, extra as never),
           );
         }
         const page = pageArgs(input.query, maxPageSize);
         if (!page.ok) return page;
+        // SAFETY: the resource erases table generics; page holds validated
+        // paginate options for this table.
         return settled(
           repository.paginate({
             ...extra,
@@ -245,6 +253,8 @@ export function defineResource<
       case "get": {
         const id = key();
         if (!id.ok) return id;
+        // SAFETY: the resource erases table generics; key() parsed the id for
+        // this table's primary key.
         return settled(repository.findById(id.data as never, extra as never));
       }
       case "create": {
@@ -254,6 +264,8 @@ export function defineResource<
           ? await validate(options.input.create, body.data, "data")
           : body;
         if (!data.ok) return data;
+        // SAFETY: the resource erases table generics; the body was validated
+        // against the table's insert schema.
         return settled(repository.create(data.data as never, extra as never));
       }
       case "update": {
@@ -265,6 +277,8 @@ export function defineResource<
           ? await validate(options.input.update, body.data, "data")
           : body;
         if (!data.ok) return data;
+        // SAFETY: the resource erases table generics; the id and body were
+        // parsed for this table.
         return settled(
           repository.update(
             id.data as never,
@@ -276,6 +290,8 @@ export function defineResource<
       case "delete": {
         const id = key();
         if (!id.ok) return id;
+        // SAFETY: the resource erases table generics; key() parsed the id for
+        // this table's primary key.
         return settled(repository.delete(id.data as never));
       }
       default: {

@@ -129,6 +129,8 @@ export function toHttp(
   events: CloudEvent | readonly CloudEvent[],
   mode: HttpMode = "structured",
 ): { headers: Record<string, string>; body: string }[] {
+  // SAFETY: events is one CloudEvent or a list of them, and Array.isArray ruled
+  // out the list.
   const list: readonly CloudEvent[] = Array.isArray(events)
     ? events
     : [events as CloudEvent];
@@ -172,6 +174,7 @@ export function toHttp(
 
 export function isCloudEvent(value: unknown): value is CloudEvent {
   if (typeof value !== "object" || value === null) return false;
+  // SAFETY: value is a non-null object here, and every field is checked below.
   const event = value as Record<string, unknown>;
   return (
     event["specversion"] === "1.0" &&
@@ -202,6 +205,7 @@ export async function fromHttp(request: Request): Promise<CloudEvent[]> {
   }
   if (contentType) event["datacontenttype"] = contentType;
   if (text)
+    // SAFETY: JSON.parse returns any; this keeps the event data unknown.
     event["data"] = /json/.test(contentType)
       ? (JSON.parse(text) as unknown)
       : text;

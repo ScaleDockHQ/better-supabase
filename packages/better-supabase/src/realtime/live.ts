@@ -153,6 +153,8 @@ export function liveQuery(
   spec: QuerySpec | readonly string[],
   options: LiveQueryOptions,
 ): LiveSubscription {
+  // SAFETY: spec is a list of table names or a QuerySpec, and Array.isArray
+  // picked the list.
   const touched = Array.isArray(spec)
     ? (spec as readonly string[])
     : sb.tablesOf(spec as QuerySpec);
@@ -247,8 +249,10 @@ export function liveCount(
     const call = ++latest;
     void Promise.resolve(db.$run(spec)).then((result) => {
       if (closed || call !== latest) return;
-      if (result.ok) options.onCount(result.data as number);
-      else options.onError?.(result.error);
+      if (result.ok) {
+        // SAFETY: the count query spec always resolves to a number.
+        options.onCount(result.data as number);
+      } else options.onError?.(result.error);
     });
   };
   const live = liveQuery(sb, client, spec, {

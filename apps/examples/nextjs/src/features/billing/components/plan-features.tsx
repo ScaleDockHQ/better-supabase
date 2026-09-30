@@ -20,6 +20,8 @@ export async function PlanFeatures() {
       ? (session.claims.tenant_id ?? session.claims.app_metadata?.tenant_id)
       : undefined;
   if (!orgId) return null;
+  // SAFETY: FEATURES is keyed by Entitlement, and Object.entries widens the
+  // keys to string.
   return (
     <ul aria-label="Plan features">
       {Object.entries(FEATURES).map(([key, label]) => (

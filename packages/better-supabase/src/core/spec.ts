@@ -138,7 +138,9 @@ function trimUndefined(args: readonly unknown[]): unknown[] {
 
 export function isQuerySpec(value: unknown): value is QuerySpec {
   if (typeof value !== "object" || value === null) return false;
+  // SAFETY: value is a non-null object here, and every field is checked below.
   const spec = value as Partial<QuerySpec>;
+  // SAFETY: includes only compares values, so any method string is safe to look up.
   return (
     spec.v === 1 &&
     typeof spec.table === "string" &&
@@ -152,6 +154,7 @@ function specOptions(
   spec: QuerySpec,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = spec.method === "findById" ? spec.args[1] : spec.args[0];
+  // SAFETY: value is a non-null object, the shape of a read method's options argument.
   return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
     : undefined;
@@ -188,6 +191,8 @@ function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   return touchedTables({
     kind: "select",
     table,
+    // SAFETY: isQuerySpec checked the method, and the select option of every
+    // read method is a column list.
     selection: counts
       ? { columns: [], includes: [] }
       : builder.selection(

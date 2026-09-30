@@ -33,6 +33,7 @@ async function readStatus(
 ): Promise<Status> {
   const from = flagString(args.flags, "from");
   if (from)
+    // SAFETY: the file is the JSON output of supabase status.
     return JSON.parse(
       await readFile(resolve(config.root, from), "utf8"),
     ) as Status;
@@ -44,6 +45,7 @@ async function readStatus(
   }
   const start = result.stdout.indexOf("{");
   if (start === -1) throw new Error("supabase status printed no JSON.");
+  // SAFETY: supabase status -o json prints a Status object.
   return JSON.parse(result.stdout.slice(start)) as Status;
 }
 

@@ -80,6 +80,8 @@ interface LooseClient extends ScopedClient {
 }
 
 function scope(client: PostgrestClientLike, schema: string): ScopedClient {
+  // SAFETY: PostgrestClientLike is structural; every supported client has
+  // from() and may have schema() and rpc().
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PostgrestClientLike is structural and `schema()` is optional at runtime.
   const loose = client as unknown as LooseClient;
   return schema !== "public" && loose.schema ? loose.schema(schema) : loose;
@@ -90,6 +92,8 @@ function fromTable(
   schema: string,
   table: string,
 ): BuilderLike {
+  // SAFETY: from() on a supabase-js or postgrest-js client returns a query
+  // builder with these methods.
   return scope(client, schema).from(table) as BuilderLike;
 }
 
@@ -105,6 +109,8 @@ function fromFunction(
       `better-supabase: the client has no rpc(), needed to read from ${source.name}`,
     );
   }
+  // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
+  // builder with these methods.
   return scoped.rpc(source.name, source.args, options) as BuilderLike;
 }
 
@@ -202,7 +208,11 @@ function build(
 
 function rowsOf(data: unknown): readonly Record<string, unknown>[] {
   if (data === null || data === undefined) return [];
-  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (Array.isArray(data)) {
+    // SAFETY: PostgREST returns a list of row objects for a multi-row query.
+    return data as Record<string, unknown>[];
+  }
+  // SAFETY: PostgREST returns one row object for a single-row query.
   return [data as Record<string, unknown>];
 }
 
@@ -242,6 +252,8 @@ export function postgrestExecutor(client: PostgrestClientLike): Executor {
         return err(toDbError(new Error("The client does not support rpc()")));
       }
       if (context.signal?.aborted) return err(aborted());
+      // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
+      // builder with these methods.
       let query = (
         context.get
           ? scoped.rpc(name, queryArgs(args), { get: true })

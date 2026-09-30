@@ -143,6 +143,8 @@ export function validateGeneratorMetadata(data: unknown): GeneratorMetadata {
 
 /** JSON Schema of the metadata contract, embedded in `snapshot-v2.json`. */
 export function generatorJsonSchema(): Record<string, unknown> {
+  // SAFETY: the generator metadata schema is a JSON Schema object with an
+  // optional $schema dialect.
   const { $schema: _dialect, ...schema } = generatorMetadataJsonSchema as {
     $schema?: string;
   } & Record<string, unknown>;

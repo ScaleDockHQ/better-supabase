@@ -267,7 +267,9 @@ export function defineListQuery<
   const pageSize = config.pageSize ?? 50;
   const maxPageSize = config.maxPageSize ?? 200;
   const maxSearch = config.maxSearchLength ?? 200;
+  // SAFETY: config.sorts is keyed by S, and Object.keys widens the keys to string.
   const sortKeys = Object.keys(config.sorts) as S[];
+  // SAFETY: config.facets is keyed by F, and Object.entries widens the keys to string.
   const facetEntries = Object.entries(config.facets ?? {}) as [F, string][];
 
   for (const [key, column] of facetEntries) {
@@ -321,11 +323,13 @@ export function defineListQuery<
       else if (raw.q.trim()) q = raw.q.trim();
     }
     let sort = config.defaultSort;
+    // SAFETY: sortKeys holds S values, which are strings, so includes can take any string.
     if (raw.sort !== undefined && raw.sort !== "") {
       if (
         typeof raw.sort === "string" &&
         (sortKeys as string[]).includes(raw.sort)
       )
+        // SAFETY: the includes check above makes raw.sort one of the sort keys.
         sort = raw.sort as S;
       else
         issues.push({
@@ -372,6 +376,7 @@ export function defineListQuery<
           });
         }
       }
+      // SAFETY: facets are built from config.facets, which is keyed by F.
       facetValues[facet.key as F] = [...new Set(values)];
     }
     if (issues.length > 0) return { ok: false, issues };
@@ -412,6 +417,8 @@ export function defineListQuery<
       });
     }
     const typed = input;
+    // SAFETY: the list input types facets as a record of facet values; each
+    // value is checked below.
     const rawFacets = (typed.facets ?? {}) as Partial<Record<string, unknown>>;
     for (const [key, value] of Object.entries(rawFacets)) {
       if (
@@ -426,6 +433,7 @@ export function defineListQuery<
         };
       }
     }
+    // SAFETY: the loop above rejected every facet value that is not a list of strings.
     return normalize({
       q: typed.q,
       sort: typed.sort,
@@ -440,12 +448,14 @@ export function defineListQuery<
   function searchWhere(query: ListQuery<S, F>): Where | undefined {
     if (!query.q || !config.search) return undefined;
     if (Array.isArray(config.search)) {
+      // SAFETY: the Array.isArray check narrows the search config to its column-list form.
       const columns = config.search as readonly string[];
       if (columns.length === 0) return undefined;
       return {
         OR: columns.map((column) => ({ [column]: { contains: query.q } })),
       };
     }
+    // SAFETY: a search config that is not a column list is the full-text form.
     const fts = config.search as { fts: string; config?: string };
     return {
       [fts.fts]: {
@@ -473,6 +483,7 @@ export function defineListQuery<
   }
 
   function where(query: ListQuery<S, F>): Where | undefined {
+    // SAFETY: facets are built from config.facets, which is keyed by F.
     return and([
       searchWhere(query),
       ...facets.map((facet) => facetWhere(facet, query.facets[facet.key as F])),
@@ -481,6 +492,8 @@ export function defineListQuery<
 
   function args(query: ListQuery<S, F>): OffsetPageArgs<M, T> {
     const filter = where(query);
+    // SAFETY: orderBy comes from config.sorts for table T, and the filter is
+    // built from its columns.
     return {
       ...(filter ? { where: filter } : {}),
       orderBy: config.sorts[query.sort],
@@ -515,6 +528,7 @@ export function defineListQuery<
       const counts: Record<string, number> = {};
       for (const value of facet.values ?? []) counts[value] = 0;
       for (const group of groups) {
+        // SAFETY: facets are built from config.facets, which is keyed by F.
         const others = facets.every(
           (other) =>
             other === facet ||
@@ -527,6 +541,7 @@ export function defineListQuery<
       }
       out[facet.key] = counts;
     }
+    // SAFETY: the loop above wrote counts for every facet key in F.
     return out as FacetCounts<F>;
   }
 
@@ -541,11 +556,14 @@ export function defineListQuery<
     parse: (value) => (/^\d+$/.test(value) ? Number(value) : null),
     serialize: String,
   };
+  // SAFETY: the object has q, sort, page and size parsers plus one list parser
+  // per facet key in F.
   const parsers = {
     q: {
       parse: (value: string) => value.trim() || null,
       serialize: (value: string) => value,
     },
+    // SAFETY: sortKeys holds S values; the includes check makes value one of them.
     sort: {
       parse: (value: string) =>
         (sortKeys as string[]).includes(value) ? (value as S) : null,
@@ -566,6 +584,7 @@ export function defineListQuery<
     },
     uniqueItems: true,
   });
+  // SAFETY: the Array.isArray check narrows the search config to its column-list form.
   const searchDescription = config.search
     ? Array.isArray(config.search)
       ? `Case-insensitive search in ${(config.search as readonly string[]).join(", ")}.`
@@ -666,6 +685,8 @@ export function defineListQuery<
         version: 1,
         vendor: "better-supabase",
         validate(value) {
+          // SAFETY: parse accepts any input and reports anything that is not a
+          // list query as an issue.
           const result = parse(
             value as ListQueryInput<S, F> | ListSearchParams | undefined,
           );
@@ -685,6 +706,7 @@ export function defineListQuery<
       if (query.size && query.size !== pageSize)
         params.set("size", String(query.size));
       for (const facet of facets) {
+        // SAFETY: facets are built from config.facets, which is keyed by F.
         const values = query.facets?.[facet.key as F];
         if (values && values.length > 0)
           params.set(facet.key, values.join(","));
@@ -692,6 +714,9 @@ export function defineListQuery<
       return params;
     },
     parsers,
+    // SAFETY: nuqs' createParser returns a parser per key; the caller's nuqs
+    // types apply to the result.
+    // SAFETY: each spec parses and serializes its own value type, which nuqs receives untyped.
     nuqs: (createParser) =>
       Object.fromEntries(
         Object.entries(parsers).map(([key, spec]) => [
@@ -701,7 +726,10 @@ export function defineListQuery<
       ) as never,
     args,
     run(db, query, extra) {
+      // SAFETY: args() returns an object of paginate options.
       const base = args(query) as Record<string, unknown>;
+      // SAFETY: extra is optional ListExtra, and the rest spread keeps its
+      // other paginate options.
       const {
         where: extraWhere,
         count,
@@ -709,7 +737,10 @@ export function defineListQuery<
         include: _include,
         ...options
       } = (extra ?? {}) as ListExtra<M, T> & Record<string, unknown>;
+      // SAFETY: base comes from args(), whose where is a Where for table T.
       const combined = and([extraWhere, base["where"] as Where | undefined]);
+      // SAFETY: db is generic over M; this helper only calls paginate and
+      // aggregate on table T.
       // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs paginate and aggregate.
       const repository = db[table] as unknown as {
         paginate: (input: Record<string, unknown>) => AsyncResult<unknown>;
@@ -721,8 +752,12 @@ export function defineListQuery<
         count: count ?? base["count"],
         ...(combined ? { where: combined } : {}),
       });
-      if (!config.facetCounts) return page as AsyncResult<never>;
+      if (!config.facetCounts) {
+        // SAFETY: without facet counts, run returns the paginate result as is.
+        return page as AsyncResult<never>;
+      }
       if (facets.length === 0) {
+        // SAFETY: paginate returns a page object, which gets an empty facetCounts field.
         return page.map((data) => ({
           ...(data as object),
           facetCounts: {},
@@ -735,6 +770,8 @@ export function defineListQuery<
         groupBy: [...new Set(facets.map((facet) => facet.column))],
         _count: true,
       });
+      // SAFETY: paginate returns a page object, and aggregate with groupBy
+      // returns one row per group.
       return page.andThen((data) =>
         groups.map((rows) => ({
           ...(data as object),

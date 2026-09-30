@@ -27,6 +27,7 @@ export function findConfig(cwd: string, explicit?: string): string | undefined {
 export async function importModule(
   path: string,
 ): Promise<Record<string, unknown>> {
+  // SAFETY: an ES module namespace is an object of its exports.
   return (await import(
     `${pathToFileURL(path).href}?t=${Date.now()}`
   )) as Record<string, unknown>;
@@ -58,6 +59,7 @@ export async function loadConfig(
   const path = findConfig(cwd, explicit);
   if (!path) return resolveConfig({}, cwd);
   if (!existsSync(path)) throw new Error(`Config file not found: ${path}`);
+  // SAFETY: JSON.parse returns any; resolveConfig validates the value.
   const config = path.endsWith(".json")
     ? (JSON.parse(await readFile(path, "utf8")) as unknown)
     : await importConfig(path);

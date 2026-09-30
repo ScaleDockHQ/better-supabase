@@ -18,6 +18,7 @@ export interface GuardOptions {
 }
 
 /** `undefined` when `auth` may pass; otherwise the 401/403 error to send. */
+// SAFETY: includes only compares values, so any auth kind is safe to look up.
 export function guard(
   auth: AuthState,
   allow: GuardOptions["allow"] = ["user"],

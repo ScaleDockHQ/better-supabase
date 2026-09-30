@@ -96,6 +96,8 @@ export class EventHub {
     if (!set) return;
     for (const handler of set) {
       try {
+        // SAFETY: on() files each handler under its event name, so this set
+        // holds handlers for K.
         (handler as EventHandler<K>)(event);
       } catch (cause) {
         this.logger.error(`"${name}" handler threw`, { cause });

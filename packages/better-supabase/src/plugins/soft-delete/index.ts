@@ -98,6 +98,8 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
     repository({ table, base }) {
       const flag = table.flags.softDelete;
       if (!flag) return undefined;
+      // SAFETY: every repository has an update method with this signature;
+      // plugins receive it untyped.
       // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- plugins receive `base` as an untyped method map.
       const update = base["update"] as unknown as UpdateFn;
       return {

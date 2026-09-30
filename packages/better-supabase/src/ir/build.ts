@@ -297,6 +297,8 @@ export class IrBuilder {
         return col("like", `%${escapeLike(String(operand))}`);
       case "search": {
         if (typeof operand === "string") return col("fts", operand);
+        // SAFETY: a search operand is a query string or a query object, and the
+        // string case returned above.
         const { query, config } = operand as { query: string; config?: string };
         return config
           ? { kind: "column", column, op: "fts", value: query, config }
@@ -507,6 +509,7 @@ export class IrBuilder {
   private include(table: TableMeta, name: string, value: unknown): Include {
     const { relation, target } = relationMeta(this.meta, table, name);
     const args: Input = value === true ? {} : isPlainObject(value) ? value : {};
+    // SAFETY: the select option of every read method is a column list.
     return {
       alias: name,
       relation,
@@ -631,6 +634,7 @@ export class IrBuilder {
       invalidRequest(`Table "${table.key}" has no primary key`, table.key);
     }
     if (pk.length === 1) {
+      // SAFETY: the length check proves pk has exactly one column.
       const [name] = pk as [string];
       const value = isPlainObject(id) && name in id ? id[name] : id;
       return {

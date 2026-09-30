@@ -126,6 +126,7 @@ export function parseSnapshot(
   data: unknown,
   label: string = "snapshot",
 ): Snapshot {
+  // SAFETY: every field is checked below before the document is returned as a Snapshot.
   const doc = data as Partial<Snapshot> | null;
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
     throw new Error(

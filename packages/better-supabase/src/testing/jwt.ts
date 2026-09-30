@@ -95,6 +95,7 @@ export function localAuth(secret: string): AuthResolver {
         )
         .catch(() => false);
       if (!valid) return undefined;
+      // SAFETY: the signature was verified above, and exp is checked before use.
       const claims = JSON.parse(
         new TextDecoder().decode(base64urlDecode(body)),
       ) as JWTClaims;

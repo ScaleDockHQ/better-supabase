@@ -13,8 +13,10 @@ function decodeScalar(codec: Codec, value: unknown): unknown {
   if (value === null || value === undefined) return value;
   switch (codec) {
     case "date":
+      // SAFETY: PostgREST and SQL send date and bigint columns as strings.
       return new Date(value as string);
     case "bigint":
+      // SAFETY: PostgREST and SQL send date and bigint columns as strings.
       return BigInt(value as string);
     case "string":
       return String(value);
@@ -48,6 +50,8 @@ export function needsDecoding(selection: Selection): boolean {
 /** PostgREST returns `[{ count }]` for a `(count)` embed; SQL returns the number. */
 function countOf(value: unknown): number {
   if (Array.isArray(value)) {
+    // SAFETY: a count embed is a list of rows with a count field; a missing
+    // field reads as 0.
     const first = value[0] as { count?: unknown } | undefined;
     return Number(first?.count ?? 0);
   }
@@ -66,6 +70,7 @@ function fold(
   name: string,
   value: unknown,
 ): void {
+  // SAFETY: aggregate fields are only written by this function, as objects.
   const existing = (row[key] ?? {}) as Record<string, unknown>;
   row[key] = { ...existing, [name]: value };
 }
@@ -99,6 +104,7 @@ function decodeRow(
       if (!(include.alias in out)) continue;
       delete out[include.alias];
       // PostgREST returns `[{ amount }]` for an aggregate embed; SQL the object.
+      // SAFETY: an aggregate embed is an object of measures, or a list holding one.
       const inner = (Array.isArray(value) ? value[0] : value) as
         | Record<string, unknown>
         | null
@@ -115,6 +121,7 @@ function decodeRow(
         decodeRow(include.selection, item),
       );
     } else if (value && typeof value === "object") {
+      // SAFETY: the check above narrows value to a non-null object, which is an embedded row.
       out[include.alias] = decodeRow(
         include.selection,
         value as Record<string, unknown>,
@@ -129,6 +136,9 @@ export function decodeRows(
   selection: Selection | undefined,
   rows: readonly Record<string, unknown>[],
 ): Record<string, unknown>[] {
-  if (!selection || !needsDecoding(selection)) return rows as never;
+  if (!selection || !needsDecoding(selection)) {
+    // SAFETY: without codecs to apply, the rows are already in their decoded shape.
+    return rows as never;
+  }
   return rows.map((row) => decodeRow(selection, row));
 }
