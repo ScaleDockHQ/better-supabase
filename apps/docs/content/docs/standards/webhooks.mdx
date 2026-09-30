@@ -15,7 +15,7 @@ import { authHook, hookError } from 'better-supabase/webhooks';
 export const POST = authHook('custom_access_token', process.env.AUTH_HOOK_SECRET!, async ({ user_id, claims }) => {
   const membership = await admin.memberships.findFirst({ where: { userId: user_id } }).orThrow();
   if (!membership) return hookError(403, 'No organization');
-  return { claims: { ...claims, org_id: membership.organizationId } };
+  return { claims: { ...claims, tenant_id: membership.organizationId } };
 });
 ```
 
@@ -24,7 +24,7 @@ The hooks are `custom_access_token`, `send_email`, `send_sms`,
 `before_user_created`. Pass the secret as the dashboard shows it
 (`v1,whsec_…`). Invalid signatures get a 401 before your handler runs.
 
-The `org_id` claim this example adds is the one the
+The `tenant_id` claim this example adds is the one the
 [tenant plugin](/docs/plugins/tenant) and the generated storage and realtime
 policies read.
 

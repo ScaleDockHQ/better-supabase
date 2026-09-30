@@ -1,3 +1,6 @@
+import type { ClaimsMeta } from '../schema/types.ts';
+
+import { DEFAULT_CLAIMS } from '../core/claims.ts';
 import { sqlIdent, sqlString } from '../core/template.ts';
 
 /**
@@ -12,7 +15,14 @@ export interface SqlModule {
   readonly requires: readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: 'schema' | 'test';
+  /** The module with the default claim names. */
   readonly sql: string;
+  /** The module for configured claim names (`config.claims`), when it reads claims. */
+  readonly render?: (claims: ClaimsMeta) => string;
+}
+
+function jwtClaim(name: string): string {
+  return `coalesce(auth.jwt() ->> ${sqlString(name)}, auth.jwt() -> 'app_metadata' ->> ${sqlString(name)})`;
 }
 
 const SCHEMA = `create schema if not exists better_supabase;
@@ -241,14 +251,8 @@ end;
 $$;`,
 };
 
-const TENANT: SqlModule = {
-  name: 'tenant',
-  title: 'Tenant memberships and permission helper',
-  description:
-    'Memberships with roles and has_org_role() for RLS policies. A template: edit the roles to fit your app.',
-  requires: [],
-  target: 'schema',
-  sql: `${SCHEMA}
+const tenantSql = (claims: ClaimsMeta): string => `${SCHEMA}
+grant usage on schema better_supabase to supabase_auth_admin;
 
 create table if not exists better_supabase.memberships (
   org_id uuid not null,
@@ -263,15 +267,16 @@ alter table better_supabase.memberships enable row level security;
 grant select on better_supabase.memberships to authenticated;
 grant all on better_supabase.memberships to service_role;
 
--- The org of the current request: a top-level \`org_id\` claim (custom access
--- token hook) or \`app_metadata.org_id\` (set through the Auth admin API).
-create or replace function better_supabase.current_org_id()
+-- The tenant of the current request: the top-level \`${claims.tenant}\` claim
+-- (custom access token hook) or \`app_metadata.${claims.tenant}\` (Auth admin API).
+-- Never user_metadata: users can write it.
+create or replace function better_supabase.current_tenant_id()
 returns uuid
 language sql
 stable
 set search_path = ''
 as $$
-  select nullif(coalesce(auth.jwt() ->> 'org_id', auth.jwt() -> 'app_metadata' ->> 'org_id'), '')::uuid
+  select nullif(${jwtClaim(claims.tenant)}, '')::uuid
 $$;
 
 -- using ((select better_supabase.has_org_role(organization_id, '{owner,admin}')))
@@ -294,7 +299,41 @@ $$;
 drop policy if exists bs_memberships_read on better_supabase.memberships;
 create policy bs_memberships_read on better_supabase.memberships
   for select to authenticated
-  using (user_id = (select auth.uid()) or (select better_supabase.has_org_role(org_id)));`,
+  using (user_id = (select auth.uid()) or (select better_supabase.has_org_role(org_id)));
+
+-- The memberships claim in PermDock's shape: [{ scope, id, roles }]. With
+-- PermDock, \`permdock supabase hook generate\` writes the hook instead.
+-- Otherwise call it from your custom access token hook:
+--   return jsonb_set(event, '{claims,memberships}',
+--     better_supabase.membership_claims((event ->> 'user_id')::uuid));
+create or replace function better_supabase.membership_claims(user_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'scope', ${sqlString(claims.scope)},
+      'id', m.org_id,
+      'roles', jsonb_build_array(m.role)
+    ) order by m.created_at, m.org_id), '[]'::jsonb)
+  from better_supabase.memberships m
+  where m.user_id = membership_claims.user_id
+$$;
+
+revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`;
+
+const TENANT: SqlModule = {
+  name: 'tenant',
+  title: 'Tenant memberships and permission helper',
+  description:
+    'Memberships with roles, has_org_role() for RLS policies and membership_claims() for the access token hook. A template: edit the roles to fit your app.',
+  requires: [],
+  target: 'schema',
+  sql: tenantSql(DEFAULT_CLAIMS),
+  render: tenantSql,
 };
 
 const MFA: SqlModule = {
@@ -333,14 +372,7 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
-const ENTITLEMENTS: SqlModule = {
-  name: 'entitlements',
-  title: 'Stripe entitlements',
-  description:
-    'Active Stripe entitlements per tenant from the Stripe Sync Engine, membership claims for the access token hook, and has_entitlement() for RLS.',
-  requires: ['tenant'],
-  target: 'schema',
-  sql: `${SCHEMA}
+const entitlementsSql = (claims: ClaimsMeta): string => `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Lookup keys of the tenant's active entitlements, from the Stripe Sync
@@ -385,28 +417,37 @@ $$;
 revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
 
--- The memberships claim: [{ tenant_id, roles, entitlements }]. Call it from
+-- The \`${claims.features}\` claim: { [tenant id]: lookup keys }, read by
+-- hasEntitlement(). Tenants without entitlements are left out. Call it from
 -- your custom access token hook:
---   return jsonb_set(event, '{claims,memberships}',
---     better_supabase.membership_claims((event ->> 'user_id')::uuid));
-create or replace function better_supabase.membership_claims(user_id uuid)
+--   return jsonb_set(event, '{claims,${claims.features}}',
+--     better_supabase.feature_claims((event ->> 'user_id')::uuid));
+create or replace function better_supabase.feature_claims(user_id uuid)
 returns jsonb
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'tenant_id', m.org_id,
-      'roles', jsonb_build_array(m.role),
-      'entitlements', to_jsonb(better_supabase.tenant_entitlements(m.org_id))
-    ) order by m.created_at, m.org_id), '[]'::jsonb)
+  select coalesce(jsonb_object_agg(m.org_id::text, to_jsonb(e.keys)), '{}'::jsonb)
   from better_supabase.memberships m
-  where m.user_id = membership_claims.user_id
+  cross join lateral (select better_supabase.tenant_entitlements(m.org_id) as keys) e
+  where m.user_id = feature_claims.user_id
+    and cardinality(e.keys) > 0
 $$;
 
-revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
-grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`,
+revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
+
+const ENTITLEMENTS: SqlModule = {
+  name: 'entitlements',
+  title: 'Stripe entitlements',
+  description:
+    'Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.',
+  requires: ['tenant'],
+  target: 'schema',
+  sql: entitlementsSql(DEFAULT_CLAIMS),
+  render: entitlementsSql,
 };
 
 const INVITATIONS: SqlModule = {
@@ -1071,14 +1112,7 @@ end;
 $$;`,
 };
 
-const REALTIME_TABLES: SqlModule = {
-  name: 'realtime-tables',
-  title: 'Realtime table changes',
-  description:
-    'Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.',
-  requires: [],
-  target: 'schema',
-  sql: `${SCHEMA}
+const realtimeTablesSql = (claims: ClaimsMeta): string => `${SCHEMA}
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -1165,7 +1199,7 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, and tenant topics of their own org.
+-- Signed-in users receive unscoped topics, and topics of their active tenant.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
@@ -1174,12 +1208,22 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
     and (
       split_part((select realtime.topic()), ':', 4) = ''
       or split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> 'org_id',
-        (select auth.jwt()) -> 'app_metadata' ->> 'org_id',
+        (select auth.jwt()) ->> ${sqlString(claims.tenant)},
+        (select auth.jwt()) -> 'app_metadata' ->> ${sqlString(claims.tenant)},
         ''
       )
     )
-  );`,
+  );`;
+
+const REALTIME_TABLES: SqlModule = {
+  name: 'realtime-tables',
+  title: 'Realtime table changes',
+  description:
+    'Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.',
+  requires: [],
+  target: 'schema',
+  sql: realtimeTablesSql(DEFAULT_CLAIMS),
+  render: realtimeTablesSql,
 };
 
 const JSONB_SCHEMAS: SqlModule = {
@@ -1230,7 +1274,7 @@ begin
 end;
 $$;
 
--- Runs the rest of the transaction as this user, like PostgREST does. Extra claims (org_id, ...) go in the JWT.
+-- Runs the rest of the transaction as this user, like PostgREST does. Extra claims (tenant_id, ...) go in the JWT.
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
 language plpgsql
@@ -1550,6 +1594,8 @@ export interface KitLayout {
   readonly entitlements?: EntitlementsSource;
   /** `config.vectorSearch`: the tables the `vector-search` module writes a search function for. */
   readonly vectorSearch?: readonly VectorSearchTable[];
+  /** `config.claims`: claim names the modules read and write. */
+  readonly claims?: ClaimsMeta;
 }
 
 /** An embedding column `db.$search` can query. */
@@ -1681,7 +1727,7 @@ as $$
   select ${key} from ${target} t where ${column} = customer
 $$;
 
--- Users whose memberships claim carries the customer's entitlements, for
+-- Users whose features claim carries the customer's entitlements, for
 -- invalidating their sessions after entitlements.active_entitlement_summary.updated.
 create or replace function better_supabase.entitlement_members(customer text)
 returns setof uuid
@@ -1760,10 +1806,14 @@ export function renderKit(
       '-- Managed by `better-supabase sql add`; re-running it overwrites this file.',
     ].join('\n');
     const extra = moduleExtras(module, layout);
+    const sql =
+      module.render && layout.claims
+        ? module.render(layout.claims)
+        : module.sql;
     return {
       module: module.name,
       path,
-      contents: `${header}\n\n${module.sql.trim()}\n${extra}`,
+      contents: `${header}\n\n${sql.trim()}\n${extra}`,
     };
   });
 }

@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { err, ok } from '../core/result.ts';
 import { createImageLoader } from '../next/image/index.ts';
 import { defineBucket } from '../storage/index.ts';
-import { signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const dbUrl =
@@ -17,9 +17,6 @@ const publishableKey =
 const secretKey =
   process.env['SUPABASE_SECRET_KEY'] ??
   'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
@@ -58,13 +55,11 @@ const avatars = defineBucket({
 const image = (text: string) => new Blob([text], { type: 'image/webp' });
 
 describe.skipIf(!live)('Storage kit', async () => {
-  const token = await signTestJwt(jwtSecret, {
-    sub: USER,
-    role: 'authenticated',
-    org_id: ACME,
-  });
   const user = logos.connect(
-    createClient(url, publishableKey, { accessToken: async () => token }),
+    createClient(url, publishableKey, {
+      accessToken: () =>
+        signLocalJwt({ sub: USER, role: 'authenticated', tenant_id: ACME }),
+    }),
   );
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },

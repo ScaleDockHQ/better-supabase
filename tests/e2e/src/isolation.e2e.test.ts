@@ -30,7 +30,7 @@ describe.skipIf(!live)('Next.js example tenant isolation', () => {
     const userOf = (tenant: { id: string }): string => users.get(tenant.id)!.id;
     const member = (id: string) => ({
       id,
-      claims: { sub: userOf({ id }), app_metadata: { org_id: id } },
+      claims: { sub: userOf({ id }), app_metadata: { tenant_id: id } },
     });
     const report = await expectTenantIsolation(sb, {
       stack,

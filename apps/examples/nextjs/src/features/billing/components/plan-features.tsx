@@ -10,13 +10,15 @@ const FEATURES: Record<Entitlement, string> = {
 };
 
 /**
- * The plan's features from the token's `memberships` claim. UX only:
+ * The plan's features from the token's `features` claim. UX only:
  * `better_supabase.has_entitlement()` enforces them in RLS.
  */
 export async function PlanFeatures() {
   const session = await getSession();
   const orgId =
-    session.kind === 'user' ? session.claims.app_metadata?.org_id : undefined;
+    session.kind === 'user'
+      ? (session.claims.tenant_id ?? session.claims.app_metadata?.tenant_id)
+      : undefined;
   if (!orgId) return null;
   return (
     <ul aria-label="Plan features">

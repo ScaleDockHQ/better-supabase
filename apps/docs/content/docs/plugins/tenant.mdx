@@ -6,7 +6,7 @@ description: Scope every query to the request's tenant, on top of RLS.
 ```ts
 import { tenant } from 'better-supabase/plugins/tenant';
 
-const sb = defineSupabase(schema).use(tenant({ claim: 'org_id' }));
+const sb = defineSupabase(schema).use(tenant());
 const db = sb.connect(supabase, { claims }); // or { tenant: orgId }
 ```
 
@@ -20,9 +20,16 @@ For tables with the tenant flag:
 
 The tenant comes from `context.tenant`, then the JWT claim, or from your own
 `resolve(context)`. `claim` takes one or more dotted paths and defaults to
-`['org_id', 'app_metadata.org_id']`: a top-level claim from a custom access
-token hook, or `app_metadata` set through the Auth admin API. Server
-adapters fill the context from the verified JWT.
+`['tenant_id', 'app_metadata.tenant_id']`: a top-level claim from a custom
+access token hook (PermDock's hook sets it), or `app_metadata` set through the
+Auth admin API. Set `claims.tenant` in the config to rename the claim for the
+plugin, `current_tenant_id()`, and the storage and realtime policies together.
+`user_metadata` is never a source, because users can write it. Server adapters
+fill the context from the verified JWT.
+
+A tenant from a URL or request body is only safe after you check it against
+the user's memberships. Do that in `resolve`, or pass `{ tenant }` to
+`sb.connect` once it is checked.
 
 Pass your [claims type](/docs/auth#typed-claims) to check the paths at
 compile time. Only paths to string claims, up to three levels deep, are
@@ -31,7 +38,7 @@ accepted:
 ```ts
 const sb = defineSupabase(schema)
   .claims(Claims)
-  .use(tenant<z.infer<typeof Claims>>({ claim: 'tenant_id' }));
+  .use(tenant<z.infer<typeof Claims>>({ claim: 'app_metadata.tenant_id' }));
 ```
 
 ## Missing tenant

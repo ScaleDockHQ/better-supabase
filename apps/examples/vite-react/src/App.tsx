@@ -9,7 +9,7 @@ function organizationOf(
 ): string | undefined {
   const metadata = claims['app_metadata'];
   if (typeof metadata !== 'object' || metadata === null) return undefined;
-  const orgId = (metadata as Record<string, unknown>)['org_id'];
+  const orgId = (metadata as Record<string, unknown>)['tenant_id'];
   return typeof orgId === 'string' ? orgId : undefined;
 }
 

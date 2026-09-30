@@ -80,3 +80,9 @@ or to Claude Code with
   with 1 on drift, so agents can verify their own changes.
 - `better-supabase doctor` reports security and performance findings with
   stable codes, so an agent can fix them one by one and rerun it.
+- Claims follow PermDock's contract: the active tenant in `tenant_id` (the
+  `claims` block renames it), `memberships` as `{ scope, id, roles }`, and
+  plan features in `features`. Roles, memberships and the tenant never come
+  from `user_metadata` or from request input. In a project with a
+  `permdock.config.ts`, PermDock writes the access token hook; don't add the
+  `tenant` or `entitlements` kit modules ([better-supabase and PermDock](/docs/auth/permdock)).

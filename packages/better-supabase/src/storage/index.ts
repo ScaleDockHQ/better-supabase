@@ -1,13 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import type {
+  BucketPolicyName,
+  PermdockBucketPolicy,
+} from '../schema/types.ts';
 import type { PathIn, StoragePath } from './path.ts';
 
+import { tenantClaimPaths } from '../core/claims.ts';
 import {
   type DbError,
   DbException,
   dbError,
   isDbError,
 } from '../core/errors.ts';
+import { permdockCheck } from '../core/permdock-sql.ts';
 import { AsyncResult, err, ok, toDbError } from '../core/result.ts';
 import {
   parseTemplate,
@@ -22,7 +28,19 @@ import {
 export type { TemplateParams, TemplateValues } from '../core/template.ts';
 export type { PathIn, StoragePath } from './path.ts';
 
-export type BucketPolicy = 'tenant' | 'owner' | 'public' | 'none';
+export type { PermdockBucketPolicy } from '../schema/types.ts';
+
+export type BucketPolicy = BucketPolicyName | PermdockBucketPolicy;
+
+/** Storage operations that list objects; every other `select` is a read. */
+const LIST_OPERATIONS = ['object.list', 'object.list_v2', 's3.object.list'];
+
+interface PermdockChecks {
+  readonly read: string;
+  readonly list?: string;
+  readonly write: string;
+  readonly delete: string;
+}
 
 export interface BucketConfig<
   P extends string = string,
@@ -36,7 +54,8 @@ export interface BucketConfig<
   /**
    * Generated `storage.objects` policies. `tenant` and `owner` match a path
    * segment against the JWT; `public` allows reads; `none` leaves access to
-   * the secret key. Defaults to `none`.
+   * the secret key; `{ permdock, scope }` calls PermDock's SQL helpers.
+   * Defaults to `none`.
    */
   readonly policy?: BucketPolicy;
   /** `'5MiB'`, `'500KB'` or bytes. */
@@ -46,7 +65,7 @@ export interface BucketConfig<
   readonly tenant?: {
     /** Placeholder holding the tenant id. Defaults to `orgId`. */
     readonly param?: string;
-    /** JWT claim paths, first match wins. Defaults to `org_id`, then `app_metadata.org_id`. */
+    /** JWT claim paths, first match wins. Defaults to `tenant_id`, then `app_metadata.tenant_id`. */
     readonly claim?: string | readonly string[];
     /** SQL expression for the tenant id, instead of `claim`. */
     readonly sql?: string;
@@ -418,13 +437,14 @@ export function defineBucket<
     }
     return index;
   }
+  const mode = typeof policy === 'string' ? policy : 'permdock';
   const accessCheck = ((): string | undefined => {
-    switch (policy) {
+    switch (mode) {
       case 'tenant': {
         const index = segmentFor(config.tenant?.param ?? 'orgId', 'tenant');
         const expression =
           config.tenant?.sql ??
-          claimSql(config.tenant?.claim ?? ['org_id', 'app_metadata.org_id']);
+          claimSql(config.tenant?.claim ?? tenantClaimPaths());
         return `split_part(name, '/', ${String(index)}) = (${expression})`;
       }
       case 'owner': {
@@ -433,14 +453,31 @@ export function defineBucket<
       }
       case 'public':
       case 'none':
+      case 'permdock':
         return undefined;
       default: {
-        const unknown: never = policy;
+        const unknown: never = mode;
         throw new TypeError(
           `defineBucket: unknown policy "${String(unknown)}"`,
         );
       }
     }
+  })();
+  const permdock = ((): PermdockChecks | undefined => {
+    if (typeof policy === 'string') return undefined;
+    const where = `defineBucket(${config.id})`;
+    const id =
+      policy.scope === 'global'
+        ? undefined
+        : `split_part(name, '/', ${String(policy.segment ?? segmentFor(config.tenant?.param ?? 'orgId', 'PermDock'))})`;
+    const check = (key: string) => permdockCheck(where, policy, key, id);
+    const keys = policy.permdock;
+    return {
+      read: check(keys.read),
+      ...(keys.list === undefined ? {} : { list: check(keys.list) }),
+      write: check(keys.write),
+      delete: check(keys.delete ?? keys.write),
+    };
   })();
 
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
@@ -542,6 +579,52 @@ export function defineBucket<
           inBucket,
           undefined,
         ]);
+      } else if (permdock) {
+        const listing = `storage.allow_any_operation(array[${LIST_OPERATIONS.map(sqlString).join(', ')}])`;
+        if (permdock.list) {
+          policies.push(
+            [
+              'select',
+              'select',
+              'authenticated',
+              `${inBucket} and not ${listing} and ${permdock.read}`,
+              undefined,
+            ],
+            [
+              'list',
+              'select',
+              'authenticated',
+              `${inBucket} and ${listing} and ${permdock.list}`,
+              undefined,
+            ],
+          );
+        } else {
+          policies.push([
+            'select',
+            'select',
+            'authenticated',
+            `${inBucket} and ${permdock.read}`,
+            undefined,
+          ]);
+        }
+        const write = `${inBucket} and ${permdock.write}`;
+        policies.push(
+          [
+            'insert',
+            'insert',
+            'authenticated',
+            undefined,
+            `${write} and ${shape}`,
+          ],
+          ['update', 'update', 'authenticated', write, `${write} and ${shape}`],
+          [
+            'delete',
+            'delete',
+            'authenticated',
+            `${inBucket} and ${permdock.delete}`,
+            undefined,
+          ],
+        );
       }
       for (const [suffix, command, roles, using, withCheck] of policies) {
         const policyName = sqlIdent(`bs_${name}_${suffix}`);
@@ -551,6 +634,12 @@ export function defineBucket<
           `create policy ${policyName} on storage.objects for ${command} to ${roles}${
             using ? `\n  using (${using})` : ''
           }${withCheck ? `\n  with check (${withCheck})` : ''};`,
+        );
+      }
+      if (permdock && !permdock.list) {
+        lines.push(
+          '',
+          `drop policy if exists ${sqlIdent(`bs_${name}_list`)} on storage.objects;`,
         );
       }
       return `${lines.join('\n')}\n`;

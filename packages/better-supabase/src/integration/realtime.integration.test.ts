@@ -11,7 +11,7 @@ import {
   rowChange,
   type TopicMessage,
 } from '../realtime/index.ts';
-import { signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const dbUrl =
@@ -20,9 +20,6 @@ const dbUrl =
 const publishableKey =
   process.env['SUPABASE_PUBLISHABLE_KEY'] ??
   'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
@@ -79,18 +76,13 @@ function waitFor<T>(
 }
 
 describe.skipIf(!live)('Realtime kit', async () => {
-  const clientFor = async (orgId: string) => {
-    const token = await signTestJwt(jwtSecret, {
-      sub: USER,
-      role: 'authenticated',
-      org_id: orgId,
+  const clientFor = (orgId: string) =>
+    createClient(url, publishableKey, {
+      accessToken: () =>
+        signLocalJwt({ sub: USER, role: 'authenticated', tenant_id: orgId }),
     });
-    return createClient(url, publishableKey, {
-      accessToken: async () => token,
-    });
-  };
-  const acme = await clientFor(ACME);
-  const other = await clientFor(OTHER);
+  const acme = clientFor(ACME);
+  const other = clientFor(OTHER);
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const kvk = `rt-${String(Date.now())}`;
 
@@ -117,7 +109,7 @@ describe.skipIf(!live)('Realtime kit', async () => {
     let attempt = 0;
     const insert = () =>
       sb
-        .connect(acme, { claims: { org_id: ACME } })
+        .connect(acme, { claims: { tenant_id: ACME } })
         .customers.create({
           organizationId: ACME,
           name: 'Realtime Co',

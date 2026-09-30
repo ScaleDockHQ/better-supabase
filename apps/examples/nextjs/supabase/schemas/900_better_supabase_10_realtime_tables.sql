@@ -99,8 +99,8 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
     and (
       split_part((select realtime.topic()), ':', 4) = ''
       or split_part((select realtime.topic()), ':', 4) = coalesce(
-        (select auth.jwt()) ->> 'org_id',
-        (select auth.jwt()) -> 'app_metadata' ->> 'org_id',
+        (select auth.jwt()) ->> 'tenant_id',
+        (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id',
         ''
       )
     )

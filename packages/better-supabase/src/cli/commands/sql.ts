@@ -16,6 +16,7 @@ import {
 } from '../../sql/kit.ts';
 import { flagBool, flagString } from '../args.ts';
 import { display, writeIfChanged } from '../io.ts';
+import { permdockConfig } from '../permdock.ts';
 import { compiledReadSets } from '../read-sets.ts';
 import { VERSION } from '../version.ts';
 
@@ -28,7 +29,11 @@ export const SQL_HELP = `Usage: better-supabase sql <list|add|sync|print> [modul
 
 Options
   --tests-dir <dir>    Where the pgtap module goes. Defaults to sql.testsDir.
-  --dry-run            Show what would be written`;
+  --dry-run            Show what would be written
+  --force              Write tenant or entitlements even though a permdock.config.ts is present`;
+
+/** Modules that write memberships or claims PermDock's hook also writes. */
+const PERMDOCK_OWNED: ReadonlySet<string> = new Set(['tenant', 'entitlements']);
 
 /** Where and how `sql add` writes kit files for this config. */
 export function kitLayout(
@@ -44,6 +49,7 @@ export function kitLayout(
     readSets,
     realtimeTables: config.realtime.tables,
     entitlements: config.entitlements,
+    claims: config.claims,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: 'anon' as const, privileges: roles.anon },
@@ -149,6 +155,24 @@ export async function runSql(
           error: `Unknown module ${unknown.join(', ')}. Available: ${Object.keys(SQL_MODULES).join(', ')}`,
         };
       }
+      const permdock = permdockConfig(config.root);
+      const hookModules = resolveModules(names)
+        .map((module) => module.name)
+        .filter((name) => PERMDOCK_OWNED.has(name));
+      if (
+        permdock &&
+        hookModules.length > 0 &&
+        !flagBool(args.flags, 'force')
+      ) {
+        return {
+          code: 1,
+          error: [
+            `${permdock} is present, so PermDock owns the access token hook and the memberships claim.`,
+            `${hookModules.join(' and ')} would add a second source for them. Use \`permdock supabase hook generate\` instead,`,
+            'or pass --force to write the modules anyway.',
+          ].join('\n'),
+        };
+      }
       const lines = await write(config, args, names);
       const untracked = resolveModules(names)
         .map((module) => module.name)
@@ -204,7 +228,10 @@ export async function runSql(
           error: `Name one module: ${Object.keys(SQL_MODULES).join(', ')}`,
         };
       }
-      return { code: 0, output: module.sql };
+      return {
+        code: 0,
+        output: module.render ? module.render(config.claims) : module.sql,
+      };
     }
     case undefined:
       return { code: 2, error: SQL_HELP };

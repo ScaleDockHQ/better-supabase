@@ -56,9 +56,10 @@ export interface BetterBrowser<
   F extends AnyFunctions,
   E,
   C = unknown,
+  P = unknown,
 > {
   /** The definition the browser was created from (schema metadata, specs, live queries). */
-  readonly sb: BetterSupabase<M, unknown, F, E, C>;
+  readonly sb: BetterSupabase<M, unknown, F, E, C, P>;
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
   readonly db: Db<M, F, E, SupabaseClient>;
@@ -157,10 +158,11 @@ export function createBrowser<
   F extends AnyFunctions,
   E,
   C = unknown,
+  P = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E, C>,
+  sb: BetterSupabase<M, D, F, E, C, P>,
   options: BrowserOptions = {},
-): BetterBrowser<M, F, E, C> {
+): BetterBrowser<M, F, E, C, P> {
   const supabase = clientFor(options);
   let snapshot: AuthSnapshot = LOADING;
   let db: Db<M, F, E, SupabaseClient> | undefined;
@@ -180,7 +182,7 @@ export function createBrowser<
     for (const listener of listeners) listener();
   });
 
-  const browser: BetterBrowser<M, F, E, C> = {
+  const browser: BetterBrowser<M, F, E, C, P> = {
     sb: sb,
     supabase,
     get db() {

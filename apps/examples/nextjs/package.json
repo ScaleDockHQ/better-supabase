@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",
+    "@supabase/middleware": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

@@ -122,7 +122,8 @@ select n.nspname as schema, p.proname as name,
     where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_execute,
   array(select r.rolname::text from pg_roles r
     where r.rolname = any(${HOOK_ROLES}) and has_schema_privilege(r.oid, n.oid, 'usage')
-    order by 1) as schema_usage
+    order by 1) as schema_usage,
+  p.prosrc as source
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 join pg_language l on l.oid = p.prolang
@@ -252,6 +253,7 @@ interface HookRow extends FunctionRow {
   execute: string[];
   public_execute: boolean;
   schema_usage: string[];
+  source: string | null;
 }
 
 /** A hook function to introspect: `[auth.hook.<hook>]` pointing at `schema.name`. */
@@ -292,6 +294,7 @@ export async function readHooks(
         execute: row.execute,
         publicExecute: row.public_execute,
         schemaUsage: row.schema_usage,
+        ...(row.source === null ? {} : { source: row.source }),
       })),
   }));
 }

@@ -118,7 +118,7 @@ in through its own identity provider, scope reads by the provider:
 
 ```ts title="src/lib/supabase.ts"
 export const sb = defineSupabase(schema).use(
-  tenant({ claim: ['org_id', 'amr.0.provider'] }),
+  tenant({ claim: ['tenant_id', 'amr.0.provider'] }),
 );
 ```
 

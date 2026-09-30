@@ -6,6 +6,8 @@ export async function ProfileDetails() {
   if (session.kind !== 'user') return <p>Not signed in.</p>;
   return (
     <dl>
+      <dt>Name</dt>
+      <dd>{session.profile?.display_name ?? 'not set'}</dd>
       <dt>Email</dt>
       <dd>{session.user.email}</dd>
       <dt>Roles</dt>

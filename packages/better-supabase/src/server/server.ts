@@ -59,9 +59,10 @@ export interface ServerContext<
   F extends AnyFunctions,
   E,
   C = unknown,
+  P = unknown,
 > {
-  readonly auth: AuthState<C>;
-  readonly resolution: AuthResolution<C>;
+  readonly auth: AuthState<C, P>;
+  readonly resolution: AuthResolution<C, P>;
   /** supabase-js client scoped to the caller (RLS applies). */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the caller. */
@@ -87,12 +88,13 @@ export interface BetterServer<
   F extends AnyFunctions,
   E,
   C = unknown,
+  P = unknown,
 > {
   readonly env: BetterSupabaseEnv;
   resolve(
     request: Request,
     options?: { readonly refresh?: boolean },
-  ): Promise<AuthResolution<C>>;
+  ): Promise<AuthResolution<C, P>>;
   /**
    * Resolves auth and binds repositories to the caller. Refreshes an expired
    * cookie session only with `refresh: true`; send `ctx.resolution.apply(response)`.
@@ -100,12 +102,12 @@ export interface BetterServer<
   context(
     request: Request,
     options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C>>;
+  ): Promise<ServerContext<M, F, E, C, P>>;
   /** The context for an auth state resolved elsewhere (the proxy, a queue message). */
   contextFor(
-    auth: AuthState<C>,
+    auth: AuthState<C, P>,
     options?: ContextOptions,
-  ): ServerContext<M, F, E, C>;
+  ): ServerContext<M, F, E, C, P>;
   /** A stateless supabase-js client for an auth state, optionally with extra request headers. */
   supabaseFor(
     auth: AuthState,
@@ -182,10 +184,11 @@ export function createServer<
   F extends AnyFunctions,
   E,
   C = unknown,
+  P = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E, C>,
+  sb: BetterSupabase<M, D, F, E, C, P>,
   options: ServerOptions = {},
-): BetterServer<M, F, E, C> {
+): BetterServer<M, F, E, C, P> {
   let loaded: BetterSupabaseEnv | undefined;
   const env = (): BetterSupabaseEnv => (loaded ??= options.env ?? loadEnv());
   let adminClient: SupabaseClient | undefined;
@@ -276,11 +279,11 @@ export function createServer<
 
   /** Clients and repositories are built on first access: most scopes use one of them. */
   const contextFor = (
-    resolution: AuthResolution<C>,
+    resolution: AuthResolution<C, P>,
     headers: Readonly<Record<string, string>>,
     parent: StatsRecorder | undefined,
     until = 0,
-  ): ServerContext<M, F, E, C> => {
+  ): ServerContext<M, F, E, C, P> => {
     const { auth } = resolution;
     const context = authContext(auth);
     const recorder = new StatsRecorder(parent);
@@ -340,11 +343,14 @@ export function createServer<
   const resolve = async (
     request: Request,
     resolveOptions: { readonly refresh?: boolean } = {},
-  ): Promise<AuthResolution<C>> => {
+  ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? sb.claimsSchema;
+    const userMetadata = sb.userMetadataSchema;
     const resolved = await resolveAuth(request, {
+      logger: sb.events.logger,
       ...options.auth,
       ...(claims ? { claims } : {}),
+      ...(userMetadata ? { userMetadata } : {}),
       env: env(),
       ...(resolveOptions.refresh !== undefined
         ? { refresh: resolveOptions.refresh }
@@ -354,8 +360,9 @@ export function createServer<
         sb.events.emit('refresh', event);
       },
     });
-    // The claims schema's output is merged into every verified user's claims.
-    const resolution = resolved as AuthResolution<C>;
+    // The claims schema's output is merged into every verified user's claims,
+    // and the userMetadata schema's output is the profile.
+    const resolution = resolved as AuthResolution<C, P>;
     if (sb.events.has('auth')) {
       const { auth } = resolution;
       sb.events.emit('auth', {

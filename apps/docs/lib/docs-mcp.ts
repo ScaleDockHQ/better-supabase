@@ -1,5 +1,3 @@
-import { SPEC_PINS } from 'better-supabase';
-
 import {
   DEFAULT_SEARCH_LIMIT,
   MAX_SEARCH_LIMIT,
@@ -18,7 +16,12 @@ export type { DocsPageSummary } from './docs-mcp-pages';
 export const DOCS_MCP_NAME = 'better-supabase-docs';
 export const DOCS_MCP_VERSION = '0.0.0';
 
-export const MCP_PROTOCOL_VERSIONS = [SPEC_PINS.mcp, '2025-03-26'] as const;
+/** Handshake revisions; the stateless 2026-07-28 protocol lives in `better-supabase/mcp`. */
+export const MCP_PROTOCOL_VERSIONS = [
+  '2025-11-25',
+  '2025-06-18',
+  '2025-03-26',
+] as const;
 
 export type McpProtocolVersion = (typeof MCP_PROTOCOL_VERSIONS)[number];
 

@@ -141,13 +141,13 @@ describe('authHook', () => {
   it('verifies, types and answers', async () => {
     const response = await call(
       ({ claims, user_id }) => ({
-        claims: { ...claims, org_id: `org-of-${user_id}` },
+        claims: { ...claims, tenant_id: `org-of-${user_id}` },
       }),
       payload,
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      claims: { sub: 'u1', role: 'authenticated', org_id: 'org-of-u1' },
+      claims: { sub: 'u1', role: 'authenticated', tenant_id: 'org-of-u1' },
     });
   });
 

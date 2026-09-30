@@ -51,7 +51,7 @@ async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
     email,
     password,
     email_confirm: true,
-    app_metadata: { org_id: ACME },
+    app_metadata: { tenant_id: ACME },
   });
   if (error) throw error;
   const cookies = new Map<string, string>();
@@ -142,7 +142,7 @@ describe.skipIf(!up)('request context on better-supabase', () => {
     const [head, body, signature] = a.accessToken.split('.');
     const claims = JSON.parse(Buffer.from(body!, 'base64url').toString());
     const forged = Buffer.from(
-      JSON.stringify({ ...claims, app_metadata: { org_id: 'x' } }),
+      JSON.stringify({ ...claims, app_metadata: { tenant_id: 'x' } }),
     ).toString('base64url');
     const response = await call(whoami, {
       authorization: `Bearer ${head}.${forged}.${signature}`,

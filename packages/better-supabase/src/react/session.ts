@@ -33,14 +33,16 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
 /**
  * The session from the nearest `<SessionProvider>`. Suspends until the
  * promise resolves, so render it inside `<Suspense>`. `C` types the claims
- * (the output of `sb.claims(schema)`); `createHooks().useSession` infers it.
+ * (the output of `sb.claims(schema)`) and `P` the profile (the output of
+ * `sb.userMetadata(schema)`); `createHooks().useSession` infers both.
  */
-export function useSession<C = unknown>(): AuthSession<C> {
+export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
   const promise = useContext(SessionContext);
   if (!promise) {
     throw new Error(
       'better-supabase: useSession() needs <SessionProvider sessionPromise={...}>',
     );
   }
-  return use(promise) as AuthSession<C>;
+  // SAFETY: the provider receives `next.session()` from the same `sb`, whose schemas fix `C` and `P`.
+  return use(promise) as AuthSession<C, P>;
 }

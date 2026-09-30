@@ -26,7 +26,7 @@ decides what each user sees, and includes and filters stay correct.
 
 With the [tenant plugin](/docs/plugins/tenant), tables that have the tenant
 column broadcast on a per-tenant topic (`bs:t:public.customers:<org>`), and
-the policy only lets a user join their own `org_id`. Tables without it use
+the policy only lets a user join the tenant in their `tenant_id` claim. Tables without it use
 one topic.
 
 ## React
@@ -42,7 +42,7 @@ function Customers() {
 ```
 
 `useLiveQuery` needs `<BetterSupabaseProvider queryClient={queryClient}>`.
-The tenant defaults to the `org_id` claim; pass `{ tenant }` to override it.
+The tenant defaults to the `tenant_id` claim (`claims.tenant` in the config); pass `{ tenant }` to override it.
 Changes are debounced (100 ms by default, `debounceMs`), so a bulk update
 causes one refetch. It returns the channel status.
 

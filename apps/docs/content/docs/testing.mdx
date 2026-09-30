@@ -3,27 +3,53 @@ title: Testing
 description: Test RLS, APIs and SQL against the local stack as real users.
 ---
 
-`better-supabase/testing` signs tokens with the local stack's JWT secret. The
-same user then works through PostgREST, direct Postgres and your API, so
-tests exercise the real RLS policies instead of mocks.
+`better-supabase/testing` signs tokens with the local stack's ES256 signing
+key, the same kind of key a hosted project uses. The same user then works
+through PostgREST, direct Postgres and your API, so tests exercise the real
+RLS policies instead of mocks.
+
+## Signing key
+
+Create the key once with `better-supabase keys`. It writes
+`supabase/signing_keys.json` and warns until the file is in `.gitignore`.
+Point `supabase/config.toml` at it and restart the stack, so Auth signs with
+it and the JWKS publishes it:
+
+```toml title="supabase/config.toml"
+[auth]
+signing_keys_path = "./signing_keys.json"
+```
+
+```bash
+npx better-supabase keys
+supabase stop && supabase start
+```
 
 ## asUser
 
 ```ts title="customers.test.ts"
 import { asUser } from 'better-supabase/testing';
 
-const alice = await asUser(sb, { sub: aliceId, org_id: acme }, { postgres });
+const alice = await asUser(sb, { sub: aliceId, tenant_id: acme }, { postgres });
 
 expect(await alice.db.customers.count().orThrow()).toBe(3);
 expect(await alice.sql!.customers.count().orThrow()).toBe(3);
 await alice.supabase.storage.from('customer-logos').list(acme);
 ```
 
-`asUser` reads the URL, publishable key and `SUPABASE_JWT_SECRET` from the
-environment, with or without a framework prefix, just as
-[`better-supabase env`](/docs/cli/local#env) writes them. Without them it
-falls back to the CLI defaults. `db` goes through PostgREST, and `sql` goes through direct
-Postgres with the same claims, when you pass `postgres`.
+`asUser` reads the URL and publishable key from the environment, with or
+without a framework prefix, just as [`better-supabase env`](/docs/cli/local#env)
+writes them. It signs with the first key in the file `signing_keys_path`
+points to (or `$SUPABASE_SIGNING_KEYS_PATH`); pass `signingKey` to use
+another. `db` goes through PostgREST, and `sql` goes through direct Postgres
+with the same claims, when you pass `postgres`.
+
+A stack without a signing key still verifies tokens signed with the shared
+JWT secret. Pass `{ alg: 'HS256' }` to sign that way; it reads
+`SUPABASE_JWT_SECRET` and refuses any URL that is not local.
+
+`signLocalJwt(claims)` signs a token the same way without building
+repositories, for requests you send yourself.
 
 ## Fixtures
 
@@ -35,23 +61,22 @@ import { seed } from '../supabase/seed.ts';
 
 beforeAll(() => seed.insert(postgres.admin));
 
-const alice = await asUser(sb, { sub: aliceId, org_id: seed.rows.organizations.acme.id });
+const alice = await asUser(sb, { sub: aliceId, tenant_id: seed.rows.organizations.acme.id });
 ```
 
 ## APIs
 
-`localAuth(secret)` is an auth resolver that accepts those test tokens. Your
-[framework adapter](/docs/frameworks) then sees the same claims that RLS sees:
+ES256 test tokens verify against the local stack's JWKS, so your
+[framework adapter](/docs/frameworks) needs no test-only resolver and sees
+the same claims that RLS sees:
 
 ```ts
-import { localAuth, LOCAL_JWT_SECRET } from 'better-supabase/testing';
-
-const bs = createHono(sb, { auth: { resolvers: [localAuth(LOCAL_JWT_SECRET)] } });
+const bs = createHono(sb);
 await app.request('/api/customers', { headers: { authorization: `Bearer ${alice.token}` } });
 ```
 
-Use it in tests only. In production, tokens are verified against your
-project's JWKS.
+For HS256 tokens, add `localAuth(secret)` to `auth.resolvers`. Use it in
+tests only.
 
 ## Tenant isolation
 
@@ -66,8 +91,8 @@ import { expectTenantIsolation } from 'better-supabase/testing';
 it('keeps organizations apart', async () => {
   await expectTenantIsolation(sb, {
     tenants: [
-      { id: ACME, name: 'acme', claims: { sub: alice, org_id: ACME } },
-      { id: GLOBEX, name: 'globex', claims: { sub: bob, org_id: GLOBEX } },
+      { id: ACME, name: 'acme', claims: { sub: alice, tenant_id: ACME } },
+      { id: GLOBEX, name: 'globex', claims: { sub: bob, tenant_id: GLOBEX } },
     ],
     tables: {
       tags: {
@@ -135,7 +160,7 @@ select plan(2);
 
 select tests.rls_enabled('public');
 
-select tests.authenticate_as(tests.create_user('alice@example.com'), '{"org_id": "00000000-0000-4000-8000-000000000001"}');
+select tests.authenticate_as(tests.create_user('alice@example.com'), '{"tenant_id": "00000000-0000-4000-8000-000000000001"}');
 select is((select count(*) from public.customers where organization_id <> '00000000-0000-4000-8000-000000000001'), 0::bigint, 'no cross-tenant rows');
 
 select * from finish();

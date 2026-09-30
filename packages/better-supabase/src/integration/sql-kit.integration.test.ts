@@ -20,7 +20,7 @@ import { defineSchema } from '../schema/define.ts';
 import { renderKit, SQL_MODULES } from '../sql/kit.ts';
 import { compileReadSet } from '../sql/read-sets.ts';
 import { asUser } from '../testing/as-user.ts';
-import { signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 import { signWebhook } from '../webhooks/index.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
@@ -30,9 +30,6 @@ const dbUrl =
 const publishableKey =
   process.env['SUPABASE_PUBLISHABLE_KEY'] ??
   'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const RUN = String(Date.now());
@@ -354,7 +351,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     }
   });
 
-  it('puts Stripe entitlements in the memberships claim and RLS', async () => {
+  it('puts memberships and Stripe features in separate claims and RLS', async () => {
     const billing = `bs_billing_${RUN}`;
     const hook = `public.bs_hook_${RUN}`;
     const org = crypto.randomUUID();
@@ -398,9 +395,10 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       await pool.query(kit!.contents);
       await pool.query(`
         create function ${hook}(event jsonb) returns jsonb language plpgsql stable set search_path = '' as $$
+        declare uid uuid := (event ->> 'user_id')::uuid;
         begin
-          return jsonb_set(event, '{claims,memberships}',
-            better_supabase.membership_claims((event ->> 'user_id')::uuid));
+          event := jsonb_set(event, '{claims,memberships}', better_supabase.membership_claims(uid));
+          return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid));
         end $$;
         grant execute on function ${hook}(jsonb) to supabase_auth_admin;
       `);
@@ -408,21 +406,24 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       // `postgres` can't become supabase_auth_admin locally: check its grants.
       const { rows: grants } = await pool.query(
         `select has_schema_privilege('supabase_auth_admin', 'better_supabase', 'usage') as schema,
-          has_function_privilege('supabase_auth_admin', 'better_supabase.membership_claims(uuid)', 'execute') as fn`,
+          has_function_privilege('supabase_auth_admin', 'better_supabase.membership_claims(uuid)', 'execute') as fn,
+          has_function_privilege('supabase_auth_admin', 'better_supabase.feature_claims(uuid)', 'execute') as features`,
       );
-      expect(grants[0]).toEqual({ schema: true, fn: true });
-      const { rows } = await pool.query<{ event: { claims: unknown } }>(
-        `select ${hook}(jsonb_build_object('user_id', $1::text, 'claims', '{}'::jsonb)) as event`,
-        [member],
-      );
-      expect(rows[0]!.event.claims).toEqual({
-        memberships: [
-          {
-            tenant_id: org,
-            roles: ['admin'],
-            entitlements: ['exports', 'sso'],
-          },
-        ],
+      expect(grants[0]).toEqual({ schema: true, fn: true, features: true });
+      const claimsFor = async (sub: string) =>
+        (
+          await pool.query<{ event: { claims: unknown } }>(
+            `select ${hook}(jsonb_build_object('user_id', $1::text, 'claims', '{}'::jsonb)) as event`,
+            [sub],
+          )
+        ).rows[0]!.event.claims;
+      expect(await claimsFor(member)).toEqual({
+        memberships: [{ scope: 'tenant', id: org, roles: ['admin'] }],
+        features: { [org]: ['exports', 'sso'] },
+      });
+      expect(await claimsFor(outsider)).toEqual({
+        memberships: [],
+        features: {},
       });
 
       const has = async (sub: string, key: string) =>
@@ -441,6 +442,11 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         postgres
           .asUser({ sub: member })
           .queryRaw('select better_supabase.membership_claims($1)', [member]),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        postgres
+          .asUser({ sub: member })
+          .queryRaw('select better_supabase.feature_claims($1)', [member]),
       ).rejects.toMatchObject({ code: '42501' });
 
       const invalidate = await entitlementMembers(postgres.admin, {
@@ -678,7 +684,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
       );
       await client.query(`select tests.authenticate_as($1, $2)`, [
         user.rows[0]!.id,
-        JSON.stringify({ org_id: ACME }),
+        JSON.stringify({ tenant_id: ACME }),
       ]);
       const visible = await client.query<{ n: number }>(
         `select count(*)::int as n from public.customers where organization_id <> $1`,
@@ -706,7 +712,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const sb = defineSupabase(schema);
     const alice = await asUser(
       sb,
-      { sub: crypto.randomUUID(), org_id: ACME },
+      { sub: crypto.randomUUID(), tenant_id: ACME },
       { url, publishableKey, postgres },
     );
     const rest = await alice.db.customers.count().orThrow();
@@ -758,7 +764,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     try {
       const alice = await asUser(
         sb,
-        { sub: crypto.randomUUID(), org_id: ACME },
+        { sub: crypto.randomUUID(), tenant_id: ACME },
         { url, publishableKey, postgres },
       );
       const params = { orgId: ACME, kinds: ['call', 'meeting'] };
@@ -811,7 +817,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
     const sb = defineSupabase(schema);
     const alice = await asUser(
       sb,
-      { sub: crypto.randomUUID(), org_id: ACME },
+      { sub: crypto.randomUUID(), tenant_id: ACME },
       { url, publishableKey, postgres },
     );
     const specs = [
@@ -884,14 +890,14 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
         create index on public.${name} using hnsw (embedding extensions.vector_cosine_ops);
         alter table public.${name} enable row level security;
         create policy "own org" on public.${name} for select to authenticated
-          using (org_id = (auth.jwt() ->> 'org_id')::uuid);
+          using (org_id = (auth.jwt() ->> 'tenant_id')::uuid);
         grant select on public.${name} to authenticated;
       `);
       await pool.query(kit!.contents);
       await pool.query(`notify pgrst, 'reload schema'`);
       const alice = await asUser(
         sb,
-        { sub: crypto.randomUUID(), org_id: mine },
+        { sub: crypto.randomUUID(), tenant_id: mine },
         { url, publishableKey, postgres },
       );
       const query = { vector: [1, 0, 0], k: 2, select: ['id', 'content'] };
@@ -935,7 +941,7 @@ describe.skipIf(!live)('SQL kit against the local database', () => {
   it('answers writes over the limit with 429 and Retry-After', async () => {
     const probe = `bs_rate_probe_${RUN}`;
     const scope = `/rpc/${probe}`;
-    const token = await signTestJwt(jwtSecret, { sub: crypto.randomUUID() });
+    const token = await signLocalJwt({ sub: crypto.randomUUID() });
     const call = (method: 'GET' | 'POST') =>
       fetch(`${url}/rest/v1/rpc/${probe}`, {
         method,

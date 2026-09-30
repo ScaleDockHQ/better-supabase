@@ -189,8 +189,8 @@ export function integrations(): unknown[] {
     testExecutor(executor, { sb }),
     expectTenantIsolation(sb, {
       tenants: [
-        { id: 'a', claims: { sub: 'u1', org_id: 'a' } },
-        { id: 'b', claims: { sub: 'u2', org_id: 'b' } },
+        { id: 'a', claims: { sub: 'u1', tenant_id: 'a' } },
+        { id: 'b', claims: { sub: 'u2', tenant_id: 'b' } },
       ],
       tables: {
         tags: {
@@ -222,7 +222,7 @@ export function integrations(): unknown[] {
       }),
     PRIMARY_COOKIE satisfies string,
     server
-      .actingAs('u1', { org_id: 'a' }, { actor: 'admin', reason: 'support' })
+      .actingAs('u1', { tenant_id: 'a' }, { actor: 'admin', reason: 'support' })
       .customers.count(),
     impersonatorOf({ act: { sub: 'admin' } })?.id satisfies string | undefined,
     createNext(sb)

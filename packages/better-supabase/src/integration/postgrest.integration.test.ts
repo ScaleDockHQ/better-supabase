@@ -8,7 +8,7 @@ import { actor } from '../plugins/actor/index.ts';
 import { softDelete } from '../plugins/soft-delete/index.ts';
 import { tenant } from '../plugins/tenant/index.ts';
 import { timestamps } from '../plugins/timestamps/index.ts';
-import { signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const secretKey =
@@ -17,9 +17,6 @@ const secretKey =
 const publishableKey =
   process.env['SUPABASE_PUBLISHABLE_KEY'] ??
   'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const GLOBEX = '00000000-0000-4000-8000-000000000002';
@@ -48,9 +45,9 @@ const admin = sb.connect(
 );
 
 async function asOrgMember(orgId: string) {
-  const token = await signTestJwt(jwtSecret, {
+  const token = await signLocalJwt({
     sub: '00000000-0000-4000-8000-0000000000ff',
-    org_id: orgId,
+    tenant_id: orgId,
   });
   return sb.connect(
     createClient(url, publishableKey, {
@@ -244,9 +241,9 @@ describe.skipIf(!live)('PostgREST integration', () => {
   });
 
   it('runs the plugin stack as a tenant user under RLS', async () => {
-    const token = await signTestJwt(jwtSecret, {
+    const token = await signLocalJwt({
       sub: '00000000-0000-4000-8000-0000000000ff',
-      org_id: ACME,
+      tenant_id: ACME,
     });
     const user = sb
       .use(timestamps())
@@ -256,7 +253,7 @@ describe.skipIf(!live)('PostgREST integration', () => {
       .connect(
         createClient(url, publishableKey, { accessToken: async () => token }),
         {
-          claims: { org_id: ACME },
+          claims: { tenant_id: ACME },
           actor: { id: '00000000-0000-4000-8000-0000000000ff', kind: 'user' },
         },
       );

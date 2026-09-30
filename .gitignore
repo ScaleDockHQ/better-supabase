@@ -39,6 +39,7 @@ apps/examples/nextjs/CLAUDE.md
 # supabase local state
 supabase/.branches/
 supabase/.temp/
+supabase/signing_keys.json
 
 # vercel
 .vercel

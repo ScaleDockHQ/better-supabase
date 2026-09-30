@@ -20,7 +20,7 @@ The browser variables get your framework's prefix (`NEXT_PUBLIC_`, `VITE_`,
 | `<prefix>SUPABASE_PUBLISHABLE_KEY` | `PUBLISHABLE_KEY` (or the legacy `ANON_KEY`) |
 | `SUPABASE_SECRET_KEY` | `SECRET_KEY` (or the legacy `SERVICE_ROLE_KEY`) |
 | `SUPABASE_DB_URL` | `DB_URL` |
-| `SUPABASE_JWT_SECRET` | `JWT_SECRET`, for [test tokens](/docs/testing) |
+| `SUPABASE_JWT_SECRET` | `JWT_SECRET`, for HS256 [test tokens](/docs/testing) (`asUser(..., { alg: 'HS256' })`) |
 
 Values are never printed unless you pass `--print`. `env` warns when the
 file isn't in `.gitignore`, and when your Supabase CLI only prints legacy keys.

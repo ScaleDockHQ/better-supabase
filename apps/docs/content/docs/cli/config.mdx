@@ -28,7 +28,7 @@ export default defineConfig({
   plugins: {
     timestamps: true,
     softDelete: { column: 'archived_at' },
-    tenant: { column: 'organization_id', claim: 'org_id' },
+    tenant: { column: 'organization_id' },
     actor: true,
   },
   realtime: { tables: ['customers', 'notes'] },
@@ -50,6 +50,7 @@ export default defineConfig({
 | `json` | `{}` | jsonb types, keyed by `table.column` (database names). `schema` adds a [database check](/docs/kits/sql#enforcing-jsonb-shapes) |
 | `sensitive` | `[]` | Columns the [`noSensitiveSelect` rule](/docs/plugins/rules) guards (`table.column`) |
 | `generators` | `[]` | `zod()`, `valibot()`, `jsonSchema()` or your own |
+| `claims` | `{ tenant: 'tenant_id', scope: 'tenant', features: 'features' }` | JWT claim names. `tenant` is the active-tenant claim the tenant plugin, `current_tenant_id()` and the storage and realtime policies read; `scope` is the `scope` of the kit's `memberships` entries; `features` is the plan-features claim. See [Claims](#claims) |
 | `plugins` | none | Flags for timestamps, soft delete, tenant and actor columns |
 | `buckets` | `{}` | Typed storage buckets; doctor compares them with the database and `config.toml` |
 | `storagePaths` | `{}` | Text columns that hold object paths, keyed by `table.column`, with a `buckets` key or bucket id as the value. They're typed as [`StoragePath<'bucket-id'>`](/docs/kits/storage#path-columns) |
@@ -61,7 +62,26 @@ export default defineConfig({
 | `sql` | `supabase/schemas`, `900_better_supabase`, `supabase/tests` | Where generated SQL and pgTAP files go, and the [SQL kit](/docs/kits/sql) modules to keep in sync |
 | `seed` | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql` | Entry module and output of [`seed`](/docs/cli/local#seed) |
 | `openapi` | `src/lib/openapi.ts`, `openapi.json` | Entry module and output of [`openapi emit`](/docs/cli/local#openapi-emit) |
-| `doctor` | none | `ignore` finding codes, `strict` mode |
+| `doctor` | none | `ignore` finding codes, `strict` mode, `claimsLimit`, `policyHelperLimit` |
+
+## Claims
+
+The `claims` block names the claims every part of better-supabase reads, so a
+rename happens in one place. The defaults match PermDock's contract:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  claims: {
+    tenant: 'tenant_id', // the active tenant, also read from app_metadata
+    scope: 'tenant', // memberships[].scope written by the tenant kit module
+    features: 'features', // plan features per tenant, from the entitlements module
+  },
+});
+```
+
+`gen` writes the names that differ from the defaults into the generated
+schema, and `sql add` and `sql sync` render them into the kit modules. Run
+both after changing the block.
 
 ## supabase/config.toml
 

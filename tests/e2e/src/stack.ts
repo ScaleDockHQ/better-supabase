@@ -35,7 +35,7 @@ export interface TestUser {
 }
 
 /**
- * A confirmed user in `orgId` (via `app_metadata.org_id`), signed in with a
+ * A confirmed user in `orgId` (via `app_metadata.tenant_id`), signed in with a
  * password. `role` lands in `app_metadata.user_role`.
  */
 export async function createUser(
@@ -49,7 +49,7 @@ export async function createUser(
     password,
     email_confirm: true,
     app_metadata: {
-      org_id: orgId,
+      tenant_id: orgId,
       ...(options.role ? { user_role: options.role } : {}),
     },
   });

@@ -34,10 +34,10 @@ insert into auth.users (
 ) values
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-0000000000a1', 'authenticated', 'authenticated',
    'admin@acme.test', extensions.crypt('password123', extensions.gen_salt('bf')), now(),
-   '{"provider":"email","providers":["email"],"org_id":"00000000-0000-4000-8000-000000000001"}', '{}', now(), now(), '', '', '', ''),
+   '{"provider":"email","providers":["email"],"tenant_id":"00000000-0000-4000-8000-000000000001"}', '{}', now(), now(), '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '00000000-0000-4000-8000-0000000000a2', 'authenticated', 'authenticated',
    'member@acme.test', extensions.crypt('password123', extensions.gen_salt('bf')), now(),
-   '{"provider":"email","providers":["email"],"org_id":"00000000-0000-4000-8000-000000000001"}', '{}', now(), now(), '', '', '', '');
+   '{"provider":"email","providers":["email"],"tenant_id":"00000000-0000-4000-8000-000000000001"}', '{}', now(), now(), '', '', '', '');
 
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
 select gen_random_uuid(), u.id, u.id::text, jsonb_build_object('sub', u.id::text, 'email', u.email), 'email', now(), now(), now()

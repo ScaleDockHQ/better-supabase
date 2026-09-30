@@ -28,7 +28,7 @@ describe('db.$stats()', () => {
 
     await Promise.all([db.customers.findMany(), db.notes.findMany()]);
     await db.customers.count();
-    await db.$with({ claims: { org_id: 'o' } }).tags.findMany();
+    await db.$with({ claims: { tenant_id: 'o' } }).tags.findMany();
     await db.$rpc('customer_stats' as never, {} as never);
 
     const stats = db.$stats();

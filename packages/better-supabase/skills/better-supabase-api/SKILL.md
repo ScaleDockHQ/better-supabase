@@ -60,8 +60,8 @@ and a replayed webhook or POST doesn't run twice.
 
 ## Testing
 
-Use `localAuth(secret)` as a resolver and `signTestJwt` / `asUser` from
-`better-supabase/testing`. See the `better-supabase-testing` skill.
+Sign tokens with `signLocalJwt` or `asUser` from `better-supabase/testing`;
+the adapter verifies them against the local JWKS. See the `better-supabase-testing` skill.
 
 Docs: https://bettersupabase.com/docs/frameworks/hono.md (and `next`,
 `orpc`, `edge`, `mcp` under `/docs/frameworks/`).

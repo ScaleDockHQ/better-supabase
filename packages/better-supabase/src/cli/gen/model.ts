@@ -1,6 +1,7 @@
 import type { ResolvedConfig } from '../../config/index.ts';
 import type {
   Casing,
+  ClaimsMeta,
   Codec,
   ColumnMeta,
   FunctionMeta,
@@ -17,6 +18,7 @@ import type {
 } from '../introspect/types.ts';
 
 import { applyCasing, toCamel } from '../../casing/index.ts';
+import { DEFAULT_CLAIMS, tenantClaimPaths } from '../../core/claims.ts';
 import { toCatalog } from '../introspect/catalog.ts';
 import {
   type GeneratorMetadata,
@@ -529,6 +531,17 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const functionsMeta: Record<string, FunctionMeta> = {};
   for (const fn of functions) functionsMeta[fn.key] = fn.meta;
 
+  const claimOverrides: Partial<Record<keyof ClaimsMeta, string>> = {};
+  for (const key of Object.keys(DEFAULT_CLAIMS) as (keyof ClaimsMeta)[]) {
+    if (config.claims[key] !== DEFAULT_CLAIMS[key]) {
+      claimOverrides[key] = config.claims[key];
+    }
+  }
+  const tenantClaim =
+    config.claims.tenant === DEFAULT_CLAIMS.tenant
+      ? undefined
+      : tenantClaimPaths(config.claims.tenant);
+
   const meta: SchemaMeta = {
     version: 1,
     casing: config.casing,
@@ -547,6 +560,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
                 public: bucket.public ?? false,
                 path: bucket.path,
                 ...(bucket.policy ? { policy: bucket.policy } : {}),
+                ...(bucket.policy === 'tenant' && tenantClaim
+                  ? { tenant: { claim: tenantClaim } }
+                  : {}),
                 ...(bucket.fileSizeLimit
                   ? { fileSizeLimit: bucket.fileSizeLimit }
                   : {}),
@@ -561,6 +577,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     ...(Object.keys(config.topics).length > 0 ? { topics: config.topics } : {}),
     ...(config.realtime.tables.length > 0
       ? { realtime: realtimeMeta(config.realtime.tables, tableModels) }
+      : {}),
+    ...(Object.keys(claimOverrides).length > 0
+      ? { claims: claimOverrides }
       : {}),
   };
 

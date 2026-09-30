@@ -5,7 +5,6 @@ import type {
 
 import {
   fromSupabaseUrl,
-  resourceMetadataResponse,
   unauthorizedResponse,
 } from '@supabase/server/oauth-protected-resource';
 
@@ -41,7 +40,16 @@ export type { ResourceRouteOptions } from '../server/resource.ts';
 
 export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
 const WELL_KNOWN = '/.well-known/oauth-protected-resource';
-const SUPPORTED_VERSIONS = new Set([MCP_PROTOCOL_VERSION, '2025-03-26']);
+/** Revisions before 2026-07-28 open with an `initialize` handshake. */
+const LEGACY_VERSIONS: readonly string[] = [
+  '2025-11-25',
+  '2025-06-18',
+  '2025-03-26',
+];
+const SUPPORTED_VERSIONS: readonly string[] = [
+  MCP_PROTOCOL_VERSION,
+  ...LEGACY_VERSIONS,
+];
 
 type Json = Readonly<Record<string, unknown>>;
 
@@ -121,6 +129,12 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
   readonly resource?: string | ((request: Request) => string);
   /** Defaults to Supabase Auth of `env.url` (`<url>/auth/v1`). */
   readonly authorizationServers?: readonly string[];
+  /**
+   * Scopes the tools need, published as RFC 9728 `scopes_supported` and in
+   * `insufficient_scope` challenges. `offline_access` is left out: refresh
+   * tokens are between the client and the authorization server.
+   */
+  readonly scopes?: readonly string[];
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
   /** Custom jsonb types, as in `createOpenApi`. */
@@ -334,25 +348,57 @@ const PARSE_ERROR = -32700;
 const INVALID_REQUEST = -32600;
 const METHOD_NOT_FOUND = -32601;
 const INVALID_PARAMS = -32602;
+const HEADER_MISMATCH = -32020;
+const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+
+const META_VERSION = 'io.modelcontextprotocol/protocolVersion';
+const META_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities';
+const META_SERVER_INFO = 'io.modelcontextprotocol/serverInfo';
+/** How long clients may cache `tools/list` and `server/discover` (per token). */
+const LIST_TTL_MS = 300_000;
 
 function rpcError(
   id: JsonRpcRequest['id'],
   code: number,
   message: string,
   status = 200,
+  data?: Json,
 ): Response {
   return Response.json(
-    { jsonrpc: '2.0', id: id ?? null, error: { code, message } },
+    {
+      jsonrpc: '2.0',
+      id: id ?? null,
+      error: { code, message, ...(data ? { data } : {}) },
+    },
     { status },
   );
 }
 
+const isObject = (value: unknown): value is Json =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** An `Mcp-Name` value, decoding the `=?base64?...?=` sentinel. */
+function headerName(value: string): string {
+  const encoded = /^=\?base64\?(.*)\?=$/.exec(value)?.[1];
+  if (encoded === undefined) return value;
+  try {
+    return new TextDecoder().decode(
+      Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0)),
+    );
+  } catch {
+    return value;
+  }
+}
+
+const quoted = (value: string): string =>
+  `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+
 function isRpcRequest(value: unknown): value is JsonRpcRequest {
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as Json)['jsonrpc'] === '2.0' &&
-    typeof (value as Json)['method'] === 'string'
+    isObject(value) &&
+    value['jsonrpc'] === '2.0' &&
+    typeof value['method'] === 'string' &&
+    (value['params'] === undefined || isObject(value['params']))
   );
 }
 
@@ -485,6 +531,91 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     }
   };
 
+  const scopes = (options.scopes ?? []).filter(
+    (scope) => scope !== 'offline_access',
+  );
+  const serverInfo = {
+    name: options.name,
+    version: options.version,
+    ...(options.title ? { title: options.title } : {}),
+  };
+  const capabilities = { tools: { listChanged: false } };
+
+  const unauthorized = (request: Request): Response => {
+    const response = unauthorizedResponse(request, {
+      resourceMetadataUrl: metadataUrl(request),
+    });
+    if (scopes.length > 0) {
+      response.headers.set(
+        'www-authenticate',
+        `${response.headers.get('www-authenticate') ?? 'Bearer'}, scope=${quoted(scopes.join(' '))}`,
+      );
+    }
+    return response;
+  };
+  const forbidden = (request: Request, message: string): Response => {
+    const challenge = [
+      'Bearer error="insufficient_scope"',
+      `error_description=${quoted(message)}`,
+      ...(scopes.length > 0 ? [`scope=${quoted(scopes.join(' '))}`] : []),
+      `resource_metadata=${quoted(metadataUrl(request))}`,
+    ].join(', ');
+    const response = rpcError(null, INVALID_REQUEST, message, 403);
+    response.headers.set('www-authenticate', challenge);
+    return response;
+  };
+  const unsupportedVersion = (
+    id: JsonRpcRequest['id'],
+    requested: unknown,
+  ): Response =>
+    rpcError(
+      id,
+      UNSUPPORTED_PROTOCOL_VERSION,
+      'Unsupported protocol version',
+      400,
+      { supported: [...SUPPORTED_VERSIONS], requested },
+    );
+  /** 2026-07-28 requests carry their version and capabilities, mirrored in headers. */
+  const checkModern = (
+    message: JsonRpcRequest,
+    header: string | null,
+    headers: Headers,
+  ): Response | undefined => {
+    const meta = message.params?.['_meta'];
+    const version = isObject(meta) ? meta[META_VERSION] : undefined;
+    if (
+      !isObject(meta) ||
+      typeof version !== 'string' ||
+      !isObject(meta[META_CAPABILITIES])
+    ) {
+      return rpcError(
+        message.id,
+        INVALID_PARAMS,
+        `Requests need _meta["${META_VERSION}"] and _meta["${META_CAPABILITIES}"]`,
+        400,
+      );
+    }
+    if (version !== MCP_PROTOCOL_VERSION) {
+      return unsupportedVersion(message.id, version);
+    }
+    const mismatch = (detail: string): Response =>
+      rpcError(message.id, HEADER_MISMATCH, `Header mismatch: ${detail}`, 400);
+    if (header !== version) {
+      return mismatch(`MCP-Protocol-Version must be ${version}`);
+    }
+    if (headers.get('mcp-method') !== message.method) {
+      return mismatch(`Mcp-Method must be ${message.method}`);
+    }
+    const name = message.params?.['name'];
+    if (message.method === 'tools/call' && typeof name === 'string') {
+      const sent = headers.get('mcp-name');
+      if (sent === null || headerName(sent) !== name) {
+        return mismatch(`Mcp-Name must be ${name}`);
+      }
+    }
+    return undefined;
+  };
+
   const handler = async (request: Request): Promise<Response> => {
     const origin = request.headers.get('origin');
     if (
@@ -497,25 +628,17 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     if (request.method !== 'POST') {
       return new Response(null, { status: 405, headers: { allow: 'POST' } });
     }
-    const version = request.headers.get('mcp-protocol-version');
-    if (version && !SUPPORTED_VERSIONS.has(version)) {
-      return rpcError(
-        null,
-        INVALID_REQUEST,
-        `Unsupported MCP-Protocol-Version ${version}`,
-        400,
-      );
+    const header = request.headers.get('mcp-protocol-version');
+    if (header && !SUPPORTED_VERSIONS.includes(header)) {
+      return unsupportedVersion(null, header);
     }
 
     const ctx = await server.context(request);
     const denied = guard(ctx.auth, options.allow, options.aal);
     if (denied) {
-      if (denied.kind === 'unauthorized') {
-        return unauthorizedResponse(request, {
-          resourceMetadataUrl: metadataUrl(request),
-        });
-      }
-      return rpcError(null, INVALID_REQUEST, denied.message, 403);
+      return denied.kind === 'unauthorized'
+        ? unauthorized(request)
+        : forbidden(request, denied.message);
     }
 
     let message: unknown;
@@ -532,34 +655,69 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         400,
       );
     }
+    const meta = message.params?.['_meta'];
+    const modern =
+      (isObject(meta) && meta[META_VERSION] !== undefined) ||
+      header === MCP_PROTOCOL_VERSION;
+    if (modern) {
+      const invalid = checkModern(message, header, request.headers);
+      if (invalid) return invalid;
+    }
     if (message.id === undefined) return new Response(null, { status: 202 });
 
-    const reply = (result: unknown): Response =>
-      Response.json({ jsonrpc: '2.0', id: message.id, result });
+    const reply = (result: object): Response =>
+      Response.json({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: modern
+          ? {
+              ...result,
+              resultType: 'complete',
+              _meta: { [META_SERVER_INFO]: serverInfo },
+            }
+          : result,
+      });
+    const notFound = (): Response =>
+      rpcError(
+        message.id,
+        METHOD_NOT_FOUND,
+        `Method not found: ${message.method}`,
+        modern ? 404 : 200,
+      );
 
     switch (message.method) {
+      case 'server/discover':
+        return reply({
+          supportedVersions: [...SUPPORTED_VERSIONS],
+          capabilities,
+          ...(options.instructions
+            ? { instructions: options.instructions }
+            : {}),
+          ttlMs: LIST_TTL_MS,
+          cacheScope: 'private',
+        });
       case 'initialize': {
+        if (modern) return notFound();
         const requested = message.params?.['protocolVersion'];
         return reply({
           protocolVersion:
-            typeof requested === 'string' && SUPPORTED_VERSIONS.has(requested)
+            typeof requested === 'string' && LEGACY_VERSIONS.includes(requested)
               ? requested
-              : MCP_PROTOCOL_VERSION,
-          capabilities: { tools: { listChanged: false } },
-          serverInfo: {
-            name: options.name,
-            version: options.version,
-            ...(options.title ? { title: options.title } : {}),
-          },
+              : LEGACY_VERSIONS[0],
+          capabilities,
+          serverInfo,
           ...(options.instructions
             ? { instructions: options.instructions }
             : {}),
         });
       }
       case 'ping':
-        return reply({});
+        return modern ? notFound() : reply({});
       case 'tools/list':
-        return reply({ tools: listTools() });
+        return reply({
+          tools: listTools(),
+          ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: 'private' } : {}),
+        });
       case 'tools/call': {
         const name = message.params?.['name'];
         if (typeof name !== 'string' || !registry.has(name)) {
@@ -578,19 +736,20 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         );
       }
       default:
-        return rpcError(
-          message.id,
-          METHOD_NOT_FOUND,
-          `Method not found: ${message.method}`,
-        );
+        return notFound();
     }
   };
 
   const metadata = (request: Request): Response =>
-    resourceMetadataResponse(request, {
-      resource: resourceOf(request),
-      authorizationServers: [...authorizationServers()],
-    });
+    Response.json(
+      {
+        resource: resourceOf(request),
+        authorization_servers: [...authorizationServers()],
+        bearer_methods_supported: ['header'],
+        ...(scopes.length > 0 ? { scopes_supported: scopes } : {}),
+      },
+      { headers: { 'access-control-allow-origin': '*' } },
+    );
 
   const mcp: BetterMcp<M, F, E> = extendServer<BetterMcp<M, F, E>>(server, {
     get tools() {

@@ -1,5 +1,11 @@
-export { createTestSigner, localAuth, signTestJwt } from './jwt.ts';
-export type { TestJwtClaims, TestSigner } from './jwt.ts';
+export {
+  createTestSigner,
+  localAuth,
+  signTestJwt,
+  signTestJwtWithKey,
+} from './jwt.ts';
+export type { SigningJwk, TestJwtClaims, TestSigner } from './jwt.ts';
+export { localSigningKey, signLocalJwt } from './local-key.ts';
 export { asUser, LOCAL_JWT_SECRET } from './as-user.ts';
 export type { LocalStack, TestUser } from './as-user.ts';
 export { expectDbBudget } from './budget.ts';

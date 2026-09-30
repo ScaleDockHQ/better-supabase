@@ -34,7 +34,9 @@ import type {
   LiveCountSeed,
   LiveSource,
 } from '../realtime/live.ts';
+import type { SchemaMeta } from '../schema/types.ts';
 
+import { claimAt, claimsOf, tenantClaimPaths } from '../core/claims.ts';
 import { invalidateTables } from '../query/invalidate.ts';
 import { liveCount, liveQuery } from '../realtime/live.ts';
 import { useSession } from './session.ts';
@@ -44,7 +46,7 @@ export type { SessionProviderProps } from './session.ts';
 export type { AuthSession } from '../auth/view.ts';
 export type { Impersonator } from '../auth/impersonation.ts';
 export { hasEntitlement } from '../auth/entitlements.ts';
-export type { EntitlementKey } from '../auth/entitlements.ts';
+export type { EntitlementKey, MembershipClaim } from '../auth/entitlements.ts';
 export type { LiveCountSeed } from '../realtime/live.ts';
 
 /** The parts of `createBrowser()` the provider needs. */
@@ -135,8 +137,8 @@ export interface BetterHooks<B extends BrowserLike> {
   readonly useQueries: () => B['queries'];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => AuthSnapshot;
-  /** `useSession()` with the claims typed by the browser's `sb.claims(schema)`. */
-  readonly useSession: () => AuthSession<ClaimsOf<B>>;
+  /** `useSession()` typed by the browser's `sb.claims(schema)` and `sb.userMetadata(schema)`. */
+  readonly useSession: () => AuthSession<ClaimsOf<B>, ProfileOf<B>>;
 }
 
 /** The claims type of a browser's `sb.claims(schema)`, `unknown` without one. */
@@ -144,6 +146,13 @@ export type ClaimsOf<B extends BrowserLike> = B['sb'] extends {
   readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
 }
   ? C
+  : unknown;
+
+/** The profile type of a browser's `sb.userMetadata(schema)`, `unknown` without one. */
+export type ProfileOf<B extends BrowserLike> = B['sb'] extends {
+  readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
+}
+  ? P
   : unknown;
 
 /**
@@ -167,7 +176,7 @@ export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
     },
     useSupabase,
     useAuth,
-    useSession: useSession<ClaimsOf<B>>,
+    useSession: useSession<ClaimsOf<B>, ProfileOf<B>>,
   };
 }
 
@@ -257,22 +266,24 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
 
 export interface LiveQueryHookOptions {
   /**
-   * Tenant for tenant-scoped tables. Defaults to the `org_id` claim
-   * (top-level or in `app_metadata`).
+   * Tenant for tenant-scoped tables. Defaults to the `config.claims.tenant`
+   * claim (`tenant_id`, top-level or in `app_metadata`).
    */
   readonly tenant?: string;
   /** Defaults to 100 ms. */
   readonly debounceMs?: number;
 }
 
-function claimedTenant(auth: AuthSnapshot): string | undefined {
+function claimedTenant(
+  auth: AuthSnapshot,
+  meta: SchemaMeta,
+): string | undefined {
   if (auth.status !== 'signed-in') return undefined;
-  const top = auth.claims['org_id'];
-  if (typeof top === 'string') return top;
-  const app = auth.claims['app_metadata'] as
-    | Readonly<Record<string, unknown>>
-    | undefined;
-  return typeof app?.['org_id'] === 'string' ? app['org_id'] : undefined;
+  for (const path of tenantClaimPaths(claimsOf(meta).tenant)) {
+    const value = claimAt(auth.claims, path);
+    if (value !== undefined) return value;
+  }
+  return undefined;
 }
 
 /**
@@ -299,7 +310,7 @@ export function useLiveQuery(
     );
   }
   const key = spec ? JSON.stringify(spec) : null;
-  const tenant = options.tenant ?? claimedTenant(auth);
+  const tenant = options.tenant ?? claimedTenant(auth, browser.sb.meta);
   const userId = auth.user?.id ?? null;
   const debounceMs = options.debounceMs;
 
@@ -363,7 +374,7 @@ export function useLiveCount(
   }>({ key: null, count: undefined, error: undefined });
   const [status, setStatus] = useState<SubscriptionStatus>('closed');
   const key = spec ? JSON.stringify(spec) : null;
-  const tenant = options.tenant ?? claimedTenant(auth);
+  const tenant = options.tenant ?? claimedTenant(auth, browser.sb.meta);
   const userId = auth.user?.id ?? null;
   const debounceMs = options.debounceMs;
   const hasInitial = initial !== undefined;

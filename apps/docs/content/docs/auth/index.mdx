@@ -114,15 +114,28 @@ whose sessions are typed by the schema's output:
 ```ts title="src/lib/supabase/sb.ts"
 import { z } from 'zod';
 
-export const Claims = z.object({
+export const Claims = z.looseObject({
   tenant_id: z.uuid().optional(),
   roles: z.array(z.string()).default([]),
+  memberships: z
+    .array(z.looseObject({ scope: z.string(), id: z.string(), roles: z.array(z.string()) }))
+    .default([]),
 });
 
 export const sb = defineSupabase(schema)
   .claims(Claims)
-  .use(tenant<z.infer<typeof Claims>>({ claim: 'tenant_id' }));
+  .use(tenant<z.infer<typeof Claims>>());
 ```
+
+The tenant plugin, `current_tenant_id()` and the storage and realtime policies
+read the active tenant from `tenant_id` (or `app_metadata.tenant_id`).
+`claims.tenant` in the config renames it for all of them at once. Memberships
+follow PermDock's shape, `{ scope, id, roles }` (see
+[the claims contract](/docs/auth/permdock#who-owns-what)),
+and roles and memberships are never read from `user_metadata`, which users can
+edit. Use `z.looseObject` so claims your schema doesn't list, such as
+PermDock's `attrs`, `authz_ver` and `memberships_truncated`, stay on the
+session.
 
 - `createServer`, `createNext`, `createHono` and friends validate after the
   signature check, on every request, including tokens served from the
@@ -140,7 +153,8 @@ export const sb = defineSupabase(schema)
   `createHooks<typeof browser>()` are typed `JWTClaims & Claims`. The
   standalone `useSession<Claims>()` takes the type explicitly.
 - `tenant<Claims>({ claim })` only accepts dotted paths to string claims,
-  such as `'tenant_id'` or `'app_metadata.tenant_id'`.
+  such as `'tenant_id'` or `'app_metadata.tenant_id'`. Without `claim` it
+  reads `claims.tenant` from the generated schema.
 
 Keep the schema small: it runs on every request, and anything the hook
 doesn't always set should be optional or have a default.
@@ -148,6 +162,44 @@ doesn't always set should be optional or have a default.
 ([BS404](/docs/cli/doctor#bs404)), that it is `stable` with an empty
 `search_path`, and with `--as <user id>` how large the claims it returns are
 ([BS405](/docs/cli/doctor#bs405)).
+
+## Profile
+
+`user_metadata` holds what users say about themselves: a display name, an
+avatar, a theme. `sb.userMetadata(schema)` parses it into a typed
+`session.profile` for rendering:
+
+```ts title="src/lib/supabase/sb.ts"
+export const Profile = z.object({
+  display_name: z.string().optional(),
+  avatar_url: z.url().optional(),
+});
+
+export const sb = defineSupabase(schema).claims(Claims).userMetadata(Profile);
+```
+
+```tsx title="src/app/account/page.tsx"
+const session = await next.session();
+if (session.kind === 'user') {
+  return <h1>Hello, {session.profile?.display_name ?? session.user.email}</h1>;
+}
+```
+
+Any signed-in user can change their own metadata with `auth.updateUser()`, so
+the profile is for display only. Roles, memberships, the tenant and every
+policy come from the verified claims, never from `profile` or
+`user_metadata`.
+
+- The schema runs after the claims schema, on the `user_metadata` claim of the
+  verified token. Metadata that fails it leaves `profile` undefined and logs
+  one warning per schema through the `logger` of `defineSupabase` with the
+  failing paths, never the values. The request still resolves as the user.
+- `session.profile` is typed `Profile | undefined` in `ctx.auth`,
+  `next.session()` and the `useSession` from `createHooks<typeof browser>()`.
+- Supabase Auth copies `user_metadata` into the access token. A custom access
+  token hook, PermDock's included, must keep that claim for `profile` to be
+  set. The claims budget ([BS405](/docs/cli/doctor#bs405)) counts it, so
+  keep large or frequently changing fields in a `profiles` table instead.
 
 ## Identity for repositories
 

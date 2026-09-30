@@ -10,7 +10,7 @@ policies, and records who really made each change:
 ```ts title="app/admin/actions.ts"
 const db = server.actingAs(
   userId,
-  { org_id },
+  { tenant_id: orgId },
   { actor: admin.id, reason: 'Support ticket 4211' },
 );
 await db.invoices.update(id, { status: 'void' });

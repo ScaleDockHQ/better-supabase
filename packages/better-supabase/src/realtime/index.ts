@@ -10,12 +10,15 @@ import type { BetterSupabase } from '../core/define.ts';
 import type {
   AnyFunctions,
   AnyModels,
+  PermdockTopicPolicy,
   Row,
   TableKey,
   TableMeta,
 } from '../schema/types.ts';
 
+import { tenantClaimPaths } from '../core/claims.ts';
 import { dbError, type DbError, type ValidationIssue } from '../core/errors.ts';
+import { permdockCheck } from '../core/permdock-sql.ts';
 import { AsyncResult, err, ok } from '../core/result.ts';
 import {
   parseTemplate,
@@ -29,6 +32,7 @@ import {
 import { toApp } from '../plugins/shared.ts';
 
 export type { TemplateParams, TemplateValues } from '../core/template.ts';
+export type { PermdockTopicPolicy } from '../schema/types.ts';
 export { liveCount, liveQuery, liveTopic } from './live.ts';
 export type {
   CountRunner,
@@ -50,7 +54,7 @@ export interface TopicOptions<E extends EventSchemas> {
   readonly private?: boolean;
   /**
    * Tenant check for the generated policy. Defaults to `{orgId}` against
-   * `org_id` / `app_metadata.org_id` when the template has `{orgId}`.
+   * `tenant_id` / `app_metadata.tenant_id` when the template has `{orgId}`.
    */
   readonly tenant?:
     | false
@@ -61,6 +65,12 @@ export interface TopicOptions<E extends EventSchemas> {
       };
   /** Owner check. Defaults to `{userId}` against `auth.uid()` when the template has `{userId}`. */
   readonly owner?: false | { readonly param?: string };
+  /**
+   * Authorize with PermDock's SQL helpers instead of the tenant claim:
+   * `permitted_<scope>_ids(receive)` on the scope segment (or
+   * `permdock_has` for `scope: 'global'`), and `send` for broadcasting.
+   */
+  readonly permdock?: PermdockTopicPolicy;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
   /** Also authorize presence. Defaults to `false`. */
@@ -274,12 +284,33 @@ export function defineTopic<
     return index;
   };
   const checks: string[] = [];
+  const permdock = options.permdock;
   const tenantParam =
     options.tenant === false ? undefined : (options.tenant?.param ?? 'orgId');
-  if (tenantParam && (options.tenant || parsed.params.includes(tenantParam))) {
+  const permdockChecks = ((): { receive: string; send: string } | undefined => {
+    if (!permdock) return undefined;
+    const where = `defineTopic(${template})`;
+    const id =
+      permdock.scope === 'global'
+        ? undefined
+        : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? 'orgId', 'PermDock'))})`;
+    const receive = permdockCheck(where, permdock, permdock.receive, id);
+    return {
+      receive,
+      send:
+        permdock.send === undefined
+          ? receive
+          : permdockCheck(where, permdock, permdock.send, id),
+    };
+  })();
+  if (
+    !permdock &&
+    tenantParam &&
+    (options.tenant || parsed.params.includes(tenantParam))
+  ) {
     const tenant = options.tenant || {};
     const expression =
-      tenant.sql ?? claimSql(tenant.claim ?? ['org_id', 'app_metadata.org_id']);
+      tenant.sql ?? claimSql(tenant.claim ?? tenantClaimPaths());
     checks.push(
       `split_part((select realtime.topic()), ':', ${String(segment(tenantParam, 'tenant'))}) = (${expression})`,
     );
@@ -305,22 +336,29 @@ export function defineTopic<
       const extensions = options.presence
         ? "('broadcast', 'presence')"
         : "('broadcast')";
-      const condition = [
-        `(select realtime.topic()) ~ ${sqlString(parsed.sqlPattern)}`,
-        `realtime.messages.extension in ${extensions}`,
-        ...checks,
-      ].join('\n    and ');
+      const condition = (extra: string | undefined) =>
+        [
+          `(select realtime.topic()) ~ ${sqlString(parsed.sqlPattern)}`,
+          `realtime.messages.extension in ${extensions}`,
+          ...checks,
+          ...(extra === undefined ? [] : [extra]),
+        ].join('\n    and ');
       const lines = [`-- better-supabase: topic ${template}`];
-      const policies: [string, string, 'using' | 'with check'][] = [
-        ['receive', 'select', 'using'],
+      const policies: [string, string, 'using' | 'with check', string][] = [
+        ['receive', 'select', 'using', condition(permdockChecks?.receive)],
       ];
-      if (options.send || options.presence)
-        policies.push(['send', 'insert', 'with check']);
-      for (const [suffix, command, clause] of policies) {
+      if (options.send || options.presence || permdock?.send !== undefined)
+        policies.push([
+          'send',
+          'insert',
+          'with check',
+          condition(permdockChecks?.send),
+        ]);
+      for (const [suffix, command, clause, check] of policies) {
         const policy = sqlIdent(`bs_topic_${name}_${suffix}`);
         lines.push(
           `drop policy if exists ${policy} on realtime.messages;`,
-          `create policy ${policy} on realtime.messages for ${command} to authenticated\n  ${clause} (\n    ${condition}\n  );`,
+          `create policy ${policy} on realtime.messages for ${command} to authenticated\n  ${clause} (\n    ${check}\n  );`,
         );
       }
       return `${lines.join('\n')}\n`;

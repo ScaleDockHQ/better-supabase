@@ -99,6 +99,18 @@ export interface SchemaMeta {
   readonly topics?: Readonly<Record<string, string>>;
   /** Tables that broadcast change signals (`config.realtime.tables`), keyed by app key. */
   readonly realtime?: Readonly<Record<string, RealtimeTableMeta>>;
+  /** Claim names from `config.claims` that differ from the defaults. */
+  readonly claims?: Partial<ClaimsMeta>;
+}
+
+/** The claim names the SQL kit, codegen and runtime defaults agree on. */
+export interface ClaimsMeta {
+  /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
+  readonly tenant: string;
+  /** `scope` of the tenant entries in the `memberships` claim. Defaults to `tenant`. */
+  readonly scope: string;
+  /** Claim holding plan features per tenant (`{ [tenantId]: string[] }`). Defaults to `features`. */
+  readonly features: string;
 }
 
 export interface RealtimeTableMeta {
@@ -106,11 +118,51 @@ export interface RealtimeTableMeta {
   readonly tenant?: string;
 }
 
+/**
+ * Storage policies that call PermDock's generated SQL helpers:
+ * `<schema>.permitted_<scope>_ids(key)` for a scope keyed by a path segment,
+ * `<schema>.permdock_has(key)` for `scope: 'global'`. Only for permissions
+ * whose grants have no row conditions beyond the scope.
+ */
+export interface PermdockBucketPolicy {
+  readonly permdock: {
+    /** Downloads, signed URLs, renders and metadata reads. */
+    readonly read: string;
+    /** Listing; without it `read` covers listing too. */
+    readonly list?: string;
+    /** Uploads, updates and moves; also deletes unless `delete` is set. */
+    readonly write: string;
+    readonly delete?: string;
+  };
+  /** A PermDock scope such as `organization`, or `global`. */
+  readonly scope: string;
+  /** 1-based path segment holding the scope id. Defaults to the `{orgId}` segment. */
+  readonly segment?: number;
+  /** Schema of the PermDock helpers. Defaults to `public`. */
+  readonly schema?: string;
+}
+
+/** A PermDock topic policy: `select` (receive) and `insert` (send) on `realtime.messages`. */
+export interface PermdockTopicPolicy {
+  readonly receive: string;
+  /** Lets clients send on the topic with this permission. */
+  readonly send?: string;
+  /** A PermDock scope such as `organization`, or `global`. */
+  readonly scope: string;
+  /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{orgId}` segment. */
+  readonly segment?: number;
+  readonly schema?: string;
+}
+
+export type BucketPolicyName = 'tenant' | 'owner' | 'public' | 'none';
+
 export interface BucketMeta {
   readonly id: string;
   readonly public: boolean;
   readonly path: string;
-  readonly policy?: 'tenant' | 'owner' | 'public' | 'none';
+  readonly policy?: BucketPolicyName | PermdockBucketPolicy;
+  /** Claim paths for the tenant policy, when `config.claims.tenant` is not the default. */
+  readonly tenant?: { readonly claim: readonly string[] };
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
 }

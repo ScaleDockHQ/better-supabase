@@ -1,6 +1,7 @@
 import type { Operation, Selection } from '../../ir/types.ts';
 import type { SchemaMeta, TableMeta } from '../../schema/types.ts';
 
+import { claimAt, claimsOf } from '../../core/claims.ts';
 import { dbError, DbException } from '../../core/errors.ts';
 import {
   definePlugin,
@@ -32,7 +33,8 @@ export interface RuleSet {
   readonly maxIncludeDepth?: RuleSetting<number>;
   /**
    * Tenant tables queried without a tenant: neither `context.tenant` nor the
-   * given claim (default `org_id`). Service connections are exempt.
+   * given claim (default `config.claims.tenant`, `tenant_id`). Service
+   * connections are exempt.
    */
   readonly requireTenantContext?: RuleSetting<string>;
   /** A service-role connection used where `window` and `document` exist. */
@@ -168,15 +170,6 @@ function isBrowser(): boolean {
   );
 }
 
-function claimValue(context: HookArgs['context'], claim: string): unknown {
-  let value: unknown = context.claims;
-  for (const part of claim.split('.')) {
-    if (typeof value !== 'object' || value === null) return undefined;
-    value = (value as Record<string, unknown>)[part];
-  }
-  return value;
-}
-
 const TEXT_TYPES = new Set(['text', 'varchar', 'bpchar']);
 const STORAGE_URL =
   /\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\//;
@@ -267,12 +260,15 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         ? `includes nest ${depth} levels deep (maximum ${max})`
         : undefined;
     },
-    requireTenantContext: (op, { context }) => {
+    requireTenantContext: (op, { context, schema }) => {
       if (!op.table.flags.tenant || context.actor?.kind === 'service')
         return undefined;
-      const claim = optionOf(rules.requireTenantContext, 'org_id');
+      const claim = optionOf(
+        rules.requireTenantContext,
+        claimsOf(schema).tenant,
+      );
       return context.tenant === undefined &&
-        claimValue(context, claim) === undefined
+        claimAt(context.claims, claim) === undefined
         ? `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim "${claim}")`
         : undefined;
     },

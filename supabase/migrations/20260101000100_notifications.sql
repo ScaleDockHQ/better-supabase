@@ -20,11 +20,11 @@ create policy notifications_own on public.notifications
   for all to authenticated
   using (
     user_id = (select auth.uid())
-    and organization_id = (select better_supabase.current_org_id())
+    and organization_id = (select better_supabase.current_tenant_id())
   )
   with check (
     user_id = (select auth.uid())
-    and organization_id = (select better_supabase.current_org_id())
+    and organization_id = (select better_supabase.current_tenant_id())
   );
 
 grant select, insert, update, delete on public.notifications to authenticated;

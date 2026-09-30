@@ -10,7 +10,7 @@ export const notifyMe = next.action(
   { input: z.object({ title: z.string().min(1).max(200) }) },
   async ({ title }, { auth, db }) => {
     const organizationId =
-      auth.kind === 'user' ? auth.claims.app_metadata?.org_id : undefined;
+      auth.kind === 'user' ? auth.claims.app_metadata?.tenant_id : undefined;
     if (!organizationId) {
       return err(dbError('forbidden', 'Your account has no organization'));
     }

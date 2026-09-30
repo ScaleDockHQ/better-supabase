@@ -4,7 +4,7 @@
  */
 export const SPEC_PINS: {
   readonly otelSemconv: '1.37.0';
-  readonly mcp: '2025-06-18';
+  readonly mcp: '2026-07-28';
   readonly openapi: '3.1.1';
   readonly cloudevents: '1.0.2';
   readonly standardWebhooks: '1.0.0';
@@ -16,7 +16,7 @@ export const SPEC_PINS: {
   readonly pgvector: '0.8';
 } = {
   otelSemconv: '1.37.0',
-  mcp: '2025-06-18',
+  mcp: '2026-07-28',
   openapi: '3.1.1',
   cloudevents: '1.0.2',
   standardWebhooks: '1.0.0',

@@ -1,6 +1,7 @@
 import type { MutationOp, Operation } from '../../ir/types.ts';
-import type { TableMeta } from '../../schema/types.ts';
+import type { SchemaMeta, TableMeta } from '../../schema/types.ts';
 
+import { claimAt, claimsOf, tenantClaimPaths } from '../../core/claims.ts';
 import { DbException, dbError } from '../../core/errors.ts';
 import {
   definePlugin,
@@ -36,7 +37,9 @@ type StringPaths<T, Depth extends readonly unknown[]> = T extends object
 export interface TenantOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.
-   * Dots walk into objects. Default `['org_id', 'app_metadata.org_id']`.
+   * Dots walk into objects. Defaults to `config.claims.tenant` (`tenant_id`),
+   * then the same key in `app_metadata`. `user_metadata` is never a source:
+   * users can write it.
    */
   readonly claim?: ClaimPath<C> | readonly ClaimPath<C>[];
   /** Custom resolution, e.g. from a header validated against memberships. */
@@ -63,29 +66,28 @@ export interface TenantExtension extends RepositoryExtension {
     : unknown;
 }
 
-/** The tenant for a request: `context.tenant`, then the configured claim. */
+/**
+ * The tenant for a request: `context.tenant`, then the configured claim.
+ * `schema` supplies the default claim (`config.claims.tenant`).
+ */
 export function resolveTenant<C = unknown>(
   context: RequestContext,
   options: TenantOptions<C> = {},
+  schema?: Pick<SchemaMeta, 'claims'>,
 ): string | undefined {
   if (options.resolve) return options.resolve(context);
   if (typeof context.tenant === 'string') return context.tenant;
   const claim = options.claim as string | readonly string[] | undefined;
-  const paths = typeof claim === 'string' ? [claim] : (claim ?? DEFAULT_CLAIMS);
+  const paths =
+    typeof claim === 'string'
+      ? [claim]
+      : (claim ?? tenantClaimPaths(claimsOf(schema).tenant));
   for (const path of paths) {
-    let value: unknown = context.claims;
-    for (const segment of path.split('.')) {
-      value =
-        typeof value === 'object' && value !== null
-          ? (value as Record<string, unknown>)[segment]
-          : undefined;
-    }
-    if (typeof value === 'string' && value.length > 0) return value;
+    const value = claimAt(context.claims, path);
+    if (value !== undefined) return value;
   }
   return undefined;
 }
-
-const DEFAULT_CLAIMS = ['org_id', 'app_metadata.org_id'] as const;
 
 function tenantColumn(table: TableMeta): string | undefined {
   return dbName(table, table.flags.tenant);
@@ -106,8 +108,9 @@ export function tenant<C = unknown>(
   const current = (
     table: TableMeta,
     context: RequestContext,
+    schema: SchemaMeta,
   ): string | undefined => {
-    const id = resolveTenant(context, options);
+    const id = resolveTenant(context, options, schema);
     if (id === undefined && onMissing === 'error' && tenantColumn(table)) {
       throw new DbException(
         dbError(
@@ -121,19 +124,19 @@ export function tenant<C = unknown>(
 
   return definePlugin<'tenant', TenantExtension>({
     name: 'tenant',
-    transformQuery(op, { context, options: call }): Operation {
+    transformQuery(op, { context, schema, options: call }): Operation {
       if (call['allTenants'] === true) return op;
-      const id = current(op.table, context);
+      const id = current(op.table, context, schema);
       if (id === undefined) return op;
       return scopeOperation(op, (table) => {
         const column = tenantColumn(table);
         return column ? equals(column, id) : undefined;
       });
     },
-    beforeMutation(op, { table, context, options: call }): MutationOp {
+    beforeMutation(op, { table, context, schema, options: call }): MutationOp {
       const column = tenantColumn(table);
       if (!column || call['allTenants'] === true) return op;
-      const id = current(table, context);
+      const id = current(table, context, schema);
       if (id === undefined) return op;
       switch (op.kind) {
         case 'insert':

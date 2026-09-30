@@ -11,7 +11,7 @@ import {
 } from '../fixtures/generated-camel.ts';
 import { type BetterEnv, createHono } from '../hono/index.ts';
 import { defineListQuery } from '../list/index.ts';
-import { localAuth, signTestJwt } from '../testing/jwt.ts';
+import { signLocalJwt } from '../testing/local-key.ts';
 
 const url = process.env['SUPABASE_URL'] ?? 'http://127.0.0.1:55421';
 const publishableKey =
@@ -20,9 +20,6 @@ const publishableKey =
 const secretKey =
   process.env['SUPABASE_SECRET_KEY'] ??
   'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
-const jwtSecret =
-  process.env['SUPABASE_JWT_SECRET'] ??
-  'super-secret-jwt-token-with-at-least-32-characters-long';
 
 const ACME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
@@ -50,7 +47,6 @@ describe.skipIf(!live)('Hono adapter against the local stack', async () => {
   }).env!;
   const bs = createHono(sb, {
     env,
-    auth: { resolvers: [localAuth(jwtSecret)] },
   });
   const list = defineListQuery(sb, 'customers', {
     search: ['name'],
@@ -79,7 +75,7 @@ describe.skipIf(!live)('Hono adapter against the local stack', async () => {
   });
 
   const tokenFor = (orgId: string) =>
-    signTestJwt(jwtSecret, { sub: USER, org_id: orgId });
+    signLocalJwt({ sub: USER, tenant_id: orgId });
   const call = async (
     orgId: string,
     path: string,

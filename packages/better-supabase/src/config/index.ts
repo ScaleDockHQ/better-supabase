@@ -1,6 +1,13 @@
 import type { GeneratorMetadata } from '../cli/introspect/typegen.ts';
 import type { SnapshotExtras } from '../cli/introspect/types.ts';
-import type { Casing, SchemaMeta } from '../schema/types.ts';
+import type {
+  BucketPolicyName,
+  Casing,
+  PermdockBucketPolicy,
+  SchemaMeta,
+} from '../schema/types.ts';
+
+import { DEFAULT_CLAIMS } from '../core/claims.ts';
 
 export {
   buildJsonSchema,
@@ -96,8 +103,19 @@ export interface SoftDeleteConfig {
 
 export interface TenantConfig {
   readonly column?: string;
-  /** JWT claim holding the tenant id. */
-  readonly claim?: string;
+}
+
+/**
+ * Claim names shared by the SQL kit, codegen and the runtime defaults. They
+ * follow PermDock's claim contract.
+ */
+export interface ClaimsConfig {
+  /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
+  readonly tenant?: string;
+  /** `scope` of the tenant entries `membership_claims()` writes. Defaults to `tenant`. */
+  readonly scope?: string;
+  /** Claim holding plan features per tenant (`{ [tenantId]: string[] }`). Defaults to `features`. */
+  readonly features?: string;
 }
 
 export interface ActorConfig {
@@ -117,8 +135,8 @@ export interface BucketConfig {
   readonly public?: boolean;
   /** Path template with `{placeholders}`, e.g. `{orgId}/{customerId}/logo.webp`. */
   readonly path: string;
-  /** Generated storage policy. */
-  readonly policy?: 'tenant' | 'owner' | 'public' | 'none';
+  /** Generated storage policy, or a PermDock policy (`{ permdock, scope }`). */
+  readonly policy?: BucketPolicyName | PermdockBucketPolicy;
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
 }
@@ -163,6 +181,12 @@ export interface DoctorConfig {
    * asks for an inlinable `language sql stable` function. Defaults to 5.
    */
   readonly policyHelperLimit?: number;
+  /**
+   * Bytes of claims the custom access token hook may return before BS405
+   * warns. Defaults to 1024 when a `permdock.config.ts` is present (PermDock
+   * truncates memberships at that budget) and 2048 otherwise.
+   */
+  readonly claimsLimit?: number;
 }
 
 /**
@@ -311,6 +335,7 @@ export interface BetterSupabaseConfig {
   readonly generators?: readonly Generator[];
   /** Enables plugin flags in the generated metadata. */
   readonly plugins?: PluginFlagsConfig;
+  readonly claims?: ClaimsConfig;
   readonly buckets?: Readonly<Record<string, BucketConfig>>;
   /** Realtime topic templates: `{ notifications: 'org:{orgId}:notifications' }`. */
   readonly topics?: Readonly<Record<string, string>>;
@@ -379,6 +404,7 @@ export interface ResolvedConfig {
     readonly tenant: Required<TenantConfig> | undefined;
     readonly actor: Required<ActorConfig> | undefined;
   };
+  readonly claims: Required<ClaimsConfig>;
   readonly buckets: Readonly<Record<string, BucketConfig>>;
   readonly entitlements: {
     readonly table: string;
@@ -395,7 +421,8 @@ export interface ResolvedConfig {
   readonly sql: Required<SqlConfig>;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
-  readonly doctor: Required<DoctorConfig>;
+  readonly doctor: Required<Omit<DoctorConfig, 'claimsLimit'>> &
+    Pick<DoctorConfig, 'claimsLimit'>;
 }
 
 export const CONFIG_SCHEMA_URL =
@@ -460,15 +487,13 @@ export function resolveConfig(
         updatedAt: 'updated_at',
       }),
       softDelete: pick(config.plugins?.softDelete, { column: 'deleted_at' }),
-      tenant: pick(config.plugins?.tenant, {
-        column: 'organization_id',
-        claim: 'org_id',
-      }),
+      tenant: pick(config.plugins?.tenant, { column: 'organization_id' }),
       actor: pick(config.plugins?.actor, {
         createdBy: 'created_by',
         updatedBy: 'updated_by',
       }),
     },
+    claims: { ...DEFAULT_CLAIMS, ...config.claims },
     buckets: config.buckets ?? {},
     topics: config.topics ?? {},
     realtime: { tables: config.realtime?.tables ?? [] },
@@ -493,6 +518,9 @@ export function resolveConfig(
       strict: config.doctor?.strict ?? false,
       sources: config.doctor?.sources ?? ['src/**/*.{ts,tsx}'],
       policyHelperLimit: config.doctor?.policyHelperLimit ?? 5,
+      ...(config.doctor?.claimsLimit === undefined
+        ? {}
+        : { claimsLimit: config.doctor.claimsLimit }),
     },
   };
 }

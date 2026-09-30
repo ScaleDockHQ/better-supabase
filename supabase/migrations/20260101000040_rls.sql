@@ -8,37 +8,37 @@ alter table public.notes enable row level security;
 
 create policy organizations_member_select on public.organizations
   for select to authenticated
-  using (id = (select better_supabase.current_org_id()));
+  using (id = (select better_supabase.current_tenant_id()));
 
 create policy contacts_tenant on public.contacts
   for all to authenticated
-  using (organization_id = (select better_supabase.current_org_id()))
-  with check (organization_id = (select better_supabase.current_org_id()));
+  using (organization_id = (select better_supabase.current_tenant_id()))
+  with check (organization_id = (select better_supabase.current_tenant_id()));
 
 create policy customers_tenant on public.customers
   for all to authenticated
-  using (organization_id = (select better_supabase.current_org_id()))
-  with check (organization_id = (select better_supabase.current_org_id()));
+  using (organization_id = (select better_supabase.current_tenant_id()))
+  with check (organization_id = (select better_supabase.current_tenant_id()));
 
 create policy locations_tenant on public.locations
   for all to authenticated
-  using (organization_id = (select better_supabase.current_org_id()))
-  with check (organization_id = (select better_supabase.current_org_id()));
+  using (organization_id = (select better_supabase.current_tenant_id()))
+  with check (organization_id = (select better_supabase.current_tenant_id()));
 
 create policy tags_tenant on public.tags
   for all to authenticated
-  using (organization_id = (select better_supabase.current_org_id()))
-  with check (organization_id = (select better_supabase.current_org_id()));
+  using (organization_id = (select better_supabase.current_tenant_id()))
+  with check (organization_id = (select better_supabase.current_tenant_id()));
 
 create policy customer_tags_tenant on public.customer_tags
   for all to authenticated
-  using (organization_id = (select better_supabase.current_org_id()))
-  with check (organization_id = (select better_supabase.current_org_id()));
+  using (organization_id = (select better_supabase.current_tenant_id()))
+  with check (organization_id = (select better_supabase.current_tenant_id()));
 
 create policy notes_tenant on public.notes
   for all to authenticated
-  using (organization_id = (select better_supabase.current_org_id()))
-  with check (organization_id = (select better_supabase.current_org_id()));
+  using (organization_id = (select better_supabase.current_tenant_id()))
+  with check (organization_id = (select better_supabase.current_tenant_id()));
 
 revoke all on all tables in schema public from anon, authenticated;
 grant select on public.organizations to authenticated;
