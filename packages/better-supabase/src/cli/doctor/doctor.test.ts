@@ -867,7 +867,11 @@ uri = "https://example.com/hook"
         bytes: number | null,
         user = true,
         extra: Partial<DoctorContext> = {},
-        size: { memberships?: number; truncated?: boolean } = {},
+        size: {
+          memberships?: number;
+          attrs?: number;
+          truncated?: boolean;
+        } = {},
       ) => {
         const queries: string[] = [];
         const database: LiveDatabase = {
@@ -886,6 +890,7 @@ uri = "https://example.com/hook"
                 {
                   bytes,
                   memberships: size.memberships ?? 0,
+                  attrs: size.attrs ?? null,
                   truncated: size.truncated ?? false,
                 },
               ] as R[];
@@ -913,17 +918,31 @@ uri = "https://example.com/hook"
         { severity: 'info', message: expect.stringContaining('no such user') },
       ]);
       expect((await run(1500)).findings).toEqual([]);
+      const permdock = { permdock: 'permdock.config.ts' };
+      // A normal PermDock token: 1.5 KB in total, memberships and attrs within the budget.
       expect(
-        (
-          await run(
-            1500,
-            true,
-            { permdock: 'permdock.config.ts' },
-            { memberships: 1200 },
-          )
-        ).findings,
+        (await run(1500, true, permdock, { memberships: 600, attrs: 300 }))
+          .findings,
+      ).toEqual([]);
+      expect(
+        (await run(1500, true, permdock, { memberships: 900, attrs: 200 }))
+          .findings,
       ).toMatchObject([
-        { message: expect.stringContaining('(limit 1024, memberships 1200)') },
+        {
+          severity: 'warning',
+          message: expect.stringContaining(
+            "1100 bytes of memberships and attrs for 11111111-1111-4111-8111-111111111111, over PermDock's budget of 1024",
+          ),
+          target: expect.stringMatching(/:budget$/),
+        },
+      ]);
+      expect(
+        (await run(2500, true, permdock, { memberships: 400 })).findings,
+      ).toMatchObject([
+        {
+          message: expect.stringContaining('(limit 2048, memberships 400)'),
+          target: expect.stringMatching(/:claims$/),
+        },
       ]);
       const custom = resolveConfig(
         { doctor: { claimsLimit: 512 } },
@@ -932,6 +951,18 @@ uri = "https://example.com/hook"
       expect((await run(600, true, { config: custom })).findings).toMatchObject(
         [{ message: expect.stringContaining('limit 512') }],
       );
+      expect(
+        (
+          await run(
+            1500,
+            true,
+            { ...permdock, config: custom },
+            { memberships: 600 },
+          )
+        ).findings,
+      ).toMatchObject([
+        { message: expect.stringContaining("over PermDock's budget of 512") },
+      ]);
       expect(
         (await run(300, true, {}, { truncated: true })).findings,
       ).toMatchObject([

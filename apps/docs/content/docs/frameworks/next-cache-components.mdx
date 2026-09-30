@@ -235,7 +235,8 @@ const Claims = z.looseObject({
 `memberships_truncated`, and `within` or `expiresAt` on a membership) survive
 validation. Keep the list short: every claim is sent with every request, and
 `better-supabase doctor --as <user id>` warns when the hook returns more than
-2 KB (1 KB when a `permdock.config.ts` is present).
+2 KB, and, when a `permdock.config.ts` is present, when `memberships` plus
+`attrs` pass PermDock's 1 KB budget.
 
 <Callout title="Using PermDock">
   For more than a handful of roles, use

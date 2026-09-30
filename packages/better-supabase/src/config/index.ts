@@ -182,9 +182,10 @@ export interface DoctorConfig {
    */
   readonly policyHelperLimit?: number;
   /**
-   * Bytes of claims the custom access token hook may return before BS405
-   * warns. Defaults to 1024 when a `permdock.config.ts` is present (PermDock
-   * truncates memberships at that budget) and 2048 otherwise.
+   * The BS405 limit in bytes. With a `permdock.config.ts` it is PermDock's
+   * budget for `memberships` plus `attrs` (default 1024, matching
+   * `supabase.hook.budget`) and the whole token keeps 2048. Without one it
+   * limits the whole token's claims (default 2048).
    */
   readonly claimsLimit?: number;
 }

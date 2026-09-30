@@ -90,9 +90,10 @@ test tokens can drop it, since ES256 tokens verify against the stack's JWKS.
 
 ## Doctor
 
-- BS405 measures the hook's claims against 1 KB when the project has a
-  `permdock.config.ts` and 2 KB otherwise. Set `doctor.claimsLimit` to change
-  it.
+- BS405 measures the whole token against 2 KB. When the project has a
+  `permdock.config.ts`, it also measures `memberships` plus `attrs` against
+  PermDock's 1 KB budget, as a separate warning. `doctor.claimsLimit` changes
+  the PermDock budget, or the whole-token limit without PermDock.
 - BS407 is new: next to PermDock, it reports a hook that calls
   `membership_claims()` or writes `roles`, `user_role`, `memberships` or the
   tenant claim itself. The `features` claim is not reported.

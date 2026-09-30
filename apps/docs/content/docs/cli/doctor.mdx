@@ -68,8 +68,9 @@ export default defineConfig({
 
 `doctor.sources` lists the app files that checks such as BS210 scan, as globs
 relative to the project root. The default is `['src/**/*.{ts,tsx}']`.
-`doctor.claimsLimit` is the BS405 claims budget in bytes (1024 when a
-`permdock.config.ts` is present, 2048 otherwise).
+`doctor.claimsLimit` is a BS405 limit in bytes: PermDock's budget for
+`memberships` plus `attrs` when a `permdock.config.ts` is present (default
+1024), otherwise the limit for the whole token (default 2048).
 `doctor.policyHelperLimit` (default 5) is how many policies a security definer
 helper may appear in before [BS206](#bs206) reports it.
 
@@ -362,11 +363,17 @@ sign-in and token refresh. Declare it `stable` and give it
 The claims it returns travel with every request, in the session cookie and in
 the `Authorization` header. With `--as <uuid>`, doctor calls the hook for that
 user the way Auth does, as `supabase_auth_admin` with the user's standard
-claims, in a transaction that is rolled back. It warns when the returned
-claims are over `doctor.claimsLimit` bytes, reporting how many of them are
-`memberships`. The limit defaults to 1024 bytes when a `permdock.config.ts` is
-in the project root (PermDock truncates memberships at that budget) and 2048
-otherwise. When the hook sets `memberships_truncated`, doctor also reports that
+claims, in a transaction that is rolled back. Two limits apply:
+
+| Limit | Measures | Default |
+| --- | --- | --- |
+| Whole token | `octet_length` of all the claims | 2048 bytes, or `doctor.claimsLimit` without PermDock |
+| PermDock budget (only with a `permdock.config.ts`) | `octet_length` of `memberships` plus `attrs`, as PermDock's hook measures `supabase.hook.budget` | 1024 bytes, or `doctor.claimsLimit` |
+
+Each one is a separate warning, so a normal PermDock token of 1.5 KB whose
+memberships fit the budget passes. Set `doctor.claimsLimit` to the same value
+as PermDock's `--budget` or `supabase.hook.budget` when you change it. When the
+hook sets `memberships_truncated`, doctor also reports that
 the token lists only some memberships, so server checks for that user need a
 database lookup. Keep ids and roles in the token and look everything else up.
 This needs a direct connection (local stack or `--db-url`).
