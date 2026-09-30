@@ -5,7 +5,8 @@ description: Tools from your tables and your own code, running as the signed-in 
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from 'better-supabase/mcp';
-import { z } from 'zod';
+import { toStandardJsonSchema } from '@valibot/to-json-schema';
+import * as v from 'valibot';
 import { customerList, sb } from '../_shared/supabase.ts';
 
 const mcp = createMcp(sb, {
@@ -19,7 +20,7 @@ const mcp = createMcp(sb, {
 }).tool({
   name: 'archive_customer',
   description: 'Archive a customer and everything attached to it.',
-  input: z.object({ id: z.uuid() }),
+  input: toStandardJsonSchema(v.object({ id: v.pipe(v.string(), v.uuid()) })),
   annotations: { destructiveHint: true, idempotentHint: true },
   run: ({ id }, { db }) => db.customers.update(id, { status: 'archived' }),
 });
@@ -122,7 +123,7 @@ const mcp = createMcp(sb, {
 }).tool({
   name: 'archive_customer',
   description: 'Archive a customer.',
-  input: z.object({ id: z.uuid() }),
+  input: toStandardJsonSchema(v.object({ id: v.pipe(v.string(), v.uuid()) })),
   meta: 'admin',
   run: ({ id }, { db }) => db.customers.update(id, { status: 'archived' }),
 });

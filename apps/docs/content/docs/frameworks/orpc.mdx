@@ -6,7 +6,7 @@ description: A middleware that adds the caller's repositories to the oRPC contex
 ```ts title="src/router.ts"
 import { os } from '@orpc/server';
 import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
-import { z } from 'zod';
+import * as v from 'valibot';
 import { sb } from './supabase';
 
 export const bs = createOrpc(sb);
@@ -21,7 +21,7 @@ export const router = {
       bs.unwrap(context.db.customers.findMany({ select: ['id', 'name'] })),
     ),
     rename: authed
-      .input(z.object({ id: z.string(), name: z.string().min(2) }))
+      .input(v.object({ id: v.string(), name: v.pipe(v.string(), v.minLength(2)) }))
       .handler(({ input, context }) =>
         bs.unwrap(context.db.customers.update(input.id, { name: input.name })),
       ),

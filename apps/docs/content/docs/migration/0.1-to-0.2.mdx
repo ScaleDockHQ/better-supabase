@@ -14,9 +14,9 @@ in `app_metadata`. Update your custom access token hook, anything that sets
 `app_metadata.org_id` through the Auth admin API, and your claims schema:
 
 ```ts title="src/lib/claims.ts"
-export const Claims = z.looseObject({
-  tenant_id: z.uuid().optional(),
-  app_metadata: z.looseObject({ tenant_id: z.uuid().optional() }).optional(),
+export const Claims = v.looseObject({
+  tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
+  app_metadata: v.optional(v.looseObject({ tenant_id: v.optional(v.pipe(v.string(), v.uuid())) })),
 });
 ```
 
@@ -29,7 +29,7 @@ export default defineConfig({
 });
 ```
 
-Use loose objects (`z.looseObject`, valibot `looseObject`) for claims
+Use loose objects (valibot `looseObject`, zod `z.looseObject`) for claims
 schemas, so claims your schema doesn't list reach the code that reads them.
 
 ## SQL kit

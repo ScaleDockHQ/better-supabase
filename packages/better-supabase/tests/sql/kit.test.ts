@@ -1,5 +1,6 @@
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { kitLayout } from "../../src/cli/commands/sql.ts";
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
@@ -99,7 +100,9 @@ describe("sameKitFile", () => {
   });
 
   it("adds pg_jsonschema checks for json config schemas", () => {
-    const schema = resolveJsonSchema(z.object({ source: z.string() }));
+    const schema = resolveJsonSchema(
+      toStandardJsonSchema(v.object({ source: v.string() })),
+    );
     expect(schema).toMatchObject({
       type: "object",
       required: ["source"],

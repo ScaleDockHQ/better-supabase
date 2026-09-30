@@ -1,5 +1,5 @@
+import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -63,7 +63,7 @@ describe("createServer headers", () => {
 describe("createServer claims", () => {
   it("validates claims with the schema from sb.claims()", async () => {
     const sb = defineSupabase(schema).claims(
-      z.object({ tenant_id: z.string().min(1) }),
+      v.object({ tenant_id: v.pipe(v.string(), v.minLength(1)) }),
     );
     const server = createServer(sb, {
       env,
@@ -88,17 +88,18 @@ describe("createServer claims", () => {
 
   it("keeps PermDock claims a loose schema does not list", async () => {
     const sb = defineSupabase(schema).claims(
-      z.looseObject({
-        tenant_id: z.uuid().optional(),
-        memberships: z
-          .array(
-            z.looseObject({
-              scope: z.string(),
-              id: z.string(),
-              roles: z.array(z.string()),
+      v.looseObject({
+        tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
+        memberships: v.optional(
+          v.array(
+            v.looseObject({
+              scope: v.string(),
+              id: v.string(),
+              roles: v.array(v.string()),
             }),
-          )
-          .default([]),
+          ),
+          [],
+        ),
       }),
     );
     const server = createServer(sb, {
@@ -147,7 +148,7 @@ describe("createServer userMetadata", () => {
       error: vi.fn(),
     };
     const sb = defineSupabase(schema, { logger }).userMetadata(
-      z.object({ display_name: z.string() }),
+      v.object({ display_name: v.string() }),
     );
     const server = createServer(sb, {
       env,

@@ -208,30 +208,31 @@ one shape. For multi-tenant apps, use PermDock's, which the `tenant` kit
 module and [PermDock](/docs/auth/permdock) both emit:
 
 ```ts
-const Claims = z.looseObject({
+const Claims = v.looseObject({
   /** Global roles, e.g. `['support']`. */
-  roles: z.array(z.string()).default([]),
+  roles: v.optional(v.array(v.string()), []),
   /** One entry per scope the user belongs to. */
-  memberships: z
-    .array(
-      z.looseObject({
-        scope: z.string(), // 'tenant' by default (claims.scope)
-        id: z.string(),
-        roles: z.array(z.string()),
+  memberships: v.optional(
+    v.array(
+      v.looseObject({
+        scope: v.string(), // 'tenant' by default (claims.scope)
+        id: v.string(),
+        roles: v.array(v.string()),
       }),
-    )
-    .default([]),
+    ),
+    [],
+  ),
   /** The active tenant; the `tenant` plugin and RLS read it. */
-  tenant_id: z.uuid().optional(),
+  tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   /** Plan features per tenant, e.g. `{ [tenantId]: ['exports'] }`. */
-  features: z.record(z.string(), z.array(z.string())).default({}),
+  features: v.optional(v.record(v.string(), v.array(v.string())), {}),
 });
 ```
 
 `tenant_id` is the claim the [tenant plugin](/docs/plugins/tenant) and
 `current_tenant_id()` read (`claims.tenant` in the config renames it);
 `memberships` lets the UI switch tenants without another query. Use
-`z.looseObject` so the fields PermDock adds (`attrs`, `authz_ver`,
+`v.looseObject` so the fields PermDock adds (`attrs`, `authz_ver`,
 `memberships_truncated`, and `within` or `expiresAt` on a membership) survive
 validation. Keep the list short: every claim is sent with every request, and
 `better-supabase doctor --as <user id>` warns when the hook returns more than

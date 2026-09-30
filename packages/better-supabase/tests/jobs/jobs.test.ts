@@ -1,5 +1,5 @@
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { createJobs, type QueueRpcClient } from "../../src/jobs/index.ts";
 
@@ -43,7 +43,9 @@ describe("createJobs over pgmq_public", () => {
       }
       return true;
     });
-    const jobs = createJobs(client, { emails: z.object({ to: z.email() }) });
+    const jobs = createJobs(client, {
+      emails: v.object({ to: v.pipe(v.string(), v.email()) }),
+    });
 
     expect(
       await jobs
@@ -85,7 +87,7 @@ describe("createJobs over pgmq_public", () => {
 
   it("refuses SQL-only features and invalid queue names", async () => {
     const { client } = fakeClient(() => [1]);
-    const jobs = createJobs(client, { emails: z.object({}) });
+    const jobs = createJobs(client, { emails: v.object({}) });
     const deduped = await jobs.enqueue("emails", {}, { dedupeKey: "x" });
     expect(deduped.error).toMatchObject({
       kind: "invalid_request",
@@ -94,7 +96,7 @@ describe("createJobs over pgmq_public", () => {
     expect(
       (await jobs.schedule("nightly", "0 3 * * *", "emails", {})).error?.kind,
     ).toBe("invalid_request");
-    expect(() => createJobs(client, { "send-emails": z.object({}) })).toThrow(
+    expect(() => createJobs(client, { "send-emails": v.object({}) })).toThrow(
       "pgmq queue names",
     );
   });

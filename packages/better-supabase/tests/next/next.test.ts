@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 
 import type { Executor } from "../../src/core/executor.ts";
 
@@ -398,9 +398,9 @@ describe("createNext", () => {
   it("runs actions with validation, FormData and serializable results", async () => {
     const save = next.action(
       {
-        input: z.object({
-          name: z.string().min(2),
-          tags: z.array(z.string()).optional(),
+        input: v.object({
+          name: v.pipe(v.string(), v.minLength(2)),
+          tags: v.optional(v.array(v.string())),
         }),
       },
       async (input, ctx) => {

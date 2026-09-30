@@ -1,6 +1,6 @@
 import { call, ORPCError, os } from "@orpc/server";
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
@@ -32,7 +32,7 @@ describe("createOrpc", () => {
     hasDb: typeof context.db.customers.findMany === "function",
   }));
   const rename = authed
-    .input(z.object({ id: z.string(), name: z.string() }))
+    .input(v.object({ id: v.string(), name: v.string() }))
     .handler(({ input }) =>
       input.id === "taken"
         ? bs.unwrap(err(dbError("conflict", "Taken")))

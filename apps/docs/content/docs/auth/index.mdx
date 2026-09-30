@@ -112,19 +112,20 @@ returns a new definition whose servers validate the verified claims and
 whose sessions are typed by the schema's output:
 
 ```ts title="src/lib/supabase/sb.ts"
-import { z } from 'zod';
+import * as v from 'valibot';
 
-export const Claims = z.looseObject({
-  tenant_id: z.uuid().optional(),
-  roles: z.array(z.string()).default([]),
-  memberships: z
-    .array(z.looseObject({ scope: z.string(), id: z.string(), roles: z.array(z.string()) }))
-    .default([]),
+export const Claims = v.looseObject({
+  tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
+  roles: v.optional(v.array(v.string()), []),
+  memberships: v.optional(
+    v.array(v.looseObject({ scope: v.string(), id: v.string(), roles: v.array(v.string()) })),
+    [],
+  ),
 });
 
 export const sb = defineSupabase(schema)
   .claims(Claims)
-  .use(tenant<z.infer<typeof Claims>>());
+  .use(tenant<v.InferOutput<typeof Claims>>());
 ```
 
 The tenant plugin, `current_tenant_id()` and the storage and realtime policies
@@ -133,7 +134,7 @@ read the active tenant from `tenant_id` (or `app_metadata.tenant_id`).
 follow PermDock's shape, `{ scope, id, roles }` (see
 [the claims contract](/docs/auth/permdock#who-owns-what)),
 and roles and memberships are never read from `user_metadata`, which users can
-edit. Use `z.looseObject` so claims your schema doesn't list, such as
+edit. Use `v.looseObject` so claims your schema doesn't list, such as
 PermDock's `attrs`, `authz_ver` and `memberships_truncated`, stay on the
 session.
 
@@ -147,7 +148,7 @@ session.
 - The output is merged over the payload, so `sub`, `exp` and the other JWT
   claims stay, and defaults such as `roles: []` fill in. The merge is one
   level deep: a nested object in the schema, like `app_metadata`, replaces
-  the payload's, so describe it with `z.looseObject()` (or your library's
+  the payload's, so describe it with `v.looseObject()` (or your library's
   equivalent) to keep its other keys.
 - `ctx.auth.claims`, `await next.session()` and the `useSession` from
   `createHooks<typeof browser>()` are typed `JWTClaims & Claims`. The
@@ -170,9 +171,9 @@ avatar, a theme. `sb.userMetadata(schema)` parses it into a typed
 `session.profile` for rendering:
 
 ```ts title="src/lib/supabase/sb.ts"
-export const Profile = z.object({
-  display_name: z.string().optional(),
-  avatar_url: z.url().optional(),
+export const Profile = v.object({
+  display_name: v.optional(v.string()),
+  avatar_url: v.optional(v.pipe(v.string(), v.url())),
 });
 
 export const sb = defineSupabase(schema).claims(Claims).userMetadata(Profile);

@@ -28,13 +28,13 @@ and glue for the frameworks it finds (see [init](/docs/cli/init)). Or create
 `better-supabase.config.ts` in your project root yourself:
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, zod } from 'better-supabase/config';
+import { defineConfig, valibot } from 'better-supabase/config';
 
 export default defineConfig({
   casing: 'camel',
   output: 'src/lib/supabase/generated.ts',
   plugins: { timestamps: true, softDelete: true },
-  generators: [zod()],
+  generators: [valibot()],
 });
 ```
 

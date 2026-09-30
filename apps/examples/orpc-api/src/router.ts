@@ -1,6 +1,6 @@
 import { os } from "@orpc/server";
 import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
-import { z } from "zod";
+import * as v from "valibot";
 
 import { sb } from "./lib/supabase";
 
@@ -16,9 +16,12 @@ export const router = {
   customers: {
     list: authed
       .input(
-        z.object({
-          q: z.string().optional(),
-          limit: z.number().int().max(100).default(20),
+        v.object({
+          q: v.optional(v.string()),
+          limit: v.optional(
+            v.pipe(v.number(), v.integer(), v.maxValue(100)),
+            20,
+          ),
         }),
       )
       .handler(({ context, input }) =>
@@ -32,19 +35,24 @@ export const router = {
         ),
       ),
     get: authed
-      .input(z.object({ id: z.uuid() }))
+      .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(({ context, input }) =>
         bs.unwrap(
           context.db.customers.findById(input.id, { select: customer }),
         ),
       ),
     create: authed
-      .input(z.object({ name: z.string().min(1), organizationId: z.uuid() }))
+      .input(
+        v.object({
+          name: v.pipe(v.string(), v.minLength(1)),
+          organizationId: v.pipe(v.string(), v.uuid()),
+        }),
+      )
       .handler(({ context, input }) =>
         bs.unwrap(context.db.customers.create(input, { select: customer })),
       ),
     remove: authed
-      .input(z.object({ id: z.uuid() }))
+      .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(async ({ context, input }) => {
         await bs.unwrap(context.db.customers.delete(input.id));
         return { deleted: true };

@@ -123,14 +123,14 @@ so claims your schema doesn't name (`authz_ver`, `memberships_truncated`,
 `attrs`) reach PermDock unchanged:
 
 ```ts title="src/lib/claims.ts"
-import { z } from 'zod';
+import * as v from 'valibot';
 
-export const Claims = z.looseObject({
-  user_role: z.union([z.string(), z.array(z.string())]).optional(),
-  tenant_id: z.uuid().optional(),
-  memberships: z
-    .array(z.looseObject({ scope: z.string(), id: z.string(), roles: z.array(z.string()) }))
-    .optional(),
+export const Claims = v.looseObject({
+  user_role: v.optional(v.union([v.string(), v.array(v.string())])),
+  tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
+  memberships: v.optional(
+    v.array(v.looseObject({ scope: v.string(), id: v.string(), roles: v.array(v.string()) })),
+  ),
 });
 ```
 

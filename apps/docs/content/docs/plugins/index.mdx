@@ -12,7 +12,7 @@ import { timestamps } from 'better-supabase/plugins/timestamps';
 import { validation } from 'better-supabase/plugins/validation';
 
 import { schema } from './supabase/generated.ts';
-import { validators } from './supabase/generated.zod.ts';
+import { validators } from './supabase/generated.valibot.ts';
 
 export const sb = defineSupabase(schema)
   .use(timestamps())

@@ -1,5 +1,6 @@
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -44,7 +45,9 @@ describe("createMcp", () => {
       defineTool({
         name: "echo",
         description: "Echoes a message.",
-        input: z.object({ message: z.string().min(1) }),
+        input: toStandardJsonSchema(
+          v.object({ message: v.pipe(v.string(), v.minLength(1)) }),
+        ),
         annotations: { readOnlyHint: true },
         run: (args: { message: string }) => ({ echoed: args.message }),
       }),
@@ -393,7 +396,9 @@ describe("createMcp", () => {
         defineTool({
           name: "read_notes",
           description: "Reads notes.",
-          input: z.object({ limit: z.coerce.number() }),
+          input: toStandardJsonSchema(
+            v.object({ limit: v.pipe(v.string(), v.toNumber()) }),
+          ),
           meta: { permission: "notes.read" },
           run: (args: { limit: number }) => ({ limit: args.limit }),
         }),

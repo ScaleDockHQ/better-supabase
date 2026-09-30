@@ -18,7 +18,6 @@
     "hono": "catalog:",
     "next": "catalog:",
     "pg": "catalog:",
-    "react": "catalog:",
-    "zod": "catalog:"
+    "react": "catalog:"
   }
 }

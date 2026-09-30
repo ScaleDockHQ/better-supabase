@@ -27,10 +27,10 @@ lowercase letters, digits and underscores.
 
 ```ts title="lib/jobs.ts"
 import { createJobs } from 'better-supabase/jobs';
-import { z } from 'zod';
+import * as v from 'valibot';
 
 export const jobs = createJobs(postgres.admin, {
-  send_email: z.object({ to: z.email(), template: z.string() }),
+  send_email: v.object({ to: v.pipe(v.string(), v.email()), template: v.string() }),
 });
 
 await jobs.enqueue('send_email', { to, template: 'welcome' }, { delay: 300, dedupeKey: `welcome:${userId}` });

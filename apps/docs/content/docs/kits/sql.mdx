@@ -128,9 +128,12 @@ reject. `schema` takes a JSON Schema object, or any Standard JSON Schema value
 (zod 4, valibot, arktype):
 
 ```ts title="better-supabase.config.ts"
-import { z } from 'zod';
+import { toStandardJsonSchema } from '@valibot/to-json-schema';
+import * as v from 'valibot';
 
-export const CustomerMetadata = z.object({ source: z.string(), tier: z.enum(['free', 'pro']).optional() });
+export const CustomerMetadata = toStandardJsonSchema(
+  v.object({ source: v.string(), tier: v.optional(v.picklist(['free', 'pro'])) }),
+);
 
 export default defineConfig({
   json: {

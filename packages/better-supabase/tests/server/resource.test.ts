@@ -1,5 +1,5 @@
+import * as v from "valibot";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import type { Executor } from "../../src/core/executor.ts";
 
@@ -98,9 +98,9 @@ describe("defineResource", () => {
     const customers = defineResource(sb, "customers", {
       operations: ["list", "get", "create"],
       input: {
-        create: z.object({
-          name: z.string().min(2),
-          organizationId: z.string(),
+        create: v.object({
+          name: v.pipe(v.string(), v.minLength(2)),
+          organizationId: v.string(),
         }),
       },
     });

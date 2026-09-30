@@ -205,6 +205,7 @@
     "@types/pg": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@valibot/to-json-schema": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "effect": "catalog:",
     "hono": "catalog:",

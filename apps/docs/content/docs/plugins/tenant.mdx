@@ -38,7 +38,7 @@ accepted:
 ```ts
 const sb = defineSupabase(schema)
   .claims(Claims)
-  .use(tenant<z.infer<typeof Claims>>({ claim: 'app_metadata.tenant_id' }));
+  .use(tenant<v.InferOutput<typeof Claims>>({ claim: 'app_metadata.tenant_id' }));
 ```
 
 ## Missing tenant

@@ -9,6 +9,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit --checkers 4"
   },
+  "dependencies": {
+    "valibot": "catalog:"
+  },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
@@ -16,7 +19,6 @@
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "zod": "catalog:"
+    "vitest": "catalog:"
   }
 }

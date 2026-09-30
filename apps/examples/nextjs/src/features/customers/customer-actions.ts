@@ -2,7 +2,7 @@
 
 import { dbError, err, fromBetterResult } from "better-supabase";
 import { toSession } from "better-supabase/next";
-import { z } from "zod";
+import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
 import { toAppResult } from "@/lib/app-error";
@@ -15,7 +15,11 @@ import { next } from "@/lib/supabase.server";
  * `rate-limit` kit module), a burst of creates returns `rate_limited`.
  */
 export const createCustomer = next.action(
-  { input: z.object({ name: z.string().min(1).max(200) }) },
+  {
+    input: v.object({
+      name: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+    }),
+  },
   async ({ name }, { auth, db }) => {
     if (!can(toSession(auth), "customers.write")) {
       return err(dbError("forbidden", "You cannot add customers"));
@@ -38,9 +42,12 @@ export const createCustomer = next.action(
  */
 export const uploadCustomerLogo = next.action(
   {
-    input: z.object({
-      customerId: z.uuid(),
-      logo: z.instanceof(File).refine((file) => file.size > 0, "Pick a file"),
+    input: v.object({
+      customerId: v.pipe(v.string(), v.uuid()),
+      logo: v.pipe(
+        v.instance(File),
+        v.check((file) => file.size > 0, "Pick a file"),
+      ),
     }),
   },
   async ({ customerId, logo }, { auth, db, supabase }) => {

@@ -91,12 +91,12 @@ grant execute on function public.custom_access_token_hook(jsonb) to supabase_aut
 The claim name comes from `claims.features` in the config (`features` by
 default). With PermDock, see [below](#with-permdock).
 
-Declare the shape in `sb.claims()` to type it, with `z.enum` for the keys you
+Declare the shape in `sb.claims()` to type it, with a `picklist` for the keys you
 sell:
 
 ```ts title="src/lib/supabase.ts"
-const Claims = z.looseObject({
-  features: z.record(z.string(), z.array(z.enum(['exports', 'sso', 'audit']))).default({}),
+const Claims = v.looseObject({
+  features: v.optional(v.record(v.string(), v.array(v.picklist(['exports', 'sso', 'audit']))), {}),
 });
 
 export const sb = defineSupabase(schema).claims(Claims);

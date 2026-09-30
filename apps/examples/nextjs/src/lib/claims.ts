@@ -1,11 +1,11 @@
-import { z } from "zod";
+import * as v from "valibot";
 
-const Role = z.enum(["admin", "member"]);
+const Role = v.picklist(["admin", "member"]);
 /** Stripe entitlement lookup keys the app sells. */
-export const Entitlement = z.enum(["exports", "sso", "audit"]);
+export const Entitlement = v.picklist(["exports", "sso", "audit"]);
 
 const isEntitlement = (key: string): key is Entitlement =>
-  Entitlement.safeParse(key).success;
+  v.is(Entitlement, key);
 
 /**
  * The claims the servers validate on every request (`sb.claims(Claims)`),
@@ -17,44 +17,51 @@ const isEntitlement = (key: string): key is Entitlement =>
  * Every object is loose, so claims this schema doesn't name (`authz_ver`,
  * `memberships_truncated`, `attrs`) reach PermDock unchanged.
  */
-export const Claims = z.looseObject({
-  user_role: Role.optional().catch(undefined),
-  tenant_id: z.uuid().optional(),
-  app_metadata: z
-    .looseObject({
-      tenant_id: z.uuid().optional(),
-      user_role: Role.optional().catch(undefined),
-    })
-    .optional(),
+export const Claims = v.looseObject({
+  user_role: v.fallback(v.optional(Role), undefined),
+  tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
+  app_metadata: v.optional(
+    v.looseObject({
+      tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
+      user_role: v.fallback(v.optional(Role), undefined),
+    }),
+  ),
   // `better_supabase.membership_claims()` or PermDock's hook.
-  memberships: z
-    .array(
-      z.looseObject({
-        scope: z.string(),
-        id: z.string(),
-        roles: z.array(z.string()).default([]),
-      }),
-    )
-    .optional()
-    .catch(undefined),
+  memberships: v.fallback(
+    v.optional(
+      v.array(
+        v.looseObject({
+          scope: v.string(),
+          id: v.string(),
+          roles: v.optional(v.array(v.string()), []),
+        }),
+      ),
+    ),
+    undefined,
+  ),
   // `better_supabase.feature_claims()` (entitlements kit module). Keys the
   // app doesn't sell yet are dropped instead of rejecting the token.
-  features: z
-    .record(
-      z.string(),
-      z.array(z.string()).transform((keys) => keys.filter(isEntitlement)),
-    )
-    .optional()
-    .catch(undefined),
+  features: v.fallback(
+    v.optional(
+      v.record(
+        v.string(),
+        v.pipe(
+          v.array(v.string()),
+          v.transform((keys) => keys.filter(isEntitlement)),
+        ),
+      ),
+    ),
+    undefined,
+  ),
 });
 
 /** Editable by the user (`auth.updateUser()`): display only, never access. */
-export const Profile = z.looseObject({
-  display_name: z.string().max(80).optional(),
-  avatar_url: z.url().optional(),
+export const Profile = v.looseObject({
+  display_name: v.optional(v.pipe(v.string(), v.maxLength(80))),
+  avatar_url: v.optional(v.pipe(v.string(), v.url())),
 });
 
-export type Claims = z.infer<typeof Claims>;
-export type Profile = z.infer<typeof Profile>;
-export type Role = z.infer<typeof Role>;
-export type Entitlement = z.infer<typeof Entitlement>;
+export type Claims = v.InferOutput<typeof Claims>;
+export type Profile = v.InferOutput<typeof Profile>;
+export type Role = v.InferOutput<typeof Role>;
+export type Entitlement = v.InferOutput<typeof Entitlement>;

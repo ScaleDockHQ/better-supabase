@@ -1,6 +1,6 @@
 import { Pool } from "pg";
+import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import type { AnyModels } from "../../src/schema/types.ts";
 
@@ -476,7 +476,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `kit_${RUN}`;
     const jobs = createJobs(postgres.admin, {
-      [queue]: z.object({ to: z.email() }),
+      [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
     });
     const invalid = await jobs.enqueue(queue, { to: "nope" });
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
@@ -496,7 +496,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       .orThrow();
 
     const other = createJobs(postgres.admin, {
-      [queue]: z.object({ to: z.email() }),
+      [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
     });
     const [mine, theirs] = await Promise.all([
       jobs.claim(queue, { batch: 1 }).orThrow(),
@@ -548,7 +548,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   it("schedules recurring jobs with pg_cron", async () => {
     const queue = `kit_${RUN}_cron`;
     const jobs = createJobs(postgres.admin, {
-      [queue]: z.object({ kind: z.string() }),
+      [queue]: v.object({ kind: v.string() }),
     });
     const name = `bs-kit-${RUN}`;
     await pool.query(
@@ -566,7 +566,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   it("works a queue until the signal aborts", async () => {
     const queue = `kit_${RUN}_work`;
     const jobs = createJobs(postgres.admin, {
-      [queue]: z.object({ n: z.number() }),
+      [queue]: v.object({ n: v.number() }),
     });
     for (const n of [1, 2, 3, 4]) await jobs.enqueue(queue, { n }).orThrow();
     const controller = new AbortController();

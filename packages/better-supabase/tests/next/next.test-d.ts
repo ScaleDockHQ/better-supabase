@@ -1,7 +1,7 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 
+import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
-import { z } from "zod";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { AuthSession } from "../../src/next/index.ts";
@@ -35,12 +35,12 @@ describe("next.session", () => {
   });
 });
 
-const Claims = z.object({
-  tenant_id: z.uuid(),
-  app_metadata: z.object({ plan: z.enum(["free", "pro"]) }),
-  memberships: z.array(z.object({ scope: z.string(), id: z.string() })),
+const Claims = v.object({
+  tenant_id: v.pipe(v.string(), v.uuid()),
+  app_metadata: v.object({ plan: v.picklist(["free", "pro"]) }),
+  memberships: v.array(v.object({ scope: v.string(), id: v.string() })),
 });
-type Claims = z.infer<typeof Claims>;
+type Claims = v.InferOutput<typeof Claims>;
 
 describe("sb.claims(schema)", () => {
   const sb = defineSupabase(schema).claims(Claims).use(tenant());
@@ -89,8 +89,8 @@ describe("sb.claims(schema)", () => {
   });
 });
 
-const Profile = z.object({ display_name: z.string() });
-type Profile = z.infer<typeof Profile>;
+const Profile = v.object({ display_name: v.string() });
+type Profile = v.InferOutput<typeof Profile>;
 
 describe("sb.userMetadata(schema)", () => {
   const sb = defineSupabase(schema)

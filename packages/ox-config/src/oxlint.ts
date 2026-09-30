@@ -15,6 +15,7 @@ export const ignorePatterns: readonly string[] = [
  * spread these in.
  */
 export const restrictedImportPaths: { name: string; message: string }[] = [
+  { name: "zod", message: "Use Valibot; any Standard Schema library works." },
   { name: "vaul", message: "Use the shadcn Drawer on Base UI." },
   { name: "openai", message: "Call models through the AI SDK and AI Gateway." },
   {

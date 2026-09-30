@@ -1,13 +1,17 @@
 "use server";
 
 import { dbError, err } from "better-supabase";
-import { z } from "zod";
+import * as v from "valibot";
 
 import { next } from "@/lib/supabase.server";
 
 /** Sends the caller a notification; the header badge updates over Realtime. */
 export const notifyMe = next.action(
-  { input: z.object({ title: z.string().min(1).max(200) }) },
+  {
+    input: v.object({
+      title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+    }),
+  },
   async ({ title }, { auth, db }) => {
     const organizationId =
       auth.kind === "user" ? auth.claims.app_metadata?.tenant_id : undefined;

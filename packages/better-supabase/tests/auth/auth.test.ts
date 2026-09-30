@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
+import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 
 import {
   authContext,
@@ -390,9 +390,9 @@ describe("resolveAuth", async () => {
   });
 
   describe("claims", () => {
-    const claims = z.object({
-      tenant_id: z.uuid(),
-      roles: z.array(z.string()).default([]),
+    const claims = v.object({
+      tenant_id: v.pipe(v.string(), v.uuid()),
+      roles: v.optional(v.array(v.string()), []),
     });
     const TENANT = "22222222-2222-4222-8222-222222222222";
     const bearer = (token: string) =>
@@ -457,9 +457,9 @@ describe("resolveAuth", async () => {
   });
 
   describe("userMetadata", () => {
-    const profile = z.object({
-      display_name: z.string(),
-      avatar_url: z.url().optional(),
+    const profile = v.object({
+      display_name: v.string(),
+      avatar_url: v.optional(v.pipe(v.string(), v.url())),
     });
     const bearer = (token: string) =>
       new Request("https://api.test/", {
@@ -491,7 +491,7 @@ describe("resolveAuth", async () => {
     });
 
     it("leaves the profile undefined and warns once with issue paths only", async () => {
-      const schema = profile.extend({});
+      const schema = v.object({ ...profile.entries });
       const log = logger();
       const token = await signer.sign({
         sub: USER,
@@ -518,7 +518,7 @@ describe("resolveAuth", async () => {
       const token = await signer.sign({ sub: USER });
       const { auth } = await resolveAuth(bearer(token), {
         ...options,
-        userMetadata: z.object({ theme: z.string().default("light") }),
+        userMetadata: v.object({ theme: v.optional(v.string(), "light") }),
         logger: logger(),
       });
       expect(auth).toMatchObject({ kind: "user", profile: { theme: "light" } });

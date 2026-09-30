@@ -18,7 +18,7 @@
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "better-supabase": "workspace:*",
-    "zod": "catalog:"
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",

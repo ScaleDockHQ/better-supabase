@@ -1,7 +1,7 @@
 import { defineReadSet, defineSupabase } from "better-supabase";
 import { defineListQuery } from "better-supabase/list";
 import { tenant } from "better-supabase/plugins/tenant";
-import { z } from "zod";
+import * as v from "valibot";
 
 import { schema } from "./generated.ts";
 
@@ -50,9 +50,9 @@ export const appChrome = defineReadSet(
 );
 
 /** Claims of the customer portal token: the customer it may see. */
-export const PortalClaims = z.object({
-  sub: z.uuid(),
-  customer_id: z.string().regex(/^\d+$/),
+export const PortalClaims = v.object({
+  sub: v.pipe(v.string(), v.uuid()),
+  customer_id: v.pipe(v.string(), v.regex(/^\d+$/)),
 });
 
 /**
@@ -73,4 +73,4 @@ const portalMeta = {
 
 export const portal = defineSupabase({ ...schema, meta: portalMeta })
   .claims(PortalClaims)
-  .use(tenant<z.output<typeof PortalClaims>>({ claim: "customer_id" }));
+  .use(tenant<v.InferOutput<typeof PortalClaims>>({ claim: "customer_id" }));
