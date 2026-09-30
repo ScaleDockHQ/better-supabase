@@ -12,6 +12,21 @@ port = 55422
 shadow_port = 55420
 major_version = 17
 
+# Declarative schema files, in dependency order. Generate a migration after an
+# edit with `supabase db diff -f <name>` while the local stack is stopped.
+[db.migrations]
+schema_paths = [
+  "./schemas/010_extensions.sql",
+  "./schemas/015_shared.sql",
+  "./schemas/020_types.sql",
+  "./schemas/030_crm/*.sql",
+  "./schemas/040_rbac.sql",
+  "./schemas/050_functions.sql",
+  "./schemas/060_realtime.sql",
+  "./schemas/070_storage.sql",
+  "./schemas/090_grants.sql",
+]
+
 [db.seed]
 enabled = true
 sql_paths = ["./seed.sql"]
@@ -48,7 +63,7 @@ enable_signup = true
 enable_signup = true
 enable_confirmations = false
 
-# Adds the `user_role` claim (supabase/migrations/*_rbac.sql).
+# Adds the `user_role` claim (supabase/schemas/040_rbac.sql).
 [auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/rbac/custom_access_token_hook"

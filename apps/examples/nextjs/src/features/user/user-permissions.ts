@@ -25,7 +25,7 @@ export type Permission =
   | "audit.read"
   | "settings.manage";
 
-/** Mirrors `rbac.role_permissions` (supabase/migrations/*_rbac.sql). */
+/** Mirrors `rbac.role_permissions` (supabase/schemas/040_rbac.sql). */
 const grants: Readonly<Record<Role, readonly Permission[]>> = {
   admin: [
     "customers.read",

@@ -1,6 +1,6 @@
 -- Per-user notifications behind the unread badge. The table broadcasts a
--- change signal per organization (realtime-tables module); each client
--- recounts its own unread rows through RLS.
+-- change signal per organization (060_realtime.sql); each client recounts its
+-- own unread rows through RLS.
 create table public.notifications (
   id bigint generated always as identity primary key,
   organization_id uuid not null references public.organizations (id) on delete cascade,
@@ -26,6 +26,3 @@ create policy notifications_own on public.notifications
     user_id = (select auth.uid())
     and organization_id = (select better_supabase.current_tenant_id())
   );
-
-grant select, insert, update, delete on public.notifications to authenticated;
-grant all on public.notifications to service_role;

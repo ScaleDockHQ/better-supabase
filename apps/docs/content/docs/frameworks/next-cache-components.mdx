@@ -148,7 +148,7 @@ hook](https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook)
 copies the user's role into a `user_role` claim every time Auth issues a
 token, so the proxy's refresh is also what picks up role changes:
 
-```sql title="supabase/migrations/…_rbac.sql"
+```sql title="supabase/schemas/040_rbac.sql"
 create function rbac.custom_access_token_hook(event jsonb)
 returns jsonb language plpgsql stable set search_path = '' as $$
 declare

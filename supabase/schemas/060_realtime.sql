@@ -4,7 +4,6 @@
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 
 create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -88,11 +87,8 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.track_realtime(regclass, text) from public, anon, authenticated;
-revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, and tenant topics of their own org.
-drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'

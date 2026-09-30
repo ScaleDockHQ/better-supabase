@@ -3,21 +3,8 @@
 -- `user_role` claim, and `authorize()` checks a permission for RLS. It is a
 -- minimal fixture, not PermDock's model: apps that use PermDock run
 -- `permdock supabase hook generate` for the hook, `role_permissions`,
--- `authorize()` and the policies, and keep none of this.
---
--- Kept in its own schema so it stays out of the generated `public` types.
-create schema if not exists rbac;
-
-create type rbac.app_role as enum ('admin', 'member');
-create type rbac.app_permission as enum (
-  'customers.read',
-  'customers.write',
-  'reports.read',
-  'users.manage',
-  'billing.manage',
-  'audit.read',
-  'settings.manage'
-);
+-- `authorize()` and the policies, and keep none of this. The permission rows
+-- are data, so they live in the baseline migration.
 
 create table rbac.user_roles (
   user_id uuid primary key references auth.users on delete cascade,
@@ -33,12 +20,10 @@ create table rbac.role_permissions (
 alter table rbac.user_roles enable row level security;
 alter table rbac.role_permissions enable row level security;
 
-insert into rbac.role_permissions (role, permission)
-select 'admin', permission
-from unnest(enum_range(null::rbac.app_permission)) as permission;
-
-insert into rbac.role_permissions (role, permission) values
-  ('member', 'customers.read');
+create policy "Auth admin reads user roles" on rbac.user_roles
+  as permissive for select
+  to supabase_auth_admin
+  using (true);
 
 create or replace function rbac.custom_access_token_hook(event jsonb)
 returns jsonb
@@ -79,15 +64,3 @@ as $$
       )
   )
 $$;
-
-grant usage on schema rbac to supabase_auth_admin, authenticated;
-grant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;
-revoke execute on function rbac.custom_access_token_hook(jsonb) from authenticated, anon, public;
-grant select on rbac.user_roles to supabase_auth_admin;
-revoke all on rbac.user_roles from authenticated, anon, public;
-grant execute on function rbac.authorize(rbac.app_permission) to authenticated;
-
-create policy "Auth admin reads user roles" on rbac.user_roles
-  as permissive for select
-  to supabase_auth_admin
-  using (true);

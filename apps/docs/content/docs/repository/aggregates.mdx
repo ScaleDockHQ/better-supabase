@@ -12,7 +12,7 @@ only the totals, in the same request as the rows they belong to.
 PostgREST (12 and later) supports aggregate functions, but they are off by
 default. Turn them on for the `authenticator` role in a migration:
 
-```sql title="supabase/migrations/20260101000070_aggregates.sql"
+```sql title="supabase/migrations/<timestamp>_aggregates.sql"
 alter role authenticator set pgrst.db_aggregates_enabled = 'true';
 notify pgrst, 'reload config';
 ```

@@ -10,7 +10,7 @@ const isEntitlement = (key: string): key is Entitlement =>
 /**
  * The claims the servers validate on every request (`sb.claims(Claims)`),
  * in PermDock's claim contract. `user_role` comes from the custom access
- * token hook (supabase/migrations/*_rbac.sql), `tenant_id` from the hook or
+ * token hook (supabase/schemas/040_rbac.sql), `tenant_id` from the hook or
  * `app_metadata`. An unknown role reads as none instead of rejecting the
  * token.
  *
