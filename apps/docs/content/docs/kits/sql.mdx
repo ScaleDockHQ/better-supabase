@@ -44,10 +44,14 @@ Both read the active tenant from the claim named by `claims.tenant` in the
 config (`tenant_id` by default).
 
 When a `permdock.config.ts` is in the project root, PermDock owns the access
-token hook and the `memberships` claim. `sql add` then stops before writing
-`tenant` or `entitlements` (or a module that needs them) and points you at
-`permdock supabase hook generate`. Pass `--force` to write them anyway, for
-example to keep the helpers while you migrate.
+token hook and the `memberships` claim. `sql add tenant` then stops and points
+you at `permdock supabase hook generate`. Pass `--force` to write it anyway,
+for example to keep the helpers while you migrate. Modules that need `tenant`,
+such as `entitlements` and `invitations`, are written without `--force`, with
+`tenant` as a dependency and a note: its memberships table backs
+`has_org_role()` and `has_entitlement()`, and no hook should call
+`membership_claims()`. See
+[Entitlements with PermDock](/docs/kits/entitlements#with-permdock).
 
 ```sql
 select better_supabase.track_updated_at('public.customers');

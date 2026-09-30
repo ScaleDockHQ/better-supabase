@@ -30,10 +30,10 @@ export const SQL_HELP = `Usage: better-supabase sql <list|add|sync|print> [modul
 Options
   --tests-dir <dir>    Where the pgtap module goes. Defaults to sql.testsDir.
   --dry-run            Show what would be written
-  --force              Write tenant or entitlements even though a permdock.config.ts is present`;
+  --force              Write tenant even though a permdock.config.ts is present`;
 
-/** Modules that write memberships or claims PermDock's hook also writes. */
-const PERMDOCK_OWNED: ReadonlySet<string> = new Set(['tenant', 'entitlements']);
+/** Modules that fill a claim PermDock's hook also writes (`memberships`). */
+const PERMDOCK_OWNED: ReadonlySet<string> = new Set(['tenant']);
 
 /** Where and how `sql add` writes kit files for this config. */
 export function kitLayout(
@@ -156,9 +156,7 @@ export async function runSql(
         };
       }
       const permdock = permdockConfig(config.root);
-      const hookModules = resolveModules(names)
-        .map((module) => module.name)
-        .filter((name) => PERMDOCK_OWNED.has(name));
+      const hookModules = names.filter((name) => PERMDOCK_OWNED.has(name));
       if (
         permdock &&
         hookModules.length > 0 &&
@@ -174,6 +172,17 @@ export async function runSql(
         };
       }
       const lines = await write(config, args, names);
+      const pulledIn = resolveModules(names)
+        .map((module) => module.name)
+        .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));
+      if (permdock && pulledIn.length > 0) {
+        lines.push(
+          '',
+          `${pulledIn.join(' and ')} came along as a dependency: its memberships table backs has_org_role() and has_entitlement().`,
+          `PermDock's hook still owns the memberships claim, so don't call better_supabase.membership_claims from a hook.`,
+          'List better_supabase.memberships as a PermDock membership source if both should agree.',
+        );
+      }
       const untracked = resolveModules(names)
         .map((module) => module.name)
         .filter((name) => !config.sql.kit.includes(name));
