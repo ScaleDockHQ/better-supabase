@@ -84,7 +84,7 @@ function scalar(value: unknown): string {
 }
 
 /** Double-quotes a value for PostgREST lists and logic trees. */
-export function quote(value: unknown): string {
+function quote(value: unknown): string {
   const text = scalar(value);
   return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }

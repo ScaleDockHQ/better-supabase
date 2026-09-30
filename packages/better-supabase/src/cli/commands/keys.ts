@@ -19,7 +19,7 @@ Options
   --rotate       Put a new key first (it signs) and keep the old ones (they still verify)
   --force        Replace the file`;
 
-export interface SigningKey {
+interface SigningKey {
   readonly kty: "EC";
   readonly kid: string;
   readonly use: "sig";
@@ -32,7 +32,7 @@ export interface SigningKey {
   readonly d: string;
 }
 
-export async function createSigningKey(): Promise<SigningKey> {
+async function createSigningKey(): Promise<SigningKey> {
   const pair = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
     true,

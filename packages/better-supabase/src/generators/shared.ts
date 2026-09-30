@@ -28,7 +28,7 @@ const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
 // `timestamp` values have no offset, so they stay plain strings.
 const DATETIME = new Set(["timestamptz"]);
 
-export function scalarKind(column: ColumnMeta): ScalarKind {
+function scalarKind(column: ColumnMeta): ScalarKind {
   if (column.enum) return { kind: "enum", values: column.enum };
   if (column.json) return { kind: "json" };
   if (column.codec === "date") return { kind: "dateObject" };

@@ -24,7 +24,7 @@ import {
   tableObject,
 } from "./shared.ts";
 
-export { catalogOf, lineOf };
+export { lineOf };
 
 export type Severity = "error" | "warning" | "info";
 

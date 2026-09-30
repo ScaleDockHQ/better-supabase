@@ -10,10 +10,10 @@ import type { Queryable } from "../introspect/source.ts";
  * dashboard's Security and Performance Advisors. It has no license, so it is
  * downloaded at this commit and checked against the hash instead of bundled.
  */
-export const SPLINTER_COMMIT = "e74a9e36cb12258cb67d1464bc1cb196e9cd8446";
-export const SPLINTER_SHA256 =
+const SPLINTER_COMMIT = "e74a9e36cb12258cb67d1464bc1cb196e9cd8446";
+const SPLINTER_SHA256 =
   "d8d558baad3e03832e521c527907fa50a9a172fabd899dd0f5c2504a5a0e9349";
-export const SPLINTER_URL: string = `https://raw.githubusercontent.com/supabase/splinter/${SPLINTER_COMMIT}/splinter.sql`;
+const SPLINTER_URL: string = `https://raw.githubusercontent.com/supabase/splinter/${SPLINTER_COMMIT}/splinter.sql`;
 
 export type AdvisorCategory = "security" | "performance";
 
@@ -100,7 +100,7 @@ const sha256 = (text: string): string =>
   createHash("sha256").update(text).digest("hex");
 
 /** Downloads (once) and verifies the pinned `splinter.sql`. */
-export async function splinterSql(options: SplinterOptions): Promise<string> {
+async function splinterSql(options: SplinterOptions): Promise<string> {
   const file = resolve(options.cacheDir, `splinter-${SPLINTER_COMMIT}.sql`);
   if (existsSync(file)) {
     const cached = await readFile(file, "utf8");

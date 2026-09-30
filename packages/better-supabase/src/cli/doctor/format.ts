@@ -11,19 +11,19 @@ export const DOCTOR_FORMATS: readonly DoctorFormat[] = [
   "github",
 ];
 
-export const DOCTOR_REPORT_SCHEMA_URL =
+const DOCTOR_REPORT_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/doctor-report-v1.json";
 
 const SARIF_SCHEMA_URL =
   "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
 
-export interface DoctorSummary {
+interface DoctorSummary {
   readonly errors: number;
   readonly warnings: number;
   readonly infos: number;
 }
 
-export function summarize(findings: readonly Finding[]): DoctorSummary {
+function summarize(findings: readonly Finding[]): DoctorSummary {
   return {
     errors: findings.filter((finding) => finding.severity === "error").length,
     warnings: findings.filter((finding) => finding.severity === "warning")

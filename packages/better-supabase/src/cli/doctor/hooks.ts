@@ -6,16 +6,16 @@ import { errorText, ident, literal, type LiveDatabase } from "./live.ts";
 import { lineOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */
-export const HOOK_CLAIMS_LIMIT = 2048;
+const HOOK_CLAIMS_LIMIT = 2048;
 /** PermDock's default `supabase.hook.budget`, over `memberships` plus `attrs`. */
-export const PERMDOCK_CLAIMS_LIMIT = 1024;
+const PERMDOCK_CLAIMS_LIMIT = 1024;
 
 /**
  * The BS405 limits. With PermDock, `doctor.claimsLimit` is its budget for
  * `memberships` plus `attrs` and the whole token keeps 2048; without it,
  * `doctor.claimsLimit` limits the whole token.
  */
-export function claimsLimits(context: DoctorContext): {
+function claimsLimits(context: DoctorContext): {
   readonly token: number;
   readonly budget: number | undefined;
 } {

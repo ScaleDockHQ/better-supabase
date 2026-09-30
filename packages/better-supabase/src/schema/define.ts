@@ -50,22 +50,3 @@ export function relationMeta(
   }
   return { relation: found, target: tableMeta(meta, found.table) };
 }
-
-/** Database column name for an app column name. */
-export function dbColumn(table: TableMeta, column: string): string {
-  const found = table.columns[column];
-  if (!found) {
-    throw new TypeError(
-      `better-supabase: unknown column "${column}" on "${table.key}"`,
-    );
-  }
-  return found.db;
-}
-
-/** App column name for a database column name, if the table has it. */
-export function appColumn(table: TableMeta, db: string): string | undefined {
-  for (const [app, column] of Object.entries(table.columns)) {
-    if (column.db === db) return app;
-  }
-  return undefined;
-}

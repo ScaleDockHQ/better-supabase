@@ -38,7 +38,7 @@ function functionsByName(
 }
 
 /** Argument lists of every call to `schema.name(...)` in an expression. */
-export function callArguments(
+function callArguments(
   expression: string | null,
   fn: Pick<ExtrasFunction, "schema" | "name">,
 ): string[] {
@@ -64,10 +64,7 @@ export function callArguments(
 }
 
 /** The first column of `table` an argument list refers to, bare or as `table.column`. */
-export function columnArgument(
-  args: string,
-  table: CatalogTable,
-): string | undefined {
+function columnArgument(args: string, table: CatalogTable): string | undefined {
   return table.columns.find((column) =>
     new RegExp(
       `(?<![\\w."$:])(?:"?${escape(table.name)}"?\\.)?"?${escape(column.name)}"?(?![\\w"(.$])`,

@@ -23,7 +23,7 @@ export interface SupabaseToml {
   readonly parser: "@supabase/config" | "builtin";
 }
 
-export const CONFIG_TOML = "supabase/config.toml";
+const CONFIG_TOML = "supabase/config.toml";
 
 interface SupabaseConfigIo {
   loadCliConfig(
@@ -172,7 +172,7 @@ export interface PgFunctionHook {
 }
 
 /** `pg-functions://postgres/<schema>/<function>` as schema and name. */
-export function parsePgFunctionUri(
+function parsePgFunctionUri(
   uri: string,
 ): { readonly schema: string; readonly name: string } | undefined {
   const match = /^pg-functions:\/\/[^/]+\/([^/]+)\/([^/?#]+)$/.exec(uri.trim());

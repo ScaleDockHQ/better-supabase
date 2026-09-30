@@ -46,6 +46,6 @@ export async function connect(url: string): Promise<{
   return { client, close: () => client.end(), describe: redact(url) };
 }
 
-export function redact(url: string): string {
+function redact(url: string): string {
   return url.replace(/\/\/([^:@/]+):([^@/]+)@/, "//$1:***@");
 }

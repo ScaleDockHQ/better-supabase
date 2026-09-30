@@ -51,7 +51,7 @@ export const libDir = (context: TemplateContext): string =>
   join(context.srcDir, "lib");
 
 /** Relative import from one project file to another, following the project's extension style. */
-export function importFrom(
+function importFrom(
   context: TemplateContext,
   from: string,
   to: string,

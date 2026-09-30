@@ -6,7 +6,7 @@ export interface ExecResult {
   readonly stderr: string;
 }
 
-export function exec(
+function exec(
   command: string,
   args: readonly string[],
   cwd: string,

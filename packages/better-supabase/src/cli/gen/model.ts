@@ -54,12 +54,12 @@ export interface ColumnModel {
   readonly updatable: boolean;
 }
 
-export interface RelationModel {
+interface RelationModel {
   readonly name: string;
   readonly meta: RelationMeta;
 }
 
-export interface TableModel {
+interface TableModel {
   readonly key: string;
   readonly snapshot: CatalogTable;
   readonly casing: Casing;
@@ -68,7 +68,7 @@ export interface TableModel {
   readonly meta: TableMeta;
 }
 
-export interface EnumModel {
+interface EnumModel {
   readonly schema: string;
   readonly name: string;
   /** Constant name for the value array, e.g. `noteKindValues`. */
@@ -83,7 +83,7 @@ export interface FunctionModel {
   readonly returns: string;
 }
 
-export interface JsonImport {
+interface JsonImport {
   readonly name: string;
   /** Path relative to the project root, without the `#Name` part. */
   readonly from: string;

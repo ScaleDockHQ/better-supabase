@@ -48,7 +48,7 @@ export class ConformanceError extends Error {
 
 export type Check = readonly [name: string, run: () => void | Promise<void>];
 
-export class Violation extends Error {}
+class Violation extends Error {}
 
 export function expect(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Violation(message);

@@ -111,7 +111,7 @@ export function sharedCollector(options: CollectorOptions): StatsCollector {
   return scope[SHARED];
 }
 
-export function overBudget(stats: DbStats, budget: DbBudget): boolean {
+function overBudget(stats: DbStats, budget: DbBudget): boolean {
   return (
     (budget.calls !== undefined && stats.calls > budget.calls) ||
     (budget.waves !== undefined && stats.waves > budget.waves)

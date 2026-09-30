@@ -15,7 +15,7 @@ import {
 import { validateGeneratorMetadata } from "../introspect/typegen.ts";
 import { pgFunctionHooks, readSupabaseToml } from "../supabase-toml.ts";
 
-export const SNAPSHOT_SCHEMA_URL =
+const SNAPSHOT_SCHEMA_URL =
   "https://unpkg.com/better-supabase/schemas/snapshot-v2.json";
 
 /** Schemas that are always read, for doctor checks on helper functions. */
@@ -113,7 +113,7 @@ export async function loadSnapshot(
   }
 }
 
-export async function readSnapshotFile(
+async function readSnapshotFile(
   absolute: string,
   label: string = absolute,
 ): Promise<Snapshot> {

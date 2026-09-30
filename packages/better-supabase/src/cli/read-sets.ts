@@ -7,7 +7,7 @@ import { type CompiledReadSet, compileReadSets } from "../sql/read-sets.ts";
 import { importModule } from "./config.ts";
 
 /** Every read set exported by the modules in `config.readSets`. */
-export async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
+async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
   const sets: ReadSet[] = [];
   for (const entry of config.readSets) {
     const loaded = await importModule(resolve(config.root, entry));

@@ -35,9 +35,7 @@ type Agent = keyof typeof AGENT_DIRS;
 const isAgent = (name: string): name is Agent => name in AGENT_DIRS;
 
 /** The package's `skills/` folder, found by walking up from this module (src or dist). */
-export function skillsRoot(
-  from: string = fileURLToPath(import.meta.url),
-): string {
+function skillsRoot(from: string = fileURLToPath(import.meta.url)): string {
   let dir = dirname(from);
   for (;;) {
     if (

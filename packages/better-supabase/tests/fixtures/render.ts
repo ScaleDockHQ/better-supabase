@@ -17,7 +17,7 @@ import {
   zod,
 } from "../../src/config/index.ts";
 
-export const fixtureConfig: BetterSupabaseConfig = {
+const fixtureConfig: BetterSupabaseConfig = {
   output: "tests/fixtures/generated.ts",
   json: {
     "customers.metadata": {

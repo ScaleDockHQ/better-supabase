@@ -1599,7 +1599,7 @@ export interface KitLayout {
 }
 
 /** An embedding column `db.$search` can query. */
-export interface VectorSearchTable {
+interface VectorSearchTable {
   /** `table` or `schema.table`. */
   readonly table: string;
   readonly column: string;
@@ -1647,7 +1647,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
 }
 
 /** The table holding each tenant's Stripe customer id. */
-export interface EntitlementsSource {
+interface EntitlementsSource {
   /** `table` or `schema.table`. */
   readonly table: string;
   /** Column with the Stripe customer id (`cus_...`). */
@@ -1657,7 +1657,7 @@ export interface EntitlementsSource {
 }
 
 /** Privileges one Data API role gets on a table or view. */
-export interface TableGrant {
+interface TableGrant {
   /** `table` or `schema.table`. */
   readonly table: string;
   readonly role: "anon" | "authenticated";
@@ -1678,7 +1678,7 @@ function tableGrants(grants: readonly TableGrant[]): string {
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
-export interface JsonSchemaCheck {
+interface JsonSchemaCheck {
   /** `table` or `schema.table`. */
   readonly table: string;
   readonly column: string;

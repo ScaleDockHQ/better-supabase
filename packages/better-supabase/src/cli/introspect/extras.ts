@@ -23,7 +23,7 @@ const literalArray = (values: readonly string[]): string =>
   `array[${values.map((value) => `'${value.replace(/'/g, "''")}'`).join(", ")}]::text[]`;
 
 /** Row estimate from which a table counts as large in the snapshot. */
-export const LARGE_TABLE_ROWS = 10_000;
+const LARGE_TABLE_ROWS = 10_000;
 
 const RELATIONS = (schemas: string) => `
 select c.oid::int8 as id, n.nspname as schema, c.relname as name,
@@ -274,7 +274,7 @@ const functionOf = (row: FunctionRow): ExtrasFunction => ({
 });
 
 /** The functions behind Auth hooks, in any schema, with their ACLs. */
-export async function readHooks(
+async function readHooks(
   db: Queryable,
   targets: readonly HookTarget[],
 ): Promise<ExtrasHook[]> {

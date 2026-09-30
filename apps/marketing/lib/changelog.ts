@@ -1,9 +1,9 @@
-export type ChangelogChange = {
+type ChangelogChange = {
   readonly text: string;
   readonly hash?: string;
 };
 
-export type ChangelogKind = "Major" | "Minor" | "Patch";
+type ChangelogKind = "Major" | "Minor" | "Patch";
 
 export type ChangelogRelease = {
   readonly version: string;

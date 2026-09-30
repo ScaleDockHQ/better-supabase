@@ -23,7 +23,7 @@ export async function validate<S extends StandardSchemaV1>(
   return ok(outcome.value as StandardSchemaV1.InferOutput<S>);
 }
 
-export function toIssues(
+function toIssues(
   issues: readonly StandardSchemaV1.Issue[],
 ): readonly ValidationIssue[] {
   return issues.map((issue) => {

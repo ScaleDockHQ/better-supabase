@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { type ResolvedConfig, resolveConfig } from "../config/index.ts";
 import { readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
-export const CONFIG_FILES = [
+const CONFIG_FILES = [
   "better-supabase.config.ts",
   "better-supabase.config.mts",
   "better-supabase.config.js",

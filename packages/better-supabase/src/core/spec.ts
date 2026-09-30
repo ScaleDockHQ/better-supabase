@@ -36,7 +36,7 @@ export type ReadMethod =
   | "exists"
   | "paginate";
 
-export const READ_METHODS: readonly ReadMethod[] = [
+const READ_METHODS: readonly ReadMethod[] = [
   "findMany",
   "findFirst",
   "findUnique",
@@ -148,7 +148,7 @@ export function isQuerySpec(value: unknown): value is QuerySpec {
 }
 
 /** The argument object of a spec's method (`findById` takes it second). */
-export function specOptions(
+function specOptions(
   spec: QuerySpec,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = spec.method === "findById" ? spec.args[1] : spec.args[0];

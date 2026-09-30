@@ -20,7 +20,6 @@ export type {
   GeneratorMetadata,
   PostgresColumn,
   PostgresFunction,
-  PostgresType,
   Queryable,
 } from "@supabase/postgrest-typegen";
 
