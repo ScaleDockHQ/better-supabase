@@ -8,6 +8,8 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9%20%7C%206%20%7C%207-3178c6.svg)
 
+[Docs](https://bettersupabase.com/docs) · [Website](https://bettersupabase.com) · [Product](./PRODUCT.md) · [Design](./DESIGN.md) · [Agent guide](./AGENTS.md)
+
 better-supabase removes the glue code every Supabase app rewrites: auth wiring, typed repositories, pagination, includes, nested filters, soft delete, timestamps, upserts, cache invalidation, list pages, storage paths and realtime topics. It builds directly on [`@supabase/server`](https://github.com/supabase/server), [`@supabase/middleware`](https://github.com/supabase/middleware) and [`@supabase/ssr`](https://github.com/supabase/ssr).
 
 ## Why better-supabase
@@ -128,6 +130,90 @@ Maintainer rules for agents working on this repository are in [`AGENTS.md`](./AG
 ## Documentation
 
 [bettersupabase.com/docs](https://bettersupabase.com/docs). The source is in [`apps/docs/content/docs`](./apps/docs/content/docs), and runnable apps for every adapter are in [`apps/examples`](./apps/examples).
+
+## Develop this repository
+
+### Prerequisites
+
+- Node 24 (`.nvmrc`) and pnpm 12. `devEngines` in `package.json` downloads the right Node for pnpm.
+- Docker, for the local Supabase stack.
+- The Vercel CLI, to pull environment variables (maintainers only; everything runs without them).
+
+### First local run
+
+```bash
+pnpm install
+vercel link           # maintainers: link the scaledock team's project
+pnpm env:pull         # maintainers: .env.development.local and friends
+pnpm supabase:start   # API on 55421, Postgres on 55422
+pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
+```
+
+The first `pnpm dev:portless` asks to trust the Portless certificate authority.
+
+### Local URLs and logins
+
+| App | URL |
+|---|---|
+| Marketing | `https://www.localhost` |
+| Docs | `https://docs.localhost/docs` |
+| Next.js example | `https://example.localhost` |
+
+The seed creates two users in the Acme organization, both with the password
+`password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role `member`).
+
+### Scripts
+
+| Script | What it does |
+|---|---|
+| `pnpm verify` | The gate before every push: format, lint, prose, typecheck, Knip, boundaries, tests, doctor and audit |
+| `pnpm dev:portless` | Docs, marketing and the Next.js example on `.localhost` URLs |
+| `pnpm build` | Builds every package and app |
+| `pnpm test` | Unit and type tests |
+| `pnpm test:integration` | Integration tests against the local stack |
+| `pnpm test:e2e` | The example apps against the local stack |
+| `pnpm typecheck:matrix` | The published types against TypeScript 5.9, 6 and 7 |
+| `pnpm size` | Bundle size baselines and the WinterTC import check |
+| `pnpm supabase:reset` | Rebuilds the local database from the migrations and the seed |
+| `pnpm supabase:test` | pgTAP tests in `supabase/tests` |
+| `pnpm db:gen` | Regenerates the typed client in every example |
+| `pnpm changeset` | Records a user-visible change for the next release |
+
+### Layout
+
+```text
+packages/better-supabase   the published package, its CLI and consumer skills
+packages/next-config       shared Next.js config for docs and marketing
+packages/ox-config         Oxlint presets, Oxfmt config and the anti-slop plugin
+packages/typescript-config tsconfig presets
+apps/docs                  bettersupabase.com/docs (Fumadocs)
+apps/marketing             bettersupabase.com
+apps/examples/*            one runnable app per adapter
+tests/*                    bundle size, the TypeScript matrix, e2e and validation ports
+supabase/                  the local stack: schemas, migrations, seed and pgTAP tests
+docs/                      agent notes and architecture decision records
+```
+
+### Architecture
+
+The package is one ESM module with subpath exports. The runtime entries import
+no Node built-ins, so they run on every WinterTC runtime; the CLI, `postgres`
+and `testing` entries run on Node. The CLI introspects the local database and
+writes `database.types.ts` and `generated.ts` into each app, and those files
+carry every type through inferring functions, without `declare module`. The
+examples and the integration suite run against the fixture schema in
+`supabase/`. [`AGENTS.md`](./AGENTS.md) lists the invariants.
+
+### Deploy
+
+Docs and marketing deploy to Vercel as two services of one project
+(`vercel.json`), on the domain bettersupabase.com: `/docs` goes to the docs app
+and everything else to marketing, in the `fra1` region. Only `main` deploys
+(`git.deploymentEnabled`), and `turbo-ignore` skips a service whose app did not
+change. The npm package is
+released by `.github/workflows/release.yml`: changesets open a version pull
+request, and merging it publishes to npm with provenance when the `NPM_PUBLISH`
+variable is set.
 
 ## Contributing
 

@@ -9,11 +9,16 @@ catalog:
   "@ai-sdk/react": 4.0.125
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.8.0
+  "@changesets/assemble-release-plan": 7.0.0
   "@changesets/cli": 3.0.3
+  "@changesets/config": 4.0.1
+  "@changesets/pre": 3.0.0
+  "@changesets/read": 1.0.1
   "@commitlint/cli": 21.2.3
   "@commitlint/config-conventional": 21.2.3
   "@commitlint/types": 21.2.3
   "@effect/platform-node": 4.0.0-rc.117
+  "@manypkg/get-packages": 3.1.0
   "@next/playwright": 16.3.6
   "@opentelemetry/api": 1.9.1
   "@orpc/server": 2.0.0-beta.40

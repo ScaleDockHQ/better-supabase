@@ -14,8 +14,9 @@ exports, a CLI (`better-supabase`), plugins and kits. Docs live in `apps/docs`
 
 ```
 packages/
-  better-supabase/     the published package: src/, skills/, schemas/, api/exports.json
-  ox-config/           shared Oxlint and Oxfmt config, and the anti-slop plugin
+  better-supabase/     the published package: src/, tests/, skills/, schemas/, api/exports.json
+  next-config/         createNextConfig() and the security headers for docs and marketing
+  ox-config/           Oxlint presets (core, react, node, library, test, playwright), Oxfmt, anti-slop
   typescript-config/   tsconfig presets (base, library, react-library, next)
 apps/
   docs/                Fumadocs site at /docs, plus /llms.txt, /llms-full.txt and /mcp
@@ -27,7 +28,13 @@ tests/
   e2e/                 the examples against a running stack
   validation-*/        code from two production apps ported to better-supabase
 supabase/              the local stack every example and integration test uses
-scripts/               repo checks that run with Node type stripping
+  schemas/             the declarative schema, in the order `schema_paths` lists
+  migrations/          migrations generated from schemas/ and reviewed
+  tests/               pgTAP tests (`pnpm supabase:test`)
+scripts/               repo checks and release scripts that run with Node type stripping
+docs/
+  agents/              corrections agents needed more than once, by topic
+  decisions/           architecture decision records (ADRs)
 .claude-plugin/        plugin and marketplace manifests that expose the skills
 .cursor-plugin/        Cursor plugin manifest
 ```
@@ -35,15 +42,40 @@ scripts/               repo checks that run with Node type stripping
 ## Commands
 
 - `pnpm install`: install (pnpm 12, Node 24).
-- `pnpm check`: format check, lint (type-aware Oxlint with the anti-slop plugin), the prose check and typecheck.
+- `pnpm verify`: the gate before every push. It runs the format check, lint
+  (type-aware Oxlint with the anti-slop plugin), the prose check, typecheck,
+  Knip, Turbo boundaries, tests, doctor and `pnpm audit`.
+- `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm knip` and `pnpm boundaries` run one step of `verify`.
 - `pnpm build`: tsdown build of every package and app.
-- `pnpm test`: unit and type tests (vitest, `expectTypeOf`).
+- `pnpm test`: unit and type tests (vitest, `expectTypeOf`). Tests live in each
+  workspace's `tests/` folder, and the root `vitest.config.ts` lists the projects.
+- `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
+  `.localhost` URLs (see Local development).
+- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack, a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm db:gen`: regenerate the typed client in every example and validation project.
 - `pnpm typecheck:matrix`: published types against TypeScript 5.9, 6 and 7.
 - `pnpm size`: gzip size baselines and the WinterTC import check.
 - `pnpm test:integration`: integration suite against a running `supabase start` stack (API on 55421, Postgres on 55422; override with `SUPABASE_URL` and `SUPABASE_DB_URL`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema; fails on >10% growth (`update` rewrites the baseline).
 - `pnpm test:e2e`: the `apps/examples` apps against a running `supabase start` stack.
 - `tests/validation-*`: code from two production apps (a CRM and a request-context package) ported to better-supabase; run with `pnpm test`.
+- `pnpm version-packages`: the root `CHANGELOG.md` section, then `changeset version`. The release workflow runs it.
+
+## Local development
+
+`pnpm dev:portless` serves each app on a stable HTTPS URL through Portless
+(`portless.json`). The first run asks to trust the Portless certificate
+authority.
+
+| App | URL |
+|---|---|
+| Marketing | `https://www.localhost` |
+| Docs | `https://docs.localhost/docs` |
+| Next.js example | `https://example.localhost` |
+
+The seed (`supabase/seed.sql`) creates two Acme users with the password
+`password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role
+`member`).
 
 ## Invariants
 
@@ -87,6 +119,9 @@ scripts/               repo checks that run with Node type stripping
 ## Code conventions
 
 - Exhaustive `switch` over unions ends in a `never` check.
+- Tests sit in the workspace's `tests/` folder and mirror the `src/` path
+  (`src/core/result.ts` is tested in `tests/core/result.test.ts`).
+- Oxfmt uses double quotes and sorts `@/` and `@better-supabase/` imports as internal.
 - A new type assertion (`as T`) carries a `SAFETY:` comment saying why it is
   safe. `anti-slop/require-safety-comment-for-type-assertion` is off until
   the existing backlog is annotated. Prefer a type guard or a schema parse.
@@ -96,7 +131,8 @@ scripts/               repo checks that run with Node type stripping
 - Oxlint rules that are off carry a comment with the reason, and the
   finding count when it was measured.
 - TypeScript 7 is the compiler (`tsc` is the native one). `apps/docs` stays
-  on TypeScript 6 because twoslash needs the compiler API; Next.js apps on
+  on TypeScript 6 because twoslash needs the compiler API
+  (`docs/decisions/0002-deviations.md`); Next.js apps on
   TypeScript 7 set `typescript.ignoreBuildErrors` and rely on the Turbo
   `typecheck` task instead.
 - Only erasable syntax (`erasableSyntaxOnly`): no enums, namespaces or
@@ -124,19 +160,19 @@ scripts/               repo checks that run with Node type stripping
 ## Writing
 
 This applies to docs, READMEs, skills, changesets and CLI messages.
-`scripts/check-prose.ts` enforces the mechanical parts in `pnpm check`.
+`scripts/check-prose.ts` enforces the mechanical parts in `pnpm verify`.
 
 - Write plain, complete sentences. Lead with what the reader can do, then
   the detail.
 - Use commas, colons or parentheses instead of em dashes. Write "then" or
   "and" instead of arrow chains (`A → B`) in prose; arrows belong in code.
 - Name the concrete thing. Say what a feature does ("verifies the token
-  locally") instead of praising it ("seamless", "robust", "powerful",
-  "leverage", "effortless", "blazing fast", "delve").
+  locally") instead of praising it (`seamless`, `robust`, `powerful`,
+  `leverage`, `effortless`, `blazing fast`, `delve`).
 - Prefer a sentence to a list of bold labels. Use a table for short,
   enumerable facts and a list for steps.
-- No emojis, no exclamation marks, no "simply" or "just" in instructions.
-  The script flags "simply"; "just" has legitimate uses, so review it by hand.
+- No emojis, no exclamation marks, no `simply` or `just` in instructions.
+  The script flags `simply`; `just` has legitimate uses, so review it by hand.
 - A code comment states a constraint the code can't show. It never narrates
   the next line.
 
@@ -158,8 +194,36 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | The package version | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not) |
 | A workflow | keep actions on their current major tag; Dependabot bumps them |
 | A docs route (`/mcp`, `/llms*`) | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts` |
+| A fixture table | its file in `supabase/schemas`, a migration from `pnpm supabase:diff` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen` |
+| An env key | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example` |
+| A route in docs or marketing | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public |
+| A UI primitive in marketing | `DESIGN.md` |
+| A dependency bump | the catalog pin in `pnpm-workspace.yaml`, the changeset or commit note, an ADR when it changes a one-library line |
+| A user-visible change | a changeset (`pnpm changeset`) |
 
-Every user-visible change needs a changeset (`pnpm changeset`).
+## Hard rules
+
+- `pnpm verify` passes before every push. Fix the code, not the test.
+- Never commit secrets. Server-only keys never get a `NEXT_PUBLIC_` prefix,
+  and `.env.example` lists keys without values.
+- Never edit generated files by hand: `database.types.ts`, the generated
+  `src/lib/supabase/*` in the examples and `api/exports.json` come from their generators.
+- Never change a pushed migration. Edit `supabase/schemas` and generate a new one.
+- Never turn a lint rule off without a comment that gives the reason and the finding count.
+- Pin exact versions in the catalog, and never bypass `minimumReleaseAge`.
+- Commits follow Conventional Commits (`commitlint.config.ts`); the hooks run on every commit and push.
+
+## Agent notes
+
+Read the page for the area you are changing. When an agent needs the same
+correction twice, add it to one of these pages.
+
+- [`docs/agents/database.md`](docs/agents/database.md): the declarative schema workflow and what the diff misses.
+- [`docs/agents/nextjs.md`](docs/agents/nextjs.md): Cache Components and prerender errors in docs and marketing.
+- [`docs/agents/tooling.md`](docs/agents/tooling.md): registry queries, release age, changesets and CI.
+
+Decisions that change how the repo works get an ADR in `docs/decisions`
+(copy `0000-template.md`).
 
 ## Consumer skills vs this guide
 

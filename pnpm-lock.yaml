@@ -173,9 +173,21 @@ catalogs:
     '@base-ui/react':
       specifier: 1.8.0
       version: 1.8.0
+    '@changesets/assemble-release-plan':
+      specifier: 7.0.0
+      version: 7.0.0
     '@changesets/cli':
       specifier: 3.0.3
       version: 3.0.3
+    '@changesets/config':
+      specifier: 4.0.1
+      version: 4.0.1
+    '@changesets/pre':
+      specifier: 3.0.0
+      version: 3.0.0
+    '@changesets/read':
+      specifier: 1.0.1
+      version: 1.0.1
     '@commitlint/cli':
       specifier: 21.2.3
       version: 21.2.3
@@ -188,6 +200,9 @@ catalogs:
     '@effect/platform-node':
       specifier: 4.0.0-rc.117
       version: 4.0.0-rc.117
+    '@manypkg/get-packages':
+      specifier: 3.1.0
+      version: 3.1.0
     '@next/playwright':
       specifier: 16.3.6
       version: 16.3.6
@@ -416,9 +431,21 @@ importers:
       '@better-supabase/typescript-config':
         specifier: workspace:*
         version: link:packages/typescript-config
+      '@changesets/assemble-release-plan':
+        specifier: 'catalog:'
+        version: 7.0.0
       '@changesets/cli':
         specifier: 'catalog:'
         version: 3.0.3
+      '@changesets/config':
+        specifier: 'catalog:'
+        version: 4.0.1
+      '@changesets/pre':
+        specifier: 'catalog:'
+        version: 3.0.0
+      '@changesets/read':
+        specifier: 'catalog:'
+        version: 1.0.1
       '@commitlint/cli':
         specifier: 'catalog:'
         version: 21.2.3(@types/node@24.19.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2)
@@ -428,6 +455,9 @@ importers:
       '@commitlint/types':
         specifier: 'catalog:'
         version: 21.2.3
+      '@manypkg/get-packages':
+        specifier: 'catalog:'
+        version: 3.1.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.0

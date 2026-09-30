@@ -13,6 +13,10 @@ interface Finding {
 
 const roots = [
   "README.md",
+  "AGENTS.md",
+  "PRODUCT.md",
+  "DESIGN.md",
+  "docs",
   "CONTRIBUTING.md",
   "SECURITY.md",
   "SUPPORT.md",

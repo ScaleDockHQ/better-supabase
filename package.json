@@ -42,15 +42,20 @@
     "typecheck:perf": "pnpm --filter @better-supabase/types-perf run bench",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
     "verify": "pnpm run format:check && pnpm run lint && pnpm run check:prose && pnpm run typecheck && pnpm run typecheck:tooling && pnpm run knip && pnpm run boundaries && pnpm run test && pnpm run doctor && pnpm run audit:high",
-    "version-packages": "changeset version && pnpm run format"
+    "version-packages": "node scripts/root-changelog.ts && changeset version && pnpm run format"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
+    "@changesets/assemble-release-plan": "catalog:",
     "@changesets/cli": "catalog:",
+    "@changesets/config": "catalog:",
+    "@changesets/pre": "catalog:",
+    "@changesets/read": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
     "@commitlint/types": "catalog:",
+    "@manypkg/get-packages": "catalog:",
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
     "dotenv-cli": "catalog:",
