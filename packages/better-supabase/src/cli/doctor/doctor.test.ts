@@ -971,6 +971,71 @@ uri = "https://example.com/hook"
         ),
       ).toEqual([]);
     });
+
+    it('leaves the features claim and the generated PermDock hook alone (BS407)', async () => {
+      const withPermdock = (source: string) =>
+        codes(
+          hookContext(withHook([hookFn({ source })]), {
+            permdock: 'permdock.config.ts',
+          }),
+          'BS407',
+        );
+      expect(
+        await withPermdock(
+          "begin return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
+        ),
+      ).toEqual([]);
+      expect(
+        await withPermdock(
+          "begin claims := jsonb_set(claims, '{roles}', held); claims := jsonb_set(claims, '{memberships}', kept); claims := jsonb_set(claims, '{memberships_truncated}', 'true'::jsonb); end",
+        ),
+      ).toEqual([]);
+    });
+
+    it('flags a hook that writes the PermDock claims itself (BS407)', async () => {
+      const findings = async (source: string, extra = {}) =>
+        runRules(
+          hookContext(withHook([hookFn({ source })]), {
+            permdock: 'permdock.config.ts',
+            ...extra,
+          }),
+          only('BS407'),
+        );
+      expect(
+        await findings(
+          "begin return jsonb_set(event, '{claims,roles}', '[\"admin\"]'); end",
+        ),
+      ).toMatchObject([{ message: expect.stringContaining('writes roles') }]);
+      expect(
+        await findings(
+          "begin claims := claims || jsonb_build_object('memberships', m, 'tenant_id', t); end",
+        ),
+      ).toMatchObject([
+        { message: expect.stringContaining('writes memberships, tenant_id') },
+      ]);
+      const renamed = resolveConfig(
+        { claims: { tenant: 'org_id' } },
+        '/project',
+      );
+      expect(
+        await findings(
+          "begin return jsonb_set(event, '{claims,org_id}', to_jsonb(t)); end",
+          { config: renamed },
+        ),
+      ).toMatchObject([{ message: expect.stringContaining('writes org_id') }]);
+      expect(
+        await findings(
+          "begin return jsonb_set(event, '{claims,org_id}', to_jsonb(t)); end",
+        ),
+      ).toEqual([]);
+      const wrapped = hookFn({
+        source:
+          "begin event := public.permdock_hook(event); return jsonb_set(event, '{claims,user_role}', '\"admin\"'); end",
+      });
+      expect(await codes(hookContext(withHook([wrapped])), 'BS407')).toEqual([
+        'BS407',
+      ]);
+    });
   });
 
   it('flags soft delete hidden by a select policy and bucket drift', async () => {

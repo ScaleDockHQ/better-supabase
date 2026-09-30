@@ -286,12 +286,12 @@ describe('sql', () => {
     expect(list.stdout).toMatch(/○ tenant/);
   });
 
-  it('stops before writing hook modules next to a permdock.config.ts', async () => {
+  it('stops before writing the tenant module next to a permdock.config.ts', async () => {
     await writeFile(join(dir, 'permdock.config.ts'), 'export default {};\n');
-    const stopped = await run(['sql', 'add', 'entitlements', '--cwd', dir]);
+    const stopped = await run(['sql', 'add', 'tenant', '--cwd', dir]);
     expect(stopped.code).toBe(1);
     expect(stopped.stderr).toContain('permdock.config.ts is present');
-    expect(stopped.stderr).toContain('tenant and entitlements');
+    expect(stopped.stderr).toContain('tenant would add a second source');
     expect(stopped.stderr).toContain('permdock supabase hook generate');
     expect((await run(['sql', 'list', '--cwd', dir])).stdout).toMatch(
       /^ {2}tenant/m,
@@ -300,6 +300,15 @@ describe('sql', () => {
     const forced = await run(['sql', 'add', 'tenant', '--force', '--cwd', dir]);
     expect(forced.code).toBe(0);
     expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
+  });
+
+  it('writes entitlements next to a permdock.config.ts without --force', async () => {
+    await writeFile(join(dir, 'permdock.config.ts'), 'export default {};\n');
+    const added = await run(['sql', 'add', 'entitlements', '--cwd', dir]);
+    expect(added.code).toBe(0);
+    expect(added.stdout).toMatch(/900_better_supabase_\d\d_entitlements\.sql/);
+    expect(added.stdout).toContain('tenant came along as a dependency');
+    expect(added.stdout).toContain('membership_claims');
   });
 
   it('prints a module and rejects unknown ones', async () => {

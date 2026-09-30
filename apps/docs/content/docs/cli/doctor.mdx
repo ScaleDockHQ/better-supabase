@@ -382,13 +382,19 @@ for records that outlive them (`created_by` on shared documents, audit rows).
 
 ### BS407
 
-**Error: two authorization hooks.** The custom access token hook calls
-`better_supabase.membership_claims` or `better_supabase.feature_claims`, and
-PermDock also owns the token: a `permdock.config.ts` is in the project root, or
-the hook calls PermDock's functions. Both write `memberships`, so the claim
-has two sources that drift apart. Run `permdock supabase hook generate` and
-remove the kit calls from the hook. See
+**Error: two authorization hooks.** PermDock owns the token: a
+`permdock.config.ts` is in the project root, or the hook calls PermDock's
+functions. The custom access token hook also calls
+`better_supabase.membership_claims`, or writes `roles`, `user_role`,
+`memberships` or the tenant claim (`claims.tenant`, `tenant_id` by default)
+itself, through `jsonb_set` or `jsonb_build_object`. Those claims then have two
+sources that drift apart. Run `permdock supabase hook generate` and remove the
+extra writes from the hook. See
 [better-supabase and PermDock](/docs/auth/permdock).
+
+PermDock's generated hook, which sets `memberships_truncated`, is not
+reported. Neither are claims PermDock doesn't write, such as the `features`
+claim from `better_supabase.feature_claims`.
 
 ## Env files
 

@@ -36,12 +36,14 @@ permdock supabase hook generate --out supabase/migrations/20260929_permdock_hook
 ```
 
 The hook writes `user_role`, `memberships`, `tenant_id`, `authz_ver` and,
-when the claims would exceed its budget, `memberships_truncated`. Don't add
-better-supabase's `tenant` or `entitlements` kit modules next to it: they
-write the same claims. `better-supabase sql add tenant` and
-`sql add entitlements` stop when they find a `permdock.config.ts` (`--force`
-writes them anyway), and [doctor](/docs/cli/doctor#bs407) reports BS407 when
-one hook calls both.
+when the claims would exceed its budget, `memberships_truncated`. Don't call
+better-supabase's `membership_claims()` from a hook next to it, and don't write
+`roles`, `user_role`, `memberships` or the tenant claim yourself: PermDock
+owns them. `better-supabase sql add tenant` stops when it finds a
+`permdock.config.ts` (`--force` writes it anyway), and
+[doctor](/docs/cli/doctor#bs407) reports BS407 for a hook that writes those
+claims next to PermDock. The `entitlements` module is not a conflict: see
+[What works with PermDock today](#what-works-with-permdock-today).
 
 </Step>
 
@@ -164,6 +166,22 @@ policy: { permdock: { read: 'documents.browse' }, scope: 'organization' }
 Keys PermDock splits by row condition (`documents.read#1`) are refused.
 PermDock plans to mark `rowConditions` per permission in its catalog and to
 add a doctor check for this; neither exists yet.
+
+## What works with PermDock today
+
+Plan entitlements are not a PermDock claim, so the
+[entitlements module](/docs/kits/entitlements#with-permdock) works next to
+PermDock:
+
+- `has_entitlement(tenant, key)` and `tenant_entitlements(tenant)` read the
+  Stripe tables, so SQL and RLS need no claim.
+- `hasEntitlement(session, ...)` needs the `features` claim, which PermDock's
+  generated hook doesn't write yet. Read entitlements from the database on the
+  server until it does.
+
+PermDock plans a hook slot for extra claims,
+`supabase.hook.claims: { features: 'better_supabase.feature_claims' }`, which
+will let its hook write `features`.
 
 ## What neither package does
 

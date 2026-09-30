@@ -51,9 +51,11 @@ claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(u
 claims := jsonb_set(claims, '{features}', better_supabase.feature_claims(uid));
 ```
 
-`sql add tenant` and `sql add entitlements` stop when the project has a
-`permdock.config.ts`, because PermDock's hook writes those claims. Pass
-`--force` to write them anyway.
+`sql add tenant` stops when the project has a `permdock.config.ts`, because
+PermDock's hook writes the `memberships` claim. Pass `--force` to write it
+anyway. `sql add entitlements` doesn't stop: `features` is not a PermDock
+claim. See [Entitlements with PermDock](/docs/kits/entitlements#with-permdock)
+for what works without the claim.
 
 ## TypeScript
 
@@ -91,8 +93,9 @@ test tokens can drop it, since ES256 tokens verify against the stack's JWKS.
 - BS405 measures the hook's claims against 1 KB when the project has a
   `permdock.config.ts` and 2 KB otherwise. Set `doctor.claimsLimit` to change
   it.
-- BS407 is new: it reports a hook that writes both better-supabase's and
-  PermDock's claims.
+- BS407 is new: next to PermDock, it reports a hook that calls
+  `membership_claims()` or writes `roles`, `user_role`, `memberships` or the
+  tenant claim itself. The `features` claim is not reported.
 
 ## MCP
 

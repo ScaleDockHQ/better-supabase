@@ -18,10 +18,35 @@ export function claimsLimit(context: DoctorContext): number {
   );
 }
 
-/** Kit functions whose output a better-supabase hook writes into the token. */
-const KIT_CLAIMS =
-  /better_supabase\s*\.\s*(membership_claims|feature_claims)\b/i;
+/** The kit function that fills PermDock's `memberships` claim. */
+const KIT_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
 const PERMDOCK_CALL = /\bpermdock\w*\s*\(|permdock\s*\./i;
+/** Only PermDock's generated hook sets this claim, so it marks that hook's body. */
+const PERMDOCK_HOOK = /'\{\s*(?:claims\s*,\s*)?memberships_truncated\s*\}'/i;
+
+const escapeRegExp = (text: string): string =>
+  text.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The claims PermDock's hook writes that a second writer would contradict. */
+function ownedClaims(tenant: string): readonly string[] {
+  return ['roles', 'user_role', 'memberships', tenant];
+}
+
+/** Which of `claims` the hook body writes through `jsonb_set` or `jsonb_build_object`. */
+function writtenClaims(source: string, claims: readonly string[]): string[] {
+  return claims.filter((claim) => {
+    const name = escapeRegExp(claim);
+    return (
+      new RegExp(
+        `jsonb_set\\s*\\([^;]*?'\\{\\s*(?:claims\\s*,\\s*)?${name}\\s*\\}'`,
+        'i',
+      ).test(source) ||
+      new RegExp(`jsonb_build_object\\s*\\([^;]*?'${name}'\\s*,`, 'i').test(
+        source,
+      )
+    );
+  });
+}
 
 const API_ROLES = ['authenticated', 'anon'] as const;
 
@@ -277,20 +302,32 @@ export const HOOK_RULES: readonly Rule[] = [
     severity: 'error',
     title: 'Two authorization hooks',
     description:
-      "A `permdock.config.ts` (or a hook that calls PermDock's functions) means PermDock writes `memberships`, `roles` and `tenant_id` into the token. A custom access token hook that also calls `better_supabase.membership_claims` or `feature_claims` gives those claims a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the kit calls.",
+      "A `permdock.config.ts` (or a hook that calls PermDock's functions) means PermDock writes `user_role`, `roles`, `memberships` and the tenant claim (`claims.tenant`) into the token. A custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the extra writes. Other claims, such as the entitlements module's `features`, are not PermDock's and are not reported.",
     check: (context) =>
       configuredHooks(context).flatMap(({ config, extras }): FindingInput[] => {
         if (config.hook !== 'custom_access_token' || !extras) return [];
         return extras.functions.flatMap((fn): FindingInput[] => {
-          if (fn.source === undefined || !KIT_CLAIMS.test(fn.source)) return [];
+          if (fn.source === undefined) return [];
+          const kit = KIT_MEMBERSHIPS.test(fn.source);
+          const written = PERMDOCK_HOOK.test(fn.source)
+            ? []
+            : writtenClaims(
+                fn.source,
+                ownedClaims(context.config.claims.tenant),
+              );
+          if (!kit && written.length === 0) return [];
           const permdock =
             context.permdock ??
             (PERMDOCK_CALL.test(fn.source) ? 'the hook body' : undefined);
           if (!permdock) return [];
           const location = hookLocation(context, config.hook);
+          const what = [
+            ...(kit ? ['calls better_supabase.membership_claims'] : []),
+            ...(written.length > 0 ? [`writes ${written.join(', ')}`] : []),
+          ].join(' and ');
           return [
             {
-              message: `${signatureOf(fn)} calls better-supabase's claim functions, and ${permdock} says PermDock owns the token. Keep one hook: run \`permdock supabase hook generate\` and remove the better_supabase.membership_claims and feature_claims calls.`,
+              message: `${signatureOf(fn)} ${what}, and ${permdock} says PermDock owns those claims. Keep one source: run \`permdock supabase hook generate\` and remove these writes from your hook.`,
               target: signatureOf(fn),
               object: { kind: 'function', schema: fn.schema, name: fn.name },
               ...(location ? { location } : {}),
