@@ -46,13 +46,15 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup
-
+      # Runs before checkout: the action runs npm in the workspace, and npm
+      # rejects the root package.json, whose devEngines require pnpm.
       - uses: supabase/setup-cli@v3
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
 
       # config.toml points signing_keys_path at this gitignored file, so the
       # stack signs and verifies ES256 tokens like a hosted project.
