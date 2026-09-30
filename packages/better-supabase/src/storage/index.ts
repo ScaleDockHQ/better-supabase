@@ -56,6 +56,12 @@ export interface BucketConfig<
    * segment against the JWT; `public` allows reads; `none` leaves access to
    * the secret key; `{ permdock, scope }` calls PermDock's SQL helpers.
    * Defaults to `none`.
+   *
+   * The helpers check role and scope only. Use `permdock` just for
+   * permissions whose grants have no row conditions beyond the scope: for a
+   * permission with row conditions (e.g. `ownerId = principal.id`) the bucket
+   * grants every object in the scope. Leave those to the policies
+   * `permdock rls generate` writes.
    */
   readonly policy?: BucketPolicy;
   /** `'5MiB'`, `'500KB'` or bytes. */

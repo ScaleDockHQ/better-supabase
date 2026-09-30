@@ -52,6 +52,26 @@ Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
 and `schema` work as for [buckets](/docs/kits/storage#permdock-permissions),
 and keys PermDock splits by row condition (`board.read#1`) are refused.
 
+The helpers check role and scope, not a permission's row conditions (for
+example `authorId = principal.id`). Use `permdock` only for permissions whose
+grants have no row conditions beyond the scope: for one that has them, the
+topic lets every member of the scope join or send. Keep those permissions on
+the tables that `permdock rls generate` writes policies for.
+
+```ts
+// Wrong: board.read is granted only for boards the member owns
+defineTopic('org:{orgId}:board', {
+  permdock: { receive: 'board.read', scope: 'organization' },
+});
+// Right: board.view is granted per organization, with no row condition
+defineTopic('org:{orgId}:board', {
+  permdock: { receive: 'board.view', scope: 'organization' },
+});
+```
+
+PermDock plans to mark `rowConditions` per permission in its catalog and to
+add a doctor check for this; neither exists yet.
+
 ## Row changes
 
 `triggerSql` writes a trigger that sends row changes with

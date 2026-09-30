@@ -114,11 +114,48 @@ scope id comes from the `{orgId}` segment; set `segment` (1-based) for another
 one, and `schema` when the helpers aren't in `public`. The id is compared as
 text, so a malformed path is denied instead of raising a cast error.
 
-The policies are only ever for `authenticated`. Use the mode for permissions
-whose grants have no row conditions beyond the scope: PermDock splits a
-permission with row conditions into keys such as `files.download#1`, and
-`defineBucket` refuses those, because only PermDock's own generated policies
-can enforce them.
+The policies are only ever for `authenticated`.
+
+#### Only for permissions without row conditions
+
+The helpers check role and scope, nothing else. A permission's row conditions
+(for example `ownerId = principal.id`) are applied by the table policies
+`permdock rls generate` writes, and a helper called on its own ignores them.
+Use the `permdock` mode only for permissions whose grants have no row
+conditions beyond the scope. For a permission with row conditions, the bucket
+would grant every object in the scope.
+
+This bucket is wrong if `files.download` is granted to members only for files
+they own (`ownerId = principal.id`): every member can download every file in
+the organization.
+
+```ts title="src/lib/storage.ts"
+// Wrong: files.download has a row condition, which the policy ignores
+export const files = defineBucket({
+  id: 'org-files',
+  path: '{orgId}/{file}',
+  policy: { permdock: { read: 'files.download' }, scope: 'organization' },
+});
+```
+
+Keep row-conditioned permissions on tables, where PermDock's generated
+policies enforce them, and give the bucket a permission that is granted for
+the whole scope:
+
+```ts title="src/lib/storage.ts"
+// Right: files.browse is granted per organization, with no row condition
+export const files = defineBucket({
+  id: 'org-files',
+  path: '{orgId}/{file}',
+  policy: { permdock: { read: 'files.browse' }, scope: 'organization' },
+});
+```
+
+PermDock splits some permissions with row conditions into keys such as
+`files.download#1`. `defineBucket` refuses those keys, but a permission with
+row conditions doesn't always have one, so check the permission's grants
+before using it here. PermDock plans to mark `rowConditions` per permission in
+its catalog and to add a doctor check for this; neither exists yet.
 
 `logos.toml()` gives the `[storage.buckets.customer-logos]` section for
 `supabase/config.toml`. `logos.drift(actual)` compares the bucket with what
