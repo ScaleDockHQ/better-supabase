@@ -185,7 +185,12 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
         parser: 'builtin' as const,
       };
     };
-    const run = async (fn: string, codes: string[], hookUser?: string) => {
+    const run = async (
+      fn: string,
+      codes: string[],
+      hookUser?: string,
+      permdock?: string,
+    ) => {
       const snapshot = await introspect(db.queryable, ['public'], {
         hooks: [{ hook: 'custom_access_token', schema: HOOKS, name: fn }],
       });
@@ -199,6 +204,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
           sources: [],
           database,
           ...(hookUser ? { hookUser } : {}),
+          ...(permdock ? { permdock } : {}),
         },
         RULES.filter((rule) => codes.includes(rule.code)),
       );
@@ -218,6 +224,26 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       create function ${HOOKS}.bad(event jsonb) returns jsonb
         language plpgsql
         as $$ begin return event; end $$;
+      -- PermDock-shaped: about 1.5 KB of token, memberships and attrs within 1024.
+      create function ${HOOKS}.permdock_fits(event jsonb) returns jsonb
+        language plpgsql stable set search_path = ''
+        as $$ begin
+          event := jsonb_set(event, '{claims,memberships}', jsonb_build_array(
+            jsonb_build_object('scope', 'organization', 'id', repeat('a', 300), 'roles', jsonb_build_array('admin'))));
+          event := jsonb_set(event, '{claims,attrs}', jsonb_build_object('plan', repeat('p', 200)));
+          return jsonb_set(event, '{claims,profile}', to_jsonb(repeat('x', 500)));
+        end $$;
+      -- Memberships and attrs over 1024, the whole token under 2048.
+      create function ${HOOKS}.permdock_over(event jsonb) returns jsonb
+        language plpgsql stable set search_path = ''
+        as $$ begin
+          event := jsonb_set(event, '{claims,memberships}', jsonb_build_array(
+            jsonb_build_object('scope', 'organization', 'id', repeat('a', 800), 'roles', jsonb_build_array('admin'))));
+          return jsonb_set(event, '{claims,attrs}', jsonb_build_object('plan', repeat('p', 300)));
+        end $$;
+      grant usage on schema ${HOOKS} to supabase_auth_admin;
+      grant execute on function ${HOOKS}.permdock_fits(jsonb), ${HOOKS}.permdock_over(jsonb) to supabase_auth_admin;
+      revoke execute on function ${HOOKS}.permdock_fits(jsonb), ${HOOKS}.permdock_over(jsonb) from authenticated, anon, public;
       insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
         values ('${USER}', 'authenticated', 'authenticated', 'hook-${USER}@example.com', '{}', '{}');
     `);
@@ -282,6 +308,21 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       const [who] = (await db.queryable.query('select current_user as role'))
         .rows as { role: string }[];
       expect(who?.role).toBe('postgres');
+    });
+
+    it("measures PermDock's budget apart from the whole token", async () => {
+      const permdock = 'permdock.config.ts';
+      expect(await run('permdock_fits', ['BS405'], USER, permdock)).toEqual([]);
+      const findings = await run('permdock_over', ['BS405'], USER, permdock);
+      expect(findings).toMatchObject([
+        {
+          code: 'BS405',
+          message: expect.stringMatching(
+            /returns \d{4} bytes of memberships and attrs .*over PermDock's budget of 1024/,
+          ),
+        },
+      ]);
+      expect(await run('permdock_over', ['BS405'], USER)).toEqual([]);
     });
   },
 );

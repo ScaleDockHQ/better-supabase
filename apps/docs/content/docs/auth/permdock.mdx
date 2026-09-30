@@ -155,15 +155,18 @@ export async function permdockFor() {
 
 ## Large membership lists
 
-The hook keeps the token under its budget (1 KB by default) by dropping
-memberships and setting `memberships_truncated`. Pass your membership sources
-through PermDock's `claimsFirst(sources)`: it uses the token's memberships and
-reads the sources only when the token says it dropped some.
+The hook keeps `memberships` plus `attrs` under its budget
+(`supabase.hook.budget`, 1 KB by default) by dropping memberships and setting
+`memberships_truncated`. The budget doesn't cover the rest of the token. Pass
+your membership sources through PermDock's `claimsFirst(sources)`: it uses the
+token's memberships and reads the sources only when the token says it dropped
+some.
 
-`better-supabase doctor` measures the hook's output against the same budget
-when it finds a `permdock.config.ts` (BS405), and reports
-`memberships_truncated` for the sample user. Set `doctor.claimsLimit` to match
-a different `--budget`.
+When it finds a `permdock.config.ts`, `better-supabase doctor --as <user id>`
+measures `memberships` plus `attrs` against the same budget, and the whole
+token against 2 KB, as separate [BS405](/docs/cli/doctor#bs405) warnings. It
+also reports `memberships_truncated` for the sample user. Set
+`doctor.claimsLimit` to match a different `--budget`.
 
 ## Storage and Realtime
 

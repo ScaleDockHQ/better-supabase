@@ -104,7 +104,8 @@ export const sb = defineSupabase(schema).claims(Claims);
 
 Every key travels in every request, so keep the list to lookup keys.
 [`doctor --as <user id>`](/docs/cli/doctor#bs405) warns when the hook's
-claims pass the budget (2 KB, or 1 KB next to PermDock).
+claims pass 2 KB. The `features` claim is not part of PermDock's 1 KB budget,
+which covers only `memberships` and `attrs`.
 
 ## In components
 
