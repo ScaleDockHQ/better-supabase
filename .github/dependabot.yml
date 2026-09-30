@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    # The working branch; switch to develop once it exists.
+    target-branch: main
     schedule:
       interval: weekly
     # pnpm refuses releases younger than minimumReleaseAge (1440 minutes).
@@ -16,28 +18,15 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:
-      oxc:
-        patterns:
-          - oxlint
-          - oxfmt
-          - oxlint-tsgolint
-          - "@oxlint/*"
-      turbo:
-        patterns:
-          - turbo
-          - "@turbo/*"
-      supabase:
-        patterns:
-          - "@supabase/*"
-      commitlint:
-        patterns:
-          - "@commitlint/*"
-      dependencies:
+      npm:
         patterns:
           - "*"
 
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
+    target-branch: main
     schedule:
       interval: weekly
     cooldown:

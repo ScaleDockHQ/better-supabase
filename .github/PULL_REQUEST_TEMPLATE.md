@@ -1,11 +1,18 @@
-## Summary
+## What
 
-<!-- What changed and why. -->
+<!-- What changed and why, in a few sentences. -->
 
-## Test plan
+## Verify
 
-- [ ] `pnpm run check` passes
-- [ ] `pnpm run test` passes (and `pnpm test:integration` if it touches SQL, auth or adapters)
-- [ ] User-visible change has a changeset (`pnpm changeset`)
-- [ ] Public API change updates the docs page, the example and `api/exports.json`
+<!-- How a reviewer can check it: commands, pages, or screenshots. -->
+
+- [ ] `pnpm verify` passes
+- [ ] `pnpm test:integration` passes, if this touches SQL, auth or adapters
+
+## Checklist
+
+- [ ] Schema: `supabase/` changes come with a migration and pgTAP tests
+- [ ] Env: new keys are in the t3-env schema, `turbo.json`, `.env.example` and all three Vercel environments
+- [ ] Changeset: user-visible changes have one (`pnpm changeset`)
+- [ ] Public API changes update the docs page, the example and `api/exports.json`
 - [ ] AGENTS.md "When you change X, also update Y" is followed

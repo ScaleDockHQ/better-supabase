@@ -1,0 +1,26 @@
+name: Setup
+description: Vercel Remote Cache through OIDC, then pnpm with Node 24 and the store cache.
+
+inputs:
+  cache:
+    description: Restore the pnpm store and connect the Turborepo Remote Cache.
+    default: "true"
+  turbo-team:
+    description: Vercel team that owns the Remote Cache.
+    default: scaledock
+
+runs:
+  using: composite
+  steps:
+    # Needs `id-token: write`; builds still run without the cache.
+    - if: inputs.cache == 'true'
+      uses: vercel/setup-turborepo-remote-cache-action@v1.1.0
+      continue-on-error: true
+      with:
+        team: ${{ inputs.turbo-team }}
+
+    - uses: pnpm/setup@v3
+      with:
+        runtime: node@24
+        cache: ${{ inputs.cache == 'true' }}
+        require-lockfile: true

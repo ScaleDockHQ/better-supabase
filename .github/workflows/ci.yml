@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths-ignore:
       - ".cursor/**"
       - ".claude/**"
       - ".agents/**"
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths-ignore:
       - ".cursor/**"
       - ".claude/**"
@@ -22,98 +22,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  CI: true
   # The TUI swallows task output on non-TTY runners.
   TURBO_UI: stream
   SUPABASE_CLI_VERSION: 2.118.0
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
+  verify:
     permissions:
       contents: read
-      # OIDC token for the Vercel Remote Cache.
       id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          # `turbo --affected` compares against the base branch.
-          fetch-depth: 0
-
-      - uses: vercel/setup-turborepo-remote-cache-action@v1.1.0
-        continue-on-error: true
-        with:
-          team: ${{ vars.TURBO_TEAM || 'scaledock' }}
-
-      - uses: pnpm/setup@v3
-        with:
-          runtime: node@24
-          cache: true
-          require-lockfile: true
-
-      - name: Check
-        run: pnpm run check
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Typecheck matrix (TypeScript 5.9, 6, 7)
-        run: pnpm run typecheck:matrix
-
-      - name: Type performance
-        run: pnpm run typecheck:perf
-
-      - name: Test (affected)
-        if: github.event_name == 'pull_request'
-        env:
-          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
-        run: pnpm exec turbo run test --affected
-
-      - name: Test
-        if: github.event_name != 'pull_request'
-        run: pnpm run test
-
-      - name: Size
-        run: pnpm run size
-
-      - name: Generated code drift
-        run: |
-          for project in apps/examples/* tests/validation-*; do
-            pnpm exec better-supabase gen --check --cwd "$project"
-          done
-
-      - name: Doctor (SARIF)
-        run: pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
-
-      - name: Upload doctor findings
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: doctor.sarif
-          category: better-supabase-doctor
-        continue-on-error: true
-
-      - name: Publish checks
-        run: pnpm run check:publish
+      security-events: write
+    uses: ./.github/workflows/verify.yml
+    with:
+      affected: ${{ github.event_name == 'pull_request' }}
+      base: ${{ github.event.pull_request.base.sha || '' }}
 
   stack:
+    name: Integration and e2e
     runs-on: ubuntu-latest
-    needs: check
+    needs: verify
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v7
 
-      - uses: vercel/setup-turborepo-remote-cache-action@v1.1.0
-        continue-on-error: true
-        with:
-          team: ${{ vars.TURBO_TEAM || 'scaledock' }}
-
-      - uses: pnpm/setup@v3
-        with:
-          runtime: node@24
-          cache: true
-          require-lockfile: true
+      - uses: ./.github/actions/setup
 
       - uses: supabase/setup-cli@v3
         with:
@@ -135,9 +70,9 @@ jobs:
             --override-name db.url=SUPABASE_DB_URL \
             | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
-      # Restored from the remote cache when the check job built the same inputs.
+      # Next builds run one at a time on GitHub-hosted runners.
       - name: Build
-        run: pnpm run build
+        run: pnpm exec turbo run build --concurrency=1
 
       - name: Integration
         run: pnpm run test:integration

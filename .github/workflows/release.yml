@@ -24,20 +24,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: pnpm/setup@v3
-        with:
-          runtime: node@24
-          cache: true
-          require-lockfile: true
+      - uses: ./.github/actions/setup
 
-      - name: Check
-        run: pnpm run check
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Test
-        run: pnpm run test
+      - name: Verify
+        run: pnpm run verify
 
       - name: Publish checks
         run: pnpm run check:publish
@@ -59,15 +49,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/setup@v3
-        with:
-          runtime: node@24
-          cache: true
-          require-lockfile: true
+      - uses: ./.github/actions/setup
 
       - name: Create or update the release pull request
         uses: changesets/action/version@v2
         with:
+          # Also writes the root CHANGELOG.md and formats the result.
+          script: pnpm run version-packages
           pr-title: "chore: version packages"
           commit-message: "chore: version packages"
 
@@ -108,13 +96,11 @@ jobs:
           pnpm add --global npm@11.20.0
           npm --version
 
-      - name: Build
-        run: pnpm run build
-
       - name: Publish
         uses: changesets/action/publish@v2
         with:
-          script: pnpm exec changeset publish
+          # Builds, then runs `changeset publish`.
+          script: pnpm run release
         env:
           PNPM_CONFIG_PROVENANCE: "true"
           NPM_CONFIG_PROVENANCE: "true"

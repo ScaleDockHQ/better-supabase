@@ -1,0 +1,90 @@
+name: Verify
+
+on:
+  workflow_call:
+    inputs:
+      affected:
+        description: Run Turbo tasks only for packages changed since the base commit.
+        type: boolean
+        default: false
+      base:
+        description: Base commit for `turbo --affected`.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # The TUI swallows task output on non-TTY runners.
+  TURBO_UI: stream
+  TURBO_SCM_BASE: ${{ inputs.base }}
+  AFFECTED: ${{ inputs.affected && '--affected' || '' }}
+
+jobs:
+  verify:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # OIDC token for the Vercel Remote Cache.
+      id-token: write
+      # The doctor task uploads SARIF to code scanning.
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: format
+            run: pnpm run format:check
+          - task: lint
+            run: pnpm exec turbo run lint $AFFECTED && pnpm run lint:root
+          - task: prose
+            run: pnpm run check:prose
+          - task: knip
+            run: pnpm run knip
+          - task: boundaries
+            run: pnpm run boundaries
+          # Next typechecks run one at a time on GitHub-hosted runners.
+          - task: typecheck
+            run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED && pnpm run typecheck:tooling
+          - task: test
+            run: pnpm exec turbo run test --concurrency=1 $AFFECTED
+          - task: audit
+            run: pnpm run audit:high
+          - task: typecheck matrix
+            run: pnpm exec turbo run build --filter=better-supabase && pnpm run typecheck:matrix
+          - task: type performance
+            run: pnpm exec turbo run build --filter=better-supabase && pnpm run typecheck:perf
+          - task: size
+            run: pnpm exec turbo run build --filter=better-supabase && pnpm run size
+          - task: publish checks
+            run: pnpm run check:publish
+          - task: generated code drift
+            run: |
+              pnpm exec turbo run build --filter=better-supabase
+              for project in apps/examples/* tests/validation-*; do
+                pnpm exec better-supabase gen --check --cwd "$project"
+              done
+          - task: doctor
+            run: |
+              pnpm exec turbo run build --filter=better-supabase
+              pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `turbo --affected` compares against the base commit.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+      - name: ${{ matrix.task }}
+        run: ${{ matrix.run }}
+
+      - name: Upload doctor findings
+        if: always() && matrix.task == 'doctor'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: doctor.sarif
+          category: better-supabase-doctor
+        continue-on-error: true

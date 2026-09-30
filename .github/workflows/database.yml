@@ -1,0 +1,47 @@
+name: Database
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ["supabase/**"]
+  pull_request:
+    branches: [main, develop]
+    paths: ["supabase/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CI: true
+  SUPABASE_CLI_VERSION: 2.118.0
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Create the local signing key
+        run: node packages/better-supabase/src/cli/bin.ts keys --cwd .
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: pgTAP
+        run: supabase test db
+
+      - name: Lint SQL
+        run: supabase db lint --local --level warning --fail-on error
