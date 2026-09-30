@@ -76,18 +76,13 @@ function waitFor<T>(
 }
 
 describe.skipIf(!live)('Realtime kit', async () => {
-  const clientFor = async (orgId: string) => {
-    const token = await signLocalJwt({
-      sub: USER,
-      role: 'authenticated',
-      tenant_id: orgId,
+  const clientFor = (orgId: string) =>
+    createClient(url, publishableKey, {
+      accessToken: () =>
+        signLocalJwt({ sub: USER, role: 'authenticated', tenant_id: orgId }),
     });
-    return createClient(url, publishableKey, {
-      accessToken: async () => token,
-    });
-  };
-  const acme = await clientFor(ACME);
-  const other = await clientFor(OTHER);
+  const acme = clientFor(ACME);
+  const other = clientFor(OTHER);
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const kvk = `rt-${String(Date.now())}`;
 

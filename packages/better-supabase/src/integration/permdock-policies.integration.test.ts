@@ -73,27 +73,23 @@ const board = defineTopic('pd:{orgId}:board', {
 });
 
 describe.skipIf(!live)('PermDock policy mode', async () => {
-  const clientWith = async (
-    pd: Record<string, string[]>,
-    pdGlobal: string[] = [],
-  ) => {
-    const token = await signLocalJwt({
-      sub: USER,
-      role: 'authenticated',
-      pd,
-      pd_global: pdGlobal,
+  const clientWith = (pd: Record<string, string[]>, pdGlobal: string[] = []) =>
+    createClient(url, publishableKey, {
+      accessToken: () =>
+        signLocalJwt({
+          sub: USER,
+          role: 'authenticated',
+          pd,
+          pd_global: pdGlobal,
+        }),
     });
-    return createClient(url, publishableKey, {
-      accessToken: async () => token,
-    });
-  };
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
   const admin = files.connect(service);
-  const reader = files.connect(await clientWith({ 'files.read': [ACME] }));
-  const lister = files.connect(await clientWith({ 'files.list': [ACME] }));
-  const writer = files.connect(await clientWith({ 'files.write': [ACME] }));
+  const reader = files.connect(clientWith({ 'files.read': [ACME] }));
+  const lister = files.connect(clientWith({ 'files.list': [ACME] }));
+  const writer = files.connect(clientWith({ 'files.write': [ACME] }));
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
 
   beforeAll(async () => {
@@ -161,7 +157,7 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
   });
 
   it('joins and sends on topics by permission', async () => {
-    const readOnly = await clientWith({ 'board.read': [ACME] });
+    const readOnly = clientWith({ 'board.read': [ACME] });
     const joined = board.subscribe(readOnly, { orgId: ACME }, {});
     await joined.ready;
     await joined.unsubscribe();
@@ -172,7 +168,7 @@ describe.skipIf(!live)('PermDock policy mode', async () => {
 
     const denied = await board.send(readOnly, { orgId: ACME }, 'moved', {});
     expect(denied.ok).toBe(false);
-    const sender = await clientWith({
+    const sender = clientWith({
       'board.read': [ACME],
       'board.write': [ACME],
     });

@@ -55,13 +55,11 @@ const avatars = defineBucket({
 const image = (text: string) => new Blob([text], { type: 'image/webp' });
 
 describe.skipIf(!live)('Storage kit', async () => {
-  const token = await signLocalJwt({
-    sub: USER,
-    role: 'authenticated',
-    tenant_id: ACME,
-  });
   const user = logos.connect(
-    createClient(url, publishableKey, { accessToken: async () => token }),
+    createClient(url, publishableKey, {
+      accessToken: () =>
+        signLocalJwt({ sub: USER, role: 'authenticated', tenant_id: ACME }),
+    }),
   );
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },

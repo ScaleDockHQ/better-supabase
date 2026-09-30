@@ -40,10 +40,11 @@ describe.skipIf(!live)('Postgres executor', async () => {
   afterAll(() => postgres.end());
 
   const claims = { sub: USER, role: 'authenticated', tenant_id: ACME };
-  const token = await signLocalJwt(claims);
   const sb = defineSupabase(schema).use(softDelete()).use(tenant());
   const rest = sb.connect(
-    createClient(url, publishableKey, { accessToken: async () => token }),
+    createClient(url, publishableKey, {
+      accessToken: () => signLocalJwt(claims),
+    }),
     { claims },
   );
   const sql = sb.connect(postgresExecutor(postgres.asUser(claims)), { claims });
