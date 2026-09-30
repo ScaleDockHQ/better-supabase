@@ -3438,10 +3438,10 @@
       {
         "id": 3000009,
         "schema": "better_supabase",
-        "name": "current_org_id",
+        "name": "current_tenant_id",
         "language": "sql",
-        "definition": "\n  select nullif(coalesce(auth.jwt() ->> 'org_id', auth.jwt() -> 'app_metadata' ->> 'org_id'), '')::uuid\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.current_org_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select nullif(coalesce(auth.jwt() ->> 'org_id', auth.jwt() -> 'app_metadata' ->> 'org_id'), '')::uuid\n$function$\n",
+        "definition": "\n  select nullif(coalesce(auth.jwt() ->> 'tenant_id', auth.jwt() -> 'app_metadata' ->> 'tenant_id'), '')::uuid\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.current_tenant_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select nullif(coalesce(auth.jwt() ->> 'tenant_id', auth.jwt() -> 'app_metadata' ->> 'tenant_id'), '')::uuid\n$function$\n",
         "args": [],
         "argument_types": "",
         "identity_argument_types": "",
@@ -4921,9 +4921,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "functions": ["better_supabase.current_org_id"]
+            "using": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "check": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [
@@ -5007,9 +5007,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "functions": ["better_supabase.current_org_id"]
+            "using": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "check": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [],
@@ -5097,9 +5097,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "functions": ["better_supabase.current_org_id"]
+            "using": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "check": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [
@@ -5185,9 +5185,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "functions": ["better_supabase.current_org_id"]
+            "using": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "check": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [
@@ -5273,9 +5273,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "functions": ["better_supabase.current_org_id"]
+            "using": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "check": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [
@@ -5341,9 +5341,9 @@
             "command": "select",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
+            "using": "(id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
             "check": null,
-            "functions": ["better_supabase.current_org_id"]
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [
@@ -5427,9 +5427,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "check": "(organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id))",
-            "functions": ["better_supabase.current_org_id"]
+            "using": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "check": "(organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id))",
+            "functions": ["better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [],
@@ -5500,9 +5500,9 @@
             "command": "all",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id)))",
-            "check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_org_id() AS current_org_id)))",
-            "functions": ["auth.uid", "better_supabase.current_org_id"]
+            "using": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))",
+            "check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))",
+            "functions": ["auth.uid", "better_supabase.current_tenant_id"]
           }
         ],
         "triggers": [],
@@ -5567,7 +5567,7 @@
       },
       {
         "schema": "better_supabase",
-        "name": "current_org_id",
+        "name": "current_tenant_id",
         "signature": "",
         "language": "sql",
         "volatility": "stable",

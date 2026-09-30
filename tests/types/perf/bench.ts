@@ -215,7 +215,7 @@ writeFileSync(
     plugins: {
       timestamps: true,
       softDelete: { column: 'archived_at' },
-      tenant: { column: 'organization_id', claim: 'org_id' },
+      tenant: { column: 'organization_id' },
     },
   }),
 );

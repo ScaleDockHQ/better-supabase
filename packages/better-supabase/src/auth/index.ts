@@ -16,7 +16,7 @@ export type { Aal, AmrEntry } from './mfa.ts';
 export { impersonatorOf } from './impersonation.ts';
 export type { ImpersonationOptions, Impersonator } from './impersonation.ts';
 export { hasEntitlement } from './entitlements.ts';
-export type { EntitlementKey } from './entitlements.ts';
+export type { EntitlementKey, MembershipClaim } from './entitlements.ts';
 export {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,

@@ -1,42 +1,62 @@
 import type { AuthSession } from './view.ts';
 
 /**
- * Entitlement keys of the `memberships[].entitlements` claim: the literal
- * union when `sb.claims(schema)` declares one (`z.enum([...])`), otherwise
- * `string`.
+ * One entry of the `memberships` claim, in PermDock's shape. PermDock strips
+ * `null`s, so optional fields are absent rather than `null`.
+ */
+export interface MembershipClaim {
+  /** The scope the membership is in, e.g. `tenant` or `organization`. */
+  readonly scope: string;
+  readonly id: string;
+  /** Parent scopes, e.g. `{ organization: '...' }` for a project membership. */
+  readonly within?: Readonly<Record<string, string>>;
+  readonly roles: readonly string[];
+  readonly via?: string;
+  /** Unix seconds. */
+  readonly expiresAt?: number;
+  readonly grantedBy?: string;
+  readonly reason?: string;
+  readonly member?: { readonly group: string };
+  readonly managedBy?: 'idp';
+  /** Seats, not plan features: those are in the `features` claim. */
+  readonly entitlements?: readonly string[];
+}
+
+/**
+ * Entitlement keys of the `features` claim: the literal union when
+ * `sb.claims(schema)` declares one (`z.enum([...])`), otherwise `string`.
  */
 export type EntitlementKey<C> = C extends {
-  readonly memberships?: readonly (infer M)[] | undefined;
+  readonly features?: infer F;
 }
-  ? M extends { readonly entitlements?: readonly (infer K)[] | undefined }
+  ? NonNullable<F> extends Readonly<Record<string, readonly (infer K)[]>>
     ? K extends string
       ? K
       : string
     : string
   : string;
 
-interface MembershipClaim {
-  readonly tenant_id?: unknown;
-  readonly entitlements?: unknown;
-}
-
 /**
- * Whether the session's `memberships` claim grants `key` in `tenantId`. The
- * claim is as fresh as the token: enforce it in RLS with
- * `better_supabase.has_entitlement()`, and refresh the session after checkout.
+ * Whether the session's plan-features claim grants `key` in `tenantId`.
+ * `claim` is `config.claims.features` (default `features`), the claim
+ * `better_supabase.feature_claims()` fills. The claim is as fresh as the
+ * token: enforce it in RLS with `better_supabase.has_entitlement()`, and
+ * refresh the session after checkout.
  */
 export function hasEntitlement<C>(
   session: AuthSession<C>,
   tenantId: string,
   key: EntitlementKey<C>,
+  claim = 'features',
 ): boolean {
   if (session.kind !== 'user') return false;
-  const memberships = (session.claims as { memberships?: unknown }).memberships;
-  if (!Array.isArray(memberships)) return false;
-  return memberships.some((entry: MembershipClaim) => {
-    if (entry?.tenant_id !== tenantId) return false;
-    return (
-      Array.isArray(entry.entitlements) && entry.entitlements.includes(key)
-    );
-  });
+  const claims: unknown = session.claims;
+  if (!isRecord(claims)) return false;
+  const features = claims[claim];
+  if (!isRecord(features) || !Object.hasOwn(features, tenantId)) return false;
+  const keys = features[tenantId];
+  return Array.isArray(keys) && keys.includes(key);
 }
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null;

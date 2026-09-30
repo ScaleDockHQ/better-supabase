@@ -104,6 +104,7 @@ describe('config JSON Schema', () => {
       codecs: true,
       generators: true,
       plugins: true,
+      claims: true,
       buckets: true,
       topics: true,
       realtime: true,
@@ -283,6 +284,22 @@ describe('sql', () => {
     const list = await run(['sql', 'list', '--cwd', dir]);
     expect(list.stdout).toMatch(/● invitations/);
     expect(list.stdout).toMatch(/○ tenant/);
+  });
+
+  it('stops before writing hook modules next to a permdock.config.ts', async () => {
+    await writeFile(join(dir, 'permdock.config.ts'), 'export default {};\n');
+    const stopped = await run(['sql', 'add', 'entitlements', '--cwd', dir]);
+    expect(stopped.code).toBe(1);
+    expect(stopped.stderr).toContain('permdock.config.ts is present');
+    expect(stopped.stderr).toContain('tenant and entitlements');
+    expect(stopped.stderr).toContain('permdock supabase hook generate');
+    expect((await run(['sql', 'list', '--cwd', dir])).stdout).toMatch(
+      /^ {2}tenant/m,
+    );
+    expect((await run(['sql', 'add', 'audit', '--cwd', dir])).code).toBe(0);
+    const forced = await run(['sql', 'add', 'tenant', '--force', '--cwd', dir]);
+    expect(forced.code).toBe(0);
+    expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
   });
 
   it('prints a module and rejects unknown ones', async () => {

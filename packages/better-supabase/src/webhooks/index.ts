@@ -276,7 +276,7 @@ export function hookError(status: number, message: string): AuthHookError {
  *
  * ```ts
  * export const POST = authHook('custom_access_token', env.AUTH_HOOK_SECRET, async ({ claims, user_id }) => ({
- *   claims: { ...claims, org_id: await orgFor(user_id) },
+ *   claims: { ...claims, tenant_id: await orgFor(user_id) },
  * }));
  * ```
  */

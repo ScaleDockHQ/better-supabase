@@ -21,6 +21,7 @@ export type {
   CookieRecord,
   CookieWrite,
   EntitlementKey,
+  MembershipClaim,
   RefreshOptions,
   RefreshOutcome,
   ResolveAuthOptions,

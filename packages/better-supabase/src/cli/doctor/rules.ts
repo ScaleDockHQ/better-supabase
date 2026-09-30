@@ -89,6 +89,8 @@ export interface DoctorContext {
   readonly explain?: ExplainRequest;
   /** `--as`: the user to call the custom access token hook for (BS405). */
   readonly hookUser?: string;
+  /** The `permdock.config.ts` in the project root, if any (BS405, BS407). */
+  readonly permdock?: string;
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
 }
@@ -244,8 +246,11 @@ function coveredByBS207(lint: Lint, context: DoctorContext): boolean {
 const AGGREGATE_USE =
   /\.aggregate\(|\b_(?:sum|avg|min|max)\s*:\s*\{|\bfacetCounts\s*:\s*true\b/;
 
-/** A policy that reads memberships or the tenant claim: `is_member(...)`, `current_org_id()`, `memberships`. */
-const TENANT_HELPER = /member|tenant|current_org|org_id/i;
+/**
+ * A policy that reads memberships or the tenant claim: `is_member(...)`,
+ * `current_tenant_id()`, `memberships`, PermDock's `permitted_*_ids()`.
+ */
+const TENANT_HELPER = /member|tenant|current_org|org_id|permitted_\w+_ids/i;
 
 /** A foreign key to the tenant table itself, whose own policies are usually read-only. */
 const TENANT_COLUMN = /^(?:org|organization|tenant|team|workspace|account)_id$/;

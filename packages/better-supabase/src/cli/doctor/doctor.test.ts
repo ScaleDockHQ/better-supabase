@@ -197,11 +197,11 @@ describe('doctor rules', () => {
     });
     const snap = snapshot((tables) => {
       table(tables, 'tags').policies = [
-        policy('tags_read', 'select', 'organization_id = current_org_id()'),
-        policy('tags_add', 'insert', 'organization_id = current_org_id()'),
+        policy('tags_read', 'select', 'organization_id = current_tenant_id()'),
+        policy('tags_add', 'insert', 'organization_id = current_tenant_id()'),
       ];
       table(tables, 'organizations').policies = [
-        policy('organizations_read', 'select', 'id = current_org_id()'),
+        policy('organizations_read', 'select', 'id = current_tenant_id()'),
       ];
     });
     const only = RULES.filter((rule) => rule.code === 'BS107');
@@ -863,7 +863,12 @@ uri = "https://example.com/hook"
 
     it('measures the claims the hook returns with --as (BS405)', async () => {
       const USER_ID = '11111111-1111-4111-8111-111111111111';
-      const run = async (bytes: number | null, user = true) => {
+      const run = async (
+        bytes: number | null,
+        user = true,
+        extra: Partial<DoctorContext> = {},
+        size: { memberships?: number; truncated?: boolean } = {},
+      ) => {
         const queries: string[] = [];
         const database: LiveDatabase = {
           describe: 'test',
@@ -876,12 +881,19 @@ uri = "https://example.com/hook"
             )
               return (user ? [{ event: '{}' }] : []) as R[];
             if (sql.includes('pg_roles')) return [{ member: true }] as R[];
-            if (sql.includes('octet_length')) return [{ bytes }] as R[];
+            if (sql.includes('octet_length'))
+              return [
+                {
+                  bytes,
+                  memberships: size.memberships ?? 0,
+                  truncated: size.truncated ?? false,
+                },
+              ] as R[];
             return [] as R[];
           },
         };
         const findings = await runRules(
-          hookContext(base, { database, hookUser: USER_ID }),
+          hookContext(base, { database, hookUser: USER_ID, ...extra }),
           only('BS405'),
         );
         return { findings, queries };
@@ -900,6 +912,64 @@ uri = "https://example.com/hook"
       expect((await run(300, false)).findings).toMatchObject([
         { severity: 'info', message: expect.stringContaining('no such user') },
       ]);
+      expect((await run(1500)).findings).toEqual([]);
+      expect(
+        (
+          await run(
+            1500,
+            true,
+            { permdock: 'permdock.config.ts' },
+            { memberships: 1200 },
+          )
+        ).findings,
+      ).toMatchObject([
+        { message: expect.stringContaining('(limit 1024, memberships 1200)') },
+      ]);
+      const custom = resolveConfig(
+        { doctor: { claimsLimit: 512 } },
+        '/project',
+      );
+      expect((await run(600, true, { config: custom })).findings).toMatchObject(
+        [{ message: expect.stringContaining('limit 512') }],
+      );
+      expect(
+        (await run(300, true, {}, { truncated: true })).findings,
+      ).toMatchObject([
+        {
+          severity: 'info',
+          message: expect.stringContaining('memberships_truncated'),
+        },
+      ]);
+    });
+
+    it('flags a kit hook next to PermDock (BS407)', async () => {
+      const kitHook = hookFn({
+        source:
+          "begin claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid)); end",
+      });
+      expect(await codes(hookContext(withHook([kitHook])), 'BS407')).toEqual(
+        [],
+      );
+      expect(
+        await codes(
+          hookContext(withHook([kitHook]), { permdock: 'permdock.config.ts' }),
+          'BS407',
+        ),
+      ).toEqual(['BS407']);
+      const both = hookFn({
+        source: `${kitHook.source ?? ''} perform permdock.permdock_claims(event);`,
+      });
+      expect(await codes(hookContext(withHook([both])), 'BS407')).toEqual([
+        'BS407',
+      ]);
+      expect(
+        await codes(
+          hookContext(withHook([hookFn({ source: 'select 1' })]), {
+            permdock: 'permdock.config.ts',
+          }),
+          'BS407',
+        ),
+      ).toEqual([]);
     });
   });
 

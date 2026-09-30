@@ -8,14 +8,11 @@ const ACME = '00000000-0000-4000-8000-000000000001';
 const GLOBEX = '00000000-0000-4000-8000-000000000002';
 
 interface Claims {
-  memberships: {
-    tenant_id: string;
-    roles: string[];
-    entitlements: ('exports' | 'sso')[];
-  }[];
+  memberships?: { scope: string; id: string; roles: string[] }[];
+  features?: Record<string, ('exports' | 'sso')[]>;
 }
 
-const session = (claims: Claims): AuthSession<Claims> => ({
+const session = <C extends object>(claims: C): AuthSession<C> => ({
   kind: 'user',
   user: { id: 'u1' },
   claims: { sub: 'u1', ...claims },
@@ -25,11 +22,12 @@ const session = (claims: Claims): AuthSession<Claims> => ({
 });
 
 describe('hasEntitlement', () => {
-  const user = session({
+  const user = session<Claims>({
     memberships: [
-      { tenant_id: ACME, roles: ['admin'], entitlements: ['exports'] },
-      { tenant_id: GLOBEX, roles: ['member'], entitlements: [] },
+      { scope: 'tenant', id: ACME, roles: ['admin'] },
+      { scope: 'tenant', id: GLOBEX, roles: ['member'] },
     ],
+    features: { [ACME]: ['exports'], [GLOBEX]: [] },
   });
 
   it('checks the entitlement within one tenant', () => {
@@ -39,11 +37,31 @@ describe('hasEntitlement', () => {
     expect(hasEntitlement(user, 'other', 'exports')).toBe(false);
   });
 
-  it('is false without a user or a memberships claim', () => {
+  it('is false without a user or a features claim', () => {
     expect(
       hasEntitlement({ kind: 'anon', reason: 'none' }, ACME, 'exports'),
     ).toBe(false);
-    expect(hasEntitlement(session({} as Claims), ACME, 'exports')).toBe(false);
+    expect(hasEntitlement(session<Claims>({}), ACME, 'exports')).toBe(false);
+  });
+
+  it('never reads plan features from memberships entitlements (seats)', () => {
+    const seats = session({
+      memberships: [
+        { scope: 'tenant', id: ACME, roles: [], entitlements: ['exports'] },
+      ],
+    });
+    expect(hasEntitlement(seats, ACME, 'exports')).toBe(false);
+  });
+
+  it('ignores inherited keys', () => {
+    const tricky = session({ features: {} });
+    expect(hasEntitlement(tricky, 'constructor', 'exports')).toBe(false);
+  });
+
+  it('reads a configured claim name', () => {
+    const plans = session({ plans: { [ACME]: ['sso'] } });
+    expect(hasEntitlement(plans, ACME, 'sso', 'plans')).toBe(true);
+    expect(hasEntitlement(plans, ACME, 'sso')).toBe(false);
   });
 
   it('types keys from the claims schema', () => {

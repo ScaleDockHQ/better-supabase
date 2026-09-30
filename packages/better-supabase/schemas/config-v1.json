@@ -148,8 +148,7 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "column": { "type": "string" },
-                "claim": { "type": "string" }
+                "column": { "type": "string" }
               }
             }
           ]
@@ -169,6 +168,25 @@
         }
       }
     },
+    "claims": {
+      "description": "Claim names shared by the SQL kit, codegen and runtime defaults (PermDock's claim contract).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tenant": {
+          "type": "string",
+          "description": "Top-level claim holding the active tenant id. Defaults to `tenant_id`."
+        },
+        "scope": {
+          "type": "string",
+          "description": "`scope` of the tenant entries in the `memberships` claim. Defaults to `tenant`."
+        },
+        "features": {
+          "type": "string",
+          "description": "Claim holding plan features per tenant. Defaults to `features`."
+        }
+      }
+    },
     "buckets": {
       "type": "object",
       "additionalProperties": {
@@ -182,7 +200,33 @@
             "type": "string",
             "description": "Path template, e.g. `{orgId}/{customerId}/logo.webp`."
           },
-          "policy": { "enum": ["tenant", "owner", "public", "none"] },
+          "policy": {
+            "oneOf": [
+              { "enum": ["tenant", "owner", "public", "none"] },
+              {
+                "type": "object",
+                "description": "Policies that call PermDock's permitted_<scope>_ids or permdock_has helpers.",
+                "required": ["permdock", "scope"],
+                "additionalProperties": false,
+                "properties": {
+                  "permdock": {
+                    "type": "object",
+                    "required": ["read", "write"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "read": { "type": "string" },
+                      "list": { "type": "string" },
+                      "write": { "type": "string" },
+                      "delete": { "type": "string" }
+                    }
+                  },
+                  "scope": { "type": "string" },
+                  "segment": { "type": "integer", "minimum": 1 },
+                  "schema": { "type": "string" }
+                }
+              }
+            ]
+          },
           "fileSizeLimit": { "type": "string" },
           "allowedMimeTypes": { "type": "array", "items": { "type": "string" } }
         }
@@ -314,7 +358,8 @@
         },
         "strict": { "type": "boolean" },
         "sources": { "type": "array", "items": { "type": "string" } },
-        "policyHelperLimit": { "type": "integer", "minimum": 1 }
+        "policyHelperLimit": { "type": "integer", "minimum": 1 },
+        "claimsLimit": { "type": "integer", "minimum": 1 }
       }
     }
   },

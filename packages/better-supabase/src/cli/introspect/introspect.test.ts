@@ -81,7 +81,7 @@ describe('toCatalog', () => {
 
   it('keeps functions with their signature and search_path', () => {
     const fn = catalog.functions.find(
-      (entry) => entry.name === 'current_org_id',
+      (entry) => entry.name === 'current_tenant_id',
     )!;
     expect(fn).toMatchObject({
       schema: 'better_supabase',

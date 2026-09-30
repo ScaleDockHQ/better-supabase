@@ -1,7 +1,9 @@
--- Role-based access control, following Supabase's RBAC guide (and the shape
--- `permdock rls generate --rbac supabase` emits): roles live in a table, the
--- custom access token hook copies the user's role into a top-level
--- `user_role` claim, and `authorize()` checks a permission for RLS.
+-- Role-based access control, following Supabase's RBAC guide: roles live in a
+-- table, the custom access token hook copies the user's role into a top-level
+-- `user_role` claim, and `authorize()` checks a permission for RLS. It is a
+-- minimal fixture, not PermDock's model: apps that use PermDock run
+-- `permdock supabase hook generate` for the hook, `role_permissions`,
+-- `authorize()` and the policies, and keep none of this.
 --
 -- Kept in its own schema so it stays out of the generated `public` types.
 create schema if not exists rbac;

@@ -95,7 +95,7 @@ describe('rules()', () => {
       operation: 'select',
     });
 
-    const claims = db.$with({ claims: { org_id: 'org-1' } });
+    const claims = db.$with({ claims: { tenant_id: 'org-1' } });
     expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
     const service = db.$with({
       actor: { id: 'service', kind: 'service' },

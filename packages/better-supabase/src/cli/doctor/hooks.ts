@@ -7,6 +7,21 @@ import { lineOf } from './shared.ts';
 
 /** Claims past this size make every request carry a large cookie and header. */
 export const HOOK_CLAIMS_LIMIT = 2048;
+/** PermDock's hook truncates memberships at this budget. */
+export const PERMDOCK_CLAIMS_LIMIT = 1024;
+
+/** The BS405 budget: `doctor.claimsLimit`, else PermDock's when it owns the hook. */
+export function claimsLimit(context: DoctorContext): number {
+  return (
+    context.config.doctor.claimsLimit ??
+    (context.permdock ? PERMDOCK_CLAIMS_LIMIT : HOOK_CLAIMS_LIMIT)
+  );
+}
+
+/** Kit functions whose output a better-supabase hook writes into the token. */
+const KIT_CLAIMS =
+  /better_supabase\s*\.\s*(membership_claims|feature_claims)\b/i;
+const PERMDOCK_CALL = /\bpermdock\w*\s*\(|permdock\s*\./i;
 
 const API_ROLES = ['authenticated', 'anon'] as const;
 
@@ -85,11 +100,17 @@ const emptySearchPath = (fn: ExtrasHookFunction): boolean => {
  * Runs the hook as Auth does for `userId` (as `supabase_auth_admin` when the
  * connecting role may switch to it), in a transaction that is rolled back.
  */
-async function hookClaimsBytes(
+interface ClaimsSize {
+  readonly bytes: number;
+  readonly memberships: number;
+  readonly truncated: boolean;
+}
+
+async function hookClaimsSize(
   db: LiveDatabase,
   fn: ExtrasHookFunction,
   userId: string,
-): Promise<number | undefined> {
+): Promise<ClaimsSize | undefined> {
   const call = `${ident(fn.schema)}.${ident(fn.name)}`;
   await db.query('begin');
   try {
@@ -118,12 +139,21 @@ async function hookClaimsBytes(
         then pg_has_role('supabase_auth_admin', 'member') else false end as member`,
     );
     if (role?.member) await db.query('set local role supabase_auth_admin');
-    const [row] = await db.query<{ bytes: number | string | null }>(
-      `select octet_length((${call}(current_setting('better_supabase.hook_event')::jsonb) -> 'claims')::text) as bytes`,
+    const [row] = await db.query<{
+      bytes: number | string | null;
+      memberships: number | string | null;
+      truncated: boolean | null;
+    }>(
+      `select octet_length(c::text) as bytes,
+        octet_length((c -> 'memberships')::text) as memberships,
+        c ->> 'memberships_truncated' = 'true' as truncated
+      from (select ${call}(current_setting('better_supabase.hook_event')::jsonb) -> 'claims' as c) h`,
     );
-    return row?.bytes === null || row?.bytes === undefined
-      ? 0
-      : Number(row.bytes);
+    return {
+      bytes: Number(row?.bytes ?? 0),
+      memberships: Number(row?.memberships ?? 0),
+      truncated: row?.truncated === true,
+    };
   } finally {
     await db.query('rollback');
   }
@@ -167,9 +197,10 @@ export const HOOK_RULES: readonly Rule[] = [
     code: 'BS405',
     severity: 'warning',
     title: 'Custom access token hook shape',
-    description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back and warns above ${HOOK_CLAIMS_LIMIT} bytes of claims.`,
+    description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back and warns above \`doctor.claimsLimit\` bytes of claims (${PERMDOCK_CLAIMS_LIMIT} when a \`permdock.config.ts\` is present, ${HOOK_CLAIMS_LIMIT} otherwise).`,
     async check(context) {
       const findings: FindingInput[] = [];
+      const limit = claimsLimit(context);
       for (const { config, extras } of configuredHooks(context)) {
         if (config.hook !== 'custom_access_token' || !extras) continue;
         for (const fn of extras.functions) {
@@ -205,17 +236,27 @@ export const HOOK_RULES: readonly Rule[] = [
             continue;
           }
           try {
-            const bytes = await hookClaimsBytes(db, fn, context.hookUser);
-            if (bytes === undefined) {
+            const size = await hookClaimsSize(db, fn, context.hookUser);
+            if (size === undefined) {
               findings.push({
                 severity: 'info',
                 message: `--as ${context.hookUser}: no such user in auth.users, so the hook was not called.`,
                 target: `${signatureOf(fn)}:claims`,
               });
-            } else if (bytes > HOOK_CLAIMS_LIMIT) {
+              continue;
+            }
+            if (size.bytes > limit) {
               findings.push({
-                message: `${signatureOf(fn)} returns ${bytes} bytes of claims for ${context.hookUser} (limit ${HOOK_CLAIMS_LIMIT}). Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
+                message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser} (limit ${limit}, memberships ${size.memberships}). Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
                 target: `${signatureOf(fn)}:claims`,
+                object,
+              });
+            }
+            if (size.truncated) {
+              findings.push({
+                severity: 'info',
+                message: `${signatureOf(fn)} sets memberships_truncated for ${context.hookUser}: the token lists only some memberships (${size.memberships} bytes). Server checks for this user need a database lookup (PermDock's claimsFirst falls back to one).`,
+                target: `${signatureOf(fn)}:truncated`,
                 object,
               });
             }
@@ -230,5 +271,32 @@ export const HOOK_RULES: readonly Rule[] = [
       }
       return findings;
     },
+  },
+  {
+    code: 'BS407',
+    severity: 'error',
+    title: 'Two authorization hooks',
+    description:
+      "A `permdock.config.ts` (or a hook that calls PermDock's functions) means PermDock writes `memberships`, `roles` and `tenant_id` into the token. A custom access token hook that also calls `better_supabase.membership_claims` or `feature_claims` gives those claims a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the kit calls.",
+    check: (context) =>
+      configuredHooks(context).flatMap(({ config, extras }): FindingInput[] => {
+        if (config.hook !== 'custom_access_token' || !extras) return [];
+        return extras.functions.flatMap((fn): FindingInput[] => {
+          if (fn.source === undefined || !KIT_CLAIMS.test(fn.source)) return [];
+          const permdock =
+            context.permdock ??
+            (PERMDOCK_CALL.test(fn.source) ? 'the hook body' : undefined);
+          if (!permdock) return [];
+          const location = hookLocation(context, config.hook);
+          return [
+            {
+              message: `${signatureOf(fn)} calls better-supabase's claim functions, and ${permdock} says PermDock owns the token. Keep one hook: run \`permdock supabase hook generate\` and remove the better_supabase.membership_claims and feature_claims calls.`,
+              target: signatureOf(fn),
+              object: { kind: 'function', schema: fn.schema, name: fn.name },
+              ...(location ? { location } : {}),
+            },
+          ];
+        });
+      }),
   },
 ];

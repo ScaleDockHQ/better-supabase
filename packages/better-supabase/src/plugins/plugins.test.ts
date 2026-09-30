@@ -153,7 +153,7 @@ describe('tenant', () => {
       .connect(client, { tenant: ORG })
       .customers.findMany({ select: ['id'] });
     await sb
-      .connect(client, { claims: { org_id: ORG } })
+      .connect(client, { claims: { tenant_id: ORG } })
       .tags.findMany({ select: ['id'] });
     expect(query(requests[0] ?? (undefined as never))).toEqual([
       'select=id',
@@ -165,6 +165,17 @@ describe('tenant', () => {
       `organization_id=eq.${ORG}`,
       'order=id.asc',
     ]);
+  });
+
+  it('never reads the tenant from user_metadata', async () => {
+    const { client, requests } = capturingClient();
+    const result = await sb
+      .connect(client, {
+        claims: { sub: ORG, user_metadata: { tenant_id: ORG } },
+      })
+      .customers.findMany();
+    expect(result.error?.kind).toBe('forbidden');
+    expect(requests).toHaveLength(0);
   });
 
   it('fills the tenant on insert and rejects other tenants', async () => {

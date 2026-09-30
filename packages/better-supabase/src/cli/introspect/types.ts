@@ -63,6 +63,8 @@ export interface ExtrasHookFunction extends ExtrasFunction {
   readonly publicExecute: boolean;
   /** Of the same roles, those with `usage` on its schema. */
   readonly schemaUsage: readonly string[];
+  /** The function body (`pg_proc.prosrc`). Absent in snapshots that predate it. */
+  readonly source?: string;
 }
 
 /** A function as doctor needs it for RLS checks, in any schema. */

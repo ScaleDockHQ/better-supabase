@@ -27,7 +27,7 @@ export const fixtureConfig: BetterSupabaseConfig = {
   plugins: {
     timestamps: true,
     softDelete: { column: 'archived_at' },
-    tenant: { column: 'organization_id', claim: 'org_id' },
+    tenant: { column: 'organization_id' },
     actor: true,
   },
   buckets: {
