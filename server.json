@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.scaledockhq/better-supabase-docs",
   "description": "Public better-supabase documentation. Search and fetch pages as Markdown. Read-only; takes no token, key or connection string.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "remotes": [
     {
       "type": "streamable-http",
