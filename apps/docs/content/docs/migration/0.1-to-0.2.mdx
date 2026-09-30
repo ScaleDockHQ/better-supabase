@@ -71,6 +71,8 @@ for what works without the claim.
   [`sb.userMetadata(schema)`](/docs/auth#profile). It defaults to `unknown`,
   so existing annotations keep compiling. If you read display fields from
   `session.claims.user_metadata`, move them to the typed `session.profile`.
+  It is for display only: users can change it with `auth.updateUser()`, so
+  roles, memberships, the tenant and entitlements never come from it.
 
 ## Storage and Realtime
 

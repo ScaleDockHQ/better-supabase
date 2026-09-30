@@ -175,7 +175,9 @@ export class BetterSupabase<
    * Returns a new instance whose sessions parse `user_metadata` with
    * `schema` into a typed `session.profile`. Users can change their metadata
    * with `auth.updateUser()`, so a failure only leaves `profile` undefined
-   * (with one warning), and no authorization code reads it.
+   * (with one warning), and no authorization code reads it. It is for
+   * display only: roles, memberships, the tenant and entitlements come from
+   * the verified claims, never from `profile`.
    *
    * ```ts
    * const sb = defineSupabase(schema).userMetadata(z.object({ display_name: z.string() }));

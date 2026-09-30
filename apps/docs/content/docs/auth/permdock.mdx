@@ -56,8 +56,19 @@ It writes only the hook, its grants, the `permdock_authz_version` table and
 its triggers, and the `config.toml` block. The helpers come from the previous
 step.
 
-The hook writes `user_role`, `memberships`, `tenant_id`, `authz_ver` and,
-when the claims would exceed its budget, `memberships_truncated`. Don't call
+The hook writes these claims:
+
+| Claim | Value |
+| --- | --- |
+| `user_role` | The user's global role, or an array when there are several |
+| `roles` | The user's global roles, always an array |
+| `memberships` | `[{ scope, id, roles }]`, the active tenant first, cut to the budget |
+| `tenant_id` | The active tenant, named by PermDock's `rls.tenantClaim` |
+| `attrs` | The attributes listed in `supabase.hook.attrs`, when there are any |
+| `authz_ver` | The user's authorization version from `permdock_authz_version`, bumped when their grants change |
+| `memberships_truncated` | `true` when memberships were dropped to fit the budget |
+
+It has no slot for other claims yet. Don't call
 better-supabase's `membership_claims()` from a hook next to it, and don't write
 `roles`, `user_role`, `memberships` or the tenant claim yourself: PermDock
 owns them. `better-supabase sql add tenant` stops when it finds a
@@ -278,9 +289,10 @@ will let its hook write `features`.
 
 ## What neither package does
 
-- Read roles, memberships or the tenant from `user_metadata`. Users can change
-  it with `auth.updateUser()`. Use [`sb.userMetadata(schema)`](/docs/auth#profile)
-  for display data.
+- Read roles, memberships, the tenant or entitlements from `user_metadata`.
+  Users can change it with `auth.updateUser()`.
+  [`sb.userMetadata(schema)`](/docs/auth#profile) parses it into
+  `session.profile`, which is for display only.
 - Trust a tenant id from a URL or request body without a matching membership.
 - Build a subject for `service_role`. The storage and realtime policies are
   only ever for `authenticated`.
