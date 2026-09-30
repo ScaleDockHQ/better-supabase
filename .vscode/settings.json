@@ -5,9 +5,25 @@
     "source.fixAll.oxc": "explicit"
   },
   "oxc.typeAware": true,
-  "oxc.fmt.experimental": true,
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
-  "typescript.experimental.useTsgo": true,
-  "files.eol": "\n"
+  "oxc.fmt.configPath": "oxfmt.config.ts",
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.preferences.importModuleSpecifier": "non-relative",
+  "tailwindCSS.classFunctions": ["cn", "cva", "tv"],
+  "files.eol": "\n",
+  "files.exclude": {
+    "**/.turbo": true,
+    "**/.source": true
+  },
+  "search.exclude": {
+    "**/.next": true,
+    "**/.source": true,
+    "**/.turbo": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/database.types.ts": true,
+    "**/generated*.ts": true,
+    "pnpm-lock.yaml": true
+  }
 }

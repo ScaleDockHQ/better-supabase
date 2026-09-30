@@ -10,6 +10,7 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev -p 3100",
+    "dev:portless": "portless run --force --name example next dev",
     "doctor": "better-supabase doctor",
     "doctor:explain": "better-supabase doctor --only BS205,BS206,BS207 --explain customers,notes --claims '{\"role\":\"authenticated\",\"org_id\":\"00000000-0000-4000-8000-000000000001\"}'",
     "gen": "better-supabase gen",
@@ -39,6 +40,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "oxlint": "catalog:",
+    "portless": "catalog:",
     "typescript": "catalog:"
   }
 }

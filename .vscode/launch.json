@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dev:portless marketing",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:portless",
+      "cwd": "${workspaceFolder}/apps/marketing",
+      "serverReadyAction": {
+        "pattern": "Ready in [0-9]+ms",
+        "uriFormat": "https://www.localhost",
+        "action": "openExternally"
+      },
+      "postDebugTask": "dev:cleanup"
+    },
+    {
+      "name": "dev:portless docs",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:portless",
+      "cwd": "${workspaceFolder}/apps/docs",
+      "serverReadyAction": {
+        "pattern": "Ready in [0-9]+ms",
+        "uriFormat": "https://docs.localhost/docs",
+        "action": "openExternally"
+      },
+      "postDebugTask": "dev:cleanup"
+    },
+    {
+      "name": "dev:portless nextjs example",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:portless",
+      "cwd": "${workspaceFolder}/apps/examples/nextjs",
+      "serverReadyAction": {
+        "pattern": "Ready in [0-9]+ms",
+        "uriFormat": "https://example.localhost",
+        "action": "openExternally"
+      },
+      "postDebugTask": "dev:cleanup"
+    }
+  ]
+}

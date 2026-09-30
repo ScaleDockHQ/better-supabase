@@ -6,6 +6,8 @@ const config: NextConfig = {
   // task runs TypeScript 7 instead.
   typescript: { ignoreBuildErrors: true },
   partialPrefetching: true,
+  // `pnpm dev:portless` serves the example at https://example.localhost.
+  allowedDevOrigins: ["127.0.0.1", "*.localhost"],
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
   experimental: {
     // `@next/playwright`'s `instant()` against `next start` (tests/e2e only).

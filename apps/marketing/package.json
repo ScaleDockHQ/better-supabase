@@ -6,6 +6,7 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev -p ${PORT:-3000}",
+    "dev:portless": "portless run --force --name www next dev",
     "lint": "oxlint",
     "start": "next start -p ${PORT:-3000}",
     "test": "vitest run",
@@ -38,6 +39,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "oxlint": "catalog:",
+    "portless": "catalog:",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

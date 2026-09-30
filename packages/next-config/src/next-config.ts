@@ -42,6 +42,8 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
     typedRoutes: true,
     reactStrictMode: true,
     poweredByHeader: false,
+    // Portless serves every app at https://<name>.localhost.
+    allowedDevOrigins: ["127.0.0.1", "*.localhost"],
     cacheComponents: true,
     partialPrefetching: true,
     cacheLife: {

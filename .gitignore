@@ -67,6 +67,8 @@ Thumbs.db
 # doctor output
 doctor.sarif
 
-# per-user agent permissions
+# per-user agent settings
 .cursor/cli.json
 .cursor/permissions.json
+.claude/settings.local.json
+.kilo/

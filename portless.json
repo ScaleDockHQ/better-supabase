@@ -1,0 +1,15 @@
+{
+  "apps": {
+    "apps/marketing": {
+      "name": "www",
+      "script": "dev:portless",
+      "proxy": false
+    },
+    "apps/docs": { "name": "docs", "script": "dev:portless", "proxy": false },
+    "apps/examples/nextjs": {
+      "name": "example",
+      "script": "dev:portless",
+      "proxy": false
+    }
+  }
+}

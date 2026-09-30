@@ -1,0 +1,25 @@
+---
+description: Run and browser-test the docs, marketing and nextjs example apps through Portless URLs
+globs: apps/**
+alwaysApply: false
+---
+
+# Local dev through Portless
+
+`pnpm dev:portless` starts every app behind Portless with fixed URLs:
+
+| App | URL |
+| --- | --- |
+| apps/marketing | `https://www.localhost` (proxies `/docs` to the docs app) |
+| apps/docs | `https://docs.localhost/docs` |
+| apps/examples/nextjs | `https://example.localhost` |
+
+Supabase stays at `http://127.0.0.1:55421` (`pnpm supabase:start`).
+
+- Open and test pages only through these URLs, with `agent-browser`. Never
+  guess a `localhost:<port>`, and never use the IDE's built-in browser.
+- Reuse the `dev:portless` that is already running. Never kill or restart it
+  without asking; `pnpm dev:cleanup` removes stale routes.
+- The nextjs example signs in with the seeded users `admin@acme.test` and
+  `member@acme.test`, both with password `password123`.
+- Unit, integration and CI e2e runs do not need Portless.

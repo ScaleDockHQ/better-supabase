@@ -1,0 +1,40 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "install", "type": "shell", "command": "pnpm install" },
+    {
+      "label": "verify",
+      "type": "shell",
+      "command": "pnpm verify",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "dev:portless",
+      "type": "shell",
+      "command": "pnpm dev:portless",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    { "label": "dev:cleanup", "type": "shell", "command": "pnpm dev:cleanup" },
+    {
+      "label": "supabase:start",
+      "type": "shell",
+      "command": "pnpm supabase:start"
+    },
+    {
+      "label": "supabase:stop",
+      "type": "shell",
+      "command": "pnpm supabase:stop"
+    },
+    {
+      "label": "supabase:reset",
+      "type": "shell",
+      "command": "pnpm supabase:reset"
+    },
+    {
+      "label": "supabase:test",
+      "type": "shell",
+      "command": "pnpm supabase:test"
+    }
+  ]
+}

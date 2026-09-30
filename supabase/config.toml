@@ -30,7 +30,13 @@ allowed_mime_types = ["image/png", "image/jpeg", "image/webp"]
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
+# The nextjs example under `pnpm dev:portless`, and under `pnpm dev`.
+site_url = "https://example.localhost"
+additional_redirect_urls = [
+  "https://example.localhost/**",
+  "http://localhost:3100/**",
+  "http://127.0.0.1:3100/**",
+]
 jwt_expiry = 3600
 # Created by `better-supabase keys` (CI runs it before `supabase start`).
 signing_keys_path = "./signing_keys.json"
