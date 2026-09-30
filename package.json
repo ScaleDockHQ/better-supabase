@@ -1,6 +1,7 @@
 {
   "name": "@better-supabase/monorepo",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "better-supabase": "better-supabase",
@@ -36,11 +37,25 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
+    "supabase": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.8.1",
+      "onFail": "error"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "24.x",
+      "onFail": "download"
+    }
+  },
   "engines": {
-    "node": ">=24"
+    "node": "24.x",
+    "pnpm": "12.8.1"
   },
   "packageManager": "pnpm@12.8.1"
 }
