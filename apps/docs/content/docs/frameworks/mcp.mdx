@@ -103,6 +103,49 @@ arguments are validated before `run`.
 `sql`) plus the `request` and an abort `signal`. `defineTool` builds a tool
 outside the server, so it can go in `createMcp({ tools: [...] })`.
 
+## Authorizing tools
+
+RLS decides which rows a tool reads and writes. To decide whether the caller
+may use a tool at all, pass `authorize` and `visible`:
+
+```ts title="supabase/functions/mcp/index.ts"
+const mcp = createMcp(sb, {
+  name: 'crm',
+  version: '1.0.0',
+  scopes: ['openid', 'crm.read'],
+  resources: { customers: true },
+  authorize: (ctx, tool, args) =>
+    tool.meta === 'admin' && !isAdmin(ctx.auth)
+      ? { allowed: false, reason: 'Only admins can archive customers' }
+      : { allowed: true },
+  visible: (ctx, tool) => tool.meta !== 'admin' || isAdmin(ctx.auth),
+}).tool({
+  name: 'archive_customer',
+  description: 'Archive a customer.',
+  input: z.object({ id: z.uuid() }),
+  meta: 'admin',
+  run: ({ id }, { db }) => db.customers.update(id, { status: 'archived' }),
+});
+```
+
+`meta` is opaque data on a tool, for example a permission, that both hooks
+receive as `tool.meta`. It is never sent to clients. Table tools have no
+`meta`; use `tool.info.name` for them.
+
+- `authorize(ctx, tool, args)` runs on every `tools/call`, after the
+  arguments are validated and before `run`. It returns `{ allowed: true }` or
+  `{ allowed: false, reason?, scopes? }`. A refusal is a tool error with
+  `kind: "forbidden"` and the `reason`. A refusal with `scopes` answers 403
+  with an `insufficient_scope` challenge whose `scope` lists `scopes` and
+  the server's `scopes`, so the client can ask the user for more access.
+- `visible(ctx, tool)` filters `tools/list`. A hidden tool is called like an
+  unknown one. Lists carry `cacheScope: "private"`, so a client caches them
+  per token.
+
+Both hooks can be async. An exception in either one fails the call, and the
+error message is hidden unless `exposeErrors`. For PermDock permissions, see
+[MCP tools with PermDock](/docs/auth/permdock#mcp-tools).
+
 ## Errors
 
 Failures are reported as tool results with `isError: true`, so the model can

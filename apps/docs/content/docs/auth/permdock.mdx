@@ -17,7 +17,7 @@ other: they compose through `@supabase/middleware` and plain claim shapes.
 | Roles and permissions | None | `role_permissions`, `authorize()`, and from `permdock rls generate`: `permdock_has`, `permitted_<scope>_ids` and table policies |
 | Data | Typed clients, repositories, typegen, jobs, webhooks | None |
 | Storage and Realtime | `defineBucket`, `defineTopic`, with a `permdock` policy mode that calls PermDock's helpers | The helpers those policies call, from `permdock rls generate` |
-| MCP | `createMcp` and its protected-resource metadata | None |
+| MCP | `createMcp`, its protected-resource metadata, and the `authorize` and `visible` hooks | Tool permissions, through `createMcp`'s hooks or through `permdock/mcp` on the official MCP SDK |
 | Lints | Token lifetime, refresh reuse, signing keys, splinter, claim size | Authorization lints |
 
 ## Setup
@@ -136,6 +136,58 @@ export const listCustomers = pipeline(
   },
 );
 ```
+
+## MCP tools
+
+`permdock/mcp` wraps the official MCP SDK's server, so it can't wrap
+`createMcp`. Use `createMcp`'s [`authorize` and `visible`
+hooks](/docs/frameworks/mcp#authorizing-tools) instead: put the PermDock
+permission in each tool's `meta` and ask PermDock in the hooks. The hooks only
+need a structural type, so better-supabase never imports PermDock:
+
+```ts title="supabase/functions/mcp/index.ts"
+import { createMcp } from 'better-supabase/mcp';
+import { createPermDock } from 'permdock';
+import { subjectFromSupabaseSession } from 'permdock/supabase';
+
+interface Checks {
+  can(permission: unknown): boolean;
+}
+
+async function checks(ctx: { auth: { kind: string; claims?: unknown } }): Promise<Checks> {
+  return createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
+}
+
+const mcp = createMcp(sb, {
+  name: 'crm',
+  version: '1.0.0',
+  scopes: ['openid'],
+  authorize: async (ctx, tool) => {
+    const permission = tool.meta;
+    if (permission === undefined) return { allowed: true };
+    return (await checks(ctx)).can(permission)
+      ? { allowed: true }
+      : { allowed: false, reason: 'PermDock denied this tool' };
+  },
+  visible: async (ctx, tool) => {
+    const permission = tool.meta;
+    return permission === undefined || (await checks(ctx)).can(permission);
+  },
+}).tool({
+  name: 'export_customers',
+  description: 'Export the organization’s customers as CSV.',
+  meta: permissions.customers.export,
+  run: (_args, { db }) => db.customers.findMany(),
+});
+```
+
+Return `scopes` from `authorize` when the permission needs an OAuth scope the
+token lacks, and the client gets an `insufficient_scope` challenge naming it.
+`can` decides without a row, so a permission granted only on some rows (a
+row condition) is refused here; check those inside `run`, where the row is
+known, or rely on RLS. PermDock's `mayUse` listing hint (a permission that
+could apply to some row) would fit `visible` better, but PermDock doesn't
+export it yet.
 
 ## Sessions in Next.js and React
 

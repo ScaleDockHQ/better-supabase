@@ -85,8 +85,27 @@ export interface McpTool<M extends AnyModels, F extends AnyFunctions, E> {
   readonly info: ToolInfo;
   /** Validates arguments; its output is what `run` receives. */
   readonly input?: StandardSchemaV1;
+  /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
+  readonly meta?: unknown;
   run(args: never, ctx: ToolContext<M, F, E>): unknown;
 }
+
+/** What the `authorize` and `visible` hooks see of a tool. */
+export interface ToolRef {
+  readonly info: ToolInfo;
+  /** The tool's `meta`, e.g. a PermDock permission. `undefined` for table tools. */
+  readonly meta: unknown;
+}
+
+/** The outcome of `authorize`. `scopes` turns a refusal into an OAuth challenge. */
+export type ToolDecision =
+  | { readonly allowed: true }
+  | {
+      readonly allowed: false;
+      readonly reason?: string;
+      /** OAuth scopes the call needs, sent in an `insufficient_scope` challenge. */
+      readonly scopes?: readonly string[];
+    };
 
 export interface ToolDefinition<
   M extends AnyModels,
@@ -105,6 +124,8 @@ export interface ToolDefinition<
   readonly inputSchema?: Json;
   readonly outputSchema?: Json;
   readonly annotations?: ToolAnnotations;
+  /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
+  readonly meta?: unknown;
   run(args: I, ctx: ToolContext<M, F, E>): unknown;
 }
 
@@ -141,6 +162,25 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
   readonly json?: Readonly<Record<string, unknown>>;
   /** Include internal error messages in tool results. Defaults to `NODE_ENV === 'development'`. */
   readonly exposeErrors?: boolean;
+  /**
+   * Decides each `tools/call` after the arguments are validated and before
+   * `run`. `args` are the validated arguments (raw for table tools, which
+   * validate in the repository). A refusal is a tool error; a refusal with
+   * `scopes` is a 403 `insufficient_scope` challenge naming them.
+   */
+  readonly authorize?: (
+    ctx: ToolContext<M, F, E>,
+    tool: ToolRef,
+    args: unknown,
+  ) => ToolDecision | Promise<ToolDecision>;
+  /**
+   * Whether the caller sees a tool in `tools/list`. A hidden tool is called
+   * like an unknown one. Lists are cached per token (`cacheScope: 'private'`).
+   */
+  readonly visible?: (
+    ctx: ToolContext<M, F, E>,
+    tool: ToolRef,
+  ) => boolean | Promise<boolean>;
 }
 
 export interface BetterMcp<
@@ -212,6 +252,7 @@ export function defineTool<
         : {}),
     },
     ...(definition.input ? { input: definition.input } : {}),
+    ...(definition.meta === undefined ? {} : { meta: definition.meta }),
     run: (args: never, ctx) => definition.run(args, ctx),
   };
 }
@@ -441,24 +482,41 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     config: { json: options.json ?? {} },
   })['$defs'] as Record<string, Json>;
 
-  const registry = new Map<
-    string,
-    {
-      info: ToolInfo;
-      call: (args: unknown, ctx: ToolContext<M, F, E>) => Promise<ToolResult>;
+  /** A call `authorize` refused; `scopes` is empty for a plain tool error. */
+  interface Refusal {
+    readonly refusal: string;
+    readonly scopes: readonly string[];
+  }
+  type Invocation = ToolResult | Refusal;
+  interface Entry extends ToolRef {
+    call(args: unknown, ctx: ToolContext<M, F, E>): Promise<Invocation>;
+  }
+  const registry = new Map<string, Entry>();
+  const register = (entry: Entry): void => {
+    if (registry.has(entry.info.name)) {
+      throw new TypeError(`Duplicate MCP tool "${entry.info.name}"`);
     }
-  >();
-  const register = (
-    info: ToolInfo,
-    call: (args: unknown, ctx: ToolContext<M, F, E>) => Promise<ToolResult>,
-  ): void => {
-    if (registry.has(info.name)) {
-      throw new TypeError(`Duplicate MCP tool "${info.name}"`);
-    }
-    registry.set(info.name, { info, call });
+    registry.set(entry.info.name, entry);
   };
   const failure = (error: DbError): ToolResult =>
     textResult(toProblem(error, { expose }), true);
+  const refused = async (
+    tool: ToolRef,
+    args: unknown,
+    ctx: ToolContext<M, F, E>,
+  ): Promise<Refusal | undefined> => {
+    if (!options.authorize) return undefined;
+    const decision = await options.authorize(ctx, tool, args);
+    if (decision.allowed) return undefined;
+    return {
+      refusal: decision.reason ?? `Not allowed to call ${tool.info.name}`,
+      scopes: decision.scopes ?? [],
+    };
+  };
+  const isVisible = async (
+    tool: ToolRef,
+    ctx: ToolContext<M, F, E>,
+  ): Promise<boolean> => !options.visible || options.visible(ctx, tool);
 
   for (const [table, raw] of Object.entries(options.resources ?? {})) {
     if (!raw) continue;
@@ -468,38 +526,59 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       raw === true ? {} : (raw as ResourceRouteOptions<M, TableKey<M>>),
     );
     for (const { info, operation } of tableTools(resource, defs)) {
-      register(info, async (args, ctx) => {
-        const input = (args ?? {}) as Record<string, unknown>;
-        const id = resource.keyParam ? input[resource.keyParam] : undefined;
-        const result = await resource.execute(ctx.db, operation, {
-          id,
-          query: input,
-          data: operation === 'update' ? input['patch'] : input,
-        });
-        if (!result.ok) return failure(result.error);
-        return textResult(
-          operation === 'delete' ? { deleted: true } : result.data,
-        );
+      const ref: ToolRef = { info, meta: undefined };
+      register({
+        ...ref,
+        async call(args, ctx) {
+          const input = (args ?? {}) as Record<string, unknown>;
+          const refusal = await refused(ref, input, ctx);
+          if (refusal) return refusal;
+          const id = resource.keyParam ? input[resource.keyParam] : undefined;
+          const result = await resource.execute(ctx.db, operation, {
+            id,
+            query: input,
+            data: operation === 'update' ? input['patch'] : input,
+          });
+          if (!result.ok) return failure(result.error);
+          return textResult(
+            operation === 'delete' ? { deleted: true } : result.data,
+          );
+        },
       });
     }
   }
 
   const addTool = (tool: McpTool<M, F, E>): void => {
-    register(tool.info, async (args, ctx) => {
-      let value: unknown = args ?? {};
-      if (tool.input) {
-        const parsed = await validate(tool.input, value, 'arguments');
-        if (!parsed.ok) return failure(parsed.error);
-        value = parsed.data;
-      }
-      const outcome = await settle(() => tool.run(value as never, ctx));
-      return outcome.ok ? textResult(outcome.data) : failure(outcome.error);
+    const ref: ToolRef = { info: tool.info, meta: tool.meta };
+    register({
+      ...ref,
+      async call(args, ctx) {
+        let value: unknown = args ?? {};
+        if (tool.input) {
+          const parsed = await validate(tool.input, value, 'arguments');
+          if (!parsed.ok) return failure(parsed.error);
+          value = parsed.data;
+        }
+        const refusal = await refused(ref, value, ctx);
+        if (refusal) return refusal;
+        const outcome = await settle(() => tool.run(value as never, ctx));
+        return outcome.ok ? textResult(outcome.data) : failure(outcome.error);
+      },
     });
   };
   for (const tool of options.tools ?? []) addTool(tool);
 
   const listTools = (): ToolInfo[] =>
     [...registry.values()].map((entry) => entry.info);
+  const visibleTools = async (
+    ctx: ToolContext<M, F, E>,
+  ): Promise<ToolInfo[]> => {
+    const entries = [...registry.values()];
+    const shown = await Promise.all(
+      entries.map((entry) => isVisible(entry, ctx)),
+    );
+    return entries.filter((_, index) => shown[index]).map((e) => e.info);
+  };
   const authorizationServers = (): readonly string[] =>
     options.authorizationServers ?? [fromSupabaseUrl(server.env.url)];
   const resourceOf = (request: Request): string => {
@@ -516,10 +595,17 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     return `${resource.origin}${WELL_KNOWN}${resource.pathname.replace(/\/$/, '')}`;
   };
 
-  const call: BetterMcp<M, F, E>['call'] = async (name, args, ctx) => {
+  const invoke = async (
+    name: string,
+    args: unknown,
+    ctx: ToolContext<M, F, E>,
+    checkVisible = true,
+  ): Promise<Invocation> => {
     const entry = registry.get(name);
-    if (!entry) return failure(dbError('not_found', `Unknown tool "${name}"`));
     try {
+      if (!entry || (checkVisible && !(await isVisible(entry, ctx)))) {
+        return failure(dbError('not_found', `Unknown tool "${name}"`));
+      }
       return await entry.call(args, ctx);
     } catch (cause) {
       return failure(
@@ -529,6 +615,13 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         ),
       );
     }
+  };
+  const isRefusal = (value: Invocation): value is Refusal => 'refusal' in value;
+  const call: BetterMcp<M, F, E>['call'] = async (name, args, ctx) => {
+    const outcome = await invoke(name, args, ctx);
+    return isRefusal(outcome)
+      ? failure(dbError('forbidden', outcome.refusal))
+      : outcome;
   };
 
   const scopes = (options.scopes ?? []).filter(
@@ -553,14 +646,20 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     }
     return response;
   };
-  const forbidden = (request: Request, message: string): Response => {
+  const forbidden = (
+    request: Request,
+    message: string,
+    needed: readonly string[] = [],
+    id: JsonRpcRequest['id'] = null,
+  ): Response => {
+    const all = [...new Set([...scopes, ...needed])];
     const challenge = [
       'Bearer error="insufficient_scope"',
       `error_description=${quoted(message)}`,
-      ...(scopes.length > 0 ? [`scope=${quoted(scopes.join(' '))}`] : []),
+      ...(all.length > 0 ? [`scope=${quoted(all.join(' '))}`] : []),
       `resource_metadata=${quoted(metadataUrl(request))}`,
     ].join(', ');
-    const response = rpcError(null, INVALID_REQUEST, message, 403);
+    const response = rpcError(id, INVALID_REQUEST, message, 403);
     response.headers.set('www-authenticate', challenge);
     return response;
   };
@@ -664,6 +763,8 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       if (invalid) return invalid;
     }
     if (message.id === undefined) return new Response(null, { status: 202 });
+    const toolContext = (): ToolContext<M, F, E> =>
+      withExtra(ctx, { request, signal: request.signal });
 
     const reply = (result: object): Response =>
       Response.json({
@@ -715,25 +816,36 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         return modern ? notFound() : reply({});
       case 'tools/list':
         return reply({
-          tools: listTools(),
+          tools: await visibleTools(toolContext()),
           ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: 'private' } : {}),
         });
       case 'tools/call': {
         const name = message.params?.['name'];
-        if (typeof name !== 'string' || !registry.has(name)) {
+        const entry = typeof name === 'string' ? registry.get(name) : undefined;
+        const context = toolContext();
+        if (!entry || !(await isVisible(entry, context))) {
           return rpcError(
             message.id,
             INVALID_PARAMS,
             `Unknown tool ${JSON.stringify(name)}`,
           );
         }
-        return reply(
-          await call(
-            name,
-            message.params?.['arguments'],
-            withExtra(ctx, { request, signal: request.signal }),
-          ),
+        const outcome = await invoke(
+          entry.info.name,
+          message.params?.['arguments'],
+          context,
+          false,
         );
+        if (!isRefusal(outcome)) return reply(outcome);
+        if (outcome.scopes.length > 0) {
+          return forbidden(
+            request,
+            outcome.refusal,
+            outcome.scopes,
+            message.id,
+          );
+        }
+        return reply(failure(dbError('forbidden', outcome.refusal)));
       }
       default:
         return notFound();

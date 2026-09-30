@@ -499,8 +499,10 @@
       "ResourceRouteOptions",
       "ToolAnnotations",
       "ToolContext",
+      "ToolDecision",
       "ToolDefinition",
       "ToolInfo",
+      "ToolRef",
       "ToolResources",
       "ToolResult"
     ]
