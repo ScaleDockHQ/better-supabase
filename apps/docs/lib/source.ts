@@ -3,6 +3,8 @@ import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
 import { defineDocs } from "fumadocs-mdx/macro";
 
+import type { DocsPageSummary } from "./docs-mcp-pages";
+
 import { docsContentRoute, docsRoute } from "./shared";
 
 const docs = defineDocs({
@@ -10,6 +12,8 @@ const docs = defineDocs({
   docs: {
     schema: pageSchema,
     postprocess: { includeProcessedMarkdown: true },
+    // Git history; Vercel needs VERCEL_DEEP_CLONE=true for real dates.
+    lastModified: true,
   },
   meta: { schema: metaSchema },
 });
@@ -30,6 +34,22 @@ export function getPageMarkdownUrl(page: DocsPage) {
       "/" +
       [...docsContentRoute.split("/"), ...segments].filter(Boolean).join("/"),
   };
+}
+
+/** The page catalog the docs MCP server and Ask AI search. */
+export function getPageSummaries(): readonly DocsPageSummary[] {
+  return source.getPages().map((page) => ({
+    title: page.data.title,
+    description: page.data.description ?? "",
+    url: page.url,
+    slugs: page.slugs,
+  }));
+}
+
+/** OG image route for a page, served by `app/docs/og/[...slug]/route.tsx`. */
+export function getPageImage(page: DocsPage) {
+  const segments = [...page.slugs, "image.png"];
+  return { segments, url: `${docsRoute}/og/${segments.join("/")}` };
 }
 
 export async function getLLMText(page: DocsPage) {

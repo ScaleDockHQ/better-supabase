@@ -4,10 +4,15 @@
   "tags": ["app"],
   "tasks": {
     "build": {
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", ".source/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", ".source/**"],
+      "env": ["NEXT_PUBLIC_SITE_URL"],
+      "passThroughEnv": ["AI_GATEWAY_API_KEY"]
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "dev": {
+      "passThroughEnv": ["AI_GATEWAY_API_KEY"]
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   DocsPage,
   DocsTitle,
   MarkdownCopyButton,
+  PageLastUpdate,
   ViewOptionsPopover,
 } from "fumadocs-ui/layouts/docs/page";
 import { createRelativeLink } from "fumadocs-ui/mdx";
@@ -13,7 +14,8 @@ import { notFound } from "next/navigation";
 
 import { getMDXComponents } from "@/components/mdx";
 import { gitConfig } from "@/lib/shared";
-import { getPageMarkdownUrl, source } from "@/lib/source";
+import { siteUrl } from "@/lib/site-url";
+import { getPageImage, getPageMarkdownUrl, source } from "@/lib/source";
 
 type DocsPageProps = {
   params: Promise<{ slug?: string[] }>;
@@ -26,6 +28,7 @@ export default async function Page(props: DocsPageProps) {
 
   const MDX = page.data.body;
   const markdownUrl = getPageMarkdownUrl(page).url;
+  const { lastModified } = page.data;
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
@@ -47,6 +50,9 @@ export default async function Page(props: DocsPageProps) {
           })}
         />
       </DocsBody>
+      {lastModified === undefined ? null : (
+        <PageLastUpdate date={new Date(lastModified)} />
+      )}
     </DocsPage>
   );
 }
@@ -62,8 +68,12 @@ export async function generateMetadata(
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
+  const image = siteUrl(getPageImage(page).url);
   return {
     title: page.data.title,
     description: page.data.description,
+    alternates: { canonical: siteUrl(page.url) },
+    openGraph: { images: image },
+    twitter: { card: "summary_large_image", images: image },
   };
 }

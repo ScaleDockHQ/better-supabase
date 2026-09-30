@@ -3,6 +3,7 @@ import type { MDXComponents } from "mdx/types";
 import * as Twoslash from "fumadocs-twoslash/ui";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { TypeTable } from "fumadocs-ui/components/type-table";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 
 export function getMDXComponents(components?: MDXComponents) {
@@ -13,6 +14,7 @@ export function getMDXComponents(components?: MDXComponents) {
     Steps,
     Tab,
     Tabs,
+    TypeTable,
     ...components,
   } satisfies MDXComponents;
 }

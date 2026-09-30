@@ -17,4 +17,11 @@ export default defineConfig({
     "**/generated-*.ts",
     "**/database.types.ts",
   ],
+  overrides: [
+    {
+      // env.ts is the app's only reader of process.env.
+      files: ["env.ts"],
+      rules: { "node/no-process-env": "off" },
+    },
+  ],
 });
