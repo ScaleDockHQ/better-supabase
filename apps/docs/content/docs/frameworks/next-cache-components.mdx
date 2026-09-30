@@ -240,9 +240,9 @@ validation. Keep the list short: every claim is sent with every request, and
 <Callout title="Using PermDock">
   For more than a handful of roles, use
   [PermDock](https://github.com/ScaleDockHQ/PermDock).
-  `permdock supabase hook generate` writes the access token hook,
-  `role_permissions`, `authorize()` and the RLS helpers; don't add the kit's
-  `tenant` hook next to it. On the server, build the subject with
+  `permdock rls generate` writes `role_permissions`, `authorize()`, the RLS
+  helpers and the table policies, and `permdock supabase hook generate` writes
+  the access token hook; don't add the kit's `tenant` hook next to it. On the server, build the subject with
   `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a token with
   `memberships_truncated` falls back to a database lookup. `permdock/next` and
   `permdock/react` replace the hand-written `can()`. See

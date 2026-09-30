@@ -14,15 +14,32 @@ other: they compose through `@supabase/middleware` and plain claim shapes.
 | --- | --- | --- |
 | Tokens | Verification through `@supabase/server`, sessions, refresh, `AuthSession` | Reads the verified claims into a subject |
 | Access token hook | None when PermDock is installed | `permdock supabase hook generate`, the only hook |
-| Roles and permissions | None | `role_permissions`, `authorize()`, `permdock_has`, `permitted_<scope>_ids`, table policies |
+| Roles and permissions | None | `role_permissions`, `authorize()`, and from `permdock rls generate`: `permdock_has`, `permitted_<scope>_ids` and table policies |
 | Data | Typed clients, repositories, typegen, jobs, webhooks | None |
-| Storage and Realtime | `defineBucket`, `defineTopic`, with a `permdock` policy mode that calls PermDock's helpers | The helpers those policies call |
+| Storage and Realtime | `defineBucket`, `defineTopic`, with a `permdock` policy mode that calls PermDock's helpers | The helpers those policies call, from `permdock rls generate` |
 | MCP | `createMcp` and its protected-resource metadata | None |
 | Lints | Token lifetime, refresh reuse, signing keys, splinter, claim size | Authorization lints |
 
 ## Setup
 
 <Steps>
+
+<Step>
+
+### Generate the helpers and table policies
+
+`permdock rls generate` writes the SQL helpers (`permdock_has` and one
+`permitted_<scope>_ids` per scope) and the table policies:
+
+```bash
+permdock rls generate --target sql --dialect supabase --out supabase/migrations/20260929_permdock_rls.sql
+```
+
+The helpers live in PermDock's `rls.schema` (`public` by default). Buckets and
+topics in `permdock` mode call them, so their `schema` option must name the
+same schema.
+
+</Step>
 
 <Step>
 
@@ -34,6 +51,10 @@ Generate the custom access token hook with PermDock and enable it in
 ```bash
 permdock supabase hook generate --out supabase/migrations/20260929_permdock_hook.sql
 ```
+
+It writes only the hook, its grants, the `permdock_authz_version` table and
+its triggers, and the `config.toml` block. The helpers come from the previous
+step.
 
 The hook writes `user_role`, `memberships`, `tenant_id`, `authz_ver` and,
 when the claims would exceed its budget, `memberships_truncated`. Don't call
