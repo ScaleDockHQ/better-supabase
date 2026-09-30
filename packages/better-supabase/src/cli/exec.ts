@@ -37,7 +37,7 @@ export async function supabaseCli(
   cwd: string,
   env: Readonly<Record<string, string | undefined>>,
 ): Promise<ExecResult> {
-  const result = await exec(env.SUPABASE_BIN ?? 'supabase', args, cwd);
+  const result = await exec(env['SUPABASE_BIN'] ?? 'supabase', args, cwd);
   if (result.code !== 127) return result;
   return exec('npx', ['--yes', 'supabase', ...args], cwd);
 }

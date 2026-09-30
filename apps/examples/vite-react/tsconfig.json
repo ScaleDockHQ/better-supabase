@@ -3,10 +3,7 @@
   "extends": "@better-supabase/typescript-config/base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "lib": ["ES2024", "ESNext.Disposable", "DOM", "DOM.Iterable"],
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    "lib": ["ES2025", "ESNext.Disposable", "DOM", "DOM.Iterable"],
     "types": ["vite/client"]
   },
   "include": ["src", "vite.config.ts"]

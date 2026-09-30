@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next';
 
-const docsOrigin = process.env.DOCS_ORIGIN ?? 'http://127.0.0.1:3001';
+const docsOrigin = process.env['DOCS_ORIGIN'] ?? 'http://127.0.0.1:3001';
 
 const docsPaths = [
   '/docs',

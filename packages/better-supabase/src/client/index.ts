@@ -137,11 +137,7 @@ function clientFor(options: BrowserOptions): SupabaseClient {
   if (!checked.ok) throw new EnvValidationError(checked.issues);
   if (options.storage === 'local')
     return createClient(checked.env.url, checked.env.publishableKey);
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- @supabase/ssr defaults the client-options type parameter differently from supabase-js.
-  return createBrowserClient(
-    checked.env.url,
-    checked.env.publishableKey,
-  ) as unknown as SupabaseClient;
+  return createBrowserClient(checked.env.url, checked.env.publishableKey);
 }
 
 /**

@@ -129,7 +129,7 @@ export async function runSkills(
     };
   }
   const global = flagBool(args.flags, 'global');
-  const base = global ? (env.HOME ?? homedir()) : config.root;
+  const base = global ? (env['HOME'] ?? homedir()) : config.root;
   const requested = flagList(args.flags, 'agent');
   const unknown = requested.filter((name) => !isAgent(name));
   if (unknown.length > 0) {

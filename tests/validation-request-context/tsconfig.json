@@ -1,9 +1,6 @@
 {
   "extends": "@better-supabase/typescript-config/base.json",
   "compilerOptions": {
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
   "include": ["src"]

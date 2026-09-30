@@ -165,7 +165,7 @@ export function testExecutor(
   const table = tableKey(sb, options.table);
   const context: ExecuteContext = { errorMappers: [] };
   const read = (): Promise<Operation> =>
-    captureOp(sb, (db) => db[table]!.findMany!({ limit: 2 }));
+    captureOp(sb, (db) => db[table]!['findMany']!({ limit: 2 }));
   const create = options.create;
   return conform(`Executor "${executor.name}"`, [
     hasName(executor),
@@ -203,7 +203,7 @@ export function testExecutor(
     [
       'counts rows',
       async () => {
-        const op = await captureOp(sb, (db) => db[table]!.count!());
+        const op = await captureOp(sb, (db) => db[table]!['count']!());
         const result = await executor.execute(op, context);
         expect(
           result.ok,
@@ -285,7 +285,7 @@ export function testExecutor(
       'batch returns one result per operation, in order',
       async () => {
         const rows = await read();
-        const count = await captureOp(sb, (db) => db[table]!.count!());
+        const count = await captureOp(sb, (db) => db[table]!['count']!());
         const missing = {
           ...rows,
           table: { ...rows.table, name: '__better_supabase_missing__' },
@@ -315,7 +315,7 @@ export function testExecutor(
       async () => {
         // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
         const repository = (sb.connect(executor) as unknown as AnyDb)[table]!;
-        const created = await repository.create!(create);
+        const created = await repository['create']!(create);
         expect(created.ok, `create failed: ${JSON.stringify(created.error)}`);
         const row = created.data as Record<string, unknown>;
         for (const [key, value] of Object.entries(create)) {
@@ -326,9 +326,9 @@ export function testExecutor(
         }
         const [primary] = sb.meta.tables[table]!.primaryKey;
         expect(primary, 'write checks need a table with a primary key');
-        const removed = await repository.delete!(row[primary]);
+        const removed = await repository['delete']!(row[primary]);
         expect(removed.ok, `delete failed: ${JSON.stringify(removed.error)}`);
-        const again = await repository.findFirst!({
+        const again = await repository['findFirst']!({
           where: { [primary]: row[primary] },
         });
         expect(
@@ -671,7 +671,7 @@ export function testPlugin(
       'transformQuery is pure and deterministic',
       async () => {
         const op = await captureOp(sb, (db) =>
-          db[table]!.findMany!({ limit: 1 }),
+          db[table]!['findMany']!({ limit: 1 }),
         );
         const first = plugin.transformQuery!(frozenCopy(op), hook(op));
         const second = plugin.transformQuery!(frozenCopy(op), hook(op));
@@ -686,7 +686,7 @@ export function testPlugin(
       create && [
         'beforeMutation is pure and deterministic',
         async () => {
-          const op = await captureOp(sb, (db) => db[table]!.create!(create));
+          const op = await captureOp(sb, (db) => db[table]!['create']!(create));
           if (op.kind === 'select')
             throw new Violation('create did not produce a mutation');
           const first = await plugin.beforeMutation!(frozenCopy(op), hook(op));
@@ -702,7 +702,7 @@ export function testPlugin(
       'wrapExecutor keeps results intact',
       async () => {
         const op = await captureOp(sb, (db) =>
-          db[table]!.findMany!({ limit: 1 }),
+          db[table]!['findMany']!({ limit: 1 }),
         );
         const data = { rows: [{ marker: 'conformance' }], count: 1 };
         const wrapped = plugin.wrapExecutor!({

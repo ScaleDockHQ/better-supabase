@@ -49,7 +49,7 @@ export function managementTarget(
     (config.source.dbUrl ? undefined : config.source.projectRef);
   if (!projectRef) return undefined;
   const accessToken =
-    config.source.accessToken ?? env.SUPABASE_ACCESS_TOKEN ?? undefined;
+    config.source.accessToken ?? env['SUPABASE_ACCESS_TOKEN'] ?? undefined;
   if (!accessToken) {
     throw new Error(
       `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens) or pass --db-url.`,
@@ -58,7 +58,7 @@ export function managementTarget(
   return {
     projectRef,
     accessToken,
-    ...(env.SUPABASE_API_URL ? { apiUrl: env.SUPABASE_API_URL } : {}),
+    ...(env['SUPABASE_API_URL'] ? { apiUrl: env['SUPABASE_API_URL'] } : {}),
   };
 }
 

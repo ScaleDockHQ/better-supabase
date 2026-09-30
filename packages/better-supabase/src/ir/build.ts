@@ -205,16 +205,18 @@ export class IrBuilder {
         keys.every((key) => key === 'is' || key === 'isNot')
       ) {
         const items: Condition[] = [];
-        if (value.is !== undefined) {
+        if (value['is'] !== undefined) {
           items.push(
-            value.is === null ? make('none', null) : make('some', value.is),
+            value['is'] === null
+              ? make('none', null)
+              : make('some', value['is']),
           );
         }
-        if (value.isNot !== undefined) {
+        if (value['isNot'] !== undefined) {
           items.push(
-            value.isNot === null
+            value['isNot'] === null
               ? make('some', null)
-              : not(make('some', value.isNot)),
+              : not(make('some', value['isNot'])),
           );
         }
         return and(...items) ?? make('some', null);
@@ -351,7 +353,7 @@ export class IrBuilder {
    * of each group.
    */
   aggregation(table: TableMeta, args: Input): Selection {
-    const groupBy = args.groupBy ?? [];
+    const groupBy = args['groupBy'] ?? [];
     if (!Array.isArray(groupBy)) {
       invalidRequest(`"groupBy" on "${table.key}" must be an array`, table.key);
     }
@@ -366,7 +368,7 @@ export class IrBuilder {
         measures.push(this.measure(table, fn, alias, `${key}_${alias}`));
       }
     }
-    const count = args._count === true;
+    const count = args['_count'] === true;
     if (!count && measures.length === 0) {
       invalidRequest(
         `aggregate on "${table.key}" needs _count, _sum, _avg, _min or _max`,
@@ -492,7 +494,7 @@ export class IrBuilder {
         relation,
         target,
         selection: { columns: [], includes: [] },
-        where: this.where(target, args.where),
+        where: this.where(target, args['where']),
         orderBy: [],
         limit: undefined,
         required: false,
@@ -511,13 +513,13 @@ export class IrBuilder {
       target,
       selection: this.selection(
         target,
-        args.select as readonly string[] | undefined,
-        args.include,
+        args['select'] as readonly string[] | undefined,
+        args['include'],
       ),
-      where: this.where(target, args.where),
-      orderBy: this.orderBy(target, args.orderBy),
-      limit: typeof args.limit === 'number' ? args.limit : undefined,
-      required: args.required === true,
+      where: this.where(target, args['where']),
+      orderBy: this.orderBy(target, args['orderBy']),
+      limit: typeof args['limit'] === 'number' ? args['limit'] : undefined,
+      required: args['required'] === true,
     };
   }
 
@@ -538,8 +540,8 @@ export class IrBuilder {
         if (spec === 'asc' || spec === 'desc') {
           terms.push({ column, direction: spec });
         } else if (isPlainObject(spec)) {
-          const direction = spec.direction === 'desc' ? 'desc' : 'asc';
-          const nulls = spec.nulls;
+          const direction = spec['direction'] === 'desc' ? 'desc' : 'asc';
+          const nulls = spec['nulls'];
           terms.push(
             nulls === 'first' || nulls === 'last'
               ? { column, direction, nulls }

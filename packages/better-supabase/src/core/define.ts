@@ -688,7 +688,7 @@ export class BetterSupabase<
         repository[name] = method;
       }
     }
-    repository.extend = (
+    repository['extend'] = (
       build: (base: Record<string, unknown>) => Record<string, unknown>,
     ) => ({
       ...repository,

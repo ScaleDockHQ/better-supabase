@@ -177,6 +177,9 @@ describe('templates', () => {
               moduleResolution: 'bundler',
               declaration: false,
               isolatedDeclarations: false,
+              // Templates read NEXT_PUBLIC_* as `process.env.NAME` so Next
+              // can inline them; consumers' ProcessEnv has no such keys.
+              noPropertyAccessFromIndexSignature: false,
               rootDir: packageRoot,
               paths: {
                 'better-supabase': [join(src, 'index.ts')],

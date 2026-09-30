@@ -1,10 +1,7 @@
 {
   "extends": "@better-supabase/typescript-config/base.json",
   "compilerOptions": {
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "lib": ["ES2024", "ESNext.Disposable", "DOM"],
+    "lib": ["ES2025", "ESNext.Disposable", "DOM"],
     "types": ["node"]
   },
   "include": ["src", "vitest.config.ts"]

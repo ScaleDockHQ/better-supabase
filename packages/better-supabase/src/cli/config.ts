@@ -86,7 +86,7 @@ export async function databaseUrl(
 ): Promise<string> {
   if (flag) return flag;
   if (config.source.dbUrl) return config.source.dbUrl;
-  if (env.DATABASE_URL) return env.DATABASE_URL;
+  if (env['DATABASE_URL']) return env['DATABASE_URL'];
   const port = (await readSupabasePort(config.root, 'db')) ?? 54322;
   return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
 }

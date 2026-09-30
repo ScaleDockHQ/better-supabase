@@ -88,7 +88,7 @@ function optionsOf(args: Args | undefined): CallOptions {
 }
 
 function signalOf(args: Args | undefined): AbortSignal | undefined {
-  const signal = args?.signal;
+  const signal = args?.['signal'];
   return signal instanceof AbortSignal ? signal : undefined;
 }
 
@@ -235,8 +235,8 @@ export function createRepository(
   const selection = (args: Args | undefined): Selection =>
     builder.selection(
       table,
-      args?.select as readonly string[] | undefined,
-      args?.include,
+      args?.['select'] as readonly string[] | undefined,
+      args?.['include'],
     );
 
   const selectOp = (
@@ -246,10 +246,10 @@ export function createRepository(
     kind: 'select',
     table,
     selection: selection(args),
-    where: builder.where(table, args?.where),
-    orderBy: builder.orderBy(table, args?.orderBy),
-    limit: typeof args?.limit === 'number' ? args.limit : undefined,
-    offset: typeof args?.offset === 'number' ? args.offset : undefined,
+    where: builder.where(table, args?.['where']),
+    orderBy: builder.orderBy(table, args?.['orderBy']),
+    limit: typeof args?.['limit'] === 'number' ? args['limit'] : undefined,
+    offset: typeof args?.['offset'] === 'number' ? args['offset'] : undefined,
     count: undefined,
     head: false,
     single: undefined,
@@ -257,7 +257,7 @@ export function createRepository(
   });
 
   const returning = (args: Args | undefined): Selection | undefined =>
-    args?.returning === false ? undefined : selection(args);
+    args?.['returning'] === false ? undefined : selection(args);
 
   const run = (
     op: Operation,
@@ -300,7 +300,7 @@ export function createRepository(
     findUnique(args: Args) {
       return AsyncResult.from(async () => {
         const op = selectOp(args, {
-          where: builder.uniqueKey(table, args.where),
+          where: builder.uniqueKey(table, args['where']),
           limit: 1,
         });
         const result = await run(op, args);
@@ -323,9 +323,9 @@ export function createRepository(
 
     count(args?: Args) {
       return AsyncResult.from(async () => {
-        const mode = args?.mode;
+        const mode = args?.['mode'];
         const op = selectOp(
-          { where: args?.where },
+          { where: args?.['where'] },
           {
             selection: { columns: [], includes: [] },
             count: mode === 'planned' || mode === 'estimated' ? mode : 'exact',
@@ -340,7 +340,7 @@ export function createRepository(
     aggregate(args: Args) {
       return AsyncResult.from(async () => {
         const aggregation = builder.aggregation(table, args);
-        const orderBy = builder.orderBy(table, args.orderBy);
+        const orderBy = builder.orderBy(table, args['orderBy']);
         const grouped = new Set(aggregation.columns.map((c) => c.column));
         const loose = orderBy.find((term) => !grouped.has(term.column));
         if (loose) {
@@ -353,12 +353,16 @@ export function createRepository(
           );
         }
         const op = selectOp(
-          { where: args.where, limit: args.limit, offset: args.offset },
+          {
+            where: args['where'],
+            limit: args['limit'],
+            offset: args['offset'],
+          },
           { selection: aggregation, orderBy },
         );
         const result = await run(op, args);
         if (!result.ok) return result;
-        if (args.groupBy !== undefined) return ok(result.data.rows);
+        if (args['groupBy'] !== undefined) return ok(result.data.rows);
         // Without groups the database returns one row, unless nothing can match.
         return ok(
           result.data.rows[0] ?? decodeRows(aggregation, [{}])[0] ?? {},
@@ -372,7 +376,7 @@ export function createRepository(
           .slice(0, 1)
           .map((alias) => builder.selectColumn(table, alias));
         const op = selectOp(
-          { where: args?.where },
+          { where: args?.['where'] },
           {
             selection: { columns, includes: [] },
             limit: 1,
@@ -395,7 +399,7 @@ export function createRepository(
         const result = await run(op, args);
         if (!result.ok) return result;
         return ok(
-          args?.returning === false ? null : (result.data.rows[0] ?? null),
+          args?.['returning'] === false ? null : (result.data.rows[0] ?? null),
         );
       });
     },
@@ -403,11 +407,11 @@ export function createRepository(
     createMany(rows: readonly unknown[], args?: Args) {
       return AsyncResult.from(async () => {
         if (rows.length === 0)
-          return ok(args?.returning === false ? { count: 0 } : []);
+          return ok(args?.['returning'] === false ? { count: 0 } : []);
         const result = await run(insertOp(rows, args, undefined), args);
         if (!result.ok) return result;
         return ok(
-          args?.returning === false
+          args?.['returning'] === false
             ? { count: result.data.count ?? rows.length }
             : result.data.rows,
         );
@@ -417,8 +421,8 @@ export function createRepository(
     update(id: unknown, patch: unknown, args?: Args) {
       return AsyncResult.from(async () => {
         const key = builder.primaryKey(table, id);
-        const expect = args?.expect
-          ? builder.where(table, args.expect)
+        const expect = args?.['expect']
+          ? builder.where(table, args['expect'])
           : undefined;
         const op: UpdateOp = {
           kind: 'update',
@@ -463,8 +467,8 @@ export function createRepository(
         const op: UpdateOp = {
           kind: 'update',
           table,
-          set: builder.row(table, args.data, 'update'),
-          where: builder.where(table, args.where),
+          set: builder.row(table, args['data'], 'update'),
+          where: builder.where(table, args['where']),
           returning: undefined,
         };
         const result = await run(op, args);
@@ -474,11 +478,15 @@ export function createRepository(
 
     upsert(data: unknown, args?: Args) {
       return AsyncResult.from(async () => {
-        const op = insertOp([data], args, conflictColumns(args?.onConflict));
+        const op = insertOp(
+          [data],
+          args,
+          conflictColumns(args?.['onConflict']),
+        );
         const result = await run(op, args);
         if (!result.ok) return result;
         return ok(
-          args?.returning === false ? null : (result.data.rows[0] ?? null),
+          args?.['returning'] === false ? null : (result.data.rows[0] ?? null),
         );
       });
     },
@@ -486,12 +494,12 @@ export function createRepository(
     upsertMany(rows: readonly unknown[], args?: Args) {
       return AsyncResult.from(async () => {
         if (rows.length === 0)
-          return ok(args?.returning === false ? { count: 0 } : []);
-        const op = insertOp(rows, args, conflictColumns(args?.onConflict));
+          return ok(args?.['returning'] === false ? { count: 0 } : []);
+        const op = insertOp(rows, args, conflictColumns(args?.['onConflict']));
         const result = await run(op, args);
         if (!result.ok) return result;
         return ok(
-          args?.returning === false
+          args?.['returning'] === false
             ? { count: result.data.count ?? rows.length }
             : result.data.rows,
         );
@@ -516,7 +524,7 @@ export function createRepository(
 
     deleteMany(args: Args) {
       return AsyncResult.from(async () => {
-        const where = builder.where(table, args.where);
+        const where = builder.where(table, args['where']);
         if (!where) {
           return runner.fail(
             table,
@@ -548,7 +556,7 @@ export function createRepository(
       onConflict: conflict
         ? {
             columns: conflict,
-            action: args?.ignoreDuplicates === true ? 'ignore' : 'update',
+            action: args?.['ignoreDuplicates'] === true ? 'ignore' : 'update',
           }
         : undefined,
       defaultToNull: false,
@@ -575,21 +583,21 @@ export function createRepository(
   }
 
   async function offsetPage(args: Args): Promise<Result<unknown>> {
-    const size = Number(args.size);
+    const size = Number(args['size']);
     if (!Number.isInteger(size) || size < 1) {
       return runner.fail(
         table,
         dbError('invalid_request', '"size" must be a positive integer'),
       );
     }
-    const number = args.page === undefined ? 1 : Number(args.page);
+    const number = args['page'] === undefined ? 1 : Number(args['page']);
     if (!Number.isInteger(number) || number < 1) {
       return runner.fail(
         table,
         dbError('invalid_request', '"page" must be a positive integer'),
       );
     }
-    const count = args.count;
+    const count = args['count'];
     const op = selectOp(args, {
       limit: size + 1,
       offset: (number - 1) * size,
@@ -615,20 +623,20 @@ export function createRepository(
   }
 
   async function cursorPage(args: Args): Promise<Result<unknown>> {
-    const size = Number(args.size);
+    const size = Number(args['size']);
     if (!Number.isInteger(size) || size < 1) {
       return runner.fail(
         table,
         dbError('invalid_request', '"size" must be a positive integer'),
       );
     }
-    const orderBy = withTieBreaker(builder.orderBy(table, args.orderBy));
+    const orderBy = withTieBreaker(builder.orderBy(table, args['orderBy']));
     const base = selection(args);
     const { selection: withSort, added } = ensureColumns(base, orderBy);
 
     let after: Condition | undefined;
-    if (typeof args.after === 'string') {
-      const values = decodeCursor(args.after);
+    if (typeof args['after'] === 'string') {
+      const values = decodeCursor(args['after']);
       if (!values || values.length !== orderBy.length) {
         return runner.fail(table, dbError('invalid_request', 'Invalid cursor'));
       }
@@ -637,7 +645,7 @@ export function createRepository(
 
     const op = selectOp(args, {
       selection: withSort,
-      where: and(builder.where(table, args.where), after),
+      where: and(builder.where(table, args['where']), after),
       orderBy,
       limit: size + 1,
       offset: undefined,

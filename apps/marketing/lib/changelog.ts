@@ -33,23 +33,23 @@ export function parseChangelog(markdown: string): ChangelogRelease[] {
 
   for (const line of markdown.split('\n')) {
     const versionMatch = versionHeading.exec(line);
-    if (versionMatch?.groups?.version !== undefined) {
+    if (versionMatch?.groups?.['version'] !== undefined) {
       flush();
-      version = versionMatch.groups.version;
+      version = versionMatch.groups['version'];
       kind = undefined;
       continue;
     }
     const kindMatch = kindHeading.exec(line);
-    if (kindMatch?.groups?.kind !== undefined) {
+    if (kindMatch?.groups?.['kind'] !== undefined) {
       flush();
-      kind = kindMatch.groups.kind as ChangelogKind;
+      kind = kindMatch.groups['kind'] as ChangelogKind;
       continue;
     }
     if (kind === undefined) {
       continue;
     }
     const changeMatch = changeLine.exec(line);
-    if (changeMatch?.groups?.text !== undefined) {
+    if (changeMatch?.groups?.['text'] !== undefined) {
       const { hash, text } = changeMatch.groups;
       changes.push(hash === undefined ? { text } : { text, hash });
       continue;

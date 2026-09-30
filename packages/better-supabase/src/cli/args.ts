@@ -45,7 +45,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       break;
     }
     if (token === '-h') {
-      flags.help = true;
+      flags['help'] = true;
       continue;
     }
     if (token.startsWith('--')) {
