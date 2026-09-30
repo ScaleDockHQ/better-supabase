@@ -376,6 +376,156 @@ describe('createMcp', () => {
     });
   });
 
+  it('authorizes calls and filters lists with per-tool hooks', async () => {
+    const seen: { tool: string; meta: unknown; args: unknown }[] = [];
+    const guarded = createMcp(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: 'guarded',
+      version: '1.0.0',
+      scopes: ['openid'],
+      resources: { tags: { operations: ['list'] } },
+      tools: [
+        defineTool({
+          name: 'read_notes',
+          description: 'Reads notes.',
+          input: z.object({ limit: z.coerce.number() }),
+          meta: { permission: 'notes.read' },
+          run: (args: { limit: number }) => ({ limit: args.limit }),
+        }),
+        defineTool({
+          name: 'export_notes',
+          description: 'Exports notes.',
+          meta: { permission: 'notes.export', scope: 'notes.export' },
+          run: () => ({ exported: true }),
+        }),
+        defineTool({
+          name: 'purge_notes',
+          description: 'Deletes every note.',
+          meta: { permission: 'notes.purge' },
+          run: () => ({ purged: true }),
+        }),
+        defineTool({
+          name: 'secret',
+          description: 'Hidden from everyone.',
+          meta: { hidden: true },
+          run: () => 'never',
+        }),
+      ],
+      authorize: (_ctx, tool, args) => {
+        const meta = tool.meta as
+          | { permission?: string; scope?: string }
+          | undefined;
+        seen.push({ tool: tool.info.name, meta: tool.meta, args });
+        if (tool.info.name === 'tags_list') {
+          return { allowed: false, reason: 'No tags for you' };
+        }
+        if (meta?.permission === 'notes.purge') {
+          return { allowed: false, reason: 'Only owners may purge notes' };
+        }
+        if (meta?.scope) {
+          return { allowed: false, scopes: ['notes.read', meta.scope] };
+        }
+        return { allowed: true };
+      },
+      visible: (ctx, tool) =>
+        ctx.auth.kind === 'user' &&
+        (tool.meta as { hidden?: boolean } | undefined)?.hidden !== true,
+    });
+    const send = async (method: string, params?: unknown) =>
+      guarded.fetch(
+        new Request(ENDPOINT, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 7, method, params }),
+        }),
+      );
+
+    const listed = (await (await send('tools/list')).json()) as {
+      result: { tools: { name: string; meta?: unknown }[] };
+    };
+    expect(listed.result.tools.map((tool) => tool.name)).toEqual([
+      'tags_list',
+      'read_notes',
+      'export_notes',
+      'purge_notes',
+    ]);
+    expect(listed.result.tools[1]).not.toHaveProperty('meta');
+
+    const allowed = (await (
+      await send('tools/call', {
+        name: 'read_notes',
+        arguments: { limit: '5' },
+      })
+    ).json()) as { result: unknown };
+    expect(allowed.result).toMatchObject({ structuredContent: { limit: 5 } });
+    expect(seen.at(-1)).toEqual({
+      tool: 'read_notes',
+      meta: { permission: 'notes.read' },
+      args: { limit: 5 },
+    });
+
+    const invalid = (await (
+      await send('tools/call', { name: 'read_notes', arguments: {} })
+    ).json()) as { result: unknown };
+    expect(invalid.result).toMatchObject({ isError: true });
+    expect(seen).toHaveLength(1);
+
+    const refused = (await (
+      await send('tools/call', { name: 'purge_notes', arguments: {} })
+    ).json()) as { result: unknown };
+    expect(refused.result).toMatchObject({
+      isError: true,
+      structuredContent: {
+        kind: 'forbidden',
+        detail: 'Only owners may purge notes',
+      },
+    });
+
+    const challenged = await send('tools/call', {
+      name: 'export_notes',
+      arguments: {},
+    });
+    expect(challenged.status).toBe(403);
+    expect(challenged.headers.get('www-authenticate')).toContain(
+      'Bearer error="insufficient_scope", error_description="Not allowed to call export_notes", scope="openid notes.read notes.export"',
+    );
+    expect(await challenged.json()).toMatchObject({ id: 7 });
+
+    const hidden = (await (
+      await send('tools/call', { name: 'secret', arguments: {} })
+    ).json()) as { error: { code: number; message: string } };
+    expect(hidden.error).toMatchObject({
+      code: -32602,
+      message: 'Unknown tool "secret"',
+    });
+
+    const table = (await (
+      await send('tools/call', { name: 'tags_list', arguments: { page: 2 } })
+    ).json()) as { result: unknown };
+    expect(seen.at(-1)).toEqual({
+      tool: 'tags_list',
+      meta: undefined,
+      args: { page: 2 },
+    });
+    expect(table.result).toMatchObject({
+      isError: true,
+      structuredContent: { kind: 'forbidden', detail: 'No tags for you' },
+    });
+
+    // Direct calls have no HTTP challenge, so a scope refusal is a tool error.
+    const direct = await guarded.call('export_notes', {}, {
+      auth: { kind: 'user' },
+    } as never);
+    expect(direct).toMatchObject({
+      isError: true,
+      structuredContent: { kind: 'forbidden' },
+    });
+  });
+
   it('rejects invalid tool definitions', () => {
     expect(() =>
       defineTool({ name: 'has space', description: 'x', run: () => null }),
