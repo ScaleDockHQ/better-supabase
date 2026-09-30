@@ -100,7 +100,7 @@ describe('defineTopic', () => {
       "(select realtime.topic()) ~ '^org:[^:]+:notifications:[^:]+$'",
     );
     expect(sql).toContain(
-      "split_part((select realtime.topic()), ':', 2) = (coalesce((select auth.jwt()) ->> 'org_id'",
+      "split_part((select realtime.topic()), ':', 2) = (coalesce((select auth.jwt()) ->> 'tenant_id'",
     );
     expect(sql).toContain(
       "split_part((select realtime.topic()), ':', 4) = (select auth.uid())::text",
@@ -108,6 +108,38 @@ describe('defineTopic', () => {
     const open = defineTopic('room:{roomId}').sql();
     expect(open).not.toContain('split_part');
     expect(open).not.toContain('for insert');
+  });
+
+  it('compiles PermDock receive and send policies', () => {
+    const board = defineTopic('org:{orgId}:board', {
+      permdock: {
+        receive: 'board.read',
+        send: 'board.write',
+        scope: 'organization',
+      },
+    }).sql();
+    const ids = (key: string) =>
+      `split_part((select realtime.topic()), ':', 2) in (select t.id::text from "public"."permitted_organization_ids"('${key}') as t(id))`;
+    expect(board).toContain(
+      `for select to authenticated\n  using (\n    (select realtime.topic()) ~ '^org:[^:]+:board$'\n    and realtime.messages.extension in ('broadcast')\n    and ${ids('board.read')}\n  );`,
+    );
+    expect(board).toContain(`for insert to authenticated\n  with check (`);
+    expect(board).toContain(ids('board.write'));
+    expect(board).not.toContain('tenant_id');
+    expect(board).not.toContain('service_role');
+
+    const receiveOnly = defineTopic('announcements', {
+      permdock: { receive: 'announcements.read', scope: 'global' },
+    }).sql();
+    expect(receiveOnly).toContain(
+      `(select "public".permdock_has('announcements.read'))`,
+    );
+    expect(receiveOnly).not.toContain('for insert');
+    expect(() =>
+      defineTopic('org:{orgId}', {
+        permdock: { receive: 'x.read#1', scope: 'organization' },
+      }),
+    ).toThrow(/splits by row condition/);
   });
 
   it('generates a row-change trigger with database column names', () => {

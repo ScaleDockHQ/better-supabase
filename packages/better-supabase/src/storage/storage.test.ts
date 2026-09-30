@@ -64,7 +64,7 @@ describe('defineBucket', () => {
       'drop policy if exists "bs_customer_logos_insert" on storage.objects;',
     );
     expect(sql).toContain(
-      "with check (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'org_id', (select auth.jwt()) -> 'app_metadata' ->> 'org_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\\.webp$')",
+      "with check (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\\.webp$')",
     );
     const owner = defineBucket({
       id: 'avatars',
@@ -103,6 +103,81 @@ describe('defineBucket', () => {
         .map((drift) => drift.field),
     ).toEqual(['public', 'fileSizeLimit', 'allowedMimeTypes']);
     expect(logos.drift(undefined)[0]?.field).toBe('missing');
+  });
+
+  it('compiles PermDock policies with list split from read', () => {
+    const files = defineBucket({
+      id: 'org-files',
+      path: '{orgId}/{file}',
+      policy: {
+        permdock: {
+          read: 'files.read',
+          list: 'files.list',
+          write: 'files.write',
+        },
+        scope: 'organization',
+      },
+    });
+    const sql = files.sql();
+    const ids = (key: string) =>
+      `split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('${key}') as t(id))`;
+    const listing =
+      "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
+    expect(sql).toContain(
+      `create policy "bs_org_files_select" on storage.objects for select to authenticated\n  using (bucket_id = 'org-files' and not ${listing} and ${ids('files.read')});`,
+    );
+    expect(sql).toContain(
+      `create policy "bs_org_files_list" on storage.objects for select to authenticated\n  using (bucket_id = 'org-files' and ${listing} and ${ids('files.list')});`,
+    );
+    expect(sql).toContain(
+      `with check (bucket_id = 'org-files' and ${ids('files.write')} and name ~`,
+    );
+    expect(sql).toContain(
+      `for delete to authenticated\n  using (bucket_id = 'org-files' and ${ids('files.write')});`,
+    );
+    expect(sql).not.toMatch(/service_role|anon/);
+
+    const global = defineBucket({
+      id: 'docs',
+      path: '{file}',
+      policy: {
+        permdock: {
+          read: 'docs.read',
+          write: 'docs.write',
+          delete: 'docs.delete',
+        },
+        scope: 'global',
+        schema: 'authz',
+      },
+    }).sql();
+    expect(global).toContain(
+      `using (bucket_id = 'docs' and (select "authz".permdock_has('docs.read')));`,
+    );
+    expect(global).toContain(`(select "authz".permdock_has('docs.delete'))`);
+    expect(global).toContain('drop policy if exists "bs_docs_list"');
+    expect(global).not.toContain('allow_any_operation');
+    expect(global).not.toContain('service_role');
+  });
+
+  it('refuses PermDock keys it cannot compile', () => {
+    const bucket = (
+      read: string,
+      scope = 'organization',
+      path = '{orgId}/{file}',
+    ) =>
+      defineBucket({
+        id: 'x',
+        path,
+        policy: { permdock: { read, write: 'x.write' }, scope },
+      });
+    expect(() => bucket('files.read#2')).toThrow(/splits by row condition/);
+    expect(() => bucket('')).toThrow(/empty/);
+    expect(() => bucket('x.read', 'org; drop')).toThrow(
+      /invalid PermDock scope/,
+    );
+    expect(() => bucket('x.read', 'organization', '{file}')).toThrow(
+      /whole path segment/,
+    );
   });
 
   it('rejects policies that cannot be enforced', () => {
