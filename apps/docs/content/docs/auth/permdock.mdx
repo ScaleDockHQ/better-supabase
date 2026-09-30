@@ -148,6 +148,23 @@ Buckets and topics can call PermDock's helpers instead of comparing the
 tenant claim. See [PermDock permissions for buckets](/docs/kits/storage#permdock-permissions)
 and [for topics](/docs/kits/realtime#authorization).
 
+The helpers check role and scope only. A permission's row conditions (for
+example `ownerId = principal.id`) are applied by the table policies
+`permdock rls generate` writes, so a bucket or topic in `permdock` mode ignores
+them and grants every object in the scope. Use the mode only for permissions
+whose grants have no row conditions beyond the scope:
+
+```ts
+// Wrong: documents.read is granted only for documents the member owns
+policy: { permdock: { read: 'documents.read' }, scope: 'organization' }
+// Right: documents.browse is granted per organization, with no row condition
+policy: { permdock: { read: 'documents.browse' }, scope: 'organization' }
+```
+
+Keys PermDock splits by row condition (`documents.read#1`) are refused.
+PermDock plans to mark `rowConditions` per permission in its catalog and to
+add a doctor check for this; neither exists yet.
+
 ## What neither package does
 
 - Read roles, memberships or the tenant from `user_metadata`. Users can change

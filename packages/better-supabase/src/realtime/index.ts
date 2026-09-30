@@ -69,6 +69,11 @@ export interface TopicOptions<E extends EventSchemas> {
    * Authorize with PermDock's SQL helpers instead of the tenant claim:
    * `permitted_<scope>_ids(receive)` on the scope segment (or
    * `permdock_has` for `scope: 'global'`), and `send` for broadcasting.
+   *
+   * The helpers check role and scope only. Use this just for permissions
+   * whose grants have no row conditions beyond the scope: for a permission
+   * with row conditions (e.g. `authorId = principal.id`) every member of the
+   * scope may join. Leave those to the policies `permdock rls generate` writes.
    */
   readonly permdock?: PermdockTopicPolicy;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */

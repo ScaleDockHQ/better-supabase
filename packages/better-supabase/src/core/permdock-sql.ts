@@ -13,6 +13,11 @@ interface PermdockTarget {
  * The SQL condition for one PermDock permission key. `id` is the text
  * expression holding the scope id; it is compared as text, so a malformed
  * path never raises a cast error.
+ *
+ * The helpers check role and scope, not a permission's row conditions, so
+ * the condition is only correct for permissions whose grants have none
+ * beyond the scope. `#n` keys are refused; other row-conditioned keys can't
+ * be detected here.
  */
 export function permdockCheck(
   where: string,
