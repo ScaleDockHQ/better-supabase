@@ -18,12 +18,10 @@ export function permdockConfig(root: string): string | undefined {
 }
 
 /** A manifest value read from a column or fixed in the config. */
-export type ManifestValue<T> =
-  | { readonly column: string }
-  | { readonly value: T };
+type ManifestValue<T> = { readonly column: string } | { readonly value: T };
 
 /** One membership source, as `permdock supabase inspect --out` writes it. */
-export interface ManifestMembership {
+interface ManifestMembership {
   /** `schema.table`. */
   readonly table: string;
   readonly user: { readonly column: string };
@@ -35,7 +33,7 @@ export interface ManifestMembership {
   readonly columns: readonly string[];
 }
 
-export interface ManifestHelper {
+interface ManifestHelper {
   readonly name: string;
   readonly args: string;
   readonly returns: string;

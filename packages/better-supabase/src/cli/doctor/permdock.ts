@@ -16,7 +16,7 @@ const HELPER_KEY =
 const unquote = (name: string): string =>
   name.replace(/^"|"$/g, "").replaceAll('""', '"');
 
-export interface HelperPolicy {
+interface HelperPolicy {
   readonly name: string;
   readonly table: string;
   readonly keys: readonly string[];
@@ -30,7 +30,7 @@ export interface HelperPolicy {
  * The first file that declares a policy wins, matching the `sqlFiles` order
  * (declarative schemas, then the newest migration).
  */
-export function helperPolicies(files: readonly TextFile[]): HelperPolicy[] {
+function helperPolicies(files: readonly TextFile[]): HelperPolicy[] {
   const seen = new Set<string>();
   const found: HelperPolicy[] = [];
   for (const file of files) {

@@ -1664,7 +1664,7 @@ export interface KitLayout {
 }
 
 /** One PermDock membership source, from the manifest's `memberships`. */
-export interface KitMembershipSource {
+interface KitMembershipSource {
   /** `schema.table`. */
   readonly table: string;
   readonly userColumn: string;
