@@ -167,8 +167,9 @@ export interface BetterNext<
   ): Promise<ServerContext<M, F, E, C, U>>;
   /**
    * First statement of an app-authored `'use cache: private'` function: sets
-   * `cacheLife` from the session's expiry (`sessionStale`), tags the entry
-   * `bs:session:<user id>` and returns the caller's context plus `session`.
+   * `cacheLife` from the session's expiry (`sessionStale`, capped by
+   * `life.stale`), tags the entry `bs:session:<user id>` plus `tags`, and
+   * returns the caller's context plus `session`.
    *
    * ```ts
    * async function getCustomers() {
@@ -179,8 +180,14 @@ export interface BetterNext<
    * ```
    */
   cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C, U>>;
-  /** Drops every `next.cached()` entry of a user, e.g. after a role change. */
-  invalidateSession(userId: string): void;
+  /**
+   * Drops every `next.cached()` entry of a user, e.g. after a role change,
+   * and the entries tagged with `tags` (such as PermDock's `snapshotTag(userId)`).
+   */
+  invalidateSession(
+    userId: string,
+    options?: { readonly tags?: readonly string[] },
+  ): void;
   /**
    * Counts on the server and returns a serializable seed for
    * `useLiveCount(seed)`, so the badge renders with a number and the client
@@ -255,11 +262,18 @@ export function sessionStale(
 }
 
 export interface CachedOptions {
-  /** `cacheLife` for the entry. `stale` comes from `sessionStale`. */
+  /**
+   * `cacheLife` for the entry. `stale` is `sessionStale`, and never more than
+   * `stale` when it is set: pass PermDock's `cacheLifeFor(snapshot)` so the
+   * entry goes stale with the snapshot too.
+   */
   readonly life?: SessionStaleOptions & {
+    readonly stale?: number;
     readonly revalidate?: number;
     readonly expire?: number;
   };
+  /** More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or `org:<id>`. */
+  readonly tags?: readonly string[];
 }
 
 export type CachedContext<
@@ -476,19 +490,25 @@ export function createNext<
     async cached(cachedOptions = {}) {
       const [view, ctx] = await Promise.all([session(), server()]);
       const life = cachedOptions.life;
+      const stale = sessionStale(view, life);
       cacheLife({
-        stale: sessionStale(view, life),
+        stale: life?.stale === undefined ? stale : Math.min(stale, life.stale),
         ...(life?.revalidate === undefined
           ? {}
           : { revalidate: life.revalidate }),
         ...(life?.expire === undefined ? {} : { expire: life.expire }),
       });
-      if (view.kind === "user") cacheTag(sessionTag(view.user.id));
+      const tags = [
+        ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
+        ...(cachedOptions.tags ?? []),
+      ];
+      if (tags.length > 0) cacheTag(...tags);
       return withExtra(ctx, { session: view });
     },
 
-    invalidateSession(userId) {
+    invalidateSession(userId, invalidateOptions = {}) {
       invalidate(sessionTag(userId));
+      for (const tag of invalidateOptions.tags ?? []) invalidate(tag);
     },
 
     async liveCount(spec, db) {

@@ -110,6 +110,33 @@ describe("private-cache scopes", () => {
     expect(mocks.updateTag).toHaveBeenCalledWith(`bs:session:${USER}`);
   });
 
+  it("adds tags and caps stale with life.stale", async () => {
+    const token = await signer.sign({ sub: USER, expiresIn: 3600 });
+    mocks.headers = new Headers({ authorization: `Bearer ${token}` });
+    const tags = [`permdock:${USER}`, "org:acme"];
+    await next.cached({ tags, life: { stale: 45 } });
+    expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 45 });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(sessionTag(USER), ...tags);
+
+    // A ceiling above the session's stale time leaves it alone.
+    await next.cached({ life: { stale: 900 } });
+    expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 300 });
+
+    mocks.headers = new Headers();
+    await next.cached({ tags: ["public:pricing"] });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith("public:pricing");
+    mocks.cacheTag.mockReset();
+    await next.cached();
+    expect(mocks.cacheTag).not.toHaveBeenCalled();
+
+    mocks.updateTag.mockReset();
+    next.invalidateSession(USER, { tags: [`permdock:${USER}`] });
+    expect(mocks.updateTag.mock.calls).toEqual([
+      [sessionTag(USER)],
+      [`permdock:${USER}`],
+    ]);
+  });
+
   it("builds a context from a session and its token", async () => {
     const token = await signer.sign({ sub: USER });
     const session = {

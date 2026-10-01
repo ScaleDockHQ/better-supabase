@@ -1,8 +1,12 @@
+import { getPermissionSnapshot } from "../permission-snapshot";
 import { rolesOf } from "../user-permissions";
 import { getSession } from "../user-queries";
 
 export async function ProfileDetails() {
-  const session = await getSession();
+  const [session, snapshot] = await Promise.all([
+    getSession(),
+    getPermissionSnapshot(),
+  ]);
   if (session.kind !== "user") return <p>Not signed in.</p>;
   return (
     <dl>
@@ -12,6 +16,8 @@ export async function ProfileDetails() {
       <dd>{session.user.email}</dd>
       <dt>Roles</dt>
       <dd>{rolesOf(session.claims).join(", ") || "none"}</dd>
+      <dt>Permissions</dt>
+      <dd>{snapshot.permissions.join(", ") || "none"}</dd>
       <dt>Token expires</dt>
       <dd>
         {session.expiresAt === null

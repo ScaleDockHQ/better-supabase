@@ -290,12 +290,65 @@ function: the directive has to be in app code, and Next.js keys the entry on
 that function's arguments. It:
 
 - calls `cacheLife({ stale: sessionStale(session) })`. Pass
-  `{ life: { min, max, revalidate, expire } }` to change it;
+  `{ life: { min, max, revalidate, expire } }` to change it, and
+  `life.stale` to cap it: the entry then goes stale at the smaller of the two;
 - tags the entry `bs:session:<user id>`, so `next.invalidateSession(userId)`
   drops every cached view of that user, for example after an admin changes
-  their role;
+  their role. `tags` adds more tags to the entry, and
+  `next.invalidateSession(userId, { tags })` drops those too;
 - returns the caller's context plus `session`. `db`, `supabase` and `sql` are
   built on first access.
+
+### PermDock snapshots
+
+With [PermDock](/docs/auth/permdock), cache the permission snapshot the same
+way. The snapshot needs the session, so read it first, then let
+`next.cached()` set the tags and the lifetime: `cacheLifeFor(snapshot)` caps
+`stale` at the snapshot's expiry, and `sessionStale` caps it at the token's.
+
+```ts title="src/lib/access.ts"
+import { snapshotFor } from 'permdock';
+import { cacheLifeFor, snapshotTag } from 'permdock/next';
+import { subjectFromSupabaseSession } from 'permdock/supabase';
+import { next } from '@/lib/supabase';
+import { policy } from '@/policy';
+
+export async function loadSnapshot(orgId: string) {
+  'use cache: private';
+  const session = await next.session();
+  const subject = subjectFromSupabaseSession(session, { memberships: 'memberships' });
+  const snapshot = snapshotFor(policy, subject, { tenant: orgId });
+  await next.cached({
+    tags: [snapshotTag(session.kind === 'user' ? session.user.id : null), `org:${orgId}`],
+    life: cacheLifeFor(snapshot),
+  });
+  return snapshot;
+}
+```
+
+Pass the promise to PermDock's provider (a Client Component) without awaiting
+it, so the layout stays synchronous and the snapshot streams in:
+
+```tsx title="src/app/[orgSlug]/layout.tsx"
+import { PermDockProvider } from 'permdock/react';
+import { loadSnapshot } from '@/lib/access';
+
+export default function OrgLayout({ children, params }: LayoutProps<'/[orgSlug]'>) {
+  const snapshotPromise = params.then(({ orgSlug }) => loadSnapshot(orgSlug));
+  return <PermDockProvider snapshotPromise={snapshotPromise}>{children}</PermDockProvider>;
+}
+```
+
+When a role or plan changes, drop the user's cached views and their snapshot
+in the Server Action or webhook that changed it:
+
+```ts
+next.invalidateSession(userId, { tags: [snapshotTag(userId)] });
+```
+
+The user's token keeps the old memberships until it refreshes. Policies that
+read the membership tables (PermDock's `database` mode) see the change
+immediately.
 
 Outside a request, `next.serverFor(session, { token })` builds the same
 context from a session you already have. The token is verified again, and a
