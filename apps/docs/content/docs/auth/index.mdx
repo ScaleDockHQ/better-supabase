@@ -136,7 +136,9 @@ follow PermDock's shape, `{ scope, id, roles }` (see
 and roles and memberships are never read from `user_metadata`, which users can
 edit. Use `v.looseObject` so claims your schema doesn't list, such as
 PermDock's `attrs`, `authz_ver` and `memberships_truncated`, stay on the
-session.
+session. With PermDock, pass its own schema instead:
+`sb.claims(supabaseClaims().extend(appClaims))` (see
+[Validate the claims with PermDock's schema](/docs/auth/permdock#validate-the-claims-with-permdocks-schema)).
 
 - `createServer`, `createNext`, `createHono` and friends validate after the
   signature check, on every request, including tokens served from the

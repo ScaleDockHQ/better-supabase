@@ -1,0 +1,74 @@
+{
+  "$comment": "The claims of supabaseClaimFixtures.full and .portalContact from permdock/testing (packages/permdock/src/testing/supabase-fixtures.ts on PermDock main). Replace with the import once permdock 0.1.0 is a devDependency.",
+  "full": {
+    "sub": "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "iss": "https://project.supabase.co/auth/v1",
+    "iat": 1790000000,
+    "exp": 1790003600,
+    "aal": "aal1",
+    "session_id": "b7a8f9c0-1111-4222-8333-944455556666",
+    "is_anonymous": false,
+    "user_role": ["admin"],
+    "roles": ["admin"],
+    "tenant_id": "0d8c5a2e-3f4b-4c6d-8e9f-a1b2c3d4e5f6",
+    "memberships": [
+      {
+        "scope": "organization",
+        "id": "0d8c5a2e-3f4b-4c6d-8e9f-a1b2c3d4e5f6",
+        "roles": ["owner"],
+        "via": "direct",
+        "expiresAt": 1900000000,
+        "grantedBy": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+        "reason": "founding member",
+        "managedBy": "idp",
+        "entitlements": ["seat:pro"],
+        "grants": { "analyst": ["post.read", "-post.delete"] }
+      },
+      {
+        "scope": "project",
+        "id": "3b2a1c0d-9e8f-4a7b-8c6d-5e4f3a2b1c0d",
+        "within": { "organization": "0d8c5a2e-3f4b-4c6d-8e9f-a1b2c3d4e5f6" },
+        "roles": ["editor"]
+      },
+      {
+        "on": { "resource": "document", "id": "doc-1" },
+        "roles": ["viewer"],
+        "via": "share"
+      }
+    ],
+    "memberships_truncated": true,
+    "attrs": { "department": "finance", "clearance": 2 },
+    "authz_ver": 7,
+    "datetime_preferences": {
+      "timezone": "Europe/Amsterdam",
+      "week_start": "monday",
+      "date_format": "dd-MM-yyyy",
+      "time_format": "24h"
+    },
+    "app_metadata": { "provider": "email", "providers": ["email"] }
+  },
+  "portalContact": {
+    "sub": "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "iss": "https://project.supabase.co/auth/v1",
+    "iat": 1790000000,
+    "exp": 1790003600,
+    "aal": "aal1",
+    "session_id": "b7a8f9c0-1111-4222-8333-944455556666",
+    "is_anonymous": false,
+    "user_role": null,
+    "tenant_id": "0d8c5a2e-3f4b-4c6d-8e9f-a1b2c3d4e5f6",
+    "memberships": [
+      {
+        "scope": "customer",
+        "id": "c7d8e9f0-1a2b-4c3d-9e4f-5a6b7c8d9e0f",
+        "within": { "organization": "0d8c5a2e-3f4b-4c6d-8e9f-a1b2c3d4e5f6" },
+        "roles": ["contact"],
+        "via": "contact"
+      }
+    ]
+  }
+}

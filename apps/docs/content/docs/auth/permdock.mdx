@@ -142,23 +142,44 @@ Otherwise PermDock writes and reads `tenant_id` while better-supabase reads
 
 <Step>
 
-### Keep the claims schema loose
+### Validate the claims with PermDock's schema
 
-`sb.claims(schema)` validates the claims on every request. Use a loose object,
-so claims your schema doesn't name (`authz_ver`, `memberships_truncated`,
-`attrs`) reach PermDock unchanged:
+`sb.claims(schema)` validates the claims on every request and types
+`session.claims`. It takes any Standard Schema, so use the one PermDock
+publishes for its claim contract. `supabaseClaims()` checks the claims the
+hook writes and passes the rest through, so claims it doesn't name reach
+PermDock unchanged. `extend(app)` adds your own hook claims, validated by your
+schema library:
 
-```ts title="src/lib/claims.ts"
+```ts title="src/lib/supabase/client.ts"
+import { defineSupabase } from 'better-supabase';
+import { supabaseClaims } from 'permdock/supabase';
 import * as v from 'valibot';
+import { schema } from './generated';
 
-export const Claims = v.looseObject({
-  user_role: v.optional(v.union([v.string(), v.array(v.string())])),
-  tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
-  memberships: v.optional(
-    v.array(v.looseObject({ scope: v.string(), id: v.string(), roles: v.array(v.string()) })),
+export const sb = defineSupabase(schema).claims(
+  supabaseClaims().extend(
+    v.object({
+      datetime_preferences: v.optional(
+        v.object({
+          timezone: v.string(),
+          week_start: v.picklist(['monday', 'sunday']),
+          date_format: v.string(),
+          time_format: v.picklist(['12h', '24h']),
+        }),
+      ),
+    }),
   ),
-});
+);
 ```
+
+`session.claims` then has PermDock's `memberships`, `tenant_id`, `roles` and
+`authz_ver`, plus `datetime_preferences`. A token whose claims fail either
+schema resolves to `{ kind: 'invalid', reason: 'claims' }`. Pass
+`supabaseClaims({ tenantClaim: 'org_id' })` when you renamed the tenant
+claim. `hasEntitlement(session, ...)` keeps working, because `features` passes
+through. Name the `features` claim in the app schema to type its keys
+(`features: v.optional(v.record(v.string(), v.array(v.picklist(['exports', 'sso']))))`).
 
 </Step>
 
