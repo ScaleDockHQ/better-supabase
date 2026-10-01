@@ -230,6 +230,129 @@ describe("doctor rules", () => {
     expect(findings[0]!.message).toContain("no update, delete policy");
   });
 
+  describe("self-grant columns (BS213)", () => {
+    const only = RULES.filter((rule) => rule.code === "BS213");
+    type MutableTable = {
+      -readonly [
+        K in keyof Snapshot["extras"]["tables"][number]
+      ]: Snapshot["extras"]["tables"][number][K];
+    };
+    const withTable = (
+      name: string,
+      change: (table: MutableTable) => void,
+    ): Snapshot => {
+      const snap = structuredClone(base);
+      change(snap.extras.tables.find((t) => t.name === name) as MutableTable);
+      return snap;
+    };
+    const updatePolicy = {
+      name: "bs_memberships_update_own",
+      command: "update" as const,
+      roles: ["authenticated"],
+      permissive: true,
+      using: "user_id = auth.uid()",
+      check: "user_id = auth.uid()",
+      functions: ["auth.uid"],
+    };
+
+    it("flags memberships.role that has_org_role reads when members may update their row", async () => {
+      const snap = withTable("memberships", (memberships) => {
+        memberships.policies = [...memberships.policies, updatePolicy];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+        ];
+      });
+      const findings = await runRules(context(snap), only);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({
+        code: "BS213",
+        severity: "warning",
+        target: "better_supabase.memberships",
+      });
+      const message = findings[0]!.message;
+      expect(message).toContain(
+        "authenticated may update org_id, role, user_id",
+      );
+      expect(message).toContain("better_supabase.has_org_role reads them");
+      expect(message).toContain(
+        "revoke update on better_supabase.memberships from authenticated;\ngrant update (created_at) on better_supabase.memberships to authenticated;",
+      );
+    });
+
+    it("flags a column-level grant on a grant column", async () => {
+      const snap = withTable("memberships", (memberships) => {
+        memberships.policies = [...memberships.policies, updatePolicy];
+        memberships.columnGrants = [
+          { column: "role", role: "authenticated", privileges: ["UPDATE"] },
+          {
+            column: "created_at",
+            role: "authenticated",
+            privileges: ["UPDATE"],
+          },
+        ];
+      });
+      const findings = await runRules(context(snap), only);
+      expect(findings[0]?.message).toContain("authenticated may update role.");
+      expect(findings[0]?.message).toContain(
+        "revoke update (role) on better_supabase.memberships from authenticated;",
+      );
+    });
+
+    it("passes once the grant columns are revoked, or no policy lets the role write", async () => {
+      const revoked = withTable("memberships", (memberships) => {
+        memberships.policies = [...memberships.policies, updatePolicy];
+        memberships.columnGrants = [
+          {
+            column: "created_at",
+            role: "authenticated",
+            privileges: ["UPDATE"],
+          },
+        ];
+      });
+      expect(await runRules(context(revoked), only)).toEqual([]);
+      const noPolicy = withTable("memberships", (memberships) => {
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+        ];
+      });
+      expect(await runRules(context(noPolicy), only)).toEqual([]);
+    });
+
+    it("flags PermDock's deciding columns and names PD028", async () => {
+      const permdock: PermdockProject = {
+        ...PERMDOCK,
+        manifest: parseManifest(manifest),
+      };
+      const findings = await runRules(context(base, { permdock }), only);
+      expect(findings.map((finding) => finding.target)).toEqual([
+        "public.contacts",
+      ]);
+      expect(findings[0]!.message).toContain(
+        "authenticated may insert organization_id; authenticated may update organization_id",
+      );
+      expect(findings[0]!.message).toContain(
+        "PermDock's manifest lists organization_id as deciding columns, which PD028 protects",
+      );
+      expect(findings[0]!.message).toContain(
+        "revoke insert, update on public.contacts from authenticated;\ngrant insert (id, email, full_name, created_at, updated_at), update (id, email, full_name, created_at, updated_at) on public.contacts to authenticated;",
+      );
+
+      const revoked = withTable("contacts", (contacts) => {
+        contacts.grants = [
+          { role: "authenticated", privileges: ["DELETE", "SELECT"] },
+        ];
+        contacts.columnGrants = [
+          {
+            column: "full_name",
+            role: "authenticated",
+            privileges: ["INSERT", "UPDATE"],
+          },
+        ];
+      });
+      expect(await runRules(context(revoked, { permdock }), only)).toEqual([]);
+    });
+  });
+
   it("flags policies that read auth.mfa_factors directly", async () => {
     const snap = snapshot((tables) => {
       edit(table(tables, "notes").policies).push({

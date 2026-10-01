@@ -232,6 +232,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         policies: table.policies,
         triggers: table.triggers,
         grants: table.grants,
+        ...(table.columnGrants ? { columnGrants: table.columnGrants } : {}),
       })),
       buckets: catalog.buckets,
       realtime: catalog.realtime,

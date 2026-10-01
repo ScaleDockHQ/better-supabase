@@ -193,6 +193,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       policies: extra?.policies ?? [],
       triggers: extra?.triggers ?? [],
       grants: extra?.grants ?? [],
+      ...(extra?.columnGrants ? { columnGrants: extra.columnGrants } : {}),
     };
   };
 

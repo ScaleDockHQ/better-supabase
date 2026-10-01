@@ -274,6 +274,32 @@ info    BS212 RLS plan for a table
         0.13 ms over 1 call (83%).
 ```
 
+### BS213
+
+**Warning: API roles can write the columns that grant access.** RLS helpers
+decide who sees a row from other rows: `better_supabase.has_org_role` reads
+`memberships.user_id` and `memberships.role`, and a contact-scoped helper reads
+`contacts.user_id` and `contacts.customer_id`. Doctor collects the columns
+that the helpers your policies call read, including the helpers those call,
+plus the `decidingColumns` in PermDock's manifest, which PermDock's PD028
+protects. It warns when `anon` or `authenticated` may insert or update one of
+those columns and a policy lets them write the row: a member who can update
+their own `role`, or a portal contact who can change `customer_id`, grants
+themselves access.
+
+A table-level grant counts even after a column-level revoke, because
+Postgres checks the table grant first. The finding lists the SQL that keeps
+the other columns writable:
+
+```sql
+revoke insert, update on public.contacts from authenticated;
+grant insert (id, name, email), update (id, name, email) on public.contacts to authenticated;
+```
+
+Helper bodies come from the database, or from your SQL files when the
+snapshot doesn't have them. Column grants need a snapshot taken with this
+version; older snapshots only show table grants.
+
 ### BS214
 
 **Error: PermDock permission with row conditions in a Storage or Realtime

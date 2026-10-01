@@ -99,6 +99,8 @@ export interface ExtrasTable {
   readonly policies: readonly CatalogPolicy[];
   readonly triggers: readonly CatalogTrigger[];
   readonly grants: readonly CatalogGrant[];
+  /** Absent in snapshots taken before column grants were introspected. */
+  readonly columnGrants?: readonly CatalogColumnGrant[];
   /** Postgres estimates at least `LARGE_TABLE_ROWS` rows; the `unbounded-read` lint reads it. */
   readonly large?: true;
 }
@@ -155,6 +157,13 @@ export interface CatalogGrant {
   readonly privileges: readonly string[];
 }
 
+/** A column-level `insert` or `update` grant to `anon` or `authenticated`. */
+export interface CatalogColumnGrant {
+  readonly column: string;
+  readonly role: string;
+  readonly privileges: readonly string[];
+}
+
 export interface SnapshotBucket {
   readonly id: string;
   readonly public: boolean;
@@ -198,6 +207,8 @@ export interface CatalogTable {
   readonly policies: readonly CatalogPolicy[];
   readonly triggers: readonly CatalogTrigger[];
   readonly grants: readonly CatalogGrant[];
+  /** Absent in snapshots taken before column grants were introspected. */
+  readonly columnGrants?: readonly CatalogColumnGrant[];
 }
 
 export interface CatalogColumn {

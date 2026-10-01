@@ -5,7 +5,13 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, SqlObject } from "./rules.ts";
 
-import { exposed, policyObject, qualified } from "./shared.ts";
+import {
+  catalogOf,
+  exposed,
+  policyObject,
+  qualified,
+  tableObject,
+} from "./shared.ts";
 
 const escape = (name: string): string =>
   name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -125,6 +131,186 @@ export function permissiveOverlaps(table: CatalogTable): PermissiveOverlap[] {
   return overlaps;
 }
 
+const WRITES = ["insert", "update"] as const;
+const API_ROLES = ["anon", "authenticated"] as const;
+const NOT_ALIAS = new Set([
+  "where",
+  "join",
+  "inner",
+  "left",
+  "right",
+  "full",
+  "cross",
+  "on",
+  "using",
+  "group",
+  "order",
+  "limit",
+  "union",
+  "natural",
+  "lateral",
+  "as",
+]);
+
+interface GrantColumn {
+  /** The helpers that read the column, as `schema.name`. */
+  readonly helpers: Set<string>;
+  /** Listed in the PermDock manifest's `decidingColumns`, which PD028 protects. */
+  permdock: boolean;
+}
+
+/** The body of `schema.name` from the snapshot, else from the first SQL file that creates it. */
+function functionBody(
+  context: DoctorContext,
+  schema: string,
+  name: string,
+): string | undefined {
+  const introspected = context.snapshot.generator.functions.find(
+    (fn) => fn.schema === schema && fn.name === name && fn.definition,
+  )?.definition;
+  if (introspected) return introspected;
+  const creates = new RegExp(
+    `create\\s+(?:or\\s+replace\\s+)?function\\s+(?:"?${escape(schema)}"?\\.)?"?${escape(name)}"?\\s*\\([\\s\\S]*?\\bas\\s+(\\$\\w*\\$)([\\s\\S]*?)\\1`,
+    "i",
+  );
+  for (const file of context.sqlFiles ?? []) {
+    const match = creates.exec(file.text);
+    if (match) return match[2];
+  }
+  return undefined;
+}
+
+/** The functions policies call, and the functions those call, with their bodies. */
+function policyHelpers(context: DoctorContext): Map<string, string> {
+  const known = context.snapshot.generator.functions;
+  const queue = catalogOf(context).tables.flatMap((table) =>
+    table.policies.flatMap((policy) => policy.functions ?? []),
+  );
+  const bodies = new Map<string, string>();
+  while (queue.length > 0) {
+    const key = queue.pop()!;
+    if (bodies.has(key)) continue;
+    const dot = key.indexOf(".");
+    const body = functionBody(context, key.slice(0, dot), key.slice(dot + 1));
+    if (!body) continue;
+    const text = withoutStrings(body);
+    bodies.set(key, text);
+    for (const fn of known) {
+      const called = `${fn.schema}.${fn.name}`;
+      if (!bodies.has(called) && callArguments(text, fn).length > 0)
+        queue.push(called);
+    }
+  }
+  return bodies;
+}
+
+/** Tables a function body reads (`from` and `join`), with the names it refers to them by. */
+function readTables(
+  body: string,
+  tables: readonly CatalogTable[],
+): { table: CatalogTable; names: string[] }[] {
+  const found = new Map<CatalogTable, Set<string>>();
+  const pattern =
+    /\b(?:from|join)\s+(?:"?(\w+)"?\s*\.\s*)?"?(\w+)"?(?:\s+(?:as\s+)?"?(\w+)"?)?/gi;
+  for (const match of body.matchAll(pattern)) {
+    const [, schema, name, alias] = match;
+    const table =
+      tables.find((t) => t.name === name && t.schema === schema) ??
+      (schema
+        ? undefined
+        : (tables.find((t) => t.name === name && t.schema === "public") ??
+          tables.find((t) => t.name === name)));
+    if (!table) continue;
+    const names = found.get(table) ?? new Set([table.name]);
+    if (alias && !NOT_ALIAS.has(alias.toLowerCase())) names.add(alias);
+    found.set(table, names);
+  }
+  return [...found].map(([table, names]) => ({ table, names: [...names] }));
+}
+
+/**
+ * Columns that decide who may read other rows, by `schema.table`: the
+ * columns of the tables policy helpers read that their bodies mention
+ * (qualified, or bare when the body reads one table), and the manifest's
+ * `decidingColumns`.
+ */
+function grantColumns(
+  context: DoctorContext,
+): Map<string, Map<string, GrantColumn>> {
+  const tables = catalogOf(context).tables;
+  const columns = new Map<string, Map<string, GrantColumn>>();
+  const entry = (table: string, column: string): GrantColumn => {
+    const byColumn = columns.get(table) ?? new Map<string, GrantColumn>();
+    columns.set(table, byColumn);
+    const existing = byColumn.get(column);
+    if (existing) return existing;
+    const created: GrantColumn = { helpers: new Set(), permdock: false };
+    byColumn.set(column, created);
+    return created;
+  };
+  for (const [helper, body] of policyHelpers(context)) {
+    const read = readTables(body, tables);
+    for (const { table, names } of read) {
+      for (const column of table.columns) {
+        const col = `"?${escape(column.name)}"?(?![\\w"(])`;
+        const qualifiedColumn = new RegExp(
+          `(?<![\\w"])(?:${names.map((name) => `"?${escape(name)}"?`).join("|")})\\s*\\.\\s*${col}`,
+          "i",
+        );
+        const bare = new RegExp(`(?<![\\w."])${col}`, "i");
+        if (
+          qualifiedColumn.test(body) ||
+          (read.length === 1 && bare.test(body))
+        )
+          entry(qualified(table), column.name).helpers.add(helper);
+      }
+    }
+  }
+  for (const deciding of context.permdock?.manifest?.decidingColumns ?? []) {
+    const dot = deciding.lastIndexOf(".");
+    if (dot > 0)
+      entry(deciding.slice(0, dot), deciding.slice(dot + 1)).permdock = true;
+  }
+  return columns;
+}
+
+/** Whether `role` may run `command` on rows of `table` at all: no RLS, or a permissive policy for it. */
+const policyAllows = (
+  table: CatalogTable,
+  command: (typeof WRITES)[number],
+  role: string,
+): boolean =>
+  !table.rls ||
+  table.policies.some(
+    (policy) =>
+      policy.permissive &&
+      (policy.command === "all" || policy.command === command) &&
+      appliesTo(policy, role),
+  );
+
+/** The grant columns `role` may write with `command`, through a table-level or a column-level grant. */
+function writableColumns(
+  table: CatalogTable,
+  columns: readonly string[],
+  command: (typeof WRITES)[number],
+  role: string,
+): string[] {
+  if (!policyAllows(table, command, role)) return [];
+  const privilege = command.toUpperCase();
+  const tableLevel = table.grants.some(
+    (grant) => grant.role === role && grant.privileges.includes(privilege),
+  );
+  if (tableLevel) return [...columns];
+  return columns.filter((column) =>
+    (table.columnGrants ?? []).some(
+      (grant) =>
+        grant.role === role &&
+        grant.column === column &&
+        grant.privileges.includes(privilege),
+    ),
+  );
+}
+
 /** PostgREST's default for `db-hoisted-tx-settings`. */
 const DEFAULT_HOISTED = [
   "statement_timeout",
@@ -234,6 +420,87 @@ export const RLS_RULES: readonly Rule[] = [
           },
         ];
       }),
+  },
+  {
+    code: "BS213",
+    severity: "warning",
+    title: "API roles can write the columns that grant access",
+    description:
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and PermDock's manifest lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke.",
+    check: (context) => {
+      const tables = new Map(
+        catalogOf(context).tables.map((table) => [qualified(table), table]),
+      );
+      return [...grantColumns(context)].flatMap(
+        ([name, byColumn]): FindingInput[] => {
+          const table = tables.get(name);
+          if (!table) return [];
+          const columns = table.columns
+            .map((column) => column.name)
+            .filter((column) => byColumn.has(column))
+            .sort();
+          const writes: string[] = [];
+          const fix: string[] = [];
+          for (const role of API_ROLES) {
+            const tableLevel: string[] = [];
+            for (const command of WRITES) {
+              const writable = writableColumns(table, columns, command, role);
+              if (writable.length === 0) continue;
+              writes.push(`${role} may ${command} ${writable.join(", ")}`);
+              const grantedTable = table.grants.some(
+                (grant) =>
+                  grant.role === role &&
+                  grant.privileges.includes(command.toUpperCase()),
+              );
+              if (grantedTable) tableLevel.push(command);
+              else
+                fix.push(
+                  `revoke ${command} (${writable.join(", ")}) on ${name} from ${role};`,
+                );
+            }
+            if (tableLevel.length === 0) continue;
+            fix.push(
+              `revoke ${tableLevel.join(", ")} on ${name} from ${role};`,
+            );
+            const rest = table.columns
+              .map((column) => column.name)
+              .filter((column) => !byColumn.has(column));
+            if (rest.length > 0)
+              fix.push(
+                `grant ${tableLevel.map((command) => `${command} (${rest.join(", ")})`).join(", ")} on ${name} to ${role};`,
+              );
+          }
+          if (writes.length === 0) return [];
+          const helpers = [
+            ...new Set(
+              columns.flatMap((column) => [...byColumn.get(column)!.helpers]),
+            ),
+          ].sort();
+          const permdock = columns.filter(
+            (column) => byColumn.get(column)!.permdock,
+          );
+          const readers = [
+            ...(helpers.length > 0
+              ? [
+                  `${helpers.join(", ")} read${helpers.length === 1 ? "s" : ""} them to decide access`,
+                ]
+              : []),
+            ...(permdock.length > 0
+              ? [
+                  `PermDock's manifest lists ${permdock.join(", ")} as deciding columns, which PD028 protects`,
+                ]
+              : []),
+          ].join(", and ");
+          return [
+            {
+              message: `${name}: ${writes.join("; ")}. ${readers}, so a user who writes them can grant themselves access. Revoke the columns and grant the rest:\n${fix.join("\n")}`,
+              target: name,
+              object: tableObject(table),
+            },
+          ];
+        },
+      );
+    },
   },
   {
     code: "BS211",

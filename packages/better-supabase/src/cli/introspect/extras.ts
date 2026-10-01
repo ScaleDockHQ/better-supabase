@@ -159,6 +159,19 @@ where g.table_schema = any(${schemas}) and g.grantee in ('anon', 'authenticated'
 group by 1, 2
 order by 1, 2`;
 
+const COLUMN_GRANTS = (schemas: string) => `
+select c.oid::int8 as table_id, a.attname as column, r.rolname as role,
+  array_agg(distinct acl.privilege_type order by acl.privilege_type)::text[] as privileges
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped and a.attacl is not null
+cross join lateral aclexplode(a.attacl) acl
+join pg_roles r on r.oid = acl.grantee
+where n.nspname = any(${schemas}) and r.rolname in ('anon', 'authenticated')
+  and acl.privilege_type in ('INSERT', 'UPDATE')
+group by 1, 2, 3
+order by 1, 2, 3`;
+
 const BUCKETS = `
 select id, public, file_size_limit, allowed_mime_types
 from storage.buckets
@@ -314,6 +327,10 @@ interface GrantRow {
   privileges: string[];
 }
 
+interface ColumnGrantRow extends GrantRow {
+  column: string;
+}
+
 interface BucketRow {
   id: string;
   public: boolean;
@@ -369,6 +386,9 @@ export async function readExtras(
   const policies = groupById(await rows<PolicyRow>(db, POLICIES(list)));
   const triggers = groupById(await rows<TriggerRow>(db, TRIGGERS(list)));
   const grants = groupById(await rows<GrantRow>(db, GRANTS(list)));
+  const columnGrants = groupById(
+    await rows<ColumnGrantRow>(db, COLUMN_GRANTS(list)),
+  );
   const buckets = await serviceRows<BucketRow>(db, "storage.buckets", BUCKETS);
   const realtime = await serviceRows<{ name: string }>(
     db,
@@ -442,6 +462,11 @@ export async function readExtras(
         function: trigger.function,
       })),
       grants: (grants.get(id) ?? []).map((grant) => ({
+        role: grant.role,
+        privileges: grant.privileges,
+      })),
+      columnGrants: (columnGrants.get(id) ?? []).map((grant) => ({
+        column: grant.column,
         role: grant.role,
         privileges: grant.privileges,
       })),

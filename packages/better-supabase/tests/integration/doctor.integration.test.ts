@@ -76,6 +76,26 @@ describe.skipIf(!source)("doctor against the local stack", () => {
       grant execute on function ${SCHEMA}.is_member(uuid) to authenticated;
       insert into ${SCHEMA}.projects (org_id)
         select '${ORG}'::uuid from generate_series(1, 20);
+      create table ${SCHEMA}.members (
+        org_id uuid not null,
+        user_id uuid not null,
+        role text not null,
+        note text,
+        primary key (org_id, user_id)
+      );
+      alter table ${SCHEMA}.members enable row level security;
+      create function ${SCHEMA}.is_admin(org uuid) returns boolean
+        language sql stable security definer set search_path = ''
+        as $$ select exists (
+          select 1 from ${SCHEMA}.members m
+          where m.org_id = org and m.user_id = auth.uid() and m.role = 'admin'
+        ) $$;
+      create policy members_read on ${SCHEMA}.members for select to authenticated
+        using ((select ${SCHEMA}.is_admin(org_id)));
+      create policy members_own on ${SCHEMA}.members for update to authenticated
+        using (user_id = (select auth.uid()));
+      grant select on ${SCHEMA}.members to authenticated;
+      grant update (role, note) on ${SCHEMA}.members to authenticated;
     `);
     snapshot = await introspect(db.queryable, [SCHEMA]);
   });
@@ -120,6 +140,29 @@ describe.skipIf(!source)("doctor against the local stack", () => {
         ),
       },
     ]);
+  });
+
+  it("reads column grants and flags a role column members may update (BS213)", async () => {
+    const members = snapshot.extras.tables.find(
+      (entry) => entry.name === "members",
+    )!;
+    expect(members.columnGrants).toEqual([
+      { column: "note", role: "authenticated", privileges: ["UPDATE"] },
+      { column: "role", role: "authenticated", privileges: ["UPDATE"] },
+    ]);
+    const findings = await runRules(context(), only("BS213"));
+    expect(findings).toMatchObject([
+      {
+        code: "BS213",
+        target: `${SCHEMA}.members`,
+        message: expect.stringContaining(
+          `authenticated may update role. ${SCHEMA}.is_admin reads them`,
+        ),
+      },
+    ]);
+    expect(findings[0]!.message).toContain(
+      `revoke update (role) on ${SCHEMA}.members from authenticated;`,
+    );
   });
 
   it("reads statistics without failing", async () => {
