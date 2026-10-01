@@ -407,8 +407,9 @@ extra writes from the hook. See
 [better-supabase and PermDock](/docs/auth/permdock).
 
 PermDock's generated hook, which sets `memberships_truncated`, is not
-reported. Neither are claims PermDock doesn't write, such as the `features`
-claim from `better_supabase.feature_claims`.
+reported. Neither are claims PermDock doesn't own, such as the `features`
+claim from `better_supabase.feature_claims`, which PermDock's hook writes
+when `supabase.hook.claims` names it.
 
 ## Env files
 

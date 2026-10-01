@@ -130,24 +130,40 @@ This is UX: the policy above still decides.
 `permdock.config.ts` without `--force`, and doctor's BS407 doesn't report
 `feature_claims`.
 
-What works today:
-
 - `has_entitlement(tenant, key)` and `tenant_entitlements(tenant)` read the
   Stripe tables directly, so SQL and RLS need no claim. `has_entitlement`
   checks membership through the `tenant` module's `better_supabase.memberships`
   table. Keep memberships there and list the table as a PermDock membership
   source, so PermDock and the policy agree:
   `fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
-- `hasEntitlement(session, ...)` reads the `features` claim, and PermDock's
-  generated hook doesn't write it yet. Until it does, read entitlements from
-  the database on the server (`tenant_entitlements` with the service role, or
-  a query under the user's RLS), not from the session.
+- `hasEntitlement(session, ...)` reads the `features` claim. Name
+  `feature_claims` in PermDock's hook and the generated hook writes it, so
+  `hasEntitlement` works as it does without PermDock:
 
-PermDock plans a hook slot for extra claims
-(`supabase.hook.claims: { features: 'better_supabase.feature_claims' }`).
-Once it ships, the generated hook writes `features` and `hasEntitlement`
-works as it does without PermDock. Don't edit the generated hook by hand in
-the meantime: `permdock supabase hook generate` overwrites it.
+```ts title="permdock.config.ts"
+import { fromJunction } from 'permdock/supabase';
+
+export default {
+  supabase: {
+    hook: {
+      memberships: [
+        fromJunction({
+          table: 'better_supabase.memberships',
+          scope: 'organization',
+          id: 'org_id',
+          roles: 'role',
+        }),
+      ],
+      claims: { features: 'better_supabase.feature_claims' },
+    },
+  },
+};
+```
+
+Run `permdock supabase hook generate` after changing the config instead of
+editing the generated hook: the command overwrites it.
+`subjectFromSupabaseSession(session, { plans: 'features' })` reads the active
+tenant's `features` into PermDock's `principal.plans`.
 
 ## Keeping claims fresh
 

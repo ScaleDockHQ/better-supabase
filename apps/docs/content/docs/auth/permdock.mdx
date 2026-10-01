@@ -67,15 +67,40 @@ The hook writes these claims:
 | `attrs` | The attributes listed in `supabase.hook.attrs`, when there are any |
 | `authz_ver` | The user's authorization version from `permdock_authz_version`, bumped when their grants change |
 | `memberships_truncated` | `true` when memberships were dropped to fit the budget |
+| `features` | The plan features from `better_supabase.feature_claims`, when `supabase.hook.claims` names it |
 
-It has no slot for other claims yet. Don't call
-better-supabase's `membership_claims()` from a hook next to it, and don't write
-`roles`, `user_role`, `memberships` or the tenant claim yourself: PermDock
-owns them. `better-supabase sql add tenant` stops when it finds a
-`permdock.config.ts` (`--force` writes it anyway), and
+Claims better-supabase owns go through `supabase.hook.claims` in
+`permdock.config.ts`. Each value is a schema-qualified function that takes the
+user id and returns `jsonb`; the hook sets the claim to its result:
+
+```ts title="permdock.config.ts"
+import { fromJunction } from 'permdock/supabase';
+
+export default {
+  supabase: {
+    hook: {
+      memberships: [
+        fromJunction({
+          table: 'better_supabase.memberships',
+          scope: 'organization',
+          id: 'org_id',
+          roles: 'role',
+        }),
+      ],
+      claims: { features: 'better_supabase.feature_claims' },
+    },
+  },
+};
+```
+
+Don't call better-supabase's `membership_claims()` from a hook next to it, and
+don't write `roles`, `user_role`, `memberships` or the tenant claim yourself:
+PermDock owns them, and `permdock supabase hook generate` refuses those names
+in `supabase.hook.claims`. `better-supabase sql add tenant` stops when it finds
+a `permdock.config.ts` (`--force` writes it anyway), and
 [doctor](/docs/cli/doctor#bs407) reports BS407 for a hook that writes those
 claims next to PermDock. The `entitlements` module is not a conflict: see
-[What works with PermDock today](#what-works-with-permdock-today).
+[Entitlements with PermDock](#entitlements-with-permdock).
 
 </Step>
 
@@ -170,19 +195,16 @@ export const listCustomers = pipeline(
 `permdock/mcp` wraps the official MCP SDK's server, so it can't wrap
 `createMcp`. Use `createMcp`'s [`authorize` and `visible`
 hooks](/docs/frameworks/mcp#authorizing-tools) instead: put the PermDock
-permission in each tool's `meta` and ask PermDock in the hooks. The hooks only
-need a structural type, so better-supabase never imports PermDock:
+permission in each tool's `meta`, answer `visible` with PermDock's `mayUse`
+and `authorize` with `can`. The hooks only need a structural type, so
+better-supabase never imports PermDock:
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from 'better-supabase/mcp';
-import { createPermDock } from 'permdock';
+import { createPermDock, mayUse } from 'permdock';
 import { subjectFromSupabaseSession } from 'permdock/supabase';
 
-interface Checks {
-  can(permission: unknown): boolean;
-}
-
-async function checks(ctx: { auth: { kind: string; claims?: unknown } }): Promise<Checks> {
+async function dockFor(ctx: { auth: { kind: string; claims?: unknown } }) {
   return createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
 }
 
@@ -193,13 +215,13 @@ const mcp = createMcp(sb, {
   authorize: async (ctx, tool) => {
     const permission = tool.meta;
     if (permission === undefined) return { allowed: true };
-    return (await checks(ctx)).can(permission)
+    return (await dockFor(ctx)).can(permission)
       ? { allowed: true }
       : { allowed: false, reason: 'PermDock denied this tool' };
   },
   visible: async (ctx, tool) => {
     const permission = tool.meta;
-    return permission === undefined || (await checks(ctx)).can(permission);
+    return permission === undefined || mayUse(await dockFor(ctx), permission);
   },
 }).tool({
   name: 'export_customers',
@@ -211,11 +233,12 @@ const mcp = createMcp(sb, {
 
 Return `scopes` from `authorize` when the permission needs an OAuth scope the
 token lacks, and the client gets an `insufficient_scope` challenge naming it.
-`can` decides without a row, so a permission granted only on some rows (a
-row condition) is refused here; check those inside `run`, where the row is
-known, or rely on RLS. PermDock's `mayUse` listing hint (a permission that
-could apply to some row) would fit `visible` better, but PermDock doesn't
-export it yet.
+`mayUse` lists a tool when some grant could apply to the subject, including a
+grant with a row condition. `can` decides without a row, so `authorize` still
+refuses a permission granted only on some rows; check those inside `run`,
+where the row is known, or rely on RLS. A permission that needs human
+approval is refused too, because `createMcp` has no approval store: serve
+those tools through `permdock/mcp` on the official MCP SDK.
 
 ## Sessions in Next.js and React
 
@@ -237,7 +260,8 @@ export async function permdockFor() {
 
 The hook keeps `memberships` plus `attrs` under its budget
 (`supabase.hook.budget`, 1 KB by default) by dropping memberships and setting
-`memberships_truncated`. The budget doesn't cover the rest of the token. Pass
+`memberships_truncated`. The budget doesn't cover the rest of the token,
+including the `supabase.hook.claims` such as `features`, so keep those small. Pass
 your membership sources through PermDock's `claimsFirst(sources)`: it uses the
 token's memberships and reads the sources only when the token says it dropped
 some.
@@ -267,11 +291,14 @@ policy: { permdock: { read: 'documents.read' }, scope: 'organization' }
 policy: { permdock: { read: 'documents.browse' }, scope: 'organization' }
 ```
 
-Keys PermDock splits by row condition (`documents.read#1`) are refused.
-PermDock plans to mark `rowConditions` per permission in its catalog and to
-add a doctor check for this; neither exists yet.
+Keys PermDock splits by row condition (`documents.read#1`) are refused. To
+find the rest, read `rowConditions` in `permissions.catalog.json`: it is `true`
+for a permission with a grant the helpers don't check. `permdock doctor`
+reports PD037 for a migration's `storage.objects` or `realtime.messages`
+policy that calls a helper for such a key, and `permdock rls verify --db`
+checks the same in `pg_policies`.
 
-## What works with PermDock today
+## Entitlements with PermDock
 
 Plan entitlements are not a PermDock claim, so the
 [entitlements module](/docs/kits/entitlements#with-permdock) works next to
@@ -279,13 +306,14 @@ PermDock:
 
 - `has_entitlement(tenant, key)` and `tenant_entitlements(tenant)` read the
   Stripe tables, so SQL and RLS need no claim.
-- `hasEntitlement(session, ...)` needs the `features` claim, which PermDock's
-  generated hook doesn't write yet. Read entitlements from the database on the
-  server until it does.
+- `hasEntitlement(session, ...)` reads the `features` claim. Add
+  `claims: { features: 'better_supabase.feature_claims' }` to
+  `supabase.hook` in `permdock.config.ts` (see [Use one hook](#use-one-hook))
+  and PermDock's hook writes it.
 
-PermDock plans a hook slot for extra claims,
-`supabase.hook.claims: { features: 'better_supabase.feature_claims' }`, which
-will let its hook write `features`.
+`subjectFromSupabaseSession(session, { plans: 'features' })` reads the active
+tenant's `features` into the subject's `principal.plans`, so PermDock
+policies can grant by plan.
 
 ## What neither package does
 

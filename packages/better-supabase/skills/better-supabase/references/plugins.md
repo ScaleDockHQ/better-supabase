@@ -59,7 +59,8 @@ Never read it from `user_metadata`, a URL or a request body. When the project
 has a `permdock.config.ts`, PermDock's hook writes that claim and the
 memberships; don't run `sql add tenant` there or call `membership_claims()`
 from a hook. `sql add entitlements` is fine: `features` is not a PermDock
-claim, but PermDock's hook doesn't write it yet, so read entitlements from the
-database on the server instead of `hasEntitlement(session, ...)`.
+claim. Add `claims: { features: 'better_supabase.feature_claims' }` to
+`supabase.hook` in `permdock.config.ts`, run `permdock supabase hook generate`,
+and `hasEntitlement(session, ...)` works.
 
 Docs: https://bettersupabase.com/docs/plugins.md

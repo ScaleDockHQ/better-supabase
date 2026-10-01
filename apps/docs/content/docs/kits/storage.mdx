@@ -157,9 +157,11 @@ export const files = defineBucket({
 
 PermDock splits some permissions with row conditions into keys such as
 `files.download#1`. `defineBucket` refuses those keys, but a permission with
-row conditions doesn't always have one, so check the permission's grants
-before using it here. PermDock plans to mark `rowConditions` per permission in
-its catalog and to add a doctor check for this; neither exists yet.
+row conditions doesn't always have one. Check `rowConditions` for the
+permission in `permissions.catalog.json` before using it here: `true` means
+the helpers would grant more than the application does. `permdock doctor`
+reports PD037 for a bucket policy in your migrations that calls a helper for
+such a key.
 
 `logos.toml()` gives the `[storage.buckets.customer-logos]` section for
 `supabase/config.toml`. `logos.drift(actual)` compares the bucket with what
