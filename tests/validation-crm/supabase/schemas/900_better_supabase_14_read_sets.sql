@@ -19,3 +19,19 @@ as $rs$
 $rs$;
 revoke execute on function public.rs_app_chrome(jsonb) from public, anon, authenticated;
 grant execute on function public.rs_app_chrome(jsonb) to authenticated;
+
+-- customer_detail
+create or replace function public.rs_customer_detail(p jsonb)
+  returns jsonb
+  language sql stable security invoker set search_path = ''
+as $rs$
+  select jsonb_build_object(
+    'customer', jsonb_build_object('rows', (select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (select json_build_object('id', t0."id", 'companyName', t0."company_name", 'isBusiness', t0."is_business", 'status', t0."status", 'billingEmail', t0."billing_email", 'website', t0."website") as row from "public"."customers" as t0 where (t0."id" = ((p->>'customerId')::int8) and t0."organization_id" = ((p->>'organizationId')::uuid)) limit 1) s), 'count', null),
+    'contacts', jsonb_build_object('rows', (select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (select json_build_object('id', t0."id", 'jobTitle', t0."job_title", 'isPrimary', t0."is_primary", 'contactProfile', (select json_build_object('id', t1."id", 'firstName', t1."first_name", 'lastName', t1."last_name", 'displayName', t1."display_name", 'contactMethods', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t2."id", 'type', t2."type", 'value', t2."value", 'isPrimary', t2."is_primary") as r, row_number() over () as o from "public"."contact_methods" as t2 where t2."contact_profile_id" = t1."id") as s)) from "public"."contact_profiles" as t1 where t1."id" = t0."contact_profile_id" limit 1)) as row from "public"."customer_contacts" as t0 where (t0."customer_id" = ((p->>'customerId')::int8) and t0."organization_id" = ((p->>'organizationId')::uuid)) order by t0."is_primary" desc, t0."created_at" asc) s), 'count', null),
+    'locations', jsonb_build_object('rows', (select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (select json_build_object('id', t0."id", 'name', t0."name", 'addressLine1', t0."address_line1", 'addressCity', t0."address_city", 'isPrimary', t0."is_primary") as row from "public"."customer_locations" as t0 where (t0."customer_id" = ((p->>'customerId')::int8) and t0."organization_id" = ((p->>'organizationId')::uuid)) order by t0."is_primary" desc, t0."created_at" asc) s), 'count', null),
+    'quotes', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from "public"."quotes" as t0 where (t0."customer_id" = ((p->>'customerId')::int8) and t0."organization_id" = ((p->>'organizationId')::uuid)))),
+    'invoices', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from "public"."invoices" as t0 where (t0."customer_id" = ((p->>'customerId')::int8) and t0."organization_id" = ((p->>'organizationId')::uuid))))
+  )
+$rs$;
+revoke execute on function public.rs_customer_detail(jsonb) from public, anon, authenticated;
+grant execute on function public.rs_customer_detail(jsonb) to authenticated;

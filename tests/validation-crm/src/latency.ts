@@ -1,7 +1,5 @@
 import { defineReadSet, defineSupabase } from "better-supabase";
 import { defineListQuery } from "better-supabase/list";
-import { tenant } from "better-supabase/plugins/tenant";
-import * as v from "valibot";
 
 import { schema } from "./generated.ts";
 
@@ -48,29 +46,3 @@ export const appChrome = defineReadSet(
     }),
   }),
 );
-
-/** Claims of the customer portal token: the customer it may see. */
-export const PortalClaims = v.object({
-  sub: v.pipe(v.string(), v.uuid()),
-  customer_id: v.pipe(v.string(), v.regex(/^\d+$/)),
-});
-
-/**
- * The portal generates with `plugins.tenant.column: 'customer_id'`; this
- * marks the same tables on the staff schema, so one snapshot serves both.
- */
-const portalMeta = {
-  ...schema.meta,
-  tables: Object.fromEntries(
-    Object.entries(schema.meta.tables).map(([key, table]) => [
-      key,
-      table.columns["customerId"]
-        ? { ...table, flags: { ...table.flags, tenant: "customerId" } }
-        : table,
-    ]),
-  ),
-};
-
-export const portal = defineSupabase({ ...schema, meta: portalMeta })
-  .claims(PortalClaims)
-  .use(tenant<v.InferOutput<typeof PortalClaims>>({ claim: "customer_id" }));
