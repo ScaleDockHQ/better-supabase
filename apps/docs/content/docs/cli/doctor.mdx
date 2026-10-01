@@ -33,6 +33,7 @@ with 1 when there are errors, or with any warning under `--strict`.
 | `--explain <tables>` | Plan these tables under RLS ([BS212](#bs212)) |
 | `--as <uuid>` | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405)) |
 | `--claims <json>` | With `--explain`: plan with these JWT claims |
+| `--fix-grants` | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a migration |
 
 Doctor never prints env values, only variable names and line numbers.
 
@@ -373,6 +374,25 @@ grant usage on schema rbac to supabase_auth_admin;
 grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase_auth_admin;
 revoke execute on function rbac.custom_access_token_hook(event jsonb) from authenticated, anon, public;
 ```
+
+`supabase db diff` does not carry function grants, so append them to the
+migration it wrote. `better-supabase doctor --fix-grants` prints the block for
+every hook at once:
+
+```bash
+supabase db diff -f auth_hook
+better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook.sql
+```
+
+When the function is PermDock's generated hook, the finding points to
+`permdock supabase hook generate --grants-out <file>` instead, which writes
+the grants migration with a `-- permdock:grants v1` marker. When a migration
+with that marker already grants the function, the database is behind the
+migrations, and the finding says to run `supabase migration up`.
+
+Doctor reads the declarative schemas in `[db.migrations] schema_paths` order,
+then the files no entry matches, then the migrations newest first. Findings
+point at the first file that declares the object.
 
 A hook whose function doesn't exist is reported at its `config.toml` line,
 because every sign-in fails until it does. Snapshots taken before the hook

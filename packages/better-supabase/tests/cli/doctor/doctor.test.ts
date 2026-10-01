@@ -18,6 +18,10 @@ import type { PermdockProject } from "../../../src/cli/permdock.ts";
 import { locate } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { formatReport } from "../../../src/cli/doctor/format.ts";
+import {
+  hookGrantBlock,
+  hookGrantProblems,
+} from "../../../src/cli/doctor/hooks.ts";
 import { summarizePlan } from "../../../src/cli/doctor/live.ts";
 import {
   type DoctorContext,
@@ -841,6 +845,54 @@ uri = "https://example.com/hook"
       );
       expect(message).toContain("authenticated, anon, public may execute it");
       expect(message).toContain("from authenticated, anon, public;");
+    });
+
+    it("points PermDock's hook at its grants migration, and an applied-later one at migration up (BS404)", async () => {
+      const ungranted = withHook([hookFn({ execute: [], schemaUsage: [] })]);
+      const hookFile = {
+        path: "supabase/schemas/040_hook.sql",
+        text: "-- permdock:hook v1 schema=rbac\ncreate or replace function rbac.custom_access_token_hook(event jsonb)",
+      };
+      const [permdock] = await runRules(
+        hookContext(ungranted, { sqlFiles: [hookFile] }),
+        only("BS404"),
+      );
+      expect(permdock?.message).toContain(
+        "permdock supabase hook generate --grants-out",
+      );
+      expect(permdock?.message).not.toContain("grant usage");
+
+      const grantsFile = {
+        path: "supabase/migrations/20261001000001_permdock_hook_grants.sql",
+        text: "-- permdock:grants v1 schema=rbac\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
+      };
+      const [migration] = await runRules(
+        hookContext(ungranted, { sqlFiles: [hookFile, grantsFile] }),
+        only("BS404"),
+      );
+      expect(migration?.message).toContain(
+        `${grantsFile.path} grants it, so the database is behind the migrations`,
+      );
+    });
+
+    it("prints every BS404 fix as one block (--fix-grants)", () => {
+      const problems = hookGrantProblems(
+        hookContext(withHook([hookFn({ execute: ["anon"], schemaUsage: [] })])),
+      );
+      expect(hookGrantBlock(problems)).toBe(
+        [
+          "-- Auth hook grants (better-supabase doctor --fix-grants).",
+          "-- `supabase db diff` does not carry function grants; append this to its migration.",
+          "",
+          "-- rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token])",
+          "grant usage on schema rbac to supabase_auth_admin;",
+          "grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase_auth_admin;",
+          "revoke execute on function rbac.custom_access_token_hook(event jsonb) from authenticated, anon, public;",
+        ].join("\n"),
+      );
+      expect(hookGrantBlock(hookGrantProblems(hookContext(base)))).toBe(
+        "-- Every configured Auth hook function has its grants.",
+      );
     });
 
     it("flags a hook function that does not exist, located in config.toml", async () => {

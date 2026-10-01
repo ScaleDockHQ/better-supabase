@@ -1,7 +1,11 @@
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Location, Rule } from "./rules.ts";
 
-import { parseHookMarker, permdockSource } from "../permdock.ts";
+import {
+  parseGrantsMarker,
+  parseHookMarker,
+  permdockSource,
+} from "../permdock.ts";
 import { type PgFunctionHook, pgFunctionHooks } from "../supabase-toml.ts";
 import { errorText, ident, literal, type LiveDatabase } from "./live.ts";
 import { lineOf } from "./shared.ts";
@@ -199,6 +203,110 @@ function grantProblems(fn: ExtrasHookFunction): {
   return { problems, fix };
 }
 
+/** What fixes a hook function's grants: SQL to append, PermDock's grants migration, or applying one that exists. */
+type HookGrantFix =
+  | { readonly kind: "sql"; readonly sql: readonly string[] }
+  | { readonly kind: "permdock" }
+  | { readonly kind: "migration"; readonly file: string };
+
+export interface HookGrantProblem {
+  readonly hook: string;
+  readonly fn: ExtrasHookFunction;
+  readonly problems: readonly string[];
+  readonly fix: HookGrantFix;
+}
+
+/** The `-- permdock:grants v1` migration that grants `fn`, if any. */
+function grantsMigrationFor(
+  context: DoctorContext,
+  fn: ExtrasHookFunction,
+): string | undefined {
+  const grants = new RegExp(
+    `grant\\s+execute\\s+on\\s+function\\s+${quotedName(fn.schema, fn.name)}\\s*\\(`,
+    "i",
+  );
+  return (context.sqlFiles ?? []).find(
+    (file) => parseGrantsMarker(file.text) && grants.test(file.text),
+  )?.path;
+}
+
+const PERMDOCK_GRANTS_COMMAND =
+  "permdock supabase hook generate --grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql";
+
+/** Configured hook functions whose grants are wrong (BS404, `doctor --fix-grants`). */
+export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
+  return configuredHooks(context).flatMap(({ config, extras }) =>
+    (extras?.functions ?? []).flatMap((fn): HookGrantProblem[] => {
+      const { problems, fix } = grantProblems(fn);
+      if (problems.length === 0) return [];
+      const file = grantsMigrationFor(context, fn);
+      return [
+        {
+          hook: config.hook,
+          fn,
+          problems,
+          fix: file
+            ? { kind: "migration", file }
+            : isPermdockHook(context, fn)
+              ? { kind: "permdock" }
+              : { kind: "sql", sql: fix },
+        },
+      ];
+    }),
+  );
+}
+
+/** The sentence that tells the reader how to apply `fix`. */
+function grantFixText(fix: HookGrantFix): string {
+  switch (fix.kind) {
+    case "sql":
+      return `Append to the migration \`supabase db diff\` wrote (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
+    case "permdock":
+      return `It is PermDock's hook, so let PermDock write the grants: \`${PERMDOCK_GRANTS_COMMAND}\`.`;
+    case "migration":
+      return `${fix.file} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`;
+    default: {
+      const unreachable: never = fix;
+      return unreachable;
+    }
+  }
+}
+
+/** `doctor --fix-grants`: the SQL block for every BS404 problem, as one migration snippet. */
+export function hookGrantBlock(problems: readonly HookGrantProblem[]): string {
+  if (problems.length === 0)
+    return "-- Every configured Auth hook function has its grants.";
+  const lines = [
+    "-- Auth hook grants (better-supabase doctor --fix-grants).",
+    "-- `supabase db diff` does not carry function grants; append this to its migration.",
+  ];
+  for (const { fn, hook, fix } of problems) {
+    const name = `${signatureOf(fn)} ([auth.hook.${hook}])`;
+    switch (fix.kind) {
+      case "sql":
+        lines.push("", `-- ${name}`, ...fix.sql);
+        break;
+      case "permdock":
+        lines.push(
+          "",
+          `-- ${name} is PermDock's hook: ${PERMDOCK_GRANTS_COMMAND}`,
+        );
+        break;
+      case "migration":
+        lines.push(
+          "",
+          `-- ${name}: ${fix.file} grants it; run \`supabase migration up\`.`,
+        );
+        break;
+      default: {
+        const unreachable: never = fix;
+        return unreachable;
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
 const emptySearchPath = (fn: ExtrasHookFunction): boolean => {
   const value = fn.settings["search_path"];
   return value === "" || value === '""' || value === "''";
@@ -280,32 +388,28 @@ export const HOOK_RULES: readonly Rule[] = [
     title: "Auth hook function grants",
     description:
       "Auth calls Postgres hook functions as `supabase_auth_admin`, which needs usage on the schema and execute on the function. Nobody else should be able to call them: a client calling the custom access token hook through the API sees what it adds for any user id.",
-    check: (context) =>
-      configuredHooks(context).flatMap(({ config, extras }): FindingInput[] => {
-        if (!extras) return [];
-        const location = hookLocation(context, config.hook);
-        const where = location ? { location } : {};
-        if (extras.functions.length === 0) {
+    check: (context) => [
+      ...configuredHooks(context).flatMap(
+        ({ config, extras }): FindingInput[] => {
+          if (!extras || extras.functions.length > 0) return [];
+          const location = hookLocation(context, config.hook);
           return [
             {
               message: `[auth.hook.${config.hook}] calls ${config.schema}.${config.name}, which does not exist. Sign-ins fail until it does.`,
               target: `[auth.hook.${config.hook}]`,
-              ...where,
+              ...(location ? { location } : {}),
             },
           ];
-        }
-        return extras.functions.flatMap((fn): FindingInput[] => {
-          const { problems, fix } = grantProblems(fn);
-          if (problems.length === 0) return [];
-          return [
-            {
-              message: `${signatureOf(fn)} ([auth.hook.${config.hook}]): ${problems.join("; ")}. Run:\n${fix.join("\n")}`,
-              target: signatureOf(fn),
-              object: { kind: "function", schema: fn.schema, name: fn.name },
-            },
-          ];
-        });
-      }),
+        },
+      ),
+      ...hookGrantProblems(context).map(
+        ({ hook, fn, problems, fix }): FindingInput => ({
+          message: `${signatureOf(fn)} ([auth.hook.${hook}]): ${problems.join("; ")}. ${grantFixText(fix)}`,
+          target: signatureOf(fn),
+          object: { kind: "function", schema: fn.schema, name: fn.name },
+        }),
+      ),
+    ],
   },
   {
     code: "BS405",

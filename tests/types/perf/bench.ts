@@ -1,7 +1,9 @@
 import {
   type CatalogColumn,
   type CatalogForeignKey,
+  type CatalogFunction,
   type CatalogTable,
+  type CatalogUnique,
   fromCatalog,
   type Snapshot,
 } from "better-supabase/cli";
@@ -16,14 +18,27 @@ interface Measurement {
   readonly instantiations: number;
 }
 
-interface Baseline {
+interface Profile {
   readonly tables: number;
   readonly queried: number;
+  /**
+   * CentraKit's shape: uuid keys, `unique (id, organization_id)` on every
+   * table, composite foreign keys that repeat `organization_id`, and the
+   * `graphql_public` schema next to `public`.
+   */
+  readonly composite: boolean;
+}
+
+interface BaselineEntry extends Profile {
   readonly measurement: Measurement;
 }
 
-const TABLES = 150;
-const QUERIED = 40;
+type Baseline = Readonly<Record<string, BaselineEntry>>;
+
+const PROFILES: Readonly<Record<string, Profile>> = {
+  default: { tables: 150, queried: 40, composite: false },
+  centrakit: { tables: 250, queried: 40, composite: true },
+};
 const TOLERANCE = 0.1;
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -67,15 +82,16 @@ function column(
 
 function foreignKey(
   table: string,
-  col: string,
+  cols: readonly string[],
   ref: string,
+  refCols: readonly string[] = ["id"],
 ): CatalogForeignKey {
   return {
-    name: `${table}_${col}_fkey`,
-    columns: [col],
+    name: `${table}_${cols.join("_")}_fkey`,
+    columns: cols,
     refSchema: "public",
     refTable: ref,
-    refColumns: ["id"],
+    refColumns: refCols,
     oneToOne: false,
     onDelete: "cascade",
     onUpdate: "no action",
@@ -86,6 +102,7 @@ function table(
   tableName: string,
   columns: CatalogColumn[],
   foreignKeys: CatalogForeignKey[],
+  uniques: CatalogUnique[] = [],
 ): CatalogTable {
   return {
     id: 0,
@@ -100,7 +117,7 @@ function table(
     comment: null,
     columns,
     primaryKey: ["id"],
-    uniques: [],
+    uniques,
     foreignKeys,
     checks: [],
     indexes: [],
@@ -110,7 +127,31 @@ function table(
   };
 }
 
-function snapshot(): Snapshot {
+/** The function `graphql_public` holds on every Supabase project. */
+const GRAPHQL: CatalogFunction = {
+  schema: "graphql_public",
+  name: "graphql",
+  signature:
+    '"operationName" text, query text, variables jsonb, extensions jsonb',
+  args: ["operationName", "query", "variables", "extensions"].map(
+    (arg, index) => ({
+      name: arg,
+      udt: index < 2 ? "text" : "jsonb",
+      isArray: false,
+      hasDefault: true,
+    }),
+  ),
+  returnsTable: null,
+  returns: "jsonb",
+  returnsRelation: null,
+  returnsSet: false,
+  volatility: "volatile",
+  securityDefiner: false,
+  language: "sql",
+  searchPath: null,
+};
+
+function snapshot(profile: Profile): Snapshot {
   const tables = [
     table(
       "organizations",
@@ -121,7 +162,7 @@ function snapshot(): Snapshot {
       [],
     ),
   ];
-  for (let i = 0; i < TABLES; i++) {
+  for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i++) {
     const tableName = name(i);
     const columns = [
       column("id", "uuid", { default: "gen_random_uuid()" }),
@@ -139,21 +180,39 @@ function snapshot(): Snapshot {
     ];
     for (let c = 0; c < 8; c++)
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
-    const keys = [foreignKey(tableName, "organization_id", "organizations")];
-    if (i > 0) keys.push(foreignKey(tableName, "parent_id", name(i - 1)));
-    tables.push(table(tableName, columns, keys));
+    const keys = [foreignKey(tableName, ["organization_id"], "organizations")];
+    if (i > 0)
+      keys.push(
+        profile.composite
+          ? foreignKey(
+              tableName,
+              ["parent_id", "organization_id"],
+              name(i - 1),
+              ["id", "organization_id"],
+            )
+          : foreignKey(tableName, ["parent_id"], name(i - 1)),
+      );
+    const uniques = profile.composite
+      ? [
+          {
+            name: `${tableName}_id_organization_id_key`,
+            columns: ["id", "organization_id"],
+          },
+        ]
+      : [];
+    tables.push(table(tableName, columns, keys, uniques));
   }
   return fromCatalog({
-    schemas: ["public"],
+    schemas: profile.composite ? ["public", "graphql_public"] : ["public"],
     tables,
     enums: [],
-    functions: [],
+    functions: profile.composite ? [GRAPHQL] : [],
     buckets: [],
     realtime: [],
   });
 }
 
-function consumer(): string {
+function consumer(profile: Profile): string {
   const lines = [
     "import type { SupabaseClient } from '@supabase/supabase-js';",
     "import { defineSupabase } from 'better-supabase';",
@@ -166,7 +225,7 @@ function consumer(): string {
     "export async function run(): Promise<unknown[]> {",
     "  return [",
   ];
-  for (let i = 1; i <= QUERIED; i++) {
+  for (let i = 1; i <= profile.queried; i++) {
     const key = name(i);
     const child = name(i + 1);
     lines.push(
@@ -203,72 +262,91 @@ function measure(): Measurement & { checkTime: string } {
   };
 }
 
-rmSync(work, { recursive: true, force: true });
-mkdirSync(work, { recursive: true });
-writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot()));
-writeFileSync(
-  join(work, "better-supabase.config.json"),
-  JSON.stringify({
-    source: { snapshot: "snapshot.json" },
-    casing: "camel",
-    output: "generated.ts",
-    plugins: {
-      timestamps: true,
-      softDelete: { column: "archived_at" },
-      tenant: { column: "organization_id" },
-    },
-  }),
-);
-writeFileSync(join(work, "consumer.ts"), consumer());
-writeFileSync(
-  join(work, "tsconfig.json"),
-  JSON.stringify({
-    compilerOptions: {
-      strict: true,
-      exactOptionalPropertyTypes: true,
-      module: "nodenext",
-      moduleResolution: "nodenext",
-      target: "es2024",
-      lib: ["ES2024", "DOM"],
-      types: [],
-      allowImportingTsExtensions: true,
-      skipLibCheck: true,
-      noEmit: true,
-    },
-    files: ["consumer.ts"],
-  }),
-);
-execFileSync(process.execPath, [cli, "gen", "--cwd", work], { stdio: "pipe" });
+function run(profile: Profile): Measurement & {
+  checkTime: string;
+  genTime: string;
+} {
+  rmSync(work, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot(profile)));
+  writeFileSync(
+    join(work, "better-supabase.config.json"),
+    JSON.stringify({
+      source: { snapshot: "snapshot.json" },
+      ...(profile.composite ? { schemas: ["public", "graphql_public"] } : {}),
+      casing: "camel",
+      output: "generated.ts",
+      plugins: {
+        timestamps: true,
+        softDelete: { column: "archived_at" },
+        tenant: { column: "organization_id" },
+      },
+    }),
+  );
+  writeFileSync(join(work, "consumer.ts"), consumer(profile));
+  writeFileSync(
+    join(work, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        module: "nodenext",
+        moduleResolution: "nodenext",
+        target: "es2024",
+        lib: ["ES2024", "DOM"],
+        types: [],
+        allowImportingTsExtensions: true,
+        skipLibCheck: true,
+        noEmit: true,
+      },
+      files: ["consumer.ts"],
+    }),
+  );
+  const started = performance.now();
+  execFileSync(process.execPath, [cli, "gen", "--cwd", work], {
+    stdio: "pipe",
+  });
+  const genTime = `${((performance.now() - started) / 1000).toFixed(2)}s`;
+  return { ...measure(), genTime };
+}
 
-const current = measure();
 const baselinePath = join(here, "baseline.json");
-const summary = `${String(TABLES)} tables, ${String(QUERIED)} queried: ${String(current.instantiations)} instantiations, ${String(current.types)} types, check ${current.checkTime}`;
+const update = process.env["BENCH_UPDATE"] === "1";
+// SAFETY: this script writes the baseline file in the Baseline shape.
+const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
+const next: Record<string, BaselineEntry> = {};
 
-if (process.env.BENCH_UPDATE === "1") {
-  const baseline: Baseline = {
-    tables: TABLES,
-    queried: QUERIED,
+for (const [profileName, profile] of Object.entries(PROFILES)) {
+  const current = run(profile);
+  const summary = `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried: ${String(current.instantiations)} instantiations, ${String(current.types)} types, gen ${current.genTime}, check ${current.checkTime}`;
+  next[profileName] = {
+    ...profile,
     measurement: {
       types: current.types,
       instantiations: current.instantiations,
     },
   };
-  writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  console.log(`baseline updated: ${summary}`);
-} else {
-  // SAFETY: this script writes the baseline file in the Baseline shape.
-  const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
-  const failures = (["instantiations", "types"] as const).filter(
-    (metric) =>
-      current[metric] > baseline.measurement[metric] * (1 + TOLERANCE),
-  );
   console.log(summary);
-  if (failures.length > 0) {
-    for (const metric of failures) {
-      console.error(
-        `${metric} grew from ${String(baseline.measurement[metric])} to ${String(current[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
-      );
-    }
+  if (update) continue;
+  const previous = baseline[profileName];
+  if (!previous) {
+    console.error(
+      `${profileName} has no baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
+    );
+    process.exitCode = 1;
+    continue;
+  }
+  for (const metric of ["instantiations", "types"] as const) {
+    if (current[metric] <= previous.measurement[metric] * (1 + TOLERANCE))
+      continue;
+    console.error(
+      `${profileName}: ${metric} grew from ${String(previous.measurement[metric])} to ${String(current[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
+    );
     process.exitCode = 1;
   }
+}
+
+if (update) {
+  writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
+  console.log("baseline updated");
 }

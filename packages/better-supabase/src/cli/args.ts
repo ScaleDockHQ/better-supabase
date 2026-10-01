@@ -34,6 +34,7 @@ const BOOLEAN_FLAGS = new Set([
   "print",
   "global",
   "stats",
+  "fix-grants",
 ]);
 
 export function parseArgs(argv: readonly string[]): ParsedArgs {

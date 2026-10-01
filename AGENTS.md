@@ -56,7 +56,7 @@ docs/
 - `pnpm typecheck:matrix`: published types against TypeScript 5.9, 6 and 7.
 - `pnpm size`: gzip size baselines and the WinterTC import check.
 - `pnpm test:integration`: integration suite against a running `supabase start` stack (API on 55421, Postgres on 55422; override with `SUPABASE_URL` and `SUPABASE_DB_URL`).
-- `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema; fails on >10% growth (`update` rewrites the baseline).
+- `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`); fails on >10% growth (`update` rewrites the baseline).
 - `pnpm test:e2e`: the `apps/examples` apps against a running `supabase start` stack.
 - `tests/validation-*`: code from two production apps (a CRM and a request-context package) ported to better-supabase; run with `pnpm test`.
 - `pnpm version-packages`: the root `CHANGELOG.md` section, then `changeset version`. The release workflow runs it.

@@ -15,6 +15,11 @@ better-supabase sql add audit jobs pgtap
 supabase db diff -f better_supabase_kit
 ```
 
+When `supabase/config.toml` lists `[db.migrations] schema_paths`,
+`supabase db diff` reads only the files those entries match. `sql add` names
+any kit file no entry matches and prints the lines to add. List the kit files
+before the schemas that call their functions.
+
 ## Modules
 
 | Module | What it adds |

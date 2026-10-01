@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { glob, readFile } from "node:fs/promises";
+import { join, posix } from "node:path";
 
 export type TomlValue =
   | string
@@ -70,16 +70,38 @@ function parseScalar(raw: string): TomlValue {
   return bare !== "" && Number.isFinite(number) ? number : bare;
 }
 
+/** `line` without a trailing `# comment`, keeping `#` inside quoted strings. */
+const withoutComment = (line: string): string =>
+  line.replaceAll(
+    /("[^"]*"|'[^']*')|#.*$/g,
+    (_, quoted?: string) => quoted ?? "",
+  );
+
+/** Whether the brackets outside quoted strings in `text` are balanced. */
+const closed = (text: string): boolean => {
+  const bare = text.replaceAll(/"[^"]*"|'[^']*'/g, "");
+  return bare.split("[").length === bare.split("]").length;
+};
+
 /**
- * Tables, `key = value` pairs, strings, numbers, booleans and one-line arrays:
- * the subset `supabase init` writes. Multi-line values are skipped.
+ * Tables, `key = value` pairs, strings, numbers, booleans and arrays of
+ * scalars, also over several lines (`schema_paths = [` ... `]`): the subset
+ * `supabase init` writes. Multi-line strings and inline tables are skipped.
  */
 export function parseTomlSubset(text: string): TomlTable {
   const root: Record<string, TomlValue> = {};
   let table = root;
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
+  const lines = text.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    let line = lines[index]!.trim();
     if (line === "" || line.startsWith("#")) continue;
+    if (/^[A-Za-z0-9_-]+\s*=\s*\[/.test(line)) {
+      line = withoutComment(line);
+      while (!closed(line) && index + 1 < lines.length) {
+        index += 1;
+        line += ` ${withoutComment(lines[index]!).trim()}`;
+      }
+    }
     const header = /^\[([^[\]]+)\]$/.exec(line);
     if (header) {
       table = root;
@@ -199,4 +221,57 @@ export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
     const target = parsePgFunctionUri(uri);
     return target ? [{ hook, uri, ...target }] : [];
   });
+}
+
+/** The declarative schema files, in the order `supabase db diff` applies them. */
+export interface SchemaPaths {
+  /** Relative to the project root. */
+  readonly files: readonly string[];
+  /** Files under `supabase/schemas` that no `schema_paths` entry matches, so the diff skips them. */
+  readonly unlisted: readonly string[];
+  /** Whether `[db.migrations] schema_paths` lists any entries. */
+  readonly configured: boolean;
+}
+
+const SCHEMAS_DIR = "supabase/schemas";
+
+async function expand(cwd: string, pattern: string): Promise<string[]> {
+  const matched: string[] = [];
+  for await (const path of glob(pattern.replace(/^\.\//, ""), { cwd }))
+    if (path.endsWith(".sql")) matched.push(path.replaceAll("\\", "/"));
+  return matched.sort();
+}
+
+/**
+ * `[db.migrations] schema_paths` (relative to `supabase/`) with each glob
+ * expanded in name order and the entries kept in their listed order, then
+ * the `supabase/schemas` files no entry matches. Without `schema_paths`, the
+ * `supabase/schemas` files in name order, as the Supabase CLI reads them.
+ */
+export async function schemaPaths(
+  root: string,
+  toml?: SupabaseToml,
+): Promise<SchemaPaths> {
+  const supabase = join(root, "supabase");
+  const all = existsSync(join(root, SCHEMAS_DIR))
+    ? (await expand(supabase, "schemas/**/*.sql")).map((path) =>
+        posix.join("supabase", path),
+      )
+    : [];
+  const entries = tomlGet(toml?.document ?? {}, [
+    "db",
+    "migrations",
+    "schema_paths",
+  ]);
+  const patterns = Array.isArray(entries)
+    ? entries.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  if (patterns.length === 0)
+    return { files: all, unlisted: [], configured: false };
+  const listed = new Set<string>();
+  for (const pattern of patterns)
+    for (const path of await expand(supabase, pattern))
+      listed.add(posix.join("supabase", path));
+  const unlisted = all.filter((path) => !listed.has(path));
+  return { files: [...listed, ...unlisted], unlisted, configured: true };
 }

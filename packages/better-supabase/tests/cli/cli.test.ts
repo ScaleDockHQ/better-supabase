@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -313,6 +313,26 @@ describe("sql", () => {
     const list = await run(["sql", "list", "--cwd", dir]);
     expect(list.stdout).toMatch(/○ jobs/);
     expect(list.stdout).toMatch(/^ {2}audit/m);
+  });
+
+  it("names kit files that schema_paths misses", async () => {
+    await mkdir(join(dir, "supabase"), { recursive: true });
+    await writeFile(
+      join(dir, "supabase/config.toml"),
+      '[db.migrations]\nschema_paths = [\n  "./schemas/010_app.sql",\n]\n',
+    );
+    const added = await run(["sql", "add", "audit", "--cwd", dir]);
+    expect(added.stdout).toContain("no entry matches these files");
+    expect(added.stdout).toMatch(
+      /^ {2}"\.\/schemas\/900_better_supabase_\d\d_audit\.sql",$/m,
+    );
+
+    await writeFile(
+      join(dir, "supabase/config.toml"),
+      '[db.migrations]\nschema_paths = ["./schemas/9*.sql"]\n',
+    );
+    const listed = await run(["sql", "add", "audit", "--cwd", dir]);
+    expect(listed.stdout).not.toContain("no entry matches");
   });
 
   it("syncs sql.kit and detects stale files with --check", async () => {

@@ -1,8 +1,20 @@
 {
-  "tables": 150,
-  "queried": 40,
-  "measurement": {
-    "types": 19873,
-    "instantiations": 49931
+  "default": {
+    "tables": 150,
+    "queried": 40,
+    "composite": false,
+    "measurement": {
+      "types": 19881,
+      "instantiations": 49939
+    }
+  },
+  "centrakit": {
+    "tables": 250,
+    "queried": 40,
+    "composite": true,
+    "measurement": {
+      "types": 26663,
+      "instantiations": 53217
+    }
   }
 }

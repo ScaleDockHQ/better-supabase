@@ -19,6 +19,7 @@ import { flagBool, flagString } from "../args.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { entitlementsMode, permdockConfig, readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
+import { readSupabaseToml, schemaPaths } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
 
 export const SQL_HELP = `Usage: better-supabase sql <list|add|sync|print> [modules...]
@@ -152,6 +153,35 @@ async function write(
   return lines;
 }
 
+/** A note when `schema_paths` is set and misses kit files, which `supabase db diff` would then skip. */
+async function unlistedKitFiles(
+  config: ResolvedConfig,
+  names: readonly string[],
+  kit: KitLayout,
+): Promise<string[]> {
+  const order = await schemaPaths(
+    config.root,
+    await readSupabaseToml(config.root),
+  );
+  if (!order.configured) return [];
+  const unlisted = new Set(order.unlisted);
+  const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
+  const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
+  const missing = renderKit(names, kit)
+    .map((file) => file.path)
+    .filter((path) => path.startsWith(dir) && !listed.has(path));
+  if (missing.length === 0) return [];
+  return [
+    "",
+    "supabase/config.toml sets [db.migrations] schema_paths, and no entry matches these files, so `supabase db diff` skips them.",
+    "Add them before the schemas that call their functions:",
+    ...missing.map(
+      (path) =>
+        `  "./${path.startsWith("supabase/") ? path.slice("supabase/".length) : path}",`,
+    ),
+  ];
+}
+
 export async function runSql(
   config: ResolvedConfig,
   args: ParsedArgs,
@@ -234,6 +264,8 @@ export async function runSql(
           `  sql: { kit: [${[...config.sql.kit, ...untracked].map((name) => `'${name}'`).join(", ")}] }`,
         );
       }
+      if (!flagBool(args.flags, "dry-run"))
+        lines.push(...(await unlistedKitFiles(config, names, kit)));
       lines.push(
         "",
         "Then create a migration: supabase db diff -f better_supabase_kit",

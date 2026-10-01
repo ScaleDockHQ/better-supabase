@@ -25,7 +25,7 @@ pnpm run verify
 | `pnpm run build`         | `turbo run build`                                           |
 | `pnpm run test`          | Unit and type tests                                         |
 | `pnpm typecheck:matrix`  | Published types against TypeScript 5.9, 6 and 7             |
-| `pnpm typecheck:perf`    | Type-instantiation benchmark on a 150-table schema          |
+| `pnpm typecheck:perf`    | Type-instantiation benchmark on 150- and 250-table schemas  |
 | `pnpm size`              | Bundle size baselines and the WinterTC import check         |
 | `pnpm test:integration`  | Integration tests against a running `supabase start` stack  |
 | `pnpm test:e2e`          | The example apps against a running `supabase start` stack   |

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { glob, readdir, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ParsedArgs } from "../args.ts";
@@ -20,6 +20,7 @@ import {
   type DoctorFormat,
   formatReport,
 } from "../doctor/format.ts";
+import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
   type DoctorContext,
   type Finding,
@@ -34,7 +35,11 @@ import {
 import { writeIfChanged } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
-import { readSupabaseToml } from "../supabase-toml.ts";
+import {
+  readSupabaseToml,
+  schemaPaths,
+  type SupabaseToml,
+} from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
 import {
   loadSnapshot,
@@ -64,6 +69,8 @@ Options
   --as <uuid>       Plan as this authenticated user; measure the claims
                     the custom access token hook returns for them (BS405)
   --claims <json>   Plan with these JWT claims ({"role":"authenticated",...})
+  --fix-grants      Print the grant and revoke SQL BS404 asks for, to append
+                    to the migration \`supabase db diff\` wrote
 
 Checks: ${RULE_CODES.join(", ")}`;
 
@@ -86,24 +93,27 @@ async function readText(
     : undefined;
 }
 
-async function sqlFiles(root: string): Promise<TextFile[]> {
-  const files: TextFile[] = [];
-  const walk = async (dir: string): Promise<void> => {
-    const absolute = resolve(root, dir);
-    if (!existsSync(absolute)) return;
-    for (const entry of await readdir(absolute, { withFileTypes: true })) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) await walk(path);
-      else if (entry.name.endsWith(".sql"))
-        files.push({ path, text: await readFile(resolve(root, path), "utf8") });
-    }
-  };
-  await walk("supabase/schemas");
-  const migrations: TextFile[] = [];
-  const before = files.length;
-  await walk("supabase/migrations");
-  migrations.push(...files.splice(before).reverse());
-  return [...files, ...migrations];
+/** The declarative schemas in `schema_paths` order, then the migrations newest first. */
+async function sqlFiles(
+  root: string,
+  toml: SupabaseToml | undefined,
+): Promise<TextFile[]> {
+  const read = async (path: string): Promise<TextFile> => ({
+    path,
+    text: await readFile(resolve(root, path), "utf8"),
+  });
+  const schemas = await Promise.all(
+    (await schemaPaths(root, toml)).files.map(read),
+  );
+  const migrationsDir = resolve(root, "supabase/migrations");
+  const migrations = existsSync(migrationsDir)
+    ? (await readdir(migrationsDir))
+        .filter((name) => name.endsWith(".sql"))
+        .sort()
+        .reverse()
+        .map((name) => `supabase/migrations/${name}`)
+    : [];
+  return [...schemas, ...(await Promise.all(migrations.map(read)))];
 }
 
 /** Files matching `doctor.sources`, skipping dependencies and build output. */
@@ -292,11 +302,16 @@ export async function runDoctor(
     ...(explainTables.length > 0 ? ["BS212"] : []),
     ...(hookUser ? ["BS405"] : []),
   ]);
-  const rules = RULES.filter(
-    (rule) =>
-      (only.length === 0 || only.includes(rule.code) || asked.has(rule.code)) &&
-      !ignore.has(rule.code),
-  );
+  const fixGrants = flagBool(args.flags, "fix-grants");
+  const rules = fixGrants
+    ? RULES.filter((rule) => rule.code === "BS404")
+    : RULES.filter(
+        (rule) =>
+          (only.length === 0 ||
+            only.includes(rule.code) ||
+            asked.has(rule.code)) &&
+          !ignore.has(rule.code),
+      );
 
   const snapshotPath = flagString(args.flags, "snapshot");
   const dbUrl = flagString(args.flags, "db-url");
@@ -332,13 +347,14 @@ export async function runDoctor(
     await Promise.all(ENV_FILES.map((path) => readText(config.root, path)))
   ).filter((file): file is TextFile => file !== undefined);
   const permdock = await readPermdock(config.root, config.permdock);
-  const sql = await sqlFiles(config.root);
+  const configToml = await readSupabaseToml(config.root);
+  const sql = await sqlFiles(config.root, configToml);
   const context: DoctorContext = {
     config,
     snapshot,
     ...(permdock ? { permdock } : {}),
     sqlFiles: sql,
-    configToml: await readSupabaseToml(config.root),
+    configToml,
     envFiles,
     gitignore: (await readText(config.root, ".gitignore"))?.text ?? "",
     sources: await sourceFiles(config),
@@ -353,6 +369,10 @@ export async function runDoctor(
       ? { explain: { tables: explainTables, claims } }
       : {}),
   };
+  if (fixGrants) {
+    await opened.close();
+    return { code: 0, output: hookGrantBlock(hookGrantProblems(context)) };
+  }
   let ran: Finding[];
   try {
     ran = await runRules(context, rules);
