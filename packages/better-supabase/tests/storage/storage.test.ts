@@ -180,6 +180,29 @@ describe("defineBucket", () => {
     );
   });
 
+  it("refuses PermDock keys the catalog marks with row conditions", () => {
+    const catalog = {
+      permissions: [
+        { key: "files.read", rowConditions: true },
+        { key: "files.write", rowConditions: false },
+      ],
+    };
+    const bucket = (read: string) =>
+      defineBucket({
+        id: "x",
+        path: "{orgId}/{file}",
+        policy: {
+          permdock: { read, write: "files.write" },
+          scope: "organization",
+        },
+        catalog,
+      });
+    expect(() => bucket("files.read")).toThrow(
+      /"files\.read" has row conditions in PermDock's catalog/,
+    );
+    expect(bucket("files.list").sql()).toContain("permitted_organization_ids");
+  });
+
   it("rejects policies that cannot be enforced", () => {
     expect(() =>
       defineBucket({ id: "x", path: "org-{orgId}/{file}", policy: "tenant" }),

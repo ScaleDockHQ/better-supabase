@@ -72,9 +72,21 @@ defineTopic('org:{orgId}:board', {
 });
 ```
 
-Check `rowConditions` for the permission in `permissions.catalog.json`
-before using it here. `permdock doctor` reports PD037 for a topic policy in
-your migrations that calls a helper for a key with `rowConditions: true`.
+Pass `permissions.catalog.json` as `catalog` and `defineTopic` throws for a
+`receive` or `send` key with `rowConditions: true`:
+
+```ts
+import catalog from '../../permissions.catalog.json' with { type: 'json' };
+
+defineTopic('org:{orgId}:board', {
+  permdock: { receive: 'board.view', scope: 'organization' },
+  catalog,
+});
+```
+
+[`doctor`](/docs/cli/doctor#bs214) reports BS214 for a generated topic policy
+in your SQL files that names such a key, and `permdock doctor` reports PD037
+for any topic policy that calls a helper for one.
 
 ## Row changes
 

@@ -144,6 +144,25 @@ describe("defineTopic", () => {
         permdock: { receive: "x.read#1", scope: "organization" },
       }),
     ).toThrow(/splits by row condition/);
+    const catalog = {
+      permissions: [{ key: "board.write", rowConditions: true }],
+    };
+    expect(() =>
+      defineTopic("org:{orgId}:board", {
+        permdock: {
+          receive: "board.read",
+          send: "board.write",
+          scope: "organization",
+        },
+        catalog,
+      }),
+    ).toThrow(/"board\.write" has row conditions/);
+    expect(
+      defineTopic("org:{orgId}:board", {
+        permdock: { receive: "board.read", scope: "organization" },
+        catalog,
+      }).sql(),
+    ).toContain("board.read");
   });
 
   it("generates a row-change trigger with database column names", () => {

@@ -283,6 +283,36 @@
           "description": "The tenant id column of that table.",
           "type": "string",
           "default": "id"
+        },
+        "permdock": {
+          "description": "With a PermDock manifest, read PermDock's memberships for this scope instead of better_supabase.memberships; false keeps the kit's table.",
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "scope": { "type": "string", "default": "organization" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "permdock": {
+      "description": "Where PermDock's JSON outputs are.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "manifest": {
+          "description": "What `permdock supabase inspect --out` writes.",
+          "type": "string",
+          "default": "permdock.manifest.json"
+        },
+        "catalog": {
+          "description": "What `permdock catalog` writes.",
+          "type": "string",
+          "default": "permissions.catalog.json"
         }
       }
     },

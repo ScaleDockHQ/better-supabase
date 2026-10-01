@@ -259,6 +259,21 @@ export interface EntitlementsConfig {
   readonly customer?: string;
   /** The tenant id column of that table. Defaults to `id`. */
   readonly key?: string;
+  /**
+   * With a PermDock manifest, `has_entitlement` and `feature_claims` read
+   * PermDock's memberships (`member_<scope>_ids()` and
+   * `member_<scope>_ids_for(user)`) instead of `better_supabase.memberships`.
+   * `scope` is the PermDock scope tenants are (default `organization`);
+   * `false` keeps the kit's memberships table.
+   */
+  readonly permdock?: false | { readonly scope?: string };
+}
+
+export interface PermdockPathsConfig {
+  /** What `permdock supabase inspect --out` writes. Defaults to `permdock.manifest.json`. */
+  readonly manifest?: string;
+  /** What `permdock catalog` writes. Defaults to `permissions.catalog.json`. */
+  readonly catalog?: string;
 }
 
 /** pgvector distance: `<=>` (cosine), `<->` (l2) or `<#>` (negative inner product). */
@@ -346,6 +361,8 @@ export interface BetterSupabaseConfig {
   readonly topics?: Readonly<Record<string, string>>;
   readonly realtime?: RealtimeConfig;
   readonly entitlements?: EntitlementsConfig;
+  /** Where PermDock's JSON outputs are, for doctor, `gen` and the SQL kit. */
+  readonly permdock?: PermdockPathsConfig;
   /**
    * Embedding columns, keyed by `table` or `schema.table`. The
    * `vector-search` SQL kit module writes `search_<table>(query, k)` for each,
@@ -372,6 +389,10 @@ function entitlementsOf(
     table: customer.slice(0, dot),
     column: customer.slice(dot + 1),
     key: config.key ?? "id",
+    permdock:
+      config.permdock === false
+        ? false
+        : { scope: config.permdock?.scope ?? "organization" },
   };
 }
 
@@ -415,7 +436,9 @@ export interface ResolvedConfig {
     readonly table: string;
     readonly column: string;
     readonly key: string;
+    readonly permdock: false | { readonly scope: string };
   };
+  readonly permdock: Required<PermdockPathsConfig>;
   readonly vectorSearch: readonly {
     readonly table: string;
     readonly column: string;
@@ -504,6 +527,10 @@ export function resolveConfig(
     topics: config.topics ?? {},
     realtime: { tables: config.realtime?.tables ?? [] },
     entitlements: entitlementsOf(config.entitlements),
+    permdock: {
+      manifest: config.permdock?.manifest ?? "permdock.manifest.json",
+      catalog: config.permdock?.catalog ?? "permissions.catalog.json",
+    },
     vectorSearch: vectorSearchOf(config.vectorSearch),
     sql: {
       dir: config.sql?.dir ?? "supabase/schemas",

@@ -18,7 +18,7 @@ import type {
 
 import { tenantClaimPaths } from "../core/claims.ts";
 import { dbError, type DbError, type ValidationIssue } from "../core/errors.ts";
-import { permdockCheck } from "../core/permdock-sql.ts";
+import { type PermdockCatalog, permdockCheck } from "../core/permdock-sql.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import {
   parseTemplate,
@@ -33,6 +33,7 @@ import { toApp } from "../plugins/shared.ts";
 
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { PermdockTopicPolicy } from "../schema/types.ts";
+export type { PermdockCatalog } from "../core/permdock-sql.ts";
 export { liveCount, liveQuery, liveTopic } from "./live.ts";
 export type {
   CountRunner,
@@ -73,9 +74,15 @@ export interface TopicOptions<E extends EventSchemas> {
    * The helpers check role and scope only. Use this just for permissions
    * whose grants have no row conditions beyond the scope: for a permission
    * with row conditions (e.g. `authorId = principal.id`) every member of the
-   * scope may join. Leave those to the policies `permdock rls generate` writes.
+   * scope could join. Pass `catalog` to refuse those keys here;
+   * `better-supabase doctor` (BS214) refuses them from the catalog file.
    */
   readonly permdock?: PermdockTopicPolicy;
+  /**
+   * PermDock's `permissions.catalog.json`. With it, a `permdock` policy
+   * naming a permission with `rowConditions: true` throws.
+   */
+  readonly catalog?: PermdockCatalog;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
   /** Also authorize presence. Defaults to `false`. */
@@ -299,13 +306,19 @@ export function defineTopic<
       permdock.scope === "global"
         ? undefined
         : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? "orgId", "PermDock"))})`;
-    const receive = permdockCheck(where, permdock, permdock.receive, id);
+    const receive = permdockCheck(
+      where,
+      permdock,
+      permdock.receive,
+      id,
+      options.catalog,
+    );
     return {
       receive,
       send:
         permdock.send === undefined
           ? receive
-          : permdockCheck(where, permdock, permdock.send, id),
+          : permdockCheck(where, permdock, permdock.send, id, options.catalog),
     };
   })();
   if (

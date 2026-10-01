@@ -13,7 +13,7 @@ import {
   dbError,
   isDbError,
 } from "../core/errors.ts";
-import { permdockCheck } from "../core/permdock-sql.ts";
+import { type PermdockCatalog, permdockCheck } from "../core/permdock-sql.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import {
   parseTemplate,
@@ -29,6 +29,7 @@ export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { PathIn, StoragePath } from "./path.ts";
 
 export type { PermdockBucketPolicy } from "../schema/types.ts";
+export type { PermdockCatalog } from "../core/permdock-sql.ts";
 
 export type BucketPolicy = BucketPolicyName | PermdockBucketPolicy;
 
@@ -60,10 +61,16 @@ export interface BucketConfig<
    * The helpers check role and scope only. Use `permdock` just for
    * permissions whose grants have no row conditions beyond the scope: for a
    * permission with row conditions (e.g. `ownerId = principal.id`) the bucket
-   * grants every object in the scope. Leave those to the policies
-   * `permdock rls generate` writes.
+   * would grant every object in the scope. Pass `catalog` to refuse those
+   * keys here; `better-supabase doctor` (BS214) refuses them from the
+   * catalog file.
    */
   readonly policy?: BucketPolicy;
+  /**
+   * PermDock's `permissions.catalog.json`. With it, a `permdock` policy
+   * naming a permission with `rowConditions: true` throws.
+   */
+  readonly catalog?: PermdockCatalog;
   /** `'5MiB'`, `'500KB'` or bytes. */
   readonly fileSizeLimit?: string | number;
   /** `['image/png', 'image/*']`. */
@@ -479,7 +486,8 @@ export function defineBucket<
       policy.scope === "global"
         ? undefined
         : `split_part(name, '/', ${String(policy.segment ?? segmentFor(config.tenant?.param ?? "orgId", "PermDock"))})`;
-    const check = (key: string) => permdockCheck(where, policy, key, id);
+    const check = (key: string) =>
+      permdockCheck(where, policy, key, id, config.catalog);
     const keys = policy.permdock;
     return {
       read: check(keys.read),

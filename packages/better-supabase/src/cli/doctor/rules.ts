@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
+import type { PermdockProject } from "../permdock.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
 import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
@@ -14,6 +15,7 @@ import { kitLayout } from "../commands/sql.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
+import { PERMDOCK_RULES } from "./permdock.ts";
 import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
 import {
   catalogOf,
@@ -89,8 +91,10 @@ export interface DoctorContext {
   readonly explain?: ExplainRequest;
   /** `--as`: the user to call the custom access token hook for (BS405). */
   readonly hookUser?: string;
-  /** The `permdock.config.ts` in the project root, if any (BS405, BS407). */
-  readonly permdock?: string;
+  /** The PermDock config, manifest and catalog in the project root, if any (BS213, BS214, BS405, BS407). */
+  readonly permdock?: PermdockProject;
+  /** `supabase/schemas` in `schema_paths` order, then migrations newest first (BS214, BS404, BS407). */
+  readonly sqlFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
 }
@@ -855,6 +859,7 @@ export const RULES: readonly Rule[] = [
   ...OWN_RULES,
   ...RLS_RULES,
   ...HOOK_RULES,
+  ...PERMDOCK_RULES,
   ...LIVE_RULES,
 ].sort((a, b) => a.code.localeCompare(b.code));
 

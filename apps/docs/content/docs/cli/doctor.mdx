@@ -273,6 +273,23 @@ info    BS212 RLS plan for a table
         0.13 ms over 1 call (83%).
 ```
 
+### BS214
+
+**Error: PermDock permission with row conditions in a Storage or Realtime
+policy.** PermDock's SQL helpers (`permitted_<scope>_ids`, `permdock_has`)
+check the role and scope of a permission, not its row conditions. A bucket or
+topic policy that passes a permission whose entry in
+`permissions.catalog.json` has `rowConditions: true` grants every object or
+topic in the scope. Doctor checks the `buckets` in the config and the `bs_`
+policies on `storage.objects` and `realtime.messages` in your SQL files, and
+`better-supabase gen` refuses to write those bucket policies. Use the policies
+`permdock rls generate` writes for that permission, or a permission without
+row conditions.
+
+When the helpers are used but the catalog file is missing, doctor reports an
+info finding: run `permdock catalog` to write it. `defineBucket` and
+`defineTopic` take the same catalog as `catalog` and throw for those keys.
+
 ## Drift
 
 ### BS301
@@ -397,8 +414,8 @@ for records that outlive them (`created_by` on shared documents, audit rows).
 ### BS407
 
 **Error: two authorization hooks.** PermDock owns the token: a
-`permdock.config.ts` is in the project root, or the hook calls PermDock's
-functions. The custom access token hook also calls
+`permdock.config.ts` or `permdock.manifest.json` is in the project root, or
+the hook calls PermDock's functions. The custom access token hook also calls
 `better_supabase.membership_claims`, or writes `roles`, `user_role`,
 `memberships` or the tenant claim (`claims.tenant`, `tenant_id` by default)
 itself, through `jsonb_set` or `jsonb_build_object`. Those claims then have two
@@ -406,10 +423,20 @@ sources that drift apart. Run `permdock supabase hook generate` and remove the
 extra writes from the hook. See
 [better-supabase and PermDock](/docs/auth/permdock).
 
-PermDock's generated hook, which sets `memberships_truncated`, is not
-reported. Neither are claims PermDock doesn't own, such as the `features`
-claim from `better_supabase.feature_claims`, which PermDock's hook writes
-when `supabase.hook.claims` names it.
+PermDock's generated hook is not reported. Doctor recognizes it by the `hook`
+entry in `permdock.manifest.json`, by the `-- permdock:hook v1` marker on the
+migration that creates it, or by the `memberships_truncated` claim it sets.
+Functions that `supabase.hook.claims` registers, such as
+`better_supabase.feature_claims` for `features`, are sources of PermDock's
+own hook and are not a second writer. A hook that wraps PermDock's hook and
+then writes one of those claims again is reported, with the function that
+already fills it.
+
+When `permdock.config.ts` is present but `permdock.manifest.json` is not,
+doctor reports an info finding: run `permdock supabase inspect --out` to
+write the manifest, and `permdock supabase inspect --check` in CI to keep it
+current. `permdock.manifest` and `permdock.catalog` in the config change the
+file paths.
 
 ## Env files
 

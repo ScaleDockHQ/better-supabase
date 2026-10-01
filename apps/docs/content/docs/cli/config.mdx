@@ -56,7 +56,8 @@ export default defineConfig({
 | `storagePaths` | `{}` | Text columns that hold object paths, keyed by `table.column`, with a `buckets` key or bucket id as the value. They're typed as [`StoragePath<'bucket-id'>`](/docs/kits/storage#path-columns) |
 | `topics` | `{}` | Realtime topic templates |
 | `realtime` | `{ tables: [] }` | Tables for [live queries](/docs/frontend/live-queries) |
-| `entitlements` | `{ customer: 'organizations.stripe_customer_id', key: 'id' }` | Where the [`entitlements` kit module](/docs/kits/entitlements) finds each tenant's Stripe customer |
+| `entitlements` | `{ customer: 'organizations.stripe_customer_id', key: 'id' }` | Where the [`entitlements` kit module](/docs/kits/entitlements) finds each tenant's Stripe customer. `permdock: { scope }` picks the PermDock scope it reads memberships from |
+| `permdock` | `permdock.manifest.json`, `permissions.catalog.json` | Where doctor and `gen` read [PermDock's](/docs/auth/permdock) manifest and catalog, relative to the project root |
 | `vectorSearch` | `{}` | Embedding columns (`{ chunks: 'embedding' }`) the [`vector-search` kit module](/docs/kits/vector-search) writes `search_<table>` for |
 | `readSets` | `[]` | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL kit module |
 | `sql` | `supabase/schemas`, `900_better_supabase`, `supabase/tests` | Where generated SQL and pgTAP files go, and the [SQL kit](/docs/kits/sql) modules to keep in sync |

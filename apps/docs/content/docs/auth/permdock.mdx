@@ -197,12 +197,12 @@ export const listCustomers = pipeline(
 `createMcp`. Use `createMcp`'s [`authorize` and `visible`
 hooks](/docs/frameworks/mcp#authorizing-tools) instead: put the PermDock
 permission in each tool's `meta`, answer `visible` with PermDock's `mayUse`
-and `authorize` with `can`. The hooks only need a structural type, so
-better-supabase never imports PermDock:
+and `authorize` with `can`. `meta` is `unknown` to better-supabase, which
+never imports PermDock, so narrow it with PermDock's `isPermission` first:
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from 'better-supabase/mcp';
-import { createPermDock, mayUse } from 'permdock';
+import { createPermDock, isPermission, mayUse } from 'permdock';
 import { subjectFromSupabaseSession } from 'permdock/supabase';
 
 async function dockFor(ctx: { auth: { kind: string; claims?: unknown } }) {
@@ -214,16 +214,13 @@ const mcp = createMcp(sb, {
   version: '1.0.0',
   scopes: ['openid'],
   authorize: async (ctx, tool) => {
-    const permission = tool.meta;
-    if (permission === undefined) return { allowed: true };
-    return (await dockFor(ctx)).can(permission)
+    if (!isPermission(tool.meta)) return { allowed: true };
+    return (await dockFor(ctx)).can(tool.meta)
       ? { allowed: true }
       : { allowed: false, reason: 'PermDock denied this tool' };
   },
-  visible: async (ctx, tool) => {
-    const permission = tool.meta;
-    return permission === undefined || mayUse(await dockFor(ctx), permission);
-  },
+  visible: async (ctx, tool) =>
+    !isPermission(tool.meta) || mayUse(await dockFor(ctx), tool.meta),
 }).tool({
   name: 'export_customers',
   description: 'Export the organization’s customers as CSV.',

@@ -6,6 +6,7 @@ import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { type KitFile, renderKit, sameKitFile } from "../../sql/kit.ts";
+import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitModule } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
 import { generateDatabaseTypes } from "../introspect/typegen.ts";
@@ -15,6 +16,7 @@ import {
   importPath,
   writeIfChanged,
 } from "../io.ts";
+import { readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
 import { kitLayout } from "./sql.ts";
@@ -80,8 +82,34 @@ async function readSetFile(
   )[0];
 }
 
+/** `buckets` keys that PermDock's catalog marks with row conditions, as error lines. */
+async function rowConditionedBuckets(
+  config: ResolvedConfig,
+): Promise<string[]> {
+  const configured = configuredPermdockKeys({ config });
+  if (configured.length === 0) return [];
+  const project = await readPermdock(config.root, config.permdock);
+  const rowConditions = project?.rowConditions;
+  if (!rowConditions) return [];
+  return configured.flatMap(({ bucket, keys }) =>
+    keys
+      .filter((key) => rowConditions.has(key))
+      .map(
+        (key) =>
+          `  buckets.${bucket}: "${key}" has row conditions in ${project.catalogPath}`,
+      ),
+  );
+}
+
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
+  const refused = await rowConditionedBuckets(config);
+  if (refused.length > 0) {
+    return {
+      code: 1,
+      error: `PermDock's SQL helpers don't check row conditions, so these bucket policies would grant every object in the scope:\n${refused.join("\n")}\nUse the policies \`permdock rls generate\` writes for them (doctor BS214).`,
+    };
+  }
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
   const files = await renderFiles(config, snapshot);

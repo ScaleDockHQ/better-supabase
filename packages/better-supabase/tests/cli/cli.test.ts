@@ -109,6 +109,7 @@ describe("config JSON Schema", () => {
       topics: true,
       realtime: true,
       entitlements: true,
+      permdock: true,
       vectorSearch: true,
       sensitive: true,
       storagePaths: true,
@@ -231,6 +232,45 @@ describe("gen", () => {
     ]);
     expect(failed.code).not.toBe(0);
     expect(failed.stderr).toContain('realtime.tables: unknown table "nope"');
+  });
+
+  it("refuses bucket policies with PermDock keys that have row conditions", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        output: "src/db/generated.ts",
+        buckets: {
+          docs: {
+            path: "{orgId}/{file}",
+            policy: {
+              permdock: { read: "docs.read", write: "docs.write" },
+              scope: "organization",
+            },
+          },
+        },
+      }),
+    );
+    await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
+    await writeFile(
+      join(dir, "permissions.catalog.json"),
+      JSON.stringify({
+        permissions: [
+          { key: "docs.read", rowConditions: true },
+          { key: "docs.write", rowConditions: false },
+        ],
+      }),
+    );
+    const refused = await run([
+      "gen",
+      "--snapshot",
+      "snapshot.json",
+      "--cwd",
+      dir,
+    ]);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain(
+      'buckets.docs: "docs.read" has row conditions in permissions.catalog.json',
+    );
   });
 
   it("rejects an unknown introspect --format", async () => {

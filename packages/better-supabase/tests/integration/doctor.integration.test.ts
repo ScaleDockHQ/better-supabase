@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LiveDatabase } from "../../src/cli/doctor/live.ts";
 import type { IntrospectionSource } from "../../src/cli/introspect/source.ts";
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
+import type { PermdockProject } from "../../src/cli/permdock.ts";
 
 import {
   type DoctorContext,
@@ -193,7 +194,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       fn: string,
       codes: string[],
       hookUser?: string,
-      permdock?: string,
+      permdock?: PermdockProject,
     ) => {
       const snapshot = await introspect(db.queryable, ["public"], {
         hooks: [{ hook: "custom_access_token", schema: HOOKS, name: fn }],
@@ -315,7 +316,12 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
     });
 
     it("measures PermDock's budget apart from the whole token", async () => {
-      const permdock = "permdock.config.ts";
+      const permdock: PermdockProject = {
+        config: "permdock.config.ts",
+        manifestPath: "permdock.manifest.json",
+        catalogPath: "permissions.catalog.json",
+        problems: [],
+      };
       expect(await run("permdock_fits", ["BS405"], USER, permdock)).toEqual([]);
       const findings = await run("permdock_over", ["BS405"], USER, permdock);
       expect(findings).toMatchObject([

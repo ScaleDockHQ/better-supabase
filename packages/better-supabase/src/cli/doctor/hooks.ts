@@ -1,6 +1,7 @@
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Location, Rule } from "./rules.ts";
 
+import { parseHookMarker, permdockSource } from "../permdock.ts";
 import { type PgFunctionHook, pgFunctionHooks } from "../supabase-toml.ts";
 import { errorText, ident, literal, type LiveDatabase } from "./live.ts";
 import { lineOf } from "./shared.ts";
@@ -11,9 +12,9 @@ const HOOK_CLAIMS_LIMIT = 2048;
 const PERMDOCK_CLAIMS_LIMIT = 1024;
 
 /**
- * The BS405 limits. With PermDock, `doctor.claimsLimit` is its budget for
- * `memberships` plus `attrs` and the whole token keeps 2048; without it,
- * `doctor.claimsLimit` limits the whole token.
+ * The BS405 limits. With PermDock, `doctor.claimsLimit` (else the manifest's
+ * budget) is its budget for `memberships` plus `attrs` and the whole token
+ * keeps 2048; without it, `doctor.claimsLimit` limits the whole token.
  */
 function claimsLimits(context: DoctorContext): {
   readonly token: number;
@@ -23,7 +24,10 @@ function claimsLimits(context: DoctorContext): {
   return context.permdock
     ? {
         token: HOOK_CLAIMS_LIMIT,
-        budget: configured ?? PERMDOCK_CLAIMS_LIMIT,
+        budget:
+          configured ??
+          context.permdock.manifest?.budget ??
+          PERMDOCK_CLAIMS_LIMIT,
       }
     : { token: configured ?? HOOK_CLAIMS_LIMIT, budget: undefined };
 }
@@ -40,6 +44,75 @@ const escapeRegExp = (text: string): string =>
 /** The claims PermDock's hook writes that a second writer would contradict. */
 function ownedClaims(tenant: string): readonly string[] {
   return ["roles", "user_role", "memberships", tenant];
+}
+
+const quotedName = (schema: string, name: string): string =>
+  `(?:"?${escapeRegExp(schema)}"?\\s*\\.\\s*)?"?${escapeRegExp(name)}"?`;
+
+/** A SQL file that starts with PermDock's hook marker and creates `fn`. */
+function markerFileFor(
+  context: DoctorContext,
+  fn: Pick<ExtrasHookFunction, "schema" | "name">,
+) {
+  const creates = new RegExp(
+    `create\\s+(?:or\\s+replace\\s+)?function\\s+${quotedName(fn.schema, fn.name)}\\s*\\(`,
+    "i",
+  );
+  for (const file of context.sqlFiles ?? []) {
+    const marker = parseHookMarker(file.text);
+    if (marker && creates.test(file.text)) return marker;
+  }
+  return undefined;
+}
+
+/** Whether `fn` is the hook PermDock generated: by its manifest, its marker file or its body. */
+function isPermdockHook(
+  context: DoctorContext,
+  fn: ExtrasHookFunction,
+): boolean {
+  const hook = context.permdock?.manifest?.hook;
+  if (hook && hook.schema === fn.schema && hook.function === fn.name)
+    return true;
+  if (markerFileFor(context, fn)) return true;
+  return fn.source !== undefined && PERMDOCK_HOOK.test(fn.source);
+}
+
+/**
+ * Extra claims PermDock's hook writes from `supabase.hook.claims`, by claim
+ * name, with the function that fills each: from the manifest, else from the
+ * hook marker's `claims=` list.
+ */
+function registeredClaims(
+  context: DoctorContext,
+): ReadonlyMap<string, string | undefined> {
+  const claims = new Map<string, string | undefined>();
+  for (const claim of context.permdock?.manifest?.claims ?? []) {
+    if (claim.source !== "permdock") claims.set(claim.name, claim.source);
+  }
+  if (claims.size > 0) return claims;
+  const owned = new Set([
+    ...ownedClaims(context.config.claims.tenant),
+    "memberships_truncated",
+    "attrs",
+    "authz_ver",
+  ]);
+  for (const file of context.sqlFiles ?? []) {
+    for (const name of parseHookMarker(file.text)?.claims ?? []) {
+      if (!owned.has(name)) claims.set(name, undefined);
+    }
+  }
+  return claims;
+}
+
+/** Whether the hook body calls PermDock's generated hook (a wrapper around it). */
+function wrapsPermdockHook(context: DoctorContext, source: string): boolean {
+  const hook = context.permdock?.manifest?.hook;
+  return (
+    hook !== undefined &&
+    new RegExp(`${quotedName(hook.schema, hook.function)}\\s*\\(`, "i").test(
+      source,
+    )
+  );
 }
 
 /** Which of `claims` the hook body writes through `jsonb_set` or `jsonb_build_object`. */
@@ -325,38 +398,73 @@ export const HOOK_RULES: readonly Rule[] = [
     severity: "error",
     title: "Two authorization hooks",
     description:
-      "A `permdock.config.ts` (or a hook that calls PermDock's functions) means PermDock writes `user_role`, `roles`, `memberships` and the tenant claim (`claims.tenant`) into the token. A custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the extra writes. Other claims, such as the entitlements module's `features`, are not PermDock's and are not reported.",
-    check: (context) =>
-      configuredHooks(context).flatMap(({ config, extras }): FindingInput[] => {
-        if (config.hook !== "custom_access_token" || !extras) return [];
-        return extras.functions.flatMap((fn): FindingInput[] => {
-          if (fn.source === undefined) return [];
+      "A `permdock.config.ts` or `permdock.manifest.json` (or a hook that calls PermDock's functions) means PermDock writes `user_role`, `roles`, `memberships` and the tenant claim (`claims.tenant`) into the token. A custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the extra writes. Functions registered in PermDock's `supabase.hook.claims` (such as `better_supabase.feature_claims` for `features`) are PermDock's hook's own sources and are not reported; a hook that wraps PermDock's and writes one of those claims again is.",
+    check: (context) => {
+      const project = context.permdock;
+      const findings: FindingInput[] = [];
+      if (project) {
+        findings.push(
+          ...project.problems
+            .filter((problem) => problem.startsWith(project.manifestPath))
+            .map((problem): FindingInput => ({
+              severity: "info",
+              message: `Could not read PermDock's manifest: ${problem}`,
+              target: project.manifestPath,
+            })),
+        );
+        if (
+          project.config &&
+          !project.manifest &&
+          !project.problems.some((problem) =>
+            problem.startsWith(project.manifestPath),
+          )
+        ) {
+          findings.push({
+            severity: "info",
+            message: `${project.config} is present but ${project.manifestPath} is not, so doctor and the SQL kit can't see PermDock's hook, helpers and membership sources. Run \`permdock supabase inspect --out\`, and \`permdock supabase inspect --check\` in CI.`,
+            target: project.manifestPath,
+          });
+        }
+      }
+      const registered = registeredClaims(context);
+      for (const { config, extras } of configuredHooks(context)) {
+        if (config.hook !== "custom_access_token" || !extras) continue;
+        for (const fn of extras.functions) {
+          if (fn.source === undefined || isPermdockHook(context, fn)) continue;
           const kit = KIT_MEMBERSHIPS.test(fn.source);
-          const written = PERMDOCK_HOOK.test(fn.source)
-            ? []
-            : writtenClaims(
-                fn.source,
-                ownedClaims(context.config.claims.tenant),
-              );
-          if (!kit && written.length === 0) return [];
-          const permdock =
-            context.permdock ??
-            (PERMDOCK_CALL.test(fn.source) ? "the hook body" : undefined);
-          if (!permdock) return [];
+          const wrapper = wrapsPermdockHook(context, fn.source);
+          const written = writtenClaims(fn.source, [
+            ...ownedClaims(context.config.claims.tenant),
+            ...(wrapper ? registered.keys() : []),
+          ]);
+          if (!kit && written.length === 0) continue;
+          const permdock = project
+            ? permdockSource(project)
+            : PERMDOCK_CALL.test(fn.source)
+              ? "the hook body"
+              : undefined;
+          if (!permdock) continue;
           const location = hookLocation(context, config.hook);
           const what = [
             ...(kit ? ["calls better_supabase.membership_claims"] : []),
             ...(written.length > 0 ? [`writes ${written.join(", ")}`] : []),
           ].join(" and ");
-          return [
-            {
-              message: `${signatureOf(fn)} ${what}, and ${permdock} says PermDock owns those claims. Keep one source: run \`permdock supabase hook generate\` and remove these writes from your hook.`,
-              target: signatureOf(fn),
-              object: { kind: "function", schema: fn.schema, name: fn.name },
-              ...(location ? { location } : {}),
-            },
-          ];
-        });
-      }),
+          const extra = written.filter((claim) => registered.has(claim));
+          const sources = extra
+            .map((claim) => {
+              const source = registered.get(claim);
+              return source ? `${claim} from ${source}` : claim;
+            })
+            .join(", ");
+          findings.push({
+            message: `${signatureOf(fn)} ${what}, and ${permdock} says PermDock owns those claims${extra.length > 0 ? ` (its hook already writes ${sources} through supabase.hook.claims)` : ""}. Keep one source: run \`permdock supabase hook generate\` and remove these writes from your hook.`,
+            target: signatureOf(fn),
+            object: { kind: "function", schema: fn.schema, name: fn.name },
+            ...(location ? { location } : {}),
+          });
+        }
+      }
+      return findings;
+    },
   },
 ];

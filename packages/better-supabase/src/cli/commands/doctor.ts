@@ -32,7 +32,7 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { writeIfChanged } from "../io.ts";
-import { permdockConfig } from "../permdock.ts";
+import { readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { readSupabaseToml } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
@@ -331,11 +331,13 @@ export async function runDoctor(
   const envFiles = (
     await Promise.all(ENV_FILES.map((path) => readText(config.root, path)))
   ).filter((file): file is TextFile => file !== undefined);
-  const permdock = permdockConfig(config.root);
+  const permdock = await readPermdock(config.root, config.permdock);
+  const sql = await sqlFiles(config.root);
   const context: DoctorContext = {
     config,
     snapshot,
     ...(permdock ? { permdock } : {}),
+    sqlFiles: sql,
     configToml: await readSupabaseToml(config.root),
     envFiles,
     gitignore: (await readText(config.root, ".gitignore"))?.text ?? "",
@@ -351,7 +353,6 @@ export async function runDoctor(
       ? { explain: { tables: explainTables, claims } }
       : {}),
   };
-  const sql = await sqlFiles(config.root);
   let ran: Finding[];
   try {
     ran = await runRules(context, rules);

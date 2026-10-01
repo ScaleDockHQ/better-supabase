@@ -13,6 +13,7 @@ import type {
   ExtrasHookFunction,
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
+import type { PermdockProject } from "../../../src/cli/permdock.ts";
 
 import { locate } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
@@ -36,6 +37,14 @@ import { resolveConfig } from "../../../src/config/index.ts";
 import fixture from "../../fixtures/snapshot.json" with { type: "json" };
 
 const base = parseSnapshot(fixture);
+
+const PERMDOCK: PermdockProject = {
+  config: "permdock.config.ts",
+  manifestPath: "permdock.manifest.json",
+  manifest: { version: 1, claims: [], memberships: [], decidingColumns: [] },
+  catalogPath: "permissions.catalog.json",
+  problems: [],
+};
 
 const toml = (text: string): SupabaseToml => ({
   path: "supabase/config.toml",
@@ -923,7 +932,7 @@ uri = "https://example.com/hook"
         { severity: "info", message: expect.stringContaining("no such user") },
       ]);
       expect((await run(1500)).findings).toEqual([]);
-      const permdock = { permdock: "permdock.config.ts" };
+      const permdock = { permdock: PERMDOCK };
       // A normal PermDock token: 1.5 KB in total, memberships and attrs within the budget.
       expect(
         (await run(1500, true, permdock, { memberships: 600, attrs: 300 }))
@@ -988,7 +997,7 @@ uri = "https://example.com/hook"
       );
       expect(
         await codes(
-          hookContext(withHook([kitHook]), { permdock: "permdock.config.ts" }),
+          hookContext(withHook([kitHook]), { permdock: PERMDOCK }),
           "BS407",
         ),
       ).toEqual(["BS407"]);
@@ -1001,7 +1010,7 @@ uri = "https://example.com/hook"
       expect(
         await codes(
           hookContext(withHook([hookFn({ source: "select 1" })]), {
-            permdock: "permdock.config.ts",
+            permdock: PERMDOCK,
           }),
           "BS407",
         ),
@@ -1012,7 +1021,7 @@ uri = "https://example.com/hook"
       const withPermdock = (source: string) =>
         codes(
           hookContext(withHook([hookFn({ source })]), {
-            permdock: "permdock.config.ts",
+            permdock: PERMDOCK,
           }),
           "BS407",
         );
@@ -1032,7 +1041,7 @@ uri = "https://example.com/hook"
       const findings = async (source: string, extra = {}) =>
         runRules(
           hookContext(withHook([hookFn({ source })]), {
-            permdock: "permdock.config.ts",
+            permdock: PERMDOCK,
             ...extra,
           }),
           only("BS407"),
@@ -1071,6 +1080,163 @@ uri = "https://example.com/hook"
       expect(await codes(hookContext(withHook([wrapped])), "BS407")).toEqual([
         "BS407",
       ]);
+    });
+
+    it("treats supabase.hook.claims functions as PermDock's own sources (BS407)", async () => {
+      const project: PermdockProject = {
+        ...PERMDOCK,
+        manifest: {
+          ...PERMDOCK.manifest!,
+          hook: { schema: "public", function: "permdock_hook" },
+          claims: [
+            { name: "roles", source: "permdock" },
+            { name: "features", source: "better_supabase.feature_claims" },
+          ],
+        },
+      };
+      const run = (source: string, extra: Partial<DoctorContext> = {}) =>
+        runRules(
+          hookContext(withHook([hookFn({ source })]), {
+            permdock: project,
+            ...extra,
+          }),
+          only("BS407"),
+        );
+      // A hook that only adds a registered claim's function is not a second source.
+      expect(
+        await run(
+          "begin return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
+        ),
+      ).toEqual([]);
+      // Wrapping PermDock's hook and writing features again gives it two writers.
+      expect(
+        await run(
+          "begin event := public.permdock_hook(event); return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
+        ),
+      ).toMatchObject([
+        {
+          message: expect.stringContaining(
+            "its hook already writes features from better_supabase.feature_claims",
+          ),
+        },
+      ]);
+      // The configured hook is PermDock's own (manifest hook or marker file): never reported.
+      const generated = hookFn({
+        name: "permdock_hook",
+        schema: "public",
+        source:
+          "begin claims := jsonb_set(claims, '{roles}', held); claims := jsonb_set(claims, '{features}', extra); end",
+      });
+      expect(
+        await runRules(
+          hookContext(withHook([generated]), { permdock: project }),
+          only("BS407"),
+        ),
+      ).toEqual([]);
+      const marked = hookFn({
+        source: "begin claims := jsonb_set(claims, '{roles}', held); end",
+      });
+      expect(
+        await runRules(
+          hookContext(withHook([marked]), {
+            permdock: PERMDOCK,
+            sqlFiles: [
+              {
+                path: "supabase/migrations/20261001000200_permdock_hook.sql",
+                text: '-- permdock:hook v1 schema=rbac tenant=tenant_id budget=1024 claims=roles,features\ncreate or replace function "rbac".custom_access_token_hook(event jsonb)',
+              },
+            ],
+          }),
+          only("BS407"),
+        ),
+      ).toEqual([]);
+    });
+
+    it("asks for the manifest when only the PermDock config is there (BS407)", async () => {
+      const { manifest: _, ...withoutManifest } = PERMDOCK;
+      expect(
+        await runRules(
+          hookContext(base, { permdock: withoutManifest }),
+          only("BS407"),
+        ),
+      ).toMatchObject([
+        {
+          severity: "info",
+          message: expect.stringContaining("permdock supabase inspect --out"),
+        },
+      ]);
+    });
+  });
+
+  describe("PermDock row conditions (BS214)", () => {
+    const only = RULES.filter((rule) => rule.code === "BS214");
+    const withCatalog: PermdockProject = {
+      ...PERMDOCK,
+      rowConditions: new Set(["docs.read"]),
+    };
+    const policyFile = {
+      path: "supabase/schemas/900_better_supabase_storage.sql",
+      text: [
+        "-- better-supabase: bucket docs",
+        'drop policy if exists "bs_docs_select" on storage.objects;',
+        'create policy "bs_docs_select" on storage.objects for select to authenticated',
+        `  using (bucket_id = 'docs' and split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('docs.read') as t(id)));`,
+        'create policy "bs_docs_insert" on storage.objects for insert to authenticated',
+        `  with check (bucket_id = 'docs' and split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('docs.write') as t(id)));`,
+        "create policy own_policy on storage.objects for select using ((select public.permdock_has('docs.read')));",
+      ].join("\n"),
+    };
+
+    it("flags generated policies and configured buckets that name a row-conditioned key", async () => {
+      const findings = await runRules(
+        context(base, {
+          permdock: withCatalog,
+          sqlFiles: [policyFile],
+          config: resolveConfig(
+            {
+              buckets: {
+                docs: {
+                  path: "{orgId}/{file}",
+                  policy: {
+                    permdock: { read: "docs.read", write: "docs.write" },
+                    scope: "organization",
+                  },
+                },
+              },
+            },
+            "/project",
+          ),
+        }),
+        only,
+      );
+      expect(findings.map((finding) => finding.target)).toEqual([
+        "buckets.docs:docs.read",
+        "storage.objects.bs_docs_select:docs.read",
+      ]);
+      expect(findings[1]).toMatchObject({
+        severity: "error",
+        location: {
+          file: "supabase/schemas/900_better_supabase_storage.sql",
+          line: 3,
+        },
+      });
+    });
+
+    it("asks for the catalog when helpers are used without one", async () => {
+      expect(
+        await runRules(
+          context(base, { permdock: PERMDOCK, sqlFiles: [policyFile] }),
+          only,
+        ),
+      ).toMatchObject([
+        {
+          severity: "info",
+          message: expect.stringContaining("permdock catalog"),
+        },
+      ]);
+      expect(
+        await runRules(context(base, { sqlFiles: [policyFile] }), only),
+      ).toEqual([]);
     });
   });
 
