@@ -6,8 +6,12 @@
 export interface DbErrorKinds {
   not_found: Record<never, never>;
   unauthorized: Record<never, never>;
-  /** `required`: the assurance level the route needs, when a second factor is missing. */
-  forbidden: { required?: "aal1" | "aal2" };
+  /**
+   * `required`: the assurance level the route needs, when a second factor is
+   * missing. `scopes`: the OAuth scopes the route needs, when a delegated
+   * token lacks one (`INSUFFICIENT_SCOPE`).
+   */
+  forbidden: { required?: "aal1" | "aal2"; scopes?: readonly string[] };
   conflict: { constraint?: string; columns?: readonly string[] };
   foreign_key: { constraint?: string; columns?: readonly string[] };
   check: { constraint?: string };

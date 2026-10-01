@@ -1,5 +1,6 @@
 import type { AuthState } from "../auth/resolve.ts";
 
+import { actorOf, delegationOf } from "../auth/actor.ts";
 import { type Aal, checkAal } from "../auth/mfa.ts";
 import { type DbError, dbError, dbErrorOf, isDbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
@@ -15,6 +16,24 @@ export interface GuardOptions {
    * `required: 'aal2'` until the user verifies a second factor.
    */
   readonly aal?: Aal;
+  /**
+   * OAuth scopes a delegated token (an OAuth client or an `act` chain) needs.
+   * A missing one answers 403 with `error="insufficient_scope"`. The user's
+   * own session is not limited by scopes.
+   */
+  readonly scopes?: readonly string[];
+}
+
+/** The scopes a delegated user token lacks; empty for the user's own session. */
+function missingScopes(
+  auth: Extract<AuthState, { kind: "user" }>,
+  required: readonly string[],
+): readonly string[] {
+  if (required.length === 0) return [];
+  const outcome = actorOf(auth.claims);
+  if (!outcome.ok || !outcome.actor) return [];
+  const granted = new Set(delegationOf(auth.claims)?.scopes);
+  return required.filter((scope) => !granted.has(scope));
 }
 
 /** `undefined` when `auth` may pass; otherwise the 401/403 error to send. */
@@ -23,10 +42,20 @@ export function guard(
   auth: AuthState,
   allow: GuardOptions["allow"] = ["user"],
   aal: Aal = "aal1",
+  scopes: readonly string[] = [],
 ): DbError | undefined {
   if (auth.kind === "invalid") return auth.error;
-  if ((allow as readonly AuthKind[]).includes(auth.kind))
-    return checkAal(auth, aal);
+  if ((allow as readonly AuthKind[]).includes(auth.kind)) {
+    const denied = checkAal(auth, aal);
+    if (denied || auth.kind !== "user") return denied;
+    const missing = missingScopes(auth, scopes);
+    return missing.length > 0
+      ? dbError("forbidden", `The token lacks the scope ${missing.join(" ")}`, {
+          code: "INSUFFICIENT_SCOPE",
+          scopes,
+        })
+      : undefined;
+  }
   return auth.kind === "anon"
     ? dbError("unauthorized", "Sign in to continue", {
         code: "MISSING_CREDENTIALS",

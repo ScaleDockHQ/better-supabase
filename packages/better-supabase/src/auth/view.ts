@@ -3,6 +3,12 @@ import type { JWTClaims, UserClaims } from "@supabase/server";
 import type { DbError } from "../core/errors.ts";
 import type { AuthState, InvalidReason } from "./resolve.ts";
 
+import {
+  actorOf,
+  delegationOf,
+  type SessionActor,
+  type SessionDelegation,
+} from "./actor.ts";
 import { type Impersonator, impersonatorOf } from "./impersonation.ts";
 import { type Aal, aalOf, type AmrEntry, amrOf } from "./mfa.ts";
 
@@ -33,6 +39,13 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly amr: readonly AmrEntry[];
       /** Set when an admin acts as this user (the `act` claim), for a banner. */
       readonly impersonator?: Impersonator;
+      /**
+       * The OAuth client or agent acting for the user (`client_id`, or the
+       * outermost `sub` of the `act` chain), as PermDock's `actorOf` reads it.
+       */
+      readonly actor?: SessionActor;
+      /** The scopes the user granted `actor`, plus its `act` chain. Set only with `actor`. */
+      readonly delegation?: SessionDelegation;
     }
   | { readonly kind: "service"; readonly keyName: string }
   | { readonly kind: "anon"; readonly reason: AnonReason }
@@ -49,6 +62,16 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
   switch (auth.kind) {
     case "user": {
       const impersonator = impersonatorOf(auth.claims);
+      const outcome = actorOf(auth.claims);
+      const actor = outcome.ok ? outcome.actor : undefined;
+      const scopes = actor ? delegationOf(auth.claims)?.scopes : undefined;
+      const delegation: SessionDelegation | undefined =
+        actor && (scopes || actor.chain)
+          ? {
+              scopes: scopes ?? [],
+              ...(actor.chain ? { chain: actor.chain } : {}),
+            }
+          : undefined;
       return {
         kind: "user",
         user: auth.user,
@@ -58,6 +81,8 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         aal: aalOf(auth.claims),
         amr: amrOf(auth.claims),
         ...(impersonator ? { impersonator } : {}),
+        ...(actor ? { actor } : {}),
+        ...(delegation ? { delegation } : {}),
       };
     }
     case "service":

@@ -152,7 +152,12 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
         refresh: handlerOptions.refresh ?? false,
       });
       const instance = new URL(request.url).pathname;
-      const denied = guard(ctx.auth, handlerOptions.allow, handlerOptions.aal);
+      const denied = guard(
+        ctx.auth,
+        handlerOptions.allow,
+        handlerOptions.aal,
+        handlerOptions.scopes,
+      );
       let response: Response;
       try {
         response = denied

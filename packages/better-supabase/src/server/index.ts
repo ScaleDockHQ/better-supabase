@@ -29,13 +29,16 @@ export {
   refreshSession,
   resolveAuth,
   sessionCookieName,
+  toSession,
   writeSession,
 } from "../auth/index.ts";
 export type {
   Aal,
+  ActClaim,
   AmrEntry,
   AuthResolution,
   AuthResolver,
+  AuthSession,
   AuthState,
   CookieOptions,
   CookieRecord,
@@ -46,6 +49,8 @@ export type {
   RefreshOutcome,
   ResolveAuthOptions,
   ResolvedState,
+  SessionActor,
+  SessionDelegation,
   StoredSession,
 } from "../auth/index.ts";
 export {

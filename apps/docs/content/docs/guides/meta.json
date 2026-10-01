@@ -1,4 +1,4 @@
 {
   "title": "Production notes",
-  "pages": ["data-api-grants", "read-replicas", "limitations"]
+  "pages": ["monorepo", "data-api-grants", "read-replicas", "limitations"]
 }

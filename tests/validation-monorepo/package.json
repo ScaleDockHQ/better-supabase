@@ -1,0 +1,23 @@
+{
+  "name": "@better-supabase/validation-monorepo",
+  "private": true,
+  "description": "A monorepo layout: one runtime package owns defineSupabase and the request context, domain packages type their repositories from its db.",
+  "type": "module",
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --checkers 4"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-result": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

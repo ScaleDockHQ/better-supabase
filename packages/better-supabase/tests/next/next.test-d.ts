@@ -64,10 +64,20 @@ describe("sb.claims(schema)", () => {
     expectTypeOf(next.session()).resolves.toEqualTypeOf<AuthSession>();
   });
 
-  it("distinguishes token from claims failures", () => {
+  it("distinguishes token, claims and actor failures", () => {
     const session = {} as AuthSession<Claims>;
     if (session.kind === "invalid") {
-      expectTypeOf(session.reason).toEqualTypeOf<"token" | "claims">();
+      expectTypeOf(session.reason).toEqualTypeOf<
+        "token" | "claims" | "actor"
+      >();
+    }
+    if (session.kind === "user") {
+      expectTypeOf(session.actor?.kind).toEqualTypeOf<
+        "oauth-client" | undefined
+      >();
+      expectTypeOf(session.delegation?.scopes).toEqualTypeOf<
+        readonly string[] | undefined
+      >();
     }
   });
 

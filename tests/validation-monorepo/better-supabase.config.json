@@ -1,0 +1,5 @@
+{
+  "source": { "snapshot": "../../supabase/snapshot.json" },
+  "casing": "camel",
+  "output": "src/runtime/generated.ts"
+}

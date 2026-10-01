@@ -587,7 +587,12 @@ export function createNext<
     route(handler, guardOptions = {}) {
       return async (request, segment) => {
         const ctx = await base.context(request, statsFor(request));
-        const denied = guard(ctx.auth, guardOptions.allow, guardOptions.aal);
+        const denied = guard(
+          ctx.auth,
+          guardOptions.allow,
+          guardOptions.aal,
+          guardOptions.scopes,
+        );
         const instance = request.nextUrl.pathname;
         if (denied) return problemResponse(denied, { instance, expose });
         const params = await segment.params;
@@ -637,7 +642,12 @@ export function createNext<
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
       return async (input) => {
         const ctx = await server();
-        const denied = guard(ctx.auth, actionOptions.allow, actionOptions.aal);
+        const denied = guard(
+          ctx.auth,
+          actionOptions.allow,
+          actionOptions.aal,
+          actionOptions.scopes,
+        );
         if (denied) return { ok: false, data: null, error: denied };
         let parsed: unknown =
           input instanceof FormData ? formDataObject(input) : input;

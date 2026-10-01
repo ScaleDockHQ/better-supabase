@@ -35,8 +35,10 @@ const error = fromProblem(await response.json()); // back to a DbError
 
 Kind-specific details become extension members next to `code`: `constraint`
 and `columns` for conflicts, `column` for `not_null`, and `required` (`aal1` or
-`aal2`) when a guard's [`aal`](/docs/auth/mfa-sso) rejects the session, and
-`retryAfter` for `rate_limited`, which also sets the `Retry-After` header.
+`aal2`) when a guard's [`aal`](/docs/auth/mfa-sso) rejects the session,
+`scopes` when a guard's `scopes` rejects a delegated token
+(`code: "INSUFFICIENT_SCOPE"`), and `retryAfter` for `rate_limited`, which
+also sets the `Retry-After` header.
 
 ## Safe by default
 
@@ -49,3 +51,7 @@ example in development). Validation errors keep their `issues`.
 A 401 carries an [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750)
 challenge: `WWW-Authenticate: Bearer realm="supabase", error="invalid_token"`,
 without `error` when no credentials were sent. Set the realm with `realm`.
+
+A 403 for a missing OAuth scope carries the RFC 6750 `insufficient_scope`
+challenge, naming the scopes the route needs:
+`WWW-Authenticate: Bearer realm="supabase", error="insufficient_scope", scope="customers:read"`.

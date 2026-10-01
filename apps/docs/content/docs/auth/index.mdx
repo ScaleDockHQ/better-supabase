@@ -21,7 +21,7 @@ switch (auth.kind) {
   case 'user':    // auth.user.id, auth.claims, auth.token
   case 'service': // a secret key, when `secret: true`
   case 'anon':    // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
-  case 'invalid': // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims): answer 401
+  case 'invalid': // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims) | 'actor' (malformed act chain): answer 401
 }
 ```
 

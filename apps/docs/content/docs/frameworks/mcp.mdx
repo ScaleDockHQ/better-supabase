@@ -75,7 +75,41 @@ WWW-Authenticate: Bearer error="insufficient_scope", error_description="...", sc
 `scopes` lists the scopes your tools need. They appear as `scopes_supported`
 in the metadata and as `scope` in both challenges. `offline_access` is always
 left out: whether a client gets a refresh token is between the client and
-the authorization server.
+the authorization server. Here `scopes` advertises what the server uses; it
+does not refuse calls by itself. Refuse a call in `authorize`.
+
+## Bearer callers
+
+A token from the Supabase OAuth server carries the client's `client_id` and
+the `scope` the user granted it. `toSession(ctx.auth)` from
+`better-supabase/server` turns these into `session.actor` and
+`session.delegation`, the way PermDock's `actorOf` and `delegationOf` read
+them, so `authorize` can check a scope per tool:
+
+```ts title="supabase/functions/mcp/index.ts"
+import { toSession } from 'better-supabase/server';
+
+const mcp = createMcp(sb, {
+  name: 'crm',
+  version: '1.0.0',
+  scopes: ['openid', 'crm.read', 'crm.write'],
+  resources: { customers: true },
+  authorize: (ctx, tool) => {
+    const session = toSession(ctx.auth);
+    const granted = session.kind === 'user' ? session.delegation?.scopes : undefined;
+    const needed = tool.info.annotations?.readOnlyHint ? 'crm.read' : 'crm.write';
+    return !granted || granted.includes(needed)
+      ? { allowed: true }
+      : { allowed: false, reason: `Needs ${needed}`, scopes: [needed] };
+  },
+});
+```
+
+`delegation` is unset for the user's own token, which no scope limits. For an
+agent that exchanged its token, `session.actor` is the outermost `sub` of the
+RFC 8693 `act` chain and `chain` keeps the actors before it. A malformed
+`act` chain is `{ kind: 'invalid', reason: 'actor' }`: the server answers
+401 with the metadata challenge before any tool runs.
 
 ## Table tools
 

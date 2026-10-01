@@ -124,6 +124,7 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
             ctx.auth,
             middlewareOptions.allow,
             middlewareOptions.aal,
+            middlewareOptions.scopes,
           );
           if (denied) throw toORPCError(denied);
           try {

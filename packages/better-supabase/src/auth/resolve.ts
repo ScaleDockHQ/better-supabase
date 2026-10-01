@@ -15,6 +15,7 @@ import type { BetterSupabaseEnv } from "../env/index.ts";
 
 import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
+import { actorOf } from "./actor.ts";
 import { impersonatorOf } from "./impersonation.ts";
 import { refreshSession } from "./refresh.ts";
 import {
@@ -59,8 +60,9 @@ export type AuthState<C = unknown, P = unknown> =
       readonly reason: "none" | "expired" | "signed_out" | "refresh_failed";
     }
   /**
-   * Credentials were sent but did not verify (`token`), or verified but failed
-   * the claims schema (`claims`). Answer 401, never downgrade to anon.
+   * Credentials were sent but did not verify (`token`), verified but failed
+   * the claims schema (`claims`), or carry a malformed RFC 8693 `act` chain
+   * (`actor`). Answer 401, never downgrade to anon.
    */
   | {
       readonly kind: "invalid";
@@ -68,7 +70,7 @@ export type AuthState<C = unknown, P = unknown> =
       readonly error: DbError;
     };
 
-export type InvalidReason = "token" | "claims";
+export type InvalidReason = "token" | "claims" | "actor";
 
 /**
  * What an `AuthResolver` returns. `reason` may be left out of an `invalid`
@@ -275,7 +277,19 @@ async function checkClaims(
   state: AuthState,
   options: ResolveAuthOptions,
 ): Promise<AuthState> {
-  if (state.kind !== "user" || !options.claims) return state;
+  if (state.kind !== "user") return state;
+  if (!actorOf(state.claims).ok) {
+    return {
+      kind: "invalid",
+      reason: "actor",
+      error: dbError(
+        "unauthorized",
+        "The token's act claim is not a chain of actors with a sub",
+        { code: "ACTOR_INVALID" },
+      ),
+    };
+  }
+  if (!options.claims) return state;
   let outcome = options.claims["~standard"].validate(state.claims);
   if (outcome instanceof Promise) outcome = await outcome;
   if (outcome.issues) {
@@ -511,10 +525,10 @@ export async function resolveAuth(
       options,
       "cookie",
     );
-    // A refresh can't fix claims the schema rejects, nor an unreachable JWKS.
+    // A refresh can't fix claims the schema or the act check rejects, nor an unreachable JWKS.
     if (
       state.kind !== "invalid" ||
-      state.reason === "claims" ||
+      state.reason !== "token" ||
       state.error.kind === "network"
     )
       return resolution(state, cookies);

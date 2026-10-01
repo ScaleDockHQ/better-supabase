@@ -10,6 +10,7 @@ export default defineConfig({
       "apps/marketing",
       "tests/bundle",
       "tests/validation-crm",
+      "tests/validation-monorepo",
       "tests/validation-request-context",
     ],
   },

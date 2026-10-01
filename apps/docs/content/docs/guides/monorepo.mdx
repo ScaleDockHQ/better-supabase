@@ -1,0 +1,89 @@
+---
+title: Monorepos
+description: One runtime package owns defineSupabase and the request context; domain packages type their repositories from its db and never import the generated client.
+---
+
+In a monorepo, keep one package that owns the Supabase definition and the
+request context, and let every domain package take its `db` as a parameter.
+The generated client then has one importer, a schema change regenerates one
+file, and domain code works the same in a route handler, a job or a test.
+
+```text
+packages/
+  runtime/   defineSupabase, the generated client, the server, the context types
+  crm/       customers repositories: import type { Db } from '@acme/runtime'
+  commerce/  shipping repositories: import type { Db } from '@acme/runtime'
+apps/
+  web/       next.route and next.action call crm and commerce with ctx.db
+```
+
+## The runtime package
+
+```ts title="packages/runtime/src/index.ts"
+import { defineSupabase } from 'better-supabase';
+import { createEdge, type EdgeOptions } from 'better-supabase/edge';
+import { type AuthSession, type ServerContext, toSession } from 'better-supabase/server';
+
+import { type Functions, type Models, schema } from './generated.ts';
+
+export const sb = defineSupabase(schema);
+
+export type AppContext = ServerContext<Models, Functions, unknown>;
+export type Db = AppContext['db'];
+
+export function sessionOf(ctx: AppContext): AuthSession {
+  return toSession(ctx.auth);
+}
+
+export function createRuntime(options: EdgeOptions) {
+  return createEdge(sb, options);
+}
+```
+
+Point `better-supabase gen` at this package (`"output": "src/generated.ts"` in
+its `better-supabase.config.json`). A Next.js app calls `createNext(sb, ...)`
+with the same `sb`, so every adapter shares one definition.
+
+## Domain packages
+
+Domain packages import only types from the runtime:
+
+```ts title="packages/crm/src/customers.ts"
+import type { Db } from '@acme/runtime';
+
+export function activeCustomers(db: Db) {
+  return db.customers.findMany({
+    select: ['id', 'name', 'status'],
+    where: { status: 'active' },
+    orderBy: { name: 'asc' },
+  });
+}
+```
+
+Rows keep the runtime's casing, the `status` column keeps its enum type, and
+the function returns a `Result`, so a route handler can return it as is.
+Because `Db` is a type import, the domain package has no runtime dependency
+on the generated client and no import cycle with the app.
+
+To keep the boundary, add a test that fails when a domain file imports
+anything but the runtime. The
+[`validation-monorepo`](https://github.com/ScaleDockHQ/better-supabase/tree/main/tests/validation-monorepo)
+workspace in this repository has one, plus type tests that pin each
+repository's parameter to the runtime's `Db`.
+
+## Bearer callers in domain code
+
+`sessionOf(ctx)` gives domain code the caller as plain data. For an OAuth
+client or an agent, `session.actor` and `session.delegation` say who acts
+for the user and with which scopes (see
+[bearer callers](/docs/frameworks/next#bearer-callers)). Pass the session
+down when a domain function records who made a change; RLS keeps deciding
+the rows.
+
+## Errors across packages
+
+Domain packages that use [better-result](https://github.com/dmmulroy/better-result)
+convert at the boundary with `toBetterResult(result, Result, mapError)` and
+back with `fromBetterResult(value)`. A `DbError`, or an error whose `cause`
+is one, survives the round trip; other errors go through `mapError`. Both
+work on `Result` and `AsyncResult`.

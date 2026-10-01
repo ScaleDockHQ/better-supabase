@@ -304,16 +304,19 @@
       "sessionCookieName",
       "settle",
       "toProblem",
+      "toSession",
       "withBetterPostgres",
       "withBetterSupabase",
       "writeSession"
     ],
     "types": [
       "Aal",
+      "ActClaim",
       "AmrEntry",
       "AuthKind",
       "AuthResolution",
       "AuthResolver",
+      "AuthSession",
       "AuthState",
       "BetterServer",
       "ContextOptions",
@@ -340,6 +343,8 @@
       "RespondOptions",
       "ServerContext",
       "ServerOptions",
+      "SessionActor",
+      "SessionDelegation",
       "Settled",
       "StoredSession",
       "SupabaseAuthContext"

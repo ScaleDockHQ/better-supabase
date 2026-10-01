@@ -23,6 +23,8 @@ export interface ProblemDetails {
   readonly issues?: readonly ValidationIssue[];
   /** The assurance level a `forbidden` answer needs (`aal2`). */
   readonly required?: "aal1" | "aal2";
+  /** The OAuth scopes a `forbidden` answer needs. */
+  readonly scopes?: readonly string[];
   /** Seconds until a `rate_limited` caller may retry. */
   readonly retryAfter?: number;
 }
@@ -95,6 +97,7 @@ export function toProblem(
   if ("column" in error && error.column) problem["column"] = error.column;
   if ("issues" in error) problem["issues"] = error.issues;
   if ("required" in error) problem["required"] = error.required;
+  if ("scopes" in error) problem["scopes"] = error.scopes;
   if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
   // SAFETY: the fields were copied from a DbError, whose shape matches ProblemDetails.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
@@ -102,8 +105,8 @@ export function toProblem(
 }
 
 /**
- * An `application/problem+json` response. A 401 carries an RFC 6750
- * `WWW-Authenticate: Bearer` challenge.
+ * An `application/problem+json` response. A 401, and a 403 for a missing
+ * OAuth scope, carry an RFC 6750 `WWW-Authenticate: Bearer` challenge.
  */
 export function problemResponse(
   error: DbError,
@@ -111,11 +114,22 @@ export function problemResponse(
 ): Response {
   const headers = new Headers(options.headers);
   headers.set("content-type", PROBLEM_CONTENT_TYPE);
+  const realm = (options.realm ?? "supabase").replace(/"/g, "");
   if (error.status === 401 && !headers.has("www-authenticate")) {
-    const realm = (options.realm ?? "supabase").replace(/"/g, "");
     const params =
       error.code === "MISSING_CREDENTIALS" ? "" : ', error="invalid_token"';
     headers.set("www-authenticate", `Bearer realm="${realm}"${params}`);
+  }
+  if (
+    "scopes" in error &&
+    error.code === "INSUFFICIENT_SCOPE" &&
+    !headers.has("www-authenticate")
+  ) {
+    const scope = error.scopes.join(" ").replace(/"/g, "");
+    headers.set(
+      "www-authenticate",
+      `Bearer realm="${realm}", error="insufficient_scope", scope="${scope}"`,
+    );
   }
   if ("retryAfter" in error && !headers.has("retry-after"))
     headers.set("retry-after", String(error.retryAfter));
@@ -151,6 +165,7 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "columns",
     "column",
     "required",
+    "scopes",
     "retryAfter",
   ] as const) {
     if (problem[key] !== undefined) extra[key] = problem[key];

@@ -101,6 +101,50 @@ export const GET = next.route<{ id: string }>((request, { db, params }) =>
   [Problem Details](/docs/auth/problems) responses; a 401 carries a
   `WWW-Authenticate` challenge.
 
+## Bearer callers
+
+Route handlers serve OAuth clients, agents and other apps that send
+`Authorization: Bearer <token>`. A token from the
+[Supabase OAuth server](https://supabase.com/docs/guides/auth/oauth-server)
+carries `client_id` and `scope`; a token exchanged for an agent carries an
+RFC 8693 `act` chain. The session names who acts for the user, the way
+PermDock's `actorOf` and `delegationOf` read the same claims:
+
+| Token | `session.actor` | `session.delegation` |
+|---|---|---|
+| The user's own | not set | not set |
+| `client_id: 'c1'`, `scope: 'openid customers:read'` | `{ id: 'c1', kind: 'oauth-client' }` | `{ scopes: ['openid', 'customers:read'] }` |
+| `act: { sub: 'agent', act: { sub: 'mcp-42' } }` | `{ id: 'agent', kind: 'oauth-client', chain }` | `{ scopes, chain }` |
+
+The outermost `sub` is the current actor; nested levels are the actors
+before it, kept on `chain` for the audit log. An `act` that is not a chain
+of objects each with a non-empty `sub` resolves to
+`{ kind: 'invalid', reason: 'actor' }` and a 401, never to the user alone.
+
+`scopes` on a route limits what a delegated token may do. The user's own
+session is not limited, since it holds no `client_id` or `act`:
+
+```ts title="src/app/api/customers/[id]/route.ts"
+export const GET = next.route<{ id: string }>(
+  (request, { db, params }) =>
+    db.customers.findById(params.id, { select: ['id', 'name'] }),
+  { scopes: ['customers:read'] },
+);
+```
+
+Bearer callers get [Problem Details](/docs/auth/problems) for every refusal:
+
+| Case | Status | Header |
+|---|---|---|
+| No token | 401 | `WWW-Authenticate: Bearer realm="supabase"` |
+| A token that does not verify, or a malformed `act` chain | 401 | `WWW-Authenticate: Bearer realm="supabase", error="invalid_token"` |
+| A delegated token without a scope in `scopes` | 403 | `WWW-Authenticate: Bearer realm="supabase", error="insufficient_scope", scope="customers:read"` |
+| A row RLS hides from the user | 404 | none |
+
+RLS still decides the rows: the token's `sub` is the user, so a client sees
+at most what the user sees. `scopes` is accepted by `next.action`, the edge,
+Hono and oRPC guards too.
+
 ## Server actions
 
 ```ts title="src/app/customers/actions.ts"

@@ -124,6 +124,7 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
           ctx.auth,
           middlewareOptions.allow,
           middlewareOptions.aal,
+          middlewareOptions.scopes,
         );
         if (denied) {
           return ctx.resolution.apply(

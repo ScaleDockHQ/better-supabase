@@ -68,3 +68,9 @@ if (session.kind === 'user' && session.impersonator) {
 
 `impersonatorOf(claims)` from `better-supabase/server` reads the same claim
 anywhere else.
+
+The `act` claim is the RFC 8693 actor claim, so the same token also sets
+`session.actor` to the admin, the way PermDock's `actorOf` reads it (see
+[bearer callers](/docs/frameworks/next#bearer-callers)). An `act` claim
+that is not a chain of objects each with a `sub` makes the session
+`{ kind: 'invalid', reason: 'actor' }`.
