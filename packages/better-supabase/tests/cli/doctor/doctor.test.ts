@@ -27,6 +27,7 @@ import {
 } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
+import { parseManifest } from "../../../src/cli/permdock.ts";
 import { run } from "../../../src/cli/run.ts";
 import {
   parseTomlSubset,
@@ -34,6 +35,7 @@ import {
   type SupabaseToml,
 } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import manifest from "../../fixtures/permdock.manifest.json" with { type: "json" };
 import fixture from "../../fixtures/snapshot.json" with { type: "json" };
 
 const base = parseSnapshot(fixture);
@@ -1165,6 +1167,94 @@ uri = "https://example.com/hook"
           message: expect.stringContaining("permdock supabase inspect --out"),
         },
       ]);
+    });
+  });
+
+  describe("PermDock helpers for entitlements (BS408)", () => {
+    const only = RULES.filter((rule) => rule.code === "BS408");
+    const project: PermdockProject = {
+      ...PERMDOCK,
+      manifest: parseManifest(manifest),
+    };
+    const check = (
+      extra: Partial<DoctorContext> = {},
+      config: Parameters<typeof resolveConfig>[0] = {
+        sql: { kit: ["entitlements"] },
+      },
+    ) =>
+      runRules(
+        context(base, {
+          permdock: project,
+          config: resolveConfig(config, "/project"),
+          ...extra,
+        }),
+        only,
+      );
+    const withHelpers = snapshot((_tables, functions) => {
+      for (const name of [
+        "member_organization_ids",
+        "member_organization_ids_for",
+      ])
+        functions.push({ ...functions[0]!, schema: "public", name });
+    });
+
+    it("passes when the manifest and the database have both helpers", async () => {
+      expect(await check({ snapshot: withHelpers })).toEqual([]);
+      expect(await check({}, { sql: { kit: ["audit"] } })).toEqual([]);
+      expect(
+        await check(
+          {},
+          {
+            sql: { kit: ["entitlements"] },
+            entitlements: { permdock: false },
+          },
+        ),
+      ).toEqual([]);
+      expect(await check({ permdock: PERMDOCK })).toEqual([]);
+    });
+
+    it("reports helpers missing from the database or the manifest", async () => {
+      expect((await check()).map((finding) => finding.message)).toEqual([
+        expect.stringContaining(
+          "public.member_organization_ids is in permdock.manifest.json but not in the database",
+        ),
+        expect.stringContaining("public.member_organization_ids_for is in"),
+      ]);
+      const older: PermdockProject = {
+        ...project,
+        manifest: {
+          ...project.manifest!,
+          rls: {
+            ...project.manifest!.rls!,
+            helpers: project.manifest!.rls!.helpers.filter(
+              (helper) => helper.name !== "member_organization_ids_for",
+            ),
+          },
+        },
+      };
+      expect(
+        await check({ permdock: older, snapshot: withHelpers }),
+      ).toMatchObject([
+        {
+          severity: "warning",
+          target: "public.member_organization_ids_for",
+          message: expect.stringContaining(
+            "permdock.manifest.json lists no public.member_organization_ids_for",
+          ),
+        },
+      ]);
+    });
+
+    it("reports a scope the manifest doesn't have", async () => {
+      expect(
+        await check(
+          {},
+          {
+            sql: { kit: ["entitlements"] },
+            entitlements: { permdock: { scope: "team" } },
+          },
+        ),
+      ).toMatchObject([{ target: "entitlements.permdock" }]);
     });
   });
 

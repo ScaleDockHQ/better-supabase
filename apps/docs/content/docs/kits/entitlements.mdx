@@ -130,38 +130,54 @@ This is UX: the policy above still decides.
 `permdock.config.ts` without `--force`, and doctor's BS407 doesn't report
 `feature_claims`.
 
-- `has_entitlement(tenant, key)` and `tenant_entitlements(tenant)` read the
-  Stripe tables directly, so SQL and RLS need no claim. `has_entitlement`
-  checks membership through the `tenant` module's `better_supabase.memberships`
-  table. Keep memberships there and list the table as a PermDock membership
-  source, so PermDock and the policy agree:
-  `fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
-- `hasEntitlement(session, ...)` reads the `features` claim. Name
-  `feature_claims` in PermDock's hook and the generated hook writes it, so
-  `hasEntitlement` works as it does without PermDock:
+With a `permdock.manifest.json` (written by `permdock supabase inspect
+--out`), the module reads memberships from PermDock instead of the `tenant`
+module, and `sql add entitlements` no longer adds `tenant`:
+
+| Function | Membership check |
+| --- | --- |
+| `has_entitlement(tenant, key)` | `tenant in (select <schema>.member_<scope>_ids())`, as the signed-in user |
+| `feature_claims(user_id)` | `<schema>.member_<scope>_ids_for(user_id)`, from PermDock's hook as `supabase_auth_admin` |
+| `entitlement_members(customer)` | The manifest's membership tables for that scope |
+
+`<schema>` is the manifest's `rls.schema`. `<scope>` is `organization` unless
+you set another of the manifest's scopes:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  entitlements: {
+    customer: 'organizations.stripe_customer_id',
+    permdock: { scope: 'organization' },
+  },
+});
+```
+
+`permdock: false` keeps the `tenant` module's `better_supabase.memberships`
+even when the manifest is there. Without a manifest the module also uses
+`tenant`; keep memberships in that table and list it as a PermDock
+membership source, so PermDock and the policy agree:
+`fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
+
+`permdock rls generate` writes both helpers, and doctor reports
+[BS408](/docs/cli/doctor#bs408) when the manifest or the database lacks one.
+`hasEntitlement(session, ...)` reads the `features` claim: name
+`feature_claims` in PermDock's hook, and the generated hook writes it:
 
 ```ts title="permdock.config.ts"
-import { fromJunction } from 'permdock/supabase';
-
 export default {
   supabase: {
     hook: {
-      memberships: [
-        fromJunction({
-          table: 'better_supabase.memberships',
-          scope: 'organization',
-          id: 'org_id',
-          roles: 'role',
-        }),
-      ],
       claims: { features: 'better_supabase.feature_claims' },
     },
   },
 };
 ```
 
-Run `permdock supabase hook generate` after changing the config instead of
-editing the generated hook: the command overwrites it.
+Then run `permdock supabase hook generate --grants-out <file>`: with
+`supabase.hook.claims` set, the grants file gives `supabase_auth_admin`
+execute on `member_<scope>_ids_for`, which `feature_claims` calls. Run the
+command again after changing the config instead of editing the generated
+hook, because it overwrites the hook.
 `subjectFromSupabaseSession(session, { plans: 'features' })` reads the active
 tenant's `features` into PermDock's `principal.plans`.
 

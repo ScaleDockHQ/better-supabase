@@ -15,7 +15,7 @@ import { kitLayout } from "../commands/sql.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
-import { PERMDOCK_RULES } from "./permdock.ts";
+import { entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
 import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
 import {
   catalogOf,
@@ -621,6 +621,7 @@ const OWN_RULES: readonly Rule[] = [
           context.config,
           context.config.sql.testsDir,
           skipped ? [] : readSets,
+          entitlementsKit(context),
         ),
       )) {
         if (skipped && file.module === "read-sets") continue;

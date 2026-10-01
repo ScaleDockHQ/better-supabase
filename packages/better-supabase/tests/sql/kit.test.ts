@@ -193,3 +193,64 @@ describe("sameKitFile", () => {
     );
   });
 });
+
+describe("entitlements in PermDock mode", () => {
+  const permdock = {
+    schema: "authz",
+    scope: "organization",
+    memberships: [
+      {
+        table: "public.memberships",
+        userColumn: "user_id",
+        scope: { column: "scope" },
+        idColumn: "scope_id",
+      },
+      {
+        table: "public.contacts",
+        userColumn: "user_id",
+        scope: { value: "customer" },
+        idColumn: "customer_id",
+      },
+    ],
+  } as const;
+
+  it("drops the tenant dependency", () => {
+    expect(
+      resolveModules(["entitlements"]).map((module) => module.name),
+    ).toEqual(["tenant", "entitlements"]);
+    expect(
+      resolveModules(["entitlements"], { permdock }).map(
+        (module) => module.name,
+      ),
+    ).toEqual(["entitlements"]);
+  });
+
+  it("reads member_<scope>_ids and member_<scope>_ids_for", () => {
+    const [file] = renderKit(["entitlements"], { permdock });
+    const sql = file!.contents;
+    expect(sql).toContain(
+      'select tenant in (select "authz"."member_organization_ids"())',
+    );
+    expect(sql).toContain(
+      'from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)',
+    );
+    expect(sql).toContain("features: 'better_supabase.feature_claims'");
+    expect(sql).not.toContain("has_org_role");
+    expect(sql).not.toContain("better_supabase.memberships");
+    // entitlement_members reads the organization-scoped source only.
+    expect(sql).toContain(
+      `from "public"."memberships" m\n  where m."scope_id"::text in (select t::text from better_supabase.stripe_customer_tenants(customer) t)\n    and m."scope"::text = 'organization'`,
+    );
+    expect(sql).not.toContain('"public"."contacts"');
+  });
+
+  it("keeps the tenant-mode functions without PermDock", () => {
+    const file = renderKit(["entitlements"]).find(
+      (entry) => entry.module === "entitlements",
+    );
+    expect(file!.contents).toContain(
+      "select better_supabase.has_org_role(tenant)",
+    );
+    expect(file!.contents).toContain("from better_supabase.memberships m");
+  });
+});

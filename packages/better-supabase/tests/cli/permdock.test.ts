@@ -4,12 +4,14 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  entitlementsMode,
   parseGrantsMarker,
   parseHookMarker,
   parseManifest,
   readPermdock,
   rowConditionKeys,
 } from "../../src/cli/permdock.ts";
+import { resolveConfig } from "../../src/config/index.ts";
 // Copied from PermDock's apps/examples/next-better-supabase/permdock.manifest.json.
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
@@ -85,6 +87,64 @@ describe("PermDock manifest", () => {
       schema: "public",
     });
     expect(parseHookMarker("select 1")).toBeUndefined();
+  });
+});
+
+describe("entitlementsMode", () => {
+  const project = {
+    manifestPath: "permdock.manifest.json",
+    manifest: parseManifest(manifest),
+    catalogPath: "permissions.catalog.json",
+    problems: [],
+  };
+  const config = (entitlements = {}) =>
+    resolveConfig({ entitlements }, "/project");
+
+  it("uses PermDock's schema, scope and membership sources", () => {
+    expect(entitlementsMode(config(), project)).toEqual({
+      kind: "permdock",
+      permdock: {
+        schema: "public",
+        scope: "organization",
+        memberships: [
+          {
+            table: "public.memberships",
+            userColumn: "user_id",
+            scope: { column: "scope" },
+            idColumn: "scope_id",
+          },
+          {
+            table: "public.contacts",
+            userColumn: "user_id",
+            scope: { value: "customer" },
+            idColumn: "customer_id",
+          },
+        ],
+      },
+    });
+    expect(
+      entitlementsMode(config({ permdock: { scope: "customer" } }), project),
+    ).toMatchObject({ kind: "permdock", permdock: { scope: "customer" } });
+  });
+
+  it("keeps the tenant module without a manifest or with permdock: false", () => {
+    const { manifest: _, ...withoutManifest } = project;
+    expect(entitlementsMode(config(), undefined)).toEqual({ kind: "tenant" });
+    expect(entitlementsMode(config(), withoutManifest)).toEqual({
+      kind: "tenant",
+    });
+    expect(entitlementsMode(config({ permdock: false }), project)).toEqual({
+      kind: "tenant",
+    });
+  });
+
+  it("rejects a scope the manifest doesn't have", () => {
+    expect(
+      entitlementsMode(config({ permdock: { scope: "team" } }), project),
+    ).toMatchObject({
+      kind: "invalid",
+      problem: expect.stringContaining('"team"'),
+    });
   });
 });
 

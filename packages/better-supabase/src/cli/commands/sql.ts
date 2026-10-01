@@ -9,6 +9,7 @@ import type { CommandResult } from "../io.ts";
 import { resolveJsonSchema } from "../../config/index.ts";
 import {
   type KitLayout,
+  type KitPermdock,
   renderKit,
   resolveModules,
   sameKitFile,
@@ -16,7 +17,7 @@ import {
 } from "../../sql/kit.ts";
 import { flagBool, flagString } from "../args.ts";
 import { display, writeIfChanged } from "../io.ts";
-import { permdockConfig } from "../permdock.ts";
+import { entitlementsMode, permdockConfig, readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { VERSION } from "../version.ts";
 
@@ -40,8 +41,10 @@ export function kitLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
   readSets: KitLayout["readSets"] = [],
+  permdock?: KitPermdock,
 ): KitLayout {
   return {
+    ...(permdock ? { permdock } : {}),
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,
@@ -76,8 +79,38 @@ export function kitLayout(
   };
 }
 
-function layout(config: ResolvedConfig, args: ParsedArgs): KitLayout {
-  return kitLayout(config, flagString(args.flags, "tests-dir"));
+/** PermDock's helpers for the `entitlements` module; throws for a scope the manifest lacks. */
+async function permdockFor(
+  config: ResolvedConfig,
+): Promise<KitPermdock | undefined> {
+  const mode = entitlementsMode(
+    config,
+    await readPermdock(config.root, config.permdock),
+  );
+  switch (mode.kind) {
+    case "tenant":
+      return undefined;
+    case "permdock":
+      return mode.permdock;
+    case "invalid":
+      throw new TypeError(mode.problem);
+    default: {
+      const unreachable: never = mode;
+      return unreachable;
+    }
+  }
+}
+
+async function layout(
+  config: ResolvedConfig,
+  args: ParsedArgs,
+): Promise<KitLayout> {
+  return kitLayout(
+    config,
+    flagString(args.flags, "tests-dir"),
+    [],
+    await permdockFor(config),
+  );
 }
 
 /** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
@@ -86,13 +119,15 @@ async function layoutFor(
   args: ParsedArgs,
   names: readonly string[],
 ): Promise<KitLayout> {
-  const needsReadSets = resolveModules(names).some(
-    (module) => module.name === "read-sets",
-  );
+  const permdock = await permdockFor(config);
+  const needsReadSets = resolveModules(names, {
+    ...(permdock ? { permdock } : {}),
+  }).some((module) => module.name === "read-sets");
   return kitLayout(
     config,
     flagString(args.flags, "tests-dir"),
     needsReadSets ? await compiledReadSets(config) : [],
+    permdock,
   );
 }
 
@@ -100,10 +135,11 @@ async function write(
   config: ResolvedConfig,
   args: ParsedArgs,
   names: readonly string[],
+  kit: KitLayout,
 ): Promise<string[]> {
   const lines: string[] = [];
   const dryRun = flagBool(args.flags, "dry-run");
-  for (const file of renderKit(names, await layoutFor(config, args, names))) {
+  for (const file of renderKit(names, kit)) {
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
     if (dryRun) {
@@ -123,20 +159,24 @@ export async function runSql(
   const [action, ...names] = args.rest;
   switch (action) {
     case "list": {
+      const kit = await layout(config, args);
       const files = new Map(
-        renderKit(Object.keys(SQL_MODULES), layout(config, args)).map(
-          (file) => [file.module, file.path],
-        ),
+        renderKit(Object.keys(SQL_MODULES), kit).map((file) => [
+          file.module,
+          file.path,
+        ]),
       );
       const lines = Object.values(SQL_MODULES).map((module) => {
         const path = files.get(module.name)!;
         const installed = existsSync(resolve(config.root, path));
         const tracked = config.sql.kit.includes(module.name);
         const mark = installed ? (tracked ? "●" : "○") : " ";
+        const requires =
+          kit.permdock && module.permdockRequires
+            ? module.permdockRequires
+            : module.requires;
         const needs =
-          module.requires.length > 0
-            ? ` (needs ${module.requires.join(", ")})`
-            : "";
+          requires.length > 0 ? ` (needs ${requires.join(", ")})` : "";
         return `${mark} ${module.name.padEnd(15)} ${module.description}${needs}`;
       });
       return {
@@ -171,8 +211,9 @@ export async function runSql(
           ].join("\n"),
         };
       }
-      const lines = await write(config, args, names);
-      const pulledIn = resolveModules(names)
+      const kit = await layoutFor(config, args, names);
+      const lines = await write(config, args, names, kit);
+      const pulledIn = resolveModules(names, kit)
         .map((module) => module.name)
         .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));
       if (permdock && pulledIn.length > 0) {
@@ -183,7 +224,7 @@ export async function runSql(
           "List better_supabase.memberships as a PermDock membership source if both should agree.",
         );
       }
-      const untracked = resolveModules(names)
+      const untracked = resolveModules(names, kit)
         .map((module) => module.name)
         .filter((name) => !config.sql.kit.includes(name));
       if (untracked.length > 0) {
@@ -206,7 +247,14 @@ export async function runSql(
       if (!flagBool(args.flags, "check")) {
         return {
           code: 0,
-          output: (await write(config, args, config.sql.kit)).join("\n"),
+          output: (
+            await write(
+              config,
+              args,
+              config.sql.kit,
+              await layoutFor(config, args, config.sql.kit),
+            )
+          ).join("\n"),
         };
       }
       const stale: string[] = [];
@@ -239,7 +287,9 @@ export async function runSql(
       }
       return {
         code: 0,
-        output: module.render ? module.render(config.claims) : module.sql,
+        output: module.render
+          ? module.render(config.claims, await layout(config, args))
+          : module.sql,
       };
     }
     case undefined:

@@ -61,6 +61,8 @@ memberships; don't run `sql add tenant` there or call `membership_claims()`
 from a hook. `sql add entitlements` is fine: `features` is not a PermDock
 claim. Add `claims: { features: 'better_supabase.feature_claims' }` to
 `supabase.hook` in `permdock.config.ts`, run `permdock supabase hook generate`,
-and `hasEntitlement(session, ...)` works.
+and `hasEntitlement(session, ...)` works. Run `permdock supabase inspect --out`
+first: with `permdock.manifest.json` present, the entitlements module reads
+PermDock's `member_<scope>_ids` helpers and doesn't add `tenant`.
 
 Docs: https://bettersupabase.com/docs/plugins.md

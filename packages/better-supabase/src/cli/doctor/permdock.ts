@@ -1,6 +1,9 @@
+import type { KitPermdock } from "../../sql/kit.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { permdockKeys } from "../../core/permdock-sql.ts";
+import { entitlementHelpers, entitlementsMode } from "../permdock.ts";
+import { catalogOf } from "./shared.ts";
 
 /** Tables whose policies PermDock's helpers can't row-check (PermDock's PD037 scans the same ones). */
 const HELPER_TABLES = new Set(["storage.objects", "realtime.messages"]);
@@ -68,6 +71,14 @@ export function configuredPermdockKeys(
   );
 }
 
+/** PermDock's helpers for the `entitlements` kit module, when the manifest allows PermDock mode. */
+export function entitlementsKit(
+  context: Pick<DoctorContext, "config" | "permdock">,
+): KitPermdock | undefined {
+  const mode = entitlementsMode(context.config, context.permdock);
+  return mode.kind === "permdock" ? mode.permdock : undefined;
+}
+
 export const PERMDOCK_RULES: readonly Rule[] = [
   {
     code: "BS214",
@@ -126,6 +137,49 @@ export const PERMDOCK_RULES: readonly Rule[] = [
         }
       }
       return findings;
+    },
+  },
+  {
+    code: "BS408",
+    severity: "warning",
+    title: "PermDock helpers the entitlements module calls are missing",
+    description:
+      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`). Doctor warns when `entitlements.permdock.scope` is not one of the manifest's scopes, when the manifest's `rls.helpers` lacks a helper (run `permdock rls generate` with a current PermDock), or when the snapshot lacks it (apply the migration it wrote).",
+    check: (context) => {
+      if (!context.config.sql.kit.includes("entitlements")) return [];
+      const mode = entitlementsMode(context.config, context.permdock);
+      if (mode.kind === "tenant") return [];
+      const manifest = context.config.permdock.manifest;
+      if (mode.kind === "invalid")
+        return [{ message: mode.problem, target: "entitlements.permdock" }];
+      const listed = new Set(
+        (context.permdock?.manifest?.rls?.helpers ?? []).map(
+          (helper) => `${mode.permdock.schema}.${helper.name}`,
+        ),
+      );
+      const read = context.snapshot.schemas.includes(mode.permdock.schema);
+      const present = new Set(
+        catalogOf(context).functions.map((fn) => `${fn.schema}.${fn.name}`),
+      );
+      return entitlementHelpers(mode.permdock).flatMap(
+        (helper): FindingInput[] => {
+          if (!listed.has(helper))
+            return [
+              {
+                message: `${manifest} lists no ${helper}, which the entitlements module calls. Run \`permdock rls generate\` (PermDock writes member_<scope>_ids and member_<scope>_ids_for for every scope), then \`permdock supabase inspect --out\`.`,
+                target: helper,
+              },
+            ];
+          if (read && !present.has(helper))
+            return [
+              {
+                message: `${helper} is in ${manifest} but not in the database. Apply the migration \`permdock rls generate\` wrote before the entitlements module.`,
+                target: helper,
+              },
+            ];
+          return [];
+        },
+      );
     },
   },
 ];

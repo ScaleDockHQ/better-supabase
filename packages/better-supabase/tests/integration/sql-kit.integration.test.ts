@@ -473,6 +473,150 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     }
   });
 
+  it("reads PermDock's member helpers in PermDock mode", async () => {
+    const pd = `bs_pd_${RUN}`;
+    const billing = `bs_billing_pd_${RUN}`;
+    const org = crypto.randomUUID();
+    const customer = `cus_pd_${RUN}`;
+    const users = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email)
+       select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', e
+       from unnest($1::text[]) e returning id`,
+      [
+        [
+          `pd-a-${RUN}@example.com`,
+          `pd-b-${RUN}@example.com`,
+          `pd-c-${RUN}@example.com`,
+        ],
+      ],
+    );
+    const [member, expired, outsider] = users.rows.map((row) => row.id) as [
+      string,
+      string,
+      string,
+    ];
+    const entitlements = {
+      table: billing,
+      column: "customer_id",
+      key: "org_id",
+    } as const;
+    const permdock = {
+      schema: pd,
+      scope: "organization",
+      memberships: [
+        {
+          table: `${pd}.memberships`,
+          userColumn: "user_id",
+          scope: { column: "scope" },
+          idColumn: "scope_id",
+        },
+      ],
+    } as const;
+    const kit = renderKit(["entitlements"], { entitlements, permdock });
+    expect(kit.map((file) => file.module)).toEqual(["entitlements"]);
+    const { rows: existing } = await pool.query(
+      "select to_regclass('stripe.active_entitlements') as t",
+    );
+    const ownsStripe = existing[0].t === null;
+    try {
+      if (ownsStripe) {
+        await pool.query(`
+          create schema if not exists stripe;
+          create table stripe.active_entitlements (
+            id text primary key, object text, livemode boolean, feature text,
+            customer text, lookup_key text,
+            updated_at timestamptz not null default now(), last_synced_at timestamptz
+          );`);
+      }
+      // Stand-ins with the shape of PermDock's generated helpers: security
+      // definer, an active-membership filter, and _for revoked from users.
+      await pool.query(`
+        create schema ${pd};
+        create table ${pd}.memberships (
+          user_id uuid not null, scope text not null, scope_id uuid not null,
+          role text not null, expires_at timestamptz
+        );
+        insert into ${pd}.memberships values
+          ('${member}', 'organization', '${org}', 'admin', null),
+          ('${expired}', 'organization', '${org}', 'admin', now() - interval '1 day'),
+          ('${outsider}', 'customer', '${org}', 'contact', null);
+        create function ${pd}.member_organization_ids() returns setof uuid
+        language sql stable security definer set search_path = '' as $$
+          select scope_id from ${pd}.memberships
+          where user_id = (select auth.uid()) and scope = 'organization'
+            and (expires_at is null or expires_at > now())
+        $$;
+        create function ${pd}.member_organization_ids_for(p_user uuid) returns setof uuid
+        language sql stable security definer set search_path = '' as $$
+          select scope_id from ${pd}.memberships
+          where user_id = p_user and scope = 'organization'
+            and (expires_at is null or expires_at > now())
+        $$;
+        grant usage on schema ${pd} to authenticated, supabase_auth_admin;
+        revoke execute on function ${pd}.member_organization_ids_for(uuid) from public, anon, authenticated;
+        grant execute on function ${pd}.member_organization_ids_for(uuid) to supabase_auth_admin;
+        create table public.${billing} (org_id uuid primary key, customer_id text unique);
+        insert into public.${billing} values ('${org}', '${customer}');
+        insert into stripe.active_entitlements (id, customer, lookup_key) values
+          ('ent_pd_a_${RUN}', '${customer}', 'exports');
+      `);
+      await pool.query(kit[0]!.contents);
+
+      // As supabase_auth_admin calls it from the hook: no auth.uid().
+      const features = async (sub: string) =>
+        (
+          await pool.query<{ claims: unknown }>(
+            "select better_supabase.feature_claims($1) as claims",
+            [sub],
+          )
+        ).rows[0]!.claims;
+      expect(await features(member)).toEqual({ [org]: ["exports"] });
+      expect(await features(expired)).toEqual({});
+      expect(await features(outsider)).toEqual({});
+
+      const has = async (sub: string) =>
+        (
+          await postgres
+            .asUser({ sub })
+            .queryRaw<{ ok: boolean }>(
+              "select better_supabase.has_entitlement($1, 'exports') as ok",
+              [org],
+            )
+        )[0]!.ok;
+      expect(await has(member)).toBe(true);
+      expect(await has(expired)).toBe(false);
+      expect(await has(outsider)).toBe(false);
+
+      const invalidate = await entitlementMembers(postgres.admin, {
+        type: ENTITLEMENTS_UPDATED,
+        data: { object: { customer } },
+      }).orThrow();
+      expect([...invalidate].sort()).toEqual([member, expired].sort());
+    } finally {
+      // Put back the tenant-mode functions the other suites expect.
+      await pool.query(
+        renderKit(["entitlements"], { entitlements }).find(
+          (file) => file.module === "entitlements",
+        )!.contents,
+      );
+      await pool.query(`
+        drop function if exists better_supabase.entitlement_members(text);
+        drop function if exists better_supabase.stripe_customer_tenants(text);
+        drop function if exists better_supabase.tenant_stripe_customer(uuid);
+        drop table if exists public.${billing};
+        drop schema if exists ${pd} cascade;
+      `);
+      await pool.query(
+        ownsStripe
+          ? "drop schema stripe cascade"
+          : `delete from stripe.active_entitlements where id like '%_${RUN}'`,
+      );
+      await pool.query("delete from auth.users where id = any($1)", [
+        [member, expired, outsider],
+      ]);
+    }
+  });
+
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `kit_${RUN}`;
     const jobs = createJobs(postgres.admin, {

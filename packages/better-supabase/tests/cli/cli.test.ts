@@ -351,6 +351,44 @@ describe("sql", () => {
     expect(added.stdout).toContain("membership_claims");
   });
 
+  it("writes entitlements on PermDock's helpers when the manifest is there", async () => {
+    await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
+    await cp(
+      join(fixtures, "permdock.manifest.json"),
+      join(dir, "permdock.manifest.json"),
+    );
+    const added = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    expect(added.code).toBe(0);
+    expect(added.stdout).not.toContain("tenant");
+    expect(added.stdout).not.toContain("came along as a dependency");
+    const path = added.stdout.match(
+      /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/,
+    )![0];
+    expect(await readFile(join(dir, path), "utf8")).toContain(
+      '"public"."member_organization_ids_for"(feature_claims.user_id)',
+    );
+    expect((await run(["sql", "list", "--cwd", dir])).stdout).toMatch(
+      /entitlements +Active Stripe entitlements[^\n]*\.\n/,
+    );
+
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ entitlements: { permdock: { scope: "team" } } }),
+    );
+    const invalid = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    expect(invalid.code).toBe(1);
+    expect(invalid.stderr).toContain(
+      'entitlements.permdock.scope is "team", but permdock.manifest.json has the scopes organization, customer',
+    );
+
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ entitlements: { permdock: false } }),
+    );
+    const tenant = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    expect(tenant.stdout).toContain("tenant came along as a dependency");
+  });
+
   it("prints a module and rejects unknown ones", async () => {
     const print = await run(["sql", "print", "audit", "--cwd", dir]);
     expect(print.stdout).toContain("better_supabase.audit_log");

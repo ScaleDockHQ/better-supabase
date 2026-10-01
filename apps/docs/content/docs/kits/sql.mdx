@@ -47,10 +47,11 @@ When a `permdock.config.ts` is in the project root, PermDock owns the access
 token hook and the `memberships` claim. `sql add tenant` then stops and points
 you at `permdock supabase hook generate`. Pass `--force` to write it anyway,
 for example to keep the helpers while you migrate. Modules that need `tenant`,
-such as `entitlements` and `invitations`, are written without `--force`, with
-`tenant` as a dependency and a note: its memberships table backs
-`has_org_role()` and `has_entitlement()`, and no hook should call
-`membership_claims()`. See
+such as `invitations`, are written without `--force`, with `tenant` as a
+dependency and a note: its memberships table backs `has_org_role()`, and no
+hook should call `membership_claims()`. `entitlements` needs `tenant` only
+without a `permdock.manifest.json`: with one, it reads PermDock's
+`member_<scope>_ids` helpers instead. See
 [Entitlements with PermDock](/docs/kits/entitlements#with-permdock).
 
 ```sql

@@ -2,6 +2,9 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { ResolvedConfig } from "../config/index.ts";
+import type { KitPermdock } from "../sql/kit.ts";
+
 const PERMDOCK_CONFIGS = [
   "permdock.config.ts",
   "permdock.config.mts",
@@ -323,3 +326,49 @@ export function parseGrantsMarker(
   const schema = markerFields(match[2]!).get("schema");
   return { version: Number(match[1]), ...(schema ? { schema } : {}) };
 }
+
+/** How the `entitlements` kit module finds memberships. */
+export type EntitlementsMode =
+  | { readonly kind: "tenant" }
+  | { readonly kind: "permdock"; readonly permdock: KitPermdock }
+  | { readonly kind: "invalid"; readonly problem: string };
+
+/**
+ * PermDock mode, when the manifest has an `rls` block and
+ * `entitlements.permdock` is not `false`: the scope must be one of the
+ * manifest's `rls.scopes`. Without a manifest the module keeps using `tenant`.
+ */
+export function entitlementsMode(
+  config: Pick<ResolvedConfig, "entitlements">,
+  project: PermdockProject | undefined,
+): EntitlementsMode {
+  const setting = config.entitlements.permdock;
+  const rls = project?.manifest?.rls;
+  if (setting === false || !project?.manifest || !rls)
+    return { kind: "tenant" };
+  if (!rls.scopes.some((scope) => scope.name === setting.scope)) {
+    return {
+      kind: "invalid",
+      problem: `entitlements.permdock.scope is "${setting.scope}", but ${project.manifestPath} has the scopes ${rls.scopes.map((scope) => scope.name).join(", ") || "(none)"}. Set entitlements.permdock: { scope } to one of them.`,
+    };
+  }
+  return {
+    kind: "permdock",
+    permdock: {
+      schema: rls.schema,
+      scope: setting.scope,
+      memberships: project.manifest.memberships.map((source) => ({
+        table: source.table,
+        userColumn: source.user.column,
+        scope: source.scope,
+        idColumn: source.id.column,
+      })),
+    },
+  };
+}
+
+/** The `member_<scope>_ids` helpers PermDock mode calls, as `schema.name`. */
+export const entitlementHelpers = (permdock: KitPermdock): string[] => [
+  `${permdock.schema}.member_${permdock.scope}_ids`,
+  `${permdock.schema}.member_${permdock.scope}_ids_for`,
+];

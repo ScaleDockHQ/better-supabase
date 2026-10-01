@@ -438,6 +438,19 @@ write the manifest, and `permdock supabase inspect --check` in CI to keep it
 current. `permdock.manifest` and `permdock.catalog` in the config change the
 file paths.
 
+### BS408
+
+**Warning: PermDock helpers the entitlements module calls are missing.**
+With a `permdock.manifest.json`, the [`entitlements` kit
+module](/docs/kits/entitlements#with-permdock) reads memberships from
+PermDock's `member_<scope>_ids()` in `has_entitlement` and
+`member_<scope>_ids_for(uuid)` in `feature_claims`. When `entitlements` is in
+`sql.kit`, doctor warns when `entitlements.permdock.scope` is not one of the
+manifest's scopes, when the manifest's `rls.helpers` lacks one of the two
+helpers (run `permdock rls generate` with a current PermDock, then
+`permdock supabase inspect --out`), or when the database lacks it (apply the
+migration `permdock rls generate` wrote before the kit's).
+
 ## Env files
 
 ### BS501

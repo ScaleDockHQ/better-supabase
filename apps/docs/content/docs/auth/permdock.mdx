@@ -303,7 +303,10 @@ Plan entitlements are not a PermDock claim, so the
 PermDock:
 
 - `has_entitlement(tenant, key)` and `tenant_entitlements(tenant)` read the
-  Stripe tables, so SQL and RLS need no claim.
+  Stripe tables, so SQL and RLS need no claim. With `permdock.manifest.json`
+  present, `has_entitlement` and `feature_claims` check membership through
+  PermDock's `member_<scope>_ids` helpers, and the module no longer needs the
+  `tenant` module.
 - `hasEntitlement(session, ...)` reads the `features` claim. Add
   `claims: { features: 'better_supabase.feature_claims' }` to
   `supabase.hook` in `permdock.config.ts` (see [Use one hook](#use-one-hook))

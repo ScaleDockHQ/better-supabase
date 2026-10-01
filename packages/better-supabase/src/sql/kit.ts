@@ -13,13 +13,20 @@ export interface SqlModule {
   readonly description: string;
   /** Modules this one needs, added along with it. */
   readonly requires: readonly string[];
+  /** What it needs instead when the layout has `permdock`. */
+  readonly permdockRequires?: readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
   /** The module with the default claim names. */
   readonly sql: string;
   /** The module for configured claim names (`config.claims`), when it reads claims. */
-  readonly render?: (claims: ClaimsMeta) => string;
+  readonly render?: (claims: ClaimsMeta, layout: KitLayout) => string;
 }
+
+const requiresOf = (module: SqlModule, layout: KitLayout): readonly string[] =>
+  layout.permdock && module.permdockRequires
+    ? module.permdockRequires
+    : module.requires;
 
 function jwtClaim(name: string): string {
   return `coalesce(auth.jwt() ->> ${sqlString(name)}, auth.jwt() -> 'app_metadata' ->> ${sqlString(name)})`;
@@ -372,36 +379,8 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
-const entitlementsSql = (claims: ClaimsMeta): string => `${SCHEMA}
-grant usage on schema better_supabase to supabase_auth_admin;
-
--- Lookup keys of the tenant's active entitlements, from the Stripe Sync
--- Engine's stripe.active_entitlements. Empty before the engine is installed.
-create or replace function better_supabase.tenant_entitlements(tenant uuid)
-returns text[]
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  customer_id text := better_supabase.tenant_stripe_customer(tenant);
-begin
-  if customer_id is null or to_regclass('stripe.active_entitlements') is null then
-    return '{}';
-  end if;
-  return coalesce((
-    select array_agg(distinct e.lookup_key order by e.lookup_key)
-    from stripe.active_entitlements e
-    where e.customer = customer_id
-      and e.lookup_key is not null
-  ), '{}');
-end
-$$;
-
-revoke execute on function better_supabase.tenant_entitlements(uuid) from public, anon, authenticated;
-grant execute on function better_supabase.tenant_entitlements(uuid) to service_role, supabase_auth_admin;
-
+/** `has_entitlement` and `feature_claims` on the kit's `better_supabase.memberships`. */
+const tenantEntitlementChecks = (claims: ClaimsMeta): string => `
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant uuid, key text)
 returns boolean
@@ -434,7 +413,86 @@ as $$
   cross join lateral (select better_supabase.tenant_entitlements(m.org_id) as keys) e
   where m.user_id = feature_claims.user_id
     and cardinality(e.keys) > 0
+$$;`;
+
+/** `has_entitlement` and `feature_claims` on PermDock's `member_<scope>_ids` helpers. */
+const permdockEntitlementChecks = (
+  claims: ClaimsMeta,
+  permdock: KitPermdock,
+): string => {
+  const member = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids`)}`;
+  const memberFor = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids_for`)}`;
+  return `
+-- PermDock mode: memberships come from PermDock's ${permdock.scope} scope
+-- (${member}() and ${memberFor}(uuid), from \`permdock rls generate\`).
+
+-- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
+create or replace function better_supabase.has_entitlement(tenant uuid, key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select tenant in (select ${member}())
+    and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
+
+revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
+grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+
+-- The \`${claims.features}\` claim: { [${permdock.scope} id]: lookup keys }, read by
+-- hasEntitlement(). Register it with PermDock instead of writing a hook:
+--   supabase: { hook: { claims: { ${claims.features}: 'better_supabase.feature_claims' } } }
+-- \`permdock supabase hook generate --grants-out\` then grants ${memberFor}
+-- to supabase_auth_admin.
+create or replace function better_supabase.feature_claims(user_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
+  from ${memberFor}(feature_claims.user_id) as t(id)
+  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+  where cardinality(e.keys) > 0
+$$;`;
+};
+
+const entitlementsSql = (
+  claims: ClaimsMeta,
+  layout: KitLayout = {},
+): string => `${SCHEMA}
+grant usage on schema better_supabase to supabase_auth_admin;
+
+-- Lookup keys of the tenant's active entitlements, from the Stripe Sync
+-- Engine's stripe.active_entitlements. Empty before the engine is installed.
+create or replace function better_supabase.tenant_entitlements(tenant uuid)
+returns text[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  customer_id text := better_supabase.tenant_stripe_customer(tenant);
+begin
+  if customer_id is null or to_regclass('stripe.active_entitlements') is null then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(distinct e.lookup_key order by e.lookup_key)
+    from stripe.active_entitlements e
+    where e.customer = customer_id
+      and e.lookup_key is not null
+  ), '{}');
+end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlements(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlements(uuid) to service_role, supabase_auth_admin;
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -445,6 +503,7 @@ const ENTITLEMENTS: SqlModule = {
   description:
     "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.",
   requires: ["tenant"],
+  permdockRequires: [],
   target: "schema",
   sql: entitlementsSql(DEFAULT_CLAIMS),
   render: entitlementsSql,
@@ -1545,7 +1604,10 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
 const ORDER = Object.keys(SQL_MODULES);
 
 /** The modules to install for `names`, dependencies first. Throws on an unknown name. */
-export function resolveModules(names: readonly string[]): SqlModule[] {
+export function resolveModules(
+  names: readonly string[],
+  layout: KitLayout = {},
+): SqlModule[] {
   const ordered: SqlModule[] = [];
   const visit = (name: string, from?: string): void => {
     const module = SQL_MODULES[name];
@@ -1555,7 +1617,8 @@ export function resolveModules(names: readonly string[]): SqlModule[] {
       );
     }
     if (ordered.includes(module)) return;
-    for (const dependency of module.requires) visit(dependency, name);
+    for (const dependency of requiresOf(module, layout))
+      visit(dependency, name);
     ordered.push(module);
   };
   for (const name of names) visit(name);
@@ -1596,6 +1659,26 @@ export interface KitLayout {
   readonly vectorSearch?: readonly VectorSearchTable[];
   /** `config.claims`: claim names the modules read and write. */
   readonly claims?: ClaimsMeta;
+  /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
+  readonly permdock?: KitPermdock;
+}
+
+/** One PermDock membership source, from the manifest's `memberships`. */
+export interface KitMembershipSource {
+  /** `schema.table`. */
+  readonly table: string;
+  readonly userColumn: string;
+  readonly scope: { readonly column: string } | { readonly value: string };
+  readonly idColumn: string;
+}
+
+/** Where PermDock's `member_<scope>_ids` helpers live, and the tables behind them. */
+export interface KitPermdock {
+  /** PermDock's `rls.schema`. */
+  readonly schema: string;
+  /** The PermDock scope tenants map to, e.g. `organization`. */
+  readonly scope: string;
+  readonly memberships: readonly KitMembershipSource[];
 }
 
 /** An embedding column `db.$search` can query. */
@@ -1702,7 +1785,32 @@ function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
   return `\n-- config.json schemas\n${statements.join("\n\n")}\n`;
 }
 
-function entitlementsSource(source: EntitlementsSource): string {
+/** Users with a membership in a tenant of `customer`, from PermDock's membership sources. */
+function permdockEntitlementMembers(permdock: KitPermdock): string {
+  const sources = permdock.memberships.flatMap((source) => {
+    const scoped =
+      "value" in source.scope
+        ? source.scope.value === permdock.scope
+          ? ""
+          : undefined
+        : `\n    and m.${sqlIdent(source.scope.column)}::text = ${sqlString(permdock.scope)}`;
+    if (scoped === undefined) return [];
+    const [schema, table] = source.table.split(".", 2);
+    return [
+      `  select distinct m.${sqlIdent(source.userColumn)}::uuid
+  from ${sqlIdent(schema!)}.${sqlIdent(table!)} m
+  where m.${sqlIdent(source.idColumn)}::text in (select t::text from better_supabase.stripe_customer_tenants(customer) t)${scoped}`,
+    ];
+  });
+  return sources.length > 0
+    ? sources.join("\n  union\n")
+    : "  select null::uuid where false";
+}
+
+function entitlementsSource(
+  source: EntitlementsSource,
+  permdock: KitPermdock | undefined,
+): string {
   const [schema, table] = source.table.includes(".")
     ? source.table.split(".", 2)
     : ["public", source.table];
@@ -1733,9 +1841,13 @@ create or replace function better_supabase.entitlement_members(customer text)
 returns setof uuid
 ${definer}
 as $$
-  select distinct m.user_id
+${
+  permdock
+    ? permdockEntitlementMembers(permdock)
+    : `  select distinct m.user_id
   from better_supabase.memberships m
-  where m.org_id in (select better_supabase.stripe_customer_tenants(customer))
+  where m.org_id in (select better_supabase.stripe_customer_tenants(customer))`
+}
 $$;
 
 revoke execute on function better_supabase.tenant_stripe_customer(uuid) from public, anon, authenticated;
@@ -1753,6 +1865,7 @@ function moduleExtras(module: SqlModule, layout: KitLayout): string {
         column: "stripe_customer_id",
         key: "id",
       },
+      layout.permdock,
     );
   if (module.name === "realtime-tables")
     return realtimeRegistrations(
@@ -1794,7 +1907,7 @@ export function renderKit(
   const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
   const prefix = layout.prefix ?? "900_better_supabase";
   const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
-  return resolveModules(names).map((module) => {
+  return resolveModules(names, layout).map((module) => {
     const slug = module.name.replace(/-/g, "_");
     const path =
       module.target === "test"
@@ -1807,8 +1920,8 @@ export function renderKit(
     ].join("\n");
     const extra = moduleExtras(module, layout);
     const sql =
-      module.render && layout.claims
-        ? module.render(layout.claims)
+      module.render && (layout.claims || layout.permdock)
+        ? module.render(layout.claims ?? DEFAULT_CLAIMS, layout)
         : module.sql;
     return {
       module: module.name,
