@@ -10,6 +10,7 @@ import { next } from "@/lib/supabase.server";
  * Action clears the client router cache, including every private session
  * read, so the next render sees the new user.
  */
+// oxlint-disable-next-line typescript/require-await -- Next.js requires Server Actions to be async
 export async function sessionChanged(): Promise<void> {
   refresh();
 }

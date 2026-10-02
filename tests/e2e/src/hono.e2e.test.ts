@@ -28,17 +28,17 @@ describe.skipIf(!(await reachable()))("hono-api example", () => {
     user: TestUser | undefined,
     path: string,
     init: { method?: string; body?: unknown } = {},
-  ) =>
-    app.request(path, {
+  ) => {
+    const headers = new Headers();
+    if (user) headers.set("authorization", `Bearer ${user.accessToken}`);
+    if (init.body !== undefined)
+      headers.set("content-type", "application/json");
+    return app.request(path, {
       method: init.method ?? "GET",
-      headers: {
-        ...(user ? { authorization: `Bearer ${user.accessToken}` } : {}),
-        ...(init.body === undefined
-          ? {}
-          : { "content-type": "application/json" }),
-      },
-      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      headers,
+      body: init.body === undefined ? null : JSON.stringify(init.body),
     });
+  };
 
   it("runs CRUD as the signed-in user, scoped by RLS", async () => {
     const name = `Hono e2e ${crypto.randomUUID()}`;

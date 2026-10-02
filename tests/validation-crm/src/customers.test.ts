@@ -3,11 +3,11 @@ import { defineSupabase } from "better-supabase";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { createCustomersService, type CustomersService } from "./customers.ts";
-import { schema } from "./generated.ts";
+import { type Json, schema } from "./generated.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 
-function service(body: unknown = []) {
+function service(body: Json = []) {
   const fetch = vi.fn<typeof globalThis.fetch>(() =>
     Promise.resolve(
       Response.json(body, { headers: { "content-range": "0-0/1" } }),

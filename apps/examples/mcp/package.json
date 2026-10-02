@@ -16,7 +16,8 @@
   "dependencies": {
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
-    "better-supabase": "workspace:*"
+    "better-supabase": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/cli": "workspace:*",

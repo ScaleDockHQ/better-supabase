@@ -59,7 +59,7 @@ const subpaths = async (): Promise<Map<string, string>> => {
   };
   const entries = new Map<string, string>();
   for (const [subpath, target] of Object.entries(manifest.exports)) {
-    if (typeof target === "string") continue;
+    if (!(target instanceof Object)) continue;
     entries.set(subpath, join(PACKAGE, target.default));
   }
   return entries;

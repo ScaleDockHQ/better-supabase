@@ -20,7 +20,9 @@ export function AskAI() {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
         className="fixed right-4 bottom-4 z-50 inline-flex items-center gap-2 rounded-full border bg-fd-background px-4 py-2 text-sm shadow-lg hover:bg-fd-accent"
       >
         <MessageCircleQuestion className="size-4" aria-hidden />
@@ -28,7 +30,13 @@ export function AskAI() {
       </button>
     );
   }
-  return <ChatPanel onClose={() => setOpen(false)} />;
+  return (
+    <ChatPanel
+      onClose={() => {
+        setOpen(false);
+      }}
+    />
+  );
 }
 
 /** `useChat` creates a random chat id, so it mounts only once the panel opens. */
@@ -85,7 +93,9 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
       <form onSubmit={submit} className="flex gap-2 border-t p-3">
         <input
           value={input}
-          onChange={(event) => setInput(event.currentTarget.value)}
+          onChange={(event) => {
+            setInput(event.currentTarget.value);
+          }}
           placeholder="How do I verify a token?"
           aria-label="Question"
           className="flex-1 rounded-md border bg-transparent px-3 py-1.5 text-sm"

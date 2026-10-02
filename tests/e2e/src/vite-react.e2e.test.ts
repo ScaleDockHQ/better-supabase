@@ -40,9 +40,9 @@ describe.skipIf(!(await reachable()))("vite-react example", () => {
       email: acme.email,
       password: acme.password,
     });
-    await vi.waitFor(() =>
-      expect(browser.auth.current().status).toBe("signed-in"),
-    );
+    await vi.waitFor(() => {
+      expect(browser.auth.current().status).toBe("signed-in");
+    });
 
     const queryClient = new QueryClient();
     const name = `Vite e2e ${crypto.randomUUID()}`;

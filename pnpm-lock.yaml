@@ -699,6 +699,9 @@ importers:
       better-supabase:
         specifier: workspace:*
         version: link:../../../packages/better-supabase
+      valibot:
+        specifier: 'catalog:'
+        version: 1.5.0(typescript@7.0.2)
     devDependencies:
       '@better-supabase/cli':
         specifier: workspace:*
@@ -843,6 +846,9 @@ importers:
       react-dom:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
+      valibot:
+        specifier: 'catalog:'
+        version: 1.5.0(typescript@7.0.2)
     devDependencies:
       '@better-supabase/cli':
         specifier: workspace:*

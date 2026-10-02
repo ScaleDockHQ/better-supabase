@@ -30,20 +30,20 @@ describe.skipIf(!(await reachable()))("edge example", () => {
       token?: string;
       origin?: string;
     } = {},
-  ) =>
-    handler(
+  ) => {
+    const headers = new Headers();
+    if (init.token) headers.set("authorization", `Bearer ${init.token}`);
+    if (init.origin) headers.set("origin", init.origin);
+    if (init.body !== undefined)
+      headers.set("content-type", "application/json");
+    return handler(
       new Request(`http://127.0.0.1:54321${path}`, {
         method: init.method ?? "GET",
-        headers: {
-          ...(init.token ? { authorization: `Bearer ${init.token}` } : {}),
-          ...(init.origin ? { origin: init.origin } : {}),
-          ...(init.body === undefined
-            ? {}
-            : { "content-type": "application/json" }),
-        },
-        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        headers,
+        body: init.body === undefined ? null : JSON.stringify(init.body),
       }),
     );
+  };
 
   it("serves REST resources as the caller", async () => {
     const name = `Edge e2e ${crypto.randomUUID()}`;

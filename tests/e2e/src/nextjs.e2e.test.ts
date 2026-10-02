@@ -2,7 +2,7 @@ import { instant } from "@next/playwright";
 import { type Browser, chromium, type Page } from "@playwright/test";
 import { expectDbBudget } from "better-supabase/testing";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { createServer } from "node:net";
+import { type AddressInfo, createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -33,9 +33,9 @@ async function freePort(): Promise<number> {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
-      server.close(() =>
-        resolve(typeof address === "object" && address ? address.port : 0),
-      );
+      server.close(() => {
+        resolve((address as AddressInfo | null)?.port ?? 0);
+      });
     });
   });
 }
@@ -49,7 +49,9 @@ async function waitFor(url: string, server: ChildProcess): Promise<void> {
       await fetch(url, { signal: AbortSignal.timeout(1000) });
       return;
     } catch {
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 250);
+      });
     }
   }
   throw new Error(`${url} did not come up`);

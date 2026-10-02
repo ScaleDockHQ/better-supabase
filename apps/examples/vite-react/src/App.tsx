@@ -1,19 +1,14 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type SubmitEvent, useState } from "react";
+import * as v from "valibot";
 
 import { useAuth, useQueries, useSupabase } from "./lib/hooks";
 import { createCustomer, customerList } from "./queries";
 
-function organizationOf(
-  claims: Readonly<Record<string, unknown>>,
-): string | undefined {
-  const metadata = claims["app_metadata"];
-  if (typeof metadata !== "object" || metadata === null) return undefined;
-  // SAFETY: the check above narrows metadata to a non-null object; the property
-  // is type-checked below.
-  const orgId = (metadata as Record<string, unknown>)["tenant_id"];
-  return typeof orgId === "string" ? orgId : undefined;
-}
+/** Supabase custom access token hooks put the tenant in `app_metadata`. */
+const TenantClaims = v.object({
+  app_metadata: v.object({ tenant_id: v.string() }),
+});
 
 function SignIn() {
   const supabase = useSupabase();
@@ -46,13 +41,22 @@ function Customers({ organizationId }: { organizationId: string }) {
     event.preventDefault();
     const form = event.currentTarget;
     const name = String(new FormData(form).get("name"));
-    create.mutate({ name, organizationId }, { onSuccess: () => form.reset() });
+    create.mutate(
+      { name, organizationId },
+      {
+        onSuccess: () => {
+          form.reset();
+        },
+      },
+    );
   };
   return (
     <section>
       <input
         value={search}
-        onChange={(event) => setSearch(event.target.value)}
+        onChange={(event) => {
+          setSearch(event.target.value);
+        }}
         placeholder="Search"
       />
       {list.error ? <p role="alert">{list.error.message}</p> : null}
@@ -82,7 +86,10 @@ export function App() {
     case "signed-out":
       return <SignIn />;
     case "signed-in": {
-      const organizationId = organizationOf(auth.claims);
+      const tenant = v.safeParse(TenantClaims, auth.claims);
+      const organizationId = tenant.success
+        ? tenant.output.app_metadata.tenant_id
+        : undefined;
       return (
         <main>
           <header>

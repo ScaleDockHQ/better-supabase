@@ -15,13 +15,13 @@ export function SignOutButton() {
     <button
       type="button"
       disabled={pending}
-      onClick={() =>
+      onClick={() => {
         startTransition(async () => {
           await supabase.auth.signOut();
           await sessionChanged();
           router.push("/login");
-        })
-      }
+        });
+      }}
     >
       Sign out
     </button>

@@ -11,11 +11,26 @@ import {
   type TestUser,
 } from "./stack.ts";
 
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+interface ToolContent {
+  readonly id?: string;
+  readonly name?: string;
+  readonly kind?: string;
+  readonly deleted?: boolean;
+}
+
 interface RpcResponse {
   readonly result: {
     readonly tools?: readonly { readonly name: string }[];
     readonly isError?: boolean;
-    readonly structuredContent?: Record<string, unknown>;
+    readonly structuredContent?: ToolContent;
   };
 }
 
@@ -32,7 +47,7 @@ describe.skipIf(!(await reachable()))("mcp example", () => {
     await Promise.all([acme.remove(), other.remove()]);
   });
 
-  const rpc = async (user: TestUser, method: string, params: unknown) => {
+  const rpc = async (user: TestUser, method: string, params: JsonValue) => {
     const response = await mcp.fetch(
       new Request("http://127.0.0.1/mcp", {
         method: "POST",
@@ -45,7 +60,7 @@ describe.skipIf(!(await reachable()))("mcp example", () => {
     );
     return ((await response.json()) as RpcResponse).result;
   };
-  const tool = (user: TestUser, name: string, args: unknown) =>
+  const tool = (user: TestUser, name: string, args: JsonValue) =>
     rpc(user, "tools/call", { name, arguments: args });
 
   it("lists a tool per operation for each exposed table", async () => {
@@ -68,7 +83,7 @@ describe.skipIf(!(await reachable()))("mcp example", () => {
       organizationId: ACME,
     });
     expect(created.isError).toBeUndefined();
-    const id = created.structuredContent!["id"] as string;
+    const id = created.structuredContent!.id!;
     rows.track(id);
 
     expect(await tool(acme, "customers_get", { id })).toMatchObject({

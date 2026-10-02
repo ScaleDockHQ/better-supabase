@@ -26,7 +26,7 @@ export type Permission =
   | "settings.manage";
 
 /** Mirrors `rbac.role_permissions` (supabase/schemas/040_rbac.sql). */
-const grants: Readonly<Record<Role, readonly Permission[]>> = {
+const grants = {
   admin: [
     "customers.read",
     "customers.write",
@@ -37,7 +37,7 @@ const grants: Readonly<Record<Role, readonly Permission[]>> = {
     "settings.manage",
   ],
   member: ["customers.read"],
-};
+} satisfies Readonly<Record<Role, readonly Permission[]>>;
 
 const isRole = (role: string): role is Role => Object.hasOwn(grants, role);
 
@@ -64,7 +64,8 @@ export function can(
   permission: Permission,
 ): boolean {
   if (session.kind !== "user") return false;
-  return rolesOf(session.claims).some((role) =>
-    grants[role].includes(permission),
-  );
+  return rolesOf(session.claims).some((role) => {
+    const granted: readonly Permission[] = grants[role];
+    return granted.includes(permission);
+  });
 }

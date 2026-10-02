@@ -11,22 +11,22 @@ export function InboxActions() {
       <button
         type="button"
         disabled={pending}
-        onClick={() =>
+        onClick={() => {
           start(async () => {
             await notifyMe({ title: "Hello from the inbox" });
-          })
-        }
+          });
+        }}
       >
         Notify me
       </button>{" "}
       <button
         type="button"
         disabled={pending}
-        onClick={() =>
+        onClick={() => {
           start(async () => {
             await markAllRead({});
-          })
-        }
+          });
+        }}
       >
         Mark all read
       </button>

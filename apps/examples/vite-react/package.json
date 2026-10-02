@@ -23,7 +23,8 @@
     "@tanstack/react-query": "catalog:",
     "better-supabase": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/cli": "workspace:*",
