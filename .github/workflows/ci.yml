@@ -89,12 +89,13 @@ jobs:
       - name: Start Supabase
         run: |
           supabase start
-          supabase status --env --output-format text --agent no \
-            --override-name API_URL=SUPABASE_URL \
-            --override-name PUBLISHABLE_KEY=SUPABASE_PUBLISHABLE_KEY \
-            --override-name SECRET_KEY=SUPABASE_SECRET_KEY \
-            --override-name DB_URL=SUPABASE_DB_URL \
-            | sed -E "s/^([A-Z0-9_]+)='(.*)'$/\1=\2/" >> "$GITHUB_ENV"
+          supabase status -o env \
+            --override-name api.url=SUPABASE_URL \
+            --override-name auth.publishable_key=SUPABASE_PUBLISHABLE_KEY \
+            --override-name auth.secret_key=SUPABASE_SECRET_KEY \
+            --override-name auth.jwt_secret=SUPABASE_JWT_SECRET \
+            --override-name db.url=SUPABASE_DB_URL \
+            | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
       - name: Restore the Next.js build cache
         uses: actions/cache@v6

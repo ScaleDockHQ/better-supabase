@@ -56,7 +56,7 @@ docs/
   80% branches); `autoUpdate` raises them.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
-- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack (the native stack, no Docker needed), a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack (`SUPABASE_EXPERIMENTAL_STACK=1` runs it without Docker), a reset from the migrations and seed, and the pgTAP tests.
 - `pnpm supabase:sync <name>`: a migration from the changes in `supabase/schemas` (pg-delta).
 - `pnpm db:gen`: regenerate the typed client in every example and validation project.
 - `pnpm typecheck:matrix`: published types against TypeScript 6 and 7 (5.9 has no Temporal lib).
@@ -249,7 +249,7 @@ standard or sets how the repo works.
 - 0003: the CLI ships as `@better-supabase/cli` on citty; the MCP SDK spike failed the size check.
 - 0004: the maintainer skills in `.agents/skills` are committed.
 - 0005: the public API uses Temporal for time values.
-- 0006: the fixture schema diffs with pg-delta, and the local stack runs natively.
+- 0006: the fixture schema diffs with pg-delta; the native local stack stays opt-in.
 
 ## Pre-release pins
 

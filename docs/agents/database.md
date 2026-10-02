@@ -51,20 +51,19 @@ The export changes nothing in the repo; never point it at `supabase/schemas`.
 
 ## The native stack
 
-`[experimental] stack = true` runs the stack without a Docker daemon (on a
-machine with Docker it still uses containers), one stack per checkout, so git
-worktrees can run side by side. Each worktree uses the ports in
-`config.toml`, so stop one stack before starting another on the same ports.
+The fixture runs on the Docker backend. In a sandbox without Docker, prefix
+the stack commands with `SUPABASE_EXPERIMENTAL_STACK=1` to use the Supabase
+CLI's native stack (ADR 0006 says why it isn't committed). It runs one stack
+per checkout with the ports in `config.toml`, so stop one before starting
+another.
 
-- `supabase status` rejects `-o env` and `-o json`. Use
-  `supabase status --env` (add `--output-format json` for JSON); it has no
-  `JWT_SECRET`, and the testing helpers fall back to the CLI default.
-- `SUPABASE_EXPERIMENTAL_STACK=0` runs one command on the Docker backend, for
-  example to compare a failure. The two backends keep separate databases, so
-  reset after switching.
-- The Realtime kit's private-channel integration tests fail on the native
-  stack while they pass on the Docker backend; check them on both before
-  changing `src/realtime`.
+- Its `supabase status` rejects `-o env` and `-o json`; use
+  `supabase status --env`. The Docker backend rejects `--env`, which is why
+  CI and `scripts/env-local.ts` keep `-o env`.
+- On CLI 2.119.0 its Realtime refuses or times out private-channel joins, so
+  the Realtime kit and PermDock topic integration tests fail there. Run them
+  on the Docker backend.
+- The two backends keep separate databases, so reset after switching.
 
 ## Integration tests leave objects behind
 

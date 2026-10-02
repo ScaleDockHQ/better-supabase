@@ -78,10 +78,6 @@ port = 55429
 [edge_runtime]
 enabled = false
 
-# The native local stack runs without Docker, one stack per checkout.
-[experimental]
-stack = true
-
 # pg-delta orders the files in schemas/ by dependency. Generate a migration
 # after an edit with `pnpm supabase:sync <name>`.
 [experimental.pgdelta]

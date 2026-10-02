@@ -1,4 +1,4 @@
-# 0006: Diff the fixture schema with pg-delta and run the native local stack
+# 0006: Diff the fixture schema with pg-delta; the native stack stays opt-in
 
 - Status: accepted
 - Date: 2026-10-02
@@ -26,24 +26,27 @@ without a migration. The adoption migration
 (`20261002204857_pgdelta_adoption.sql`) revokes the `MAINTAIN` privilege migra
 had left on `notifications`.
 
-`[experimental] stack = true` puts `supabase start`, `status` and the `--local`
-commands on the native stack. Its `status` rejects `-o env` and `-o json`, so
-CI and `scripts/env-local.ts` read `supabase status --env`, and
-`better-supabase env` falls back to it.
+The native stack is not committed. Agents and sandboxes without Docker opt in
+with `SUPABASE_EXPERIMENTAL_STACK=1`; CI and everyone else run the Docker
+backend. `better-supabase env` reads `supabase status --env` when the native
+stack rejects `supabase status -o json`, so consumers who turn it on keep a
+working `env`.
 
 ## Alternatives considered
 
 - Stay on migra: `schema_paths` ordering and the hand-added grants in every
   migration would keep diverging from what new Supabase projects do.
-- Enable the native stack only through `SUPABASE_EXPERIMENTAL_STACK=1`: CI
-  would keep testing the Docker backend, and agents in sandboxes without
-  Docker would need a setting the repo doesn't show.
+- Commit `[experimental] stack = true`: on CLI 2.119.0 the native stack's
+  Realtime refuses or times out private-channel joins that the Docker backend
+  accepts (the Realtime kit and PermDock topic integration tests), so the CI
+  `stack` job would fail.
 
 ## Consequences
 
 Schema changes no longer need the stack stopped, and file order in
-`supabase/schemas` no longer matters. Both features are experimental in the
-Supabase CLI: the native stack is alpha, and `SUPABASE_EXPERIMENTAL_STACK=0`
-switches one command back to the Docker backend. Revisit when either setting
-leaves `[experimental]`, or when the native stack breaks a CI job the Docker
-backend passes.
+`supabase/schemas` no longer matters. pg-delta is experimental in the Supabase
+CLI, so a CLI bump can change generated migrations; review them. Revisit the
+native stack when a CLI release passes `pnpm test:integration` with
+`SUPABASE_EXPERIMENTAL_STACK=1`; then commit `stack = true` and switch CI and
+`scripts/env-local.ts` to `supabase status --env`, which the Docker backend
+rejects.
