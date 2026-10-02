@@ -2,13 +2,13 @@ name: Database
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - "supabase/**"
       - "packages/cli/src/doctor/**"
       - ".github/workflows/database.yml"
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - "supabase/**"
       - "packages/cli/src/doctor/**"
@@ -35,11 +35,13 @@ jobs:
     steps:
       # Runs before checkout: the action runs npm in the workspace, and npm
       # rejects the root package.json, whose devEngines require pnpm.
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup
 

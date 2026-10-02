@@ -58,6 +58,7 @@
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@changesets/assemble-release-plan": "catalog:",
+    "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
     "@changesets/config": "catalog:",
     "@changesets/pre": "catalog:",

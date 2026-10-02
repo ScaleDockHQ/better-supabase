@@ -1,0 +1,12 @@
+rules:
+  unpinned-uses:
+    config:
+      # GitHub-owned actions stay on their major tag; Dependabot bumps the rest by SHA.
+      policies:
+        "actions/*": ref-pin
+        "github/*": ref-pin
+        "*": hash-pin
+  dependabot-cooldown:
+    config:
+      # Matches minimumReleaseAge (one day) with a day of margin.
+      days: 2

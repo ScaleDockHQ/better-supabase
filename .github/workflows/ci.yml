@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths-ignore:
       - ".cursor/**"
       - ".claude/**"
       - ".agents/**"
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     paths-ignore:
       - ".cursor/**"
       - ".claude/**"
@@ -29,6 +29,24 @@ env:
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
+  pr-title:
+    name: PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          cache: "false"
+
+      - name: Lint the PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | pnpm exec commitlint
+
   verify:
     permissions:
       contents: read
@@ -51,11 +69,13 @@ jobs:
     steps:
       # Runs before checkout: the action runs npm in the workspace, and npm
       # rejects the root package.json, whose devEngines require pnpm.
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup
 
@@ -76,6 +96,17 @@ jobs:
             --override-name auth.jwt_secret=SUPABASE_JWT_SECRET \
             --override-name db.url=SUPABASE_DB_URL \
             | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
+
+      - name: Restore the Next.js build cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            apps/*/.next/cache
+            apps/examples/*/.next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/**/*.ts', 'apps/**/*.tsx', 'apps/**/*.mdx', '!apps/**/node_modules/**', '!apps/**/.next/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            next-${{ runner.os }}-
 
       # Next builds run one at a time on GitHub-hosted runners.
       - name: Build
