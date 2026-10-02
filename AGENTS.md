@@ -30,7 +30,7 @@ tests/
   e2e/                 the examples against a running stack
   validation-*/        code from two production apps ported to better-supabase
 supabase/              the local stack every example and integration test uses
-  schemas/             the declarative schema, in the order `schema_paths` lists
+  schemas/             the declarative schema; pg-delta orders the files by dependency
   migrations/          migrations generated from schemas/ and reviewed
   tests/               pgTAP tests (`pnpm supabase:test`)
 scripts/               repo checks and release scripts that run with Node type stripping
@@ -56,7 +56,8 @@ docs/
   80% branches); `autoUpdate` raises them.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
-- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack, a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack (the native stack, no Docker needed), a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm supabase:sync <name>`: a migration from the changes in `supabase/schemas` (pg-delta).
 - `pnpm db:gen`: regenerate the typed client in every example and validation project.
 - `pnpm typecheck:matrix`: published types against TypeScript 6 and 7 (5.9 has no Temporal lib).
 - `pnpm size`: gzip size baselines and the WinterTC import check.
@@ -206,7 +207,7 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | The package version                 | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not)                                    |
 | A workflow                          | GitHub-owned actions on their major tag, third-party actions on a commit SHA with a `# vX.Y.Z` comment; zizmor checks both (`.github/zizmor.yml`)             |
 | A docs route (`/mcp`, `/llms*`)     | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts`                                                                              |
-| A fixture table                     | its file in `supabase/schemas`, a migration from `pnpm supabase:diff` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                   |
+| A fixture table                     | its file in `supabase/schemas`, a migration from `pnpm supabase:sync` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                   |
 | An env key                          | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example`                                                   |
 | A route in docs or marketing        | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public                  |
 | A UI primitive in marketing         | `DESIGN.md`                                                                                                                                                   |
@@ -248,6 +249,7 @@ standard or sets how the repo works.
 - 0003: the CLI ships as `@better-supabase/cli` on citty; the MCP SDK spike failed the size check.
 - 0004: the maintainer skills in `.agents/skills` are committed.
 - 0005: the public API uses Temporal for time values.
+- 0006: the fixture schema diffs with pg-delta, and the local stack runs natively.
 
 ## Pre-release pins
 

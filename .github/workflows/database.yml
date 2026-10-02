@@ -53,6 +53,15 @@ jobs:
       - name: Start Supabase
         run: supabase start
 
+      - name: Migrations match supabase/schemas
+        run: |
+          supabase db schema declarative sync --no-apply --strict-coverage -f drift < /dev/null
+          if [ -n "$(git status --porcelain supabase/migrations)" ]; then
+            git status --porcelain supabase/migrations
+            echo "supabase/schemas changed without a migration. Run pnpm supabase:sync <name>."
+            exit 1
+          fi
+
       - name: pgTAP
         run: supabase test db
 
