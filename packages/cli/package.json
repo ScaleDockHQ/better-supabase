@@ -1,6 +1,6 @@
 {
   "name": "@better-supabase/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The better-supabase CLI: init, codegen, doctor, the SQL kit and local stack keys.",
   "keywords": [
     "cli",
