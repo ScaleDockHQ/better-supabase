@@ -7,15 +7,24 @@ import { writeFile } from "node:fs/promises";
 
 const status = execFileSync(
   "pnpm",
-  ["exec", "supabase", "status", "--output", "env"],
+  [
+    "exec",
+    "supabase",
+    "status",
+    "--env",
+    "--output-format",
+    "text",
+    "--agent",
+    "no",
+  ],
   { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
 );
 
 const stack = new Map<string, string>();
 for (const line of status.split("\n")) {
-  const match = /^([A-Z0-9_]+)="?(.*?)"?$/.exec(line.trim());
-  if (match?.[1] !== undefined && match[2] !== undefined) {
-    stack.set(match[1], match[2]);
+  const match = /^([A-Z0-9_]+)=(["']?)(.*)\2$/.exec(line.trim());
+  if (match?.[1] !== undefined && match[3] !== undefined) {
+    stack.set(match[1], match[3]);
   }
 }
 
