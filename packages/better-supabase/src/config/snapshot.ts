@@ -79,6 +79,8 @@ export interface ExtrasFunction {
   readonly securityDefiner: boolean;
   /** `set` options, e.g. `{ statement_timeout: '5s' }`. */
   readonly settings: Readonly<Record<string, string>>;
+  /** Which of `anon` and `authenticated` may execute it. Absent in older snapshots. */
+  readonly execute?: readonly string[];
 }
 
 export interface ExtrasTable {
@@ -128,6 +130,10 @@ export interface CatalogIndex {
   readonly unique: boolean;
   readonly primary: boolean;
   readonly partial: boolean;
+  /** Access method (`btree`, `gin`, `gist`, ...). Absent in older snapshots. */
+  readonly method?: string;
+  /** The `where` of a partial index, as Postgres prints it. Absent in older snapshots. */
+  readonly predicate?: string | null;
 }
 
 export interface CatalogPolicy {

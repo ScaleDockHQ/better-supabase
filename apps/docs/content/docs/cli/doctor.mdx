@@ -156,6 +156,66 @@ select from `auth.mfa_factors`, so the policy fails every request with
 `better-supabase sql add mfa`, a `security definer` function. See
 [MFA and SSO](/docs/auth/mfa-sso).
 
+### BS109
+
+**Warning: `auth.role()` in a policy or function.** Supabase deprecated
+`auth.role()`. Doctor reads every policy, the functions policies call and the
+functions in the exposed schemas. Scope the policy with `to authenticated`
+instead, or read the claim with `(select auth.jwt() ->> 'role')`.
+
+### BS110
+
+**Warning: update policy without a select policy or with check.** An update
+finds its rows through the select policies first, so a role with an update
+policy but no select policy updates nothing and gets no error. Add a select
+policy for the same role. An update policy without `with check` is an info
+finding: Postgres then checks the new row against `using`, which leaves
+unstated whether a row may move to another owner or tenant. Write both:
+
+```sql
+create policy notes_update on public.notes for update to authenticated
+  using (organization_id in (select better_supabase.member_org_ids()))
+  with check (organization_id in (select better_supabase.member_org_ids()));
+```
+
+### BS111
+
+**Warning: API roles hold privileges they don't use.** `anon` and
+`authenticated` never need `truncate`, `references` or `trigger` on a table,
+and `truncate` skips RLS. The finding lists the `revoke`. A grant to `anon`
+on a table with RLS where no policy applies to `anon` is an info finding: it
+lets no request through, but lists the table in the Data API schema that
+anyone with the publishable key can read.
+
+### BS112
+
+**Warning: exposed security definer function that doesn't check the
+caller.** A `security definer` function runs as its owner, past RLS. In an
+exposed schema the Data API serves it at `/rpc/<name>`, so when `anon` or
+`authenticated` may execute it and its body never reads `auth.uid()`,
+`auth.jwt()` or the request claims, any caller gets the owner's access. Check
+the caller in the body, revoke `execute` from the API roles, or move the
+function to a schema the API doesn't expose. Trigger functions are skipped;
+`/rpc` can't call them. Needs a snapshot taken with this version, which
+records who may execute each function.
+
+### BS113
+
+**Info: storage upload policy without the upsert policies.** An upload with
+`upsert: true` (the `x-upsert` header) needs `select` and `update` policies
+on `storage.objects` besides `insert`. Without them, replacing a file that
+exists fails with 403. Doctor reads the policies in `supabase/schemas` and the
+migrations; add the missing ones with the same bucket and path check.
+
+### BS114
+
+**Error: policy helper reads `user_metadata`.** Users can change their own
+`raw_user_meta_data` with `auth.updateUser()`, so a function that reads
+`user_metadata` to decide access lets them grant themselves rights. Read
+`app_metadata`, which only the service role can write. Splinter's
+`rls_references_user_metadata` (BS100) covers the policy text; this check
+covers the functions policies call, and the functions those call.
+
 ## Performance
 
 ### BS204
@@ -167,12 +227,13 @@ an index that starts with it.
 ### BS205
 
 **Warning: policy calls a slow function once per row.** A policy passes a
-column of the row, such as `is_member(organization_id)`, to a `plpgsql`,
-other non-SQL or `volatile` function. Postgres can't inline the call or cache
-its result, so it runs once for every row the query reads. Doctor finds the
+column of the row, such as `is_member(organization_id)`, to a function
+Postgres can't inline: `plpgsql` or another non-SQL language, `volatile`,
+`security definer`, or with any `set` option (`set search_path = ''`
+included). The call runs once for every row the query reads. Doctor finds the
 functions a policy calls in `pg_depend`, so helpers in private schemas count
-too. Make the helper `language sql stable` so Postgres inlines it, or have it
-return the allowed values once and compare:
+too. Have the helper return the allowed values once and compare, which works
+for security definer helpers as well:
 
 ```sql
 create policy notes_member on public.notes for select to authenticated
@@ -183,10 +244,12 @@ create policy notes_member on public.notes for select to authenticated
 
 **Warning: security definer policy helper that cannot be inlined.** A
 `security definer` function appears in more than `doctor.policyHelperLimit`
-policies (default 5) and is not `language sql stable`. Every query on those
-tables pays for the call. Rewrite it as `language sql stable` and call it as
-`(select helper())`, so Postgres evaluates it once per statement as an
-InitPlan.
+policies (default 5). Postgres never inlines a security definer function, even
+one written in `language sql stable`, so a call that takes a column of the row
+runs once per row. Call it as `(select helper(...))` when its arguments don't
+come from the row, so Postgres evaluates it once per statement as an
+InitPlan, or have it return the allowed ids as a set and compare with
+`organization_id in (select helper())`.
 
 ### BS207
 
@@ -239,6 +302,10 @@ limits Data API queries; doctor reports the values set on `anon`,
 `set statement_timeout = ...` only applies to an RPC when PostgREST hoists
 it into the transaction. When `pgrst.db_hoisted_tx_settings` is set without
 `statement_timeout`, doctor warns for each exposed function that sets one.
+It also reports each role's `idle_in_transaction_session_timeout`, which ends
+a session that leaves a transaction open. A role setting applies to the role
+a connection logs in as, not to `set role`, so for `better-supabase/postgres`
+set it on the login role or with the pool's `idleInTransactionTimeout`.
 
 ### BS212
 
@@ -316,6 +383,84 @@ row conditions.
 When the helpers are used but the catalog file is missing, doctor reports an
 info finding: run `permdock catalog` to write it. `defineBucket` and
 `defineTopic` take the same catalog as `catalog` and throw for those keys.
+
+### BS215
+
+**Warning: policy calls a helper per row that could run once.** A call such
+as `current_tenant_id()` takes no column of the row, so its result is the same
+for every row. Written bare, Postgres may run it for each row; wrapped as
+`(select current_tenant_id())`, it runs once per statement as an InitPlan.
+Splinter's `auth_rls_initplan` (BS200) covers `auth.uid()` and `auth.jwt()`;
+this check covers your own helpers. Immutable functions are skipped.
+
+### BS216
+
+**Info: foreign key without an index.** Deleting or updating a referenced row
+scans the referencing table for each row, and joins on the key can't use an
+index. Add an index whose leading columns are the key's columns, in any order.
+This replaces splinter's `unindexed_foreign_keys` (BS200) for the same table
+and also runs on a saved snapshot.
+
+### BS217
+
+**Warning: tenant foreign key that can cross tenants.** With the
+[tenant plugin](/docs/plugins), a tenant table that references another tenant
+table by `id` alone can point at a parent in another organization: RLS checks
+each row, not the pair. Reference the tenant column as well, backed by a
+unique key on the parent:
+
+```sql
+alter table public.customers add unique (id, organization_id);
+alter table public.notes add foreign key (customer_id, organization_id)
+  references public.customers (id, organization_id) on delete cascade;
+```
+
+### BS218
+
+**Info: soft-delete table without a partial index.** A table with a nullable
+`deleted_at` or `archived_at` column is mostly read for its live rows. A
+partial index with `where deleted_at is null` stays small and matches those
+queries:
+
+```sql
+create index customers_active_idx on public.customers (organization_id, created_at desc)
+  where archived_at is null;
+```
+
+Snapshots from before index predicates were recorded accept any partial
+index.
+
+### BS219
+
+**Warning: containment filter on a column without a GIN index.** `@>`, `<@`,
+`?`, `?|`, `?&` and `&&` on `jsonb` and array columns, and the
+`.contains()`, `.containedBy()` and `.overlaps()` filters, can only use a GIN
+index; without one, every query reads the table. Doctor looks in the
+policies, the functions in the exposed schemas and the files in
+`doctor.sources`. Use `jsonb_path_ops` when you only filter with `@>`, which
+makes the index smaller; leave it out for `?`:
+
+```sql
+create index notes_meta_idx on public.notes using gin (meta jsonb_path_ops);
+```
+
+### BS220
+
+**Info: column type to avoid.** `timestamp` drops the time zone, `varchar(n)`
+and `char(n)` only add a length limit that a check constraint on `text`
+states as well, `money` rounds by locale, and `json` is parsed again on every
+read. Use `timestamptz`, `text`, `numeric` and `jsonb`.
+
+### BS221
+
+**Warning: direct database connection in a serverless app.** Each serverless
+or edge invocation opens its own connection, so through the direct host
+(`db.<ref>.supabase.co`, which is also IPv6 only) or the session pooler on
+port 5432 they run out of `max_connections`. Use the transaction pooler on
+port 6543 (`postgres://postgres.<ref>:<password>@<region>.pooler.supabase.com:6543/postgres`).
+Doctor checks the env files when the sources export route handlers, a
+`runtime`, a `fetch` handler or `Deno.serve`, or an env file sets `VERCEL`
+variables. The message names the variable, never its value.
 
 ## Drift
 

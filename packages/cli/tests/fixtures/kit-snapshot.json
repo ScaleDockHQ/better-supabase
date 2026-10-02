@@ -72,7 +72,7 @@
       {
         "id": 1000004,
         "schema": "better_supabase",
-        "name": "jobs",
+        "name": "memberships",
         "rls_enabled": true,
         "rls_forced": false,
         "replica_identity": "DEFAULT",
@@ -85,7 +85,7 @@
       {
         "id": 1000005,
         "schema": "better_supabase",
-        "name": "memberships",
+        "name": "reserved_slugs",
         "rls_enabled": true,
         "rls_forced": false,
         "replica_identity": "DEFAULT",
@@ -98,19 +98,6 @@
       {
         "id": 1000006,
         "schema": "better_supabase",
-        "name": "reserved_slugs",
-        "rls_enabled": true,
-        "rls_forced": false,
-        "replica_identity": "DEFAULT",
-        "bytes": 0,
-        "size": "0 bytes",
-        "live_rows_estimate": 0,
-        "dead_rows_estimate": 0,
-        "comment": null
-      },
-      {
-        "id": 1000007,
-        "schema": "better_supabase",
         "name": "webhook_inbox",
         "rls_enabled": true,
         "rls_forced": false,
@@ -122,7 +109,7 @@
         "comment": null
       },
       {
-        "id": 1000008,
+        "id": 1000007,
         "schema": "public",
         "name": "contacts",
         "rls_enabled": true,
@@ -135,7 +122,7 @@
         "comment": null
       },
       {
-        "id": 1000009,
+        "id": 1000008,
         "schema": "public",
         "name": "customer_tags",
         "rls_enabled": true,
@@ -148,7 +135,7 @@
         "comment": null
       },
       {
-        "id": 1000010,
+        "id": 1000009,
         "schema": "public",
         "name": "customers",
         "rls_enabled": true,
@@ -161,7 +148,7 @@
         "comment": null
       },
       {
-        "id": 1000011,
+        "id": 1000010,
         "schema": "public",
         "name": "locations",
         "rls_enabled": true,
@@ -174,7 +161,7 @@
         "comment": null
       },
       {
-        "id": 1000012,
+        "id": 1000011,
         "schema": "public",
         "name": "notes",
         "rls_enabled": true,
@@ -187,7 +174,7 @@
         "comment": null
       },
       {
-        "id": 1000013,
+        "id": 1000012,
         "schema": "public",
         "name": "notifications",
         "rls_enabled": true,
@@ -200,7 +187,7 @@
         "comment": null
       },
       {
-        "id": 1000014,
+        "id": 1000013,
         "schema": "public",
         "name": "organizations",
         "rls_enabled": true,
@@ -213,7 +200,7 @@
         "comment": null
       },
       {
-        "id": 1000015,
+        "id": 1000014,
         "schema": "public",
         "name": "tags",
         "rls_enabled": true,
@@ -329,6 +316,48 @@
         "identity_generation": "ALWAYS",
         "is_generated": false,
         "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000000,
+        "schema": "better_supabase",
+        "table": "audit_log",
+        "id": "1000000.12",
+        "ordinal_position": 12,
+        "name": "impersonated_by",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000000,
+        "schema": "better_supabase",
+        "table": "audit_log",
+        "id": "1000000.13",
+        "ordinal_position": 13,
+        "name": "impersonation_reason",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
         "is_updatable": true,
         "is_unique": false,
         "check": null,
@@ -877,7 +906,7 @@
         "is_nullable": false,
         "is_updatable": true,
         "is_unique": false,
-        "check": null,
+        "check": "role = ANY (ARRAY['owner'::text, 'admin'::text, 'member'::text, 'viewer'::text])",
         "enums": [],
         "comment": null
       },
@@ -905,303 +934,9 @@
       {
         "table_id": 1000004,
         "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.7",
-        "ordinal_position": 7,
-        "name": "attempts",
-        "default_value": "0",
-        "data_type": "integer",
-        "format": "int4",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.13",
-        "ordinal_position": 13,
-        "name": "created_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.9",
-        "ordinal_position": 9,
-        "name": "dedupe_key",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.14",
-        "ordinal_position": 14,
-        "name": "finished_at",
-        "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.1",
-        "ordinal_position": 1,
-        "name": "id",
-        "default_value": null,
-        "data_type": "bigint",
-        "format": "int8",
-        "type_schema": "pg_catalog",
-        "is_identity": true,
-        "identity_generation": "ALWAYS",
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.12",
-        "ordinal_position": 12,
-        "name": "last_error",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.10",
-        "ordinal_position": 10,
-        "name": "locked_by",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.11",
-        "ordinal_position": 11,
-        "name": "locked_until",
-        "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.8",
-        "ordinal_position": 8,
-        "name": "max_attempts",
-        "default_value": "5",
-        "data_type": "integer",
-        "format": "int4",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "max_attempts > 0",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.3",
-        "ordinal_position": 3,
-        "name": "payload",
-        "default_value": "'{}'::jsonb",
-        "data_type": "jsonb",
-        "format": "jsonb",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.5",
-        "ordinal_position": 5,
-        "name": "priority",
-        "default_value": "0",
-        "data_type": "integer",
-        "format": "int4",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.2",
-        "ordinal_position": 2,
-        "name": "queue",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
-        "id": "1000004.6",
-        "ordinal_position": 6,
-        "name": "run_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000004,
-        "schema": "better_supabase",
-        "table": "jobs",
+        "table": "memberships",
         "id": "1000004.4",
         "ordinal_position": 4,
-        "name": "status",
-        "default_value": "'queued'::text",
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "status = ANY (ARRAY['queued'::text, 'running'::text, 'succeeded'::text, 'failed'::text, 'dead'::text])",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000005,
-        "schema": "better_supabase",
-        "table": "memberships",
-        "id": "1000005.4",
-        "ordinal_position": 4,
         "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -1218,10 +953,10 @@
         "comment": null
       },
       {
-        "table_id": 1000005,
+        "table_id": 1000004,
         "schema": "better_supabase",
         "table": "memberships",
-        "id": "1000005.1",
+        "id": "1000004.1",
         "ordinal_position": 1,
         "name": "org_id",
         "default_value": null,
@@ -1239,10 +974,10 @@
         "comment": null
       },
       {
-        "table_id": 1000005,
+        "table_id": 1000004,
         "schema": "better_supabase",
         "table": "memberships",
-        "id": "1000005.3",
+        "id": "1000004.3",
         "ordinal_position": 3,
         "name": "role",
         "default_value": "'member'::text",
@@ -1260,10 +995,10 @@
         "comment": null
       },
       {
-        "table_id": 1000005,
+        "table_id": 1000004,
         "schema": "better_supabase",
         "table": "memberships",
-        "id": "1000005.2",
+        "id": "1000004.2",
         "ordinal_position": 2,
         "name": "user_id",
         "default_value": null,
@@ -1281,10 +1016,10 @@
         "comment": null
       },
       {
-        "table_id": 1000006,
+        "table_id": 1000005,
         "schema": "better_supabase",
         "table": "reserved_slugs",
-        "id": "1000006.2",
+        "id": "1000005.2",
         "ordinal_position": 2,
         "name": "reason",
         "default_value": null,
@@ -1302,10 +1037,10 @@
         "comment": null
       },
       {
-        "table_id": 1000006,
+        "table_id": 1000005,
         "schema": "better_supabase",
         "table": "reserved_slugs",
-        "id": "1000006.1",
+        "id": "1000005.1",
         "ordinal_position": 1,
         "name": "slug",
         "default_value": null,
@@ -1323,10 +1058,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.8",
+        "id": "1000006.8",
         "ordinal_position": 8,
         "name": "attempts",
         "default_value": "0",
@@ -1344,10 +1079,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.10",
+        "id": "1000006.10",
         "ordinal_position": 10,
         "name": "available_at",
         "default_value": "now()",
@@ -1365,10 +1100,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.4",
+        "id": "1000006.4",
         "ordinal_position": 4,
         "name": "event_type",
         "default_value": null,
@@ -1386,10 +1121,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.6",
+        "id": "1000006.6",
         "ordinal_position": 6,
         "name": "headers",
         "default_value": "'{}'::jsonb",
@@ -1407,10 +1142,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.1",
+        "id": "1000006.1",
         "ordinal_position": 1,
         "name": "id",
         "default_value": null,
@@ -1428,10 +1163,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.13",
+        "id": "1000006.13",
         "ordinal_position": 13,
         "name": "last_error",
         "default_value": null,
@@ -1449,10 +1184,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.11",
+        "id": "1000006.11",
         "ordinal_position": 11,
         "name": "locked_by",
         "default_value": null,
@@ -1470,10 +1205,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.12",
+        "id": "1000006.12",
         "ordinal_position": 12,
         "name": "locked_until",
         "default_value": null,
@@ -1491,10 +1226,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.9",
+        "id": "1000006.9",
         "ordinal_position": 9,
         "name": "max_attempts",
         "default_value": "8",
@@ -1512,10 +1247,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.3",
+        "id": "1000006.3",
         "ordinal_position": 3,
         "name": "message_id",
         "default_value": null,
@@ -1533,10 +1268,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.5",
+        "id": "1000006.5",
         "ordinal_position": 5,
         "name": "payload",
         "default_value": null,
@@ -1554,10 +1289,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.15",
+        "id": "1000006.15",
         "ordinal_position": 15,
         "name": "processed_at",
         "default_value": null,
@@ -1575,10 +1310,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.14",
+        "id": "1000006.14",
         "ordinal_position": 14,
         "name": "received_at",
         "default_value": "now()",
@@ -1596,10 +1331,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.2",
+        "id": "1000006.2",
         "ordinal_position": 2,
         "name": "source",
         "default_value": null,
@@ -1617,10 +1352,10 @@
         "comment": null
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table": "webhook_inbox",
-        "id": "1000007.7",
+        "id": "1000006.7",
         "ordinal_position": 7,
         "name": "status",
         "default_value": "'pending'::text",
@@ -1638,10 +1373,10 @@
         "comment": null
       },
       {
-        "table_id": 1000008,
+        "table_id": 1000007,
         "schema": "public",
         "table": "contacts",
-        "id": "1000008.5",
+        "id": "1000007.5",
         "ordinal_position": 5,
         "name": "created_at",
         "default_value": "now()",
@@ -1659,10 +1394,10 @@
         "comment": null
       },
       {
-        "table_id": 1000008,
+        "table_id": 1000007,
         "schema": "public",
         "table": "contacts",
-        "id": "1000008.3",
+        "id": "1000007.3",
         "ordinal_position": 3,
         "name": "email",
         "default_value": null,
@@ -1680,10 +1415,10 @@
         "comment": null
       },
       {
-        "table_id": 1000008,
+        "table_id": 1000007,
         "schema": "public",
         "table": "contacts",
-        "id": "1000008.4",
+        "id": "1000007.4",
         "ordinal_position": 4,
         "name": "full_name",
         "default_value": null,
@@ -1701,10 +1436,10 @@
         "comment": null
       },
       {
-        "table_id": 1000008,
+        "table_id": 1000007,
         "schema": "public",
         "table": "contacts",
-        "id": "1000008.1",
+        "id": "1000007.1",
         "ordinal_position": 1,
         "name": "id",
         "default_value": "gen_random_uuid()",
@@ -1722,11 +1457,74 @@
         "comment": null
       },
       {
-        "table_id": 1000008,
+        "table_id": 1000007,
         "schema": "public",
         "table": "contacts",
-        "id": "1000008.2",
+        "id": "1000007.2",
         "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000007,
+        "schema": "public",
+        "table": "contacts",
+        "id": "1000007.6",
+        "ordinal_position": 6,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000008,
+        "schema": "public",
+        "table": "customer_tags",
+        "id": "1000008.1",
+        "ordinal_position": 1,
+        "name": "customer_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000008,
+        "schema": "public",
+        "table": "customer_tags",
+        "id": "1000008.3",
+        "ordinal_position": 3,
         "name": "organization_id",
         "default_value": null,
         "data_type": "uuid",
@@ -1745,9 +1543,261 @@
       {
         "table_id": 1000008,
         "schema": "public",
-        "table": "contacts",
-        "id": "1000008.6",
+        "table": "customer_tags",
+        "id": "1000008.2",
+        "ordinal_position": 2,
+        "name": "tag_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.10",
+        "ordinal_position": 10,
+        "name": "archived_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.11",
+        "ordinal_position": 11,
+        "name": "created_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.8",
+        "ordinal_position": 8,
+        "name": "created_by",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": "gen_random_uuid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.4",
+        "ordinal_position": 4,
+        "name": "kvk",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.13",
+        "ordinal_position": 13,
+        "name": "logo_path",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.7",
+        "ordinal_position": 7,
+        "name": "metadata",
+        "default_value": "'{}'::jsonb",
+        "data_type": "jsonb",
+        "format": "jsonb",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.3",
+        "ordinal_position": 3,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.2",
+        "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.6",
         "ordinal_position": 6,
+        "name": "primary_contact_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.5",
+        "ordinal_position": 5,
+        "name": "status",
+        "default_value": "'lead'::text",
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": "status = ANY (ARRAY['lead'::text, 'active'::text, 'archived'::text])",
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000009,
+        "schema": "public",
+        "table": "customers",
+        "id": "1000009.12",
+        "ordinal_position": 12,
         "name": "updated_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -1766,76 +1816,13 @@
       {
         "table_id": 1000009,
         "schema": "public",
-        "table": "customer_tags",
-        "id": "1000009.1",
-        "ordinal_position": 1,
-        "name": "customer_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000009,
-        "schema": "public",
-        "table": "customer_tags",
-        "id": "1000009.3",
-        "ordinal_position": 3,
-        "name": "organization_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000009,
-        "schema": "public",
-        "table": "customer_tags",
-        "id": "1000009.2",
-        "ordinal_position": 2,
-        "name": "tag_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
         "table": "customers",
-        "id": "1000010.10",
-        "ordinal_position": 10,
-        "name": "archived_at",
+        "id": "1000009.9",
+        "ordinal_position": 9,
+        "name": "updated_by",
         "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
+        "data_type": "uuid",
+        "format": "uuid",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -1850,9 +1837,30 @@
       {
         "table_id": 1000010,
         "schema": "public",
-        "table": "customers",
-        "id": "1000010.11",
-        "ordinal_position": 11,
+        "table": "locations",
+        "id": "1000010.5",
+        "ordinal_position": 5,
+        "name": "city",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000010,
+        "schema": "public",
+        "table": "locations",
+        "id": "1000010.7",
+        "ordinal_position": 7,
         "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -1871,10 +1879,10 @@
       {
         "table_id": 1000010,
         "schema": "public",
-        "table": "customers",
-        "id": "1000010.8",
-        "ordinal_position": 8,
-        "name": "created_by",
+        "table": "locations",
+        "id": "1000010.3",
+        "ordinal_position": 3,
+        "name": "customer_id",
         "default_value": null,
         "data_type": "uuid",
         "format": "uuid",
@@ -1882,7 +1890,7 @@
         "is_identity": false,
         "identity_generation": null,
         "is_generated": false,
-        "is_nullable": true,
+        "is_nullable": false,
         "is_updatable": true,
         "is_unique": false,
         "check": null,
@@ -1892,7 +1900,7 @@
       {
         "table_id": 1000010,
         "schema": "public",
-        "table": "customers",
+        "table": "locations",
         "id": "1000010.1",
         "ordinal_position": 1,
         "name": "id",
@@ -1913,73 +1921,31 @@
       {
         "table_id": 1000010,
         "schema": "public",
-        "table": "customers",
+        "table": "locations",
+        "id": "1000010.6",
+        "ordinal_position": 6,
+        "name": "is_primary",
+        "default_value": "false",
+        "data_type": "boolean",
+        "format": "bool",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000010,
+        "schema": "public",
+        "table": "locations",
         "id": "1000010.4",
         "ordinal_position": 4,
-        "name": "kvk",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
-        "table": "customers",
-        "id": "1000010.13",
-        "ordinal_position": 13,
-        "name": "logo_path",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
-        "table": "customers",
-        "id": "1000010.7",
-        "ordinal_position": 7,
-        "name": "metadata",
-        "default_value": "'{}'::jsonb",
-        "data_type": "jsonb",
-        "format": "jsonb",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
-        "table": "customers",
-        "id": "1000010.3",
-        "ordinal_position": 3,
-        "name": "name",
+        "name": "label",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -1997,7 +1963,7 @@
       {
         "table_id": 1000010,
         "schema": "public",
-        "table": "customers",
+        "table": "locations",
         "id": "1000010.2",
         "ordinal_position": 2,
         "name": "organization_id",
@@ -2018,51 +1984,9 @@
       {
         "table_id": 1000010,
         "schema": "public",
-        "table": "customers",
-        "id": "1000010.6",
-        "ordinal_position": 6,
-        "name": "primary_contact_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
-        "table": "customers",
-        "id": "1000010.5",
-        "ordinal_position": 5,
-        "name": "status",
-        "default_value": "'lead'::text",
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "status = ANY (ARRAY['lead'::text, 'active'::text, 'archived'::text])",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000010,
-        "schema": "public",
-        "table": "customers",
-        "id": "1000010.12",
-        "ordinal_position": 12,
+        "table": "locations",
+        "id": "1000010.8",
+        "ordinal_position": 8,
         "name": "updated_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -2079,15 +2003,15 @@
         "comment": null
       },
       {
-        "table_id": 1000010,
+        "table_id": 1000011,
         "schema": "public",
-        "table": "customers",
-        "id": "1000010.9",
-        "ordinal_position": 9,
-        "name": "updated_by",
+        "table": "notes",
+        "id": "1000011.6",
+        "ordinal_position": 6,
+        "name": "attachments",
         "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
+        "data_type": "jsonb",
+        "format": "jsonb",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -2102,10 +2026,10 @@
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
+        "table": "notes",
         "id": "1000011.5",
         "ordinal_position": 5,
-        "name": "city",
+        "name": "body",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -2113,7 +2037,7 @@
         "is_identity": false,
         "identity_generation": null,
         "is_generated": false,
-        "is_nullable": true,
+        "is_nullable": false,
         "is_updatable": true,
         "is_unique": false,
         "check": null,
@@ -2123,7 +2047,7 @@
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
+        "table": "notes",
         "id": "1000011.7",
         "ordinal_position": 7,
         "name": "created_at",
@@ -2144,7 +2068,7 @@
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
+        "table": "notes",
         "id": "1000011.3",
         "ordinal_position": 3,
         "name": "customer_id",
@@ -2165,16 +2089,37 @@
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
+        "table": "notes",
+        "id": "1000011.9",
+        "ordinal_position": 9,
+        "name": "embedding",
+        "default_value": null,
+        "data_type": "USER-DEFINED",
+        "format": "vector",
+        "type_schema": "extensions",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000011,
+        "schema": "public",
+        "table": "notes",
         "id": "1000011.1",
         "ordinal_position": 1,
         "name": "id",
-        "default_value": "gen_random_uuid()",
-        "data_type": "uuid",
-        "format": "uuid",
+        "default_value": null,
+        "data_type": "bigint",
+        "format": "int8",
         "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
+        "is_identity": true,
+        "identity_generation": "ALWAYS",
         "is_generated": false,
         "is_nullable": false,
         "is_updatable": true,
@@ -2186,35 +2131,14 @@
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
-        "id": "1000011.6",
-        "ordinal_position": 6,
-        "name": "is_primary",
-        "default_value": "false",
-        "data_type": "boolean",
-        "format": "bool",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000011,
-        "schema": "public",
-        "table": "locations",
+        "table": "notes",
         "id": "1000011.4",
         "ordinal_position": 4,
-        "name": "label",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
+        "name": "kind",
+        "default_value": "'call'::note_kind",
+        "data_type": "USER-DEFINED",
+        "format": "note_kind",
+        "type_schema": "public",
         "is_identity": false,
         "identity_generation": null,
         "is_generated": false,
@@ -2222,13 +2146,13 @@
         "is_updatable": true,
         "is_unique": false,
         "check": null,
-        "enums": [],
+        "enums": ["call", "meeting", "email"],
         "comment": null
       },
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
+        "table": "notes",
         "id": "1000011.2",
         "ordinal_position": 2,
         "name": "organization_id",
@@ -2249,7 +2173,7 @@
       {
         "table_id": 1000011,
         "schema": "public",
-        "table": "locations",
+        "table": "notes",
         "id": "1000011.8",
         "ordinal_position": 8,
         "name": "updated_at",
@@ -2270,51 +2194,9 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "notes",
+        "table": "notifications",
         "id": "1000012.6",
         "ordinal_position": 6,
-        "name": "attachments",
-        "default_value": null,
-        "data_type": "jsonb",
-        "format": "jsonb",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000012,
-        "schema": "public",
-        "table": "notes",
-        "id": "1000012.5",
-        "ordinal_position": 5,
-        "name": "body",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000012,
-        "schema": "public",
-        "table": "notes",
-        "id": "1000012.7",
-        "ordinal_position": 7,
         "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -2333,28 +2215,7 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "notes",
-        "id": "1000012.3",
-        "ordinal_position": 3,
-        "name": "customer_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000012,
-        "schema": "public",
-        "table": "notes",
+        "table": "notifications",
         "id": "1000012.1",
         "ordinal_position": 1,
         "name": "id",
@@ -2375,28 +2236,7 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "notes",
-        "id": "1000012.4",
-        "ordinal_position": 4,
-        "name": "kind",
-        "default_value": "'call'::note_kind",
-        "data_type": "USER-DEFINED",
-        "format": "note_kind",
-        "type_schema": "public",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": ["call", "meeting", "email"],
-        "comment": null
-      },
-      {
-        "table_id": 1000012,
-        "schema": "public",
-        "table": "notes",
+        "table": "notifications",
         "id": "1000012.2",
         "ordinal_position": 2,
         "name": "organization_id",
@@ -2417,113 +2257,8 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "notes",
-        "id": "1000012.8",
-        "ordinal_position": 8,
-        "name": "updated_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000012,
-        "schema": "public",
-        "table": "notes",
-        "id": "1000012.9",
-        "ordinal_position": 9,
-        "name": "embedding",
-        "default_value": null,
-        "data_type": "USER-DEFINED",
-        "format": "vector",
-        "type_schema": "extensions",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000013,
-        "schema": "public",
         "table": "notifications",
-        "id": "1000013.6",
-        "ordinal_position": 6,
-        "name": "created_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000013,
-        "schema": "public",
-        "table": "notifications",
-        "id": "1000013.1",
-        "ordinal_position": 1,
-        "name": "id",
-        "default_value": null,
-        "data_type": "bigint",
-        "format": "int8",
-        "type_schema": "pg_catalog",
-        "is_identity": true,
-        "identity_generation": "ALWAYS",
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000013,
-        "schema": "public",
-        "table": "notifications",
-        "id": "1000013.2",
-        "ordinal_position": 2,
-        "name": "organization_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000013,
-        "schema": "public",
-        "table": "notifications",
-        "id": "1000013.5",
+        "id": "1000012.5",
         "ordinal_position": 5,
         "name": "read_at",
         "default_value": null,
@@ -2541,10 +2276,10 @@
         "comment": null
       },
       {
-        "table_id": 1000013,
+        "table_id": 1000012,
         "schema": "public",
         "table": "notifications",
-        "id": "1000013.4",
+        "id": "1000012.4",
         "ordinal_position": 4,
         "name": "title",
         "default_value": null,
@@ -2562,10 +2297,10 @@
         "comment": null
       },
       {
-        "table_id": 1000013,
+        "table_id": 1000012,
         "schema": "public",
         "table": "notifications",
-        "id": "1000013.3",
+        "id": "1000012.3",
         "ordinal_position": 3,
         "name": "user_id",
         "default_value": "auth.uid()",
@@ -2583,10 +2318,10 @@
         "comment": null
       },
       {
-        "table_id": 1000014,
+        "table_id": 1000013,
         "schema": "public",
         "table": "organizations",
-        "id": "1000014.4",
+        "id": "1000013.4",
         "ordinal_position": 4,
         "name": "created_at",
         "default_value": "now()",
@@ -2604,9 +2339,114 @@
         "comment": null
       },
       {
-        "table_id": 1000014,
+        "table_id": 1000013,
         "schema": "public",
         "table": "organizations",
+        "id": "1000013.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": "gen_random_uuid()",
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
+        "table": "organizations",
+        "id": "1000013.2",
+        "ordinal_position": 2,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
+        "table": "organizations",
+        "id": "1000013.3",
+        "ordinal_position": 3,
+        "name": "slug",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": true,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
+        "table": "organizations",
+        "id": "1000013.5",
+        "ordinal_position": 5,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000014,
+        "schema": "public",
+        "table": "tags",
+        "id": "1000014.4",
+        "ordinal_position": 4,
+        "name": "color",
+        "default_value": "'gray'::text",
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": "color = ANY (ARRAY['gray'::text, 'red'::text, 'green'::text, 'blue'::text])",
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000014,
+        "schema": "public",
+        "table": "tags",
         "id": "1000014.1",
         "ordinal_position": 1,
         "name": "id",
@@ -2627,114 +2467,9 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "organizations",
-        "id": "1000014.2",
-        "ordinal_position": 2,
-        "name": "name",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000014,
-        "schema": "public",
-        "table": "organizations",
+        "table": "tags",
         "id": "1000014.3",
         "ordinal_position": 3,
-        "name": "slug",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": true,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000014,
-        "schema": "public",
-        "table": "organizations",
-        "id": "1000014.5",
-        "ordinal_position": 5,
-        "name": "updated_at",
-        "default_value": "now()",
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000015.4",
-        "ordinal_position": 4,
-        "name": "color",
-        "default_value": "'gray'::text",
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": "color = ANY (ARRAY['gray'::text, 'red'::text, 'green'::text, 'blue'::text])",
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000015.1",
-        "ordinal_position": 1,
-        "name": "id",
-        "default_value": "gen_random_uuid()",
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "tags",
-        "id": "1000015.3",
-        "ordinal_position": 3,
         "name": "name",
         "default_value": null,
         "data_type": "text",
@@ -2751,10 +2486,10 @@
         "comment": null
       },
       {
-        "table_id": 1000015,
+        "table_id": 1000014,
         "schema": "public",
         "table": "tags",
-        "id": "1000015.2",
+        "id": "1000014.2",
         "ordinal_position": 2,
         "name": "organization_id",
         "default_value": null,
@@ -2806,83 +2541,77 @@
       {
         "table_id": 1000004,
         "schema": "better_supabase",
-        "table_name": "jobs",
-        "name": "id"
-      },
-      {
-        "table_id": 1000005,
-        "schema": "better_supabase",
         "table_name": "memberships",
         "name": "org_id"
       },
       {
-        "table_id": 1000005,
+        "table_id": 1000004,
         "schema": "better_supabase",
         "table_name": "memberships",
         "name": "user_id"
       },
       {
-        "table_id": 1000006,
+        "table_id": 1000005,
         "schema": "better_supabase",
         "table_name": "reserved_slugs",
         "name": "slug"
       },
       {
-        "table_id": 1000007,
+        "table_id": 1000006,
         "schema": "better_supabase",
         "table_name": "webhook_inbox",
         "name": "id"
       },
       {
-        "table_id": 1000008,
+        "table_id": 1000007,
         "schema": "public",
         "table_name": "contacts",
         "name": "id"
       },
       {
-        "table_id": 1000009,
+        "table_id": 1000008,
         "schema": "public",
         "table_name": "customer_tags",
         "name": "customer_id"
       },
       {
-        "table_id": 1000009,
+        "table_id": 1000008,
         "schema": "public",
         "table_name": "customer_tags",
         "name": "tag_id"
       },
       {
-        "table_id": 1000010,
+        "table_id": 1000009,
         "schema": "public",
         "table_name": "customers",
         "name": "id"
       },
       {
-        "table_id": 1000011,
+        "table_id": 1000010,
         "schema": "public",
         "table_name": "locations",
         "name": "id"
       },
       {
-        "table_id": 1000012,
+        "table_id": 1000011,
         "schema": "public",
         "table_name": "notes",
         "name": "id"
       },
       {
-        "table_id": 1000013,
+        "table_id": 1000012,
         "schema": "public",
         "table_name": "notifications",
         "name": "id"
       },
       {
-        "table_id": 1000014,
+        "table_id": 1000013,
         "schema": "public",
         "table_name": "organizations",
         "name": "id"
       },
       {
-        "table_id": 1000015,
+        "table_id": 1000014,
         "schema": "public",
         "table_name": "tags",
         "name": "id"
@@ -2903,10 +2632,10 @@
         "foreign_key_name": "customer_tags_customer_id_fkey",
         "schema": "public",
         "relation": "customer_tags",
-        "columns": ["customer_id"],
+        "columns": ["customer_id", "organization_id"],
         "referenced_schema": "public",
         "referenced_relation": "customers",
-        "referenced_columns": ["id"],
+        "referenced_columns": ["id", "organization_id"],
         "is_one_to_one": false
       },
       {
@@ -2923,10 +2652,10 @@
         "foreign_key_name": "customer_tags_tag_id_fkey",
         "schema": "public",
         "relation": "customer_tags",
-        "columns": ["tag_id"],
+        "columns": ["tag_id", "organization_id"],
         "referenced_schema": "public",
         "referenced_relation": "tags",
-        "referenced_columns": ["id"],
+        "referenced_columns": ["id", "organization_id"],
         "is_one_to_one": false
       },
       {
@@ -2943,10 +2672,10 @@
         "foreign_key_name": "customers_primary_contact_id_fkey",
         "schema": "public",
         "relation": "customers",
-        "columns": ["primary_contact_id"],
+        "columns": ["primary_contact_id", "organization_id"],
         "referenced_schema": "public",
         "referenced_relation": "contacts",
-        "referenced_columns": ["id"],
+        "referenced_columns": ["id", "organization_id"],
         "is_one_to_one": false
       },
       {
@@ -2973,10 +2702,10 @@
         "foreign_key_name": "locations_customer_id_fkey",
         "schema": "public",
         "relation": "locations",
-        "columns": ["customer_id"],
+        "columns": ["customer_id", "organization_id"],
         "referenced_schema": "public",
         "referenced_relation": "customers",
-        "referenced_columns": ["id"],
+        "referenced_columns": ["id", "organization_id"],
         "is_one_to_one": false
       },
       {
@@ -3003,10 +2732,10 @@
         "foreign_key_name": "notes_customer_id_fkey",
         "schema": "public",
         "relation": "notes",
-        "columns": ["customer_id"],
+        "columns": ["customer_id", "organization_id"],
         "referenced_schema": "public",
         "referenced_relation": "customers",
-        "referenced_columns": ["id"],
+        "referenced_columns": ["id", "organization_id"],
         "is_one_to_one": false
       },
       {
@@ -3056,8 +2785,8 @@
         "schema": "better_supabase",
         "name": "accept_invitation",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  invite better_supabase.invitations;\nbegin\n  if auth.uid() is null then\n    raise exception 'Sign in to accept an invitation' using errcode = '42501';\n  end if;\n  select * into invite\n  from better_supabase.invitations i\n  where i.token_hash = encode(extensions.digest(token, 'sha256'), 'hex')\n  for update;\n  if invite.id is null or invite.accepted_at is not null or invite.expires_at < now() then\n    raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';\n  end if;\n  if lower(invite.email) <> lower(coalesce(auth.jwt() ->> 'email', '')) then\n    raise exception 'The invitation is for another email address' using errcode = '42501', hint = 'INVITATION_EMAIL_MISMATCH';\n  end if;\n  insert into better_supabase.memberships (org_id, user_id, role)\n  values (invite.org_id, auth.uid(), invite.role)\n  on conflict (org_id, user_id) do update set role = excluded.role;\n  update better_supabase.invitations\n  set accepted_at = now(), accepted_by = auth.uid()\n  where id = invite.id;\n  return invite.org_id;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.accept_invitation(token text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  invite better_supabase.invitations;\nbegin\n  if auth.uid() is null then\n    raise exception 'Sign in to accept an invitation' using errcode = '42501';\n  end if;\n  select * into invite\n  from better_supabase.invitations i\n  where i.token_hash = encode(extensions.digest(token, 'sha256'), 'hex')\n  for update;\n  if invite.id is null or invite.accepted_at is not null or invite.expires_at < now() then\n    raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';\n  end if;\n  if lower(invite.email) <> lower(coalesce(auth.jwt() ->> 'email', '')) then\n    raise exception 'The invitation is for another email address' using errcode = '42501', hint = 'INVITATION_EMAIL_MISMATCH';\n  end if;\n  insert into better_supabase.memberships (org_id, user_id, role)\n  values (invite.org_id, auth.uid(), invite.role)\n  on conflict (org_id, user_id) do update set role = excluded.role;\n  update better_supabase.invitations\n  set accepted_at = now(), accepted_by = auth.uid()\n  where id = invite.id;\n  return invite.org_id;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  invite better_supabase.invitations;\nbegin\n  if auth.uid() is null then\n    raise exception 'Sign in to accept an invitation' using errcode = '42501';\n  end if;\n  select * into invite\n  from better_supabase.invitations i\n  where i.token_hash = encode(extensions.digest(token, 'sha256'), 'hex')\n  for update;\n  if invite.id is null or invite.accepted_at is not null or invite.expires_at < now() then\n    raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';\n  end if;\n  if lower(invite.email) <> lower(coalesce(auth.jwt() ->> 'email', '')) then\n    raise exception 'The invitation is for another email address' using errcode = '42501', hint = 'INVITATION_EMAIL_MISMATCH';\n  end if;\n  -- The email claim alone does not prove the address: an unconfirmed sign-up carries it too.\n  if not exists (\n    select 1 from auth.users u\n    where u.id = auth.uid() and u.email_confirmed_at is not null and lower(u.email) = lower(invite.email)\n  ) then\n    raise exception 'Confirm your email address before accepting the invitation' using errcode = '42501', hint = 'INVITATION_EMAIL_UNCONFIRMED';\n  end if;\n  insert into better_supabase.memberships (org_id, user_id, role)\n  values (invite.org_id, auth.uid(), invite.role)\n  on conflict (org_id, user_id) do update set role = excluded.role;\n  update better_supabase.invitations\n  set accepted_at = now(), accepted_by = auth.uid()\n  where id = invite.id;\n  return invite.org_id;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.accept_invitation(token text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  invite better_supabase.invitations;\nbegin\n  if auth.uid() is null then\n    raise exception 'Sign in to accept an invitation' using errcode = '42501';\n  end if;\n  select * into invite\n  from better_supabase.invitations i\n  where i.token_hash = encode(extensions.digest(token, 'sha256'), 'hex')\n  for update;\n  if invite.id is null or invite.accepted_at is not null or invite.expires_at < now() then\n    raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';\n  end if;\n  if lower(invite.email) <> lower(coalesce(auth.jwt() ->> 'email', '')) then\n    raise exception 'The invitation is for another email address' using errcode = '42501', hint = 'INVITATION_EMAIL_MISMATCH';\n  end if;\n  -- The email claim alone does not prove the address: an unconfirmed sign-up carries it too.\n  if not exists (\n    select 1 from auth.users u\n    where u.id = auth.uid() and u.email_confirmed_at is not null and lower(u.email) = lower(invite.email)\n  ) then\n    raise exception 'Confirm your email address before accepting the invitation' using errcode = '42501', hint = 'INVITATION_EMAIL_UNCONFIRMED';\n  end if;\n  insert into better_supabase.memberships (org_id, user_id, role)\n  values (invite.org_id, auth.uid(), invite.role)\n  on conflict (org_id, user_id) do update set role = excluded.role;\n  update better_supabase.invitations\n  set accepted_at = now(), accepted_by = auth.uid()\n  where id = invite.id;\n  return invite.org_id;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -3187,10 +2916,16 @@
         "id": 3000003,
         "schema": "better_supabase",
         "name": "claim_jobs",
-        "language": "sql",
-        "definition": "\n  -- Materialized so the locking subquery runs once; an IN (...) subquery can be\n  -- re-evaluated by the planner and claim more than `batch` rows.\n  with next as materialized (\n    select c.id from better_supabase.jobs c\n    where c.queue = claim_jobs.queue\n      and (\n        (c.status = 'queued' and c.run_at <= now())\n        or (c.status = 'running' and c.locked_until < now())\n      )\n    order by c.priority desc, c.run_at, c.id\n    for update skip locked\n    limit batch\n  )\n  update better_supabase.jobs j\n  set status = 'running',\n      attempts = j.attempts + 1,\n      locked_by = worker,\n      locked_until = now() + lease\n  from next\n  where j.id = next.id\n  returning j.*\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.claim_jobs(queue text, worker text, batch integer DEFAULT 1, lease interval DEFAULT '00:05:00'::interval)\n RETURNS SETOF better_supabase.jobs\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  -- Materialized so the locking subquery runs once; an IN (...) subquery can be\n  -- re-evaluated by the planner and claim more than `batch` rows.\n  with next as materialized (\n    select c.id from better_supabase.jobs c\n    where c.queue = claim_jobs.queue\n      and (\n        (c.status = 'queued' and c.run_at <= now())\n        or (c.status = 'running' and c.locked_until < now())\n      )\n    order by c.priority desc, c.run_at, c.id\n    for update skip locked\n    limit batch\n  )\n  update better_supabase.jobs j\n  set status = 'running',\n      attempts = j.attempts + 1,\n      locked_by = worker,\n      locked_until = now() + lease\n  from next\n  where j.id = next.id\n  returning j.*\n$function$\n",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  perform better_supabase.ensure_job_queue(queue);\n  return query\n    select r.msg_id, r.read_ct, r.enqueued_at, r.vt, r.message\n    from pgmq.read(queue, lease, batch) r;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.claim_jobs(queue text, lease integer DEFAULT 300, batch integer DEFAULT 1)\n RETURNS TABLE(id bigint, attempts integer, enqueued_at timestamp with time zone, visible_until timestamp with time zone, message jsonb)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  perform better_supabase.ensure_job_queue(queue);\n  return query\n    select r.msg_id, r.read_ct, r.enqueued_at, r.vt, r.message\n    from pgmq.read(queue, lease, batch) r;\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "table",
+            "name": "attempts",
+            "type_id": 23,
+            "has_default": null
+          },
           {
             "mode": "in",
             "name": "batch",
@@ -3198,10 +2933,28 @@
             "has_default": true
           },
           {
+            "mode": "table",
+            "name": "enqueued_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "id",
+            "type_id": 20,
+            "has_default": null
+          },
+          {
             "mode": "in",
             "name": "lease",
-            "type_id": 1186,
+            "type_id": 23,
             "has_default": true
+          },
+          {
+            "mode": "table",
+            "name": "message",
+            "type_id": 3802,
+            "has_default": null
           },
           {
             "mode": "in",
@@ -3210,21 +2963,21 @@
             "has_default": false
           },
           {
-            "mode": "in",
-            "name": "worker",
-            "type_id": 25,
-            "has_default": false
+            "mode": "table",
+            "name": "visible_until",
+            "type_id": 1184,
+            "has_default": null
           }
         ],
-        "argument_types": "queue text, worker text, batch integer DEFAULT 1, lease interval DEFAULT '00:05:00'::interval",
-        "identity_argument_types": "queue text, worker text, batch integer, lease interval",
-        "return_type_id": 2000012,
-        "return_type": "SETOF better_supabase.jobs",
-        "return_type_relation_id": 1000004,
+        "argument_types": "queue text, lease integer DEFAULT 300, batch integer DEFAULT 1",
+        "identity_argument_types": "queue text, lease integer, batch integer",
+        "return_type_id": 2249,
+        "return_type": "TABLE(id bigint, attempts integer, enqueued_at timestamp with time zone, visible_until timestamp with time zone, message jsonb)",
+        "return_type_relation_id": null,
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "VOLATILE",
-        "security_definer": false,
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
@@ -3264,9 +3017,9 @@
         ],
         "argument_types": "source text, worker text, batch integer DEFAULT 10, lease interval DEFAULT '00:05:00'::interval",
         "identity_argument_types": "source text, worker text, batch integer, lease interval",
-        "return_type_id": 2000015,
+        "return_type_id": 2000013,
         "return_type": "SETOF better_supabase.webhook_inbox",
-        "return_type_relation_id": 1000007,
+        "return_type_relation_id": 1000006,
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "VOLATILE",
@@ -3325,10 +3078,16 @@
         "id": 3000006,
         "schema": "better_supabase",
         "name": "complete_job",
-        "language": "sql",
-        "definition": "\n  with done as (\n    update better_supabase.jobs\n    set status = 'succeeded', finished_at = now(), locked_by = null, locked_until = null, last_error = null\n    where id = job_id and locked_by = worker and status = 'running'\n    returning 1\n  )\n  select exists (select 1 from done)\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.complete_job(job_id bigint, worker text)\n RETURNS boolean\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  with done as (\n    update better_supabase.jobs\n    set status = 'succeeded', finished_at = now(), locked_by = null, locked_until = null, last_error = null\n    where id = job_id and locked_by = worker and status = 'running'\n    returning 1\n  )\n  select exists (select 1 from done)\n$function$\n",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  hit bigint;\nbegin\n  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)\n    into hit using job_id, attempt;\n  if hit is null then\n    return false;\n  end if;\n  return pgmq.archive(queue, job_id);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.complete_job(queue text, job_id bigint, attempt integer)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  hit bigint;\nbegin\n  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)\n    into hit using job_id, attempt;\n  if hit is null then\n    return false;\n  end if;\n  return pgmq.archive(queue, job_id);\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "attempt",
+            "type_id": 23,
+            "has_default": false
+          },
           {
             "mode": "in",
             "name": "job_id",
@@ -3337,20 +3096,20 @@
           },
           {
             "mode": "in",
-            "name": "worker",
+            "name": "queue",
             "type_id": 25,
             "has_default": false
           }
         ],
-        "argument_types": "job_id bigint, worker text",
-        "identity_argument_types": "job_id bigint, worker text",
+        "argument_types": "queue text, job_id bigint, attempt integer",
+        "identity_argument_types": "queue text, job_id bigint, attempt integer",
         "return_type_id": 16,
         "return_type": "boolean",
         "return_type_relation_id": null,
         "is_set_returning_function": false,
         "prorows": null,
         "behavior": "VOLATILE",
-        "security_definer": false,
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
@@ -3394,8 +3153,8 @@
         "schema": "better_supabase",
         "name": "create_invitation",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  token text := encode(extensions.gen_random_bytes(24), 'hex');\nbegin\n  if auth.role() <> 'service_role' and not better_supabase.has_org_role(org, '{owner,admin}') then\n    raise exception 'Only owners and admins can invite' using errcode = '42501';\n  end if;\n  delete from better_supabase.invitations i\n  where i.org_id = org and lower(i.email) = lower(invitee_email) and i.accepted_at is null;\n  insert into better_supabase.invitations (org_id, email, role, token_hash, invited_by, expires_at)\n  values (\n    org,\n    invitee_email,\n    invitee_role,\n    encode(extensions.digest(token, 'sha256'), 'hex'),\n    auth.uid(),\n    now() + valid_for\n  );\n  return token;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.create_invitation(org uuid, invitee_email text, invitee_role text DEFAULT 'member'::text, valid_for interval DEFAULT '7 days'::interval)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  token text := encode(extensions.gen_random_bytes(24), 'hex');\nbegin\n  if auth.role() <> 'service_role' and not better_supabase.has_org_role(org, '{owner,admin}') then\n    raise exception 'Only owners and admins can invite' using errcode = '42501';\n  end if;\n  delete from better_supabase.invitations i\n  where i.org_id = org and lower(i.email) = lower(invitee_email) and i.accepted_at is null;\n  insert into better_supabase.invitations (org_id, email, role, token_hash, invited_by, expires_at)\n  values (\n    org,\n    invitee_email,\n    invitee_role,\n    encode(extensions.digest(token, 'sha256'), 'hex'),\n    auth.uid(),\n    now() + valid_for\n  );\n  return token;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  token text := encode(extensions.gen_random_bytes(24), 'hex');\n  privileged boolean := coalesce(auth.jwt() ->> 'role', '') = 'service_role';\nbegin\n  if not privileged and not better_supabase.has_org_role(org, '{owner,admin}') then\n    raise exception 'Only owners and admins can invite' using errcode = '42501';\n  end if;\n  -- Admins invite admins and below; only an owner hands out ownership.\n  if invitee_role = 'owner' and not privileged and not better_supabase.has_org_role(org, '{owner}') then\n    raise exception 'Only owners can invite an owner' using errcode = '42501', hint = 'INVITATION_ROLE_FORBIDDEN';\n  end if;\n  delete from better_supabase.invitations i\n  where i.org_id = org and lower(i.email) = lower(invitee_email) and i.accepted_at is null;\n  insert into better_supabase.invitations (org_id, email, role, token_hash, invited_by, expires_at)\n  values (\n    org,\n    invitee_email,\n    invitee_role,\n    encode(extensions.digest(token, 'sha256'), 'hex'),\n    auth.uid(),\n    now() + valid_for\n  );\n  return token;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.create_invitation(org uuid, invitee_email text, invitee_role text DEFAULT 'member'::text, valid_for interval DEFAULT '7 days'::interval)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  token text := encode(extensions.gen_random_bytes(24), 'hex');\n  privileged boolean := coalesce(auth.jwt() ->> 'role', '') = 'service_role';\nbegin\n  if not privileged and not better_supabase.has_org_role(org, '{owner,admin}') then\n    raise exception 'Only owners and admins can invite' using errcode = '42501';\n  end if;\n  -- Admins invite admins and below; only an owner hands out ownership.\n  if invitee_role = 'owner' and not privileged and not better_supabase.has_org_role(org, '{owner}') then\n    raise exception 'Only owners can invite an owner' using errcode = '42501', hint = 'INVITATION_ROLE_FORBIDDEN';\n  end if;\n  delete from better_supabase.invitations i\n  where i.org_id = org and lower(i.email) = lower(invitee_email) and i.accepted_at is null;\n  insert into better_supabase.invitations (org_id, email, role, token_hash, invited_by, expires_at)\n  values (\n    org,\n    invitee_email,\n    invitee_role,\n    encode(extensions.digest(token, 'sha256'), 'hex'),\n    auth.uid(),\n    now() + valid_for\n  );\n  return token;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -3461,13 +3220,19 @@
         "schema": "better_supabase",
         "name": "enqueue_job",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_column\ndeclare\n  job_id bigint;\nbegin\n  insert into better_supabase.jobs (queue, payload, run_at, max_attempts, dedupe_key, priority)\n  values (queue, payload, run_at, max_attempts, dedupe_key, priority)\n  on conflict (queue, dedupe_key) where dedupe_key is not null and status in ('queued', 'running')\n  do nothing\n  returning id into job_id;\n  if job_id is null then\n    select j.id into job_id from better_supabase.jobs j\n    where j.queue = enqueue_job.queue and j.dedupe_key = enqueue_job.dedupe_key\n      and j.status in ('queued', 'running');\n  end if;\n  return job_id;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.enqueue_job(queue text, payload jsonb DEFAULT '{}'::jsonb, run_at timestamp with time zone DEFAULT now(), max_attempts integer DEFAULT 5, dedupe_key text DEFAULT NULL::text, priority integer DEFAULT 0)\n RETURNS bigint\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  job_id bigint;\nbegin\n  insert into better_supabase.jobs (queue, payload, run_at, max_attempts, dedupe_key, priority)\n  values (queue, payload, run_at, max_attempts, dedupe_key, priority)\n  on conflict (queue, dedupe_key) where dedupe_key is not null and status in ('queued', 'running')\n  do nothing\n  returning id into job_id;\n  if job_id is null then\n    select j.id into job_id from better_supabase.jobs j\n    where j.queue = enqueue_job.queue and j.dedupe_key = enqueue_job.dedupe_key\n      and j.status in ('queued', 'running');\n  end if;\n  return job_id;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  existing bigint;\nbegin\n  perform better_supabase.ensure_job_queue(queue);\n  if dedupe_key is not null then\n    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));\n    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)\n      into existing using dedupe_key;\n    if existing is not null then\n      return existing;\n    end if;\n  end if;\n  return (\n    select pgmq.send(\n      queue,\n      jsonb_build_object('payload', payload, 'max_attempts', max_attempts)\n        || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,\n      greatest(delay, 0)\n    )\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.enqueue_job(queue text, payload jsonb DEFAULT '{}'::jsonb, delay integer DEFAULT 0, max_attempts integer DEFAULT 5, dedupe_key text DEFAULT NULL::text)\n RETURNS bigint\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  existing bigint;\nbegin\n  perform better_supabase.ensure_job_queue(queue);\n  if dedupe_key is not null then\n    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));\n    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)\n      into existing using dedupe_key;\n    if existing is not null then\n      return existing;\n    end if;\n  end if;\n  return (\n    select pgmq.send(\n      queue,\n      jsonb_build_object('payload', payload, 'max_attempts', max_attempts)\n        || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,\n      greatest(delay, 0)\n    )\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
             "name": "dedupe_key",
             "type_id": 25,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "delay",
+            "type_id": 23,
             "has_default": true
           },
           {
@@ -3484,32 +3249,20 @@
           },
           {
             "mode": "in",
-            "name": "priority",
-            "type_id": 23,
-            "has_default": true
-          },
-          {
-            "mode": "in",
             "name": "queue",
             "type_id": 25,
             "has_default": false
-          },
-          {
-            "mode": "in",
-            "name": "run_at",
-            "type_id": 1184,
-            "has_default": true
           }
         ],
-        "argument_types": "queue text, payload jsonb DEFAULT '{}'::jsonb, run_at timestamp with time zone DEFAULT now(), max_attempts integer DEFAULT 5, dedupe_key text DEFAULT NULL::text, priority integer DEFAULT 0",
-        "identity_argument_types": "queue text, payload jsonb, run_at timestamp with time zone, max_attempts integer, dedupe_key text, priority integer",
+        "argument_types": "queue text, payload jsonb DEFAULT '{}'::jsonb, delay integer DEFAULT 0, max_attempts integer DEFAULT 5, dedupe_key text DEFAULT NULL::text",
+        "identity_argument_types": "queue text, payload jsonb, delay integer, max_attempts integer, dedupe_key text",
         "return_type_id": 20,
         "return_type": "bigint",
         "return_type_relation_id": null,
         "is_set_returning_function": false,
         "prorows": null,
         "behavior": "VOLATILE",
-        "security_definer": false,
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
@@ -3517,11 +3270,45 @@
       {
         "id": 3000011,
         "schema": "better_supabase",
-        "name": "extend_job_lease",
-        "language": "sql",
-        "definition": "\n  with extended as (\n    update better_supabase.jobs set locked_until = now() + lease\n    where id = job_id and locked_by = worker and status = 'running'\n    returning 1\n  )\n  select exists (select 1 from extended)\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.extend_job_lease(job_id bigint, worker text, lease interval)\n RETURNS boolean\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  with extended as (\n    update better_supabase.jobs set locked_until = now() + lease\n    where id = job_id and locked_by = worker and status = 'running'\n    returning 1\n  )\n  select exists (select 1 from extended)\n$function$\n",
+        "name": "ensure_job_queue",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if not exists (select 1 from pgmq.list_queues() q where q.queue_name = queue) then\n    perform pgmq.create(queue);\n    perform better_supabase.index_job_queue(queue);\n  end if;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.ensure_job_queue(queue text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not exists (select 1 from pgmq.list_queues() q where q.queue_name = queue) then\n    perform pgmq.create(queue);\n    perform better_supabase.index_job_queue(queue);\n  end if;\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "queue",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "queue text",
+        "identity_argument_types": "queue text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000012,
+        "schema": "better_supabase",
+        "name": "extend_job_lease",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  hit bigint;\nbegin\n  execute format('update pgmq.%I set vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1 and read_ct = $2 returning msg_id', 'q_' || queue)\n    into hit using job_id, attempt, lease;\n  return hit is not null;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.extend_job_lease(queue text, job_id bigint, attempt integer, lease integer)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  hit bigint;\nbegin\n  execute format('update pgmq.%I set vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1 and read_ct = $2 returning msg_id', 'q_' || queue)\n    into hit using job_id, attempt, lease;\n  return hit is not null;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "attempt",
+            "type_id": 23,
+            "has_default": false
+          },
           {
             "mode": "in",
             "name": "job_id",
@@ -3531,37 +3318,43 @@
           {
             "mode": "in",
             "name": "lease",
-            "type_id": 1186,
+            "type_id": 23,
             "has_default": false
           },
           {
             "mode": "in",
-            "name": "worker",
+            "name": "queue",
             "type_id": 25,
             "has_default": false
           }
         ],
-        "argument_types": "job_id bigint, worker text, lease interval",
-        "identity_argument_types": "job_id bigint, worker text, lease interval",
+        "argument_types": "queue text, job_id bigint, attempt integer, lease integer",
+        "identity_argument_types": "queue text, job_id bigint, attempt integer, lease integer",
         "return_type_id": 16,
         "return_type": "boolean",
         "return_type_relation_id": null,
         "is_set_returning_function": false,
         "prorows": null,
         "behavior": "VOLATILE",
-        "security_definer": false,
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
       },
       {
-        "id": 3000012,
+        "id": 3000013,
         "schema": "better_supabase",
         "name": "fail_job",
-        "language": "sql",
-        "definition": "\n  update better_supabase.jobs\n  set status = case when attempts >= max_attempts then 'dead' else 'queued' end,\n      run_at = case\n        when attempts >= max_attempts then run_at\n        else now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts)))\n      end,\n      finished_at = case when attempts >= max_attempts then now() end,\n      last_error = left(error, 4000),\n      locked_by = null,\n      locked_until = null\n  where id = job_id and locked_by = worker and status = 'running'\n  returning status\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.fail_job(job_id bigint, worker text, error text, retry_in interval DEFAULT NULL::interval)\n RETURNS text\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  update better_supabase.jobs\n  set status = case when attempts >= max_attempts then 'dead' else 'queued' end,\n      run_at = case\n        when attempts >= max_attempts then run_at\n        else now() + coalesce(retry_in, least(interval '1 hour', interval '1 second' * power(2, attempts)))\n      end,\n      finished_at = case when attempts >= max_attempts then now() end,\n      last_error = left(error, 4000),\n      locked_by = null,\n      locked_until = null\n  where id = job_id and locked_by = worker and status = 'running'\n  returning status\n$function$\n",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  msg jsonb;\nbegin\n  execute format('select message from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)\n    into msg using job_id, attempt;\n  if msg is null then\n    return null;\n  end if;\n  if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then\n    execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text, ''dead'', true) where msg_id = $1', 'q_' || queue)\n      using job_id, left(error, 4000);\n    perform pgmq.archive(queue, job_id);\n    return 'dead';\n  end if;\n  execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text), vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1', 'q_' || queue)\n    using job_id, left(error, 4000), coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer));\n  return 'queued';\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.fail_job(queue text, job_id bigint, attempt integer, error text, retry_in integer DEFAULT NULL::integer)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  msg jsonb;\nbegin\n  execute format('select message from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)\n    into msg using job_id, attempt;\n  if msg is null then\n    return null;\n  end if;\n  if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then\n    execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text, ''dead'', true) where msg_id = $1', 'q_' || queue)\n      using job_id, left(error, 4000);\n    perform pgmq.archive(queue, job_id);\n    return 'dead';\n  end if;\n  execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text), vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1', 'q_' || queue)\n    using job_id, left(error, 4000), coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer));\n  return 'queued';\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "attempt",
+            "type_id": 23,
+            "has_default": false
+          },
           {
             "mode": "in",
             "name": "error",
@@ -3576,32 +3369,32 @@
           },
           {
             "mode": "in",
-            "name": "retry_in",
-            "type_id": 1186,
-            "has_default": true
+            "name": "queue",
+            "type_id": 25,
+            "has_default": false
           },
           {
             "mode": "in",
-            "name": "worker",
-            "type_id": 25,
-            "has_default": false
+            "name": "retry_in",
+            "type_id": 23,
+            "has_default": true
           }
         ],
-        "argument_types": "job_id bigint, worker text, error text, retry_in interval DEFAULT NULL::interval",
-        "identity_argument_types": "job_id bigint, worker text, error text, retry_in interval",
+        "argument_types": "queue text, job_id bigint, attempt integer, error text, retry_in integer DEFAULT NULL::integer",
+        "identity_argument_types": "queue text, job_id bigint, attempt integer, error text, retry_in integer",
         "return_type_id": 25,
         "return_type": "text",
         "return_type_relation_id": null,
         "is_set_returning_function": false,
         "prorows": null,
         "behavior": "VOLATILE",
-        "security_definer": false,
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
       },
       {
-        "id": 3000013,
+        "id": 3000014,
         "schema": "better_supabase",
         "name": "fail_webhook",
         "language": "sql",
@@ -3647,7 +3440,7 @@
         }
       },
       {
-        "id": 3000014,
+        "id": 3000015,
         "schema": "better_supabase",
         "name": "has_org_role",
         "language": "sql",
@@ -3681,7 +3474,91 @@
         }
       },
       {
-        "id": 3000015,
+        "id": 3000016,
+        "schema": "better_supabase",
+        "name": "index_job_queue",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'q_' || queue || '_dedupe_idx',\n    'q_' || queue\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.index_job_queue(queue text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'q_' || queue || '_dedupe_idx',\n    'q_' || queue\n  );\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "queue",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "queue text",
+        "identity_argument_types": "queue text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000017,
+        "schema": "better_supabase",
+        "name": "member_org_ids",
+        "language": "sql",
+        "definition": "\n  select m.org_id\n  from better_supabase.memberships m\n  where m.user_id = (select auth.uid())\n    and (roles is null or m.role = any (roles))\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.member_org_ids(roles text[] DEFAULT NULL::text[])\n RETURNS SETOF uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select m.org_id\n  from better_supabase.memberships m\n  where m.user_id = (select auth.uid())\n    and (roles is null or m.role = any (roles))\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "roles",
+            "type_id": 1009,
+            "has_default": true
+          }
+        ],
+        "argument_types": "roles text[] DEFAULT NULL::text[]",
+        "identity_argument_types": "roles text[]",
+        "return_type_id": 2950,
+        "return_type": "SETOF uuid",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000018,
+        "schema": "better_supabase",
+        "name": "membership_claims",
+        "language": "sql",
+        "definition": "\n  select coalesce(jsonb_agg(jsonb_build_object(\n      'scope', 'tenant',\n      'id', m.org_id,\n      'roles', jsonb_build_array(m.role)\n    ) order by m.created_at, m.org_id), '[]'::jsonb)\n  from better_supabase.memberships m\n  where m.user_id = membership_claims.user_id\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.membership_claims(user_id uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select coalesce(jsonb_agg(jsonb_build_object(\n      'scope', 'tenant',\n      'id', m.org_id,\n      'roles', jsonb_build_array(m.role)\n    ) order by m.created_at, m.org_id), '[]'::jsonb)\n  from better_supabase.memberships m\n  where m.user_id = membership_claims.user_id\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "user_id",
+            "type_id": 2950,
+            "has_default": false
+          }
+        ],
+        "argument_types": "user_id uuid",
+        "identity_argument_types": "user_id uuid",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000019,
         "schema": "better_supabase",
         "name": "purge_idempotency_keys",
         "language": "sql",
@@ -3702,7 +3579,7 @@
         }
       },
       {
-        "id": 3000016,
+        "id": 3000020,
         "schema": "better_supabase",
         "name": "receive_webhook",
         "language": "plpgsql",
@@ -3766,7 +3643,7 @@
         }
       },
       {
-        "id": 3000017,
+        "id": 3000021,
         "schema": "better_supabase",
         "name": "release_idempotent",
         "language": "sql",
@@ -3800,7 +3677,53 @@
         }
       },
       {
-        "id": 3000018,
+        "id": 3000022,
+        "schema": "better_supabase",
+        "name": "schedule_job",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if pg_catalog.to_regnamespace('cron') is null then\n    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog';\n  end if;\n  perform better_supabase.ensure_job_queue(queue);\n  return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.schedule_job(job_name text, schedule text, queue text, payload jsonb DEFAULT '{}'::jsonb)\n RETURNS bigint\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if pg_catalog.to_regnamespace('cron') is null then\n    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog';\n  end if;\n  perform better_supabase.ensure_job_queue(queue);\n  return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "job_name",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "payload",
+            "type_id": 3802,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "queue",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "schedule",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "job_name text, schedule text, queue text, payload jsonb DEFAULT '{}'::jsonb",
+        "identity_argument_types": "job_name text, schedule text, queue text, payload jsonb",
+        "return_type_id": 20,
+        "return_type": "bigint",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000023,
         "schema": "better_supabase",
         "name": "slug_problem",
         "language": "sql",
@@ -3828,16 +3751,22 @@
         }
       },
       {
-        "id": 3000019,
+        "id": 3000024,
         "schema": "better_supabase",
         "name": "track_actor",
         "language": "plpgsql",
-        "definition": "\nbegin\n  execute format('drop trigger if exists bs_actor on %s', target);\n  execute format(\n    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L)',\n    target,\n    coalesce(created_by, ''),\n    coalesce(updated_by, '')\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_actor(target regclass, created_by text DEFAULT 'created_by'::text, updated_by text DEFAULT 'updated_by'::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bs_actor on %s', target);\n  execute format(\n    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L)',\n    target,\n    coalesce(created_by, ''),\n    coalesce(updated_by, '')\n  );\nend;\n$function$\n",
+        "definition": "\nbegin\n  execute format('drop trigger if exists bs_actor on %s', target);\n  execute format(\n    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',\n    target,\n    coalesce(created_by, ''),\n    coalesce(updated_by, ''),\n    coalesce(impersonated_by, '')\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_actor(target regclass, created_by text DEFAULT 'created_by'::text, updated_by text DEFAULT 'updated_by'::text, impersonated_by text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bs_actor on %s', target);\n  execute format(\n    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',\n    target,\n    coalesce(created_by, ''),\n    coalesce(updated_by, ''),\n    coalesce(impersonated_by, '')\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
             "name": "created_by",
+            "type_id": 25,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "impersonated_by",
             "type_id": 25,
             "has_default": true
           },
@@ -3854,8 +3783,8 @@
             "has_default": true
           }
         ],
-        "argument_types": "target regclass, created_by text DEFAULT 'created_by'::text, updated_by text DEFAULT 'updated_by'::text",
-        "identity_argument_types": "target regclass, created_by text, updated_by text",
+        "argument_types": "target regclass, created_by text DEFAULT 'created_by'::text, updated_by text DEFAULT 'updated_by'::text, impersonated_by text DEFAULT NULL::text",
+        "identity_argument_types": "target regclass, created_by text, updated_by text, impersonated_by text",
         "return_type_id": 2278,
         "return_type": "void",
         "return_type_relation_id": null,
@@ -3868,7 +3797,41 @@
         }
       },
       {
-        "id": 3000020,
+        "id": 3000025,
+        "schema": "better_supabase",
+        "name": "track_realtime",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if tenant_column is not null and not exists (\n    select 1 from pg_catalog.pg_attribute a\n    where a.attrelid = target and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped\n  ) then\n    tenant_column := null;\n  end if;\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\n  if tenant_column is null then\n    execute format(\n      'create trigger bs_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',\n      target\n    );\n    return;\n  end if;\n  execute format(\n    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L)',\n    target, tenant_column\n  );\n  execute format(\n    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L)',\n    target, tenant_column\n  );\n  execute format(\n    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L)',\n    target, tenant_column\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_realtime(target regclass, tenant_column text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if tenant_column is not null and not exists (\n    select 1 from pg_catalog.pg_attribute a\n    where a.attrelid = target and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped\n  ) then\n    tenant_column := null;\n  end if;\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\n  if tenant_column is null then\n    execute format(\n      'create trigger bs_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',\n      target\n    );\n    return;\n  end if;\n  execute format(\n    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L)',\n    target, tenant_column\n  );\n  execute format(\n    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L)',\n    target, tenant_column\n  );\n  execute format(\n    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L)',\n    target, tenant_column\n  );\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "target",
+            "type_id": 2205,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "tenant_column",
+            "type_id": 25,
+            "has_default": true
+          }
+        ],
+        "argument_types": "target regclass, tenant_column text DEFAULT NULL::text",
+        "identity_argument_types": "target regclass, tenant_column text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000026,
         "schema": "better_supabase",
         "name": "track_slug",
         "language": "plpgsql",
@@ -3902,7 +3865,7 @@
         }
       },
       {
-        "id": 3000021,
+        "id": 3000027,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -3936,7 +3899,7 @@
         }
       },
       {
-        "id": 3000022,
+        "id": 3000028,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -3964,7 +3927,91 @@
         }
       },
       {
-        "id": 3000023,
+        "id": 3000029,
+        "schema": "better_supabase",
+        "name": "unschedule_job",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if pg_catalog.to_regnamespace('cron') is null then\n    return false;\n  end if;\n  return cron.unschedule(job_name);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.unschedule_job(job_name text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if pg_catalog.to_regnamespace('cron') is null then\n    return false;\n  end if;\n  return cron.unschedule(job_name);\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "job_name",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "job_name text",
+        "identity_argument_types": "job_name text",
+        "return_type_id": 16,
+        "return_type": "boolean",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000030,
+        "schema": "better_supabase",
+        "name": "untrack_realtime",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.untrack_realtime(target regclass)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "target",
+            "type_id": 2205,
+            "has_default": false
+          }
+        ],
+        "argument_types": "target regclass",
+        "identity_argument_types": "target regclass",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000031,
+        "schema": "public",
+        "name": "rs_workspace_summary",
+        "language": "sql",
+        "definition": "\n  select jsonb_build_object(\n    'customers', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0)),\n    'active', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0 where t0.\"status\" = 'active')),\n    'mine', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0 where t0.\"created_by\" = ((p->>'userId')::uuid))),\n    'latestNote', jsonb_build_object('rows', (select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (select json_build_object('body', t0.\"body\", 'createdAt', t0.\"created_at\") as row from \"public\".\"notes\" as t0 order by t0.\"created_at\" desc limit 1) s), 'count', null)\n  )\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.rs_workspace_summary(p jsonb)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select jsonb_build_object(\n    'customers', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0)),\n    'active', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0 where t0.\"status\" = 'active')),\n    'mine', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0 where t0.\"created_by\" = ((p->>'userId')::uuid))),\n    'latestNote', jsonb_build_object('rows', (select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (select json_build_object('body', t0.\"body\", 'createdAt', t0.\"created_at\") as row from \"public\".\"notes\" as t0 order by t0.\"created_at\" desc limit 1) s), 'count', null)\n  )\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "p",
+            "type_id": 3802,
+            "has_default": false
+          }
+        ],
+        "argument_types": "p jsonb",
+        "identity_argument_types": "p jsonb",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000032,
         "schema": "public",
         "name": "search_notes",
         "language": "sql",
@@ -3980,15 +4027,15 @@
           {
             "mode": "in",
             "name": "query",
-            "type_id": 2000046,
+            "type_id": 2000014,
             "has_default": false
           }
         ],
         "argument_types": "query vector, k integer DEFAULT 10",
         "identity_argument_types": "query vector, k integer",
-        "return_type_id": 2000042,
+        "return_type_id": 2000041,
         "return_type": "SETOF notes",
-        "return_type_relation_id": 1000012,
+        "return_type_relation_id": 1000011,
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "STABLE",
@@ -4042,16 +4089,6 @@
       },
       {
         "id": 2000004,
-        "name": "_jobs",
-        "schema": "better_supabase",
-        "format": "better_supabase.jobs[]",
-        "enums": [],
-        "attributes": [],
-        "comment": null,
-        "type_relation_id": null
-      },
-      {
-        "id": 2000005,
         "name": "_memberships",
         "schema": "better_supabase",
         "format": "better_supabase.memberships[]",
@@ -4061,7 +4098,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000006,
+        "id": 2000005,
         "name": "_reserved_slugs",
         "schema": "better_supabase",
         "format": "better_supabase.reserved_slugs[]",
@@ -4071,7 +4108,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000007,
+        "id": 2000006,
         "name": "_webhook_inbox",
         "schema": "better_supabase",
         "format": "better_supabase.webhook_inbox[]",
@@ -4081,7 +4118,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000008,
+        "id": 2000007,
         "name": "audit_log",
         "schema": "better_supabase",
         "format": "better_supabase.audit_log",
@@ -4091,7 +4128,7 @@
         "type_relation_id": 1000000
       },
       {
-        "id": 2000009,
+        "id": 2000008,
         "name": "audited_tables",
         "schema": "better_supabase",
         "format": "better_supabase.audited_tables",
@@ -4101,7 +4138,7 @@
         "type_relation_id": 1000001
       },
       {
-        "id": 2000010,
+        "id": 2000009,
         "name": "idempotency_keys",
         "schema": "better_supabase",
         "format": "better_supabase.idempotency_keys",
@@ -4111,7 +4148,7 @@
         "type_relation_id": 1000002
       },
       {
-        "id": 2000011,
+        "id": 2000010,
         "name": "invitations",
         "schema": "better_supabase",
         "format": "better_supabase.invitations",
@@ -4121,44 +4158,44 @@
         "type_relation_id": 1000003
       },
       {
-        "id": 2000012,
-        "name": "jobs",
-        "schema": "better_supabase",
-        "format": "better_supabase.jobs",
-        "enums": [],
-        "attributes": [],
-        "comment": null,
-        "type_relation_id": 1000004
-      },
-      {
-        "id": 2000013,
+        "id": 2000011,
         "name": "memberships",
         "schema": "better_supabase",
         "format": "better_supabase.memberships",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000005
+        "type_relation_id": 1000004
       },
       {
-        "id": 2000014,
+        "id": 2000012,
         "name": "reserved_slugs",
         "schema": "better_supabase",
         "format": "better_supabase.reserved_slugs",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000006
+        "type_relation_id": 1000005
       },
       {
-        "id": 2000015,
+        "id": 2000013,
         "name": "webhook_inbox",
         "schema": "better_supabase",
         "format": "better_supabase.webhook_inbox",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000007
+        "type_relation_id": 1000006
+      },
+      {
+        "id": 2000014,
+        "name": "vector",
+        "schema": "extensions",
+        "format": "vector",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
       },
       {
         "id": 1009,
@@ -4281,7 +4318,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000028,
+        "id": 2000027,
         "name": "_contacts",
         "schema": "public",
         "format": "contacts[]",
@@ -4291,7 +4328,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000029,
+        "id": 2000028,
         "name": "_customer_tags",
         "schema": "public",
         "format": "customer_tags[]",
@@ -4301,7 +4338,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000030,
+        "id": 2000029,
         "name": "_customers",
         "schema": "public",
         "format": "customers[]",
@@ -4311,7 +4348,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000031,
+        "id": 2000030,
         "name": "_locations",
         "schema": "public",
         "format": "locations[]",
@@ -4321,7 +4358,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000032,
+        "id": 2000031,
         "name": "_note_kind",
         "schema": "public",
         "format": "note_kind[]",
@@ -4331,7 +4368,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000033,
+        "id": 2000032,
         "name": "_notes",
         "schema": "public",
         "format": "notes[]",
@@ -4341,7 +4378,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000034,
+        "id": 2000033,
         "name": "_notifications",
         "schema": "public",
         "format": "notifications[]",
@@ -4351,7 +4388,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000035,
+        "id": 2000034,
         "name": "_organizations",
         "schema": "public",
         "format": "organizations[]",
@@ -4361,7 +4398,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000036,
+        "id": 2000035,
         "name": "_tags",
         "schema": "public",
         "format": "tags[]",
@@ -4371,10 +4408,20 @@
         "type_relation_id": null
       },
       {
-        "id": 2000037,
+        "id": 2000036,
         "name": "contacts",
         "schema": "public",
         "format": "contacts",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000007
+      },
+      {
+        "id": 2000037,
+        "name": "customer_tags",
+        "schema": "public",
+        "format": "customer_tags",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -4382,9 +4429,9 @@
       },
       {
         "id": 2000038,
-        "name": "customer_tags",
+        "name": "customers",
         "schema": "public",
-        "format": "customer_tags",
+        "format": "customers",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -4392,9 +4439,9 @@
       },
       {
         "id": 2000039,
-        "name": "customers",
+        "name": "locations",
         "schema": "public",
-        "format": "customers",
+        "format": "locations",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -4402,16 +4449,6 @@
       },
       {
         "id": 2000040,
-        "name": "locations",
-        "schema": "public",
-        "format": "locations",
-        "enums": [],
-        "attributes": [],
-        "comment": null,
-        "type_relation_id": 1000011
-      },
-      {
-        "id": 2000041,
         "name": "note_kind",
         "schema": "public",
         "format": "note_kind",
@@ -4421,10 +4458,20 @@
         "type_relation_id": null
       },
       {
-        "id": 2000042,
+        "id": 2000041,
         "name": "notes",
         "schema": "public",
         "format": "notes",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000011
+      },
+      {
+        "id": 2000042,
+        "name": "notifications",
+        "schema": "public",
+        "format": "notifications",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -4432,9 +4479,9 @@
       },
       {
         "id": 2000043,
-        "name": "notifications",
+        "name": "organizations",
         "schema": "public",
-        "format": "notifications",
+        "format": "organizations",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -4442,33 +4489,13 @@
       },
       {
         "id": 2000044,
-        "name": "organizations",
-        "schema": "public",
-        "format": "organizations",
-        "enums": [],
-        "attributes": [],
-        "comment": null,
-        "type_relation_id": 1000014
-      },
-      {
-        "id": 2000045,
         "name": "tags",
         "schema": "public",
         "format": "tags",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000015
-      },
-      {
-        "id": 2000046,
-        "name": "vector",
-        "schema": "extensions",
-        "format": "vector",
-        "enums": [],
-        "attributes": [],
-        "comment": null,
-        "type_relation_id": null
+        "type_relation_id": 1000014
       }
     ]
   },
@@ -4493,21 +4520,27 @@
             "columns": ["org_id", "at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "audit_log_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "audit_log_record_idx",
             "columns": ["table_name", "record_id", "at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [],
@@ -4517,7 +4550,8 @@
             "role": "service_role",
             "privileges": ["SELECT"]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
         "id": 1000001,
@@ -4533,12 +4567,15 @@
             "columns": ["target"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [],
         "triggers": [],
-        "grants": []
+        "grants": [],
+        "columnGrants": []
       },
       {
         "id": 1000002,
@@ -4559,14 +4596,18 @@
             "columns": ["expires_at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "idempotency_keys_pkey",
             "columns": ["scope", "key"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [],
@@ -4584,7 +4625,8 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
         "id": 1000003,
@@ -4609,28 +4651,57 @@
             "onUpdate": "no action"
           }
         ],
-        "checks": [],
+        "checks": [
+          {
+            "name": "invitations_role_check",
+            "definition": "CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'member'::text, 'viewer'::text])))"
+          }
+        ],
         "indexes": [
+          {
+            "name": "invitations_accepted_by_idx",
+            "columns": ["accepted_by"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "invitations_invited_by_idx",
+            "columns": ["invited_by"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
           {
             "name": "invitations_open_idx",
             "columns": ["org_id"],
             "unique": true,
             "primary": false,
-            "partial": true
+            "partial": true,
+            "method": "btree",
+            "predicate": "(accepted_at IS NULL)"
           },
           {
             "name": "invitations_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "invitations_token_hash_key",
             "columns": ["token_hash"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -4639,9 +4710,9 @@
             "command": "select",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "( SELECT better_supabase.has_org_role(invitations.org_id, '{owner,admin}'::text[]) AS has_org_role)",
+            "using": "(org_id IN ( SELECT better_supabase.member_org_ids('{owner,admin}'::text[]) AS member_org_ids))",
             "check": null,
-            "functions": ["better_supabase.has_org_role"]
+            "functions": ["better_supabase.member_org_ids"]
           }
         ],
         "triggers": [],
@@ -4662,67 +4733,11 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
         "id": 1000004,
-        "schema": "better_supabase",
-        "name": "jobs",
-        "primaryKey": ["id"],
-        "uniques": [],
-        "foreignKeys": [],
-        "checks": [
-          {
-            "name": "jobs_max_attempts_check",
-            "definition": "CHECK ((max_attempts > 0))"
-          },
-          {
-            "name": "jobs_status_check",
-            "definition": "CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'succeeded'::text, 'failed'::text, 'dead'::text])))"
-          }
-        ],
-        "indexes": [
-          {
-            "name": "jobs_dedupe_idx",
-            "columns": ["queue", "dedupe_key"],
-            "unique": true,
-            "primary": false,
-            "partial": true
-          },
-          {
-            "name": "jobs_pkey",
-            "columns": ["id"],
-            "unique": true,
-            "primary": true,
-            "partial": false
-          },
-          {
-            "name": "jobs_ready_idx",
-            "columns": ["queue", "priority", "run_at", "id"],
-            "unique": false,
-            "primary": false,
-            "partial": true
-          }
-        ],
-        "policies": [],
-        "triggers": [],
-        "grants": [
-          {
-            "role": "service_role",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          }
-        ]
-      },
-      {
-        "id": 1000005,
         "schema": "better_supabase",
         "name": "memberships",
         "primaryKey": ["org_id", "user_id"],
@@ -4746,14 +4761,18 @@
             "columns": ["org_id", "user_id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "memberships_user_idx",
             "columns": ["user_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -4762,9 +4781,9 @@
             "command": "select",
             "roles": ["authenticated"],
             "permissive": true,
-            "using": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT better_supabase.has_org_role(memberships.org_id) AS has_org_role))",
+            "using": "((user_id = ( SELECT auth.uid() AS uid)) OR (org_id IN ( SELECT better_supabase.member_org_ids() AS member_org_ids)))",
             "check": null,
-            "functions": ["auth.uid", "better_supabase.has_org_role"]
+            "functions": ["auth.uid", "better_supabase.member_org_ids"]
           }
         ],
         "triggers": [],
@@ -4785,10 +4804,11 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000006,
+        "id": 1000005,
         "schema": "better_supabase",
         "name": "reserved_slugs",
         "primaryKey": ["slug"],
@@ -4801,7 +4821,9 @@
             "columns": ["slug"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -4825,10 +4847,11 @@
             "role": "authenticated",
             "privileges": ["SELECT"]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000007,
+        "id": 1000006,
         "schema": "better_supabase",
         "name": "webhook_inbox",
         "primaryKey": ["id"],
@@ -4851,21 +4874,27 @@
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "webhook_inbox_ready_idx",
             "columns": ["source", "available_at", "id"],
             "unique": false,
             "primary": false,
-            "partial": true
+            "partial": true,
+            "method": "btree",
+            "predicate": "(status = ANY (ARRAY['pending'::text, 'processing'::text]))"
           },
           {
             "name": "webhook_inbox_source_message_id_key",
             "columns": ["source", "message_id"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [],
@@ -4883,14 +4912,20 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000008,
+        "id": 1000007,
         "schema": "public",
         "name": "contacts",
         "primaryKey": ["id"],
-        "uniques": [],
+        "uniques": [
+          {
+            "name": "contacts_id_organization_id_key",
+            "columns": ["id", "organization_id"]
+          }
+        ],
         "foreignKeys": [
           {
             "name": "contacts_organization_id_fkey",
@@ -4901,18 +4936,31 @@
         "checks": [],
         "indexes": [
           {
+            "name": "contacts_id_organization_id_key",
+            "columns": ["id", "organization_id"],
+            "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "contacts_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "contacts_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -4952,10 +5000,11 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000009,
+        "id": 1000008,
         "schema": "public",
         "name": "customer_tags",
         "primaryKey": ["customer_id", "tag_id"],
@@ -4980,25 +5029,40 @@
         "checks": [],
         "indexes": [
           {
+            "name": "customer_tags_customer_id_idx",
+            "columns": ["customer_id", "organization_id"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "customer_tags_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customer_tags_pkey",
             "columns": ["customer_id", "tag_id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customer_tags_tag_id_idx",
-            "columns": ["tag_id"],
+            "columns": ["tag_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -5030,14 +5094,19 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000010,
+        "id": 1000009,
         "schema": "public",
         "name": "customers",
         "primaryKey": ["id"],
         "uniques": [
+          {
+            "name": "customers_id_organization_id_key",
+            "columns": ["id", "organization_id"]
+          },
           {
             "name": "customers_organization_id_kvk_key",
             "columns": ["organization_id", "kvk"]
@@ -5063,32 +5132,76 @@
         ],
         "indexes": [
           {
-            "name": "customers_organization_id_idx",
-            "columns": ["organization_id"],
+            "name": "customers_active_idx",
+            "columns": ["organization_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": true,
+            "method": "btree",
+            "predicate": "(archived_at IS NULL)"
+          },
+          {
+            "name": "customers_id_organization_id_key",
+            "columns": ["id", "organization_id"],
+            "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "customers_name_trgm_idx",
+            "columns": ["name"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
+            "predicate": null
+          },
+          {
+            "name": "customers_organization_id_created_by_idx",
+            "columns": ["organization_id", "created_by"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_organization_id_kvk_key",
             "columns": ["organization_id", "kvk"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "customers_organization_id_status_idx",
+            "columns": ["organization_id", "status"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_primary_contact_id_idx",
-            "columns": ["primary_contact_id"],
+            "columns": ["primary_contact_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -5103,13 +5216,6 @@
           }
         ],
         "triggers": [
-          {
-            "name": "bs_broadcast_org_customers",
-            "timing": "after",
-            "events": ["insert", "update", "delete"],
-            "level": "row",
-            "function": "public.bs_broadcast_org_customers_customers"
-          },
           {
             "name": "customers_set_updated_at",
             "timing": "before",
@@ -5135,10 +5241,11 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000011,
+        "id": 1000010,
         "schema": "public",
         "name": "locations",
         "primaryKey": ["id"],
@@ -5159,24 +5266,30 @@
         "indexes": [
           {
             "name": "locations_customer_id_idx",
-            "columns": ["customer_id"],
+            "columns": ["customer_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "locations_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "locations_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -5216,10 +5329,11 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000012,
+        "id": 1000011,
         "schema": "public",
         "name": "notes",
         "primaryKey": ["id"],
@@ -5240,31 +5354,39 @@
         "indexes": [
           {
             "name": "notes_customer_id_idx",
-            "columns": ["customer_id"],
+            "columns": ["customer_id", "organization_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "notes_embedding_idx",
             "columns": ["embedding"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "hnsw",
+            "predicate": null
           },
           {
             "name": "notes_organization_id_idx",
-            "columns": ["organization_id"],
+            "columns": ["organization_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "notes_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -5304,10 +5426,122 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000014,
+        "id": 1000012,
+        "schema": "public",
+        "name": "notifications",
+        "primaryKey": ["id"],
+        "uniques": [],
+        "foreignKeys": [
+          {
+            "name": "notifications_organization_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          },
+          {
+            "name": "notifications_user_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          }
+        ],
+        "checks": [],
+        "indexes": [
+          {
+            "name": "notifications_organization_id_idx",
+            "columns": ["organization_id"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "notifications_pkey",
+            "columns": ["id"],
+            "unique": true,
+            "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "notifications_unread_idx",
+            "columns": ["user_id", "created_at"],
+            "unique": false,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(read_at IS NULL)"
+          },
+          {
+            "name": "notifications_user_id_idx",
+            "columns": ["user_id"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          }
+        ],
+        "policies": [
+          {
+            "name": "notifications_own",
+            "command": "all",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))",
+            "check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))",
+            "functions": ["auth.uid", "better_supabase.current_tenant_id"]
+          }
+        ],
+        "triggers": [
+          {
+            "name": "bs_realtime_delete",
+            "timing": "after",
+            "events": ["delete"],
+            "level": "statement",
+            "function": "better_supabase.broadcast_changes"
+          },
+          {
+            "name": "bs_realtime_insert",
+            "timing": "after",
+            "events": ["insert"],
+            "level": "statement",
+            "function": "better_supabase.broadcast_changes"
+          },
+          {
+            "name": "bs_realtime_update",
+            "timing": "after",
+            "events": ["update"],
+            "level": "statement",
+            "function": "better_supabase.broadcast_changes"
+          }
+        ],
+        "grants": [
+          {
+            "role": "authenticated",
+            "privileges": ["DELETE", "INSERT", "SELECT", "UPDATE"]
+          },
+          {
+            "role": "service_role",
+            "privileges": [
+              "DELETE",
+              "INSERT",
+              "REFERENCES",
+              "SELECT",
+              "TRIGGER",
+              "TRUNCATE",
+              "UPDATE"
+            ]
+          }
+        ],
+        "columnGrants": []
+      },
+      {
+        "id": 1000013,
         "schema": "public",
         "name": "organizations",
         "primaryKey": ["id"],
@@ -5325,14 +5559,18 @@
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "organizations_slug_key",
             "columns": ["slug"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -5372,14 +5610,19 @@
               "UPDATE"
             ]
           }
-        ]
+        ],
+        "columnGrants": []
       },
       {
-        "id": 1000015,
+        "id": 1000014,
         "schema": "public",
         "name": "tags",
         "primaryKey": ["id"],
         "uniques": [
+          {
+            "name": "tags_id_organization_id_key",
+            "columns": ["id", "organization_id"]
+          },
           {
             "name": "tags_organization_id_name_key",
             "columns": ["organization_id", "name"]
@@ -5400,25 +5643,31 @@
         ],
         "indexes": [
           {
-            "name": "tags_organization_id_idx",
-            "columns": ["organization_id"],
-            "unique": false,
+            "name": "tags_id_organization_id_key",
+            "columns": ["id", "organization_id"],
+            "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "tags_organization_id_name_key",
             "columns": ["organization_id", "name"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "tags_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -5450,111 +5699,33 @@
               "UPDATE"
             ]
           }
-        ]
-      },
-      {
-        "id": 1000013,
-        "schema": "public",
-        "name": "notifications",
-        "primaryKey": ["id"],
-        "uniques": [],
-        "foreignKeys": [
-          {
-            "name": "notifications_organization_id_fkey",
-            "onDelete": "cascade",
-            "onUpdate": "no action"
-          },
-          {
-            "name": "notifications_user_id_fkey",
-            "onDelete": "cascade",
-            "onUpdate": "no action"
-          }
         ],
-        "checks": [],
-        "indexes": [
-          {
-            "name": "notifications_organization_id_idx",
-            "columns": ["organization_id"],
-            "unique": false,
-            "primary": false,
-            "partial": false
-          },
-          {
-            "name": "notifications_pkey",
-            "columns": ["id"],
-            "unique": true,
-            "primary": true,
-            "partial": false
-          },
-          {
-            "name": "notifications_unread_idx",
-            "columns": ["user_id", "created_at"],
-            "unique": false,
-            "primary": false,
-            "partial": true
-          }
-        ],
-        "policies": [
-          {
-            "name": "notifications_own",
-            "command": "all",
-            "roles": ["authenticated"],
-            "permissive": true,
-            "using": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))",
-            "check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))",
-            "functions": ["auth.uid", "better_supabase.current_tenant_id"]
-          }
-        ],
-        "triggers": [],
-        "grants": [
-          {
-            "role": "anon",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
-            "role": "authenticated",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
-            "role": "service_role",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          }
-        ]
+        "columnGrants": []
       }
     ],
     "buckets": [
       {
         "id": "customer-logos",
-        "public": false,
+        "public": true,
         "fileSizeLimit": 5242880,
         "allowedMimeTypes": ["image/png", "image/jpeg", "image/webp"]
       }
     ],
     "realtime": [],
+    "roleSettings": {
+      "anon": {
+        "statement_timeout": "3s"
+      },
+      "authenticated": {
+        "statement_timeout": "8s"
+      },
+      "authenticator": {
+        "session_preload_libraries": "supautils, safeupdate",
+        "statement_timeout": "8s",
+        "lock_timeout": "8s",
+        "pgrst.db_aggregates_enabled": "true"
+      }
+    },
     "functions": [
       {
         "schema": "auth",
@@ -5563,7 +5734,56 @@
         "language": "sql",
         "volatility": "stable",
         "securityDefiner": false,
-        "settings": {}
+        "settings": {},
+        "execute": ["anon", "authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "accept_invitation",
+        "signature": "token text",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "claim_jobs",
+        "signature": "queue text, lease integer, batch integer",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "complete_job",
+        "signature": "queue text, job_id bigint, attempt integer",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "create_invitation",
+        "signature": "org uuid, invitee_email text, invitee_role text, valid_for interval",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
       },
       {
         "schema": "better_supabase",
@@ -5574,7 +5794,56 @@
         "securityDefiner": false,
         "settings": {
           "search_path": "\"\""
-        }
+        },
+        "execute": ["anon", "authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "enqueue_job",
+        "signature": "queue text, payload jsonb, delay integer, max_attempts integer, dedupe_key text",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "ensure_job_queue",
+        "signature": "queue text",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "extend_job_lease",
+        "signature": "queue text, job_id bigint, attempt integer, lease integer",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "fail_job",
+        "signature": "queue text, job_id bigint, attempt integer, error text, retry_in integer",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
       },
       {
         "schema": "better_supabase",
@@ -5585,7 +5854,68 @@
         "securityDefiner": true,
         "settings": {
           "search_path": "\"\""
-        }
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "index_job_queue",
+        "signature": "queue text",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "member_org_ids",
+        "signature": "roles text[]",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "membership_claims",
+        "signature": "user_id uuid",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "schedule_job",
+        "signature": "job_name text, schedule text, queue text, payload jsonb",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "unschedule_job",
+        "signature": "job_name text",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
       },
       {
         "schema": "public",
@@ -5597,7 +5927,8 @@
         "settings": {
           "search_path": "\"\"",
           "hnsw.iterative_scan": "strict_order"
-        }
+        },
+        "execute": ["authenticated"]
       }
     ],
     "hooks": [
@@ -5618,7 +5949,8 @@
             },
             "execute": ["supabase_auth_admin"],
             "publicExecute": false,
-            "schemaUsage": ["authenticated", "supabase_auth_admin"]
+            "schemaUsage": ["authenticated", "supabase_auth_admin"],
+            "source": "\ndeclare\n  claims jsonb := event -> 'claims';\n  user_role rbac.app_role;\nbegin\n  select ur.role into user_role\n  from rbac.user_roles ur\n  where ur.user_id = (event ->> 'user_id')::uuid;\n\n  if user_role is not null then\n    claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));\n  end if;\n\n  return jsonb_set(event, '{claims}', claims);\nend;\n"
           }
         ]
       }

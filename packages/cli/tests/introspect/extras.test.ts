@@ -91,6 +91,8 @@ const catalog = (present: { buckets?: boolean; realtime?: boolean } = {}) =>
           unique: true,
           primary: false,
           partial: true,
+          method: "btree",
+          predicate: "(deleted_at IS NULL)",
           columns: ["title"],
         },
         {
@@ -186,7 +188,7 @@ const catalog = (present: { buckets?: boolean; realtime?: boolean } = {}) =>
       ],
     ],
     [
-      "has_function_privilege",
+      "as public_execute",
       [
         {
           schema: "rbac",
@@ -240,6 +242,7 @@ const catalog = (present: { buckets?: boolean; realtime?: boolean } = {}) =>
           volatility: "s",
           security_definer: true,
           config: ["search_path=", "statement_timeout=5s"],
+          execute: ["authenticated"],
         },
         {
           schema: "public",
@@ -249,6 +252,7 @@ const catalog = (present: { buckets?: boolean; realtime?: boolean } = {}) =>
           volatility: "i",
           security_definer: false,
           config: null,
+          execute: ["anon", "authenticated"],
         },
       ],
     ],
@@ -304,6 +308,8 @@ describe("readExtras", () => {
           unique: true,
           primary: false,
           partial: true,
+          method: "btree",
+          predicate: "(deleted_at IS NULL)",
         },
         {
           name: "notes_org_idx",
@@ -398,6 +404,7 @@ describe("readExtras", () => {
         volatility: "stable",
         securityDefiner: true,
         settings: { search_path: "", statement_timeout: "5s" },
+        execute: ["authenticated"],
       },
       {
         schema: "public",
@@ -407,6 +414,7 @@ describe("readExtras", () => {
         volatility: "immutable",
         securityDefiner: false,
         settings: {},
+        execute: ["anon", "authenticated"],
       },
     ]);
     expect(extras).not.toHaveProperty("hooks");
@@ -433,7 +441,7 @@ describe("readExtras", () => {
       ],
     );
     expect(
-      db.texts().find((text) => text.includes("has_function_privilege")),
+      db.texts().find((text) => text.includes("as public_execute")),
     ).toContain("array['rbac.hook', 'public.missing']::text[]");
     expect(extras.hooks).toEqual([
       {

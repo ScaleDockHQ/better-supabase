@@ -21,7 +21,9 @@ import { tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
 import { entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
+import { POLICY_RULES } from "./policies.ts";
 import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
+import { SCHEMA_DESIGN_RULES, unindexedForeignKeys } from "./schema-design.ts";
 import {
   catalogOf,
   exposed,
@@ -236,17 +238,28 @@ function advisorRule(
   };
 }
 
-/** splinter's `multiple_permissive_policies` for a table BS207 reports. */
-function coveredByBS207(lint: Lint, context: DoctorContext): boolean {
-  if (lint.name !== "multiple_permissive_policies") return false;
-  if (!context.codes?.includes("BS207")) return false;
+/**
+ * splinter lints doctor's own rules report for the same table:
+ * `multiple_permissive_policies` (BS207) and `unindexed_foreign_keys` (BS216).
+ */
+function coveredByOwnRules(lint: Lint, context: DoctorContext): boolean {
+  const code =
+    lint.name === "multiple_permissive_policies"
+      ? "BS207"
+      : lint.name === "unindexed_foreign_keys"
+        ? "BS216"
+        : undefined;
+  if (!code || !context.codes?.includes(code)) return false;
   const object = lintObject(lint);
   if (!object) return false;
   const table = exposed(context).find(
     (candidate) =>
       candidate.schema === object.schema && candidate.name === object.name,
   );
-  return table !== undefined && permissiveOverlaps(table).length > 0;
+  if (!table) return false;
+  return code === "BS207"
+    ? permissiveOverlaps(table).length > 0
+    : unindexedForeignKeys(table).length > 0;
 }
 
 /**
@@ -436,7 +449,7 @@ const OWN_RULES: readonly Rule[] = [
     "performance",
     "Supabase performance advisor",
     "Findings from the Performance Advisor (splinter): unindexed foreign keys, auth calls re-evaluated per row in policies, multiple permissive policies, unused and duplicate indexes and more.",
-    coveredByBS207,
+    coveredByOwnRules,
   ),
   {
     code: "BS204",
@@ -864,6 +877,8 @@ const OWN_RULES: readonly Rule[] = [
 export const RULES: readonly Rule[] = [
   ...OWN_RULES,
   ...RLS_RULES,
+  ...POLICY_RULES,
+  ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...PERMDOCK_RULES,
   ...LIVE_RULES,

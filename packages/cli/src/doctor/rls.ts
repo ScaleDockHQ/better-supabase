@@ -13,17 +13,17 @@ import {
   tableObject,
 } from "./shared.ts";
 
-const escape = (name: string): string =>
+export const escape = (name: string): string =>
   name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** `'it''s'` and other string literals, blanked so their text can't match. */
-const withoutStrings = (text: string): string =>
+export const withoutStrings = (text: string): string =>
   text.replaceAll(/'(?:[^']|'')*'/g, "''");
 
 const functionName = (fn: Pick<ExtrasFunction, "schema" | "name">): string =>
   `${fn.schema}.${fn.name}`;
 
-const functionObject = (fn: ExtrasFunction): SqlObject => ({
+export const functionObject = (fn: ExtrasFunction): SqlObject => ({
   kind: "function",
   schema: fn.schema,
   name: fn.name,
@@ -83,16 +83,28 @@ const expressions = (policy: CatalogPolicy): (string | null)[] => [
   policy.check,
 ];
 
-const inlinable = (fn: ExtrasFunction): boolean =>
-  fn.language === "sql" && fn.volatility !== "volatile";
+/**
+ * Why Postgres can't inline `fn` into the query that calls it, or
+ * `undefined` when it can: only `language sql` functions that are not
+ * volatile, not security definer and have no `set` options are inlined.
+ */
+function notInlinable(fn: ExtrasFunction): string | undefined {
+  if (fn.language !== "sql") return `a ${fn.language} function`;
+  if (fn.volatility === "volatile") return "a volatile function";
+  if (fn.securityDefiner) return "a security definer function";
+  const settings = Object.keys(fn.settings);
+  if (settings.length > 0)
+    return `a function with \`set ${settings.join(", ")}\``;
+  return undefined;
+}
 
 const rlsTables = (context: DoctorContext): CatalogTable[] =>
   exposed(context).filter((table) => table.rls);
 
-const COMMANDS = ["select", "insert", "update", "delete"] as const;
+export const COMMANDS = ["select", "insert", "update", "delete"] as const;
 
 /** Policies apply to every role when they list `public` or none. */
-const appliesTo = (policy: CatalogPolicy, role: string): boolean =>
+export const appliesTo = (policy: CatalogPolicy, role: string): boolean =>
   policy.roles.length === 0 ||
   policy.roles.includes("public") ||
   policy.roles.includes(role);
@@ -160,7 +172,7 @@ interface GrantColumn {
 }
 
 /** The body of `schema.name` from the snapshot, else from the first SQL file that creates it. */
-function functionBody(
+export function functionBody(
   context: DoctorContext,
   schema: string,
   name: string,
@@ -181,7 +193,7 @@ function functionBody(
 }
 
 /** The functions policies call, and the functions those call, with their bodies. */
-function policyHelpers(context: DoctorContext): Map<string, string> {
+export function policyHelpers(context: DoctorContext): Map<string, string> {
   const known = context.snapshot.generator.functions;
   const queue = catalogOf(context).tables.flatMap((table) =>
     table.policies.flatMap((policy) => policy.functions ?? []),
@@ -326,23 +338,28 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Policy calls a slow function once per row",
     description:
-      "A policy passes a column of the row to a plpgsql or volatile function. Postgres cannot inline it or cache the result, so it runs once for every row the query reads.",
+      "A policy passes a column of the row to a function Postgres cannot inline: plpgsql, volatile, security definer, or with a `set` option such as `search_path`. It runs once for every row the query reads.",
     check: (context) => {
       const functions = functionsByName(context);
       return rlsTables(context).flatMap((table) =>
         table.policies.flatMap((policy): FindingInput[] => {
           for (const name of policy.functions ?? []) {
-            const slow = functions.get(name)?.find((fn) => !inlinable(fn));
+            const slow = functions
+              .get(name)
+              ?.find((fn) => notInlinable(fn) !== undefined);
             if (!slow) continue;
             const column = expressions(policy)
               .flatMap((expression) => callArguments(expression, slow))
               .map((args) => columnArgument(args, table))
               .find((found) => found !== undefined);
             if (!column) continue;
-            const kind = slow.language === "sql" ? "volatile" : slow.language;
+            const fix =
+              slow.securityDefiner || Object.keys(slow.settings).length > 0
+                ? ""
+                : `, or make it \`language sql stable\` so Postgres inlines it`;
             return [
               {
-                message: `Policy "${policy.name}" on ${qualified(table)} calls ${name}(${column}), a ${kind} function, with a column of the row, so it runs once per row and can't be inlined. Make it \`language sql stable\`, or have a helper return the allowed values once and compare: \`${column} in (select <helper>())\`.`,
+                message: `Policy "${policy.name}" on ${qualified(table)} calls ${name}(${column}), ${notInlinable(slow)}, with a column of the row, so it runs once per row. Have a helper return the allowed values once and compare: \`${column} in (select <helper>())\`${fix}.`,
                 target: `${qualified(table)}.${policy.name}`,
                 object: policyObject(table, policy),
               },
@@ -358,7 +375,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Security definer policy helper that cannot be inlined",
     description:
-      "A security definer function is used in many policies and is not `language sql stable`. Every query on those tables pays for the call; wrapped in `(select ...)` it runs once per statement.",
+      "A security definer function is used in many policies. Postgres never inlines a security definer function, so a call that takes a column of the row runs once per row. Wrapped in `(select ...)`, or returning a set the policy compares with `in (select ...)`, it runs once per statement.",
     check: (context) => {
       const limit = context.config.doctor.policyHelperLimit;
       const functions = functionsByName(context);
@@ -376,16 +393,14 @@ export const RLS_RULES: readonly Rule[] = [
         if (policies.length <= limit) return [];
         const fn = functions
           .get(name)
-          ?.find(
-            (candidate) => candidate.securityDefiner && !inlinable(candidate),
-          );
+          ?.find((candidate) => candidate.securityDefiner);
         if (!fn) return [];
         const shown = policies.slice(0, 5).join(", ");
         const more =
           policies.length > 5 ? ` and ${policies.length - 5} more` : "";
         return [
           {
-            message: `${name} is a security definer ${fn.language} function used in ${policies.length} policies (${shown}${more}; the limit is ${limit}). Make it \`language sql stable\` and call it as \`(select ${name}())\` so Postgres evaluates it once per statement.`,
+            message: `${name} is a security definer ${fn.language} function used in ${policies.length} policies (${shown}${more}; the limit is ${limit}). Postgres can't inline it, so call it as \`(select ${name}(...))\` when its arguments don't come from the row, or return the allowed ids as a set and compare with \`column in (select ${name}())\`, so it runs once per statement.`,
             target: name,
             object: functionObject(fn),
           },
@@ -507,17 +522,17 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "info",
     title: "Statement timeouts for the Data API roles",
     description:
-      "PostgREST switches to `anon` or `authenticated` for each request, so their `statement_timeout` limits Data API queries. A function's own `set statement_timeout` only applies when PostgREST hoists it (`pgrst.db_hoisted_tx_settings`).",
+      "PostgREST switches to `anon` or `authenticated` for each request, so their `statement_timeout` limits Data API queries. A function's own `set statement_timeout` only applies when PostgREST hoists it (`pgrst.db_hoisted_tx_settings`). `idle_in_transaction_session_timeout` ends sessions that leave a transaction open; it applies to the role a connection logs in as.",
     check: (context) => {
       const settings = context.snapshot.extras.roleSettings;
       if (!settings) return [];
-      const timeouts = TIMEOUT_ROLES.map(
-        (role) =>
-          `${role} ${settings[role]?.["statement_timeout"] ?? "not set"}`,
-      ).join(", ");
+      const values = (setting: string): string =>
+        TIMEOUT_ROLES.map(
+          (role) => `${role} ${settings[role]?.[setting] ?? "not set"}`,
+        ).join(", ");
       const findings: FindingInput[] = [
         {
-          message: `statement_timeout: ${timeouts}. Unset roles use the database default.`,
+          message: `statement_timeout: ${values("statement_timeout")}. idle_in_transaction_session_timeout: ${values("idle_in_transaction_session_timeout")}. Unset roles use the database default.`,
           target: "roles:statement_timeout",
         },
       ];

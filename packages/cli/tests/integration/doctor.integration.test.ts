@@ -119,12 +119,20 @@ describe.skipIf(!source)("doctor against the local stack", () => {
       volatility: "stable",
       securityDefiner: false,
       settings: { search_path: '""' },
+      execute: ["anon", "authenticated"],
     });
   });
 
   it("flags the per-row helper and the overlapping policies", async () => {
     const findings = await runRules(context(), only("BS205", "BS207"));
     expect(findings).toMatchObject([
+      // Postgres never inlines a security definer function.
+      {
+        code: "BS205",
+        message: expect.stringContaining(
+          `${SCHEMA}.is_admin(org_id), a security definer function`,
+        ),
+      },
       {
         code: "BS205",
         message: expect.stringContaining(`${SCHEMA}.is_member(org_id)`),

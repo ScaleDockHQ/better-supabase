@@ -1907,21 +1907,27 @@
             "columns": ["id", "organization_id"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "contacts_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "contacts_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -1994,28 +2000,36 @@
             "columns": ["customer_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customer_tags_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customer_tags_pkey",
             "columns": ["customer_id", "tag_id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customer_tags_tag_id_idx",
             "columns": ["tag_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2089,56 +2103,72 @@
             "columns": ["organization_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": true
+            "partial": true,
+            "method": "btree",
+            "predicate": "(archived_at IS NULL)"
           },
           {
             "name": "customers_id_organization_id_key",
             "columns": ["id", "organization_id"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_name_trgm_idx",
             "columns": ["name"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "gin",
+            "predicate": null
           },
           {
             "name": "customers_organization_id_created_by_idx",
             "columns": ["organization_id", "created_by"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_organization_id_kvk_key",
             "columns": ["organization_id", "kvk"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_organization_id_status_idx",
             "columns": ["organization_id", "status"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "customers_primary_contact_id_idx",
             "columns": ["primary_contact_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2206,21 +2236,27 @@
             "columns": ["customer_id", "organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "locations_organization_id_idx",
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "locations_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2288,28 +2324,36 @@
             "columns": ["customer_id", "organization_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "notes_embedding_idx",
             "columns": ["embedding"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "hnsw",
+            "predicate": null
           },
           {
             "name": "notes_organization_id_idx",
             "columns": ["organization_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "notes_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2377,28 +2421,36 @@
             "columns": ["organization_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "notifications_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "notifications_unread_idx",
             "columns": ["user_id", "created_at"],
             "unique": false,
             "primary": false,
-            "partial": true
+            "partial": true,
+            "method": "btree",
+            "predicate": "(read_at IS NULL)"
           },
           {
             "name": "notifications_user_id_idx",
             "columns": ["user_id"],
             "unique": false,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2474,14 +2526,18 @@
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "organizations_slug_key",
             "columns": ["slug"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2558,21 +2614,27 @@
             "columns": ["id", "organization_id"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "tags_organization_id_name_key",
             "columns": ["organization_id", "name"],
             "unique": true,
             "primary": false,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           },
           {
             "name": "tags_pkey",
             "columns": ["id"],
             "unique": true,
             "primary": true,
-            "partial": false
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -2639,7 +2701,8 @@
         "language": "sql",
         "volatility": "stable",
         "securityDefiner": false,
-        "settings": {}
+        "settings": {},
+        "execute": ["anon", "authenticated"]
       },
       {
         "schema": "better_supabase",
@@ -2650,7 +2713,8 @@
         "securityDefiner": false,
         "settings": {
           "search_path": "\"\""
-        }
+        },
+        "execute": ["anon", "authenticated"]
       },
       {
         "schema": "public",
@@ -2662,7 +2726,8 @@
         "settings": {
           "search_path": "\"\"",
           "hnsw.iterative_scan": "strict_order"
-        }
+        },
+        "execute": ["authenticated"]
       }
     ],
     "hooks": [

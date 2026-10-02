@@ -50,10 +50,12 @@ const INDEXES = (schemas: string) => `
 select ix.indrelid::int8 as table_id, i.relname as name,
   ix.indisunique as unique, ix.indisprimary as primary,
   (ix.indpred is not null or 0 = any(ix.indkey::int2[])) as partial,
+  am.amname as method, pg_get_expr(ix.indpred, ix.indrelid) as predicate,
   array(select a.attname from unnest(ix.indkey::int2[]) with ordinality k(attnum, ord)
     join pg_attribute a on a.attrelid = ix.indrelid and a.attnum = k.attnum order by k.ord)::text[] as columns
 from pg_index ix
 join pg_class i on i.oid = ix.indexrelid
+join pg_am am on am.oid = i.relam
 join pg_class c on c.oid = ix.indrelid
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = any(${schemas})
@@ -79,13 +81,18 @@ join pg_class c on c.relnamespace = n.oid and c.relname = p.tablename
 where p.schemaname = any(${schemas})
 order by 1, 2`;
 
-// Functions policies call (in any schema) and functions with `set` options
-// other than `search_path`.
+// Functions policies call (in any schema). In the exposed schemas, also the
+// security definer functions /rpc can call (not trigger functions) and the
+// functions with `set` options other than `search_path`.
 const FUNCTIONS = (schemas: string) => `
 select n.nspname as schema, p.proname as name,
   pg_get_function_identity_arguments(p.oid) as signature,
   l.lanname as language, p.provolatile as volatility,
-  p.prosecdef as security_definer, coalesce(p.proconfig, '{}')::text[] as config
+  p.prosecdef as security_definer, coalesce(p.proconfig, '{}')::text[] as config,
+  array(
+    select r from unnest(array['anon', 'authenticated']) r
+    where has_function_privilege(r, p.oid, 'EXECUTE')
+  ) as execute
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 join pg_language l on l.oid = p.prolang
@@ -97,9 +104,10 @@ where p.oid in (
     join pg_namespace cn on cn.oid = c.relnamespace
     where d.refclassid = 'pg_proc'::regclass and cn.nspname = any(${schemas})
   )
-  or (n.nspname = any(${schemas}) and exists (
+  or (n.nspname = any(${schemas}) and ((p.prosecdef
+    and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)) or exists (
     select 1 from unnest(p.proconfig) setting where setting not like 'search_path=%'
-  ))
+  )))
 order by 1, 2, 3`;
 
 /** Roles the hook checks care about: the one Auth calls it as, and the API roles. */
@@ -219,6 +227,8 @@ interface IndexRow {
   unique: boolean;
   primary: boolean;
   partial: boolean;
+  method: string;
+  predicate: string | null;
   columns: string[];
 }
 
@@ -260,6 +270,10 @@ function settingsOf(config: readonly string[] | null): Record<string, string> {
     if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
   }
   return settings;
+}
+
+interface ExtrasFunctionRow extends FunctionRow {
+  execute: string[];
 }
 
 interface HookRow extends FunctionRow {
@@ -395,7 +409,7 @@ export async function readExtras(
     "pg_catalog.pg_publication_tables",
     REALTIME,
   );
-  const functions = await rows<FunctionRow>(db, FUNCTIONS(list));
+  const functions = await rows<ExtrasFunctionRow>(db, FUNCTIONS(list));
   const roleSettings: Record<string, Record<string, string>> = {};
   for (const row of await rows<{ role: string; config: string[] | null }>(
     db,
@@ -444,6 +458,8 @@ export async function readExtras(
         unique: index.unique,
         primary: index.primary,
         partial: index.partial,
+        method: index.method,
+        predicate: index.predicate,
       })),
       policies: (policies.get(id) ?? []).map((policy) => ({
         name: policy.name,
@@ -485,7 +501,10 @@ export async function readExtras(
     })),
     realtime: realtime.map((row) => row.name),
     roleSettings,
-    functions: functions.map(functionOf),
+    functions: functions.map((row) => ({
+      ...functionOf(row),
+      execute: row.execute,
+    })),
     ...(hooks.length > 0 ? { hooks: await readHooks(db, hooks) } : {}),
   };
 }
