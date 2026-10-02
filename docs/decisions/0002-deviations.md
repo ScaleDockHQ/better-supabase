@@ -88,13 +88,6 @@ backlogs too large to clear in the upgrade.
   job in `ci.yml` and `database.yml`), not in `pnpm verify`. They need a
   running Supabase stack, which a pre-push hook cannot assume.
 
-### Database
-
-- The fixture schema uses the migra diff engine, so the numbered files in
-  `supabase/schemas` load in the order `schema_paths` gives. pg-delta ignores
-  `schema_paths`. The baseline migration was generated with migra and
-  reviewed by hand (`docs/agents/database.md`).
-
 ### Workflow
 
 - Dependabot targets `main` until a `develop` branch exists.

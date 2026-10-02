@@ -443,6 +443,14 @@ describe("generated and kit files (BS303, BS304)", () => {
       files.map((file) => file.path),
     );
     expect(missing[0]!.message).toMatch(/\(updated-at\) is missing\./);
+    expect(missing[0]!.message).toContain("then `supabase db diff`.");
+    const pgdelta = await run("BS304", {
+      ...ctx,
+      configToml: toml("[experimental.pgdelta]\nenabled = true\n"),
+    });
+    expect(pgdelta[0]!.message).toContain(
+      "then `supabase db schema declarative sync`.",
+    );
 
     await write(files[0]!.path, files[0]!.contents);
     await write(files[1]!.path, "-- changed\n");

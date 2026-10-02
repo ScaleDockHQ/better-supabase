@@ -31,7 +31,7 @@ export default defineConfig({
 
 ```bash
 better-supabase sql sync
-supabase db diff -f vector_search
+supabase db schema declarative sync -f vector_search
 ```
 
 For `chunks` this writes:

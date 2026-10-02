@@ -1041,6 +1041,30 @@ uri = "https://example.com/hook"
       );
     });
 
+    it("points BS404 at the schema file under pg-delta", async () => {
+      const ungranted = withHook([
+        hookFn({ execute: ["anon"], schemaUsage: [] }),
+      ]);
+      const [finding] = await runRules(
+        hookContext(ungranted, {
+          configToml: toml(
+            `${HOOK_TOML}\n[experimental.pgdelta]\nenabled = true\n`,
+          ),
+        }),
+        only("BS404"),
+      );
+      expect(finding?.message).toContain(
+        "Add to the schema file that defines the function, then run `supabase db schema declarative sync`",
+      );
+      expect(
+        hookGrantBlock(hookGrantProblems(hookContext(ungranted)), "pg-delta")
+          .split("\n")
+          .at(1),
+      ).toBe(
+        "-- Add this to the schema file that defines the function, then run `supabase db schema declarative sync`.",
+      );
+    });
+
     it("prints every BS404 fix as one block (--fix-grants)", () => {
       const problems = hookGrantProblems(
         hookContext(withHook([hookFn({ execute: ["anon"], schemaUsage: [] })])),

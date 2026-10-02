@@ -17,7 +17,7 @@ import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import { renderFiles } from "../commands/gen.ts";
-import { tomlGet } from "../supabase-toml.ts";
+import { migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
 import { entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
@@ -100,7 +100,7 @@ export interface DoctorContext {
   readonly hookUser?: string;
   /** The PermDock config, manifest and catalog in the project root, if any (BS213, BS214, BS405, BS407). */
   readonly permdock?: PermdockProject;
-  /** `supabase/schemas` in `schema_paths` order, then migrations newest first (BS214, BS404, BS407). */
+  /** `supabase/schemas` in the diff engine's order, then migrations newest first (BS214, BS404, BS407). */
   readonly sqlFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
@@ -649,7 +649,7 @@ const OWN_RULES: readonly Rule[] = [
         ).catch(() => undefined);
         if (sameKitFile(current, file.contents)) continue;
         stale.push({
-          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase sql sync\`, then \`supabase db diff\`.`,
+          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.`,
           target: file.path,
           ...(current === undefined
             ? {}
@@ -687,7 +687,7 @@ const OWN_RULES: readonly Rule[] = [
           return [];
         return [
           {
-            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase sql add realtime-tables\`, then \`supabase db diff\`.`,
+            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase sql add realtime-tables\`, then \`${migrationCommand(context.configToml)}\`.`,
             target: qualified(table),
             object: tableObject(table),
           },

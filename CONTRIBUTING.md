@@ -33,7 +33,7 @@ pnpm run verify
 | `pnpm run format`        | Format with Oxfmt                                                         |
 | `pnpm changeset`         | Add a changeset for a user-visible change                                 |
 
-The local stack uses the API on port 55421 and Postgres on 55422. Override them with `SUPABASE_URL` and `SUPABASE_DB_URL`.
+The local stack uses the API on port 55421 and Postgres on 55422. Override them with `SUPABASE_URL` and `SUPABASE_DB_URL`. It needs Docker; `SUPABASE_EXPERIMENTAL_STACK=1` runs it on the Supabase CLI's native stack instead (its Realtime private channels fail the integration tests). After you edit `supabase/schemas`, create the migration with `pnpm supabase:sync <name>` (see `docs/agents/database.md`).
 
 Before the first `supabase start`, create the stack's ES256 signing key with `node packages/cli/src/bin.ts keys --cwd .`. It writes `supabase/signing_keys.json` (gitignored), which `config.toml` loads, and the integration tests sign their tokens with it.
 

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { readSupabasePort } from "../src/config.ts";
 import {
+  diffEngine,
+  migrationCommand,
   parseToml,
   readSupabaseToml,
   schemaPaths,
@@ -153,5 +155,72 @@ describe("schemaPaths", () => {
       ],
       unlisted: [],
     });
+  });
+
+  it("ignores schema_paths under pg-delta and reads its schema directory", async () => {
+    const pgdelta = tomlWith(
+      [
+        "[db.migrations]",
+        'schema_paths = ["./schemas/020_types.sql"]',
+        "[experimental.pgdelta]",
+        "enabled = true",
+      ].join("\n"),
+    );
+    expect(diffEngine(pgdelta)).toBe("pg-delta");
+    expect(await schemaPaths(dir, pgdelta)).toEqual({
+      configured: false,
+      files: [
+        "supabase/schemas/010_extensions.sql",
+        "supabase/schemas/020_types.sql",
+        "supabase/schemas/030_crm/a.sql",
+        "supabase/schemas/030_crm/b.sql",
+        "supabase/schemas/999_unlisted.sql",
+      ],
+      unlisted: [],
+    });
+    const custom = tomlWith(
+      [
+        "[experimental.pgdelta]",
+        'enabled = "true"',
+        'declarative_schema_path = "./schemas/030_crm/"',
+      ].join("\n"),
+    );
+    expect((await schemaPaths(dir, custom)).files).toEqual([
+      "supabase/schemas/030_crm/a.sql",
+      "supabase/schemas/030_crm/b.sql",
+    ]);
+    const missing = tomlWith(
+      '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./db"',
+    );
+    expect(await schemaPaths(dir, missing)).toEqual({
+      configured: false,
+      files: [],
+      unlisted: [],
+    });
+  });
+});
+
+describe("migrationCommand", () => {
+  const tomlWith = (text: string): SupabaseToml => ({
+    path: "supabase/config.toml",
+    text,
+    document: parseToml(text),
+    parser: "smol-toml",
+  });
+
+  it("names the command of the configured diff engine", () => {
+    expect(diffEngine(undefined)).toBe("migra");
+    expect(migrationCommand(undefined, "add_tags")).toBe(
+      "supabase db diff -f add_tags",
+    );
+    expect(
+      migrationCommand(tomlWith("[experimental.pgdelta]\nenabled = false")),
+    ).toBe("supabase db diff");
+    expect(
+      migrationCommand(
+        tomlWith("[experimental.pgdelta]\nenabled = true"),
+        "add_tags",
+      ),
+    ).toBe("supabase db schema declarative sync -f add_tags");
   });
 });

@@ -22,7 +22,11 @@ import { display, writeIfChanged } from "../io.ts";
 import { entitlementsMode, permdockConfig, readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
-import { readSupabaseToml, schemaPaths } from "../supabase-toml.ts";
+import {
+  migrationCommand,
+  readSupabaseToml,
+  schemaPaths,
+} from "../supabase-toml.ts";
 
 const SQL_ARGS = {
   action: {
@@ -122,7 +126,7 @@ async function write(
   return lines;
 }
 
-/** A note when `schema_paths` is set and misses kit files, which `supabase db diff` would then skip. */
+/** A note when migra's `schema_paths` is set and misses kit files, which `supabase db diff` would then skip. */
 async function unlistedKitFiles(
   config: ResolvedConfig,
   names: readonly string[],
@@ -234,7 +238,7 @@ export async function runSql(
         lines.push(...(await unlistedKitFiles(config, names, kit)));
       lines.push(
         "",
-        "Then create a migration: supabase db diff -f better_supabase_kit",
+        `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_kit")}`,
       );
       return { code: 0, output: lines.join("\n") };
     }

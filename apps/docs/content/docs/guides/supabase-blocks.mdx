@@ -1,0 +1,124 @@
+---
+title: Supabase MCP and headless app blocks
+description: Use typed repositories inside the MCP server and headless app blocks from the Supabase library, or swap their tools for createMcp.
+---
+
+The [Supabase library](https://supabase.com/library) ships two blocks that put
+an MCP server for your users into your project: the
+[MCP server](https://supabase.com/library/docs/headless/mcp.md) block
+(`@supabase/mcp-server`) and
+the [headless app](https://supabase.com/library/docs/tanstack/headless-app.md)
+template (`@supabase/headless-app-tanstack`), which adds sign-in and OAuth
+consent pages around the same server. Both install an Edge Function in
+`supabase/functions/mcp` that runs every tool as the signed-in user.
+better-supabase fits in two ways: keep the block and call typed repositories
+from its tools, or replace its tools with [`createMcp`](/docs/frameworks/mcp).
+
+## Requirements
+
+Both blocks need the same project settings:
+
+- Asymmetric signing keys (ES256 or RS256). Locally, run
+  [`better-supabase keys`](/docs/cli/local#keys) and point
+  `[auth] signing_keys_path` at the file; on the hosted project, rotate to an
+  asymmetric key under JWT Keys.
+- The Supabase Auth OAuth server, so MCP clients can sign users in:
+
+```toml title="supabase/config.toml"
+[auth.oauth_server]
+enabled = true
+```
+
+Get an existing project's config, schema and Edge Functions into the repo
+first with `supabase pull` (Supabase CLI 2.119 or later), then add a block:
+
+```bash
+npx shadcn@latest add @supabase/mcp-server
+```
+
+## Typed repositories in the block's tools
+
+The block builds a user-scoped client per request with `withSupabase` from
+`@supabase/server` and hands it to each tool as `context.supabase`. Bind your
+definition to that client, and the tool gets typed repositories that still go
+through RLS:
+
+```ts title="supabase/functions/mcp/tools/customers.ts"
+import type { McpServer } from "npm:@modelcontextprotocol/server@2.0.0";
+
+import { sb } from "../../_shared/supabase.ts";
+import { errorResult, jsonResult } from "./result.ts";
+import type { ToolContext } from "./types.ts";
+
+export function registerCustomersTool(
+  server: McpServer,
+  { supabase, jwtClaims }: ToolContext,
+): void {
+  const db = sb.connect(supabase, { claims: jwtClaims });
+  server.registerTool(
+    "list_customers",
+    {
+      description: "List the customers the signed-in user can see.",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async () => {
+      const result = await db.customers.findMany({
+        select: ["id", "name", "status"],
+        limit: 50,
+      });
+      return result.ok
+        ? jsonResult(result.data)
+        : errorResult(result.error.message);
+    },
+  );
+}
+```
+
+Register it in `tools/index.ts` next to `registerWhoamiTool`. Repository
+methods return a `Result` instead of throwing, so the tool turns a
+`DbError` into an MCP error result the model can read. `_shared/supabase.ts`
+exports `sb = defineSupabase(schema)` from the client
+[`better-supabase gen`](/docs/cli/gen) writes.
+
+## Replacing the tools with createMcp
+
+`createMcp` serves the MCP endpoint, the RFC 9728
+`/.well-known/oauth-protected-resource` metadata and the `WWW-Authenticate`
+challenge itself, through the same `@supabase/server` code the block uses. It
+also generates tools from your tables. To switch, keep the block's
+`deno.json` and `.env.example`, and replace `index.ts`:
+
+```ts title="supabase/functions/mcp/index.ts"
+import { createMcp } from "better-supabase/mcp";
+
+import { sb } from "../_shared/supabase.ts";
+
+const mcp = createMcp(sb, {
+  name: Deno.env.get("MCP_SERVER_NAME") ?? "app",
+  version: "1.0.0",
+  resources: { customers: { select: ["id", "name", "status"] } },
+});
+
+Deno.serve(mcp.fetch);
+```
+
+The headless app's consent page, connected-agents page and `tasks` table keep
+working; only the tool code changes. See
+[MCP servers](/docs/frameworks/mcp) for custom tools, `authorize` and scopes.
+
+## Schema and deploy
+
+The headless app keeps its tables in `supabase/schemas`. Generate the
+migration with pg-delta, then deploy:
+
+```bash
+supabase db schema declarative sync -f create_tasks
+supabase link --project-ref <project-ref>
+supabase db push
+supabase config push
+supabase functions deploy mcp
+```
+
+`supabase config pull` brings settings changed in the dashboard back into
+`config.toml`. Run [`better-supabase doctor`](/docs/cli/doctor) before the
+push to check grants, RLS and the Auth hook.

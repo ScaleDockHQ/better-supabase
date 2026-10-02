@@ -32,7 +32,7 @@ Then write the grants into your declarative schema and diff a migration:
 
 ```bash
 better-supabase sql add grants
-supabase db diff -f data_api_grants
+supabase db schema declarative sync -f data_api_grants
 ```
 
 The `grants` module writes plain `grant ... on table ... to ...` statements.

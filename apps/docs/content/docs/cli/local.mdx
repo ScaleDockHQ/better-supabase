@@ -28,6 +28,13 @@ file isn't in `.gitignore`, and when your Supabase CLI only prints legacy keys.
 reads saved `supabase status -o json` output instead of running the
 Supabase CLI.
 
+The Supabase CLI's native stack (`[experimental] stack = true` in
+`supabase/config.toml`, or `SUPABASE_EXPERIMENTAL_STACK=1`) runs without a
+Docker daemon and rejects `supabase status -o json`. `env` then reads
+`supabase status --env` instead. That output has no `JWT_SECRET`, so
+`SUPABASE_JWT_SECRET` is left out, and HS256 test tokens use the CLI's default
+secret.
+
 ## keys
 
 ```bash

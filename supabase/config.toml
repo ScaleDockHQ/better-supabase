@@ -14,21 +14,6 @@ port = 55422
 shadow_port = 55420
 major_version = 17
 
-# Declarative schema files, in dependency order. Generate a migration after an
-# edit with `supabase db diff -f <name>` while the local stack is stopped.
-[db.migrations]
-schema_paths = [
-  "./schemas/010_extensions.sql",
-  "./schemas/015_shared.sql",
-  "./schemas/020_types.sql",
-  "./schemas/030_crm/*.sql",
-  "./schemas/040_rbac.sql",
-  "./schemas/050_functions.sql",
-  "./schemas/060_realtime.sql",
-  "./schemas/070_storage.sql",
-  "./schemas/090_grants.sql",
-]
-
 [db.seed]
 enabled = true
 sql_paths = ["./seed.sql"]
@@ -61,6 +46,10 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = true
 
+# Lets MCP clients sign in through OAuth (apps/examples/mcp).
+[auth.oauth_server]
+enabled = true
+
 [auth.email]
 enable_signup = true
 enable_confirmations = false
@@ -74,7 +63,7 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
 enabled = false
 port = 55423
 
-[inbucket]
+[local_smtp]
 enabled = false
 port = 55424
 
@@ -88,3 +77,9 @@ port = 55429
 
 [edge_runtime]
 enabled = false
+
+# pg-delta orders the files in schemas/ by dependency. Generate a migration
+# after an edit with `pnpm supabase:sync <name>`.
+[experimental.pgdelta]
+enabled = true
+declarative_schema_path = "./schemas"

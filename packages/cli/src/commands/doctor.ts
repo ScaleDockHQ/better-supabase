@@ -44,6 +44,7 @@ import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
 import {
+  diffEngine,
   readSupabaseToml,
   schemaPaths,
   type SupabaseToml,
@@ -122,7 +123,7 @@ const ARGS = {
   "fix-grants": {
     type: "boolean",
     description:
-      "Print the grant and revoke SQL BS404 asks for, to append to the migration `supabase db diff` wrote",
+      "Print the grant and revoke SQL BS404 asks for, to add to your schema or migration",
   },
 } as const;
 
@@ -147,7 +148,7 @@ async function readText(
     : undefined;
 }
 
-/** The declarative schemas in `schema_paths` order, then the migrations newest first. */
+/** The declarative schemas in the diff engine's order, then the migrations newest first. */
 async function sqlFiles(
   root: string,
   toml: SupabaseToml | undefined,
@@ -441,7 +442,13 @@ export async function runDoctor(
   };
   if (fixGrants) {
     await opened.close();
-    return { code: 0, output: hookGrantBlock(hookGrantProblems(context)) };
+    return {
+      code: 0,
+      output: hookGrantBlock(
+        hookGrantProblems(context),
+        diffEngine(context.configToml),
+      ),
+    };
   }
   let ran: Finding[];
   try {

@@ -180,17 +180,57 @@ export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
   });
 }
 
-/** The declarative schema files, in the order `supabase db diff` applies them. */
+/** The Supabase CLI engine that turns `supabase/schemas` into migrations. */
+export type DiffEngine = "pg-delta" | "migra";
+
+/** pg-delta when `[experimental.pgdelta] enabled = true`, otherwise the legacy migra engine. */
+export function diffEngine(toml?: SupabaseToml): DiffEngine {
+  const enabled = tomlGet(toml?.document ?? {}, [
+    "experimental",
+    "pgdelta",
+    "enabled",
+  ]);
+  return enabled === true || enabled === "true" ? "pg-delta" : "migra";
+}
+
+/** The command that writes a migration (named `name`, when given) from `supabase/schemas`. */
+export function migrationCommand(
+  toml: SupabaseToml | undefined,
+  name?: string,
+): string {
+  const command =
+    diffEngine(toml) === "pg-delta"
+      ? "supabase db schema declarative sync"
+      : "supabase db diff";
+  return name === undefined ? command : `${command} -f ${name}`;
+}
+
+/** The declarative schema files, in the order the diff engine reads them. */
 export interface SchemaPaths {
   /** Relative to the project root. */
   readonly files: readonly string[];
   /** Files under `supabase/schemas` that no `schema_paths` entry matches, so the diff skips them. */
   readonly unlisted: readonly string[];
-  /** Whether `[db.migrations] schema_paths` lists any entries. */
+  /** Whether `[db.migrations] schema_paths` lists entries that the engine honors (migra only). */
   readonly configured: boolean;
 }
 
 const SCHEMAS_DIR = "supabase/schemas";
+
+/** `experimental.pgdelta.declarative_schema_path` (relative to `supabase/`), or `./schemas`. */
+function pgDeltaSchemasDir(toml?: SupabaseToml): string {
+  const dir = tomlGet(toml?.document ?? {}, [
+    "experimental",
+    "pgdelta",
+    "declarative_schema_path",
+  ]);
+  const relative =
+    typeof dir === "string" && dir.trim() !== "" ? dir : "schemas";
+  return posix.join(
+    "supabase",
+    relative.replace(/^\.\//, "").replace(/\/$/, ""),
+  );
+}
 
 async function expand(cwd: string, pattern: string): Promise<string[]> {
   const matched: string[] = [];
@@ -204,11 +244,20 @@ async function expand(cwd: string, pattern: string): Promise<string[]> {
  * expanded in name order and the entries kept in their listed order, then
  * the `supabase/schemas` files no entry matches. Without `schema_paths`, the
  * `supabase/schemas` files in name order, as the Supabase CLI reads them.
+ * pg-delta ignores `schema_paths` and orders by dependency, so under it every
+ * file in its schema directory counts, in name order.
  */
 export async function schemaPaths(
   root: string,
   toml?: SupabaseToml,
 ): Promise<SchemaPaths> {
+  if (diffEngine(toml) === "pg-delta") {
+    const dir = pgDeltaSchemasDir(toml);
+    const files = existsSync(join(root, dir))
+      ? await expand(root, `${dir}/**/*.sql`)
+      : [];
+    return { files, unlisted: [], configured: false };
+  }
   const supabase = join(root, "supabase");
   const all = existsSync(join(root, SCHEMAS_DIR))
     ? (await expand(supabase, "schemas/**/*.sql")).map((path) =>

@@ -4,7 +4,7 @@ description: Idempotent SQL modules for the database work every app repeats, wri
 ---
 
 `better-supabase sql add` writes SQL modules into `supabase/schemas`, and
-`supabase db diff` turns them into a migration. The files are plain SQL that
+`supabase db schema declarative sync` turns them into a migration. The files are plain SQL that
 you can read and commit, so nothing runs behind your back. Every module can be
 re-run safely, and it keeps everything it creates in the `better_supabase`
 schema.
@@ -12,13 +12,22 @@ schema.
 ```bash
 better-supabase sql list
 better-supabase sql add audit jobs pgtap
-supabase db diff -f better_supabase_kit
+supabase db schema declarative sync -f better_supabase_kit
 ```
 
-When `supabase/config.toml` lists `[db.migrations] schema_paths`,
-`supabase db diff` reads only the files those entries match. `sql add` names
-any kit file no entry matches and prints the lines to add. List the kit files
-before the schemas that call their functions.
+The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
+orders the schema files by dependency. Projects created by `supabase init`
+use it by default; an existing project turns it on with
+`[experimental.pgdelta] enabled = true` in `supabase/config.toml`. `sql add`
+and [doctor](/docs/cli/doctor) read that setting and name the matching
+command.
+
+On the legacy migra engine, create the migration with
+`supabase db diff -f better_supabase_kit` while the stack is stopped. When
+`supabase/config.toml` lists `[db.migrations] schema_paths`, migra reads only
+the files those entries match. `sql add` names any kit file no entry matches
+and prints the lines to add. List the kit files before the schemas that call
+their functions.
 
 ## Modules
 
@@ -152,7 +161,7 @@ select better_supabase.set_rate_limit('/customers', null);
   with `retryAfter` in seconds, and `problemResponse()` passes the header on.
 
 The module sets `pgrst.db_pre_request` on the `authenticator` role, and only
-if no other pre-request function is set. `supabase db diff` doesn't capture
+if no other pre-request function is set. Neither diff engine captures
 role settings, so copy the `do` block at the end of the file into a
 migration. If you already have a pre-request function, keep it and call the
 check from it. Put it in a schema the Data API doesn't expose, so clients
