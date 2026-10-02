@@ -368,6 +368,36 @@ describe.skipIf(!live)("Postgres executor", async () => {
     ).toBe("not_found");
   });
 
+  it("splits a large createMany under the parameter limit, all or nothing", async () => {
+    // 3 columns per row, so 22,000 rows need 66,000 parameters: two statements.
+    const rows = Array.from({ length: 22_000 }, (_, index) => ({
+      name: `bulk-${index}`,
+      color: "blue",
+    }));
+    await expect(
+      postgres.transaction(
+        async (tx) => {
+          const db = sb.connect(postgresExecutor(tx), { claims });
+          expect(
+            await db.tags
+              .createMany(rows as never, { returning: false })
+              .orThrow(),
+          ).toEqual({ count: 22_000 });
+          throw new Error("roll back");
+        },
+        { claims },
+      ),
+    ).rejects.toThrow("roll back");
+
+    const duplicate = await sql.tags.createMany([...rows, rows[0]!] as never, {
+      returning: false,
+    });
+    expect(duplicate.error?.kind).toBe("conflict");
+    expect(await sql.tags.exists({ where: { name: "bulk-0" } }).orThrow()).toBe(
+      false,
+    );
+  });
+
   it("runs several operations in one transaction", async () => {
     await expect(
       postgres.transaction(

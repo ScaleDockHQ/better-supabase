@@ -508,6 +508,35 @@ describe("upsert and upsertMany", () => {
     ).toEqual(ok(null));
   });
 
+  it("sorts upsertMany rows by the conflict key, nulls last", async () => {
+    const { db, ops } = connect(() => rowsOf([]));
+    const names = () =>
+      (ops.at(-1) as { rows: { name: string }[] }).rows.map((row) => row.name);
+    await db.customers.upsertMany(
+      [
+        { organizationId: "o2", kvk: "2", name: "D" },
+        { organizationId: "o1", kvk: null, name: "C" },
+        { organizationId: "o1", kvk: "10", name: "B" },
+        { organizationId: "o1", kvk: "1", name: "A" },
+        { organizationId: "o1", kvk: "1", name: "A2" },
+      ],
+      { onConflict: ["organizationId", "kvk"] },
+    );
+    expect(names()).toEqual(["A", "A2", "B", "C", "D"]);
+    await db.tags.upsertMany([
+      { id: 10, organizationId: "o", name: "b" },
+      { id: 9, organizationId: "o", name: "a" },
+    ] as never);
+    expect(
+      (ops.at(-1) as { rows: { id: number }[] }).rows.map((row) => row.id),
+    ).toEqual([9, 10]);
+    await db.customers.createMany([
+      { organizationId: "o", name: "Z" },
+      { organizationId: "o", name: "Y" },
+    ]);
+    expect(names()).toEqual(["Z", "Y"]);
+  });
+
   it("passes upsert errors through", async () => {
     const { db } = connect(failing);
     expect(

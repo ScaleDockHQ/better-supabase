@@ -557,10 +557,11 @@ export function createRepository(
     args: Args | undefined,
     conflict: readonly string[] | undefined,
   ): InsertOp {
+    const built = rows.map((row) => builder.row(table, row));
     return {
       kind: "insert",
       table,
-      rows: rows.map((row) => builder.row(table, row)),
+      rows: conflict && built.length > 1 ? byKey(built, conflict) : built,
       returning: returning(args),
       onConflict: conflict
         ? {
@@ -728,6 +729,35 @@ function strip(row: Row, keys: readonly string[]): Row {
   const copy = { ...row };
   for (const key of keys) delete copy[key];
   return copy;
+}
+
+/**
+ * Rows in conflict-key order, so concurrent upserts lock the same rows in
+ * the same order instead of deadlocking.
+ */
+function byKey(
+  rows: readonly Readonly<Record<string, unknown>>[],
+  columns: readonly string[],
+): Readonly<Record<string, unknown>>[] {
+  const compare = (left: unknown, right: unknown): number => {
+    if (left === right) return 0;
+    if (left === null || left === undefined) return 1;
+    if (right === null || right === undefined) return -1;
+    if (typeof left === "number" && typeof right === "number")
+      return left - right;
+    if (typeof left === "bigint" && typeof right === "bigint")
+      return left < right ? -1 : 1;
+    const a = String(left);
+    const b = String(right);
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  return [...rows].sort((left, right) => {
+    for (const column of columns) {
+      const order = compare(left[column], right[column]);
+      if (order !== 0) return order;
+    }
+    return 0;
+  });
 }
 
 /**

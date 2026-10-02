@@ -679,6 +679,22 @@ describe("compileSql inserts", () => {
     });
   });
 
+  it("splits an insert to stay under 65,535 bind parameters", () => {
+    const rows = Array.from({ length: 32_768 }, (_, index) => ({
+      name: `c${index}`,
+      organization_id: "o1",
+    }));
+    const plan = insert({ rows, returning: idOnly });
+    const statements = [plan, ...(plan.chunks ?? [])];
+    expect(statements.map((entry) => entry.rows?.params.length)).toEqual([
+      65_534, 2,
+    ]);
+    expect(plan.chunks?.[0]?.rows?.text).toBe(
+      `${into} ("name", "organization_id") values ($1, $2) returning json_build_object('id', t0."id") as row`,
+    );
+    expect(insert({ rows: rows.slice(0, 32_767) }).chunks).toBeUndefined();
+  });
+
   it("returns rows with a returning selection", () => {
     expect(insert({ returning: idOnly })).toEqual({
       rows: {

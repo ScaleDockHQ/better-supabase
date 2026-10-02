@@ -81,6 +81,11 @@ async function run(
   } else if (op.kind !== "select") {
     count = rows.length;
   }
+  for (const next of plan.chunks ?? []) {
+    const more = await run(client, next, op);
+    rows.push(...more.rows);
+    count = (count ?? 0) + (more.count ?? 0);
+  }
   return { rows, count };
 }
 
@@ -136,7 +141,10 @@ async function executeOn(
     return err(dbError("aborted", "The request was aborted"));
   let result: ExecuteResult;
   try {
-    result = await run(client, plan, op);
+    result =
+      plan.chunks && client.transaction
+        ? await client.transaction((scoped) => run(scoped, plan, op))
+        : await run(client, plan, op);
   } catch (cause) {
     const raw = fromPgError(cause);
     return err(raw ? mapDbError(raw, context.errorMappers) : toDbError(cause));

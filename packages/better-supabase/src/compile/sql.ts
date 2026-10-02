@@ -26,7 +26,15 @@ export interface SqlPlan {
   readonly count: SqlQuery | undefined;
   /** No row can match; the executor returns an empty result without a query. */
   readonly never: boolean;
+  /**
+   * The rest of an insert split to stay under the bind-parameter limit. They
+   * run after this plan, in the same transaction; rows and counts add up.
+   */
+  readonly chunks?: readonly SqlPlan[];
 }
+
+// The wire protocol counts bind parameters in 16 bits.
+const MAX_PARAMS = 65_535;
 
 // json_build_object takes at most 100 arguments.
 const MAX_PAIRS = 50;
@@ -429,39 +437,21 @@ export function compileSql(op: Operation): SqlPlan {
       if (op.rows.length === 0)
         return { rows: undefined, count: undefined, never: true };
       const columns = insertColumns(op);
-      let body: string;
-      if (columns.length === 0) {
-        if (op.rows.length > 1)
-          invalidRequest("Cannot insert several rows without columns");
-        body = "default values";
-      } else {
-        const values = op.rows.map(
-          (row) =>
-            `(${columns
-              .map((column) =>
-                column in row
-                  ? compiler.param(row[column])
-                  : op.defaultToNull
-                    ? "null"
-                    : "default",
-              )
-              .join(", ")})`,
+      const perChunk = Math.floor(MAX_PARAMS / Math.max(columns.length, 1));
+      if (op.rows.length <= perChunk)
+        return insertPlan(compiler, from, alias, op, columns);
+      const [first, ...rest] = chunk(op.rows, perChunk).map((rows) => {
+        const own = new SqlCompiler();
+        const ownAlias = own.alias();
+        return insertPlan(
+          own,
+          `${tableRef(op.table)} as ${ownAlias}`,
+          ownAlias,
+          { ...op, rows },
+          columns,
         );
-        body = `(${columns.map(quoteIdent).join(", ")}) values ${values.join(", ")}`;
-      }
-      let conflict = "";
-      if (op.onConflict) {
-        const target = `(${op.onConflict.columns.map(quoteIdent).join(", ")})`;
-        const updates = columns.map(
-          (column) => `${quoteIdent(column)} = excluded.${quoteIdent(column)}`,
-        );
-        conflict =
-          op.onConflict.action === "ignore" || updates.length === 0
-            ? ` on conflict ${target} do nothing`
-            : ` on conflict ${target} do update set ${updates.join(", ")}`;
-      }
-      const statement = `insert into ${from} ${body}${conflict}${returningRows(compiler, op, alias)}`;
-      return mutation(statement, op.returning !== undefined, compiler.params);
+      });
+      return { ...first!, chunks: rest };
     }
     case "update": {
       const simple = simplifyOrFalse(op.where);
@@ -497,6 +487,55 @@ export function compileSql(op: Operation): SqlPlan {
       return exhaustive;
     }
   }
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let start = 0; start < items.length; start += size)
+    out.push(items.slice(start, start + size));
+  return out;
+}
+
+function insertPlan(
+  compiler: SqlCompiler,
+  from: string,
+  alias: string,
+  op: InsertOp,
+  columns: readonly string[],
+): SqlPlan {
+  let body: string;
+  if (columns.length === 0) {
+    if (op.rows.length > 1)
+      invalidRequest("Cannot insert several rows without columns");
+    body = "default values";
+  } else {
+    const values = op.rows.map(
+      (row) =>
+        `(${columns
+          .map((column) =>
+            column in row
+              ? compiler.param(row[column])
+              : op.defaultToNull
+                ? "null"
+                : "default",
+          )
+          .join(", ")})`,
+    );
+    body = `(${columns.map(quoteIdent).join(", ")}) values ${values.join(", ")}`;
+  }
+  let conflict = "";
+  if (op.onConflict) {
+    const target = `(${op.onConflict.columns.map(quoteIdent).join(", ")})`;
+    const updates = columns.map(
+      (column) => `${quoteIdent(column)} = excluded.${quoteIdent(column)}`,
+    );
+    conflict =
+      op.onConflict.action === "ignore" || updates.length === 0
+        ? ` on conflict ${target} do nothing`
+        : ` on conflict ${target} do update set ${updates.join(", ")}`;
+  }
+  const statement = `insert into ${from} ${body}${conflict}${returningRows(compiler, op, alias)}`;
+  return mutation(statement, op.returning !== undefined, compiler.params);
 }
 
 function mutation(

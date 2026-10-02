@@ -49,6 +49,21 @@ await db.tags.upsertMany(rows, {
 });
 ```
 
+`upsertMany` sends the rows sorted by the conflict columns, with nulls last.
+Two requests that upsert overlapping rows then lock them in the same order and
+wait for each other instead of deadlocking. The returned rows follow that
+order, not the order you passed.
+
+## Bulk inserts
+
+`createMany` and `upsertMany` send one request over PostgREST however many
+rows you pass. On the [Postgres executor](/docs/auth/postgres), one statement
+takes at most 65,535 bind parameters (one per column value), so a larger
+insert runs as several statements in one transaction: either every row is
+written or none is. Clients without `transaction` (a custom `SqlClient`) run
+the statements one after the other, and an error leaves the earlier ones
+written.
+
 ## Optimistic concurrency
 
 Pass the values you read in `expect`. If the row changed in the meantime, the
