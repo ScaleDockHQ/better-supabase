@@ -32,6 +32,11 @@ Deno.serve(mcp.fetch);
 responses) and the RFC 9728 metadata at
 `/.well-known/oauth-protected-resource/...`.
 
+If you started from the MCP server or headless app block in the Supabase
+library, [Supabase MCP and headless app blocks](/docs/guides/supabase-blocks)
+shows how to call typed repositories from its tools or replace them with
+`createMcp`.
+
 ## Protocol versions
 
 The server follows MCP `2026-07-28` (`SPEC_PINS.mcp`). Those requests carry
