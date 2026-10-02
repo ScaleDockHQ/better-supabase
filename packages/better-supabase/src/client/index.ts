@@ -10,6 +10,7 @@ import type { Actor, RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
+import { decodeJwtPayload } from "../core/base64.ts";
 import { EnvValidationError, parseEnv, type PublicEnv } from "../env/index.ts";
 import { createQueries, type Queries } from "../query/index.ts";
 
@@ -75,27 +76,9 @@ const SIGNED_OUT: AuthSnapshot = {
   claims: null,
 };
 
-function decodeClaims(token: string): Record<string, unknown> {
-  const part = token.split(".")[1];
-  if (!part) return {};
-  try {
-    const bytes = Uint8Array.from(
-      atob(part.replace(/-/g, "+").replace(/_/g, "/")),
-      (char) => char.charCodeAt(0),
-    );
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    // SAFETY: parsed is a non-null object, and callers check each claim they read.
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
 function snapshotOf(session: Session | null): AuthSnapshot {
   if (!session) return SIGNED_OUT;
-  const claims = decodeClaims(session.access_token);
+  const claims = decodeJwtPayload(session.access_token) ?? {};
   const role =
     typeof claims["role"] === "string" ? claims["role"] : session.user.role;
   return {

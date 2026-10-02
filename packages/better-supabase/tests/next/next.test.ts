@@ -730,7 +730,7 @@ describe("read replicas", () => {
         "set-cookie",
       );
       expect(cookie).toMatch(
-        /^bs-primary-until=\d+; Path=\/; Max-Age=2; HttpOnly; SameSite=Lax$/,
+        /^bs-primary-until=\d+; Max-Age=2; Path=\/; HttpOnly; SameSite=Lax$/,
       );
 
       mocks.headers = new Headers({ authorization: `Bearer ${token}` });

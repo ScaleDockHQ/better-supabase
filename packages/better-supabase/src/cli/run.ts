@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import type { ResolvedConfig } from "../config/index.ts";
 
@@ -191,15 +192,8 @@ registerCommand(
   DOCTOR_HELP,
 );
 
-function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
-  return new Promise((done) => {
-    const timer = setTimeout(done, ms);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      done();
-    });
-  });
-}
+const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
+  delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
 
 export interface RunOptions {
   readonly cwd?: string;

@@ -1,11 +1,10 @@
-import type { GeneratorMetadata } from "../cli/introspect/typegen.ts";
-import type { SnapshotExtras } from "../cli/introspect/types.ts";
 import type {
   BucketPolicyName,
   Casing,
   PermdockBucketPolicy,
   SchemaMeta,
 } from "../schema/types.ts";
+import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 

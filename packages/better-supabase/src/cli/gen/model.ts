@@ -17,7 +17,7 @@ import type {
   Snapshot,
 } from "../introspect/types.ts";
 
-import { applyCasing, toCamel } from "../../casing/index.ts";
+import { applyCasing, toCamel, toSnake } from "../../casing/index.ts";
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../core/claims.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import {
@@ -31,7 +31,6 @@ import {
   parseCheckUnion,
   sameColumns,
   singular,
-  toSnake,
 } from "./shared.ts";
 
 export interface ColumnModel {

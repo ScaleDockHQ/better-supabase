@@ -13,6 +13,7 @@ import type { Actor, RequestContext } from "../core/plugin.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
 
+import { decodeJwtPayload } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
@@ -154,24 +155,9 @@ export interface AuthResolution<C = unknown, P = unknown> {
   apply(response: Response): Response;
 }
 
-function decodePayload(token: string): Record<string, unknown> | undefined {
-  const part = token.split(".")[1];
-  if (!part) return undefined;
-  try {
-    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
-    const parsed: unknown = JSON.parse(json);
-    // SAFETY: parsed is a non-null object, and callers check each claim they read.
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function expiryOf(session: StoredSession): number | undefined {
   if (typeof session.expires_at === "number") return session.expires_at;
-  const exp = decodePayload(session.access_token)?.["exp"];
+  const exp = decodeJwtPayload(session.access_token)?.["exp"];
   return typeof exp === "number" ? exp : undefined;
 }
 

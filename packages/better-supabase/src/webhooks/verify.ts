@@ -7,6 +7,7 @@ import type {
   TableMeta,
 } from "../schema/types.ts";
 
+import { fromBase64, toBase64 } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { err, ok, type Result } from "../core/result.ts";
 import { toApp } from "../plugins/shared.ts";
@@ -40,7 +41,7 @@ const encoder = new TextEncoder();
 function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
   const raw = secret.replace(/^v1,/, "").replace(/^whsec_/, "");
   try {
-    return Uint8Array.from(atob(raw), (char) => char.charCodeAt(0));
+    return fromBase64(raw);
   } catch {
     throw new TypeError("Webhook secret is not valid base64");
   }
@@ -54,12 +55,11 @@ async function signature(secret: string, content: string): Promise<string> {
     false,
     ["sign"],
   );
-  const mac = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, encoder.encode(content)),
+  return toBase64(
+    new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, encoder.encode(content)),
+    ),
   );
-  let binary = "";
-  for (const byte of mac) binary += String.fromCharCode(byte);
-  return btoa(binary);
 }
 
 /** Constant-time string comparison. */

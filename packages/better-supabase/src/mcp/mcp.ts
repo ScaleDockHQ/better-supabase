@@ -17,6 +17,7 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
+import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
@@ -424,9 +425,7 @@ function headerName(value: string): string {
   const encoded = /^=\?base64\?(.*)\?=$/.exec(value)?.[1];
   if (encoded === undefined) return value;
   try {
-    return new TextDecoder().decode(
-      Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0)),
-    );
+    return base64ToText(encoded);
   } catch {
     return value;
   }

@@ -56,10 +56,6 @@ export function pascal(name: string): string {
     .replace(/^[a-z]/, (char) => char.toUpperCase());
 }
 
-export function toSnake(name: string): string {
-  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
-}
-
 export function isJsonUdt(udt: string): boolean {
   return udt === "json" || udt === "jsonb";
 }

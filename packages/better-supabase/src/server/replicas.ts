@@ -1,3 +1,5 @@
+import { parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
+
 import type { Executor } from "../core/executor.ts";
 
 /** Cookie holding the epoch ms until which reads stay on the primary. */
@@ -38,20 +40,21 @@ export function replicaState(
 /** `bs-primary-until` from a `cookie` header, or 0. */
 export function pinnedUntil(cookieHeader: string | null): number {
   if (!cookieHeader) return 0;
-  for (const part of cookieHeader.split(";")) {
-    const [name, value] = part.trim().split("=", 2);
-    if (name === PRIMARY_COOKIE) {
-      const until = Number(value);
-      return Number.isFinite(until) ? until : 0;
-    }
-  }
-  return 0;
+  const value = parseCookieHeader(cookieHeader).find(
+    (cookie) => cookie.name === PRIMARY_COOKIE,
+  )?.value;
+  const until = Number(value);
+  return value !== undefined && Number.isFinite(until) ? until : 0;
 }
 
 /** A `Set-Cookie` value keeping the next requests on the primary for `pinMs`. */
 export function primaryCookie(pinMs: number, now: number = Date.now()): string {
-  const seconds = Math.max(1, Math.ceil(pinMs / 1000));
-  return `${PRIMARY_COOKIE}=${String(now + pinMs)}; Path=/; Max-Age=${String(seconds)}; HttpOnly; SameSite=Lax`;
+  return serializeCookieHeader(PRIMARY_COOKIE, String(now + pinMs), {
+    path: "/",
+    maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
+    httpOnly: true,
+    sameSite: "lax",
+  });
 }
 
 /**

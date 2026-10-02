@@ -109,7 +109,7 @@ describe("routedExecutor", () => {
     expect(pinnedUntil(`${PRIMARY_COOKIE}=soon`)).toBe(0);
     expect(pinnedUntil(null)).toBe(0);
     expect(primaryCookie(5000, now)).toBe(
-      `${PRIMARY_COOKIE}=1005000; Path=/; Max-Age=5; HttpOnly; SameSite=Lax`,
+      `${PRIMARY_COOKIE}=1005000; Max-Age=5; Path=/; HttpOnly; SameSite=Lax`,
     );
   });
 });

@@ -15,9 +15,9 @@ import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Operation } from "../ir/types.ts";
 
-import { VERSION } from "../cli/version.ts";
 import { definePlugin, type Plugin } from "../core/plugin.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
+import { VERSION } from "../core/version.ts";
 
 export const INSTRUMENTATION_NAME = "better-supabase";
 /** OpenTelemetry semantic conventions version the attributes follow. */
