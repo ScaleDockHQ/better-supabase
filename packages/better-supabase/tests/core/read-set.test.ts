@@ -7,7 +7,7 @@ import { batchingExecutor } from "../../src/core/batch.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
 import { ok, type Result } from "../../src/core/result.ts";
-import { compileReadSet } from "../../src/sql/read-sets.ts";
+import { compileReadSet, compileReadSets } from "../../src/sql/read-sets.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -134,6 +134,111 @@ describe("compileReadSet", () => {
       }),
     );
     await expect(compileReadSet(wrong)).rejects.toThrow(/used as/);
+  });
+
+  it("inlines booleans, numbers, dates and escaped lists", async () => {
+    const at = new Date("2026-01-02T03:04:05.000Z");
+    const set = defineReadSet(sb, "literals", {}, (s) => ({
+      primary: s.locations.count({
+        where: { isPrimary: true, city: { notIn: ['a"b', "c\\d"] } },
+      }),
+      secondary: s.locations.count({ where: { isPrimary: false } }),
+      recent: s.customers.count({
+        where: {
+          createdAt: { gte: at as never },
+          kvk: { in: [null, at] as never },
+          name: { in: [12 as never, 10n as never] },
+        },
+      }),
+    }));
+    const { sql } = await compileReadSet(set);
+    expect(sql).toContain("true");
+    expect(sql).toContain("false");
+    expect(sql).toContain("'2026-01-02T03:04:05.000Z'");
+    expect(sql).toContain(String.raw`{"a\"b","c\\d"}`);
+    expect(sql).toContain('{NULL,"2026-01-02T03:04:05.000Z"}');
+    expect(sql).toContain('{"12","10"}');
+    expect(sql).not.toMatch(/\$\d/);
+  });
+
+  it("writes an empty entry for a filter that matches nothing", async () => {
+    const set = defineReadSet(sb, "nothing", {}, (s) => ({
+      none: s.customers.findMany({ where: { id: { in: [] } } }),
+    }));
+    expect((await compileReadSet(set)).sql).toContain(
+      "jsonb_build_object('rows', '[]'::jsonb, 'count', 0)",
+    );
+  });
+
+  it("refuses values it cannot inline", async () => {
+    const infinite = defineReadSet(sb, "infinite", {}, (s) => ({
+      one: s.customers.count({ where: { name: Infinity as never } }),
+    }));
+    await expect(compileReadSet(infinite)).rejects.toThrow(/Cannot inline/);
+    const nested = defineReadSet(
+      sb,
+      "nested",
+      { params: { id: "uuid" } },
+      (s, p) => ({
+        one: s.customers.count({
+          where: { id: { in: [p.id, "x"] } },
+        }),
+      }),
+    );
+    await expect(compileReadSet(nested)).rejects.toThrow(
+      /inside a literal list/,
+    );
+  });
+
+  it("refuses a placeholder for an unknown parameter", async () => {
+    const set = defineReadSet(
+      sb,
+      "unknown_param",
+      { params: { id: "uuid" } },
+      (s, p) => ({ one: s.customers.count({ where: { id: p.id } }) }),
+    );
+    await expect(compileReadSet({ ...set, params: {} })).rejects.toThrow(
+      /no parameter "id"/,
+    );
+  });
+
+  it("refuses an entry for an unknown table", async () => {
+    const set = defineReadSet(sb, "unknown_table", {}, (s) => ({
+      one: s.tags.count(),
+    }));
+    const broken = {
+      ...set,
+      specs: { one: { ...set.specs.one, table: "nope" } },
+    };
+    await expect(compileReadSet(broken)).rejects.toThrow(
+      /unknown table "nope"/,
+    );
+  });
+
+  it("refuses a body that holds the dollar-quote tag", async () => {
+    const set = defineReadSet(sb, "tagged", {}, (s) => ({
+      one: s.customers.count({ where: { name: "$rs$" } }),
+    }));
+    await expect(compileReadSet(set)).rejects.toThrow(/contains "\$rs\$"/);
+  });
+});
+
+describe("compileReadSets", () => {
+  const a = defineReadSet(sb, "b_set", {}, (s) => ({ one: s.tags.count() }));
+  const b = defineReadSet(sb, "a_set", {}, (s) => ({ one: s.tags.count() }));
+
+  it("compiles each set once, sorted by name", async () => {
+    const compiled = await compileReadSets([a, b, a]);
+    expect(compiled.map((set) => set.name)).toEqual(["a_set", "b_set"]);
+  });
+
+  it("throws on two sets with the same name", async () => {
+    const twin = defineReadSet(sb, "b_set", {}, (s) => ({
+      one: s.notes.count(),
+    }));
+    await expect(compileReadSets([a, twin])).rejects.toThrow(
+      /Two read sets are named "b_set"/,
+    );
   });
 });
 
