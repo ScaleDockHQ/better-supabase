@@ -16,8 +16,10 @@ pnpm add -D @better-supabase/cli pg
 
 `@better-supabase/cli` is the `better-supabase` command, released at the
 same version as the library. `pg` is only used by the CLI to read your
-database schema. TypeScript 5.9, 6
-and 7 are supported, with `nodenext` or `bundler` module resolution.
+database schema. TypeScript 6 and 7 are supported, with `nodenext` or
+`bundler` module resolution. On runtimes without a native `Temporal` (Node 24,
+Safari), install `temporal-polyfill` and import `temporal-polyfill/global`
+once at startup; see [Temporal](/docs/concepts/temporal).
 
 </Step>
 

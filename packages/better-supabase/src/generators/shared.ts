@@ -17,7 +17,8 @@ export type ScalarKind =
   | { readonly kind: "boolean" }
   | { readonly kind: "datetime" }
   | { readonly kind: "date" }
-  | { readonly kind: "dateObject" }
+  | { readonly kind: "instant" }
+  | { readonly kind: "plainDateTime" }
   | { readonly kind: "bigint" }
   | { readonly kind: "json" }
   | { readonly kind: "enum"; readonly values: readonly string[] }
@@ -31,7 +32,8 @@ const DATETIME = new Set(["timestamptz"]);
 function scalarKind(column: ColumnMeta): ScalarKind {
   if (column.enum) return { kind: "enum", values: column.enum };
   if (column.json) return { kind: "json" };
-  if (column.codec === "date") return { kind: "dateObject" };
+  if (column.codec === "instant") return { kind: "instant" };
+  if (column.codec === "plainDateTime") return { kind: "plainDateTime" };
   if (column.codec === "bigint") return { kind: "bigint" };
   if (column.codec === "string") return { kind: "string" };
   if (column.type === "uuid") return { kind: "uuid" };

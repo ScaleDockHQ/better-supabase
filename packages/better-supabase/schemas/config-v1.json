@@ -67,7 +67,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "timestamptz": { "enum": ["string", "date"], "default": "string" },
+        "timestamptz": { "enum": ["string", "instant"], "default": "string" },
         "int8": { "enum": ["number", "string", "bigint"], "default": "number" },
         "numeric": { "enum": ["number", "string"], "default": "number" }
       }

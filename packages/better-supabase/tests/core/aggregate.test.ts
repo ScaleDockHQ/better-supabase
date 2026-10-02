@@ -50,7 +50,7 @@ const ledgerMeta: SchemaMeta = {
           type: "timestamptz",
           nullable: false,
           hasDefault: true,
-          codec: "date",
+          codec: "instant",
         },
       },
       primaryKey: ["id"],
@@ -197,7 +197,7 @@ describe("db.x.aggregate()", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it("keeps exact int8 and numeric sums and decodes dates", async () => {
+  it("keeps exact int8 and numeric sums and decodes instants", async () => {
     const { client, last } = capturingClient(() => ({
       body: [
         {
@@ -223,14 +223,14 @@ describe("db.x.aggregate()", () => {
       _max: { bookedAt: true },
     });
     expect(query(last())[0]).toBe(
-      "select=accountCode:account_code,_sum_amount:amount.sum()::text,_sum_id:id.sum()::text,_avg_amount:amount.avg(),_max_bookedAt:booked_at.max()",
+      "select=accountCode:account_code,_sum_amount:amount.sum()::text,_sum_id:id.sum()::text,_avg_amount:amount.avg(),_max_bookedAt:booked_at.max()::text",
     );
     expect(data).toEqual([
       {
         accountCode: "4000",
         _sum: { amount: "12.50", id: 9007199254740993n },
         _avg: { amount: 6.25 },
-        _max: { bookedAt: new Date("2026-03-01T00:00:00Z") },
+        _max: { bookedAt: Temporal.Instant.from("2026-03-01T00:00:00Z") },
       },
     ]);
   });

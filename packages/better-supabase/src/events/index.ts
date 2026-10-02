@@ -3,6 +3,8 @@ import type { EventHub } from "../core/events.ts";
 import type { MutationKind } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
+import { nowInstant } from "../core/temporal.ts";
+
 /** A CloudEvents 1.0 event. Extension attributes are lowercase alphanumerics. */
 export interface CloudEvent<T = unknown> {
   readonly specversion: "1.0";
@@ -35,7 +37,7 @@ export interface CloudEventOptions {
   /** Replaces the `dev.better-supabase` type prefix. */
   readonly typePrefix?: string;
   readonly id?: () => string;
-  readonly now?: () => Date;
+  readonly now?: () => Temporal.Instant;
 }
 
 /** Sends events somewhere: a queue, a bus, an outbox table, an HTTP endpoint. */
@@ -68,7 +70,7 @@ export function toCloudEvents(
   const type = options.typePrefix
     ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[notice.kind].split(".").at(-1)!}`
     : ROW_EVENT_TYPES[notice.kind];
-  const time = (options.now?.() ?? new Date()).toISOString();
+  const time = (options.now ?? nowInstant)().toString();
   return notice.rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
     return {

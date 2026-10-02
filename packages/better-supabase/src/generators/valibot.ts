@@ -41,8 +41,10 @@ function scalar(kind: ScalarKind): string {
       return "v.pipe(v.string(), v.isoTimestamp())";
     case "date":
       return "v.pipe(v.string(), v.isoDate())";
-    case "dateObject":
-      return "v.date()";
+    case "instant":
+      return "v.instance(Temporal.Instant)";
+    case "plainDateTime":
+      return "v.instance(Temporal.PlainDateTime)";
     case "bigint":
       return "v.bigint()";
     case "json":

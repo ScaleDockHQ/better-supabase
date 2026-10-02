@@ -57,10 +57,11 @@ import {
 } from "./spec.ts";
 import { type StandardSchemaV1, validate } from "./standard.ts";
 import { recordStats, StatsRecorder } from "./stats.ts";
+import { nowInstant } from "./temporal.ts";
 
 export interface DefineSupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
-  readonly now?: () => Date;
+  readonly now?: () => Temporal.Instant;
   /** Extra error mappers, run before plugin mappers. */
   readonly errors?: readonly ErrorMapper[];
   /** Receives errors from event handlers, hooks and cache adapters. Defaults to `console`. */
@@ -380,7 +381,7 @@ export class BetterSupabase<
       context,
       events,
       errorMappers,
-      now: this.options.now ?? (() => new Date()),
+      now: this.options.now ?? nowInstant,
       maxRows: this.options.maxRows ?? 1000,
       truncatedTables: this.#truncatedTables,
     });

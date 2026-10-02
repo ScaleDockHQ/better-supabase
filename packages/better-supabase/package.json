@@ -210,6 +210,7 @@
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "temporal-polyfill": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "valibot": "catalog:",
@@ -224,7 +225,8 @@
     "hono": "catalog:peers",
     "next": "catalog:peers",
     "pg": "catalog:peers",
-    "react": "catalog:peers"
+    "react": "catalog:peers",
+    "temporal-polyfill": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {
@@ -246,6 +248,9 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "temporal-polyfill": {
       "optional": true
     }
   },

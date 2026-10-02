@@ -6,7 +6,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/ScaleDockHQ/better-supabase/ci.yml?label=CI)](https://github.com/ScaleDockHQ/better-supabase/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9%20%7C%206%20%7C%207-3178c6.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6%20%7C%207-3178c6.svg)
 
 [Docs](https://bettersupabase.com/docs) · [Website](https://bettersupabase.com) · [Product](./PRODUCT.md) · [Design](./DESIGN.md) · [Agent guide](./AGENTS.md)
 
@@ -31,7 +31,7 @@ pnpm add -D @better-supabase/cli pg
 ```
 
 Or start with `npx @better-supabase/cli init`, which detects your frameworks
-and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 5.9, 6 and 7 are tested.
+and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 6 and 7 are tested.
 
 ## Quick start
 
@@ -179,7 +179,7 @@ The seed creates two users in the Acme organization, both with the password
 | `pnpm test`             | Unit and type tests                                                                                   |
 | `pnpm test:integration` | Integration tests against the local stack                                                             |
 | `pnpm test:e2e`         | The example apps against the local stack                                                              |
-| `pnpm typecheck:matrix` | The published types against TypeScript 5.9, 6 and 7                                                   |
+| `pnpm typecheck:matrix` | The published types against TypeScript 6 and 7                                                        |
 | `pnpm size`             | Bundle size baselines and the WinterTC import check                                                   |
 | `pnpm supabase:reset`   | Rebuilds the local database from the migrations and the seed                                          |
 | `pnpm supabase:test`    | pgTAP tests in `supabase/tests`                                                                       |

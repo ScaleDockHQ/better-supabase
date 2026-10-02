@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Job } from "better-supabase/jobs";
 
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -129,6 +130,11 @@ export async function reads(): Promise<void> {
   // @ts-expect-error the method exists on customers only
   db.tags.active(); // oxlint-disable-line typescript/no-unsafe-call -- the call is the expected type error.
   await db.customers.restore("id");
+}
+
+// `lib` leaves out ESNext.Temporal: the published declarations reference it.
+export function jobAge(job: Job, now: Temporal.Instant): Temporal.Duration {
+  return now.since(job.enqueuedAt);
 }
 
 export function integrations(): unknown[] {

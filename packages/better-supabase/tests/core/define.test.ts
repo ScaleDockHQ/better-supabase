@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type {
   ExecuteContext,
@@ -102,8 +102,8 @@ describe("use", () => {
 
 describe("connect", () => {
   it("hands the configured clock and plugin error mappers to the runtime", async () => {
-    const now = new Date("2026-05-01T00:00:00.000Z");
-    const seen: Date[] = [];
+    const now = Temporal.Instant.from("2026-05-01T00:00:00Z");
+    const seen: Temporal.Instant[] = [];
     const mapError = () => undefined;
     const plugin: AnyPlugin = {
       apiVersion: 1,
@@ -124,7 +124,12 @@ describe("connect", () => {
   });
 
   it("defaults the clock to the current time", async () => {
-    const seen: Date[] = [];
+    const now = Temporal.Instant.from("2026-05-01T12:00:00Z");
+    vi.useFakeTimers({ now: now.epochMilliseconds });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const seen: Temporal.Instant[] = [];
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "clock",
@@ -133,10 +138,8 @@ describe("connect", () => {
         return op;
       },
     };
-    const before = Date.now();
     await sb.use(plugin).connect(fake()).tags.count();
-    expect(seen).toHaveLength(1);
-    expect(seen[0]?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(seen).toEqual([now]);
   });
 
   it("rejects an unknown table in $table", () => {

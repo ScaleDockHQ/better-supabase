@@ -188,8 +188,11 @@ export interface DoctorConfig {
  * `numeric` as numbers.
  */
 export interface CodecsConfig {
-  /** `'date'` decodes `timestamptz`/`timestamp` columns to `Date`. */
-  readonly timestamptz?: "string" | "date";
+  /**
+   * `'instant'` decodes `timestamptz` columns to `Temporal.Instant` and
+   * `timestamp` columns to `Temporal.PlainDateTime`.
+   */
+  readonly timestamptz?: "string" | "instant";
   /** `'bigint'` or `'string'` read `int8` exactly (above 2^53). */
   readonly int8?: "number" | "string" | "bigint";
   /** `'string'` reads `numeric` exactly. */

@@ -46,6 +46,17 @@ export default defineConfig({
   exports: false,
   plugins: [
     {
+      // The declaration bundler drops `/// <reference lib>` directives, and
+      // consumers need the Temporal lib wherever the types name it
+      // (docs/decisions/0005-temporal.md).
+      name: "temporal-lib-reference",
+      renderChunk(code, chunk) {
+        if (!chunk.fileName.endsWith(".d.ts") || !code.includes("Temporal."))
+          return null;
+        return `/// <reference lib="esnext.temporal" />\n${code}`;
+      },
+    },
+    {
       // The react-server build imports the provider from the built
       // `react/session.js` entry, so it stays a "use client" reference.
       name: "react-session-reference",

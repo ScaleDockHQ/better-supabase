@@ -42,7 +42,7 @@ export interface Runtime {
   readonly context: RequestContext;
   readonly events: EventHub;
   readonly errorMappers: readonly ErrorMapper[];
-  readonly now: () => Date;
+  readonly now: () => Temporal.Instant;
   /** Rows PostgREST returns at most for one read (`db-max-rows`). */
   readonly maxRows: number;
   /** Tables already warned about truncated reads, shared across connections. */
@@ -148,13 +148,19 @@ export class OperationRunner {
     const executed = await runtime.executor.execute(current, context);
     const selection =
       current.kind === "select" ? current.selection : current.returning;
-    const result: Result<ExecuteResult> =
-      executed.ok && selection && needsDecoding(selection)
-        ? ok({
-            ...executed.data,
-            rows: decodeRows(selection, executed.data.rows),
-          })
-        : executed;
+    let result: Result<ExecuteResult> = executed;
+    if (executed.ok && selection && needsDecoding(selection)) {
+      try {
+        result = ok({
+          ...executed.data,
+          rows: decodeRows(selection, executed.data.rows),
+        });
+      } catch (cause) {
+        if (cause instanceof DbException)
+          return this.fail(op.table, cause.error);
+        throw cause;
+      }
+    }
 
     const rows = result.ok ? result.data.rows.length : 0;
     const truncated =

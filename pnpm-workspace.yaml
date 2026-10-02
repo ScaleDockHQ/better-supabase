@@ -89,6 +89,7 @@ catalog:
   supabase: 2.119.0
   tailwind-merge: 3.7.0
   tailwindcss: 4.3.3
+  temporal-polyfill: 1.0.5
   tinyexec: 1.3.1
   tsdown: 0.23.0
   turbo: 2.11.6
@@ -103,8 +104,6 @@ catalog:
   zod: 4.6.5
 
 catalogs:
-  ts59:
-    typescript: 5.9.3
   ts6:
     typescript: 6.0.3
   # Ranges the published packages declare as peers, so consumers pick the
@@ -119,6 +118,7 @@ catalogs:
     next: ">=16"
     pg: ">=8"
     react: "^19"
+    temporal-polyfill: ">=1"
 
 catalogMode: strict
 nodeLinker: isolated
@@ -139,8 +139,8 @@ publicHoistPattern:
   - "@typescript/*"
 nodeOptions: "${NODE_OPTIONS:- } --disable-warning=MODULE_TYPELESS_PACKAGE_JSON"
 
-# `typescript` is deliberately not overridden: tests/types/* and apps/docs pin
-# 5.9 and 6 through the ts59 and ts6 catalogs for the compatibility matrix.
+# `typescript` is deliberately not overridden: tests/types/ts-6 and apps/docs pin
+# 6 through the ts6 catalog for the compatibility matrix.
 # Fumadocs, @next/playwright and the examples peer on wide next and react
 # ranges; one version keeps every app on the same runtime.
 overrides:

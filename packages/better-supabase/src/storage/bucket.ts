@@ -24,6 +24,8 @@ import {
   type TemplateParams,
   type TemplateValues,
 } from "../core/template.ts";
+import { temporalMissing } from "../core/temporal-required.ts";
+import { optionalTemporal } from "../core/temporal.ts";
 
 export type BucketPolicy = BucketPolicyName | PermdockBucketPolicy;
 
@@ -167,8 +169,11 @@ export interface ReplaceResult<Id extends string = string> {
 export interface SweepOptions<P extends string> {
   /** Only look under the path prefix these values fill. */
   readonly within?: Partial<TemplateValues<P>>;
-  /** Minimum age in milliseconds, or a cutoff date. */
-  readonly olderThan: number | Date;
+  /**
+   * A cutoff instant, or a minimum age. A duration counts a day as 24 hours
+   * and cannot use months or years.
+   */
+  readonly olderThan: Temporal.Instant | Temporal.Duration;
   /** Returns which of `paths` are still referenced. */
   readonly referenced: (
     paths: readonly string[],
@@ -176,7 +181,7 @@ export interface SweepOptions<P extends string> {
   readonly dryRun?: boolean;
   readonly batchSize?: number;
   readonly signal?: AbortSignal;
-  readonly now?: () => number;
+  readonly now?: () => Temporal.Instant;
 }
 
 export interface SweepResult {
@@ -1002,11 +1007,13 @@ function connectBucket<P extends string, Id extends string>(
       }),
     sweep: (options) =>
       AsyncResult.from(async () => {
-        const now = options.now?.() ?? Date.now();
+        const namespace = optionalTemporal();
+        if (namespace === undefined) return err(temporalMissing());
+        const now = options.now?.() ?? namespace.Now.instant();
         const cutoff =
-          options.olderThan instanceof Date
-            ? options.olderThan.getTime()
-            : now - options.olderThan;
+          options.olderThan instanceof namespace.Instant
+            ? options.olderThan.epochMilliseconds
+            : now.epochMilliseconds - options.olderThan.total("milliseconds");
         const found = await list(
           options.within,
           options.signal ? { signal: options.signal } : undefined,
@@ -1015,6 +1022,7 @@ function connectBucket<P extends string, Id extends string>(
         const candidates = found.data
           .filter((object) => bucket.match(object.path) !== null)
           .filter((object) => {
+            // Storage sends ISO text; epoch milliseconds compare directly.
             const created = Date.parse(
               object.createdAt ?? object.updatedAt ?? "",
             );

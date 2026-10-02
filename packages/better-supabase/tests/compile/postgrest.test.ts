@@ -123,9 +123,9 @@ describe("compilePostgrest filters", () => {
     ["gt on a bigint", col("id", "gt", 10n), filter("id", "gt", "10")],
     ["gte on a boolean", col("id", "gte", true), filter("id", "gte", "true")],
     [
-      "lt on a Date",
-      col("created_at", "lt", new Date("2026-01-02T03:04:05.000Z")),
-      filter("created_at", "lt", "2026-01-02T03:04:05.000Z"),
+      "lt on an Instant",
+      col("created_at", "lt", Temporal.Instant.from("2026-01-02T03:04:05Z")),
+      filter("created_at", "lt", "2026-01-02T03:04:05Z"),
     ],
     [
       "lte on an object",

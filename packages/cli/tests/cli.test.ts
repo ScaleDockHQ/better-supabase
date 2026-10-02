@@ -86,6 +86,23 @@ describe("storagePaths", () => {
   });
 });
 
+describe("codecs", () => {
+  const createdAt = async (config: BetterSupabaseConfig) =>
+    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures))
+      .tables.find((table) => table.key === "customers")
+      ?.columns.find((column) => column.db === "created_at");
+
+  it("types timestamptz columns as Temporal.Instant with the instant codec", async () => {
+    expect(
+      await createdAt({ codecs: { timestamptz: "instant" } }),
+    ).toMatchObject({ codec: "instant", tsType: "Temporal.Instant" });
+    expect(await createdAt({})).toMatchObject({
+      codec: undefined,
+      tsType: "string",
+    });
+  });
+});
+
 describe("config JSON Schema", () => {
   it("describes every config key", async () => {
     const schema = JSON.parse(

@@ -17,6 +17,8 @@ import {
   toDbError,
 } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
+import { temporal } from "../core/temporal-required.ts";
+import { nowInstant } from "../core/temporal.ts";
 import { fromPgError } from "../postgres/executor.ts";
 import { verifyWebhook } from "../webhooks/index.ts";
 
@@ -76,15 +78,15 @@ export interface Job<P = unknown> {
   /** 1 on the first run (pgmq's `read_ct`). */
   readonly attempts: number;
   readonly maxAttempts: number;
-  readonly enqueuedAt: Date;
+  readonly enqueuedAt: Temporal.Instant;
   /** End of the lease: the job becomes claimable again after this. */
-  readonly visibleUntil: Date;
+  readonly visibleUntil: Temporal.Instant;
   readonly lastError: string | null;
 }
 
 export interface EnqueueOptions {
   /** Run no earlier than this. */
-  readonly runAt?: Date;
+  readonly runAt?: Temporal.Instant;
   /** Seconds to wait before running. */
   readonly delay?: number;
   /** Defaults to 5. After this many failed attempts the job is archived as dead. */
@@ -356,8 +358,11 @@ function postgrestTransport(client: QueueRpcClient): JobTransport {
   };
 }
 
-const toDate = (value: Date | string): Date =>
-  value instanceof Date ? value : new Date(value);
+/** pgmq and the inbox return `timestamptz` as text over RPC and as `Date` from `pg`. */
+const toInstant = (value: Date | string): Temporal.Instant =>
+  value instanceof Date
+    ? temporal().Instant.fromEpochMilliseconds(value.getTime())
+    : temporal().Instant.from(value);
 
 function toJob(queue: string, row: MessageRow): Job {
   const message = row.message ?? {};
@@ -367,8 +372,8 @@ function toJob(queue: string, row: MessageRow): Job {
     payload: message.payload,
     attempts: row.attempts,
     maxAttempts: message.max_attempts ?? 5,
-    enqueuedAt: toDate(row.enqueued_at),
-    visibleUntil: toDate(row.visible_until),
+    enqueuedAt: toInstant(row.enqueued_at),
+    visibleUntil: toInstant(row.visible_until),
     lastError: message.last_error ?? null,
   };
 }
@@ -546,7 +551,11 @@ export function createJobs<const Q extends QueueSchemas>(
           (enqueueOptions.runAt
             ? Math.max(
                 0,
-                Math.ceil((enqueueOptions.runAt.getTime() - Date.now()) / 1000),
+                Math.ceil(
+                  (enqueueOptions.runAt.epochMilliseconds -
+                    nowInstant().epochMilliseconds) /
+                    1000,
+                ),
               )
             : 0);
         return run(() =>
@@ -802,7 +811,7 @@ export interface InboxMessage<T = unknown> {
   readonly payload: T;
   readonly headers: Readonly<Record<string, string>>;
   readonly attempts: number;
-  readonly receivedAt: Date;
+  readonly receivedAt: Temporal.Instant;
 }
 
 export interface InboxOptions {
@@ -929,7 +938,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
             payload: row.payload as never,
             headers: row.headers,
             attempts: row.attempts,
-            receivedAt: toDate(row.received_at),
+            receivedAt: toInstant(row.received_at),
           };
           try {
             const outcome: unknown = await handler(message);

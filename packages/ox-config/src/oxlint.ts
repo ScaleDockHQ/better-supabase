@@ -92,7 +92,14 @@ export const core: OxlintConfig = defineConfig({
     "import/no-cycle": "error",
     "import/no-unassigned-import": [
       "error",
-      { allow: ["**/*.css", "server-only", "client-only"] },
+      {
+        allow: [
+          "**/*.css",
+          "server-only",
+          "client-only",
+          "temporal-polyfill/global",
+        ],
+      },
     ],
     "node/no-process-env": "error",
     "turbo/no-undeclared-env-vars": "error",

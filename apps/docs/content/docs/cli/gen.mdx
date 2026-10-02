@@ -85,8 +85,9 @@ extra round trips:
   are recorded on relations, so a delete invalidates the tables it changes.
   See [caching](/docs/concepts/caching).
 - **Codecs.** With `codecs` in the config, `int8`, `numeric` and
-  `timestamptz` columns are read exactly (as `bigint`, `string` or `Date`),
-  and the generated validators match.
+  `timestamptz` columns are read exactly (as `bigint`, `string` or
+  `Temporal.Instant`; `timestamp` becomes `Temporal.PlainDateTime`), and the
+  generated validators match. See [Temporal](/docs/concepts/temporal).
 
 ## Snapshots
 

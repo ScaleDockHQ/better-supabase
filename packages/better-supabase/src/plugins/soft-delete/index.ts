@@ -90,7 +90,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
       return {
         kind: "update",
         table,
-        set: { [column]: now().toISOString() },
+        set: { [column]: now().toString() },
         where: op.where,
         returning: undefined,
       };

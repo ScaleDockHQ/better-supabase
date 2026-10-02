@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/better-supabase)](https://www.npmjs.com/package/better-supabase)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ScaleDockHQ/better-supabase/blob/main/LICENSE)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9%20%7C%206%20%7C%207-3178c6.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6%20%7C%207-3178c6.svg)
 
 `better-supabase gen` extends `supabase gen types` with relation cardinality, unique keys, CHECK unions and typed jsonb. The generated `schema` gives every table a typed repository that compiles to one PostgREST request, returns a `Result` instead of throwing, and runs as the caller so RLS always applies.
 
@@ -15,7 +15,7 @@ pnpm add better-supabase @supabase/supabase-js
 pnpm add -D @better-supabase/cli pg
 ```
 
-ESM only. The CLI ships as [`@better-supabase/cli`](https://www.npmjs.com/package/@better-supabase/cli), always at the same version as `better-supabase`, and needs Node 24 or later; the runtime entries run on every WinterTC runtime (Node, Deno, Bun, Workers, Supabase Edge Functions). TypeScript 5.9, 6 and 7 are tested.
+ESM only. The CLI ships as [`@better-supabase/cli`](https://www.npmjs.com/package/@better-supabase/cli), always at the same version as `better-supabase`, and needs Node 24 or later; the runtime entries run on every WinterTC runtime (Node, Deno, Bun, Workers, Supabase Edge Functions). TypeScript 6 and 7 are tested.
 
 ## Quick start
 

@@ -10,6 +10,7 @@ import type {
 } from "../ir/types.ts";
 import type { RelationMeta, TableMeta } from "../schema/types.ts";
 
+import { temporalText } from "../core/temporal.ts";
 import { invalidRequest } from "../ir/build.ts";
 import { simplifyOrFalse } from "../ir/simplify.ts";
 
@@ -70,8 +71,9 @@ interface EmbedNode {
 // Value formatting
 
 function scalar(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
   if (typeof value === "string") return value;
+  const temporalValue = temporalText(value);
+  if (temporalValue !== undefined) return temporalValue;
   if (
     typeof value === "number" ||
     typeof value === "bigint" ||

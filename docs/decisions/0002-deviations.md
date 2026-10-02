@@ -16,8 +16,8 @@ backlogs too large to clear in the upgrade.
 - `apps/docs` stays on TypeScript 6. `fumadocs-twoslash` needs the TypeScript
   compiler API, which the native TypeScript 7 compiler does not expose. Every
   other workspace uses TypeScript 7. The `ts6` catalog pins the docs version.
-- `typescript` is not in `overrides`, because `tests/types/*` and `apps/docs`
-  pin 5.9 and 6 through their own catalogs for the compatibility matrix.
+- `typescript` is not in `overrides`, because `tests/types/ts-6` and
+  `apps/docs` pin 6 through the `ts6` catalog for the compatibility matrix.
 - `zod` stays in the catalog for two reasons: the codegen fixture that tests
   Zod output, and the `ai` package, which needs it as a peer. Lint rejects
   `zod` imports everywhere else; the repo's own code uses Valibot.

@@ -48,8 +48,10 @@ if (!result.ok) return problemResponse(result.error); // 401 with a WEBHOOK_* co
 
 It checks `webhook-id`, `webhook-timestamp` (5 minutes of tolerance by
 default) and every `v1` signature against each secret, in constant time. Pass
-several secrets while rotating. `signWebhook(secret, { id, body })` gives the
-headers for sending, and is useful in tests.
+several secrets while rotating. The verified result carries `timestamp` as a
+`Temporal.Instant`. `signWebhook(secret, { id, body })` gives the headers for
+sending, and is useful in tests; pass `timestamp` (a `Temporal.Instant`) to fix
+the signing time.
 
 ## Database webhooks
 

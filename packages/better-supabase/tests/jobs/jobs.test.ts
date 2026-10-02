@@ -74,8 +74,8 @@ const sampleJob = (overrides: Partial<Job> = {}): Job => ({
   payload: { to: "a@example.com" },
   attempts: 2,
   maxAttempts: 5,
-  enqueuedAt: new Date(0),
-  visibleUntil: new Date(0),
+  enqueuedAt: Temporal.Instant.fromEpochMilliseconds(0),
+  visibleUntil: Temporal.Instant.fromEpochMilliseconds(0),
   lastError: null,
   ...overrides,
 });
@@ -288,21 +288,23 @@ describe("createJobs over SQL", () => {
   });
 
   it("turns runAt into a delay in whole seconds, never negative", async () => {
-    vi.useFakeTimers({ now: new Date("2026-10-01T12:00:00.000Z") });
+    vi.useFakeTimers({
+      now: Temporal.Instant.from("2026-10-01T12:00:00Z").epochMilliseconds,
+    });
     const fake = fakeSql([["enqueue_job", [{ id: 1 }]]]);
     const jobs = createJobs(fake.sql, queues);
     await jobs
       .enqueue(
         "emails",
         { to: "a@example.com" },
-        { runAt: new Date("2026-10-01T12:01:00.200Z") },
+        { runAt: Temporal.Instant.from("2026-10-01T12:01:00.200Z") },
       )
       .orThrow();
     await jobs
       .enqueue(
         "emails",
         { to: "a@example.com" },
-        { runAt: new Date("2026-10-01T11:00:00Z") },
+        { runAt: Temporal.Instant.from("2026-10-01T11:00:00Z") },
       )
       .orThrow();
     expect(fake.calls.map((call) => call.values[2])).toEqual([61, 0]);
@@ -384,8 +386,8 @@ describe("createJobs over SQL", () => {
         payload: { to: "a@example.com" },
         attempts: 2,
         maxAttempts: 3,
-        enqueuedAt: new Date("2026-09-24T10:00:00Z"),
-        visibleUntil: new Date("2026-09-24T10:05:00Z"),
+        enqueuedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
+        visibleUntil: Temporal.Instant.from("2026-09-24T10:05:00Z"),
         lastError: "timeout",
       },
       {
@@ -394,8 +396,8 @@ describe("createJobs over SQL", () => {
         payload: undefined,
         attempts: 1,
         maxAttempts: 5,
-        enqueuedAt: new Date("2026-09-24T10:00:00Z"),
-        visibleUntil: new Date("2026-09-24T10:05:00Z"),
+        enqueuedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
+        visibleUntil: Temporal.Instant.from("2026-09-24T10:05:00Z"),
         lastError: null,
       },
     ]);
@@ -1127,7 +1129,7 @@ describe("createInbox", () => {
       payload: { n: 1 },
       headers: { "x-request-id": "r1" },
       attempts: 1,
-      receivedAt: new Date("2026-09-24T10:00:00Z"),
+      receivedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
     });
     expect(
       fake.calls.map((call) => [/\.(\w+)\(/.exec(call.text)![1], call.values]),

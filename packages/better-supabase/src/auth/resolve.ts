@@ -140,6 +140,7 @@ export interface ResolveAuthOptions {
   /** Called after every refresh attempt (metrics, logging). */
   readonly onRefresh?: (event: RefreshEvent) => void;
   readonly fetch?: typeof fetch;
+  /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
   readonly now?: () => number;
 }
 

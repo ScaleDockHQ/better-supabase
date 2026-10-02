@@ -297,7 +297,7 @@ const { removed } = await logos
   .connect(adminClient)
   .sweep({
     within: { orgId },
-    olderThan: 24 * 60 * 60 * 1000, // skip uploads that may still be committing
+    olderThan: Temporal.Duration.from({ hours: 24 }), // skip uploads that may still be committing
     referenced: async (paths) =>
       (
         await db.customers
@@ -311,5 +311,7 @@ const { removed } = await logos
   .orThrow();
 ```
 
+`olderThan` takes a `Temporal.Duration` (a day counts as 24 hours) or a cutoff
+`Temporal.Instant`; see [Temporal](/docs/concepts/temporal).
 Only objects that match the template are candidates. Use `dryRun: true` to see
 the `orphans` without deleting them.

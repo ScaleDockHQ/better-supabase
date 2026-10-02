@@ -65,8 +65,12 @@ describe("CloudEvents 1.0", () => {
   });
 
   it("time is RFC 3339 (section 3.1.1 OPTIONAL attributes)", () => {
-    for (const event of events)
-      expect(new Date(event.time!).toISOString()).toBe(event.time);
+    for (const event of events) {
+      expect(event.time).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/u,
+      );
+      expect(Temporal.Instant.from(event.time!).toString()).toBe(event.time);
+    }
   });
 
   it("structured mode uses application/cloudevents+json and round-trips (HTTP binding 3.2)", async () => {

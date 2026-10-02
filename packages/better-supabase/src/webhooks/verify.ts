@@ -10,6 +10,8 @@ import type {
 import { fromBase64, toBase64 } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { err, ok, type Result } from "../core/result.ts";
+import { temporalMissing } from "../core/temporal-required.ts";
+import { nowInstant, optionalTemporal } from "../core/temporal.ts";
 import { toApp } from "../plugins/shared.ts";
 
 // ---------------------------------------------------------------------------
@@ -17,7 +19,7 @@ import { toApp } from "../plugins/shared.ts";
 
 export interface VerifiedWebhook<T = unknown> {
   readonly id: string;
-  readonly timestamp: Date;
+  readonly timestamp: Temporal.Instant;
   readonly payload: T;
   readonly body: string;
 }
@@ -25,7 +27,7 @@ export interface VerifiedWebhook<T = unknown> {
 export interface VerifyOptions {
   /** Allowed clock skew in seconds. Defaults to 300. */
   readonly tolerance?: number;
-  readonly now?: () => number;
+  readonly now?: () => Temporal.Instant;
 }
 
 export type WebhookInput =
@@ -93,11 +95,12 @@ export async function signWebhook(
   message: {
     readonly id: string;
     readonly body: string;
-    readonly timestamp?: Date;
+    readonly timestamp?: Temporal.Instant;
   },
 ): Promise<Record<string, string>> {
+  // Standard Webhooks carry the timestamp as epoch seconds.
   const timestamp = String(
-    Math.floor((message.timestamp ?? new Date()).getTime() / 1000),
+    Math.floor((message.timestamp ?? nowInstant()).epochMilliseconds / 1000),
   );
   return {
     "webhook-id": message.id,
@@ -133,7 +136,10 @@ export async function verifyWebhook<T = unknown>(
     return err(
       unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
     );
-  const now = (options.now?.() ?? Date.now()) / 1000;
+  const namespace = optionalTemporal();
+  if (namespace === undefined) return err(temporalMissing());
+  const now =
+    (options.now?.() ?? namespace.Now.instant()).epochMilliseconds / 1000;
   const tolerance = options.tolerance ?? 300;
   if (seconds < now - tolerance)
     return err(
@@ -169,7 +175,7 @@ export async function verifyWebhook<T = unknown>(
     // proves the sender, not the shape.
     return ok({
       id,
-      timestamp: new Date(seconds * 1000),
+      timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),
       payload: JSON.parse(body) as T,
       body,
     });

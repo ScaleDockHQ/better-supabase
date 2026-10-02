@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
@@ -51,7 +51,7 @@ const meta: SchemaMeta = {
           type: "timestamptz",
           nullable: false,
           hasDefault: true,
-          codec: "date",
+          codec: "instant",
         },
         total: {
           db: "total",
@@ -137,39 +137,52 @@ describe("codecs", () => {
     const db = ledger(client);
     const [row] = await db.findMany().orThrow();
     expect(query(last())[0]).toBe(
-      "select=id::text,code,amount::text,bookedAt:booked_at,total",
+      "select=id::text,code,amount::text,bookedAt:booked_at::text,total",
     );
     expect(row).toEqual({
       id: 9007199254740993n,
       code: "a",
       amount: "10.10",
-      bookedAt: new Date("2026-09-24T10:00:00Z"),
+      bookedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
       total: 10.1,
     });
   });
 
-  it("encodes Date and bigint values in filters and rows", async () => {
+  it("returns an unexpected error instead of throwing when Temporal is missing", async () => {
+    const { client } = capturingClient(() => ({
+      body: [{ bookedAt: "2026-09-24T10:00:00+00:00" }],
+    }));
+    vi.stubGlobal("Temporal", undefined);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const result = await ledger(client).findMany();
+    expect(result.error).toMatchObject({
+      kind: "unexpected",
+      message: expect.stringContaining("temporal-polyfill/global"),
+    });
+  });
+
+  it("encodes Temporal and bigint values in filters and rows", async () => {
     const { client, requests } = capturingClient(() => ({ body: [] }));
     const db = ledger(client);
     await db.findMany({
       where: {
         id: 5n,
-        bookedAt: { gte: new Date("2026-01-01T00:00:00Z") },
+        bookedAt: { gte: Temporal.Instant.from("2026-01-01T00:00:00Z") },
       },
     });
     expect(query(requests[0]!)).toContain("id=eq.5");
-    expect(query(requests[0]!)).toContain(
-      "booked_at=gte.2026-01-01T00:00:00.000Z",
-    );
+    expect(query(requests[0]!)).toContain("booked_at=gte.2026-01-01T00:00:00Z");
     await db.create({
       code: "b",
       amount: "1.5",
-      bookedAt: new Date("2026-02-01T00:00:00Z"),
+      bookedAt: Temporal.Instant.from("2026-02-01T00:00:00Z"),
     });
     expect(requests[1]!.body).toEqual({
       code: "b",
       amount: "1.5",
-      booked_at: "2026-02-01T00:00:00.000Z",
+      booked_at: "2026-02-01T00:00:00Z",
     });
   });
 });

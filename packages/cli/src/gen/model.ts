@@ -116,18 +116,18 @@ function tableKey(
 }
 
 const CODEC_TYPE: Record<Codec, string> = {
-  date: "Date",
+  instant: "Temporal.Instant",
+  plainDateTime: "Temporal.PlainDateTime",
   bigint: "bigint",
   string: "string",
 };
 
 function codecFor(udt: string, config: ResolvedConfig): Codec | undefined {
   const { codecs } = config;
-  if (
-    (udt === "timestamptz" || udt === "timestamp") &&
-    codecs.timestamptz === "date"
-  )
-    return "date";
+  if (codecs.timestamptz === "instant") {
+    if (udt === "timestamptz") return "instant";
+    if (udt === "timestamp") return "plainDateTime";
+  }
   if (udt === "int8" && codecs.int8 !== "number") return codecs.int8;
   if (udt === "numeric" && codecs.numeric === "string") return "string";
   return undefined;

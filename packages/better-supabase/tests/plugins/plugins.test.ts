@@ -10,7 +10,7 @@ import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
 
-const NOW = new Date("2026-09-24T10:00:00.000Z");
+const NOW = Temporal.Instant.from("2026-09-24T10:00:00Z");
 const ORG = "00000000-0000-4000-8000-000000000001";
 const USER = "00000000-0000-4000-8000-0000000000aa";
 
@@ -34,11 +34,11 @@ describe("timestamps", () => {
       organization_id: ORG,
       name: "A",
       created_at: "2020-01-01T00:00:00Z",
-      updated_at: NOW.toISOString(),
+      updated_at: NOW.toString(),
     });
     expect(requests[1]?.body).toEqual({
       name: "B",
-      updated_at: NOW.toISOString(),
+      updated_at: NOW.toString(),
     });
   });
 
@@ -57,7 +57,7 @@ describe("timestamps", () => {
       organization_id: ORG,
       name: "A",
       kvk: "1",
-      updated_at: NOW.toISOString(),
+      updated_at: NOW.toString(),
     });
   });
 });
@@ -104,7 +104,7 @@ describe("softDelete", () => {
     const result = await sb.connect(client).customers.delete("c");
     expect(result.ok).toBe(true);
     expect(last().method).toBe("PATCH");
-    expect(last().body).toEqual({ archived_at: NOW.toISOString() });
+    expect(last().body).toEqual({ archived_at: NOW.toString() });
     expect(query(last())).toEqual(["id=eq.c", "archived_at=is.null"]);
     expect(last().headers.get("prefer")).not.toContain("return=representation");
   });
@@ -232,7 +232,7 @@ describe("actor", () => {
       .connect(client, { actor: { id: USER, kind: "user" } })
       .customers.delete("c");
     expect(last().body).toEqual({
-      archived_at: NOW.toISOString(),
+      archived_at: NOW.toString(),
       updated_by: USER,
     });
   });

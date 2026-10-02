@@ -26,7 +26,7 @@ apps/
   examples/*           one app per adapter, generated from supabase/
 tests/
   bundle/              size baselines, export snapshot, WinterTC import check
-  types/*              TypeScript 5.9, 6 and 7 matrix, and the type-performance benchmark
+  types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark
   e2e/                 the examples against a running stack
   validation-*/        code from two production apps ported to better-supabase
 supabase/              the local stack every example and integration test uses
@@ -58,7 +58,7 @@ docs/
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack, a reset from the migrations and seed, and the pgTAP tests.
 - `pnpm db:gen`: regenerate the typed client in every example and validation project.
-- `pnpm typecheck:matrix`: published types against TypeScript 5.9, 6 and 7.
+- `pnpm typecheck:matrix`: published types against TypeScript 6 and 7 (5.9 has no Temporal lib).
 - `pnpm size`: gzip size baselines and the WinterTC import check.
 - `pnpm test:integration`: integration suite against a running `supabase start` stack (API on 55421, Postgres on 55422; override with `SUPABASE_URL` and `SUPABASE_DB_URL`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`); fails on >10% growth (`update` rewrites the baseline).

@@ -40,8 +40,13 @@ function scalar(kind: ScalarKind): JsonSchema {
       return { type: "string", format: "date-time" };
     case "date":
       return { type: "string", format: "date" };
-    case "dateObject":
+    case "instant":
       return { type: "string", format: "date-time" };
+    case "plainDateTime":
+      return {
+        type: "string",
+        pattern: "^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?$",
+      };
     case "bigint":
       return { type: "string", pattern: "^-?\\d+$" };
     case "json":

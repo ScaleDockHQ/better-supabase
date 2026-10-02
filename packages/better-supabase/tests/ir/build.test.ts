@@ -34,7 +34,7 @@ const ledger: TableMeta = {
       type: "timestamptz",
       nullable: false,
       hasDefault: true,
-      codec: "date",
+      codec: "instant",
     },
     total: {
       db: "total",
@@ -186,9 +186,9 @@ describe("IrBuilder.where", () => {
     ],
     ["null", { kvk: null }, col("kvk", "is", null)],
     [
-      "a Date value",
-      { createdAt: new Date("2026-01-01T00:00:00.000Z") },
-      col("created_at", "eq", "2026-01-01T00:00:00.000Z"),
+      "an Instant value",
+      { createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z") },
+      col("created_at", "eq", "2026-01-01T00:00:00Z"),
     ],
     [
       "a json value",
@@ -468,7 +468,12 @@ describe("IrBuilder.selection", () => {
     ).toEqual([
       { alias: "id", column: "id", cast: "text", codec: "bigint" },
       { alias: "amount", column: "amount", cast: "text", codec: "string" },
-      { alias: "bookedAt", column: "booked_at", codec: "date" },
+      {
+        alias: "bookedAt",
+        column: "booked_at",
+        cast: "text",
+        codec: "instant",
+      },
       { alias: "label", column: "label" },
     ]);
   });
@@ -679,7 +684,8 @@ describe("IrBuilder.aggregation", () => {
             key: "_min_bookedAt",
             alias: "bookedAt",
             column: "booked_at",
-            codec: "date",
+            cast: "text",
+            codec: "instant",
           },
           {
             fn: "max",
@@ -778,12 +784,12 @@ describe("IrBuilder.row", () => {
       ir.row(customers, {
         name: "A",
         kvk: undefined,
-        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
         primaryContactId: null,
       }),
     ).toEqual({
       name: "A",
-      created_at: "2026-01-01T00:00:00.000Z",
+      created_at: "2026-01-01T00:00:00Z",
       primary_contact_id: null,
     });
   });

@@ -28,10 +28,12 @@ export interface ColumnMeta {
 }
 
 /**
- * Runtime representation for a column: `date` decodes timestamps to `Date`,
- * `bigint` and `string` read the exact text of `int8`/`numeric` values.
+ * Runtime representation for a column: `instant` decodes `timestamptz` to
+ * `Temporal.Instant`, `plainDateTime` decodes `timestamp` to
+ * `Temporal.PlainDateTime`, and `bigint` and `string` read the exact text of
+ * `int8`/`numeric` values.
  */
-export type Codec = "date" | "bigint" | "string";
+export type Codec = "instant" | "plainDateTime" | "bigint" | "string";
 
 export interface RelationMeta {
   /** App key of the target table. */

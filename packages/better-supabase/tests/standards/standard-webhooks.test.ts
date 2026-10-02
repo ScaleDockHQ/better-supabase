@@ -14,7 +14,7 @@ const ID = "msg_p5jXN8AQM9LWM0D4loKWxJek";
 const TIMESTAMP = 1_614_265_330;
 const BODY = '{"test": 2432232314}';
 const SIGNATURE = "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=";
-const now = () => TIMESTAMP * 1000;
+const now = () => Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000);
 const headers = (signature = SIGNATURE, timestamp = String(TIMESTAMP)) => ({
   "webhook-id": ID,
   "webhook-timestamp": timestamp,
@@ -30,7 +30,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
     const signed = await signWebhook(SECRET, {
       id: ID,
       body: BODY,
-      timestamp: new Date(TIMESTAMP * 1000),
+      timestamp: Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000),
     });
     expect(signed).toMatchObject(headers());
     const independent = createHmac(

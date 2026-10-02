@@ -232,7 +232,7 @@ describe.skipIf(!live)("Storage kit", async () => {
     const dry = await user
       .sweep({
         within,
-        olderThan: -60_000,
+        olderThan: Temporal.Duration.from({ minutes: -1 }),
         referenced: () => [keep],
         dryRun: true,
       })
@@ -243,13 +243,17 @@ describe.skipIf(!live)("Storage kit", async () => {
       removed: [],
     });
     const young = await user
-      .sweep({ within, olderThan: 3_600_000, referenced: () => [] })
+      .sweep({
+        within,
+        olderThan: Temporal.Duration.from({ hours: 1 }),
+        referenced: () => [],
+      })
       .orThrow();
     expect(young.orphans).toEqual([]);
     const swept = await user
       .sweep({
         within,
-        olderThan: -60_000,
+        olderThan: Temporal.Duration.from({ minutes: -1 }),
         referenced: (paths) => paths.filter((path) => path === keep),
       })
       .orThrow();

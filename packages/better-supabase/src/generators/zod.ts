@@ -41,8 +41,10 @@ function scalar(kind: ScalarKind): string {
       return "z.iso.datetime({ offset: true })";
     case "date":
       return "z.iso.date()";
-    case "dateObject":
-      return "z.date()";
+    case "instant":
+      return "z.instanceof(Temporal.Instant)";
+    case "plainDateTime":
+      return "z.instanceof(Temporal.PlainDateTime)";
     case "bigint":
       return "z.bigint()";
     case "json":

@@ -32,7 +32,7 @@ export interface HookArgs {
   readonly schema: SchemaMeta;
   readonly context: RequestContext;
   readonly options: CallOptions;
-  readonly now: () => Date;
+  readonly now: () => Temporal.Instant;
 }
 
 export type MutationKind = "insert" | "upsert" | "update" | "delete";

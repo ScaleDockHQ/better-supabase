@@ -136,8 +136,8 @@ describe("compileReadSet", () => {
     await expect(compileReadSet(wrong)).rejects.toThrow(/used as/);
   });
 
-  it("inlines booleans, numbers, dates and escaped lists", async () => {
-    const at = new Date("2026-01-02T03:04:05.000Z");
+  it("inlines booleans, numbers, instants and escaped lists", async () => {
+    const at = Temporal.Instant.from("2026-01-02T03:04:05Z");
     const set = defineReadSet(sb, "literals", {}, (s) => ({
       primary: s.locations.count({
         where: { isPrimary: true, city: { notIn: ['a"b', "c\\d"] } },
@@ -154,9 +154,9 @@ describe("compileReadSet", () => {
     const { sql } = await compileReadSet(set);
     expect(sql).toContain("true");
     expect(sql).toContain("false");
-    expect(sql).toContain("'2026-01-02T03:04:05.000Z'");
+    expect(sql).toContain("'2026-01-02T03:04:05Z'");
     expect(sql).toContain(String.raw`{"a\"b","c\\d"}`);
-    expect(sql).toContain('{NULL,"2026-01-02T03:04:05.000Z"}');
+    expect(sql).toContain('{NULL,"2026-01-02T03:04:05Z"}');
     expect(sql).toContain('{"12","10"}');
     expect(sql).not.toMatch(/\$\d/);
   });
