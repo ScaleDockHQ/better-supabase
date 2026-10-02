@@ -218,7 +218,7 @@ describe("findUnique", () => {
       where: { kvk: "1" } as never,
     });
     expect(partial.error?.message).toContain(
-      "needs one complete unique key: { id }, { organizationId, kvk }",
+      "needs one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }",
     );
   });
 });

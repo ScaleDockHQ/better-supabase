@@ -229,17 +229,23 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   });
 
   it("runs invitations through memberships and has_org_role", async () => {
-    const owner = await pool.query<{ id: string }>(
-      `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
-      [`owner-${RUN}@example.com`],
-    );
-    const invitee = await pool.query<{ id: string }>(
-      `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
-      [`invitee-${RUN}@example.com`],
+    const createUser = async (
+      email: string,
+      confirmed: boolean,
+    ): Promise<string> => {
+      const created = await pool.query<{ id: string }>(
+        `insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1, case when $2 then now() end) returning id`,
+        [email, confirmed],
+      );
+      return created.rows[0]!.id;
+    };
+    const ownerId = await createUser(`owner-${RUN}@example.com`, true);
+    const inviteeId = await createUser(`invitee-${RUN}@example.com`, true);
+    const unconfirmedId = await createUser(
+      `unconfirmed-${RUN}@example.com`,
+      false,
     );
     const org = crypto.randomUUID();
-    const ownerId = owner.rows[0]!.id;
-    const inviteeId = invitee.rows[0]!.id;
     try {
       await pool.query(
         `insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'owner')`,
@@ -280,6 +286,45 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
           token,
         ]),
       ).rejects.toMatchObject({ hint: "INVITATION_INVALID" });
+
+      await expect(
+        asInvitee.queryRaw(
+          `select better_supabase.create_invitation($1, $2, 'owner')`,
+          [org, "x@example.com"],
+        ),
+      ).rejects.toMatchObject({ hint: "INVITATION_ROLE_FORBIDDEN" });
+      await expect(
+        asOwner.queryRaw(
+          `select better_supabase.create_invitation($1, $2, 'superuser')`,
+          [org, "x@example.com"],
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+      const [owned] = await asOwner.queryRaw<{ token: string }>(
+        `select better_supabase.create_invitation($1, $2, 'owner') as token`,
+        [org, `unconfirmed-${RUN}@example.com`],
+      );
+      await expect(
+        postgres
+          .asUser({
+            sub: unconfirmedId,
+            email: `unconfirmed-${RUN}@example.com`,
+          })
+          .queryRaw("select better_supabase.accept_invitation($1)", [
+            owned!.token,
+          ]),
+      ).rejects.toMatchObject({ hint: "INVITATION_EMAIL_UNCONFIRMED" });
+
+      for (const fn of [
+        `better_supabase.has_org_role('${org}')`,
+        "better_supabase.member_org_ids()",
+      ])
+        await expect(
+          postgres.anon.queryRaw(`select ${fn}`),
+        ).rejects.toMatchObject({ code: "42501" });
+      const ids = await asInvitee.queryRaw<{ id: string }>(
+        `select better_supabase.member_org_ids('{admin}') as id`,
+      );
+      expect(ids).toEqual([{ id: org }]);
     } finally {
       await pool.query(
         "delete from better_supabase.memberships where org_id = $1",
@@ -290,7 +335,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         [org],
       );
       await pool.query("delete from auth.users where id = any($1)", [
-        [ownerId, inviteeId],
+        [ownerId, inviteeId, unconfirmedId],
       ]);
     }
   });
@@ -634,6 +679,11 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
       .orThrow();
     expect(again).toBe(first);
+    const index = await pool.query<{ indexdef: string }>(
+      "select indexdef from pg_indexes where schemaname = 'pgmq' and indexname = $1",
+      [`q_${queue}_dedupe_idx`],
+    );
+    expect(index.rows[0]!.indexdef).toContain("WHERE (message ? 'dedupe_key'");
     await jobs
       .enqueue(queue, { to: "b@example.com" }, { maxAttempts: 1 })
       .orThrow();
@@ -848,6 +898,15 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         `select tests.rls_enabled('public') as result`,
       );
       expect(fixed.rows[0]!.result).toMatch(/^ok/);
+
+      await client.query("savepoint as_anon");
+      await client.query("select tests.authenticate_as_anon()");
+      await expect(
+        client.query(`select tests.create_user($1)`, [
+          `anon-${RUN}@example.com`,
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+      await client.query("rollback to savepoint as_anon");
     } finally {
       await client.query("rollback");
       client.release();

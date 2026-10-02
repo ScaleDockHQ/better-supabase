@@ -103,6 +103,10 @@ customersTopic.triggerSql(sb, "customers", {
 });
 ```
 
+The trigger function goes into the `better_supabase` schema, which the Data
+API does not expose, so clients can't call it through `/rpc`. Pass
+`functionSchema` to put it somewhere else.
+
 On the client, `rowChange` turns a message into an app-cased change, or `null`
 for other tables:
 

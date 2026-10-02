@@ -117,7 +117,7 @@ describe("relation aggregates", () => {
     });
     const plan = compileSql(selectOf(selection));
     expect(plan.rows?.text).toContain(
-      `'_avg_notes', (select json_build_object('id', avg(t1."id")) from "public"."notes" as t1 where t1."customer_id" = t0."id")`,
+      `'_avg_notes', (select json_build_object('id', avg(t1."id")) from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id")`,
     );
     expect(
       decodeRows(selection, [{ id: "c1", _avg_notes: { id: 2.5 } }]),

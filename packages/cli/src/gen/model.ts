@@ -321,9 +321,10 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         fk.onDelete === "set default"
           ? { onDelete: fk.onDelete }
           : {};
-      const [only] = fk.columns;
+      const naming = namingColumns(fk.columns, fk.refColumns);
+      const [only] = naming;
       const forwardBase =
-        fk.columns.length === 1 && only?.endsWith("_id")
+        naming.length === 1 && only?.endsWith("_id")
           ? only.slice(0, -3)
           : singular(fk.refTable);
       push(sourceId, {
@@ -603,6 +604,19 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
 }
 
 /**
+ * The columns that name a relation. A composite key that repeats a column on
+ * both sides, such as `(customer_id, organization_id)` referencing
+ * `(id, organization_id)` to keep rows in one tenant, is named by the rest.
+ */
+function namingColumns(
+  columns: readonly string[],
+  references: readonly string[],
+): readonly string[] {
+  const own = columns.filter((column, index) => column !== references[index]);
+  return own.length > 0 ? own : columns;
+}
+
+/**
  * Makes relation names unique per table and distinct from column names:
  * two FKs to the same table become `customersByPrimaryContact`-style names.
  */
@@ -618,10 +632,11 @@ function dedupeRelations(
   return list.map((relation) => {
     let name = relation.name;
     if ((counts.get(name) ?? 0) > 1 || columns.has(name)) {
+      const { columns: from, references: to } = relation.meta;
       const via =
         relation.meta.direction === "forward"
-          ? relation.meta.columns
-          : relation.meta.references;
+          ? namingColumns(from, to)
+          : namingColumns(to, from);
       const suffix = via
         .map((column) => column.replace(/_?[iI]d$/, ""))
         .join("_");

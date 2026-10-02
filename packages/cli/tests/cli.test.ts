@@ -50,6 +50,30 @@ describe("fixtures", () => {
   });
 });
 
+describe("relations", () => {
+  it("names a composite tenant foreign key after its own column", async () => {
+    const model = buildModel(
+      await loadFixtureSnapshot(),
+      resolveConfig({ casing: "camel" }, fixtures),
+    );
+    const relation = (table: string, name: string) =>
+      model.tables
+        .find((entry) => entry.key === table)
+        ?.relations.find((entry) => entry.name === name)?.meta;
+    expect(relation("customers", "primaryContact")).toMatchObject({
+      table: "contacts",
+      columns: ["primaryContactId", "organizationId"],
+      references: ["id", "organizationId"],
+    });
+    expect(relation("locations", "customer")).toMatchObject({
+      columns: ["customerId", "organizationId"],
+    });
+    expect(relation("customerTags", "tag")).toMatchObject({
+      columns: ["tagId", "organizationId"],
+    });
+  });
+});
+
 describe("storagePaths", () => {
   const model = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));

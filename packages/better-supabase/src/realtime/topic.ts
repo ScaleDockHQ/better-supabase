@@ -150,7 +150,10 @@ export interface TriggerOptions<
   };
   /** Defaults to all three. */
   readonly events?: readonly ("insert" | "update" | "delete")[];
-  /** Schema for the generated function. Defaults to `public`. */
+  /**
+   * Schema for the generated function. Defaults to `better_supabase`, which
+   * the Data API does not expose.
+   */
   readonly functionSchema?: string;
 }
 
@@ -390,7 +393,7 @@ export function defineTopic<
             );
           return `rec.${sqlIdent(db)}::text`;
         });
-      const schema = trigger.functionSchema ?? "public";
+      const schema = trigger.functionSchema ?? "better_supabase";
       const fn = `${sqlIdent(schema)}.${sqlIdent(`bs_broadcast_${name}_${slug(meta.name)}`)}`;
       const triggerName = sqlIdent(`bs_broadcast_${name}`);
       const target = `${sqlIdent(meta.schema)}.${sqlIdent(meta.name)}`;
@@ -399,6 +402,7 @@ export function defineTopic<
       );
       return [
         `-- better-supabase: broadcast ${meta.name} changes to ${template}`,
+        `create schema if not exists ${sqlIdent(schema)};`,
         `create or replace function ${fn}()`,
         "returns trigger",
         "language plpgsql",

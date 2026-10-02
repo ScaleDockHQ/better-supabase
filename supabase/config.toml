@@ -6,6 +6,8 @@ port = 55421
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
+# New tables get no Data API grants until 090_grants.sql gives them.
+auto_expose_new_tables = false
 
 [db]
 port = 55422

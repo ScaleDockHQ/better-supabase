@@ -179,6 +179,8 @@ class SqlCompiler {
     target: TableMeta,
     targetAlias: string,
   ): string {
+    if (relation.columns.length !== relation.references.length)
+      invalidRequest(`Relation to "${target.key}" has mismatched columns`);
     return relation.columns
       .map((column, index) => {
         const reference = relation.references[index];

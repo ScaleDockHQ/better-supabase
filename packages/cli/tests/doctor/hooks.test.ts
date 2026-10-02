@@ -16,7 +16,12 @@ import { parseToml } from "../../src/supabase-toml.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
-const base = parseSnapshot(fixture);
+const fixtureSnapshot = parseSnapshot(fixture);
+// The fixture's own hook writes user_role; each test adds the hook it needs.
+const base: Snapshot = {
+  ...fixtureSnapshot,
+  extras: { ...fixtureSnapshot.extras, hooks: [] },
+};
 
 const HOOK_TOML = `[auth.hook.custom_access_token]
 enabled = true

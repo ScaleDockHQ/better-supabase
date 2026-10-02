@@ -7,7 +7,8 @@ revoke all on
   public.locations,
   public.tags,
   public.customer_tags,
-  public.notes
+  public.notes,
+  public.notifications
 from anon, authenticated;
 grant select on public.organizations to authenticated;
 grant select, insert, update, delete on
@@ -26,6 +27,7 @@ grant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_
 revoke execute on function rbac.custom_access_token_hook(jsonb) from authenticated, anon, public;
 grant select on rbac.user_roles to supabase_auth_admin;
 revoke all on rbac.user_roles from authenticated, anon, public;
+revoke execute on function rbac.authorize(rbac.app_permission) from public, anon;
 grant execute on function rbac.authorize(rbac.app_permission) to authenticated;
 
 revoke execute on function public.rs_workspace_summary(jsonb) from public, anon, authenticated;

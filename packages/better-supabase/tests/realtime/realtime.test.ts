@@ -182,8 +182,9 @@ describe("defineTopic", () => {
     const sql = defineTopic(topics.customers).triggerSql(sb, "customers", {
       values: { orgId: "organizationId" },
     });
+    expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
-      'create or replace function "public"."bs_broadcast_org_customers_customers"()',
+      'create or replace function "better_supabase"."bs_broadcast_org_customers_customers"()',
     );
     expect(sql).toContain(
       "'org:' || rec.\"organization_id\"::text || ':customers',",

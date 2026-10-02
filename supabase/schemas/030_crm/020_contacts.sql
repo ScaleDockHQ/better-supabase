@@ -4,7 +4,9 @@ create table public.contacts (
   email text not null,
   full_name text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Target of the composite foreign keys that keep children in the same tenant.
+  constraint contacts_id_organization_id_key unique (id, organization_id)
 );
 
 create index contacts_organization_id_idx on public.contacts (organization_id);

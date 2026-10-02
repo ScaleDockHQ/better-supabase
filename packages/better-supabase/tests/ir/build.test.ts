@@ -882,7 +882,7 @@ describe("IrBuilder.uniqueKey", () => {
       "an incomplete key",
       customers,
       { organizationId: "o1" },
-      'findUnique on "customers" needs one complete unique key: { id }, { organizationId, kvk }',
+      'findUnique on "customers" needs one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }',
     ],
     [
       "a table without keys",

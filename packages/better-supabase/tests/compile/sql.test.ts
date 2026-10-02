@@ -267,7 +267,7 @@ describe("compileSql relation conditions", () => {
     quantifier,
     where,
   });
-  const from = `select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id"`;
+  const from = `select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id"`;
 
   it.each<[string, Condition, string, unknown[]]>([
     [
@@ -303,24 +303,14 @@ describe("compileSql relation conditions", () => {
   });
 
   it("joins every column of a composite relation", () => {
-    const composite: RelationMeta = {
-      ...notesOf,
-      columns: ["id", "organizationId"],
-      references: ["customerId", "organizationId"],
-    };
-    expect(
-      rows(select({ where: { ...on("some", undefined), relation: composite } }))
-        .text,
-    ).toBe(
+    expect(notesOf.references).toEqual(["customerId", "organizationId"]);
+    expect(rows(select({ where: on("some", undefined) })).text).toBe(
       `${BASE} where exists (select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id")`,
     );
   });
 
   it("rejects a relation with mismatched columns", () => {
-    const broken: RelationMeta = {
-      ...notesOf,
-      columns: ["id", "organizationId"],
-    };
+    const broken: RelationMeta = { ...notesOf, columns: ["id"] };
     expect(
       invalid(() =>
         compileSql(
@@ -331,7 +321,10 @@ describe("compileSql relation conditions", () => {
   });
 
   it("rejects a relation to an unknown column", () => {
-    const broken: RelationMeta = { ...notesOf, references: ["nope"] };
+    const broken: RelationMeta = {
+      ...notesOf,
+      references: ["nope", "organizationId"],
+    };
     expect(
       invalid(() =>
         compileSql(
@@ -416,7 +409,7 @@ describe("compileSql includes", () => {
     });
   const prefix = `select json_build_object('id', t0."id", `;
   const suffix = `) as row from "public"."customers" as t0`;
-  const join = `t1."customer_id" = t0."id"`;
+  const join = `t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id"`;
 
   it.each<[string, Include, string, unknown[]]>([
     [
@@ -493,7 +486,7 @@ describe("compileSql includes", () => {
       include({ required: true, where: col("body", "eq", "x") }),
     );
     expect(rows({ ...op, where: col("name", "eq", "Acme") })).toEqual({
-      text: `${prefix}'notes', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t2."id") as r, row_number() over () as o from "public"."notes" as t2 where t2."customer_id" = t0."id" and t2."body" = $3) as s)${suffix} where t0."name" = $1 and exists (select 1 from "public"."notes" as t1 where ${join} and t1."body" = $2)`,
+      text: `${prefix}'notes', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t2."id") as r, row_number() over () as o from "public"."notes" as t2 where t2."customer_id" = t0."id" and t2."organization_id" = t0."organization_id" and t2."body" = $3) as s)${suffix} where t0."name" = $1 and exists (select 1 from "public"."notes" as t1 where ${join} and t1."body" = $2)`,
       params: ["Acme", "x", "x"],
     });
   });
