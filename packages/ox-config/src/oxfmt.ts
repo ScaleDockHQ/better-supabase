@@ -7,7 +7,6 @@ const ignorePatterns: readonly string[] = [
   "**/.next/**",
   "**/.source/**",
   "**/coverage/**",
-  "**/*.mdx",
 ];
 
 export interface OxfmtOptions {
@@ -40,6 +39,9 @@ export function oxfmt(options: OxfmtOptions = {}): OxfmtConfig {
     },
     sortPackageJson: {
       sortScripts: true,
+    },
+    sortTailwindcss: {
+      functions: ["cn", "cva", "tv"],
     },
   });
 }

@@ -3,16 +3,16 @@ title: Writing
 description: create, update, upsert and delete, with typed conflicts and optimistic concurrency.
 ---
 
-| Method | Returns |
-| --- | --- |
-| `create(data, args?)` | The row |
-| `createMany(data[], args?)` | The rows |
-| `update(key, data, args?)` | The row, or `not_found` |
-| `updateMany({ where, data })` | `{ count }` |
-| `upsert(data, { onConflict })` | The row |
-| `upsertMany(data[], { onConflict })` | The rows |
-| `delete(key)` | Nothing, or `not_found` |
-| `deleteMany({ where })` | `{ count }` |
+| Method                               | Returns                 |
+| ------------------------------------ | ----------------------- |
+| `create(data, args?)`                | The row                 |
+| `createMany(data[], args?)`          | The rows                |
+| `update(key, data, args?)`           | The row, or `not_found` |
+| `updateMany({ where, data })`        | `{ count }`             |
+| `upsert(data, { onConflict })`       | The row                 |
+| `upsertMany(data[], { onConflict })` | The rows                |
+| `delete(key)`                        | Nothing, or `not_found` |
+| `deleteMany({ where })`              | `{ count }`             |
 
 Inserts are typed by the generated `Insert` shape: required columns are
 required, columns with defaults are optional, and generated identity
@@ -24,7 +24,7 @@ Writes return the full row by default. Narrow it with `select`, or skip it
 with `returning: false`:
 
 ```ts
-await db.customers.create(data, { select: ['id'] });
+await db.customers.create(data, { select: ["id"] });
 await db.auditLog.create(entry, { returning: false });
 ```
 
@@ -40,8 +40,13 @@ await db.auditLog.create(entry, { returning: false });
 `'primaryKey'`, or a column list:
 
 ```ts
-await db.customers.upsert(data, { onConflict: 'customers_organization_id_kvk_key' });
-await db.tags.upsertMany(rows, { onConflict: ['organizationId', 'name'], ignoreDuplicates: true });
+await db.customers.upsert(data, {
+  onConflict: "customers_organization_id_kvk_key",
+});
+await db.tags.upsertMany(rows, {
+  onConflict: ["organizationId", "name"],
+  ignoreDuplicates: true,
+});
 ```
 
 ## Optimistic concurrency
@@ -50,8 +55,12 @@ Pass the values you read in `expect`. If the row changed in the meantime, the
 update fails with `stale` (412) instead of overwriting it:
 
 ```ts
-const result = await db.customers.update(id, { name }, { expect: { updatedAt } });
-if (result.error?.kind === 'stale') {
+const result = await db.customers.update(
+  id,
+  { name },
+  { expect: { updatedAt } },
+);
+if (result.error?.kind === "stale") {
   // reload and ask the user
 }
 ```
@@ -63,7 +72,10 @@ forms can point at the right field:
 
 ```ts
 const result = await db.tags.create({ organizationId, name });
-if (result.error?.kind === 'conflict' && result.error.columns?.includes('name')) {
-  form.setError('name', { message: 'Tag already exists' });
+if (
+  result.error?.kind === "conflict" &&
+  result.error.columns?.includes("name")
+) {
+  form.setError("name", { message: "Tag already exists" });
 }
 ```

@@ -13,10 +13,15 @@ The primitives in `better-supabase/ssr` are framework-agnostic; adapters for
 SvelteKit, Nuxt, TanStack Start and React Router build on them.
 
 ```ts
-import { parseCookies, readSession, sessionCookieName, writeSession } from 'better-supabase/ssr';
+import {
+  parseCookies,
+  readSession,
+  sessionCookieName,
+  writeSession,
+} from "better-supabase/ssr";
 
 const name = sessionCookieName(env.url);
-const cookies = parseCookies(request.headers.get('cookie'));
+const cookies = parseCookies(request.headers.get("cookie"));
 const session = readSession(cookies, name); // null when absent or corrupted
 
 const writes = writeSession(cookies, name, nextSession); // or null to sign out

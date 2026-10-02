@@ -28,13 +28,13 @@ don't rebuild for nothing.
 
 ## Options
 
-| Option | Effect |
-| --- | --- |
-| `--check` | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI. |
-| `--watch` | Regenerates when the schema changes (polls every `--interval` ms, default 2000). |
-| `--snapshot <file>` | Reads a saved snapshot instead of connecting. |
-| `--db-url <url>` | Connection string; overrides the config and `$DATABASE_URL`. |
-| `--project-ref <ref>` | Reads a hosted project through the Management API. |
+| Option                | Effect                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--check`             | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI. |
+| `--watch`             | Regenerates when the schema changes (polls every `--interval` ms, default 2000).                          |
+| `--snapshot <file>`   | Reads a saved snapshot instead of connecting.                                                             |
+| `--db-url <url>`      | Connection string; overrides the config and `$DATABASE_URL`.                                              |
+| `--project-ref <ref>` | Reads a hosted project through the Management API.                                                        |
 
 ## Where the schema comes from
 
@@ -58,7 +58,7 @@ read-only role.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  source: { projectRef: 'abcdefghijklmnopqrst' },
+  source: { projectRef: "abcdefghijklmnopqrst" },
 });
 ```
 

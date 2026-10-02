@@ -6,14 +6,14 @@ description: What better-supabase generates on top of supabase gen types, and wh
 `supabase gen types` gives you row shapes. It leaves out what a typed query
 layer needs:
 
-| Missing piece | What better-supabase generates |
-| --- | --- |
+| Missing piece            | What better-supabase generates                           |
+| ------------------------ | -------------------------------------------------------- |
 | Relationship cardinality | `Relations` with `kind: 'one' \| 'many'` and nullability |
-| Unique keys | `UniqueKeys`, used by typed `upsert({ onConflict })` |
-| CHECK unions | `status: 'lead' \| 'active'` instead of `string` |
-| jsonb shapes | Types from `json` in your config |
-| App casing | Column maps for `camelCase` models |
-| Table flags | Soft delete, timestamps, tenant and actor columns |
+| Unique keys              | `UniqueKeys`, used by typed `upsert({ onConflict })`     |
+| CHECK unions             | `status: 'lead' \| 'active'` instead of `string`         |
+| jsonb shapes             | Types from `json` in your config                         |
+| App casing               | Column maps for `camelCase` models                       |
+| Table flags              | Soft delete, timestamps, tenant and actor columns        |
 
 The CLI reads `pg_catalog` directly, so the metadata always matches the
 database, including views, composite keys and reverse relations.
@@ -21,27 +21,35 @@ database, including views, composite keys and reverse relations.
 ## The generated module
 
 ```ts title="generated.ts (excerpt)"
-export const customersStatusValues = ['lead', 'active', 'archived'] as const;
+export const customersStatusValues = ["lead", "active", "archived"] as const;
 export type CustomersStatus = (typeof customersStatusValues)[number];
 
 export type Models = {
   customers: {
-    Row: { id: string; status: CustomersStatus; primaryContactId: string | null /* ... */ };
+    Row: {
+      id: string;
+      status: CustomersStatus;
+      primaryContactId: string | null; /* ... */
+    };
     Insert: { id?: string; name: string /* ... */ };
     Update: { name?: string /* ... */ };
     Relations: {
-      organization: { table: 'organizations'; kind: 'one'; nullable: false };
-      primaryContact: { table: 'contacts'; kind: 'one'; nullable: true };
-      notes: { table: 'notes'; kind: 'many'; nullable: true };
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+      primaryContact: { table: "contacts"; kind: "one"; nullable: true };
+      notes: { table: "notes"; kind: "many"; nullable: true };
     };
-    PrimaryKey: 'id';
-    UniqueKeys: { customers_organization_id_kvk_key: ['organizationId', 'kvk'] };
-    Flags: { softDelete: 'archivedAt'; timestamps: true };
+    PrimaryKey: "id";
+    UniqueKeys: {
+      customers_organization_id_kvk_key: ["organizationId", "kvk"];
+    };
+    Flags: { softDelete: "archivedAt"; timestamps: true };
   };
 };
 
-export type RowOf<T extends TableName> = Models[T]['Row'];
-export const schema: Schema<Models, Database, Functions> = defineSchema({ /* runtime metadata */ });
+export type RowOf<T extends TableName> = Models[T]["Row"];
+export const schema: Schema<Models, Database, Functions> = defineSchema({
+  /* runtime metadata */
+});
 ```
 
 Everything the runtime needs (column maps, foreign key names used as embed
@@ -62,7 +70,7 @@ from the same run, so they cannot drift.
 Generators turn the same metadata into validators and documents:
 
 ```ts
-import { defineConfig, jsonSchema, valibot, zod } from 'better-supabase/config';
+import { defineConfig, jsonSchema, valibot, zod } from "better-supabase/config";
 
 export default defineConfig({ generators: [zod(), valibot(), jsonSchema()] });
 ```
@@ -74,7 +82,7 @@ table fails to compile. Generated identity columns are left out of inserts,
 CHECK unions become `z.enum`, and typed jsonb columns can use your own schema:
 
 ```ts
-zod({ json: { 'customers.metadata': './src/schemas.ts#customerMetadata' } });
+zod({ json: { "customers.metadata": "./src/schemas.ts#customerMetadata" } });
 ```
 
 All generated validators implement [Standard Schema](/docs/standards), so the

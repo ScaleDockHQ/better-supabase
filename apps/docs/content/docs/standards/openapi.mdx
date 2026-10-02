@@ -8,19 +8,19 @@ the same metadata as the repository, so the document can't drift from the
 database types.
 
 ```ts title="lib/openapi.ts"
-import { createOpenApi } from 'better-supabase/openapi';
-import { customerList } from './lists';
-import { sb } from './sb';
+import { createOpenApi } from "better-supabase/openapi";
+import { customerList } from "./lists";
+import { sb } from "./sb";
 
 export const openapi = createOpenApi(sb, {
-  info: { title: 'CRM API', version: '1.0.0' },
-  servers: [{ url: 'https://crm.example.com' }],
-  basePath: '/api',
+  info: { title: "CRM API", version: "1.0.0" },
+  servers: [{ url: "https://crm.example.com" }],
+  basePath: "/api",
   resources: {
     customers: { list: customerList },
-    notes: { operations: ['list', 'get'] },
+    notes: { operations: ["list", "get"] },
   },
-  security: ['bearer', 'oauth2'],
+  security: ["bearer", "oauth2"],
   supabaseUrl: process.env.SUPABASE_URL,
 });
 ```

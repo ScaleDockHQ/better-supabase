@@ -22,26 +22,26 @@ before the schemas that call their functions.
 
 ## Modules
 
-| Module | What it adds |
-| --- | --- |
-| `updated-at` | `track_updated_at(table)` keeps an `updated_at` column current |
-| `actor` | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin |
-| `audit` | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, including which columns changed and any impersonating admin |
-| `tenant` | `memberships`, `current_tenant_id()`, `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook |
-| `invitations` | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's email |
-| `reserved-slugs` | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs |
-| `jobs` | Jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, dedupe keys and pg_cron schedules. Used by [`better-supabase/jobs`](/docs/kits/jobs) |
-| `idempotency` | Stores `Idempotency-Key` results so retried requests replay the first response |
-| `webhook-inbox` | Stores verified webhooks once and hands them to a worker |
-| `realtime-tables` | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables` |
-| `jsonb-schemas` | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below) |
-| `pgtap` | Test helpers for `supabase test db`. See [Testing](/docs/testing) |
-| `grants` | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants) |
-| `read-sets` | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets) |
-| `mfa` | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso) |
-| `entitlements` | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements) |
-| `vector-search` | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search) |
-| `rate-limit` | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes) |
+| Module            | What it adds                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updated-at`      | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                            |
+| `actor`           | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin  |
+| `audit`           | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, including which columns changed and any impersonating admin                 |
+| `tenant`          | `memberships`, `current_tenant_id()`, `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                |
+| `invitations`     | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's email               |
+| `reserved-slugs`  | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                      |
+| `jobs`            | Jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, dedupe keys and pg_cron schedules. Used by [`better-supabase/jobs`](/docs/kits/jobs)          |
+| `idempotency`     | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                            |
+| `webhook-inbox`   | Stores verified webhooks once and hands them to a worker                                                                                                                  |
+| `realtime-tables` | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                         |
+| `jsonb-schemas`   | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                      |
+| `pgtap`           | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                         |
+| `grants`          | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                           |
+| `read-sets`       | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                       |
+| `mfa`             | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                   |
+| `entitlements`    | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)         |
+| `vector-search`   | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                   |
+| `rate-limit`      | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes) |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. The
 `tenant` module is a template: edit the roles and policies to fit your app.
@@ -134,18 +134,24 @@ reject. `schema` takes a JSON Schema object, or any Standard JSON Schema value
 (zod 4, valibot, arktype):
 
 ```ts title="better-supabase.config.ts"
-import { toStandardJsonSchema } from '@valibot/to-json-schema';
-import * as v from 'valibot';
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import * as v from "valibot";
 
 export const CustomerMetadata = toStandardJsonSchema(
-  v.object({ source: v.string(), tier: v.optional(v.picklist(['free', 'pro'])) }),
+  v.object({
+    source: v.string(),
+    tier: v.optional(v.picklist(["free", "pro"])),
+  }),
 );
 
 export default defineConfig({
   json: {
-    'customers.metadata': { import: './lib/metadata.ts#CustomerMetadata', schema: CustomerMetadata },
+    "customers.metadata": {
+      import: "./lib/metadata.ts#CustomerMetadata",
+      schema: CustomerMetadata,
+    },
   },
-  sql: { kit: ['jsonb-schemas'] },
+  sql: { kit: ["jsonb-schemas"] },
 });
 ```
 
@@ -161,7 +167,7 @@ you add other modules. List the modules you use in the config:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { kit: ['audit', 'jobs', 'invitations'], testsDir: 'supabase/tests' },
+  sql: { kit: ["audit", "jobs", "invitations"], testsDir: "supabase/tests" },
 });
 ```
 
@@ -169,12 +175,12 @@ export default defineConfig({
 `sql sync --check` fails in CI when a file is out of date. Use
 `sql print <module>` to copy a module into a hand-written migration instead.
 
-| Option | Default |
-| --- | --- |
-| `sql.dir` | `supabase/schemas` |
-| `sql.prefix` | `900_better_supabase` |
-| `sql.testsDir` | `supabase/tests` |
-| `sql.kit` | `[]` |
+| Option         | Default               |
+| -------------- | --------------------- |
+| `sql.dir`      | `supabase/schemas`    |
+| `sql.prefix`   | `900_better_supabase` |
+| `sql.testsDir` | `supabase/tests`      |
+| `sql.kit`      | `[]`                  |
 
 ## Rendering modules in code
 
@@ -184,14 +190,14 @@ paths, `renderKit` returns the files with their managed headers (dependencies
 included), and `resolveModules` lists the modules a set of names pulls in.
 
 ```ts title="scripts/write-kit.ts"
-import { resolveConfig } from 'better-supabase/config';
-import { kitLayout, renderKit, resolveModules } from 'better-supabase/sql';
+import { resolveConfig } from "better-supabase/config";
+import { kitLayout, renderKit, resolveModules } from "better-supabase/sql";
 
-import config from '../better-supabase.config.ts';
+import config from "../better-supabase.config.ts";
 
 const layout = kitLayout(resolveConfig(config, process.cwd()));
-const modules = resolveModules(['audit', 'jobs'], layout).map((m) => m.name);
-const files = renderKit(['audit', 'jobs'], layout);
+const modules = resolveModules(["audit", "jobs"], layout).map((m) => m.name);
+const files = renderKit(["audit", "jobs"], layout);
 ```
 
 `compileReadSets` turns the read sets in `generated.ts` into the SQL views and

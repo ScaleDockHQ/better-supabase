@@ -8,9 +8,9 @@ description: Repositories bound to the caller, plus explicit admin and acting-as
 hands out repositories bound to an identity.
 
 ```ts title="src/lib/supabase.server.ts"
-import { createServer } from 'better-supabase/server';
-import { createPostgres } from 'better-supabase/postgres';
-import { sb } from './supabase';
+import { createServer } from "better-supabase/server";
+import { createPostgres } from "better-supabase/postgres";
+import { sb } from "./supabase";
 
 export const server = createServer(sb, {
   postgres: createPostgres(), // optional: enables ctx.sql and actingAs()
@@ -22,9 +22,9 @@ export const server = createServer(sb, {
 ```ts
 const ctx = await server.context(request);
 
-ctx.auth;     // the resolved AuthState
-ctx.db;       // repositories over PostgREST as the caller (RLS applies)
-ctx.sql;      // the same repositories over direct Postgres as the caller
+ctx.auth; // the resolved AuthState
+ctx.db; // repositories over PostgREST as the caller (RLS applies)
+ctx.sql; // the same repositories over direct Postgres as the caller
 ctx.supabase; // a stateless supabase-js client for storage, functions, …
 ```
 
@@ -62,8 +62,8 @@ tracing, rate limits or log fields:
 ```ts
 export const server = createServer(sb, {
   headers: (request) => ({
-    'x-channel': 'web',
-    'x-request-id': request.headers.get('x-request-id') ?? crypto.randomUUID(),
+    "x-channel": "web",
+    "x-request-id": request.headers.get("x-request-id") ?? crypto.randomUUID(),
   }),
 });
 ```
@@ -75,7 +75,7 @@ of key names to accept only some of the keys in `SUPABASE_SECRET_KEYS`:
 
 ```ts
 // SUPABASE_SECRET_KEYS={"default":"sb_secret_…","cron":"sb_secret_…"}
-export const server = createServer(sb, { auth: { secret: ['cron'] } });
+export const server = createServer(sb, { auth: { secret: ["cron"] } });
 // ctx.auth is { kind: 'service', keyName: 'cron' }; guard with allow: ['service']
 ```
 

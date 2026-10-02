@@ -28,13 +28,13 @@ supabase stop && supabase start
 ## asUser
 
 ```ts title="customers.test.ts"
-import { asUser } from 'better-supabase/testing';
+import { asUser } from "better-supabase/testing";
 
 const alice = await asUser(sb, { sub: aliceId, tenant_id: acme }, { postgres });
 
 expect(await alice.db.customers.count().orThrow()).toBe(3);
 expect(await alice.sql!.customers.count().orThrow()).toBe(3);
-await alice.supabase.storage.from('customer-logos').list(acme);
+await alice.supabase.storage.from("customer-logos").list(acme);
 ```
 
 `asUser` reads the URL and publishable key from the environment, with or
@@ -57,11 +57,14 @@ Share rows between `supabase db reset` and your tests with a
 [typed seed](/docs/cli/local#seed):
 
 ```ts
-import { seed } from '../supabase/seed.ts';
+import { seed } from "../supabase/seed.ts";
 
 beforeAll(() => seed.insert(postgres.admin));
 
-const alice = await asUser(sb, { sub: aliceId, tenant_id: seed.rows.organizations.acme.id });
+const alice = await asUser(sb, {
+  sub: aliceId,
+  tenant_id: seed.rows.organizations.acme.id,
+});
 ```
 
 ## APIs
@@ -72,7 +75,9 @@ the same claims that RLS sees:
 
 ```ts
 const bs = createHono(sb);
-await app.request('/api/customers', { headers: { authorization: `Bearer ${alice.token}` } });
+await app.request("/api/customers", {
+  headers: { authorization: `Bearer ${alice.token}` },
+});
 ```
 
 For HS256 tokens, add `localAuth(secret)` to `auth.resolvers`. Use it in
@@ -86,18 +91,18 @@ role, then signs in as a user of each tenant and tries to select, insert,
 update and delete the other tenant's row:
 
 ```ts title="isolation.test.ts"
-import { expectTenantIsolation } from 'better-supabase/testing';
+import { expectTenantIsolation } from "better-supabase/testing";
 
-it('keeps organizations apart', async () => {
+it("keeps organizations apart", async () => {
   await expectTenantIsolation(sb, {
     tenants: [
-      { id: ACME, name: 'acme', claims: { sub: alice, tenant_id: ACME } },
-      { id: GLOBEX, name: 'globex', claims: { sub: bob, tenant_id: GLOBEX } },
+      { id: ACME, name: "acme", claims: { sub: alice, tenant_id: ACME } },
+      { id: GLOBEX, name: "globex", claims: { sub: bob, tenant_id: GLOBEX } },
     ],
     tables: {
       tags: {
         row: (tenant, n) => ({ organizationId: tenant.id, name: `iso-${n}` }),
-        update: { color: 'red' },
+        update: { color: "red" },
       },
     },
     seed: () => seed.insert(postgres.admin),
@@ -134,12 +139,12 @@ during `during` (a reload by default) and fetches each render's totals from
 [`next.debugRoute()`](/docs/frameworks/next-cache-components#budget):
 
 ```ts
-import { expectDbBudget } from 'better-supabase/testing';
+import { expectDbBudget } from "better-supabase/testing";
 
 const renders = await expectDbBudget(page, {
   maxCalls: 8,
   maxWaves: 2,
-  during: () => page.goto('/customers'),
+  during: () => page.goto("/customers"),
 });
 ```
 
@@ -167,10 +172,10 @@ select * from finish();
 rollback;
 ```
 
-| Helper | Does |
-| --- | --- |
-| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id |
-| `tests.authenticate_as(user_id, claims)` | Switches to `authenticated` with the user's claims for the rest of the transaction |
-| `tests.authenticate_as_anon()` | Switches to `anon` |
-| `tests.clear_authentication()` | Switches back to the test runner's role |
-| `tests.rls_enabled(schema)` | Fails and lists every table in the schema without row level security |
+| Helper                                                  | Does                                                                               |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id                                        |
+| `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction |
+| `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                 |
+| `tests.clear_authentication()`                          | Switches back to the test runner's role                                            |
+| `tests.rls_enabled(schema)`                             | Fails and lists every table in the schema without row level security               |

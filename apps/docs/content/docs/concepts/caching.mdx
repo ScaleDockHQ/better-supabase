@@ -16,7 +16,7 @@ and `_count` includes), and every table named in a relation filter:
 
 ```ts
 db.customers.findMany({
-  where: { notes: { some: { kind: 'call' } } },
+  where: { notes: { some: { kind: "call" } } },
   include: { organization: true, _count: { locations: true } },
 });
 // touches customers, notes, organizations, locations
@@ -33,15 +33,15 @@ or `set default`, followed through further cascades. `gen` records those
 actions from the database, so there's nothing to configure.
 
 ```ts
-invalidationTargets(sb.meta, 'customers');
+invalidationTargets(sb.meta, "customers");
 // ['customers', 'contacts', 'locations', 'notes', 'customerTags', ...]
 ```
 
 Database functions don't say what they change. Declare it once:
 
 ```ts
-export const sb = defineSupabase(schema).defineRpc('archive_customer', {
-  invalidates: ['customers', 'notes'],
+export const sb = defineSupabase(schema).defineRpc("archive_customer", {
+  invalidates: ["customers", "notes"],
 });
 ```
 
@@ -54,10 +54,10 @@ mutation.
 to every mutation and declared RPC. Each call gets a `CacheTarget` with the
 table, the changed row ids, and `tables`, the full list to invalidate.
 
-| Adapter | What it invalidates |
-| --- | --- |
-| `queryCache(queryClient)` from `better-supabase/query` | TanStack queries whose `meta.bsTables` overlaps `tables` |
-| `nextCache()` from `better-supabase/next` | `tagFor(table)` for each table and `tagFor(table, id)` per row, via `revalidateTag` |
+| Adapter                                                | What it invalidates                                                                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `queryCache(queryClient)` from `better-supabase/query` | TanStack queries whose `meta.bsTables` overlaps `tables`                            |
+| `nextCache()` from `better-supabase/next`              | `tagFor(table)` for each table and `tagFor(table, id)` per row, via `revalidateTag` |
 
 Your own adapter implements one method, and `testCacheAdapter` from
 `better-supabase/testing` checks it against the same cases.
@@ -75,7 +75,7 @@ is a predicate over that meta, so a write to `notes` refetches a
 In a cached server component, tag the data with what it touched:
 
 ```ts
-'use cache';
+"use cache";
 const spec = sb.spec.customers.findMany({ include: { notes: true } });
 next.cacheTags(spec); // tags customers and notes
 const customers = await db.$run(spec).orThrow();
@@ -98,7 +98,7 @@ server, sent to the client, used as a query key and passed to
 [`useLiveQuery`](/docs/frontend/live-queries).
 
 ```ts
-const spec = sb.spec.customers.findMany({ select: ['id', 'name'], limit: 20 });
+const spec = sb.spec.customers.findMany({ select: ["id", "name"], limit: 20 });
 type Rows = InferResult<typeof spec>; // { id: string; name: string }[]
 await queryClient.prefetchQuery(q.$spec(spec));
 ```

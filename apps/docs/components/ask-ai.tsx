@@ -23,7 +23,7 @@ export function AskAI() {
         onClick={() => {
           setOpen(true);
         }}
-        className="fixed right-4 bottom-4 z-50 inline-flex items-center gap-2 rounded-full border bg-fd-background px-4 py-2 text-sm shadow-lg hover:bg-fd-accent"
+        className="bg-fd-background hover:bg-fd-accent fixed right-4 bottom-4 z-50 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm shadow-lg"
       >
         <MessageCircleQuestion className="size-4" aria-hidden />
         Ask AI
@@ -58,7 +58,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   return (
     <section
       aria-label="Ask AI"
-      className="fixed right-4 bottom-4 z-50 flex max-h-[70vh] w-[min(28rem,calc(100vw-2rem))] flex-col rounded-xl border bg-fd-background shadow-xl"
+      className="bg-fd-background fixed right-4 bottom-4 z-50 flex max-h-[70vh] w-[min(28rem,calc(100vw-2rem))] flex-col rounded-xl border shadow-xl"
     >
       <header className="flex items-center justify-between border-b px-4 py-2">
         <h2 className="text-sm font-medium">Ask AI about the docs</h2>
@@ -66,7 +66,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
           type="button"
           aria-label="Close Ask AI"
           onClick={onClose}
-          className="rounded p-1 hover:bg-fd-accent"
+          className="hover:bg-fd-accent rounded p-1"
         >
           <X className="size-4" aria-hidden />
         </button>
@@ -77,7 +77,7 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
             key={message.id}
             className={
               message.role === "user"
-                ? "ml-8 rounded-lg bg-fd-accent px-3 py-2"
+                ? "bg-fd-accent ml-8 rounded-lg px-3 py-2"
                 : "whitespace-pre-wrap"
             }
           >
@@ -103,12 +103,12 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
         <button
           type="submit"
           disabled={busy}
-          className="rounded-md bg-fd-primary px-3 py-1.5 text-sm text-fd-primary-foreground disabled:opacity-50"
+          className="bg-fd-primary text-fd-primary-foreground rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
         >
           Ask
         </button>
       </form>
-      <p className="px-4 pb-3 text-xs text-fd-muted-foreground">
+      <p className="text-fd-muted-foreground px-4 pb-3 text-xs">
         Answers come from these docs and can be wrong.
       </p>
     </section>

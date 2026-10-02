@@ -33,11 +33,11 @@ the same and prints the install command for your package manager. Or create
 `better-supabase.config.ts` in your project root yourself:
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, valibot } from 'better-supabase/config';
+import { defineConfig, valibot } from "better-supabase/config";
 
 export default defineConfig({
-  casing: 'camel',
-  output: 'src/lib/supabase/generated.ts',
+  casing: "camel",
+  output: "src/lib/supabase/generated.ts",
   plugins: { timestamps: true, softDelete: true },
   generators: [valibot()],
 });
@@ -72,10 +72,10 @@ This writes `database.types.ts` (from `supabase gen types`) and
 ### Query
 
 ```ts
-import { createClient } from '@supabase/supabase-js';
-import { defineSupabase } from 'better-supabase';
+import { createClient } from "@supabase/supabase-js";
+import { defineSupabase } from "better-supabase";
 
-import { schema } from './lib/supabase/generated.ts';
+import { schema } from "./lib/supabase/generated.ts";
 
 export const sb = defineSupabase(schema);
 
@@ -83,10 +83,10 @@ const db = sb.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
   .findMany({
-    select: ['id', 'name'],
-    where: { status: 'active', notes: { some: { kind: 'call' } } },
-    include: { organization: { select: ['name'] } },
-    orderBy: { name: 'asc' },
+    select: ["id", "name"],
+    where: { status: "active", notes: { some: { kind: "call" } } },
+    include: { organization: { select: ["name"] } },
+    orderBy: { name: "asc" },
     limit: 20,
   })
   .orThrow();

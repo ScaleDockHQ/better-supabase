@@ -28,20 +28,20 @@ pnpm better-supabase gen    # database.types.ts and generated.ts
 ```
 
 ```ts
-import { createClient } from '@supabase/supabase-js';
-import { defineSupabase } from 'better-supabase';
+import { createClient } from "@supabase/supabase-js";
+import { defineSupabase } from "better-supabase";
 
-import { schema } from './lib/supabase/generated.ts';
+import { schema } from "./lib/supabase/generated.ts";
 
 export const sb = defineSupabase(schema);
 
 const db = sb.connect(createClient(url, publishableKey));
 
 const result = await db.customers.findMany({
-  select: ['id', 'name'],
-  where: { status: 'active', notes: { some: { kind: 'call' } } },
-  include: { organization: { select: ['name'] } },
-  orderBy: { name: 'asc' },
+  select: ["id", "name"],
+  where: { status: "active", notes: { some: { kind: "call" } } },
+  include: { organization: { select: ["name"] } },
+  orderBy: { name: "asc" },
   limit: 20,
 });
 if (!result.ok) return result; // DbError: kind, message, status, code
@@ -49,28 +49,28 @@ if (!result.ok) return result; // DbError: kind, message, status, code
 
 ## Subpaths
 
-| Import | What it gives you |
-| --- | --- |
-| `better-supabase` | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS` |
-| `better-supabase/config` | `defineConfig` and generators for `better-supabase.config.ts` |
-| `better-supabase/client` | Browser repositories that follow the session |
-| `better-supabase/react` | Provider, typed hooks and the server session |
-| `better-supabase/query` | TanStack Query options with table-based invalidation |
-| `better-supabase/server` | Repositories bound to the caller, admin and acting-as identities |
-| `better-supabase/postgres` | The same repositories over direct Postgres |
-| `better-supabase/ssr` | The `@supabase/ssr` cookie format for any framework |
-| `better-supabase/next`, `/next/image` | Proxy, Server Components, route handlers, server actions, Storage images |
-| `better-supabase/hono`, `/orpc`, `/edge` | Framework adapters |
-| `better-supabase/mcp` | MCP servers whose tools run as the signed-in user |
-| `better-supabase/jobs` | Supabase Queues jobs, idempotency keys and a webhook inbox |
-| `better-supabase/list` | Search, facets, sorting and pagination from one definition |
-| `better-supabase/storage`, `/realtime` | Typed bucket paths and broadcast topics |
-| `better-supabase/env` | Validated Supabase settings |
-| `better-supabase/events`, `/webhooks`, `/openapi`, `/otel` | CloudEvents, Standard Webhooks, OpenAPI 3.1 and OpenTelemetry |
-| `better-supabase/plugins/*` | Timestamps, soft delete, tenant, actor, validation and runtime rules |
-| `better-supabase/sql` | The SQL kit modules and read-set compiler behind `better-supabase sql` |
-| `better-supabase/lint` | Editor rules for unbounded reads and unscoped deletes |
-| `better-supabase/testing` | `asUser`, `localAuth`, typed seeds and conformance kits |
+| Import                                                     | What it gives you                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `better-supabase`                                          | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`         |
+| `better-supabase/config`                                   | `defineConfig` and generators for `better-supabase.config.ts`            |
+| `better-supabase/client`                                   | Browser repositories that follow the session                             |
+| `better-supabase/react`                                    | Provider, typed hooks and the server session                             |
+| `better-supabase/query`                                    | TanStack Query options with table-based invalidation                     |
+| `better-supabase/server`                                   | Repositories bound to the caller, admin and acting-as identities         |
+| `better-supabase/postgres`                                 | The same repositories over direct Postgres                               |
+| `better-supabase/ssr`                                      | The `@supabase/ssr` cookie format for any framework                      |
+| `better-supabase/next`, `/next/image`                      | Proxy, Server Components, route handlers, server actions, Storage images |
+| `better-supabase/hono`, `/orpc`, `/edge`                   | Framework adapters                                                       |
+| `better-supabase/mcp`                                      | MCP servers whose tools run as the signed-in user                        |
+| `better-supabase/jobs`                                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
+| `better-supabase/list`                                     | Search, facets, sorting and pagination from one definition               |
+| `better-supabase/storage`, `/realtime`                     | Typed bucket paths and broadcast topics                                  |
+| `better-supabase/env`                                      | Validated Supabase settings                                              |
+| `better-supabase/events`, `/webhooks`, `/openapi`, `/otel` | CloudEvents, Standard Webhooks, OpenAPI 3.1 and OpenTelemetry            |
+| `better-supabase/plugins/*`                                | Timestamps, soft delete, tenant, actor, validation and runtime rules     |
+| `better-supabase/sql`                                      | The SQL kit modules and read-set compiler behind `better-supabase sql`   |
+| `better-supabase/lint`                                     | Editor rules for unbounded reads and unscoped deletes                    |
+| `better-supabase/testing`                                  | `asUser`, `localAuth`, typed seeds and conformance kits                  |
 
 ## For AI agents
 

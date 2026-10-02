@@ -24,24 +24,38 @@ fails with `not_found` instead.
 The generated module exports the names of your constraints:
 
 ```ts
-import type { CheckConstraint, ForeignKeyConstraint, UniqueConstraint } from './generated';
+import type {
+  CheckConstraint,
+  ForeignKeyConstraint,
+  UniqueConstraint,
+} from "./generated";
 ```
 
 Pass them to the error guards to narrow an error to one constraint, with a
 type error on typos:
 
 ```ts
-import { isCheck, isConflict, isForeignKey } from 'better-supabase';
+import { isCheck, isConflict, isForeignKey } from "better-supabase";
 
 const result = await db.customers.create({ organizationId, name, kvk });
-if (isConflict<UniqueConstraint>(result.error, 'customers_organization_id_kvk_key')) {
-  return { field: 'kvk', message: 'This KvK number is already registered' };
+if (
+  isConflict<UniqueConstraint>(
+    result.error,
+    "customers_organization_id_kvk_key",
+  )
+) {
+  return { field: "kvk", message: "This KvK number is already registered" };
 }
 if (isCheck<CheckConstraint>(result.error)) {
   return { message: `Invalid value (${result.error.constraint})` };
 }
-if (isForeignKey<ForeignKeyConstraint>(result.error, 'customers_primary_contact_id_fkey')) {
-  return { field: 'primaryContactId', message: 'Pick an existing contact' };
+if (
+  isForeignKey<ForeignKeyConstraint>(
+    result.error,
+    "customers_primary_contact_id_fkey",
+  )
+) {
+  return { field: "primaryContactId", message: "Pick an existing contact" };
 }
 ```
 
@@ -52,15 +66,15 @@ return `false`), so they also work in a `catch` block.
 
 Every failure is a `DbError` with a `kind`:
 
-| Kind | Cause |
-| --- | --- |
-| `conflict` | Unique violation (`constraint` is set) |
-| `check` | CHECK violation (`constraint` is set) |
-| `foreign_key` | Foreign key violation (`constraint` is set) |
-| `not_null` | Missing required value |
-| `not_found` | `findById`, `update(id)` or `delete(id)` matched no row |
-| `forbidden` | RLS or a missing grant |
-| `validation` | A validator plugin rejected the input (`issues` is set) |
+| Kind              | Cause                                                                          |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `conflict`        | Unique violation (`constraint` is set)                                         |
+| `check`           | CHECK violation (`constraint` is set)                                          |
+| `foreign_key`     | Foreign key violation (`constraint` is set)                                    |
+| `not_null`        | Missing required value                                                         |
+| `not_found`       | `findById`, `update(id)` or `delete(id)` matched no row                        |
+| `forbidden`       | RLS or a missing grant                                                         |
+| `validation`      | A validator plugin rejected the input (`issues` is set)                        |
 | `invalid_request` | Caught before the request: a read-only column, an unknown field, a broken rule |
 
 See [Results](/docs/concepts/results) for the full list and how errors map
@@ -74,7 +88,9 @@ framework understands instead:
 ```ts
 const customer = await db.customers
   .findById(id)
-  .orThrow((error) => (error.kind === 'not_found' ? notFound() : new Error(error.message)));
+  .orThrow((error) =>
+    error.kind === "not_found" ? notFound() : new Error(error.message),
+  );
 ```
 
 ## Read-only columns

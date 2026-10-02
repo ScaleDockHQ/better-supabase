@@ -6,17 +6,20 @@ description: Load related rows in the same request, typed by relation cardinalit
 ```ts
 const customer = await db.customers
   .findById(id, {
-    select: ['id', 'name'],
+    select: ["id", "name"],
     include: {
-      organization: { select: ['name'] },
+      organization: { select: ["name"] },
       primaryContact: true,
       notes: {
-        select: ['id', 'body'],
-        where: { kind: 'call' },
-        orderBy: { createdAt: 'desc' },
+        select: ["id", "body"],
+        where: { kind: "call" },
+        orderBy: { createdAt: "desc" },
         limit: 5,
       },
-      customerTags: { select: ['tagId'], include: { tag: { select: ['name', 'color'] } } },
+      customerTags: {
+        select: ["tagId"],
+        include: { tag: { select: ["name", "color"] } },
+      },
     },
   })
   .orThrow();
@@ -44,8 +47,10 @@ them. A `where` counts only the matching rows:
 ```ts
 const customers = await db.customers
   .findMany({
-    select: ['id', 'name'],
-    include: { _count: { notes: true, locations: { where: { isPrimary: true } } } },
+    select: ["id", "name"],
+    include: {
+      _count: { notes: true, locations: { where: { isPrimary: true } } },
+    },
     limit: 20,
   })
   .orThrow();

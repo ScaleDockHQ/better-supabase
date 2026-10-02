@@ -26,14 +26,21 @@ and a `validation` error at runtime. Queue names follow pgmq's rule:
 lowercase letters, digits and underscores.
 
 ```ts title="lib/jobs.ts"
-import { createJobs } from 'better-supabase/jobs';
-import * as v from 'valibot';
+import { createJobs } from "better-supabase/jobs";
+import * as v from "valibot";
 
 export const jobs = createJobs(postgres.admin, {
-  send_email: v.object({ to: v.pipe(v.string(), v.email()), template: v.string() }),
+  send_email: v.object({
+    to: v.pipe(v.string(), v.email()),
+    template: v.string(),
+  }),
 });
 
-await jobs.enqueue('send_email', { to, template: 'welcome' }, { delay: 300, dedupeKey: `welcome:${userId}` });
+await jobs.enqueue(
+  "send_email",
+  { to, template: "welcome" },
+  { delay: 300, dedupeKey: `welcome:${userId}` },
+);
 ```
 
 Any number of workers can run side by side: pgmq hides a claimed message for
@@ -42,7 +49,7 @@ the length of its lease.
 ```ts title="worker.ts"
 const controller = new AbortController();
 await jobs.work(
-  'send_email',
+  "send_email",
   async (payload, job, signal) => {
     await sendEmail(payload, { signal });
   },
@@ -71,8 +78,11 @@ schedule. Enable the `pg_cron` extension first. Scheduling the same name again
 replaces it.
 
 ```ts
-await jobs.schedule('nightly-digest', '0 3 * * *', 'send_email', { to: 'team@example.com', template: 'digest' });
-await jobs.unschedule('nightly-digest');
+await jobs.schedule("nightly-digest", "0 3 * * *", "send_email", {
+  to: "team@example.com",
+  template: "digest",
+});
+await jobs.unschedule("nightly-digest");
 ```
 
 ### Without a database connection
@@ -100,21 +110,23 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 `Idempotency-Key` gets the first response back instead of running twice:
 
 ```ts
-import { createIdempotency } from 'better-supabase/jobs';
+import { createIdempotency } from "better-supabase/jobs";
 
-const idempotency = createIdempotency(postgres.admin, { ttl: '24 hours' });
+const idempotency = createIdempotency(postgres.admin, { ttl: "24 hours" });
 
 export const POST = (request: Request) =>
-  idempotency.handle(request, async () => Response.json(await createOrder(request), { status: 201 }));
+  idempotency.handle(request, async () =>
+    Response.json(await createOrder(request), { status: 201 }),
+  );
 ```
 
-| Situation | Response |
-| --- | --- |
-| First request | The handler's response, stored |
-| Same key and same body | The stored response, with `idempotency-replayed: true` |
-| Same key while the first request is still running | `409` with `Retry-After` |
-| Same key and a different body | `422` with code `IDEMPOTENCY_KEY_REUSED` |
-| Handler throws or returns a 5xx | The key is released, so the client can retry |
+| Situation                                         | Response                                               |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| First request                                     | The handler's response, stored                         |
+| Same key and same body                            | The stored response, with `idempotency-replayed: true` |
+| Same key while the first request is still running | `409` with `Retry-After`                               |
+| Same key and a different body                     | `422` with code `IDEMPOTENCY_KEY_REUSED`               |
+| Handler throws or returns a 5xx                   | The key is released, so the client can retry           |
 
 The fingerprint is a SHA-256 of the method, path and body. Set
 `required: true` to reject requests that have no key.
@@ -126,17 +138,17 @@ worker then processes it, with the same retries as jobs. This way your
 provider never times out, and a redelivered webhook is only handled once.
 
 ```ts
-import { createInbox } from 'better-supabase/jobs';
+import { createInbox } from "better-supabase/jobs";
 
 const inbox = createInbox(postgres.admin, {
-  source: 'billing',
+  source: "billing",
   secrets: process.env.BILLING_WEBHOOK_SECRET!,
 });
 
 export const POST = (request: Request) => inbox.receive(request);
 
 await inbox.process(async (message) => {
-  if (message.type === 'invoice.paid') await markPaid(message.payload);
+  if (message.type === "invoice.paid") await markPaid(message.payload);
 });
 ```
 

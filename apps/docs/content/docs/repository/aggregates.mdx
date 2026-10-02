@@ -36,7 +36,7 @@ each takes to-many relations and, per relation, the columns to aggregate:
 ```ts
 const customers = await db.customers
   .findMany({
-    select: ['id', 'name'],
+    select: ["id", "name"],
     include: {
       _count: { invoices: true },
       _sum: { invoices: { amount: true } },
@@ -62,7 +62,7 @@ configured casing, like every other column.
 ```ts
 const totals = await db.invoices
   .aggregate({
-    where: { status: 'open' },
+    where: { status: "open" },
     _count: true,
     _sum: { amount: true },
     _avg: { amount: true },
@@ -80,10 +80,10 @@ page through the groups:
 ```ts
 const byStatus = await db.customers
   .aggregate({
-    groupBy: ['status'],
+    groupBy: ["status"],
     _count: true,
     _min: { createdAt: true },
-    orderBy: { status: 'asc' },
+    orderBy: { status: "asc" },
   })
   .orThrow();
 // { status: 'lead' | 'active' | 'archived'; _count: number; _min: { createdAt: string | null } }[]
@@ -91,12 +91,12 @@ const byStatus = await db.customers
 
 ## Value types
 
-| Aggregate | Columns | Result |
-| --- | --- | --- |
-| `_count` | any | `number` |
-| `_sum` | numeric | `number`; `bigint` or `string` for exact `int8`/`numeric` [codecs](/docs/cli/config) |
-| `_avg` | numeric | `number` |
-| `_min`, `_max` | any comparable | the column's type |
+| Aggregate      | Columns        | Result                                                                               |
+| -------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `_count`       | any            | `number`                                                                             |
+| `_sum`         | numeric        | `number`; `bigint` or `string` for exact `int8`/`numeric` [codecs](/docs/cli/config) |
+| `_avg`         | numeric        | `number`                                                                             |
+| `_min`, `_max` | any comparable | the column's type                                                                    |
 
 `_sum` and `_avg` only accept number columns (and numeric columns read as
 strings). Passing a text column is a type error, and an `invalid_request`
@@ -107,11 +107,11 @@ error at runtime.
 `aggregate` is a read method, so it works everywhere a spec does:
 
 ```ts
-const spec = sb.spec.customers.aggregate({ groupBy: ['status'], _count: true });
+const spec = sb.spec.customers.aggregate({ groupBy: ["status"], _count: true });
 const groups = await db.$run(spec).orThrow();
 
 // TanStack Query
-useQuery(queries.customers.aggregate({ groupBy: ['status'], _count: true }));
+useQuery(queries.customers.aggregate({ groupBy: ["status"], _count: true }));
 ```
 
 ## Cost

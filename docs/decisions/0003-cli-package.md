@@ -35,13 +35,13 @@ install command.
 
 ### CLI packages
 
-| Package | Version | Replaces |
-| --- | --- | --- |
-| `citty` | 0.2.2 | The hand-written parser in `args.ts` and the `HELP` text |
-| `@clack/prompts` | 1.8.1 | Nothing: `init` and `add` had no prompts |
-| `smol-toml` | 1.9.0 | `parseTomlSubset`, the fallback when `@supabase/config` is missing |
-| `tinyexec` | 1.3.1 | The `spawn` wrapper in `exec.ts` |
-| `diff` | 9.0.0 | Nothing: `--check` listed stale files without showing the change |
+| Package          | Version | Replaces                                                           |
+| ---------------- | ------- | ------------------------------------------------------------------ |
+| `citty`          | 0.2.2   | The hand-written parser in `args.ts` and the `HELP` text           |
+| `@clack/prompts` | 1.8.1   | Nothing: `init` and `add` had no prompts                           |
+| `smol-toml`      | 1.9.0   | `parseTomlSubset`, the fallback when `@supabase/config` is missing |
+| `tinyexec`       | 1.3.1   | The `spawn` wrapper in `exec.ts`                                   |
+| `diff`           | 9.0.0   | Nothing: `--check` listed stale files without showing the change   |
 
 citty was chosen over `commander` and `yargs` for typed arguments, lazy
 subcommands (each command is its own chunk, so `better-supabase --version`
@@ -79,12 +79,12 @@ The plan was to replace the JSON-RPC layer in `src/mcp/mcp.ts` with
 `@modelcontextprotocol/server` 2.2.0 if a spike passed four checks. It
 failed one of them:
 
-| Check | Result |
-| --- | --- |
-| No Node built-ins | Passes: a stateless `Server` with `WebStandardStreamableHTTPServerTransport` bundles for a neutral platform without them |
-| `SPEC_PINS.mcp` (`2026-07-28`) | Passes: it is the SDK's first "modern" revision |
-| Size | Fails: the minimal server is 72 KB gzip (server 152 KB, zod 105 KB and core 17 KB minified); `./mcp` is 48 KB gzip today, and the protocol code it would replace is a few KB of it |
-| Existing tests | Not run, since the size check failed |
+| Check                          | Result                                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No Node built-ins              | Passes: a stateless `Server` with `WebStandardStreamableHTTPServerTransport` bundles for a neutral platform without them                                                           |
+| `SPEC_PINS.mcp` (`2026-07-28`) | Passes: it is the SDK's first "modern" revision                                                                                                                                    |
+| Size                           | Fails: the minimal server is 72 KB gzip (server 152 KB, zod 105 KB and core 17 KB minified); `./mcp` is 48 KB gzip today, and the protocol code it would replace is a few KB of it |
+| Existing tests                 | Not run, since the size check failed                                                                                                                                               |
 
 The size baseline would not have caught this, because it leaves peers out
 of the closure; the cost would land in every Edge Function that serves MCP.

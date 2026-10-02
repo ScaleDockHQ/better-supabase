@@ -11,17 +11,17 @@ who is calling? `resolveAuth(request)` answers it in this order:
 3. the `@supabase/ssr` session cookie, for browsers.
 
 ```ts
-import { resolveAuth } from 'better-supabase/server';
-import { loadEnv } from 'better-supabase/env';
+import { resolveAuth } from "better-supabase/server";
+import { loadEnv } from "better-supabase/env";
 
 const env = loadEnv();
 const { auth } = await resolveAuth(request, { env });
 
 switch (auth.kind) {
-  case 'user':    // auth.user.id, auth.claims, auth.token
-  case 'service': // a secret key, when `secret: true`
-  case 'anon':    // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
-  case 'invalid': // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims) | 'actor' (malformed act chain): answer 401
+  case "user": // auth.user.id, auth.claims, auth.token
+  case "service": // a secret key, when `secret: true`
+  case "anon": // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
+  case "invalid": // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims) | 'actor' (malformed act chain): answer 401
 }
 ```
 
@@ -37,12 +37,12 @@ switch (auth.kind) {
 
 <Callout title="Use asymmetric signing keys">
   Local verification needs asymmetric JWT signing keys (ES256 or RS256), whose
-  public half is in the JWKS. Hosted projects use them by default; for the
-  local stack, `better-supabase keys` creates `signing_keys_path` and
-  `better-supabase doctor` warns when it is missing. With a legacy HS256
-  secret there is no public key to check against. This is what lets the
-  Next.js proxy, Server Components and `'use cache: private'` session reads
-  stay free of network calls ([Cache Components](/docs/frameworks/next-cache-components)).
+  public half is in the JWKS. Hosted projects use them by default; for the local
+  stack, `better-supabase keys` creates `signing_keys_path` and `better-supabase
+  doctor` warns when it is missing. With a legacy HS256 secret there is no
+  public key to check against. This is what lets the Next.js proxy, Server
+  Components and `'use cache: private'` session reads stay free of network calls
+  ([Cache Components](/docs/frameworks/next-cache-components)).
 </Callout>
 
 ## Refreshing
@@ -87,12 +87,12 @@ carries something you understand, `undefined` otherwise:
 
 ```ts
 const apiKeys: AuthResolver = {
-  name: 'partner-api-keys',
+  name: "partner-api-keys",
   async resolve(request) {
-    const key = request.headers.get('x-api-key');
+    const key = request.headers.get("x-api-key");
     if (!key) return undefined;
     const partner = await lookupPartner(key);
-    return partner ? { kind: 'service', keyName: partner.id } : undefined;
+    return partner ? { kind: "service", keyName: partner.id } : undefined;
   },
 };
 
@@ -112,13 +112,19 @@ returns a new definition whose servers validate the verified claims and
 whose sessions are typed by the schema's output:
 
 ```ts title="src/lib/supabase/sb.ts"
-import * as v from 'valibot';
+import * as v from "valibot";
 
 export const Claims = v.looseObject({
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   roles: v.optional(v.array(v.string()), []),
   memberships: v.optional(
-    v.array(v.looseObject({ scope: v.string(), id: v.string(), roles: v.array(v.string()) })),
+    v.array(
+      v.looseObject({
+        scope: v.string(),
+        id: v.string(),
+        roles: v.array(v.string()),
+      }),
+    ),
     [],
   ),
 });
@@ -183,7 +189,7 @@ export const sb = defineSupabase(schema).claims(Claims).userMetadata(Profile);
 
 ```tsx title="src/app/account/page.tsx"
 const session = await next.session();
-if (session.kind === 'user') {
+if (session.kind === "user") {
   return <h1>Hello, {session.profile?.display_name ?? session.user.email}</h1>;
 }
 ```

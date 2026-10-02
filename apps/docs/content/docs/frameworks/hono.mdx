@@ -4,16 +4,16 @@ description: Middleware, Result-aware handlers and REST resources matching your 
 ---
 
 ```ts title="src/server.ts"
-import { Hono } from 'hono';
-import { createHono, type BetterEnv } from 'better-supabase/hono';
-import { sb, type Functions, type Models } from './supabase';
+import { Hono } from "hono";
+import { createHono, type BetterEnv } from "better-supabase/hono";
+import { sb, type Functions, type Models } from "./supabase";
 
 const bs = createHono(sb);
 
 const app = new Hono<BetterEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
-  .use('/api/*', bs.middleware())
-  .get('/api/me', (c) => c.json({ kind: c.var.auth.kind }));
+  .use("/api/*", bs.middleware())
+  .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }));
 
 export default app;
 ```
@@ -26,15 +26,15 @@ below, so `bs.admin()` and `bs.actingAs()` work too.
 `bs.middleware()` resolves the caller (Bearer header first, then the session
 cookie), rejects anyone not in `allow` with Problem Details, and sets:
 
-| Variable | Value |
-| --- | --- |
-| `c.var.db` | Repositories bound to the caller; RLS applies |
-| `c.var.auth` | The resolved `AuthState` |
-| `c.var.bs` | The full server context, including `supabase` and `sql` |
+| Variable     | Value                                                   |
+| ------------ | ------------------------------------------------------- |
+| `c.var.db`   | Repositories bound to the caller; RLS applies           |
+| `c.var.auth` | The resolved `AuthState`                                |
+| `c.var.bs`   | The full server context, including `supabase` and `sql` |
 
 ```ts
-app.use('/public/*', bs.middleware({ allow: ['user', 'anon'] }));
-app.use('/app/*', bs.middleware({ refresh: true })); // browser routes with cookies
+app.use("/public/*", bs.middleware({ allow: ["user", "anon"] }));
+app.use("/app/*", bs.middleware({ refresh: true })); // browser routes with cookies
 ```
 
 Tokens are verified locally against the cached JWKS, so the middleware makes
@@ -54,12 +54,14 @@ cookies; bearer tokens never refresh.
 
 ```ts
 app.get(
-  '/api/customers/:id',
-  bs.handle((c, { db }) => db.customers.findById(c.req.param('id'))),
+  "/api/customers/:id",
+  bs.handle((c, { db }) => db.customers.findById(c.req.param("id"))),
 );
 app.post(
-  '/api/customers',
-  bs.handle(async (c, { db }) => db.customers.create(await c.req.json()), { status: 201 }),
+  "/api/customers",
+  bs.handle(async (c, { db }) => db.customers.create(await c.req.json()), {
+    status: 201,
+  }),
 );
 ```
 
@@ -74,32 +76,32 @@ internal details (unless `exposeErrors`).
 codes and bodies.
 
 ```ts
-import { defineListQuery } from 'better-supabase/list';
+import { defineListQuery } from "better-supabase/list";
 
-const customerList = defineListQuery(sb, 'customers', {
-  search: ['name'],
-  facets: ['status'],
-  sorts: { name: { name: 'asc' }, newest: { createdAt: 'desc' } },
-  defaultSort: 'newest',
+const customerList = defineListQuery(sb, "customers", {
+  search: ["name"],
+  facets: ["status"],
+  sorts: { name: { name: "asc" }, newest: { createdAt: "desc" } },
+  defaultSort: "newest",
 });
 
 app.route(
-  '/api/customers',
-  bs.resource('customers', {
+  "/api/customers",
+  bs.resource("customers", {
     list: customerList,
-    select: ['id', 'name', 'status'],
+    select: ["id", "name", "status"],
     input: { create: CustomerInput, update: CustomerPatch },
   }),
 );
 ```
 
-| Route | Operation | Success |
-| --- | --- | --- |
-| `GET /` | `list`: the list query, or `page`/`size` | `200` page |
-| `POST /` | `create` | `201` row |
-| `GET /:id` | `get` | `200` row, `404` when RLS hides it |
-| `PATCH /:id` | `update` | `200` row |
-| `DELETE /:id` | `delete` | `204` |
+| Route         | Operation                                | Success                            |
+| ------------- | ---------------------------------------- | ---------------------------------- |
+| `GET /`       | `list`: the list query, or `page`/`size` | `200` page                         |
+| `POST /`      | `create`                                 | `201` row                          |
+| `GET /:id`    | `get`                                    | `200` row, `404` when RLS hides it |
+| `PATCH /:id`  | `update`                                 | `200` row                          |
+| `DELETE /:id` | `delete`                                 | `204`                              |
 
 Views get `list` and `get` only. Limit operations with `operations`; other
 methods answer `405` with an `Allow` header. Integer keys are parsed and
@@ -117,9 +119,11 @@ verifies it against the stack's JWKS, as it would in production, and sees
 the same claims that PostgREST and RLS see:
 
 ```ts
-import { signLocalJwt } from 'better-supabase/testing';
+import { signLocalJwt } from "better-supabase/testing";
 
 const bs = createHono(sb);
 const token = await signLocalJwt({ sub: userId, tenant_id: orgId });
-await app.request('/api/customers', { headers: { authorization: `Bearer ${token}` } });
+await app.request("/api/customers", {
+  headers: { authorization: `Bearer ${token}` },
+});
 ```

@@ -10,7 +10,7 @@ plugins.
 ## ESLint
 
 ```js title="eslint.config.js"
-import betterSupabase from 'better-supabase/lint';
+import betterSupabase from "better-supabase/lint";
 
 export default [betterSupabase.configs.recommended];
 ```
@@ -65,15 +65,15 @@ it only reports once it knows which tables are large:
 - `strict: true`: report on every table, like `no-unbounded-find-many`.
 
 ```js title="eslint.config.js"
-import betterSupabase, { largeTables } from 'better-supabase/lint';
-import snapshot from './supabase/snapshot.json' with { type: 'json' };
+import betterSupabase, { largeTables } from "better-supabase/lint";
+import snapshot from "./supabase/snapshot.json" with { type: "json" };
 
 export default [
   betterSupabase.configs.recommended,
   {
     rules: {
-      'better-supabase/unbounded-read': [
-        'warn',
+      "better-supabase/unbounded-read": [
+        "warn",
         { tables: largeTables(snapshot) },
       ],
     },

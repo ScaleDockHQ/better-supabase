@@ -8,14 +8,14 @@ description: Typed bucket paths, generated policies, and the upload flows apps k
 supabase-js Storage calls in the same `Result` as the repository.
 
 ```ts title="lib/buckets.ts"
-import { defineBucket } from 'better-supabase/storage';
+import { defineBucket } from "better-supabase/storage";
 
 export const logos = defineBucket({
-  id: 'customer-logos',
-  path: '{orgId}/{customerId}/logo/{version}.webp',
-  policy: 'tenant',
-  fileSizeLimit: '5MiB',
-  allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+  id: "customer-logos",
+  path: "{orgId}/{customerId}/logo/{version}.webp",
+  policy: "tenant",
+  fileSizeLimit: "5MiB",
+  allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
 });
 ```
 
@@ -27,7 +27,7 @@ stay typed either way.
 
 ```ts
 logos.path({ orgId, customerId, version: 3 }); // 'o1/c1/logo/3.webp'
-logos.match('o1/c1/logo/3.webp'); // { orgId: 'o1', customerId: 'c1', version: '3' }
+logos.match("o1/c1/logo/3.webp"); // { orgId: 'o1', customerId: 'c1', version: '3' }
 logos.prefix({ orgId }); // 'o1', the folder to list
 ```
 
@@ -49,15 +49,22 @@ pin the project host, so build the URL when you render. List the column in
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  buckets: { customerLogos: { path: '{orgId}/{customerId}/logo/{version}.webp', policy: 'tenant' } },
-  storagePaths: { 'customers.logo_path': 'customerLogos' }, // a buckets key or a bucket id
+  buckets: {
+    customerLogos: {
+      path: "{orgId}/{customerId}/logo/{version}.webp",
+      policy: "tenant",
+    },
+  },
+  storagePaths: { "customers.logo_path": "customerLogos" }, // a buckets key or a bucket id
 });
 ```
 
 ```ts
 customer.logoPath; // StoragePath<'customer-logos'> | null
-await db.customers.update(id, { logoPath: 'o1/c1/logo/3.webp' }); // type error: not a path of that bucket
-await db.customers.update(id, { logoPath: (await storage.upload(values, file).orThrow()).path }); // ok
+await db.customers.update(id, { logoPath: "o1/c1/logo/3.webp" }); // type error: not a path of that bucket
+await db.customers.update(id, {
+  logoPath: (await storage.upload(values, file).orThrow()).path,
+}); // ok
 ```
 
 `gen` fails on a key that names no column or a column that isn't text. The
@@ -69,13 +76,13 @@ bucket path is written to a `*_url` column.
 `logos.sql()` returns idempotent SQL. It upserts the bucket row and creates
 `storage.objects` policies for the `authenticated` role:
 
-| `policy` | Access |
-| --- | --- |
-| `tenant` | The `{orgId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`) |
-| `owner` | The `{userId}` segment must equal `auth.uid()` |
-| `public` | Anyone can read. Writes need the secret key |
-| `none` | No policies. Only the secret key has access |
-| `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below) |
+| `policy`              | Access                                                                             |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `tenant`              | The `{orgId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`) |
+| `owner`               | The `{userId}` segment must equal `auth.uid()`                                     |
+| `public`              | Anyone can read. Writes need the secret key                                        |
+| `none`                | No policies. Only the secret key has access                                        |
+| `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below)         |
 
 `bucket.owner` names the placeholder that holds the owning user's id: the
 `owner` param for `owner` buckets, otherwise `userId` when the template has
@@ -98,11 +105,15 @@ live in PermDock's `rls.schema` (`public` by default), and the bucket's
 
 ```ts title="src/lib/storage.ts"
 export const files = defineBucket({
-  id: 'org-files',
-  path: '{orgId}/{file}',
+  id: "org-files",
+  path: "{orgId}/{file}",
   policy: {
-    permdock: { read: 'files.download', list: 'files.browse', write: 'files.upload' },
-    scope: 'organization', // or 'global'
+    permdock: {
+      read: "files.download",
+      list: "files.browse",
+      write: "files.upload",
+    },
+    scope: "organization", // or 'global'
   },
 });
 ```
@@ -136,9 +147,9 @@ the organization.
 ```ts title="src/lib/storage.ts"
 // Wrong: files.download has a row condition, which the policy ignores
 export const files = defineBucket({
-  id: 'org-files',
-  path: '{orgId}/{file}',
-  policy: { permdock: { read: 'files.download' }, scope: 'organization' },
+  id: "org-files",
+  path: "{orgId}/{file}",
+  policy: { permdock: { read: "files.download" }, scope: "organization" },
 });
 ```
 
@@ -149,9 +160,9 @@ the whole scope:
 ```ts title="src/lib/storage.ts"
 // Right: files.browse is granted per organization, with no row condition
 export const files = defineBucket({
-  id: 'org-files',
-  path: '{orgId}/{file}',
-  policy: { permdock: { read: 'files.browse' }, scope: 'organization' },
+  id: "org-files",
+  path: "{orgId}/{file}",
+  policy: { permdock: { read: "files.browse" }, scope: "organization" },
 });
 ```
 
@@ -163,12 +174,12 @@ would grant more than the application does. Pass the catalog as `catalog`
 and `defineBucket` throws for those keys:
 
 ```ts title="src/lib/storage.ts"
-import catalog from '../../permissions.catalog.json' with { type: 'json' };
+import catalog from "../../permissions.catalog.json" with { type: "json" };
 
 export const files = defineBucket({
-  id: 'org-files',
-  path: '{orgId}/{file}',
-  policy: { permdock: { read: 'files.browse' }, scope: 'organization' },
+  id: "org-files",
+  path: "{orgId}/{file}",
+  policy: { permdock: { read: "files.browse" }, scope: "organization" },
   catalog,
 });
 ```
@@ -189,8 +200,12 @@ the database has. [`doctor`](/docs/cli) reports those differences.
 const storage = logos.connect(supabase); // user client: policies apply
 
 await storage.upload({ orgId, customerId, version }, file).orThrow();
-const url = await storage.signedUrl({ orgId, customerId, version }, { ttl: 'hour' }).orThrow();
-const thumb = await storage.renderUrl(path, { width: 128, height: 128, resize: 'cover' }).orThrow();
+const url = await storage
+  .signedUrl({ orgId, customerId, version }, { ttl: "hour" })
+  .orThrow();
+const thumb = await storage
+  .renderUrl(path, { width: 128, height: 128, resize: "cover" })
+  .orThrow();
 ```
 
 Uploads are checked against `fileSizeLimit` and `allowedMimeTypes` before any
@@ -219,13 +234,17 @@ that serves public objects through Storage transformations instead of the
 Next.js optimizer:
 
 ```ts title="src/image-loader.ts"
-import { createImageLoader } from 'better-supabase/next/image';
+import { createImageLoader } from "better-supabase/next/image";
 
-export default createImageLoader({ url: process.env.NEXT_PUBLIC_SUPABASE_URL! });
+export default createImageLoader({
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+});
 ```
 
 ```ts title="next.config.ts"
-export default { images: { loader: 'custom', loaderFile: './src/image-loader.ts' } };
+export default {
+  images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
+};
 ```
 
 The loader rewrites `/object/public/` and `/render/image/public/` URLs of your
@@ -261,7 +280,10 @@ Let the browser upload directly with a server-issued reservation:
 
 ```ts
 // server
-const reservation = await logos.connect(supabase).reserve({ orgId, customerId, version }).orThrow();
+const reservation = await logos
+  .connect(supabase)
+  .reserve({ orgId, customerId, version })
+  .orThrow();
 // browser
 await logos.connect(supabase).uploadReserved(reservation, file).orThrow();
 ```
@@ -277,9 +299,14 @@ const { removed } = await logos
     within: { orgId },
     olderThan: 24 * 60 * 60 * 1000, // skip uploads that may still be committing
     referenced: async (paths) =>
-      (await db.customers.findMany({ where: { logoPath: { in: paths } }, select: ['logoPath'] }).orThrow()).map(
-        (row) => row.logoPath!,
-      ),
+      (
+        await db.customers
+          .findMany({
+            where: { logoPath: { in: paths } },
+            select: ["logoPath"],
+          })
+          .orThrow()
+      ).map((row) => row.logoPath!),
   })
   .orThrow();
 ```

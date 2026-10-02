@@ -13,13 +13,13 @@ where: { status: 'active', kvk: null }
 
 Operators depend on the column type:
 
-| Type | Operators |
-| --- | --- |
-| All | `eq`, `neq`, `in`, `notIn`, `isNull`, `not` |
-| Text, numbers, dates | `gt`, `gte`, `lt`, `lte` |
-| Text | `like`, `ilike`, `contains`, `startsWith`, `endsWith`, `search` |
-| Arrays | `has`, `hasSome`, `hasEvery`, `containedBy` |
-| jsonb | `contains` (`@>`) |
+| Type                 | Operators                                                       |
+| -------------------- | --------------------------------------------------------------- |
+| All                  | `eq`, `neq`, `in`, `notIn`, `isNull`, `not`                     |
+| Text, numbers, dates | `gt`, `gte`, `lt`, `lte`                                        |
+| Text                 | `like`, `ilike`, `contains`, `startsWith`, `endsWith`, `search` |
+| Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                     |
+| jsonb                | `contains` (`@>`)                                               |
 
 `contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`
 and `_` in your input. Use `like` or `ilike` when you want wildcards.

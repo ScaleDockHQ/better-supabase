@@ -7,21 +7,21 @@ Start with `pnpm better-supabase doctor`. It checks the database, RLS,
 
 Branch on `result.error.kind`, not on the message.
 
-| Kind | Usual cause | Fix |
-| --- | --- | --- |
-| `not_found` | The row doesn't exist, or RLS hides it from this user | Check the policy with an `asUser` test before assuming the row is gone |
-| `unauthorized` | No valid session or token | Get `db` from the adapter for this request |
-| `forbidden` | RLS or a grant rejected the write | Fix the policy or the grant; don't switch to `server.admin()` |
-| `conflict` | Unique violation | Use `upsert`, or return the error to the caller |
-| `foreign_key` | Referenced row missing, or still referenced on delete | Create the parent first, or delete children |
-| `not_null`, `check`, `exclusion` | A constraint rejected the row | Validate input earlier with the `validation()` plugin |
-| `invalid_input` | Postgres couldn't parse a value (bad uuid, enum) | Validate before the call |
-| `validation` | A Standard Schema rejected the input; see `issues` | Show the issues to the user |
-| `invalid_request` | The query can't run over PostgREST (for example a relation filter on `update`) | Read the keys first, or use a database function or `better-supabase/postgres` |
-| `multiple_rows` | `findUnique` or a single-row write matched more than one row | Filter by a unique key |
-| `stale` | `update(..., { expect })` found a newer row | Reload the row and retry |
-| `serialization`, `timeout`, `network`, `rate_limited` | Transient | Retry with backoff, or surface the error |
-| `raised` | A database function raised an exception | Read `message` and `code` from the function |
+| Kind                                                  | Usual cause                                                                    | Fix                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `not_found`                                           | The row doesn't exist, or RLS hides it from this user                          | Check the policy with an `asUser` test before assuming the row is gone        |
+| `unauthorized`                                        | No valid session or token                                                      | Get `db` from the adapter for this request                                    |
+| `forbidden`                                           | RLS or a grant rejected the write                                              | Fix the policy or the grant; don't switch to `server.admin()`                 |
+| `conflict`                                            | Unique violation                                                               | Use `upsert`, or return the error to the caller                               |
+| `foreign_key`                                         | Referenced row missing, or still referenced on delete                          | Create the parent first, or delete children                                   |
+| `not_null`, `check`, `exclusion`                      | A constraint rejected the row                                                  | Validate input earlier with the `validation()` plugin                         |
+| `invalid_input`                                       | Postgres couldn't parse a value (bad uuid, enum)                               | Validate before the call                                                      |
+| `validation`                                          | A Standard Schema rejected the input; see `issues`                             | Show the issues to the user                                                   |
+| `invalid_request`                                     | The query can't run over PostgREST (for example a relation filter on `update`) | Read the keys first, or use a database function or `better-supabase/postgres` |
+| `multiple_rows`                                       | `findUnique` or a single-row write matched more than one row                   | Filter by a unique key                                                        |
+| `stale`                                               | `update(..., { expect })` found a newer row                                    | Reload the row and retry                                                      |
+| `serialization`, `timeout`, `network`, `rate_limited` | Transient                                                                      | Retry with backoff, or surface the error                                      |
+| `raised`                                              | A database function raised an exception                                        | Read `message` and `code` from the function                                   |
 
 ## Other symptoms
 

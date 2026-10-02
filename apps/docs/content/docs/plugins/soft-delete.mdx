@@ -4,16 +4,16 @@ description: Hide deleted rows everywhere, restore them, and avoid the RLS retur
 ---
 
 ```ts
-import { softDelete } from 'better-supabase/plugins/soft-delete';
+import { softDelete } from "better-supabase/plugins/soft-delete";
 
 const db = defineSupabase(schema).use(softDelete()).connect(supabase);
 
-await db.customers.delete(id);                  // sets archived_at
-await db.customers.findById(id);                // not_found
+await db.customers.delete(id); // sets archived_at
+await db.customers.findById(id); // not_found
 await db.customers.findMany({ withDeleted: true });
 await db.customers.findMany({ onlyDeleted: true });
-await db.customers.restore(id);                 // clears archived_at
-await db.customers.delete(id, { hard: true });  // really deletes
+await db.customers.restore(id); // clears archived_at
+await db.customers.delete(id, { hard: true }); // really deletes
 ```
 
 ## Where deleted rows are hidden

@@ -35,9 +35,9 @@ the old one until you've moved over.
 ### Wrap the client you already create
 
 ```ts title="src/lib/supabase.ts"
-import { defineSupabase } from 'better-supabase';
+import { defineSupabase } from "better-supabase";
 
-import { schema } from './supabase/generated.ts';
+import { schema } from "./supabase/generated.ts";
 
 export const sb = defineSupabase(schema);
 ```
@@ -72,34 +72,34 @@ The config's `casing` decides column names. With `casing: 'camel'`,
 `organization_id` becomes `organizationId` in `where`, `select` and the rows
 you get back. With `casing: 'snake'`, names stay as they are in the database.
 
-| supabase-js | better-supabase |
-| --- | --- |
-| `.from('customers').select('id, name')` | `db.customers.findMany({ select: ['id', 'name'] })` |
-| `.select('*')` | `findMany()` (every column) |
-| `.select('id, organization(name)')` | `select: ['id'], include: { organization: { select: ['name'] } }` |
-| `.select('*, notes(count)')` | `include: { _count: { notes: true } }` |
-| `.eq('status', 'active')` | `where: { status: 'active' }` |
-| `.neq`, `.gt`, `.gte`, `.lt`, `.lte` | `where: { total: { gte: 100 } }` |
-| `.in('status', ['lead', 'active'])` | `where: { status: { in: ['lead', 'active'] } }` |
-| `.is('deleted_at', null)` | `where: { deletedAt: null }` |
-| `.not('email', 'is', null)` | `where: { email: { not: null } }` |
-| `.ilike('name', '%acme%')` | `where: { name: { contains: 'acme' } }` (escapes `%` and `_`) |
-| `.or('status.eq.lead,kvk.eq.1001')` | `where: { OR: [{ status: 'lead' }, { kvk: '1001' }] }` |
-| `.textSearch('document', 'acme')` | `where: { document: { search: 'acme' } }` |
-| `.select('*, notes!inner(*)').eq('notes.kind', 'call')` | `where: { notes: { some: { kind: 'call' } } }` |
-| `.order('name', { ascending: false })` | `orderBy: { name: 'desc' }` |
-| `.range(20, 29)` | `limit: 10, offset: 20`, or [`paginate`](/docs/repository/pagination) |
-| `.eq('id', id).single()` | `findById(id)` (a `not_found` error when missing) |
-| `.eq('slug', slug).maybeSingle()` | `findUnique({ where: { slug } })` (`null` when missing) |
-| `.limit(1).maybeSingle()` | `findFirst({ where })` |
-| `.select('*', { count: 'exact', head: true })` | `count({ where })` |
-| `.insert(row).select().single()` | `create(row)` |
-| `.insert(rows).select()` | `createMany(rows)` |
-| `.update(patch).eq('id', id).select().single()` | `update(id, patch)` |
-| `.update(patch).eq('status', 'lead')` | `updateMany({ where: { status: 'lead' }, data: patch })` |
-| `.upsert(row, { onConflict: 'organization_id,kvk' })` | `upsert(row, { onConflict: ['organizationId', 'kvk'] })` |
-| `.delete().eq('id', id)` | `delete(id)` |
-| `supabase.rpc('archive_customer', args)` | `db.$rpc('archive_customer', args)` |
+| supabase-js                                             | better-supabase                                                       |
+| ------------------------------------------------------- | --------------------------------------------------------------------- |
+| `.from('customers').select('id, name')`                 | `db.customers.findMany({ select: ['id', 'name'] })`                   |
+| `.select('*')`                                          | `findMany()` (every column)                                           |
+| `.select('id, organization(name)')`                     | `select: ['id'], include: { organization: { select: ['name'] } }`     |
+| `.select('*, notes(count)')`                            | `include: { _count: { notes: true } }`                                |
+| `.eq('status', 'active')`                               | `where: { status: 'active' }`                                         |
+| `.neq`, `.gt`, `.gte`, `.lt`, `.lte`                    | `where: { total: { gte: 100 } }`                                      |
+| `.in('status', ['lead', 'active'])`                     | `where: { status: { in: ['lead', 'active'] } }`                       |
+| `.is('deleted_at', null)`                               | `where: { deletedAt: null }`                                          |
+| `.not('email', 'is', null)`                             | `where: { email: { not: null } }`                                     |
+| `.ilike('name', '%acme%')`                              | `where: { name: { contains: 'acme' } }` (escapes `%` and `_`)         |
+| `.or('status.eq.lead,kvk.eq.1001')`                     | `where: { OR: [{ status: 'lead' }, { kvk: '1001' }] }`                |
+| `.textSearch('document', 'acme')`                       | `where: { document: { search: 'acme' } }`                             |
+| `.select('*, notes!inner(*)').eq('notes.kind', 'call')` | `where: { notes: { some: { kind: 'call' } } }`                        |
+| `.order('name', { ascending: false })`                  | `orderBy: { name: 'desc' }`                                           |
+| `.range(20, 29)`                                        | `limit: 10, offset: 20`, or [`paginate`](/docs/repository/pagination) |
+| `.eq('id', id).single()`                                | `findById(id)` (a `not_found` error when missing)                     |
+| `.eq('slug', slug).maybeSingle()`                       | `findUnique({ where: { slug } })` (`null` when missing)               |
+| `.limit(1).maybeSingle()`                               | `findFirst({ where })`                                                |
+| `.select('*', { count: 'exact', head: true })`          | `count({ where })`                                                    |
+| `.insert(row).select().single()`                        | `create(row)`                                                         |
+| `.insert(rows).select()`                                | `createMany(rows)`                                                    |
+| `.update(patch).eq('id', id).select().single()`         | `update(id, patch)`                                                   |
+| `.update(patch).eq('status', 'lead')`                   | `updateMany({ where: { status: 'lead' }, data: patch })`              |
+| `.upsert(row, { onConflict: 'organization_id,kvk' })`   | `upsert(row, { onConflict: ['organizationId', 'kvk'] })`              |
+| `.delete().eq('id', id)`                                | `delete(id)`                                                          |
+| `supabase.rpc('archive_customer', args)`                | `db.$rpc('archive_customer', args)`                                   |
 
 Each call is still one PostgREST request, including relation filters and
 counts. Every column, relation and operator is typed, and enum columns only
@@ -114,13 +114,19 @@ return a `Result` with the same two fields plus `ok`, and a `DbError` whose
 
 ```ts
 // Before
-const { data, error } = await supabase.from('tags').insert({ name }).select().single();
-if (error?.code === '23505') return { field: 'name', message: 'Tag already exists' };
+const { data, error } = await supabase
+  .from("tags")
+  .insert({ name })
+  .select()
+  .single();
+if (error?.code === "23505")
+  return { field: "name", message: "Tag already exists" };
 if (error) throw error;
 
 // After
 const result = await db.tags.create({ organizationId, name });
-if (result.error?.kind === 'conflict') return { field: 'name', message: 'Tag already exists' };
+if (result.error?.kind === "conflict")
+  return { field: "name", message: "Tag already exists" };
 if (!result.ok) return result;
 const tag = result.data;
 ```
@@ -134,12 +140,12 @@ If you wrote the `@supabase/ssr` cookie handling yourself, an adapter
 replaces it. It verifies the token locally, refreshes it only in the proxy,
 and gives every handler a `db` for the current user:
 
-| You have | Use |
-| --- | --- |
-| `createServerClient` in a Next.js `middleware.ts` or `proxy.ts` | `next.proxy(request)` ([Next.js](/docs/frameworks/next)) |
-| `createServerClient` in Server Components and route handlers | `const { db } = await next.server()`, `next.route(...)` |
-| `createBrowserClient` | `createBrowser(sb)` ([Browser client](/docs/frontend/client)) |
-| A client per request in Hono, oRPC or an Edge Function | `bs.middleware()` or `bs.handler()` ([Frameworks](/docs/frameworks/hono)) |
+| You have                                                        | Use                                                                       |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `createServerClient` in a Next.js `middleware.ts` or `proxy.ts` | `next.proxy(request)` ([Next.js](/docs/frameworks/next))                  |
+| `createServerClient` in Server Components and route handlers    | `const { db } = await next.server()`, `next.route(...)`                   |
+| `createBrowserClient`                                           | `createBrowser(sb)` ([Browser client](/docs/frontend/client))             |
+| A client per request in Hono, oRPC or an Edge Function          | `bs.middleware()` or `bs.handler()` ([Frameworks](/docs/frameworks/hono)) |
 
 Auth flows (`supabase.auth.signInWithOtp()` and friends), storage and
 realtime stay on the supabase-js client: `db.$client` on the server,

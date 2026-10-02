@@ -20,11 +20,11 @@ List the tables and privileges in `expose`. An array means privileges for
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   expose: {
-    customers: ['select', 'insert', 'update', 'delete'],
-    organizations: ['select'],
-    'public.pricing_plans': { anon: ['select'], authenticated: ['select'] },
+    customers: ["select", "insert", "update", "delete"],
+    organizations: ["select"],
+    "public.pricing_plans": { anon: ["select"], authenticated: ["select"] },
   },
-  sql: { kit: ['grants'] },
+  sql: { kit: ["grants"] },
 });
 ```
 

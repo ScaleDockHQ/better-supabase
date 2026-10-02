@@ -17,7 +17,7 @@ per entry:
 ```ts
 const [customers, notes] = await db
   .$many([
-    sb.spec.customers.findMany({ select: ['id', 'name'], limit: 10 }),
+    sb.spec.customers.findMany({ select: ["id", "name"], limit: 10 }),
     sb.spec.notes.count(),
   ])
   .orThrow();
@@ -33,20 +33,20 @@ each spec as usual. The first error fails the whole call.
 A read set names its reads once, with typed placeholders for parameters:
 
 ```ts title="src/lib/read-sets.ts"
-import { defineReadSet } from 'better-supabase';
+import { defineReadSet } from "better-supabase";
 
-import { sb } from './supabase.ts';
+import { sb } from "./supabase.ts";
 
 export const workspaceSummary = defineReadSet(
   sb,
-  'workspace_summary',
-  { params: { userId: 'uuid' } },
+  "workspace_summary",
+  { params: { userId: "uuid" } },
   (s, p) => ({
     customers: s.customers.count(),
     mine: s.customers.count({ where: { createdBy: p.userId } }),
     latestNote: s.notes.findFirst({
-      select: ['body', 'createdAt'],
-      orderBy: { createdAt: 'desc' },
+      select: ["body", "createdAt"],
+      orderBy: { createdAt: "desc" },
     }),
   }),
 );
@@ -56,8 +56,8 @@ List the module in the config and add the `read-sets` SQL kit module:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  readSets: ['src/lib/read-sets.ts'],
-  sql: { kit: ['read-sets'] },
+  readSets: ["src/lib/read-sets.ts"],
+  sql: { kit: ["read-sets"] },
 });
 ```
 
@@ -88,11 +88,11 @@ const summary = await db
 // { customers: number; mine: number; latestNote: { body: string; createdAt: string } | null }
 ```
 
-| Executor | What runs |
-| --- | --- |
-| PostgREST | One GET to `rpc/rs_<name>`. The function is `stable`, so a read replica can serve it |
-| `better-supabase/postgres` | The same reads with the values bound, in one transaction. The function isn't needed |
-| Anything else | The reads in parallel |
+| Executor                   | What runs                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| PostgREST                  | One GET to `rpc/rs_<name>`. The function is `stable`, so a read replica can serve it |
+| `better-supabase/postgres` | The same reads with the values bound, in one transaction. The function isn't needed  |
+| Anything else              | The reads in parallel                                                                |
 
 Rows come back exactly as `db.$run(spec)` would return them: same casing,
 codecs and [aggregates](/docs/repository/aggregates).
@@ -104,13 +104,13 @@ including `in` lists and string filters such as `contains`. The function
 reads each one from its `p jsonb` argument and casts it to the declared type,
 so nothing is built as dynamic SQL.
 
-| Type | TypeScript value |
-| --- | --- |
-| `uuid`, `text`, `date`, `timestamp`, `timestamptz` | `string` |
-| `int2`, `int4`, `int8`, `float4`, `float8`, `numeric` | `number` |
-| `bool` | `boolean` |
-| `<type>[]` | `readonly` array of the above |
-| `schema.type`, for example `public.note_kind` | `string` |
+| Type                                                  | TypeScript value              |
+| ----------------------------------------------------- | ----------------------------- |
+| `uuid`, `text`, `date`, `timestamp`, `timestamptz`    | `string`                      |
+| `int2`, `int4`, `int8`, `float4`, `float8`, `numeric` | `number`                      |
+| `bool`                                                | `boolean`                     |
+| `<type>[]`                                            | `readonly` array of the above |
+| `schema.type`, for example `public.note_kind`         | `string`                      |
 
 Name enums and domains with their schema: the function runs with an empty
 `search_path`. An enum column expects its literal union, so cast the
@@ -136,8 +136,8 @@ request time. Scope read sets with RLS, or with explicit parameters and
 - Each entry is one select: `findMany`, `findFirst`, `findUnique`,
   `findById`, `count`, `exists`, `aggregate` or an offset `paginate`.
 - A set has between 1 and 50 entries.
-- Names are snake_case, at most 60 characters. The function is
-  `public.rs_<name>`.
+- Names are snake*case, at most 60 characters. The function is
+  `public.rs*<name>`.
 - `gen` imports the module with Node, so relative imports need their `.ts`
   extension (`allowImportingTsExtensions` in `tsconfig.json`), and the module
   can't import `server-only`.
@@ -149,7 +149,7 @@ of specs) reads:
 
 ```ts
 export async function getWorkspaceSummary() {
-  'use cache: private';
+  "use cache: private";
   const { db, session } = await next.cached();
   next.cacheTags(workspaceSummary);
   return db.$many(workspaceSummary, { userId: session.user.id }).orThrow();

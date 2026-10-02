@@ -72,11 +72,11 @@ docs/
 (`portless.json`). The first run asks to trust the Portless certificate
 authority.
 
-| App | URL |
-|---|---|
-| Marketing | `https://www.localhost` |
-| Docs | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost` |
+| App             | URL                           |
+| --------------- | ----------------------------- |
+| Marketing       | `https://www.localhost`       |
+| Docs            | `https://docs.localhost/docs` |
+| Next.js example | `https://example.localhost`   |
 
 The seed (`supabase/seed.sql`) creates two Acme users with the password
 `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role
@@ -186,30 +186,30 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 
 ## When you change X, also update Y
 
-| Change | Also update |
-|---|---|
-| A generated-file shape | `packages/better-supabase/tests/fixtures` (`pnpm --filter @better-supabase/cli gen:fixtures`), `apps/examples/*/src/lib/supabase/*` |
-| A doctor finding | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`) |
-| The splinter pin | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together |
-| A rule in `plugins/rules` or `lint` | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx` |
-| A SQL kit module | `src/sql/kit.ts` registry, `sql-kit.integration.test.ts`, `kits/sql.mdx` |
-| A `DbError` kind | `problem.ts` status map, the errors docs page |
-| A subpath | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md` |
-| A public export | `api/exports.json` in `packages/better-supabase` or `packages/cli` (`vitest run tests/exports.test.ts -u`), review the diff |
-| An extension interface | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page |
-| A spec version | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin |
-| An adopted standard | a conformance test in `tests/standards` of the library or the CLI and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
-| A vendored official schema | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256) |
-| A consumer skill | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `packages/cli/src/commands/skills.ts` tests |
-| The package version | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not) |
-| A workflow | keep actions on their current major tag; Dependabot bumps them |
-| A docs route (`/mcp`, `/llms*`) | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts` |
-| A fixture table | its file in `supabase/schemas`, a migration from `pnpm supabase:diff` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen` |
-| An env key | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example` |
-| A route in docs or marketing | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public |
-| A UI primitive in marketing | `DESIGN.md` |
-| A dependency bump | the catalog pin in `pnpm-workspace.yaml`, the changeset or commit note, an ADR when it changes a one-library line |
-| A user-visible change | a changeset (`pnpm changeset`) |
+| Change                              | Also update                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A generated-file shape              | `packages/better-supabase/tests/fixtures` (`pnpm --filter @better-supabase/cli gen:fixtures`), `apps/examples/*/src/lib/supabase/*`                           |
+| A doctor finding                    | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`)                                                |
+| The splinter pin                    | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together                                                                                                              |
+| A rule in `plugins/rules` or `lint` | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx`                                                                               |
+| A SQL kit module                    | `src/sql/kit.ts` registry, `sql-kit.integration.test.ts`, `kits/sql.mdx`                                                                                      |
+| A `DbError` kind                    | `problem.ts` status map, the errors docs page                                                                                                                 |
+| A subpath                           | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md`                     |
+| A public export                     | `api/exports.json` in `packages/better-supabase` or `packages/cli` (`vitest run tests/exports.test.ts -u`), review the diff                                   |
+| An extension interface              | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page                                                       |
+| A spec version                      | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin                                                                          |
+| An adopted standard                 | a conformance test in `tests/standards` of the library or the CLI and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
+| A vendored official schema          | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256)                                                                                                  |
+| A consumer skill                    | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `packages/cli/src/commands/skills.ts` tests    |
+| The package version                 | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not)                                    |
+| A workflow                          | keep actions on their current major tag; Dependabot bumps them                                                                                                |
+| A docs route (`/mcp`, `/llms*`)     | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts`                                                                              |
+| A fixture table                     | its file in `supabase/schemas`, a migration from `pnpm supabase:diff` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                   |
+| An env key                          | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example`                                                   |
+| A route in docs or marketing        | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public                  |
+| A UI primitive in marketing         | `DESIGN.md`                                                                                                                                                   |
+| A dependency bump                   | the catalog pin in `pnpm-workspace.yaml`, the changeset or commit note, an ADR when it changes a one-library line                                             |
+| A user-visible change               | a changeset (`pnpm changeset`)                                                                                                                                |
 
 ## Hard rules
 

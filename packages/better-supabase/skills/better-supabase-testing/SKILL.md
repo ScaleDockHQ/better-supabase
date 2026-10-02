@@ -29,24 +29,26 @@ again once you restore it.
 - Typed fixtures live in `supabase/seed.ts`:
 
 ```ts
-import { defineSeed } from 'better-supabase/testing';
-import { sb } from '../src/lib/supabase.ts';
+import { defineSeed } from "better-supabase/testing";
+import { sb } from "../src/lib/supabase.ts";
 
 export const seed = defineSeed(sb, {
-  organizations: { acme: { id: ACME, name: 'Acme' } },
-  customers: { first: { id: FIRST, organizationId: ACME, name: 'First' } },
+  organizations: { acme: { id: ACME, name: "Acme" } },
+  customers: { first: { id: FIRST, organizationId: ACME, name: "First" } },
 });
 ```
 
-  `better-supabase seed` renders them to SQL for `supabase db reset`, and
-  tests import the same rows (`seed.rows.customers.first.id`).
+`better-supabase seed` renders them to SQL for `supabase db reset`, and
+tests import the same rows (`seed.rows.customers.first.id`).
 
 ## RLS tests
 
 ```ts
 const alice = await asUser(sb, { sub: aliceId, tenant_id: ACME }, { postgres });
 expect(await alice.db.customers.count().orThrow()).toBe(1);
-expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({ ok: false });
+expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({
+  ok: false,
+});
 ```
 
 - Check both directions: the user sees their own rows and never sees another tenant's.

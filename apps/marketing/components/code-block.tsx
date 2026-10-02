@@ -40,7 +40,7 @@ export async function CodeBlock({
         {snippet.filename}
       </figcaption>
       <div
-        className="overflow-x-auto p-4 text-code leading-6 [&_pre]:font-mono"
+        className="text-code overflow-x-auto p-4 leading-6 [&_pre]:font-mono"
         // Shiki output is generated at build time from the static snippets in lib/snippets.ts.
         dangerouslySetInnerHTML={{ __html: html }}
       />

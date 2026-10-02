@@ -16,7 +16,9 @@ in `app_metadata`. Update your custom access token hook, anything that sets
 ```ts title="src/lib/claims.ts"
 export const Claims = v.looseObject({
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
-  app_metadata: v.optional(v.looseObject({ tenant_id: v.optional(v.pipe(v.string(), v.uuid())) })),
+  app_metadata: v.optional(
+    v.looseObject({ tenant_id: v.optional(v.pipe(v.string(), v.uuid())) }),
+  ),
 });
 ```
 
@@ -25,7 +27,7 @@ per plugin. `plugins.tenant.claim` is gone:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  claims: { tenant: 'org_id' },
+  claims: { tenant: "org_id" },
 });
 ```
 
@@ -37,11 +39,11 @@ schemas, so claims your schema doesn't list reach the code that reads them.
 Run `better-supabase sql sync` (or `sql add` again) after upgrading. The
 modules change as follows:
 
-| 0.1 | 0.2 |
-| --- | --- |
-| `better_supabase.current_org_id()` | `better_supabase.current_tenant_id()` |
-| `membership_claims()` in the entitlements module, `[{ tenant_id, roles, entitlements }]` | `membership_claims()` in the tenant module, `[{ scope, id, roles }]` |
-| Plan features inside each membership | `feature_claims()` in the entitlements module, `{ [tenantId]: string[] }` in the `features` claim |
+| 0.1                                                                                      | 0.2                                                                                               |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `better_supabase.current_org_id()`                                                       | `better_supabase.current_tenant_id()`                                                             |
+| `membership_claims()` in the entitlements module, `[{ tenant_id, roles, entitlements }]` | `membership_claims()` in the tenant module, `[{ scope, id, roles }]`                              |
+| Plan features inside each membership                                                     | `feature_claims()` in the entitlements module, `{ [tenantId]: string[] }` in the `features` claim |
 
 Replace `current_org_id()` in your own policies and functions. A hook that
 used `membership_claims()` now sets two claims:

@@ -9,22 +9,25 @@ uploaded, the Auth user, and every row that points at `auth.users`.
 repository call.
 
 ```ts title="src/features/user/user-actions.ts"
-'use server';
+"use server";
 
-import { dbError, err } from 'better-supabase';
+import { dbError, err } from "better-supabase";
 
-import { avatars, documents } from '@/lib/buckets';
-import { next } from '@/lib/supabase.server';
+import { avatars, documents } from "@/lib/buckets";
+import { next } from "@/lib/supabase.server";
 
-export const deleteMyAccount = next.action({ aal: 'aal2' }, async (_input, { auth }) => {
-  if (auth.kind !== 'user') {
-    return err(dbError('unauthorized', 'Sign in to delete your account'));
-  }
-  return next.deleteAccount(auth.user.id, {
-    buckets: [avatars, documents],
-    cascades: ['notifications', 'memberships'],
-  });
-});
+export const deleteMyAccount = next.action(
+  { aal: "aal2" },
+  async (_input, { auth }) => {
+    if (auth.kind !== "user") {
+      return err(dbError("unauthorized", "Sign in to delete your account"));
+    }
+    return next.deleteAccount(auth.user.id, {
+      buckets: [avatars, documents],
+      cascades: ["notifications", "memberships"],
+    });
+  },
+);
 ```
 
 ```ts
@@ -59,12 +62,12 @@ and the call can be retried; objects already removed stay removed.
 
 ## Errors
 
-| kind | When |
-| --- | --- |
-| `conflict` | A foreign key to `auth.users` blocks the delete (`hint` points at BS406) |
-| `not_found` | No user with that id |
-| `network` | Auth or Storage is unreachable |
-| Storage kinds | A list or remove failed, with `table` set to the bucket id |
+| kind          | When                                                                     |
+| ------------- | ------------------------------------------------------------------------ |
+| `conflict`    | A foreign key to `auth.users` blocks the delete (`hint` points at BS406) |
+| `not_found`   | No user with that id                                                     |
+| `network`     | Auth or Storage is unreachable                                           |
+| Storage kinds | A list or remove failed, with `table` set to the bucket id               |
 
 ## Foreign keys
 
@@ -92,7 +95,7 @@ In the browser, sign out locally after the action succeeds. A normal
 `signOut()` would call Auth for a user that no longer exists:
 
 ```ts
-await supabase.auth.signOut({ scope: 'local' });
+await supabase.auth.signOut({ scope: "local" });
 ```
 
 ## Exports and retention

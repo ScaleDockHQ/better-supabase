@@ -11,21 +11,23 @@ directly. `withBetterSupabase(sb)` and `withBetterPostgres(sb)` are
 in a pipeline, and the type checker verifies the order.
 
 ```ts
-import { withSupabase } from '@supabase/server';
-import { withPostgresClient } from '@supabase/server/middleware/postgres';
-import { pipeline } from '@supabase/middleware';
-import { withBetterPostgres, withBetterSupabase } from 'better-supabase/server';
+import { withSupabase } from "@supabase/server";
+import { withPostgresClient } from "@supabase/server/middleware/postgres";
+import { pipeline } from "@supabase/middleware";
+import { withBetterPostgres, withBetterSupabase } from "better-supabase/server";
 
 export default {
   fetch: pipeline(
     [
-      withSupabase({ auth: 'user' }),
+      withSupabase({ auth: "user" }),
       withBetterSupabase(sb)(), // ctx.db, needs ctx.supabase
       withPostgresClient(),
       withBetterPostgres(sb)(), // ctx.sql, needs ctx.postgres
     ],
     async (req, ctx) => {
-      const customers = await ctx.db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+      const customers = await ctx.db.customers
+        .findMany({ select: ["id", "name"] })
+        .orThrow();
       return Response.json(customers);
     },
   ),
@@ -48,19 +50,19 @@ wrapping the proxy, so cookies and forwarded request headers are merged once
 and in the right order:
 
 ```ts title="src/proxy.ts"
-import createMiddleware from 'next-intl/middleware';
-import type { NextRequest } from 'next/server';
-import { next } from '@/lib/supabase.server';
-import { routing } from '@/i18n/routing';
+import createMiddleware from "next-intl/middleware";
+import type { NextRequest } from "next/server";
+import { next } from "@/lib/supabase.server";
+import { routing } from "@/i18n/routing";
 
 const intl = createMiddleware(routing);
 
 export const proxy = (request: NextRequest) =>
   next.proxy(request, {
     before: intl,
-    protect: (auth, req) => (auth.kind === 'user' ? undefined : toLogin(req)),
+    protect: (auth, req) => (auth.kind === "user" ? undefined : toLogin(req)),
     after: (response, auth) => {
-      if (auth.kind === 'user') response.headers.set('x-user-id', auth.user.id);
+      if (auth.kind === "user") response.headers.set("x-user-id", auth.user.id);
     },
     serverTiming: true,
   });
@@ -106,7 +108,9 @@ Keep static assets out of the matcher:
 
 ```ts
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)'],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)",
+  ],
 };
 ```
 
@@ -144,7 +148,7 @@ off:
 ```ts
 createNext(sb, {
   auth: {
-    clientIp: (request) => request.headers.get('cf-connecting-ip') ?? undefined,
+    clientIp: (request) => request.headers.get("cf-connecting-ip") ?? undefined,
     // clientIp: false,
   },
 });

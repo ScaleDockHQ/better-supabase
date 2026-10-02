@@ -7,14 +7,14 @@ Set `casing` in the config. The default is `'snake'`, which keeps database
 names as they are.
 
 ```ts
-export default defineConfig({ casing: 'camel' });
+export default defineConfig({ casing: "camel" });
 ```
 
 With `'camel'`, models, filters, includes and returned rows use camelCase.
 The mapping happens in the query itself, not in a post-processing pass:
 
 ```ts
-await db.customers.findMany({ select: ['id', 'organizationId'] });
+await db.customers.findMany({ select: ["id", "organizationId"] });
 // GET /customers?select=id,organizationId:organization_id
 ```
 
@@ -25,8 +25,8 @@ nested includes keep their shape.
 
 ```ts
 export default defineConfig({
-  casing: 'camel',
-  tables: { legacy_events: { casing: 'snake' } },
+  casing: "camel",
+  tables: { legacy_events: { casing: "snake" } },
 });
 ```
 

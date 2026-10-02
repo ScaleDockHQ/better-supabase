@@ -7,7 +7,7 @@ description: Page numbers with totals, or keyset cursors for infinite lists.
 
 ```ts
 const { items, page } = await db.customers
-  .paginate({ page: 2, size: 25, count: 'exact', orderBy: { name: 'asc' } })
+  .paginate({ page: 2, size: 25, count: "exact", orderBy: { name: "asc" } })
   .orThrow();
 // page: { number: 2, size: 25, total: 81, pages: 4, hasMore: true }
 ```
@@ -19,11 +19,11 @@ one extra row, so it never needs a count.
 
 ```ts
 const first = await db.customers
-  .paginate({ after: null, size: 25, orderBy: { name: 'asc' } })
+  .paginate({ after: null, size: 25, orderBy: { name: "asc" } })
   .orThrow();
 
 const next = await db.customers
-  .paginate({ after: first.nextCursor, size: 25, orderBy: { name: 'asc' } })
+  .paginate({ after: first.nextCursor, size: 25, orderBy: { name: "asc" } })
   .orThrow();
 ```
 
@@ -44,7 +44,7 @@ error. A `findMany` without `limit` can therefore look complete when it isn't.
 ```ts
 export const sb = defineSupabase(schema, { maxRows: 1000 });
 
-sb.on('query', ({ table, truncated }) => {
+sb.on("query", ({ table, truncated }) => {
   if (truncated) metrics.increment(`db.${table}.truncated`);
 });
 ```

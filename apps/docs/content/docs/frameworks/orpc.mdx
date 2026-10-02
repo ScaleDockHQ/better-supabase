@@ -4,24 +4,26 @@ description: A middleware that adds the caller's repositories to the oRPC contex
 ---
 
 ```ts title="src/router.ts"
-import { os } from '@orpc/server';
-import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
-import * as v from 'valibot';
-import { sb } from './supabase';
+import { os } from "@orpc/server";
+import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
+import * as v from "valibot";
+import { sb } from "./supabase";
 
 export const bs = createOrpc(sb);
 
 const base = os.$context<OrpcRequestContext>();
 const authed = base.use(bs.middleware());
-const open = base.use(bs.middleware({ allow: ['user', 'anon'] }));
+const open = base.use(bs.middleware({ allow: ["user", "anon"] }));
 
 export const router = {
   customers: {
     list: authed.handler(({ context }) =>
-      bs.unwrap(context.db.customers.findMany({ select: ['id', 'name'] })),
+      bs.unwrap(context.db.customers.findMany({ select: ["id", "name"] })),
     ),
     rename: authed
-      .input(v.object({ id: v.string(), name: v.pipe(v.string(), v.minLength(2)) }))
+      .input(
+        v.object({ id: v.string(), name: v.pipe(v.string(), v.minLength(2)) }),
+      )
       .handler(({ input, context }) =>
         bs.unwrap(context.db.customers.update(input.id, { name: input.name })),
       ),
@@ -33,14 +35,17 @@ export const router = {
 Pass the request as the initial context:
 
 ```ts
-import { RPCHandler } from '@orpc/server/fetch';
+import { RPCHandler } from "@orpc/server/fetch";
 
 const handler = new RPCHandler(router);
 
 export default {
   async fetch(request: Request) {
-    const { response } = await handler.handle(request, { prefix: '/rpc', context: { request } });
-    return response ?? new Response('Not found', { status: 404 });
+    const { response } = await handler.handle(request, {
+      prefix: "/rpc",
+      context: { request },
+    });
+    return response ?? new Response("Not found", { status: 404 });
   },
 };
 ```
@@ -68,8 +73,8 @@ error's `data` is the RFC 9457 Problem Details, so clients get the same
 `kind`, `code`, `constraint` and `issues` fields as the HTTP adapters send.
 
 ```ts
-import { safe } from '@orpc/client';
+import { safe } from "@orpc/client";
 
 const [error, data] = await safe(client.customers.rename({ id, name }));
-if (error?.data?.kind === 'conflict') showTaken(error.data.constraint);
+if (error?.data?.kind === "conflict") showTaken(error.data.constraint);
 ```

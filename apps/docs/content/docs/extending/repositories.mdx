@@ -9,12 +9,13 @@ Put domain queries next to the table they belong to. `defineRepository`
 returns a plugin that adds methods to one table only:
 
 ```ts title="src/lib/supabase.ts"
-import { defineRepository, defineSupabase } from 'better-supabase';
+import { defineRepository, defineSupabase } from "better-supabase";
 
 const base = defineSupabase(schema).use(tenant()).use(softDelete());
 
-const customers = defineRepository(base, 'customers', (repo) => ({
-  active: () => repo.findMany({ where: { status: 'active' }, orderBy: { name: 'asc' } }),
+const customers = defineRepository(base, "customers", (repo) => ({
+  active: () =>
+    repo.findMany({ where: { status: "active" }, orderBy: { name: "asc" } }),
   byKvk: (kvk: string) => repo.findFirst({ where: { kvk } }),
 }));
 
@@ -39,7 +40,8 @@ For methods that only one module needs, extend a repository in place:
 
 ```ts
 const customers = ctx.db.customers.extend((repo) => ({
-  withOpenInvoices: () => repo.findMany({ where: { invoices: { some: { status: 'open' } } } }),
+  withOpenInvoices: () =>
+    repo.findMany({ where: { invoices: { some: { status: "open" } } } }),
 }));
 ```
 
@@ -49,10 +51,10 @@ const customers = ctx.db.customers.extend((repo) => ({
 
 Each layer has a way out when the repository doesn't cover a query:
 
-| Need | Use |
-| --- | --- |
-| A PostgREST feature the repository lacks | `db.$client`, the supabase-js client (database column names) |
-| A database function | `db.$rpc(name, args, { returns })` |
-| Raw SQL under RLS | `ctx.sql` from [`/postgres`](/docs/auth/postgres) |
-| A different backend | an [`Executor`](/docs/extending/interfaces#executor) passed to `sb.connect()` |
-| Rewriting queries everywhere | a [plugin](/docs/extending/plugins) with `transformQuery` |
+| Need                                     | Use                                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------------------- |
+| A PostgREST feature the repository lacks | `db.$client`, the supabase-js client (database column names)                  |
+| A database function                      | `db.$rpc(name, args, { returns })`                                            |
+| Raw SQL under RLS                        | `ctx.sql` from [`/postgres`](/docs/auth/postgres)                             |
+| A different backend                      | an [`Executor`](/docs/extending/interfaces#executor) passed to `sb.connect()` |
+| Rewriting queries everywhere             | a [plugin](/docs/extending/plugins) with `transformQuery`                     |

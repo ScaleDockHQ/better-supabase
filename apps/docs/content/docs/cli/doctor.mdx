@@ -19,21 +19,21 @@ Advisors](https://supabase.com/docs/guides/database/database-advisors) (BS100
 and BS200), so the dashboard's findings show up locally and in CI. It exits
 with 1 when there are errors, or with any warning under `--strict`.
 
-| Option | Description |
-| --- | --- |
-| `--format <f>` | `text` (default), `json`, `sarif` or `github` |
-| `--out <file>` | Write the report to a file |
-| `--only <codes>` | Run only these checks, e.g. `--only BS100,BS304` |
-| `--ignore <codes>` | Skip checks. Adds to `doctor.ignore` in the config |
-| `--strict` | Fail on warnings. Same as `doctor.strict` |
-| `--snapshot <file>` | Check a saved snapshot instead of the database |
-| `--db-url <url>` | Database to introspect |
-| `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`) |
-| `--stats` | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209)) |
-| `--explain <tables>` | Plan these tables under RLS ([BS212](#bs212)) |
-| `--as <uuid>` | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405)) |
-| `--claims <json>` | With `--explain`: plan with these JWT claims |
-| `--fix-grants` | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a migration |
+| Option                | Description                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--format <f>`        | `text` (default), `json`, `sarif` or `github`                                                                                               |
+| `--out <file>`        | Write the report to a file                                                                                                                  |
+| `--only <codes>`      | Run only these checks, e.g. `--only BS100,BS304`                                                                                            |
+| `--ignore <codes>`    | Skip checks. Adds to `doctor.ignore` in the config                                                                                          |
+| `--strict`            | Fail on warnings. Same as `doctor.strict`                                                                                                   |
+| `--snapshot <file>`   | Check a saved snapshot instead of the database                                                                                              |
+| `--db-url <url>`      | Database to introspect                                                                                                                      |
+| `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                           |
+| `--stats`             | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                 |
+| `--explain <tables>`  | Plan these tables under RLS ([BS212](#bs212))                                                                                               |
+| `--as <uuid>`         | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405)) |
+| `--claims <json>`     | With `--explain`: plan with these JWT claims                                                                                                |
+| `--fix-grants`        | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a migration                                                  |
 
 Doctor never prints env values, only variable names and line numbers.
 
@@ -63,7 +63,7 @@ For GitHub code scanning, upload SARIF:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  doctor: { ignore: ['BS204'], strict: true },
+  doctor: { ignore: ["BS204"], strict: true },
 });
 ```
 
@@ -435,10 +435,10 @@ the `Authorization` header. With `--as <uuid>`, doctor calls the hook for that
 user the way Auth does, as `supabase_auth_admin` with the user's standard
 claims, in a transaction that is rolled back. Two limits apply:
 
-| Limit | Measures | Default |
-| --- | --- | --- |
-| Whole token | `octet_length` of all the claims | 2048 bytes, or `doctor.claimsLimit` without PermDock |
-| PermDock budget (only with a `permdock.config.ts`) | `octet_length` of `memberships` plus `attrs`, as PermDock's hook measures `supabase.hook.budget` | 1024 bytes, or `doctor.claimsLimit` |
+| Limit                                              | Measures                                                                                         | Default                                              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Whole token                                        | `octet_length` of all the claims                                                                 | 2048 bytes, or `doctor.claimsLimit` without PermDock |
+| PermDock budget (only with a `permdock.config.ts`) | `octet_length` of `memberships` plus `attrs`, as PermDock's hook measures `supabase.hook.budget` | 1024 bytes, or `doctor.claimsLimit`                  |
 
 Each one is a separate warning, so a normal PermDock token of 1.5 KB whose
 memberships fit the budget passes. Set `doctor.claimsLimit` to the same value

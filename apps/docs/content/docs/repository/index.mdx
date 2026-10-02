@@ -13,22 +13,25 @@ get the read methods only.
 
 ## Reading
 
-| Method | Returns |
-| --- | --- |
-| `findMany(args?)` | `Row[]` |
-| `findFirst(args?)` | `Row \| null` |
-| `findById(key, args?)` | `Row`, or a `not_found` error |
-| `count({ where? })` | `number` (a `HEAD` request) |
-| `exists({ where? })` | `boolean` |
+| Method                  | Returns                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `findMany(args?)`       | `Row[]`                                                                                                    |
+| `findFirst(args?)`      | `Row \| null`                                                                                              |
+| `findById(key, args?)`  | `Row`, or a `not_found` error                                                                              |
+| `count({ where? })`     | `number` (a `HEAD` request)                                                                                |
+| `exists({ where? })`    | `boolean`                                                                                                  |
 | `findUnique({ where })` | `Row \| null`, by the primary key or any unique key; see [unique keys](/docs/repository/unique-and-errors) |
-| `paginate(args)` | A page; see [pagination](/docs/repository/pagination) |
+| `paginate(args)`        | A page; see [pagination](/docs/repository/pagination)                                                      |
 
 Every read takes `select`, `where`, `include`, `orderBy`, `limit`, `offset`
 and `signal`. The result type follows `select` and `include`:
 
 ```ts
 const row = await db.customers
-  .findById(id, { select: ['name'], include: { notes: { select: ['body'], limit: 3 } } })
+  .findById(id, {
+    select: ["name"],
+    include: { notes: { select: ["body"], limit: 3 } },
+  })
   .orThrow();
 // { name: string; notes: { body: string }[] }
 ```

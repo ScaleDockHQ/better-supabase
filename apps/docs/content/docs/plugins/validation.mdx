@@ -4,9 +4,9 @@ description: Validate writes with zod, valibot or any Standard Schema.
 ---
 
 ```ts
-import { validation } from 'better-supabase/plugins/validation';
+import { validation } from "better-supabase/plugins/validation";
 
-import { validators } from './supabase/generated.zod.ts';
+import { validators } from "./supabase/generated.zod.ts";
 
 const sb = defineSupabase(schema).use(validation({ schemas: validators }));
 ```

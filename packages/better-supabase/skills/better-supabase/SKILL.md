@@ -49,10 +49,10 @@ stay hidden.
 
 ```ts
 const result = await db.customers.findMany({
-  select: ['id', 'name'],
-  where: { status: 'active', notes: { some: { kind: 'call' } } },
-  include: { organization: { select: ['name'] } },
-  orderBy: { name: 'asc' },
+  select: ["id", "name"],
+  where: { status: "active", notes: { some: { kind: "call" } } },
+  include: { organization: { select: ["name"] } },
+  orderBy: { name: "asc" },
   limit: 20,
 });
 if (!result.ok) return result; // DbError: kind, message, status, code

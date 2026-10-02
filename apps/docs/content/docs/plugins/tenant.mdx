@@ -4,7 +4,7 @@ description: Scope every query to the request's tenant, on top of RLS.
 ---
 
 ```ts
-import { tenant } from 'better-supabase/plugins/tenant';
+import { tenant } from "better-supabase/plugins/tenant";
 
 const sb = defineSupabase(schema).use(tenant());
 const db = sb.connect(supabase, { claims }); // or { tenant: orgId }
@@ -38,7 +38,9 @@ accepted:
 ```ts
 const sb = defineSupabase(schema)
   .claims(Claims)
-  .use(tenant<v.InferOutput<typeof Claims>>({ claim: 'app_metadata.tenant_id' }));
+  .use(
+    tenant<v.InferOutput<typeof Claims>>({ claim: "app_metadata.tenant_id" }),
+  );
 ```
 
 ## Missing tenant
@@ -52,6 +54,6 @@ await adminDb.customers.count({ allTenants: true });
 ```
 
 <Callout title="Not a replacement for RLS">
-  The plugin makes queries correct and indexes usable; RLS makes them safe.
-  Keep a tenant policy on every table. `better-supabase doctor` checks both.
+  The plugin makes queries correct and indexes usable; RLS makes them safe. Keep
+  a tenant policy on every table. `better-supabase doctor` checks both.
 </Callout>

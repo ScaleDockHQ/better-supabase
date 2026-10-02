@@ -47,10 +47,10 @@ pnpm better-supabase gen    # database.types.ts and generated.ts
 ### 2. Query
 
 ```ts
-import { createClient } from '@supabase/supabase-js';
-import { defineSupabase } from 'better-supabase';
+import { createClient } from "@supabase/supabase-js";
+import { defineSupabase } from "better-supabase";
 
-import { schema } from './lib/supabase/generated.ts';
+import { schema } from "./lib/supabase/generated.ts";
 
 export const sb = defineSupabase(schema);
 
@@ -58,10 +58,10 @@ const db = sb.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
   .findMany({
-    select: ['id', 'name'],
-    where: { status: 'active', notes: { some: { kind: 'call' } } },
-    include: { organization: { select: ['name'] } },
-    orderBy: { name: 'asc' },
+    select: ["id", "name"],
+    where: { status: "active", notes: { some: { kind: "call" } } },
+    include: { organization: { select: ["name"] } },
+    orderBy: { name: "asc" },
     limit: 20,
   })
   .orThrow();
@@ -80,7 +80,9 @@ export const proxy = (request: NextRequest) => next.proxy(request);
 // app/customers/page.tsx
 export default async function Customers() {
   const { db } = await next.server();
-  const customers = await db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+  const customers = await db.customers
+    .findMany({ select: ["id", "name"] })
+    .orThrow();
   return <CustomerList customers={customers} />;
 }
 ```
@@ -92,17 +94,20 @@ const bs = createHono(sb);
 
 const app = new Hono<BetterEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
-  .use('/api/*', bs.middleware())
-  .get('/api/customers', bs.handle((c, { db }) => db.customers.findMany({ limit: 20 })));
+  .use("/api/*", bs.middleware())
+  .get(
+    "/api/customers",
+    bs.handle((c, { db }) => db.customers.findMany({ limit: 20 })),
+  );
 ```
 
 ### MCP
 
 ```ts
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '1.0.0',
-  resources: { customers: { select: ['id', 'name', 'status'] } },
+  name: "crm",
+  version: "1.0.0",
+  resources: { customers: { select: ["id", "name", "status"] } },
 });
 
 Deno.serve(mcp.fetch);
@@ -110,13 +115,13 @@ Deno.serve(mcp.fetch);
 
 ## Works with
 
-| Area | Supported |
-| --- | --- |
-| Frameworks | Next.js 16, Hono, oRPC, Supabase Edge Functions, Deno, Bun, Workers |
-| Frontend | React 19, TanStack Query 5, live queries over Realtime |
-| Validation | Zod, Valibot and any Standard Schema |
-| Standards | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP |
-| Testing | Vitest, pgTAP, the Supabase local stack |
+| Area       | Supported                                                                 |
+| ---------- | ------------------------------------------------------------------------- |
+| Frameworks | Next.js 16, Hono, oRPC, Supabase Edge Functions, Deno, Bun, Workers       |
+| Frontend   | React 19, TanStack Query 5, live queries over Realtime                    |
+| Validation | Zod, Valibot and any Standard Schema                                      |
+| Standards  | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP |
+| Testing    | Vitest, pgTAP, the Supabase local stack                                   |
 
 ## For AI agents
 
@@ -155,31 +160,31 @@ The first `pnpm dev:portless` asks to trust the Portless certificate authority.
 
 ### Local URLs and logins
 
-| App | URL |
-|---|---|
-| Marketing | `https://www.localhost` |
-| Docs | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost` |
+| App             | URL                           |
+| --------------- | ----------------------------- |
+| Marketing       | `https://www.localhost`       |
+| Docs            | `https://docs.localhost/docs` |
+| Next.js example | `https://example.localhost`   |
 
 The seed creates two users in the Acme organization, both with the password
 `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role `member`).
 
 ### Scripts
 
-| Script | What it does |
-|---|---|
-| `pnpm verify` | The gate before every push: format, lint, prose, typecheck, Knip, boundaries, tests, doctor and audit |
-| `pnpm dev:portless` | Docs, marketing and the Next.js example on `.localhost` URLs |
-| `pnpm build` | Builds every package and app |
-| `pnpm test` | Unit and type tests |
-| `pnpm test:integration` | Integration tests against the local stack |
-| `pnpm test:e2e` | The example apps against the local stack |
-| `pnpm typecheck:matrix` | The published types against TypeScript 5.9, 6 and 7 |
-| `pnpm size` | Bundle size baselines and the WinterTC import check |
-| `pnpm supabase:reset` | Rebuilds the local database from the migrations and the seed |
-| `pnpm supabase:test` | pgTAP tests in `supabase/tests` |
-| `pnpm db:gen` | Regenerates the typed client in every example |
-| `pnpm changeset` | Records a user-visible change for the next release |
+| Script                  | What it does                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `pnpm verify`           | The gate before every push: format, lint, prose, typecheck, Knip, boundaries, tests, doctor and audit |
+| `pnpm dev:portless`     | Docs, marketing and the Next.js example on `.localhost` URLs                                          |
+| `pnpm build`            | Builds every package and app                                                                          |
+| `pnpm test`             | Unit and type tests                                                                                   |
+| `pnpm test:integration` | Integration tests against the local stack                                                             |
+| `pnpm test:e2e`         | The example apps against the local stack                                                              |
+| `pnpm typecheck:matrix` | The published types against TypeScript 5.9, 6 and 7                                                   |
+| `pnpm size`             | Bundle size baselines and the WinterTC import check                                                   |
+| `pnpm supabase:reset`   | Rebuilds the local database from the migrations and the seed                                          |
+| `pnpm supabase:test`    | pgTAP tests in `supabase/tests`                                                                       |
+| `pnpm db:gen`           | Regenerates the typed client in every example                                                         |
+| `pnpm changeset`        | Records a user-visible change for the next release                                                    |
 
 ### Layout
 

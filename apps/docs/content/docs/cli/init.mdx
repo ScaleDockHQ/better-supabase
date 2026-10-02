@@ -25,12 +25,12 @@ whether to overwrite files that exist. `add` without names asks which
 integrations to add. It never asks in CI, when stdin or stdout is not a
 terminal, or with `--yes`, which takes the flags and the defaults.
 
-| Found in `package.json` | Integrations |
-| --- | --- |
-| `next` | `next` (and `client`) |
-| `hono` | `hono` |
-| `@orpc/server` | `orpc` |
-| `vite`, `expo` | `client` |
+| Found in `package.json` | Integrations           |
+| ----------------------- | ---------------------- |
+| `next`                  | `next` (and `client`)  |
+| `hono`                  | `hono`                 |
+| `@orpc/server`          | `orpc`                 |
+| `vite`, `expo`          | `client`               |
 | `@tanstack/react-query` | `react` (and `client`) |
 
 Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
@@ -43,15 +43,15 @@ Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
 pnpm better-supabase add hono mcp
 ```
 
-| Integration | Writes |
-| --- | --- |
-| `client` | `lib/supabase.browser.ts` with the framework's public env variables |
-| `next` | `lib/supabase.server.ts` and `proxy.ts` |
-| `react` | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts` |
-| `hono` | `server.ts` with the middleware and error handler |
-| `orpc` | `router.ts` with the auth middleware |
-| `edge` | `supabase/functions/api` plus `supabase/functions/_shared/supabase.ts` |
-| `mcp` | `supabase/functions/mcp`, an MCP server as an Edge Function |
+| Integration | Writes                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `client`    | `lib/supabase.browser.ts` with the framework's public env variables    |
+| `next`      | `lib/supabase.server.ts` and `proxy.ts`                                |
+| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`    |
+| `hono`      | `server.ts` with the middleware and error handler                      |
+| `orpc`      | `router.ts` with the auth middleware                                   |
+| `edge`      | `supabase/functions/api` plus `supabase/functions/_shared/supabase.ts` |
+| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function            |
 
 Relative imports follow your `tsconfig.json`: they keep `.ts` when
 `allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.

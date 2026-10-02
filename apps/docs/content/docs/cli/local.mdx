@@ -14,13 +14,13 @@ It updates the variables it manages in place and keeps every other line.
 The browser variables get your framework's prefix (`NEXT_PUBLIC_`, `VITE_`,
 `EXPO_PUBLIC_`), or the one you pass with `--prefix`:
 
-| Variable | From |
-| --- | --- |
-| `<prefix>SUPABASE_URL` | `API_URL` |
-| `<prefix>SUPABASE_PUBLISHABLE_KEY` | `PUBLISHABLE_KEY` (or the legacy `ANON_KEY`) |
-| `SUPABASE_SECRET_KEY` | `SECRET_KEY` (or the legacy `SERVICE_ROLE_KEY`) |
-| `SUPABASE_DB_URL` | `DB_URL` |
-| `SUPABASE_JWT_SECRET` | `JWT_SECRET`, for HS256 [test tokens](/docs/testing) (`asUser(..., { alg: 'HS256' })`) |
+| Variable                           | From                                                                                   |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `<prefix>SUPABASE_URL`             | `API_URL`                                                                              |
+| `<prefix>SUPABASE_PUBLISHABLE_KEY` | `PUBLISHABLE_KEY` (or the legacy `ANON_KEY`)                                           |
+| `SUPABASE_SECRET_KEY`              | `SECRET_KEY` (or the legacy `SERVICE_ROLE_KEY`)                                        |
+| `SUPABASE_DB_URL`                  | `DB_URL`                                                                               |
+| `SUPABASE_JWT_SECRET`              | `JWT_SECRET`, for HS256 [test tokens](/docs/testing) (`asUser(..., { alg: 'HS256' })`) |
 
 Values are never printed unless you pass `--print`. `env` warns when the
 file isn't in `.gitignore`, and when your Supabase CLI only prints legacy keys.
@@ -42,15 +42,19 @@ existing tokens still verify.
 Define fixtures once, in app casing, checked against your Insert types:
 
 ```ts title="supabase/seed.ts"
-import { defineSeed } from 'better-supabase/testing';
-import { sb } from '../src/lib/supabase.ts';
+import { defineSeed } from "better-supabase/testing";
+import { sb } from "../src/lib/supabase.ts";
 
-export const ACME = '00000000-0000-4000-8000-000000000001';
+export const ACME = "00000000-0000-4000-8000-000000000001";
 
 export const seed = defineSeed(sb, {
-  organizations: { acme: { id: ACME, name: 'Acme', slug: 'acme' } },
+  organizations: { acme: { id: ACME, name: "Acme", slug: "acme" } },
   customers: {
-    first: { organizationId: ACME, name: 'First customer', metadata: { tier: 'pro' } },
+    first: {
+      organizationId: ACME,
+      name: "First customer",
+      metadata: { tier: "pro" },
+    },
   },
 });
 ```

@@ -19,19 +19,19 @@ pnpm run verify
 
 `pnpm install` runs `lefthook install` through the `prepare` script, so the Git hooks are set up locally.
 
-| Command                  | What it does                                                |
-| ------------------------ | ----------------------------------------------------------- |
+| Command                  | What it does                                                              |
+| ------------------------ | ------------------------------------------------------------------------- |
 | `pnpm run verify`        | Format check, lint, prose, typecheck, boundaries, tests, doctor and audit |
-| `pnpm run build`         | `turbo run build`                                           |
-| `pnpm run test`          | Unit and type tests                                         |
-| `pnpm typecheck:matrix`  | Published types against TypeScript 5.9, 6 and 7             |
-| `pnpm typecheck:perf`    | Type-instantiation benchmark on 150- and 250-table schemas  |
-| `pnpm size`              | Bundle size baselines and the WinterTC import check         |
-| `pnpm test:integration`  | Integration tests against a running `supabase start` stack  |
-| `pnpm test:e2e`          | The example apps against a running `supabase start` stack   |
-| `pnpm run check:publish` | publint and arethetypeswrong on the packed tarball          |
-| `pnpm run format`        | Format with Oxfmt                                           |
-| `pnpm changeset`         | Add a changeset for a user-visible change                   |
+| `pnpm run build`         | `turbo run build`                                                         |
+| `pnpm run test`          | Unit and type tests                                                       |
+| `pnpm typecheck:matrix`  | Published types against TypeScript 5.9, 6 and 7                           |
+| `pnpm typecheck:perf`    | Type-instantiation benchmark on 150- and 250-table schemas                |
+| `pnpm size`              | Bundle size baselines and the WinterTC import check                       |
+| `pnpm test:integration`  | Integration tests against a running `supabase start` stack                |
+| `pnpm test:e2e`          | The example apps against a running `supabase start` stack                 |
+| `pnpm run check:publish` | publint and arethetypeswrong on the packed tarball                        |
+| `pnpm run format`        | Format with Oxfmt                                                         |
+| `pnpm changeset`         | Add a changeset for a user-visible change                                 |
 
 The local stack uses the API on port 55421 and Postgres on 55422. Override them with `SUPABASE_URL` and `SUPABASE_DB_URL`.
 

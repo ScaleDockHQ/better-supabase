@@ -9,17 +9,17 @@ Most apps have a lot of list pages that each hand-roll the same things: read
 per table.
 
 ```ts title="lib/lists.ts"
-import { defineListQuery } from 'better-supabase/list';
-import { sb } from './sb';
+import { defineListQuery } from "better-supabase/list";
+import { sb } from "./sb";
 
-export const customerList = defineListQuery(sb, 'customers', {
-  search: ['name', 'kvk'],
-  facets: { status: 'status', kvk: 'kvk' },
+export const customerList = defineListQuery(sb, "customers", {
+  search: ["name", "kvk"],
+  facets: { status: "status", kvk: "kvk" },
   sorts: {
-    name: [{ name: 'asc' }, { id: 'asc' }],
-    newest: [{ createdAt: 'desc' }, { id: 'asc' }],
+    name: [{ name: "asc" }, { id: "asc" }],
+    newest: [{ createdAt: "desc" }, { id: "asc" }],
   },
-  defaultSort: 'newest',
+  defaultSort: "newest",
   pageSize: 25, // default 50, capped by maxPageSize (default 200)
 });
 ```
@@ -62,10 +62,10 @@ Filter UIs usually show how many rows each facet value would match
 `page.facetCounts`:
 
 ```ts
-export const customerList = defineListQuery(sb, 'customers', {
-  facets: { status: 'status', kvk: 'kvk' },
-  sorts: { name: { name: 'asc' } },
-  defaultSort: 'name',
+export const customerList = defineListQuery(sb, "customers", {
+  facets: { status: "status", kvk: "kvk" },
+  sorts: { name: { name: "asc" } },
+  defaultSort: "name",
   facetCounts: true,
 });
 
@@ -98,12 +98,12 @@ expect(db.$stats()).toMatchObject({ calls: 2, waves: 1 });
 
 ## What it compiles to
 
-| Input                       | Filter                                          |
-| --------------------------- | ----------------------------------------------- |
-| `q=road`                    | `name ilike '%road%' or kvk ilike '%road%'`     |
-| `status=active,lead`        | `status in ('active', 'lead')`                  |
-| `kvk=__unset__`             | `kvk is null`                                   |
-| `kvk=__unset__,1001`        | `kvk in ('1001') or kvk is null`                |
+| Input                | Filter                                      |
+| -------------------- | ------------------------------------------- |
+| `q=road`             | `name ilike '%road%' or kvk ilike '%road%'` |
+| `status=active,lead` | `status in ('active', 'lead')`              |
+| `kvk=__unset__`      | `kvk is null`                               |
+| `kvk=__unset__,1001` | `kvk in ('1001') or kvk is null`            |
 
 Search text is trimmed, capped at `maxSearchLength` (200) and escaped: `%`,
 `_` and `\` match literally, and commas, parentheses and quotes can't break out
@@ -123,7 +123,8 @@ generated schema. `__unset__` (exported as `UNSET`) is only allowed on
 nullable columns. Every problem is reported with a path:
 
 ```ts
-customerList.parse(new URLSearchParams('sort=oldest&page=0&status=bogus')).issues;
+customerList.parse(new URLSearchParams("sort=oldest&page=0&status=bogus"))
+  .issues;
 // [{ path: ['sort'], ... }, { path: ['page'], ... }, { path: ['facets', 'status'], ... }]
 ```
 
@@ -144,8 +145,8 @@ For client-side state with [nuqs](https://nuqs.dev), pass its `createParser`.
 better-supabase does not depend on nuqs:
 
 ```ts
-'use client';
-import { createParser, useQueryStates } from 'nuqs';
+"use client";
+import { createParser, useQueryStates } from "nuqs";
 
 const parsers = customerList.nuqs(createParser);
 const [state, setState] = useQueryStates(parsers);

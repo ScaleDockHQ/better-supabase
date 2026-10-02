@@ -25,9 +25,10 @@ Content-Type: application/problem+json
 ```
 
 ```ts
-import { fromProblem, problemResponse } from 'better-supabase';
+import { fromProblem, problemResponse } from "better-supabase";
 
-if (!result.ok) return problemResponse(result.error, { instance: url.pathname });
+if (!result.ok)
+  return problemResponse(result.error, { instance: url.pathname });
 
 // client side
 const error = fromProblem(await response.json()); // back to a DbError
