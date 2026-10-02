@@ -31,19 +31,19 @@ function visitCondition(
     case "and":
     case "or":
       for (const item of condition.items) visitCondition(item, tables);
-      return;
+      break;
     case "not":
       visitCondition(condition.item, tables);
-      return;
+      break;
     case "column":
-      return;
+      break;
     case "relation":
       tables.add(condition.target.key);
       visitCondition(condition.where, tables);
-      return;
+      break;
     default: {
       const exhaustive: never = condition;
-      return exhaustive;
+      throw new TypeError(`Unknown condition: ${String(exhaustive)}`);
     }
   }
 }

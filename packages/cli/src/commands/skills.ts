@@ -157,26 +157,29 @@ export async function runSkills(
   const check = args.check === true;
   const lines: string[] = [];
   const stale: string[] = [];
-  for (const agent of agents) {
-    for (const skill of skills) {
-      for (const file of skill.files) {
-        const relativePath = join(AGENT_DIRS[agent], skill.name, file.path);
-        const path = resolve(base, relativePath);
-        const shown = global
-          ? `~/${relativePath}`
-          : display(config.root, relativePath);
-        if (check) {
-          const current = existsSync(path)
-            ? await readFile(path, "utf8")
-            : undefined;
-          if (current !== file.contents) stale.push(shown);
-          continue;
-        }
-        lines.push(
-          `${(await writeIfChanged(path, file.contents)) ? "Wrote" : "Unchanged"} ${shown}`,
-        );
-      }
+  const targets = agents.flatMap((agent) =>
+    skills.flatMap((skill) =>
+      skill.files.map((file) => ({
+        file,
+        relativePath: join(AGENT_DIRS[agent], skill.name, file.path),
+      })),
+    ),
+  );
+  for (const { file, relativePath } of targets) {
+    const path = resolve(base, relativePath);
+    const shown = global
+      ? `~/${relativePath}`
+      : display(config.root, relativePath);
+    if (check) {
+      const current = existsSync(path)
+        ? await readFile(path, "utf8")
+        : undefined;
+      if (current !== file.contents) stale.push(shown);
+      continue;
     }
+    lines.push(
+      `${(await writeIfChanged(path, file.contents)) ? "Wrote" : "Unchanged"} ${shown}`,
+    );
   }
   if (check) {
     return stale.length === 0

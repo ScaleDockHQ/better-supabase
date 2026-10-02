@@ -95,7 +95,9 @@ describe("CloudEvents", () => {
       .connect(client)
       .customers.create({ organizationId: "o1", name: "N" })
       .orThrow();
-    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledOnce();
+    });
   });
 
   it("round-trips the HTTP binding in every mode", async () => {

@@ -578,10 +578,10 @@ export function defineBucket<
         string | undefined,
       ][] = [];
       const inBucket = `bucket_id = ${id}`;
-      const shape = `name ~ ${sqlString(template.sqlPattern)}`;
+      const pathMatch = `name ~ ${sqlString(template.sqlPattern)}`;
       if (accessCheck) {
         const using = `${inBucket} and ${accessCheck}`;
-        const write = `${using} and ${shape}`;
+        const write = `${using} and ${pathMatch}`;
         policies.push(
           ["select", "select", "authenticated", using, undefined],
           ["insert", "insert", "authenticated", undefined, write],
@@ -631,9 +631,15 @@ export function defineBucket<
             "insert",
             "authenticated",
             undefined,
-            `${write} and ${shape}`,
+            `${write} and ${pathMatch}`,
           ],
-          ["update", "update", "authenticated", write, `${write} and ${shape}`],
+          [
+            "update",
+            "update",
+            "authenticated",
+            write,
+            `${write} and ${pathMatch}`,
+          ],
           [
             "delete",
             "delete",
@@ -897,21 +903,23 @@ function connectBucket<P extends string, Id extends string>(
             ttlSeconds(options?.ttl),
             download(options?.download),
           ),
-        ).andThen(async (data) => {
+        ).andThen((data) => {
           const failed = data.find(
             (entry) => entry.error != null || !entry.signedUrl,
           );
           if (failed)
-            return err(
-              dbError(
-                "not_found",
-                failed.error ?? `No URL for ${String(failed.path)}`,
-                { table: bucket.id },
+            return Promise.resolve(
+              err(
+                dbError(
+                  "not_found",
+                  failed.error ?? `No URL for ${String(failed.path)}`,
+                  { table: bucket.id },
+                ),
               ),
             );
           // SAFETY: the failure check above returned early, so every entry has
           // a signed URL.
-          return ok(data.map((entry) => entry.signedUrl as string));
+          return Promise.resolve(ok(data.map((entry) => entry.signedUrl!)));
         });
       }),
     publicUrl(target, options) {
@@ -923,12 +931,14 @@ function connectBucket<P extends string, Id extends string>(
     },
     renderUrl(target, transform, options) {
       if (!bucket.public) return signedUrl(target, { ...options, transform });
-      return AsyncResult.from(async () =>
-        ok(
-          api().getPublicUrl(resolve(target), {
-            ...download(options?.download),
-            transform: { ...transform },
-          }).data.publicUrl,
+      return AsyncResult.from(() =>
+        Promise.resolve(
+          ok(
+            api().getPublicUrl(resolve(target), {
+              ...download(options?.download),
+              transform: { ...transform },
+            }).data.publicUrl,
+          ),
         ),
       );
     },

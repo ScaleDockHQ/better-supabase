@@ -48,7 +48,9 @@ function fakeClient(
       return channel;
     },
     subscribe: vi.fn((callback: (status: string, error?: Error) => void) => {
-      queueMicrotask(() => callback(status, error ?? undefined));
+      queueMicrotask(() => {
+        callback(status, error ?? undefined);
+      });
       return channel;
     }),
     httpSend: vi.fn(
@@ -77,7 +79,10 @@ function fakeClient(
   };
 }
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const flush = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 
 describe("defineTopic", () => {
   const notifications = defineTopic(topics.notifications, {
@@ -389,7 +394,9 @@ describe("defineTopic", () => {
     raw.realtime.setAuth.mockImplementationOnce(
       () =>
         new Promise<undefined>((resolve) => {
-          release = () => resolve(undefined);
+          release = () => {
+            resolve(undefined);
+          };
         }),
     );
     const subscription = notifications.subscribe(

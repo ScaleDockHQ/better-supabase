@@ -51,8 +51,10 @@ describe("gen", () => {
     const tables: Generator = {
       name: "tables",
       generate: (input) => {
-        seen.push(input.importPath("src/db/tables.ts", "src/db/generated.ts"));
-        seen.push(input.output);
+        seen.push(
+          input.importPath("src/db/tables.ts", "src/db/generated.ts"),
+          input.output,
+        );
         return [
           {
             path: "src/db/tables.ts",

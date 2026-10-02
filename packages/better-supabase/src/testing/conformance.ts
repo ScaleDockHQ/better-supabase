@@ -134,11 +134,12 @@ function tableKey(sb: AnySupabase, table: string | undefined): string {
 
 const hasName = (subject: { readonly name?: unknown }): Check => [
   "has a name",
-  () =>
+  () => {
     expect(
       typeof subject.name === "string" && subject.name.length > 0,
       "name must be a non-empty string",
-    ),
+    );
+  },
 ];
 
 export interface TestExecutorOptions {
@@ -657,12 +658,13 @@ export function testPlugin(
     hasName(plugin),
     [
       "targets plugin API v1",
-      () =>
+      () => {
         expect(
           // oxlint-disable-next-line typescript/no-unnecessary-condition -- the kit checks plugins written in JavaScript too.
           plugin.apiVersion === 1,
           `apiVersion is ${String(plugin.apiVersion)}`,
-        ),
+        );
+      },
     ],
     [
       "installs and builds repositories",

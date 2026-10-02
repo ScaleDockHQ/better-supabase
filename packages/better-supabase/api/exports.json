@@ -76,7 +76,7 @@
       "ApplyExtension",
       "AuthEvent",
       "BetterResultApi",
-      "BetterResultShape",
+      "BetterResultValue",
       "BetterSupabaseEvents",
       "CacheAdapter",
       "CacheTarget",

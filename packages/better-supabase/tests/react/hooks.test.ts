@@ -247,7 +247,9 @@ function fakeRealtime() {
         },
         subscribe: (callback: (status: string) => void) => {
           entry.status = callback;
-          queueMicrotask(() => callback("SUBSCRIBED"));
+          queueMicrotask(() => {
+            callback("SUBSCRIBED");
+          });
           return channel;
         },
       };
@@ -290,8 +292,14 @@ function fakeBrowser(initial: AuthSnapshot, run?: BrowserLike["db"]) {
   return { browser, setAuth, listeners, ...realtime };
 }
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const flush = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+const wait = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 function cachedClient(...keys: (readonly unknown[])[]) {
   const queryClient = new QueryClient();
@@ -344,7 +352,7 @@ describe("BetterSupabaseProvider", () => {
   it("explains a missing provider", () => {
     const view = renderHook(() => useSupabase(), undefined, null);
     expect(view.error).toBeInstanceOf(Error);
-    expect((view.error as Error).message).toMatch(/BetterSupabaseProvider/);
+    expect(view.error!.message).toMatch(/BetterSupabaseProvider/);
   });
 });
 
@@ -394,7 +402,7 @@ describe("useBroadcast", () => {
       undefined,
       { browser },
     );
-    expect((view.error as Error).message).toMatch(
+    expect(view.error!.message).toMatch(
       /useBroadcast\(\{ invalidate \}\) needs <BetterSupabaseProvider queryClient/,
     );
   });
@@ -550,7 +558,7 @@ describe("useLiveQuery", () => {
     const paused = renderHook(() => useLiveQuery(null), undefined, { browser });
     expect(paused.result).toBe("closed");
     const view = renderHook(() => useLiveQuery(spec), undefined, { browser });
-    expect((view.error as Error).message).toMatch(
+    expect(view.error!.message).toMatch(
       /useLiveQuery needs <BetterSupabaseProvider queryClient/,
     );
   });

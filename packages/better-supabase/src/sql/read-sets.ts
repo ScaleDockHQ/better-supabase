@@ -26,9 +26,9 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
     const seen: Operation[] = [];
     const capture: Executor = {
       name: "read-set-compiler",
-      execute: async (op) => {
+      execute: (op) => {
         seen.push(op);
-        return ok({ rows: [], count: 0 });
+        return Promise.resolve(ok({ rows: [], count: 0 }));
       },
     };
     // SAFETY: the capture executor only records queries, and repositories are
@@ -118,7 +118,7 @@ function literal(set: ReadSet, value: unknown): string {
 }
 
 function inline(set: ReadSet, query: SqlQuery): string {
-  return query.text.replace(/\$(\d+)/g, (_, index: string) =>
+  return query.text.replaceAll(/\$(\d+)/g, (_, index: string) =>
     literal(set, query.params[Number(index) - 1]),
   );
 }

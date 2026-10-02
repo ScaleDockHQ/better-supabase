@@ -1348,11 +1348,12 @@ uri = "https://example.com/hook"
       ...PERMDOCK,
       manifest: parseManifest(manifest),
     };
+    const entitlementsConfig: Parameters<typeof resolveConfig>[0] = {
+      sql: { kit: ["entitlements"] },
+    };
     const check = (
       extra: Partial<DoctorContext> = {},
-      config: Parameters<typeof resolveConfig>[0] = {
-        sql: { kit: ["entitlements"] },
-      },
+      config = entitlementsConfig,
     ) =>
       runRules(
         context(base, {

@@ -68,9 +68,9 @@ function field(
     imported ??
     (plan.customJson
       ? `z.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
-      : plan.column.storage !== undefined
-        ? `(z.string() as unknown as z.ZodType<${rowType(table, plan)}>)`
-        : scalar(plan.scalar));
+      : plan.column.storage === undefined
+        ? scalar(plan.scalar)
+        : `(z.string() as unknown as z.ZodType<${rowType(table, plan)}>)`);
   if (plan.column.array) expr = `z.array(${expr})`;
   if (plan.nullable) expr = `${expr}.nullable()`;
   if (plan.optional) expr = `${expr}.exactOptional()`;
@@ -101,10 +101,12 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         );
       }
 
-      const lines = [HEADER, 'import { z } from "zod";', ""];
-      lines.push(
+      const lines = [
+        HEADER,
+        'import { z } from "zod";',
+        "",
         `import type { InsertOf, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
-      );
+      ];
       for (const [from, names] of imports) {
         lines.push(
           `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
@@ -132,8 +134,11 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         }
       }
 
-      lines.push("", "/** Write validators for the validation plugin. */");
-      lines.push("export const validators: {");
+      lines.push(
+        "",
+        "/** Write validators for the validation plugin. */",
+        "export const validators: {",
+      );
       for (const [key, table] of tableEntries(input)) {
         if (!variantsFor(table).includes("Insert")) continue;
         lines.push(

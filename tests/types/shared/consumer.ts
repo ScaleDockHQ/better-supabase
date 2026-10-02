@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { QueryClient } from "@tanstack/react-query";
 import {
   type AsyncResult,
-  type BetterResultShape,
+  type BetterResultValue,
   type CacheAdapter,
   type DbError,
   defineRepository,
@@ -249,7 +249,7 @@ export function integrations(): unknown[] {
       toBetterResult(
         { ok: true, data: 1, error: null },
         { ok: (value) => ({ status: "ok", value }), err: (error) => error },
-      ) satisfies BetterResultShape<number, DbError>,
+      ) satisfies BetterResultValue<number, DbError>,
     ) satisfies Result<number>,
   ];
 }

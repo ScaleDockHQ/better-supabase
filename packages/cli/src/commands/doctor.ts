@@ -182,7 +182,7 @@ async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
 }
 
 const escape = (name: string): string =>
-  name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Where a table, function or policy is declared: declarative schemas first, then the newest migration. */
 export function locate(
@@ -389,12 +389,12 @@ export async function runDoctor(
         }
       : {
           ...openLive(config, env, source, pg),
-          ...(options.advisors !== undefined
-            ? { advisors: options.advisors }
-            : {}),
-          ...(options.database !== undefined
-            ? { database: options.database }
-            : {}),
+          ...(options.advisors === undefined
+            ? {}
+            : { advisors: options.advisors }),
+          ...(options.database === undefined
+            ? {}
+            : { database: options.database }),
         };
   const envFiles = (
     await Promise.all(ENV_FILES.map((path) => readText(config.root, path)))

@@ -386,9 +386,10 @@ describe("sql", () => {
     expect(added.code).toBe(0);
     expect(added.stdout).not.toContain("tenant");
     expect(added.stdout).not.toContain("came along as a dependency");
-    const path = added.stdout.match(
-      /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/,
-    )![0];
+    const path =
+      /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/.exec(
+        added.stdout,
+      )![0];
     expect(await readFile(join(dir, path), "utf8")).toContain(
       '"public"."member_organization_ids_for"(feature_claims.user_id)',
     );

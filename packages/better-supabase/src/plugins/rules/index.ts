@@ -168,8 +168,8 @@ function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
 function isBrowser(): boolean {
   // SAFETY: window and document are only read to check whether they exist.
   return (
-    typeof (globalThis as { window?: unknown }).window !== "undefined" &&
-    typeof (globalThis as { document?: unknown }).document !== "undefined"
+    (globalThis as { window?: unknown }).window !== undefined &&
+    (globalThis as { document?: unknown }).document !== undefined
   );
 }
 
@@ -184,13 +184,15 @@ function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
   let templates = templatesBySchema.get(schema);
   if (!templates) {
     templates = Object.values(schema.buckets ?? {})
-      .filter((bucket) => bucket.path.replace(/\{[^}]*\}|\//g, "").length > 0)
+      .filter(
+        (bucket) => bucket.path.replaceAll(/\{[^}]*\}|\//g, "").length > 0,
+      )
       .map(
         (bucket) =>
           new RegExp(
             `^${bucket.path
               .split(/\{[^}]*\}/)
-              .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+              .map((part) => part.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"))
               .join("[^/]+")}$`,
           ),
       );
@@ -264,8 +266,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         : undefined;
     },
     requireTenantContext: (op, { context, schema }) => {
-      if (!op.table.flags.tenant || context.actor?.kind === "service")
-        return undefined;
+      if (!op.table.flags.tenant || context.actor?.kind === "service") return;
       const claim = optionOf(
         rules.requireTenantContext,
         claimsOf(schema).tenant,
@@ -280,7 +281,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         ? "a service-role connection is running in a browser"
         : undefined,
     noSensitiveSelect: (op, { options }) => {
-      if (options["sensitive"] === true) return undefined;
+      if (options["sensitive"] === true) return;
       const selection = op.kind === "select" ? op.selection : op.returning;
       const columns = selection ? sensitiveColumns(selection, op.table) : [];
       return columns.length > 0

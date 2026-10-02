@@ -43,7 +43,9 @@ describe("pgSource", () => {
     expect(events).toEqual(["start bad"]);
     pending.get("bad")!();
     await expect(first).rejects.toThrow("syntax error");
-    await new Promise((done) => setTimeout(done, 0));
+    await new Promise((done) => {
+      setTimeout(done, 0);
+    });
     expect(events).toEqual(["start bad", "end bad", "start second"]);
     pending.get("second")!();
     expect(await second).toEqual({ rows: [{ text: "second" }] });

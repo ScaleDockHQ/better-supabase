@@ -526,7 +526,7 @@ const OWN_RULES: readonly Rule[] = [
       Object.entries(context.config.buckets).flatMap(([name, bucket]) => {
         const id =
           bucket.id ??
-          name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+          name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
         const defined = defineBucket({
           id,
           path: bucket.path,
@@ -563,7 +563,7 @@ const OWN_RULES: readonly Rule[] = [
         const line = lineOf(
           toml.text,
           new RegExp(
-            `^\\[storage\\.buckets\\.${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`,
+            `^\\[storage\\.buckets\\.${id.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`,
           ),
         );
         const inToml = defined
@@ -834,8 +834,8 @@ const OWN_RULES: readonly Rule[] = [
         patterns.some((pattern) => {
           const source = pattern
             .replace(/^\//, "")
-            .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-            .replace(/\*/g, ".*");
+            .replaceAll(/[.+^${}()|[\]\\]/g, "\\$&")
+            .replaceAll("*", ".*");
           return (
             new RegExp(`^${source}$`).test(path) ||
             new RegExp(`(^|/)${source}$`).test(path)

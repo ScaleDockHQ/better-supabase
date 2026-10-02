@@ -321,7 +321,12 @@ describe("run", () => {
       ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
-        io: io({ stdout: () => setTimeout(() => controller.abort(), 0) }),
+        io: io({
+          stdout: () =>
+            setTimeout(() => {
+              controller.abort();
+            }, 0),
+        }),
       },
     );
     expect(result.code).toBe(0);

@@ -70,7 +70,9 @@ export function defineCliCommand<const T extends ArgsDef>(
 }
 
 /** The list options a command declared through `defineCliCommand`. */
-export function listArgs(command: object): readonly string[] {
+export function listArgs<T extends ArgsDef>(
+  command: CommandDef<T>,
+): readonly string[] {
   return LISTS.get(command) ?? [];
 }
 

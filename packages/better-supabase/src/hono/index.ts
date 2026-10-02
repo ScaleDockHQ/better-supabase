@@ -139,7 +139,7 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
         c.set("auth", ctx.auth);
         await next();
         c.res = ctx.resolution.apply(c.res);
-        return undefined;
+        return;
       };
     },
 

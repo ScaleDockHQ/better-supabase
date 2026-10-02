@@ -49,7 +49,7 @@ export const clackPrompter: Prompter = {
       options: options(choices),
       initialValue: initial,
     });
-    if (isCancel(answer)) return undefined;
+    if (isCancel(answer)) return;
     return choices.find((choice) => choice.value === answer)?.value;
   },
   multiselect: async (message, choices, initial) => {
@@ -59,7 +59,7 @@ export const clackPrompter: Prompter = {
       initialValues: [...initial],
       required: false,
     });
-    if (isCancel(answer)) return undefined;
+    if (isCancel(answer)) return;
     return choices
       .filter((choice) => answer.includes(choice.value))
       .map((choice) => choice.value);
@@ -71,7 +71,9 @@ export const clackPrompter: Prompter = {
   spinner: (message) => {
     const spin = spinner({ output: process.stderr });
     spin.start(message);
-    return () => spin.clear();
+    return () => {
+      spin.clear();
+    };
   },
 };
 

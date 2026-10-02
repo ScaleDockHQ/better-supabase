@@ -47,7 +47,7 @@ function parseSegment(segment: string): Part[] {
 }
 
 const escapeRegex = (text: string): string =>
-  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function parseTemplate(
   source: string,
@@ -192,7 +192,7 @@ export function sqlIdent(value: string): string {
 /** Postgres identifier-safe name part: `customer-logos` → `customer_logos`. */
 export function slug(value: string): string {
   return value
-    .replace(/[^A-Za-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "")
+    .replaceAll(/[^A-Za-z0-9]+/g, "_")
+    .replaceAll(/^_|_$/g, "")
     .toLowerCase();
 }

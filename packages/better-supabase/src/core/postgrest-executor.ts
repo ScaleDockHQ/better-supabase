@@ -130,7 +130,10 @@ function applyFilters(builder: BuilderLike, plan: PostgrestPlan): BuilderLike {
   return query;
 }
 
-function applyShape(builder: BuilderLike, plan: PostgrestPlan): BuilderLike {
+function applyOrderAndLimits(
+  builder: BuilderLike,
+  plan: PostgrestPlan,
+): BuilderLike {
   let query = builder;
   for (const order of plan.orders) {
     const options: {
@@ -168,7 +171,7 @@ function build(
       const selected = op.source
         ? fromFunction(client, op.source, options).select(plan.select)
         : base.select(plan.select, options);
-      let query = applyShape(applyFilters(selected, plan), plan);
+      let query = applyOrderAndLimits(applyFilters(selected, plan), plan);
       if (op.single === "one") query = query.single();
       if (op.single === "maybe") query = query.maybeSingle();
       return query;

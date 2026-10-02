@@ -709,7 +709,7 @@ export function defineListQuery<
         params.set("sort", query.sort);
       if (query.page && query.page !== 1)
         params.set("page", String(query.page));
-      if (query.size && query.size !== pageSize)
+      if (query.size !== undefined && query.size > 0 && query.size !== pageSize)
         params.set("size", String(query.size));
       for (const facet of facets) {
         // SAFETY: facets are built from config.facets, which is keyed by F.

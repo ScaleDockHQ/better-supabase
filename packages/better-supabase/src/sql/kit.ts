@@ -1908,7 +1908,7 @@ export function renderKit(
   const prefix = layout.prefix ?? "900_better_supabase";
   const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
   return resolveModules(names, layout).map((module) => {
-    const slug = module.name.replace(/-/g, "_");
+    const slug = module.name.replaceAll("-", "_");
     const path =
       module.target === "test"
         ? `${testsDir}/000_better_supabase_${slug}.test.sql`

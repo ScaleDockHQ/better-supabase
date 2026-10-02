@@ -116,7 +116,9 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         });
         const body = (await response.clone().json()) as { code?: string };
         if (body.code !== "PGRST205" || attempt === 20) return response;
-        await new Promise((done) => setTimeout(done, 250));
+        await new Promise((done) => {
+          setTimeout(done, 250);
+        });
       }
     };
     try {
@@ -664,7 +666,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       seen.push(payload.to);
       if (job.attempts < 3 && payload.to === "a@example.com")
         throw new Error("retry me");
-      return undefined;
+      return;
     });
     expect(drained.succeeded + drained.failed).toBeGreaterThan(0);
     const waiting = await pool.query<{
@@ -720,7 +722,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       (payload) => {
         done.push(payload.n);
         if (done.length === 4) controller.abort();
-        return undefined;
+        return;
       },
       { concurrency: 2, pollInterval: 20, signal: controller.signal },
     );
@@ -804,7 +806,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     const result = await inbox.process((message) => {
       types.push(message.type ?? "");
       if (message.type === "invoice.failed") throw new Error("try later");
-      return undefined;
+      return;
     });
     expect(result).toEqual({ succeeded: 1, failed: 1 });
     expect(types.sort()).toEqual(["invoice.failed", "invoice.paid"]);
@@ -914,7 +916,9 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       const params = { orgId: ACME, kinds: ["call", "meeting"] };
       let rest = await alice.db.$many(chrome, params);
       for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 250);
+        });
         rest = await alice.db.$many(chrome, params);
       }
       expect(rest.error).toBeNull();

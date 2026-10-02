@@ -268,7 +268,7 @@ export function defineTopic<
   const E extends EventSchemas = Record<never, never>,
 >(template: P, options: TopicOptions<E> = {}): Topic<P, E> {
   const parsed: Template = parseTemplate(template, ":", validateValue);
-  const literal = template.replace(/\{[^}]+\}/g, " ");
+  const literal = template.replaceAll(/\{[^}]+\}/g, " ");
   const name = slug(options.name ?? literal) || "topic";
   const isPrivate = options.private ?? true;
   const schemas: EventSchemas = options.events ?? {};

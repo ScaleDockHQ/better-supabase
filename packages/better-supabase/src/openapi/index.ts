@@ -106,7 +106,7 @@ const ERRORS: readonly [string, number, string][] = [
 ];
 
 const pascal = (value: string): string =>
-  value.replace(/(^|[_-])(\w)/g, (_, _sep: string, char: string) =>
+  value.replaceAll(/(^|[_-])(\w)/g, (_, _sep: string, char: string) =>
     char.toUpperCase(),
   );
 const ref = (name: string): Json => ({ $ref: `#/components/schemas/${name}` });

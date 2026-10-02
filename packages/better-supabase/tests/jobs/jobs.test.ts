@@ -243,7 +243,10 @@ describe("createJobs over pgmq_public", () => {
     );
     const draining = createJobs(client, queues).drain(
       "emails",
-      () => new Promise<void>((resolve) => (finish = resolve)),
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
       { lease: 2 },
     );
     await vi.advanceTimersByTimeAsync(5000);
@@ -645,7 +648,9 @@ describe("drain and work", () => {
     ]);
     let started = 0;
     let bothStarted!: () => void;
-    const barrier = new Promise<void>((resolve) => (bothStarted = resolve));
+    const barrier = new Promise<void>((resolve) => {
+      bothStarted = resolve;
+    });
     const result = await createJobs(fake.sql, queues).drain(
       "emails",
       async () => {
@@ -683,7 +688,10 @@ describe("drain and work", () => {
       fake.calls.filter((call) => call.text.includes("extend_job_lease"));
     const draining = createJobs(fake.sql, queues).drain(
       "emails",
-      () => new Promise<void>((resolve) => (finish = resolve)),
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
       { lease: 4 },
     );
     await vi.advanceTimersByTimeAsync(1999);
@@ -709,7 +717,10 @@ describe("drain and work", () => {
     ]);
     const draining = createJobs(fake.sql, queues).drain(
       "emails",
-      () => new Promise<void>((resolve) => (finish = resolve)),
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
       { lease: 1 },
     );
     await vi.advanceTimersByTimeAsync(999);
@@ -1119,7 +1130,7 @@ describe("createInbox", () => {
       receivedAt: new Date("2026-09-24T10:00:00Z"),
     });
     expect(
-      fake.calls.map((call) => [call.text.match(/\.(\w+)\(/)![1], call.values]),
+      fake.calls.map((call) => [/\.(\w+)\(/.exec(call.text)![1], call.values]),
     ).toEqual([
       ["claim_webhooks", ["stripe", "w1", 2, "5 minutes"]],
       ["complete_webhook", [1, "w1"]],

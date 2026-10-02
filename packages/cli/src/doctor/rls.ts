@@ -14,11 +14,11 @@ import {
 } from "./shared.ts";
 
 const escape = (name: string): string =>
-  name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** `'it''s'` and other string literals, blanked so their text can't match. */
 const withoutStrings = (text: string): string =>
-  text.replace(/'(?:[^']|'')*'/g, "''");
+  text.replaceAll(/'(?:[^']|'')*'/g, "''");
 
 const functionName = (fn: Pick<ExtrasFunction, "schema" | "name">): string =>
   `${fn.schema}.${fn.name}`;

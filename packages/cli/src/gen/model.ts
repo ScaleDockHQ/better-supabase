@@ -141,7 +141,7 @@ function storagePathsOf(config: ResolvedConfig) {
     const bucket = config.buckets[name];
     if (!bucket) return name;
     return (
-      bucket.id ?? name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)
+      bucket.id ?? name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)
     );
   };
   const unused = new Set(Object.keys(config.storagePaths));
@@ -150,7 +150,7 @@ function storagePathsOf(config: ResolvedConfig) {
       const key = [`${schema}.${table}.${column}`, `${table}.${column}`].find(
         (candidate) => candidate in config.storagePaths,
       );
-      if (key === undefined) return undefined;
+      if (key === undefined) return;
       unused.delete(key);
       if (!TEXT_UDTS.has(udt)) {
         throw new TypeError(
@@ -158,7 +158,7 @@ function storagePathsOf(config: ResolvedConfig) {
         );
       }
       // SAFETY: the check above found this key in storagePaths, whose values are strings.
-      return bucketId(config.storagePaths[key] as string);
+      return bucketId(config.storagePaths[key]!);
     },
     assertUsed(): void {
       const [first] = unused;
@@ -180,7 +180,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const catalog = toCatalog(snapshot);
   const introspection = restrictSchemas(snapshot.generator, config.schemas);
   const tsType = (schema: string, format: string, typeSchema?: string) =>
-    tsTypeOf(introspection, schema, format, typeSchema).replace(
+    tsTypeOf(introspection, schema, format, typeSchema).replaceAll(
       /\(([\w.$]+)\)\[\]/g,
       "$1[]",
     );
@@ -563,7 +563,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
               {
                 id:
                   bucket.id ??
-                  name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
+                  name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
                 public: bucket.public ?? false,
                 path: bucket.path,
                 ...(bucket.policy ? { policy: bucket.policy } : {}),

@@ -42,7 +42,7 @@ function sessionFor(
   extra: Partial<StoredSession> = {},
 ): StoredSession {
   const exp = JSON.parse(
-    atob(token.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/")),
+    atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/")),
   ).exp as number;
   return {
     access_token: token,
@@ -236,7 +236,9 @@ describe("resolveAuth", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: 30 });
     const fresh = await signer.sign({ sub: USER });
     const fetchSpy = vi.fn<typeof fetch>(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
       return Response.json({
         access_token: fresh,
         refresh_token: "refresh-2",

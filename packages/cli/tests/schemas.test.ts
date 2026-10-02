@@ -85,15 +85,15 @@ function validate(
     }
   }
   if (Array.isArray(value) && schema["items"]) {
-    value.forEach((item, index) =>
+    value.forEach((item, index) => {
       validate(
         root,
         schema["items"] as Schema,
         item,
         `${path}[${index}]`,
         errors,
-      ),
-    );
+      );
+    });
   }
 }
 

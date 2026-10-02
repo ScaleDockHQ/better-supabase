@@ -4,7 +4,7 @@ import type { DbError } from "../../src/core/errors.ts";
 
 import {
   AsyncResult,
-  type BetterResultShape,
+  type BetterResultValue,
   fromBetterResult,
   ok,
   type Result,
@@ -33,22 +33,22 @@ declare const result: Result<{ id: string }>;
 describe("toBetterResult", () => {
   it("types value and error", () => {
     expectTypeOf(toBetterResult(result, Br)).toEqualTypeOf<
-      BetterResultShape<{ id: string }, DbError>
+      BetterResultValue<{ id: string }, DbError>
     >();
     expectTypeOf(
       toBetterResult(result, Br, () => new AppError()),
-    ).toEqualTypeOf<BetterResultShape<{ id: string }, AppError>>();
+    ).toEqualTypeOf<BetterResultValue<{ id: string }, AppError>>();
   });
 
   it("types a mapper carried by sb.mapError as unknown", () => {
     expectTypeOf(toBetterResult(AsyncResult.ok(1), Br)).toEqualTypeOf<
-      Promise<BetterResultShape<number, unknown>>
+      Promise<BetterResultValue<number, unknown>>
     >();
   });
 
   it("casts to the better-result type", () => {
-    const shape = toBetterResult(result, Br);
-    const typed = shape as BrResult<{ id: string }, DbError>;
+    const value = toBetterResult(result, Br);
+    const typed = value as BrResult<{ id: string }, DbError>;
     expectTypeOf(typed.map((row) => row.id)).toEqualTypeOf<
       BrResult<string, DbError>
     >();

@@ -177,7 +177,9 @@ describe("createQueries", () => {
     const stop = invalidateOnMutation(sb, queryClient);
     queryClient.setQueryData(["bs", "customerTags", "x"], 1);
     await db.tags.delete("t1").orThrow();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
     expect(isInvalid(queryClient, ["bs", "customerTags", "x"])).toBe(true);
     stop();
   });

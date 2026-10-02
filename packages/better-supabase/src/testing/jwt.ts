@@ -71,7 +71,7 @@ export function localAuth(secret: string): AuthResolver {
         request.headers.get("authorization") ?? "",
       )?.[1];
       const [header, body, signature] = token?.split(".") ?? [];
-      if (!token || !header || !body || !signature) return undefined;
+      if (!token || !header || !body || !signature) return;
       const valid = await crypto.subtle
         .verify(
           "HMAC",
@@ -80,7 +80,7 @@ export function localAuth(secret: string): AuthResolver {
           encoder.encode(`${header}.${body}`),
         )
         .catch(() => false);
-      if (!valid) return undefined;
+      if (!valid) return;
       // SAFETY: the signature was verified above, and exp is checked before use.
       const claims = JSON.parse(base64ToText(body)) as JWTClaims;
       if (typeof claims.exp === "number" && claims.exp * 1000 < Date.now()) {

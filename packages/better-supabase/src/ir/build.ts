@@ -90,7 +90,7 @@ function writable(meta: ColumnMeta, mode: "insert" | "update"): boolean {
 
 /** Escapes LIKE wildcards so user input matches literally. */
 export function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+  return value.replaceAll(/[\\%_]/g, (char) => `\\${char}`);
 }
 
 export class IrBuilder {

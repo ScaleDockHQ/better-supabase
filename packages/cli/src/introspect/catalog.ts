@@ -161,7 +161,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
 
   const build = (
     entry: { id: number; schema: string; name: string; comment: string | null },
-    shape: Pick<
+    flags: Pick<
       CatalogTable,
       | "kind"
       | "rls"
@@ -180,7 +180,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       schema: entry.schema,
       name: entry.name,
       comment: entry.comment,
-      ...shape,
+      ...flags,
       columns: own.map(toColumn),
       primaryKey:
         extra && extra.primaryKey.length > 0

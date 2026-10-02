@@ -191,8 +191,14 @@ describe("clackPrompter", () => {
   ] as const;
 
   it("maps answers and cancels", async () => {
-    clack.answers.push("b", clack.cancel, ["a", "zz"], clack.cancel, true);
-    clack.answers.push(clack.cancel);
+    clack.answers.push(
+      "b",
+      clack.cancel,
+      ["a", "zz"],
+      clack.cancel,
+      true,
+      clack.cancel,
+    );
     expect(await clackPrompter.select("Pick", choices, "a")).toBe("b");
     expect(await clackPrompter.select("Pick", choices, "a")).toBeUndefined();
     expect(await clackPrompter.multiselect("Pick", choices, [])).toEqual(["a"]);

@@ -337,7 +337,7 @@ export function createServer<
         return replica;
       },
       get sql() {
-        if (!options.postgres || !sqlClaims) return undefined;
+        if (!options.postgres || !sqlClaims) return;
         sql ??= sqlFor(sqlClaims, context, recorder);
         return sql;
       },
@@ -357,9 +357,9 @@ export function createServer<
       ...(claims ? { claims } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       env: env(),
-      ...(resolveOptions.refresh !== undefined
-        ? { refresh: resolveOptions.refresh }
-        : {}),
+      ...(resolveOptions.refresh === undefined
+        ? {}
+        : { refresh: resolveOptions.refresh }),
       onRefresh: (event) => {
         options.auth?.onRefresh?.(event);
         sb.events.emit("refresh", event);

@@ -83,7 +83,7 @@ export function managementAdvisors(
       // SAFETY: JSON.parse returns any, and lints is checked below.
       const body = JSON.parse(text) as { lints?: unknown };
       if (!Array.isArray(body.lints)) {
-        throw new Error(
+        throw new TypeError(
           `Management API ${category} advisors returned no "lints".`,
         );
       }

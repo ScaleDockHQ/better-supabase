@@ -20,7 +20,7 @@ import type {
  * accepts a query string; schema names are inlined as escaped literals.
  */
 const literalArray = (values: readonly string[]): string =>
-  `array[${values.map((value) => `'${value.replace(/'/g, "''")}'`).join(", ")}]::text[]`;
+  `array[${values.map((value) => `'${value.replaceAll("'", "''")}'`).join(", ")}]::text[]`;
 
 /** Row estimate from which a table counts as large in the snapshot. */
 const LARGE_TABLE_ROWS = 10_000;

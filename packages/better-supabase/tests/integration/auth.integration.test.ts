@@ -260,9 +260,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
       seen.push(browser.auth.current().status),
     );
     await browser.supabase.auth.signInWithPassword({ email, password });
-    await vi.waitFor(() =>
-      expect(browser.auth.current().status).toBe("signed-in"),
-    );
+    await vi.waitFor(() => {
+      expect(browser.auth.current().status).toBe("signed-in");
+    });
     expect(browser.db.$context.actor).toMatchObject({
       id: userId,
       kind: "user",
@@ -276,9 +276,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
     expect(customers.length).toBeGreaterThan(0);
 
     await browser.supabase.auth.signOut();
-    await vi.waitFor(() =>
-      expect(browser.auth.current().status).toBe("signed-out"),
-    );
+    await vi.waitFor(() => {
+      expect(browser.auth.current().status).toBe("signed-out");
+    });
     expect(browser.db.$context.actor).toMatchObject({ kind: "anon" });
     expect(seen).toContain("signed-in");
     stop();

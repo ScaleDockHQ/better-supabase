@@ -124,8 +124,12 @@ export async function run(
   const stdout: string[] = [];
   const stderr: string[] = [];
   const io: CliIo = options.io ?? {
-    stdout: (text) => stdout.push(text),
-    stderr: (text) => stderr.push(text),
+    stdout: (text) => {
+      stdout.push(text);
+    },
+    stderr: (text) => {
+      stderr.push(text);
+    },
   };
   const out = (text: string): void => {
     const line = text.endsWith("\n") ? text : `${text}\n`;

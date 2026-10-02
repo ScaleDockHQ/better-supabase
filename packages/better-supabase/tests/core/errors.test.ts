@@ -555,7 +555,7 @@ describe("mapDbError", () => {
         [
           (_raw, fallback) => {
             seen.push(fallback);
-            return undefined;
+            return;
           },
           (raw) =>
             raw.hint === "QUOTA"

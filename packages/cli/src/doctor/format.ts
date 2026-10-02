@@ -98,7 +98,7 @@ function sarif(
             informationUri: DOCS_URL,
             rules: rules.map((rule) => ({
               id: rule.code,
-              name: rule.title.replace(
+              name: rule.title.replaceAll(
                 /[^A-Za-z0-9]+(.)?/g,
                 (_, char: string | undefined) => (char ?? "").toUpperCase(),
               ),

@@ -141,16 +141,14 @@ export function emitModule(model: Model, options: EmitOptions): string {
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
+    `import { defineSchema, type Schema } from ${q(runtime)};`,
   ];
 
-  lines.push(`import { defineSchema, type Schema } from ${q(runtime)};`);
   const storagePaths = model.tables.some((table) =>
     table.columns.some((column) => column.storage !== undefined),
   );
   lines.push(
     `import type { EnrichDatabase${storagePaths ? ", StoragePath" : ""} } from ${q(runtime)};`,
-  );
-  lines.push(
     `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? "./database.types.ts")};`,
   );
   const byFile = new Map<string, string[]>();
@@ -166,19 +164,17 @@ export function emitModule(model: Model, options: EmitOptions): string {
       `import type { ${names.sort().join(", ")} } from ${q(options.importPathFor(from))};`,
     );
   }
-  lines.push("");
   lines.push(
+    "",
     "export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];",
+    "",
+    ...enrichedDatabase(model),
+    "",
   );
-  lines.push("");
-  lines.push(...enrichedDatabase(model));
-  lines.push("");
 
   for (const entry of model.enums) {
     lines.push(
       `export const ${entry.constant} = [${entry.values.map(q).join(", ")}] as const;`,
-    );
-    lines.push(
       `export type ${pascal(entry.name)} = (typeof ${entry.constant})[number];`,
     );
   }
@@ -191,8 +187,6 @@ export function emitModule(model: Model, options: EmitOptions): string {
         );
         lines.push(
           `export const ${constant} = [${column.values.map(q).join(", ")}] as const;`,
-        );
-        lines.push(
           `export type ${pascal(table.key)}${pascal(column.app)} = (typeof ${constant})[number];`,
         );
       }
@@ -200,25 +194,21 @@ export function emitModule(model: Model, options: EmitOptions): string {
   }
   if (model.enums.length > 0) lines.push("");
 
-  lines.push(...modelsType(model));
-  lines.push("");
-  lines.push(...functionsType(model));
-  lines.push("");
-  lines.push("export type TableName = keyof Models;");
   lines.push(
+    ...modelsType(model),
+    "",
+    ...functionsType(model),
+    "",
+    "export type TableName = keyof Models;",
     "/** Constraint names for `isConflict`, `isCheck` and `isForeignKey`. */",
     "export type UniqueConstraint = { [T in TableName]: Extract<keyof Models[T]['UniqueKeys'], string> }[TableName];",
     "export type CheckConstraint = Models[TableName]['Checks'];",
     "export type ForeignKeyConstraint = Models[TableName]['ForeignKeys'];",
-  );
-  lines.push("export type RowOf<T extends TableName> = Models[T]['Row'];");
-  lines.push(
+    "export type RowOf<T extends TableName> = Models[T]['Row'];",
     "export type InsertOf<T extends TableName> = Models[T]['Insert'];",
-  );
-  lines.push(
     "export type UpdateOf<T extends TableName> = Models[T]['Update'];",
+    "",
   );
-  lines.push("");
   if (model.meta.buckets) {
     lines.push(
       "/** Bucket configs for `defineBucket` from `better-supabase/storage`. */",
@@ -235,7 +225,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
   }
   lines.push(
     `export const schema: Schema<Models, Database, Functions> = defineSchema(${JSON.stringify(model.meta, null, 2)});`,
+    "",
   );
-  lines.push("");
   return lines.join("\n");
 }

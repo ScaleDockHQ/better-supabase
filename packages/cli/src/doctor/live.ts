@@ -26,7 +26,7 @@ const SLOW_CALLS = 1000;
 const EXPLAIN_LIMIT = 1000;
 
 const escape = (name: string): string =>
-  name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const ident = (name: string): string =>
   `"${name.replaceAll('"', '""')}"`;
@@ -37,7 +37,7 @@ export const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
 const oneLine = (query: string, max = 160): string => {
-  const flat = query.replace(/\s+/g, " ").trim();
+  const flat = query.replaceAll(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 };
 

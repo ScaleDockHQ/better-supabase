@@ -104,11 +104,15 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
     const slow = idempotency.handle(
       post("k3"),
       () =>
-        new Promise<Response>(
-          (resolve) => (release = () => resolve(new Response("done"))),
-        ),
+        new Promise<Response>((resolve) => {
+          release = () => {
+            resolve(new Response("done"));
+          };
+        }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
     const concurrent = await idempotency.handle(
       post("k3"),
       () => new Response("second"),

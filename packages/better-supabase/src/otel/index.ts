@@ -209,7 +209,9 @@ export function tracedFetch(base: typeof fetch = fetch): typeof fetch {
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
     propagation.inject(context.active(), headers, {
-      set: (carrier, key, value) => carrier.set(key, value),
+      set: (carrier, key, value) => {
+        carrier.set(key, value);
+      },
     });
     return base(input, { ...init, headers });
   };

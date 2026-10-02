@@ -353,8 +353,8 @@ async function verifyOnce(
   const { data, error } = await verifyCredentials(credentials, {
     auth: modes,
     env: serverEnv(options),
-    ...(options.audience !== undefined ? { audience: options.audience } : {}),
-    ...(options.issuer !== undefined ? { issuer: options.issuer } : {}),
+    ...(options.audience === undefined ? {} : { audience: options.audience }),
+    ...(options.issuer === undefined ? {} : { issuer: options.issuer }),
   });
   if (error) {
     const kind =
@@ -574,8 +574,8 @@ export function authContext(auth: AuthState): RequestContext {
       const actor: Actor = {
         id: auth.user.id,
         kind: "user",
-        ...(auth.user.role !== undefined ? { role: auth.user.role } : {}),
-        ...(auth.user.email !== undefined ? { email: auth.user.email } : {}),
+        ...(auth.user.role === undefined ? {} : { role: auth.user.role }),
+        ...(auth.user.email === undefined ? {} : { email: auth.user.email }),
         ...(impersonator ? { impersonator: impersonator.id } : {}),
       };
       return { actor, claims: auth.claims };

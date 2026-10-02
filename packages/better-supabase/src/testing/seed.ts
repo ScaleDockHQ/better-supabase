@@ -52,7 +52,7 @@ function arrayLiteral(values: readonly unknown[]): string {
     if (value === null) return "NULL";
     if (Array.isArray(value)) return arrayLiteral(value);
     const text = value instanceof Date ? value.toISOString() : String(value);
-    return `"${text.replace(/[\\"]/g, "\\$&")}"`;
+    return `"${text.replaceAll(/[\\"]/g, "\\$&")}"`;
   });
   return `{${items.join(",")}}`;
 }

@@ -207,10 +207,10 @@ describe("templates", () => {
         },
       ).then(
         () => ({ code: 0, output: "" }),
-        (error: { code?: number; stdout?: string }) => ({
-          code: error.code ?? 1,
-          output: error.stdout ?? "",
-        }),
+        (error: unknown) => {
+          const failure = error as { code?: number; stdout?: string };
+          return { code: failure.code ?? 1, output: failure.stdout ?? "" };
+        },
       );
       expect(result.output).toBe("");
       expect(result.code).toBe(0);

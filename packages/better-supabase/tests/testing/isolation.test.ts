@@ -64,7 +64,7 @@ function fakePostgrest(
     const body = token?.split(".")[1];
     if (!body) return null;
     const claims = JSON.parse(
-      atob(body.replace(/-/g, "+").replace(/_/g, "/")),
+      atob(body.replaceAll("-", "+").replaceAll("_", "/")),
     ) as Row;
     return typeof claims["tenant_id"] === "string" ? claims["tenant_id"] : null;
   };
@@ -74,7 +74,7 @@ function fakePostgrest(
       .filter(([key]) => !["select", "columns", "limit", "order"].includes(key))
       .map(([key, value]) => [
         key,
-        value.replace(/^eq\./, "").replace(/^"|"$/g, ""),
+        value.replace(/^eq\./, "").replaceAll(/^"|"$/g, ""),
       ]);
 
   const project = (rows: Row[], select: string | null): Row[] => {

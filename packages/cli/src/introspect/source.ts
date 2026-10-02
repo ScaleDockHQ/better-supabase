@@ -71,7 +71,7 @@ export function managementSource(
       // SAFETY: widens the any from JSON.parse to unknown; the shape is checked below.
       const rows = JSON.parse(text) as unknown;
       if (!Array.isArray(rows)) {
-        throw new Error(
+        throw new TypeError(
           `Management API returned an unexpected body for project ${options.projectRef}.`,
         );
       }
