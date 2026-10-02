@@ -43,6 +43,43 @@ where: {
 
 Keys in one object are combined with AND. `AND` also accepts an array.
 
+## Indexes
+
+Equality, ranges and `startsWith` on a plain btree index work as you would
+expect. The other operators need a different kind of index, or every query
+reads the whole table:
+
+| Filter                                      | Index                                                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `contains`, `ilike`, `endsWith` on text     | trigram: `create extension pg_trgm`, then `create index on customers using gin (name gin_trgm_ops)` |
+| `search` on a text column                   | a generated `tsvector` column with a GIN index (below)                                              |
+| `contains` on jsonb                         | `create index on notes using gin (attachments jsonb_path_ops)`                                      |
+| `has`, `hasSome`, `hasEvery`, `containedBy` | `create index on posts using gin (tags)`                                                            |
+
+`search` on a text column compiles to `to_tsvector(column) @@
+websearch_to_tsquery(...)`, which an index can't serve, because the
+configuration is a parameter. Store the vector in a generated column instead,
+index it, and search that column:
+
+```sql
+alter table customers add column search_vector tsvector
+  generated always as (to_tsvector('simple', coalesce(name, '') || ' ' || coalesce(kvk, ''))) stored;
+create index on customers using gin (search_vector);
+```
+
+```ts
+where: {
+  searchVector: {
+    search: "acme";
+  }
+}
+```
+
+`jsonb_path_ops` makes the index smaller and faster for `@>`, which is all
+`contains` uses; leave it out if SQL elsewhere uses `?`. Doctor's
+[BS219](/docs/cli/doctor#bs219) flags containment filters on columns without
+a GIN index.
+
 ## Relations
 
 To-many relations take `some`, `none` and `every`:
