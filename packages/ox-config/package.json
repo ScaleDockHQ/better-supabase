@@ -16,7 +16,8 @@
   "scripts": {
     "lint": "oxlint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@oxlint/plugins": "catalog:",

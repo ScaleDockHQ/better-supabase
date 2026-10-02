@@ -1,76 +1,52 @@
-import {
-  findPage,
-  handleMcpBody,
-  mcpCorsHeaders,
-  searchDocs,
-  type DocsMcpTools,
-} from "@/lib/docs-mcp";
-import { getLLMText, getPageSummaries, source } from "@/lib/source";
+import { createMcpHandler } from "@modelcontextprotocol/server";
+import manifest from "better-supabase/package.json" with { type: "json" };
+import { llms } from "fumadocs-core/source";
 
-function tools(): DocsMcpTools {
-  const catalog = getPageSummaries();
-  return {
-    search: (query, limit) => searchDocs(catalog, query, limit),
-    getPage: async (path) => {
-      const summary = findPage(catalog, path);
-      if (summary === null) {
-        return null;
-      }
-      const page = source.getPage([...summary.slugs]);
-      if (!page) {
-        return null;
-      }
-      const markdown = await getLLMText(page);
-      return markdown;
-    },
-  };
+import { createDocsMcpServer } from "@/lib/docs-mcp";
+import { searchHits } from "@/lib/search";
+import { getLLMText, source } from "@/lib/source";
+
+const docsLlms = llms(source);
+
+const handler = createMcpHandler(
+  () =>
+    createDocsMcpServer({
+      version: manifest.version,
+      search: searchHits,
+      index: () => docsLlms.index(),
+      page: async (url) => {
+        const page = source.getPageByUrl(url);
+        return page === undefined ? undefined : getLLMText(page);
+      },
+    }),
+  { legacy: "stateless" },
+);
+
+/** Browser-based clients call the public server cross-origin. */
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Session-Id",
+  "Access-Control-Expose-Headers": "MCP-Protocol-Version, Mcp-Session-Id",
+  "Access-Control-Max-Age": "86400",
+} as const;
+
+async function serve(request: Request): Promise<Response> {
+  const response = await handler.fetch(request);
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(CORS)) headers.set(key, value);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
-function mcpResponse(
-  status: number,
-  body: unknown,
-  extra: HeadersInit = {},
-): Response {
-  const headers = new Headers(mcpCorsHeaders());
-  for (const [key, value] of new Headers(extra).entries()) {
-    headers.set(key, value);
-  }
-  if (body === null) {
-    return new Response(null, { status, headers });
-  }
-  headers.set("Content-Type", "application/json");
-  return new Response(JSON.stringify(body), { status, headers });
-}
+export const GET = serve;
+export const POST = serve;
+export const DELETE = serve;
 
 export function OPTIONS(): Response {
-  return mcpResponse(204, null);
-}
-
-export function GET(): Response {
-  return mcpResponse(
-    405,
-    { error: "Use POST for the MCP Streamable HTTP transport" },
-    {
-      Allow: "POST, OPTIONS, DELETE",
-    },
-  );
-}
-
-export function DELETE(): Response {
-  return mcpResponse(200, null);
-}
-
-export async function POST(request: Request): Promise<Response> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return mcpResponse(400, {
-      jsonrpc: "2.0",
-      id: null,
-      error: { code: -32700, message: "Parse error" },
-    });
-  }
-  const result = await handleMcpBody(body, tools());
-  return mcpResponse(result.status, result.body);
+  return new Response(null, { status: 204, headers: CORS });
 }

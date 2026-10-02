@@ -16,7 +16,7 @@ const HELPER_KEY =
   /\b(?:permitted_\w+_ids|permdock_has)"?\s*\(\s*'((?:[^']|'')*)'/g;
 
 const unquote = (name: string): string =>
-  name.replace(/^"|"$/g, "").replaceAll('""', '"');
+  name.replaceAll(/^"|"$/g, "").replaceAll('""', '"');
 
 interface HelperPolicy {
   readonly name: string;

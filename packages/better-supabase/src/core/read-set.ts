@@ -99,7 +99,7 @@ const TYPE = /^(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*(?:\[\])?$/;
 /** `jsonb_build_object` takes at most 100 arguments. */
 const MAX_ENTRIES = 50;
 /** Placeholders are `NUL bs:<name> NUL`: no real parameter value holds a NUL. */
-const NUL = String.fromCharCode(0);
+const NUL = "\u0000";
 const SENTINEL = new RegExp(`${NUL}bs:([a-z_][a-z0-9_]*)${NUL}`, "gi");
 const EXACT = new RegExp(`^${NUL}bs:([a-z_][a-z0-9_]*)${NUL}$`, "i");
 

@@ -10,6 +10,7 @@ import {
 } from "../core/read-set.ts";
 import { ok } from "../core/result.ts";
 import { sqlString } from "../core/template.ts";
+import { temporalText } from "../core/temporal.ts";
 
 /** A read set compiled to the SQL of its function. */
 export interface CompiledReadSet {
@@ -26,9 +27,9 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
     const seen: Operation[] = [];
     const capture: Executor = {
       name: "read-set-compiler",
-      execute: async (op) => {
+      execute: (op) => {
         seen.push(op);
-        return ok({ rows: [], count: 0 });
+        return Promise.resolve(ok({ rows: [], count: 0 }));
       },
     };
     // SAFETY: the capture executor only records queries, and repositories are
@@ -85,7 +86,7 @@ function paramRef(set: ReadSet, name: string, array: boolean): string {
 
 function arrayElement(value: unknown): string {
   if (value === null || value === undefined) return "NULL";
-  const text = value instanceof Date ? value.toISOString() : String(value);
+  const text = temporalText(value) ?? String(value);
   if (hasPlaceholder(text)) {
     throw new TypeError("A placeholder cannot sit inside a literal list");
   }
@@ -103,7 +104,8 @@ function literal(set: ReadSet, value: unknown): string {
     return String(value);
   }
   if (typeof value === "bigint") return value.toString();
-  if (value instanceof Date) return sqlString(value.toISOString());
+  const temporalValue = temporalText(value);
+  if (temporalValue !== undefined) return sqlString(temporalValue);
   if (typeof value === "string") {
     if (!hasPlaceholder(value)) return sqlString(value);
     const parts = splitPlaceholders(value).map((part) =>
@@ -118,7 +120,7 @@ function literal(set: ReadSet, value: unknown): string {
 }
 
 function inline(set: ReadSet, query: SqlQuery): string {
-  return query.text.replace(/\$(\d+)/g, (_, index: string) =>
+  return query.text.replaceAll(/\$(\d+)/g, (_, index: string) =>
     literal(set, query.params[Number(index) - 1]),
   );
 }

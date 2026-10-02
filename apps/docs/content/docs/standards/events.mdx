@@ -7,12 +7,16 @@ description: Mutations as CloudEvents 1.0, for queues, buses and webhooks.
 [CloudEvents](https://cloudevents.io) and sends them to an `EventSink`.
 
 ```ts
-import { forwardMutations, httpSink } from 'better-supabase/events';
+import { forwardMutations, httpSink } from "better-supabase/events";
 
-const stop = forwardMutations(sb, httpSink('https://events.example.com/ingest'), {
-  source: 'https://crm.example.com',
-  filter: (notice) => notice.table !== 'auditLog',
-});
+const stop = forwardMutations(
+  sb,
+  httpSink("https://events.example.com/ingest"),
+  {
+    source: "https://crm.example.com",
+    filter: (notice) => notice.table !== "auditLog",
+  },
+);
 ```
 
 Each mutated row becomes one event:

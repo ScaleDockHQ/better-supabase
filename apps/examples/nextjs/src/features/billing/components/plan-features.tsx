@@ -3,11 +3,11 @@ import { hasEntitlement } from "better-supabase/next";
 import { getSession } from "@/features/user/user-queries";
 import { type Entitlement } from "@/lib/claims";
 
-const FEATURES: Record<Entitlement, string> = {
+const FEATURES = {
   exports: "CSV exports",
   sso: "Single sign-on",
   audit: "Audit log",
-};
+} satisfies Record<Entitlement, string>;
 
 /**
  * The plan's features from the token's `features` claim. UX only:

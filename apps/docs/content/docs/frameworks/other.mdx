@@ -8,10 +8,10 @@ description: Use @supabase/server's adapters with withBetterSupabase.
 adds `ctx.db` there too, without a separate integration:
 
 ```ts
-import { withSupabase } from '@supabase/server';
-import { withBetterSupabase } from 'better-supabase/server';
+import { withSupabase } from "@supabase/server";
+import { withBetterSupabase } from "better-supabase/server";
 
-const middleware = [withSupabase({ auth: 'user' }), withBetterSupabase(sb)()];
+const middleware = [withSupabase({ auth: "user" }), withBetterSupabase(sb)()];
 ```
 
 Pass `middleware` to the adapter you use (`@supabase/server/adapters/h3`,

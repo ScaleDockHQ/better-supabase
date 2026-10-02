@@ -56,3 +56,14 @@
   check there as a new matrix entry, not as a new workflow.
 - Turbo fails `lint` when code reads an env var that no `turbo.json` declares
   (`turbo/no-undeclared-env-vars`). Declare it in `globalEnv` or the task's `env`.
+  Keep the top-level `global*` keys: the rule does not read a `global` block.
+- `lint`, `typecheck` and `test` depend on `transit`, not `^build`. Workspace
+  imports resolve to `src` through the `@better-supabase/source` export
+  condition (tsconfig `customConditions`, Vitest `resolve.conditions`), and
+  `publishConfig.exports` is the map that ships. A task that reads `dist`,
+  such as the CLI's `bin.test.ts` or `tests/bundle`, declares `^build` in its
+  workspace `turbo.json`. Add a new export to both maps;
+  `tests/entries.test.ts` checks that they match.
+- Turbo signs remote cache artifacts (`remoteCache.signature`). CI reads the
+  key from `TURBO_REMOTE_CACHE_SIGNATURE_KEY` (at least 32 bytes); without it,
+  local runs warn and use only the local cache.

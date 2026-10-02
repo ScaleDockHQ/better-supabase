@@ -51,8 +51,10 @@ describe("gen", () => {
     const tables: Generator = {
       name: "tables",
       generate: (input) => {
-        seen.push(input.importPath("src/db/tables.ts", "src/db/generated.ts"));
-        seen.push(input.output);
+        seen.push(
+          input.importPath("src/db/tables.ts", "src/db/generated.ts"),
+          input.output,
+        );
         return [
           {
             path: "src/db/tables.ts",
@@ -93,6 +95,7 @@ describe("gen", () => {
 
     expect(await gen(true)).toEqual({
       code: 0,
+      data: { stale: [], upToDate: true },
       output: "Generated files are up to date (3).",
     });
     expect((await gen(false)).output).toMatch(/^No changes \(\d+ tables\)\.$/);

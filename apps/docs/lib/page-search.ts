@@ -1,3 +1,4 @@
+/** A page as Ask AI ranks it: by title, description and path. */
 export type DocsPageSummary = {
   readonly title: string;
   readonly description: string;
@@ -5,8 +6,8 @@ export type DocsPageSummary = {
   readonly slugs: readonly string[];
 };
 
-export const DEFAULT_SEARCH_LIMIT = 8;
-export const MAX_SEARCH_LIMIT = 25;
+const DEFAULT_SEARCH_LIMIT = 8;
+const MAX_SEARCH_LIMIT = 25;
 
 function tokensOf(text: string): readonly string[] {
   return text
@@ -58,31 +59,4 @@ export function searchDocs(
     )
     .slice(0, capped)
     .map((entry) => entry.page);
-}
-
-export function normalizeDocsPath(path: string): readonly string[] {
-  const trimmed = path.trim();
-  const withoutHost = trimmed.replace(/^https?:\/\/[^/]+/u, "");
-  const withoutHash = withoutHost.split("#")[0] ?? withoutHost;
-  const withoutQuery = withoutHash.split("?")[0] ?? withoutHash;
-  const withoutSuffix = withoutQuery
-    .replace(/\/+$/u, "")
-    .replace(/\.(md|mdx)$/u, "");
-  const parts = withoutSuffix.split("/").filter((part) => part.length > 0);
-  if (parts[0] === "docs") {
-    return parts.slice(1);
-  }
-  if (parts[0] === "llms.mdx" && parts[1] === "docs") {
-    return parts.slice(2);
-  }
-  return parts;
-}
-
-export function findPage(
-  pages: readonly DocsPageSummary[],
-  path: string,
-): DocsPageSummary | null {
-  const slugs = normalizeDocsPath(path);
-  const key = slugs.join("/");
-  return pages.find((page) => page.slugs.join("/") === key) ?? null;
 }

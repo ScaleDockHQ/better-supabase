@@ -23,14 +23,14 @@ export const next = createNext(sb, {
 
 Nothing else changes: `ctx.db` routes each call.
 
-| Call                                               | Goes to                    |
-| -------------------------------------------------- | -------------------------- |
-| `findMany`, `findById`, `count`, `aggregate`, ...  | replica                    |
-| `create`, `update`, `upsert`, `delete`             | primary                    |
-| `stable` RPCs and [read sets](/docs/repository/read-sets) (sent as GET) | replica |
-| other RPCs                                         | primary                    |
-| anything after a write in the same request         | primary                    |
-| `admin()`, `dbFor(userId)`                         | primary, always            |
+| Call                                                                    | Goes to         |
+| ----------------------------------------------------------------------- | --------------- |
+| `findMany`, `findById`, `count`, `aggregate`, ...                       | replica         |
+| `create`, `update`, `upsert`, `delete`                                  | primary         |
+| `stable` RPCs and [read sets](/docs/repository/read-sets) (sent as GET) | replica         |
+| other RPCs                                                              | primary         |
+| anything after a write in the same request                              | primary         |
+| `admin()`, `dbFor(userId)`                                              | primary, always |
 
 ## Read your own writes
 
@@ -48,7 +48,7 @@ Writes through `db.$client` or `db.$sql` bypass the router. Pin by hand after
 them:
 
 ```ts
-await ctx.db.$client.rpc('import_customers', { rows });
+await ctx.db.$client.rpc("import_customers", { rows });
 ctx.replica?.pin();
 ```
 
@@ -62,11 +62,11 @@ and edge functions honor a pin set by Next.js. Only `next.action` and
 true:
 
 ```ts
-import { PRIMARY_COOKIE } from 'better-supabase/server';
+import { PRIMARY_COOKIE } from "better-supabase/server";
 
 if (ctx.replica?.wrote) {
   response.headers.append(
-    'set-cookie',
+    "set-cookie",
     `${PRIMARY_COOKIE}=${Date.now() + 5000}; Path=/; Max-Age=5; HttpOnly; SameSite=Lax`,
   );
 }

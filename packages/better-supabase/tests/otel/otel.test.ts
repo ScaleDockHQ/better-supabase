@@ -159,12 +159,13 @@ describe("otel", () => {
 
   it("propagates traceparent through fetch", async () => {
     const propagator: TextMapPropagator = {
-      inject: (_context, carrier, setter) =>
+      inject: (_context, carrier, setter) => {
         setter.set(
           carrier,
           "traceparent",
           "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-        ),
+        );
+      },
       extract: (value) => value,
       fields: () => ["traceparent"],
     };

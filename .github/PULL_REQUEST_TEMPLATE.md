@@ -15,4 +15,5 @@
 - [ ] Env: new keys are in the t3-env schema, `turbo.json`, `.env.example` and all three Vercel environments
 - [ ] Changeset: user-visible changes have one (`pnpm changeset`)
 - [ ] Public API changes update the docs page, the example and `api/exports.json`
+- [ ] Pre-release pins: a new or bumped pre-release is in the AGENTS.md "Pre-release pins" list
 - [ ] AGENTS.md "When you change X, also update Y" is followed

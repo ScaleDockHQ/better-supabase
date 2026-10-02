@@ -66,7 +66,7 @@ function markerFileFor(
     const marker = parseHookMarker(file.text);
     if (marker && creates.test(file.text)) return marker;
   }
-  return undefined;
+  return;
 }
 
 /** Whether `fn` is the hook PermDock generated: by its manifest, its marker file or its body. */
@@ -427,18 +427,18 @@ export const HOOK_RULES: readonly Rule[] = [
             schema: fn.schema,
             name: fn.name,
           };
-          const shape: string[] = [];
+          const problems: string[] = [];
           if (fn.volatility !== "stable") {
-            shape.push(`it is ${fn.volatility}; declare it \`stable\``);
+            problems.push(`it is ${fn.volatility}; declare it \`stable\``);
           }
           if (!emptySearchPath(fn)) {
-            shape.push(
+            problems.push(
               "it has no `set search_path = ''`; add it and qualify every table",
             );
           }
-          if (shape.length > 0) {
+          if (problems.length > 0) {
             findings.push({
-              message: `${signatureOf(fn)}: ${shape.join("; ")}.`,
+              message: `${signatureOf(fn)}: ${problems.join("; ")}.`,
               target: signatureOf(fn),
               object,
             });
@@ -448,7 +448,7 @@ export const HOOK_RULES: readonly Rule[] = [
           if (!db || "skipped" in db || !db.session) {
             findings.push({
               severity: "info",
-              message: `Measuring the hook's claims needs a direct database connection (local stack or --db-url)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
+              message: `Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
               target: `${signatureOf(fn)}:claims`,
             });
             continue;

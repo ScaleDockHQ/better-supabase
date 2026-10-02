@@ -12,7 +12,9 @@ decides what each user sees, and includes and filters stay correct.
 1. List the tables in the config and regenerate:
 
    ```ts title="better-supabase.config.ts"
-   export default defineConfig({ realtime: { tables: ['customers', 'notes'] } });
+   export default defineConfig({
+     realtime: { tables: ["customers", "notes"] },
+   });
    ```
 
 2. Add the SQL module. It installs a statement-level trigger per table
@@ -32,7 +34,10 @@ one topic.
 ## React
 
 ```tsx
-const spec = sb.spec.customers.findMany({ include: { notes: true }, limit: 50 });
+const spec = sb.spec.customers.findMany({
+  include: { notes: true },
+  limit: 50,
+});
 
 function Customers() {
   const { data } = useQuery(browser.queries.$spec(spec));
@@ -57,7 +62,7 @@ const unread = sb.spec.notifications.count({ where: { readAt: null } });
 
 function UnreadBadge() {
   const { count, status, error } = useLiveCount(unread);
-  return <Link href="/inbox">Inbox {count ?? '–'}</Link>;
+  return <Link href="/inbox">Inbox {count ?? "–"}</Link>;
 }
 ```
 
@@ -104,7 +109,7 @@ Channels are shared: ten live queries on `customers` open one channel.
 `liveCount` is the same for a count spec, with the result:
 
 ```ts
-import { liveCount } from 'better-supabase/realtime';
+import { liveCount } from "better-supabase/realtime";
 
 using live = liveCount(sb, supabase, db, unread, {
   tenant: orgId,

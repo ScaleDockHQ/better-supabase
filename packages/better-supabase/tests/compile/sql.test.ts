@@ -231,6 +231,57 @@ describe("compileSql boolean conditions", () => {
       `((t0."name" = $1 and t0."status" = $2) or not t0."kvk" is null)`,
       ["A", "lead"],
     ],
+    [
+      "a keyset step as a row comparison",
+      {
+        kind: "or",
+        items: [
+          col("created_at", "lt", "2026-02-01"),
+          {
+            kind: "and",
+            items: [
+              col("created_at", "eq", "2026-02-01"),
+              col("id", "lt", "c2"),
+            ],
+          },
+        ],
+      },
+      `(t0."created_at", t0."id") < ($1, $2)`,
+      ["2026-02-01", "c2"],
+    ],
+    [
+      "mixed directions as an OR of ANDs",
+      {
+        kind: "or",
+        items: [
+          col("created_at", "lt", "2026-02-01"),
+          {
+            kind: "and",
+            items: [
+              col("created_at", "eq", "2026-02-01"),
+              col("id", "gt", "c2"),
+            ],
+          },
+        ],
+      },
+      `(t0."created_at" < $1 or (t0."created_at" = $2 and t0."id" > $3))`,
+      ["2026-02-01", "2026-02-01", "c2"],
+    ],
+    [
+      "a step whose equality doesn't match the previous column",
+      {
+        kind: "or",
+        items: [
+          col("name", "gt", "A"),
+          {
+            kind: "and",
+            items: [col("kvk", "eq", "A"), col("id", "gt", "c2")],
+          },
+        ],
+      },
+      `(t0."name" > $1 or (t0."kvk" = $2 and t0."id" > $3))`,
+      ["A", "A", "c2"],
+    ],
   ])("%s", (_name, where, expected, params) => {
     expect(rows(select({ where }))).toEqual({
       text: `${BASE} where ${expected}`,
@@ -267,7 +318,7 @@ describe("compileSql relation conditions", () => {
     quantifier,
     where,
   });
-  const from = `select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id"`;
+  const from = `select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id"`;
 
   it.each<[string, Condition, string, unknown[]]>([
     [
@@ -303,24 +354,14 @@ describe("compileSql relation conditions", () => {
   });
 
   it("joins every column of a composite relation", () => {
-    const composite: RelationMeta = {
-      ...notesOf,
-      columns: ["id", "organizationId"],
-      references: ["customerId", "organizationId"],
-    };
-    expect(
-      rows(select({ where: { ...on("some", undefined), relation: composite } }))
-        .text,
-    ).toBe(
+    expect(notesOf.references).toEqual(["customerId", "organizationId"]);
+    expect(rows(select({ where: on("some", undefined) })).text).toBe(
       `${BASE} where exists (select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id")`,
     );
   });
 
   it("rejects a relation with mismatched columns", () => {
-    const broken: RelationMeta = {
-      ...notesOf,
-      columns: ["id", "organizationId"],
-    };
+    const broken: RelationMeta = { ...notesOf, columns: ["id"] };
     expect(
       invalid(() =>
         compileSql(
@@ -331,7 +372,10 @@ describe("compileSql relation conditions", () => {
   });
 
   it("rejects a relation to an unknown column", () => {
-    const broken: RelationMeta = { ...notesOf, references: ["nope"] };
+    const broken: RelationMeta = {
+      ...notesOf,
+      references: ["nope", "organizationId"],
+    };
     expect(
       invalid(() =>
         compileSql(
@@ -416,7 +460,7 @@ describe("compileSql includes", () => {
     });
   const prefix = `select json_build_object('id', t0."id", `;
   const suffix = `) as row from "public"."customers" as t0`;
-  const join = `t1."customer_id" = t0."id"`;
+  const join = `t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id"`;
 
   it.each<[string, Include, string, unknown[]]>([
     [
@@ -493,7 +537,7 @@ describe("compileSql includes", () => {
       include({ required: true, where: col("body", "eq", "x") }),
     );
     expect(rows({ ...op, where: col("name", "eq", "Acme") })).toEqual({
-      text: `${prefix}'notes', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t2."id") as r, row_number() over () as o from "public"."notes" as t2 where t2."customer_id" = t0."id" and t2."body" = $3) as s)${suffix} where t0."name" = $1 and exists (select 1 from "public"."notes" as t1 where ${join} and t1."body" = $2)`,
+      text: `${prefix}'notes', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t2."id") as r, row_number() over () as o from "public"."notes" as t2 where t2."customer_id" = t0."id" and t2."organization_id" = t0."organization_id" and t2."body" = $3) as s)${suffix} where t0."name" = $1 and exists (select 1 from "public"."notes" as t1 where ${join} and t1."body" = $2)`,
       params: ["Acme", "x", "x"],
     });
   });
@@ -633,6 +677,22 @@ describe("compileSql inserts", () => {
       },
       never: false,
     });
+  });
+
+  it("splits an insert to stay under 65,535 bind parameters", () => {
+    const rows = Array.from({ length: 32_768 }, (_, index) => ({
+      name: `c${index}`,
+      organization_id: "o1",
+    }));
+    const plan = insert({ rows, returning: idOnly });
+    const statements = [plan, ...(plan.chunks ?? [])];
+    expect(statements.map((entry) => entry.rows?.params.length)).toEqual([
+      65_534, 2,
+    ]);
+    expect(plan.chunks?.[0]?.rows?.text).toBe(
+      `${into} ("name", "organization_id") values ($1, $2) returning json_build_object('id', t0."id") as row`,
+    );
+    expect(insert({ rows: rows.slice(0, 32_767) }).chunks).toBeUndefined();
   });
 
   it("returns rows with a returning selection", () => {

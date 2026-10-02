@@ -23,6 +23,8 @@ import {
   type Selection,
   type UpdateOp,
   and,
+  column as columnIs,
+  not,
   or,
 } from "../ir/types.ts";
 import { decodeCursor, encodeCursor } from "./cursor.ts";
@@ -42,7 +44,7 @@ export interface Runtime {
   readonly context: RequestContext;
   readonly events: EventHub;
   readonly errorMappers: readonly ErrorMapper[];
-  readonly now: () => Date;
+  readonly now: () => Temporal.Instant;
   /** Rows PostgREST returns at most for one read (`db-max-rows`). */
   readonly maxRows: number;
   /** Tables already warned about truncated reads, shared across connections. */
@@ -148,13 +150,19 @@ export class OperationRunner {
     const executed = await runtime.executor.execute(current, context);
     const selection =
       current.kind === "select" ? current.selection : current.returning;
-    const result: Result<ExecuteResult> =
-      executed.ok && selection && needsDecoding(selection)
-        ? ok({
-            ...executed.data,
-            rows: decodeRows(selection, executed.data.rows),
-          })
-        : executed;
+    let result: Result<ExecuteResult> = executed;
+    if (executed.ok && selection && needsDecoding(selection)) {
+      try {
+        result = ok({
+          ...executed.data,
+          rows: decodeRows(selection, executed.data.rows),
+        });
+      } catch (cause) {
+        if (cause instanceof DbException)
+          return this.fail(op.table, cause.error);
+        throw cause;
+      }
+    }
 
     const rows = result.ok ? result.data.rows.length : 0;
     const truncated =
@@ -549,10 +557,11 @@ export function createRepository(
     args: Args | undefined,
     conflict: readonly string[] | undefined,
   ): InsertOp {
+    const built = rows.map((row) => builder.row(table, row));
     return {
       kind: "insert",
       table,
-      rows: rows.map((row) => builder.row(table, row)),
+      rows: conflict && built.length > 1 ? byKey(built, conflict) : built,
       returning: returning(args),
       onConflict: conflict
         ? {
@@ -641,7 +650,13 @@ export function createRepository(
       if (!values || values.length !== orderBy.length) {
         return runner.fail(table, dbError("invalid_request", "Invalid cursor"));
       }
-      after = keysetCondition(orderBy, values);
+      after = keysetCondition(
+        orderBy,
+        values,
+        (name) =>
+          Object.values(table.columns).find((meta) => meta.db === name)
+            ?.nullable ?? true,
+      );
     }
 
     const op = selectOp(args, {
@@ -716,27 +731,77 @@ function strip(row: Row, keys: readonly string[]): Row {
   return copy;
 }
 
-/** `(a, b) > (x, y)` for mixed directions, as an OR of ANDs. */
+/**
+ * Rows in conflict-key order, so concurrent upserts lock the same rows in
+ * the same order instead of deadlocking.
+ */
+function byKey(
+  rows: readonly Readonly<Record<string, unknown>>[],
+  columns: readonly string[],
+): Readonly<Record<string, unknown>>[] {
+  const compare = (left: unknown, right: unknown): number => {
+    if (left === right) return 0;
+    if (left === null || left === undefined) return 1;
+    if (right === null || right === undefined) return -1;
+    if (typeof left === "number" && typeof right === "number")
+      return left - right;
+    if (typeof left === "bigint" && typeof right === "bigint")
+      return left < right ? -1 : 1;
+    const a = String(left);
+    const b = String(right);
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  return [...rows].sort((left, right) => {
+    for (const column of columns) {
+      const order = compare(left[column], right[column]);
+      if (order !== 0) return order;
+    }
+    return 0;
+  });
+}
+
+/**
+ * The rows after the cursor `values` in `orderBy` order, as an OR of ANDs:
+ * `a > x or (a = x and b > y)`. The SQL compiler sends that shape as the row
+ * comparison `(a, b) > (x, y)`. Nulls sort where Postgres puts them: last
+ * for `asc`, first for `desc`, unless the term says otherwise.
+ */
 function keysetCondition(
   orderBy: readonly OrderTerm[],
   values: readonly unknown[],
+  nullable: (column: string) => boolean,
 ): Condition {
-  const branches: Condition[] = orderBy.map((term, index) => {
-    const equal: Condition[] = orderBy
+  const isNull = (name: string): Condition => columnIs(name, "is", null);
+  const branches = orderBy.flatMap((term, index): Condition[] => {
+    const value = values[index];
+    const nullsFirst =
+      (term.nulls ?? (term.direction === "desc" ? "first" : "last")) ===
+      "first";
+    const after = columnIs(
+      term.column,
+      term.direction === "asc" ? "gt" : "lt",
+      value,
+    );
+    const step =
+      value === null
+        ? nullsFirst
+          ? not(isNull(term.column))
+          : undefined
+        : nullsFirst || !nullable(term.column)
+          ? after
+          : or(after, isNull(term.column));
+    if (!step) return [];
+    const equal = orderBy
       .slice(0, index)
-      .map((prev, prevIndex) => ({
-        kind: "column",
-        column: prev.column,
-        op: "eq",
-        value: values[prevIndex],
-      }));
-    const step: Condition = {
-      kind: "column",
-      column: term.column,
-      op: term.direction === "asc" ? "gt" : "lt",
-      value: values[index],
-    };
-    return and(...equal, step) ?? step;
+      .map((prev, prevIndex) =>
+        values[prevIndex] === null
+          ? isNull(prev.column)
+          : columnIs(prev.column, "eq", values[prevIndex]),
+      );
+    return [and(...equal, step) ?? step];
   });
-  return or(...branches);
+  // A null in the last nulls-last term leaves nothing after the cursor.
+  return branches.length > 0
+    ? or(...branches)
+    : columnIs(orderBy[0]?.column ?? "", "in", []);
 }

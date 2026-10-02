@@ -7,17 +7,17 @@ Every integration point is a small interface. The built-in behavior is one
 implementation of it, and yours can replace or sit next to it. Each interface
 has a [conformance kit](/docs/extending/conformance).
 
-| Interface | Built in | Plug in with |
-| --- | --- | --- |
-| [`Executor`](#executor) | `postgrestExecutor`, `postgresExecutor` | `sb.connect(executor)` |
-| [`Compiler`](#compiler) | `postgrestCompiler`, `sqlCompiler` | your executor |
-| [`CacheAdapter`](#cacheadapter) | `nextCache()`, `queryCache(client)`, `memoryCache()` | `sb.cache(adapter)` |
-| [`EventSink`](#eventsink) | `httpSink()` | `forwardMutations(sb, sink, { source })` |
-| [`AuthResolver`](#authresolver) | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(sb, { auth: { resolvers } })` |
-| [`Generator`](#generator) | `zod()`, `valibot()`, `jsonSchema()` | `generators` in the config |
-| [`Logger`](#logger) | `consoleLogger`, `silentLogger` | `defineSupabase(schema, { logger })` |
-| `EnvSource` | `process.env`, `Deno.env.toObject()` | `parseEnv(source)` |
-| [`Plugin`](/docs/extending/plugins) | timestamps, soft delete, tenant, actor, validation | `sb.use(plugin)` |
+| Interface                           | Built in                                                  | Plug in with                                |
+| ----------------------------------- | --------------------------------------------------------- | ------------------------------------------- |
+| [`Executor`](#executor)             | `postgrestExecutor`, `postgresExecutor`                   | `sb.connect(executor)`                      |
+| [`Compiler`](#compiler)             | `postgrestCompiler`, `sqlCompiler`                        | your executor                               |
+| [`CacheAdapter`](#cacheadapter)     | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `sb.cache(adapter)`                         |
+| [`EventSink`](#eventsink)           | `httpSink()`                                              | `forwardMutations(sb, sink, { source })`    |
+| [`AuthResolver`](#authresolver)     | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(sb, { auth: { resolvers } })` |
+| [`Generator`](#generator)           | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                  |
+| [`Logger`](#logger)                 | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`        |
+| `EnvSource`                         | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                          |
+| [`Plugin`](/docs/extending/plugins) | timestamps, soft delete, tenant, actor, validation        | `sb.use(plugin)`                            |
 
 ## Executor
 
@@ -26,11 +26,11 @@ errors, returns `aborted` when the signal is aborted, and keys rows by the
 selection's aliases (the configured casing).
 
 ```ts
-import type { Executor } from 'better-supabase';
+import type { Executor } from "better-supabase";
 
 export function kyselyExecutor(db: Kysely<Database>): Executor {
   return {
-    name: 'kysely',
+    name: "kysely",
     async execute(op, { signal, errorMappers }) {
       // compile op, run it, map errors with mapDbError(raw, errorMappers)
     },
@@ -75,12 +75,15 @@ table key, the primary keys of the changed rows and the tenant, and returns a
 function that detaches it.
 
 ```ts
-import type { CacheAdapter } from 'better-supabase';
+import type { CacheAdapter } from "better-supabase";
 
 const redis: CacheAdapter = {
-  name: 'redis',
+  name: "redis",
   invalidate: ({ table, ids, tenant }) =>
-    redisClient.del([`${tenant}:${table}`, ...ids.map((id) => `${tenant}:${table}:${id}`)]),
+    redisClient.del([
+      `${tenant}:${table}`,
+      ...ids.map((id) => `${tenant}:${table}:${id}`),
+    ]),
 };
 
 sb.cache(redis);

@@ -6,6 +6,9 @@ import { gzipSync } from "node:zlib";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const PACKAGE = resolve(import.meta.dirname, "../../packages/better-supabase");
+const CLI_BIN = resolve(import.meta.dirname, "../../packages/cli/dist/bin.js");
+/** The CLI's startup cost: what `better-supabase --version` loads before any command. */
+const CLI_STARTUP = "@better-supabase/cli (startup)";
 const BASELINE = resolve(import.meta.dirname, "baseline.json");
 /** Growth allowed before the size check fails: 5% or 256 bytes, whichever is larger. */
 const TOLERANCE = { ratio: 0.05, bytes: 256 };
@@ -26,15 +29,16 @@ interface Closure {
   readonly gzip: number;
 }
 
-async function closure(entry: string): Promise<Closure> {
+async function closure(entry: string, dynamic = true): Promise<Closure> {
   const files = new Set<string>();
   const externals = new Set<string>();
   const visit = async (file: string): Promise<void> => {
     if (files.has(file)) return;
     files.add(file);
     const source = await readFile(file, "utf8");
-    for (const [, fromClause, dynamic] of source.matchAll(SPECIFIER)) {
-      const specifier = (fromClause ?? dynamic)!;
+    for (const [, fromClause, lazy] of source.matchAll(SPECIFIER)) {
+      if (lazy !== undefined && !dynamic) continue;
+      const specifier = (fromClause ?? lazy)!;
       if (!specifier.startsWith(".")) externals.add(specifier);
       else if (
         specifier.endsWith(".js") &&
@@ -59,7 +63,7 @@ const subpaths = async (): Promise<Map<string, string>> => {
   };
   const entries = new Map<string, string>();
   for (const [subpath, target] of Object.entries(manifest.exports)) {
-    if (typeof target === "string") continue;
+    if (!(target instanceof Object)) continue;
     entries.set(subpath, join(PACKAGE, target.default));
   }
   return entries;
@@ -75,11 +79,16 @@ describe("bundle", () => {
         throw new Error(`${file} is missing. Run \`pnpm build\` first.`);
       closures.set(subpath, await closure(file));
     }
+    if (!existsSync(CLI_BIN))
+      throw new Error(`${CLI_BIN} is missing. Run \`pnpm build\` first.`);
+    closures.set(CLI_STARTUP, await closure(CLI_BIN, false));
   });
 
   it("keeps runtime entries free of Node built-ins (WinterTC)", () => {
     const offenders = [...closures]
-      .filter(([subpath]) => !NODE_ENTRIES.has(subpath))
+      .filter(
+        ([subpath]) => !NODE_ENTRIES.has(subpath) && subpath !== CLI_STARTUP,
+      )
       .flatMap(([subpath, { externals }]) =>
         externals
           .filter((name) => BUILTINS.has(name) || name === "pg")

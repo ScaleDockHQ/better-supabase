@@ -57,10 +57,11 @@ import {
 } from "./spec.ts";
 import { type StandardSchemaV1, validate } from "./standard.ts";
 import { recordStats, StatsRecorder } from "./stats.ts";
+import { nowInstant } from "./temporal.ts";
 
 export interface DefineSupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
-  readonly now?: () => Date;
+  readonly now?: () => Temporal.Instant;
   /** Extra error mappers, run before plugin mappers. */
   readonly errors?: readonly ErrorMapper[];
   /** Receives errors from event handlers, hooks and cache adapters. Defaults to `console`. */
@@ -306,7 +307,9 @@ export class BetterSupabase<
       try {
         const pending = adapter.invalidate(target);
         if (pending)
-          pending.catch((cause: unknown) => report(cause, target.table));
+          pending.catch((cause: unknown) => {
+            report(cause, target.table);
+          });
       } catch (cause) {
         report(cause, target.table);
       }
@@ -378,7 +381,7 @@ export class BetterSupabase<
       context,
       events,
       errorMappers,
-      now: this.options.now ?? (() => new Date()),
+      now: this.options.now ?? nowInstant,
       maxRows: this.options.maxRows ?? 1000,
       truncatedTables: this.#truncatedTables,
     });
@@ -647,18 +650,20 @@ export class BetterSupabase<
       const rows = entry.rows ?? [];
       const stub: Executor = {
         name: "read-set",
-        execute: async (op) => {
+        execute: (op) => {
           if (op.kind === "select" && op.single) {
             if (rows.length > 1)
-              return err(
-                dbError("multiple_rows", `Expected one ${op.table.key} row`),
+              return Promise.resolve(
+                err(
+                  dbError("multiple_rows", `Expected one ${op.table.key} row`),
+                ),
               );
             if (rows.length === 0 && op.single === "one")
-              return err(
-                dbError("not_found", `No ${op.table.key} row matched`),
+              return Promise.resolve(
+                err(dbError("not_found", `No ${op.table.key} row matched`)),
               );
           }
-          return ok({ rows, count: entry.count ?? null });
+          return Promise.resolve(ok({ rows, count: entry.count ?? null }));
         },
       };
       // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.

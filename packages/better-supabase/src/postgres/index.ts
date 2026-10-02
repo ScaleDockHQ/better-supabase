@@ -6,6 +6,7 @@ export type {
   PgPoolClient,
   Postgres,
   PostgresOptions,
+  PostgresTimeouts,
   SqlClaims,
 } from "./pool.ts";
 export { compileSql, quoteIdent } from "../compile/sql.ts";

@@ -14,15 +14,41 @@ export interface PgPool {
   end(): Promise<void>;
 }
 
+/** Statement timeouts in milliseconds by the role a transaction runs as. */
+export interface PostgresTimeouts {
+  /** The connection-string role (`admin` and `transaction` without claims). Unset by default. */
+  readonly admin?: number;
+  /** Defaults to 8000, Supabase's setting for the role. */
+  readonly authenticated?: number;
+  /** Defaults to 3000, Supabase's setting for the role. */
+  readonly anon?: number;
+}
+
 export interface PostgresOptions {
   /** Defaults to `$SUPABASE_DB_URL`, then `$DATABASE_URL`. */
   readonly connectionString?: string;
   /** An existing pool to run on instead of opening one. `end()` ends it. */
   readonly pool?: PgPool;
   readonly max?: number;
-  /** Statement timeout in milliseconds, applied per transaction. */
-  readonly statementTimeout?: number;
+  /**
+   * Statement timeout in milliseconds, applied per transaction: one value
+   * for every role, or one per role. `set role` doesn't apply the role's own
+   * `statement_timeout`, so `authenticated` and `anon` get Supabase's 8 s
+   * and 3 s unless you set them.
+   */
+  readonly statementTimeout?: number | PostgresTimeouts;
+  /** Ends a session that stays idle inside a transaction this long, in milliseconds. */
+  readonly idleInTransactionTimeout?: number;
+  /** How long `connect` waits for a connection, in milliseconds. Defaults to 10000. */
+  readonly connectionTimeout?: number;
+  /** How long an unused connection stays open, in milliseconds. Defaults to 10000. */
+  readonly idleTimeout?: number;
 }
+
+const DEFAULT_TIMEOUTS: PostgresTimeouts = {
+  authenticated: 8000,
+  anon: 3000,
+};
 
 /** JWT claims to run as. `role` must be `authenticated` or `anon`. */
 export interface SqlClaims {
@@ -69,7 +95,12 @@ function openPool(options: PostgresOptions): PgPool {
       "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
     );
   }
-  return new Pool({ connectionString, max: options.max ?? 10 });
+  return new Pool({
+    connectionString,
+    max: options.max ?? 10,
+    connectionTimeoutMillis: options.connectionTimeout ?? 10_000,
+    idleTimeoutMillis: options.idleTimeout ?? 10_000,
+  });
 }
 
 type Session =
@@ -83,20 +114,46 @@ type Session =
  */
 export function createPostgres(options: PostgresOptions = {}): Postgres {
   const pool = options.pool ?? openPool(options);
+  const timeouts: PostgresTimeouts =
+    typeof options.statementTimeout === "number"
+      ? {
+          admin: options.statementTimeout,
+          authenticated: options.statementTimeout,
+          anon: options.statementTimeout,
+        }
+      : { ...DEFAULT_TIMEOUTS, ...options.statementTimeout };
 
+  /** Opens the transaction, then sets the timeouts, claims and role in one round trip. */
   async function begin(client: PgPoolClient, session: Session): Promise<void> {
     await client.query("begin");
-    if (options.statementTimeout !== undefined) {
-      await client.query(
-        `set local statement_timeout = ${Math.trunc(options.statementTimeout)}`,
+    const settings: [string, string][] = [];
+    const timeout =
+      session?.role === "authenticated"
+        ? timeouts.authenticated
+        : session?.role === "anon"
+          ? timeouts.anon
+          : timeouts.admin;
+    if (timeout !== undefined)
+      settings.push(["statement_timeout", String(Math.trunc(timeout))]);
+    if (options.idleInTransactionTimeout !== undefined)
+      settings.push([
+        "idle_in_transaction_session_timeout",
+        String(Math.trunc(options.idleInTransactionTimeout)),
+      ]);
+    if (session) {
+      settings.push(
+        [
+          "request.jwt.claims",
+          JSON.stringify({ ...session.claims, role: session.role }),
+        ],
+        ["role", session.role],
       );
     }
-    if (session) {
-      await client.query("select set_config('request.jwt.claims', $1, true)", [
-        JSON.stringify({ ...session.claims, role: session.role }),
-      ]);
-      await client.query(`set local role ${session.role}`);
-    }
+    if (settings.length === 0) return;
+    await client.query(
+      `select ${settings.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
+      settings.flat(),
+    );
   }
 
   async function transaction<T>(

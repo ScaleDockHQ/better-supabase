@@ -36,7 +36,7 @@ import {
   pgFunctionHooks,
   type SupabaseToml,
 } from "../../src/supabase-toml.ts";
-import { snapshotFixture as fixture } from "../fixtures/library.ts";
+import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
 const base = parseSnapshot(fixture);
@@ -95,7 +95,10 @@ const codes = async (ctx: DoctorContext, only?: string): Promise<string[]> =>
     await runRules(
       ctx,
       RULES.filter(
-        (rule) => rule.code !== "BS303" && (!only || rule.code === only),
+        (rule) =>
+          rule.code !== "BS303" &&
+          // BS211 reports the role timeouts of every snapshot that has them.
+          (only ? rule.code === only : rule.code !== "BS211"),
       ),
     )
   ).map((finding) => finding.code);
@@ -270,7 +273,7 @@ describe("doctor rules", () => {
       expect(message).toContain(
         "authenticated may update org_id, role, user_id",
       );
-      expect(message).toContain("better_supabase.has_org_role reads them");
+      expect(message).toContain("better_supabase.member_org_ids reads them");
       expect(message).toContain(
         "revoke update on better_supabase.memberships from authenticated;\ngrant update (created_at) on better_supabase.memberships to authenticated;",
       );
@@ -497,7 +500,8 @@ describe("doctor rules", () => {
         (index) => index.columns[0] !== "organization_id",
       );
     });
-    expect(await codes(context(snap))).toEqual(["BS204"]);
+    // Without the index, the foreign key to organizations has none either.
+    expect(await codes(context(snap))).toEqual(["BS204", "BS216"]);
   });
 
   it("flags aggregates while PostgREST disables them", async () => {
@@ -595,8 +599,41 @@ describe("doctor rules", () => {
         },
       ]);
       // Inlinable SQL helpers, and calls without a column, are fine.
-      const sql = withFunctions(snap, [helper({ language: "sql" })]);
+      const sql = withFunctions(snap, [
+        helper({ language: "sql", securityDefiner: false }),
+      ]);
       expect(await codes(context(sql), "BS205")).toEqual([]);
+      // Postgres never inlines security definer functions or ones with `set`.
+      const definer = withFunctions(snap, [helper({ language: "sql" })]);
+      expect(
+        await runRules(
+          context(definer),
+          RULES.filter((rule) => rule.code === "BS205"),
+        ),
+      ).toMatchObject([
+        {
+          message: expect.stringMatching(
+            /a security definer function, .*in \(select <helper>\(\)\)`\.$/,
+          ),
+        },
+      ]);
+      const pinned = withFunctions(snap, [
+        helper({
+          language: "sql",
+          securityDefiner: false,
+          settings: { search_path: '""' },
+        }),
+      ]);
+      expect(
+        await runRules(
+          context(pinned),
+          RULES.filter((rule) => rule.code === "BS205"),
+        ),
+      ).toMatchObject([
+        {
+          message: expect.stringContaining("a function with `set search_path`"),
+        },
+      ]);
       const constant = snapshot((tables) => {
         table(tables, "customers").policies = [
           memberPolicy(
@@ -633,9 +670,11 @@ describe("doctor rules", () => {
         message: expect.stringContaining("used in 5 policies"),
         object: { kind: "function", schema: "private", name: "is_member" },
       });
-      const inlinable = withFunctions(snap, [helper({ language: "sql" })]);
+      const invoker = withFunctions(snap, [
+        helper({ language: "sql", securityDefiner: false }),
+      ]);
       expect(
-        await codes(context(inlinable, { config: tight.config }), "BS206"),
+        await codes(context(invoker, { config: tight.config }), "BS206"),
       ).toEqual([]);
     });
 
@@ -724,7 +763,7 @@ describe("doctor rules", () => {
         {
           severity: "info",
           message:
-            "statement_timeout: anon 3s, authenticated 8s, authenticator 8s. Unset roles use the database default.",
+            "statement_timeout: anon 3s, authenticated 8s, authenticator 8s. idle_in_transaction_session_timeout: anon not set, authenticated not set, authenticator not set. Unset roles use the database default.",
         },
         {
           severity: "warning",
@@ -923,7 +962,14 @@ uri = "https://example.com/hook"
     });
 
     it("keeps functions, role settings and hooks from saved snapshots", () => {
-      expect(base.extras.functions).toHaveLength(4);
+      expect(base.extras.functions).toContainEqual(
+        expect.objectContaining({
+          schema: "better_supabase",
+          name: "has_org_role",
+          securityDefiner: true,
+          execute: ["authenticated"],
+        }),
+      );
       expect(base.extras.hooks?.map((hook) => hook.name)).toEqual([
         "custom_access_token_hook",
       ]);
@@ -1328,9 +1374,10 @@ uri = "https://example.com/hook"
 
     it("asks for the manifest when only the PermDock config is there (BS407)", async () => {
       const { manifest: _, ...withoutManifest } = PERMDOCK;
+      const noHooks = { ...base, extras: { ...base.extras, hooks: [] } };
       expect(
         await runRules(
-          hookContext(base, { permdock: withoutManifest }),
+          hookContext(noHooks, { permdock: withoutManifest }),
           only("BS407"),
         ),
       ).toMatchObject([
@@ -1348,11 +1395,12 @@ uri = "https://example.com/hook"
       ...PERMDOCK,
       manifest: parseManifest(manifest),
     };
+    const entitlementsConfig: Parameters<typeof resolveConfig>[0] = {
+      sql: { kit: ["entitlements"] },
+    };
     const check = (
       extra: Partial<DoctorContext> = {},
-      config: Parameters<typeof resolveConfig>[0] = {
-        sql: { kit: ["entitlements"] },
-      },
+      config = entitlementsConfig,
     ) =>
       runRules(
         context(base, {
@@ -1529,8 +1577,10 @@ uri = "https://example.com/hook"
       ctx,
       RULES.filter((rule) => ["BS301", "BS302"].includes(rule.code)),
     );
+    // customer-logos differs in public, size limit and MIME types; avatars is missing.
     expect(findings.map((finding) => finding.code)).toEqual([
       "BS301",
+      "BS302",
       "BS302",
       "BS302",
       "BS302",
@@ -1784,8 +1834,7 @@ describe("doctor command", () => {
       "doctor",
       "--snapshot",
       "snapshot.json",
-      "--format",
-      "json",
+      "--json",
       "--cwd",
       dir,
     ]);

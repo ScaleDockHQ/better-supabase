@@ -143,4 +143,39 @@ describe("createOpenApi", () => {
       }),
     ).toThrow("needs supabaseUrl");
   });
+
+  it("documents cursor pages for cursor resources and lists", () => {
+    const cursorList = defineListQuery(sb, "customers", {
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      pagination: "cursor",
+    });
+    const cursorDoc = createOpenApi(sb, {
+      info: { title: "CRM", version: "1.0.0" },
+      resources: {
+        customers: { list: cursorList },
+        notes: { pagination: "cursor", maxPageSize: 20 },
+      },
+    });
+    const pageOf = (name: string) =>
+      cursorDoc.components.schemas[name] as { required: string[] };
+    expect(pageOf("CustomersPage").required).toEqual([
+      "items",
+      "nextCursor",
+      "hasMore",
+    ]);
+    expect(pageOf("NotesPage").required).toEqual([
+      "items",
+      "nextCursor",
+      "hasMore",
+    ]);
+    const notes = (cursorDoc.paths["/notes"] as Record<string, unknown>)[
+      "get"
+    ] as { parameters: { name: string; schema: { maximum?: number } }[] };
+    expect(notes.parameters.map((parameter) => parameter.name)).toEqual([
+      "after",
+      "size",
+    ]);
+    expect(notes.parameters[1]?.schema.maximum).toBe(20);
+  });
 });

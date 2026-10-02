@@ -690,6 +690,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "execute": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -901,6 +907,12 @@
               },
               "partial": {
                 "type": "boolean"
+              },
+              "method": {
+                "type": "string"
+              },
+              "predicate": {
+                "type": ["string", "null"]
               }
             }
           }

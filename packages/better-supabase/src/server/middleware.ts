@@ -26,12 +26,12 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
       const actor: Actor = {
         id: ctx.userClaims.id,
         kind: "user",
-        ...(ctx.userClaims.role !== undefined
-          ? { role: ctx.userClaims.role }
-          : {}),
-        ...(ctx.userClaims.email !== undefined
-          ? { email: ctx.userClaims.email }
-          : {}),
+        ...(ctx.userClaims.role === undefined
+          ? {}
+          : { role: ctx.userClaims.role }),
+        ...(ctx.userClaims.email === undefined
+          ? {}
+          : { email: ctx.userClaims.email }),
       };
       return { actor, claims: ctx.jwtClaims ?? {} };
     }

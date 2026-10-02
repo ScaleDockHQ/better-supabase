@@ -8,7 +8,7 @@ import { kitLayout } from "../../src/sql/layout.ts";
 
 const contents = (name: string, config: Record<string, unknown> = {}) =>
   renderKit([name], kitLayout(resolveConfig(config, "/project"))).find((file) =>
-    file.path.includes(name.replace(/-/g, "_")),
+    file.path.includes(name.replaceAll("-", "_")),
   )!;
 
 describe("pgTAP", () => {

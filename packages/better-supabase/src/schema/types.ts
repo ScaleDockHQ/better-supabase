@@ -28,10 +28,12 @@ export interface ColumnMeta {
 }
 
 /**
- * Runtime representation for a column: `date` decodes timestamps to `Date`,
- * `bigint` and `string` read the exact text of `int8`/`numeric` values.
+ * Runtime representation for a column: `instant` decodes `timestamptz` to
+ * `Temporal.Instant`, `plainDateTime` decodes `timestamp` to
+ * `Temporal.PlainDateTime`, and `bigint` and `string` read the exact text of
+ * `int8`/`numeric` values.
  */
-export type Codec = "date" | "bigint" | "string";
+export type Codec = "instant" | "plainDateTime" | "bigint" | "string";
 
 export interface RelationMeta {
   /** App key of the target table. */
@@ -171,15 +173,15 @@ export interface BucketMeta {
 }
 
 // ---------------------------------------------------------------------------
-// Type-level model shapes, written as literal types by `better-supabase gen`.
+// Type-level model descriptions, written as literal types by `better-supabase gen`.
 
-export interface RelationShape {
+export interface RelationTypes {
   readonly table: string;
   readonly kind: "one" | "many";
   readonly nullable: boolean;
 }
 
-export interface FlagsShape {
+export interface ModelFlags {
   readonly softDelete?: string;
   readonly timestamps?: true;
   readonly tenant?: string;
@@ -187,7 +189,7 @@ export interface FlagsShape {
   readonly version?: string;
 }
 
-export interface ModelShape {
+export interface ModelTypes {
   readonly Row: object;
   readonly Insert: object;
   readonly Update: object;
@@ -198,16 +200,16 @@ export interface ModelShape {
   readonly Checks?: string;
   /** Foreign key constraint names on this table. */
   readonly ForeignKeys?: string;
-  readonly Flags: FlagsShape;
+  readonly Flags: ModelFlags;
 }
 
-export type AnyModels = { readonly [table: string]: ModelShape };
+export type AnyModels = { readonly [table: string]: ModelTypes };
 
-export type FunctionShape = {
+export type FunctionTypes = {
   readonly Args: object;
   readonly Returns: unknown;
 };
-export type AnyFunctions = { readonly [name: string]: FunctionShape };
+export type AnyFunctions = { readonly [name: string]: FunctionTypes };
 
 /**
  * Carries the model types next to the runtime metadata. Created by

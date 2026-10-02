@@ -72,7 +72,7 @@ describe("WinterTC runtime entries", async () => {
     const { files } = await closure(entry);
     const offenders: string[] = [];
     for (const file of files) {
-      const code = (await readFile(file, "utf8")).replace(
+      const code = (await readFile(file, "utf8")).replaceAll(
         /\/\/.*$|\/\*[^]*?\*\//gm,
         "",
       );

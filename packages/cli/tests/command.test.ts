@@ -67,6 +67,7 @@ describe("defineCliCommand", () => {
       config: resolveConfig({}, "/"),
       io: { stdout: () => {}, stderr: () => {} },
       env: {},
+      json: false,
       signal: undefined,
     };
     expect(cliContext(context)).toBe(context);

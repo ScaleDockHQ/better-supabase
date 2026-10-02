@@ -68,10 +68,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "customer_tags_customer_id_fkey"
-            columns: ["customer_id"]
+            columns: ["customer_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "customers"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "organization_id"]
           },
           {
             foreignKeyName: "customer_tags_organization_id_fkey"
@@ -82,10 +82,10 @@ export type Database = {
           },
           {
             foreignKeyName: "customer_tags_tag_id_fkey"
-            columns: ["tag_id"]
+            columns: ["tag_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "tags"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "organization_id"]
           },
         ]
       }
@@ -145,10 +145,10 @@ export type Database = {
           },
           {
             foreignKeyName: "customers_primary_contact_id_fkey"
-            columns: ["primary_contact_id"]
+            columns: ["primary_contact_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "organization_id"]
           },
         ]
       }
@@ -186,10 +186,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "locations_customer_id_fkey"
-            columns: ["customer_id"]
+            columns: ["customer_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "customers"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "organization_id"]
           },
           {
             foreignKeyName: "locations_organization_id_fkey"
@@ -237,10 +237,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notes_customer_id_fkey"
-            columns: ["customer_id"]
+            columns: ["customer_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "customers"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "organization_id"]
           },
           {
             foreignKeyName: "notes_organization_id_fkey"
@@ -344,6 +344,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      rs_workspace_summary: { Args: { p: Json }; Returns: Json }
       search_notes: {
         Args: { k?: number; query: string }
         Returns: {

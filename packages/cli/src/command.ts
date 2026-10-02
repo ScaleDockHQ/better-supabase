@@ -10,14 +10,18 @@ import {
   type SubCommandsDef,
 } from "citty";
 
+import type { CliEnv } from "./env.ts";
 import type { CliIo, CommandResult } from "./io.ts";
 
 /** What `run()` hands every command next to its parsed arguments. */
 export interface CliContext {
   readonly cwd: string;
   readonly config: ResolvedConfig;
+  /** `prompts` is unset in CI and under `--json` or `--yes`. */
   readonly io: CliIo;
-  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly env: CliEnv;
+  /** `--json`: return `data`, which `run()` prints as the one JSON document. */
+  readonly json: boolean;
   readonly signal: AbortSignal | undefined;
 }
 
@@ -32,6 +36,15 @@ export const GLOBAL_ARGS = {
     type: "string",
     description: "Config file, relative to --cwd",
     valueHint: "file",
+  },
+  json: {
+    type: "boolean",
+    description: "Print one JSON document on stdout; errors as Problem Details",
+  },
+  yes: {
+    type: "boolean",
+    alias: "y",
+    description: "Ask nothing; use the flags and the defaults",
   },
 } as const;
 
@@ -70,7 +83,9 @@ export function defineCliCommand<const T extends ArgsDef>(
 }
 
 /** The list options a command declared through `defineCliCommand`. */
-export function listArgs(command: object): readonly string[] {
+export function listArgs<T extends ArgsDef>(
+  command: CommandDef<T>,
+): readonly string[] {
   return LISTS.get(command) ?? [];
 }
 
@@ -138,7 +153,8 @@ function isCliContext(value: unknown): value is CliContext {
     value !== null &&
     "config" in value &&
     "io" in value &&
-    "env" in value
+    "env" in value &&
+    "json" in value
   );
 }
 

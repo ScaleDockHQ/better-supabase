@@ -14,7 +14,9 @@ function fakeRealtime() {
   const channel = {
     on: () => channel,
     subscribe: (callback: (status: string) => void) => {
-      queueMicrotask(() => callback("SUBSCRIBED"));
+      queueMicrotask(() => {
+        callback("SUBSCRIBED");
+      });
       return channel;
     },
     httpSend: async () => ({ success: true as const }),
@@ -74,7 +76,9 @@ describe("explicit resource management", () => {
       );
       await async.ready;
     }
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
     expect(removed).toHaveLength(2);
   });
 

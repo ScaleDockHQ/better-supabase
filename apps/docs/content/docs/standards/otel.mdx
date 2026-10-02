@@ -7,7 +7,7 @@ description: Database spans, metrics and trace propagation with the OpenTelemetr
 dependency. Set up an SDK as usual. Nothing is recorded without one.
 
 ```ts
-import { otel, traceAuth, tracedFetch } from 'better-supabase/otel';
+import { otel, traceAuth, tracedFetch } from "better-supabase/otel";
 
 export const sb = defineSupabase(schema).use(otel());
 traceAuth(server); // auth.resolve and auth.refresh spans from sb.events
@@ -22,16 +22,16 @@ Every repository operation gets a `CLIENT` span named after its
 [database semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/)
 at the version in `SPEC_PINS.otelSemconv`:
 
-| Attribute                                   | Example                          |
-| ------------------------------------------- | -------------------------------- |
-| `db.system.name`                            | `postgresql`                     |
-| `db.namespace`                              | `public`                         |
-| `db.collection.name`                        | `customers`                      |
-| `db.operation.name`                         | `SELECT`, `INSERT`, `UPSERT`, `COUNT` |
-| `db.query.summary`                          | `SELECT customers`               |
-| `db.response.returned_rows`                 | `20`                             |
-| `error.type`, `db.response.status_code`     | `conflict`, `23505`              |
-| `better_supabase.executor`                  | `postgrest` or `postgres`        |
+| Attribute                               | Example                               |
+| --------------------------------------- | ------------------------------------- |
+| `db.system.name`                        | `postgresql`                          |
+| `db.namespace`                          | `public`                              |
+| `db.collection.name`                    | `customers`                           |
+| `db.operation.name`                     | `SELECT`, `INSERT`, `UPSERT`, `COUNT` |
+| `db.query.summary`                      | `SELECT customers`                    |
+| `db.response.returned_rows`             | `20`                                  |
+| `error.type`, `db.response.status_code` | `conflict`, `23505`                   |
+| `better_supabase.executor`              | `postgrest` or `postgres`             |
 
 Filter values, row data and query text are never recorded, so spans carry no
 personal data by default.

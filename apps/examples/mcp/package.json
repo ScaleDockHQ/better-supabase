@@ -11,12 +11,14 @@
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
-    "better-supabase": "workspace:*"
+    "better-supabase": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/cli": "workspace:*",

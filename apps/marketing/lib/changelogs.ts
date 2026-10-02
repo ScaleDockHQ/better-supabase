@@ -11,6 +11,7 @@ const changelogPath = join(
 );
 
 /** Read once per build: the file only changes with a release, which redeploys. */
+// oxlint-disable-next-line typescript/require-await -- Next.js requires "use cache" functions to be async
 export async function loadChangelog(): Promise<ChangelogRelease[]> {
   "use cache";
   cacheLife("max");

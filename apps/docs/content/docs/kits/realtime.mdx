@@ -8,12 +8,12 @@ definition names the channel, authorizes it in SQL, validates payloads, and
 subscribes.
 
 ```ts title="lib/topics.ts"
-import { defineTopic } from 'better-supabase/realtime';
-import * as v from 'valibot';
+import { defineTopic } from "better-supabase/realtime";
+import * as v from "valibot";
 
-export const customersTopic = defineTopic('org:{orgId}:customers');
+export const customersTopic = defineTopic("org:{orgId}:customers");
 
-export const notifications = defineTopic('org:{orgId}:notifications:{userId}', {
+export const notifications = defineTopic("org:{orgId}:notifications:{userId}", {
   events: { created: v.object({ id: v.string(), title: v.string() }) },
   send: true,
 });
@@ -44,8 +44,12 @@ with PermDock permissions: joining needs `receive` in the scope named by the
 option must equal PermDock's `rls.schema` (`public` by default):
 
 ```ts
-export const board = defineTopic('org:{orgId}:board', {
-  permdock: { receive: 'board.read', send: 'board.write', scope: 'organization' },
+export const board = defineTopic("org:{orgId}:board", {
+  permdock: {
+    receive: "board.read",
+    send: "board.write",
+    scope: "organization",
+  },
 });
 ```
 
@@ -63,12 +67,12 @@ the tables that `permdock rls generate` writes policies for.
 
 ```ts
 // Wrong: board.read is granted only for boards the member owns
-defineTopic('org:{orgId}:board', {
-  permdock: { receive: 'board.read', scope: 'organization' },
+defineTopic("org:{orgId}:board", {
+  permdock: { receive: "board.read", scope: "organization" },
 });
 // Right: board.view is granted per organization, with no row condition
-defineTopic('org:{orgId}:board', {
-  permdock: { receive: 'board.view', scope: 'organization' },
+defineTopic("org:{orgId}:board", {
+  permdock: { receive: "board.view", scope: "organization" },
 });
 ```
 
@@ -76,10 +80,10 @@ Pass `permissions.catalog.json` as `catalog` and `defineTopic` throws for a
 `receive` or `send` key with `rowConditions: true`:
 
 ```ts
-import catalog from '../../permissions.catalog.json' with { type: 'json' };
+import catalog from "../../permissions.catalog.json" with { type: "json" };
 
-defineTopic('org:{orgId}:board', {
-  permdock: { receive: 'board.view', scope: 'organization' },
+defineTopic("org:{orgId}:board", {
+  permdock: { receive: "board.view", scope: "organization" },
   catalog,
 });
 ```
@@ -94,24 +98,34 @@ for any topic policy that calls a helper for one.
 `realtime.broadcast_changes`. Placeholders map to columns by their app names:
 
 ```ts
-customersTopic.triggerSql(sb, 'customers', { values: { orgId: 'organizationId' } });
+customersTopic.triggerSql(sb, "customers", {
+  values: { orgId: "organizationId" },
+});
 ```
+
+The trigger function goes into the `better_supabase` schema, which the Data
+API does not expose, so clients can't call it through `/rpc`. Pass
+`functionSchema` to put it somewhere else.
 
 On the client, `rowChange` turns a message into an app-cased change, or `null`
 for other tables:
 
 ```ts
-const change = rowChange(sb, 'customers', message);
+const change = rowChange(sb, "customers", message);
 // { operation: 'UPDATE', table: 'customers', record: Customer | null, oldRecord: Partial<Customer> | null }
 ```
 
 ## Subscribe
 
 ```ts
-using sub = notifications.subscribe(supabase, { orgId, userId }, {
-  created: (n) => toast(n.title), // typed from the schema
-  '*': (payload, message) => console.log(message.event, payload),
-});
+using sub = notifications.subscribe(
+  supabase,
+  { orgId, userId },
+  {
+    created: (n) => toast(n.title), // typed from the schema
+    "*": (payload, message) => console.log(message.event, payload),
+  },
+);
 await sub.ready; // rejects when the join is refused
 ```
 
@@ -123,7 +137,9 @@ skip the handler and go to `onInvalid`.
 ## Send
 
 ```ts
-await notifications.send(supabase, { orgId, userId }, 'created', { id, title }).orThrow();
+await notifications
+  .send(supabase, { orgId, userId }, "created", { id, title })
+  .orThrow();
 ```
 
 The payload is validated first (a `validation` error on failure) and sent over
@@ -133,9 +149,14 @@ or `forbidden`.
 ## React
 
 ```tsx
-import { useBroadcast } from 'better-supabase/react';
+import { useBroadcast } from "better-supabase/react";
 
-const status = useBroadcast(customersTopic, orgId ? { orgId } : null, {}, { invalidate: ['customers'] });
+const status = useBroadcast(
+  customersTopic,
+  orgId ? { orgId } : null,
+  {},
+  { invalidate: ["customers"] },
+);
 ```
 
 The hook subscribes while mounted and resubscribes when the topic or the

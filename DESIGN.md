@@ -11,19 +11,20 @@ and exposed to Tailwind through `@theme inline`. Use the token classes
 (`bg-background`, `text-muted-foreground`, `border-border`), never a raw
 color.
 
-| Token | Use |
-|---|---|
-| `background`, `foreground` | the page and body text |
-| `muted-foreground` | secondary text, descriptions, captions |
-| `primary`, `primary-foreground` | the main call to action |
-| `secondary`, `accent`, `muted` | quiet surfaces and hover states |
-| `card`, `popover` | raised surfaces |
-| `border`, `input`, `ring` | lines, fields and focus rings |
-| `brand` | the green accent: eyebrows, dots, one highlight per section |
-| `destructive`, `success`, `warning`, `info` | status, each with a `-foreground` pair |
+| Token                                       | Use                                                         |
+| ------------------------------------------- | ----------------------------------------------------------- |
+| `background`, `foreground`                  | the page and body text                                      |
+| `muted-foreground`                          | secondary text, descriptions, captions                      |
+| `primary`, `primary-foreground`             | the main call to action                                     |
+| `secondary`, `accent`, `muted`              | quiet surfaces and hover states                             |
+| `card`, `popover`                           | raised surfaces                                             |
+| `border`, `input`, `ring`                   | lines, fields and focus rings                               |
+| `brand`                                     | the green accent: eyebrows, dots, one highlight per section |
+| `destructive`, `success`, `warning`, `info` | status, each with a `-foreground` pair                      |
 
 The neutrals are grayscale (`oklch` with zero chroma). `brand` is the only
-hue in the chrome. Radius comes from `--radius` (0.625rem), and the scale runs
+hue in the chrome; in light mode it is dark enough (4.5:1 on `background`) to
+carry text. Radius comes from `--radius` (0.625rem), and the scale runs
 from `rounded-sm` to `rounded-4xl`.
 
 ## Type roles
@@ -32,14 +33,14 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
 (`--font-mono`), both loaded in `lib/fonts.ts`. Code uses `text-code`
 (0.8125rem).
 
-| Role | Classes |
-|---|---|
-| Hero heading | `text-4xl sm:text-5xl lg:text-6xl font-semibold text-balance` |
-| Page heading | `text-3xl font-semibold tracking-tight` |
-| Section heading | `text-2xl sm:text-3xl font-semibold tracking-tight text-balance` |
-| Eyebrow | `text-brand text-xs font-semibold tracking-wide uppercase` |
-| Body and lead | `text-base leading-7 text-pretty`, `text-muted-foreground` for leads |
-| UI and small text | `text-sm` |
+| Role              | Classes                                                              |
+| ----------------- | -------------------------------------------------------------------- |
+| Hero heading      | `text-4xl sm:text-5xl lg:text-6xl font-semibold text-balance`        |
+| Page heading      | `text-3xl font-semibold tracking-tight`                              |
+| Section heading   | `text-2xl sm:text-3xl font-semibold tracking-tight text-balance`     |
+| Eyebrow           | `text-brand text-xs font-semibold tracking-wide uppercase`           |
+| Body and lead     | `text-base leading-7 text-pretty`, `text-muted-foreground` for leads |
+| UI and small text | `text-sm`                                                            |
 
 ## Components
 

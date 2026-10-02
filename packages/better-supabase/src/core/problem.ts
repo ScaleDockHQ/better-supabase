@@ -70,7 +70,7 @@ export interface ProblemOptions {
 }
 
 export interface ProblemResponseOptions extends ProblemOptions {
-  readonly headers?: HeadersInit;
+  readonly headers?: ConstructorParameters<typeof Headers>[0];
   /** `realm` of the RFC 6750 challenge on 401. */
   readonly realm?: string;
 }
@@ -81,7 +81,7 @@ export function toProblem(
   options: ProblemOptions = {},
 ): ProblemDetails {
   const problem: Record<string, unknown> = {
-    type: `${PROBLEM_TYPE_BASE}${error.kind.replace(/_/g, "-")}`,
+    type: `${PROBLEM_TYPE_BASE}${error.kind.replaceAll("_", "-")}`,
     title: TITLES[error.kind],
     status: error.status,
     kind: error.kind,
@@ -114,7 +114,7 @@ export function problemResponse(
 ): Response {
   const headers = new Headers(options.headers);
   headers.set("content-type", PROBLEM_CONTENT_TYPE);
-  const realm = (options.realm ?? "supabase").replace(/"/g, "");
+  const realm = (options.realm ?? "supabase").replaceAll('"', "");
   if (error.status === 401 && !headers.has("www-authenticate")) {
     const params =
       error.code === "MISSING_CREDENTIALS" ? "" : ', error="invalid_token"';
@@ -125,7 +125,7 @@ export function problemResponse(
     error.code === "INSUFFICIENT_SCOPE" &&
     !headers.has("www-authenticate")
   ) {
-    const scope = error.scopes.join(" ").replace(/"/g, "");
+    const scope = error.scopes.join(" ").replaceAll('"', "");
     headers.set(
       "www-authenticate",
       `Bearer realm="${realm}", error="insufficient_scope", scope="${scope}"`,

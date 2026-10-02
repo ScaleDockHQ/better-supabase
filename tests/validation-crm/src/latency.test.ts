@@ -1,13 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
+import { type Json } from "./generated.ts";
 import { appChrome, customerOverview, sb } from "./latency.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 const USER = "11111111-1111-4111-8111-111111111111";
 const PROJECT_URL = "https://crm.supabase.co";
 
-type Answer = (url: URL) => unknown;
+type Answer = (url: URL) => Json;
 
 /** A supabase-js client whose requests are recorded and answered by path. */
 function capture(answer: Answer = () => []) {

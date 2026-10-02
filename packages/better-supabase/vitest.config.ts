@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // Node 24 has no Temporal; Node 26 ignores the polyfill.
+    setupFiles: ["./tests/setup/temporal.ts"],
     projects: [
       {
         extends: true,

@@ -14,7 +14,6 @@ export default oxfmt({
     "packages/better-supabase/tests/standards/schemas/**",
     "apps/marketing/components/ui/**",
     "apps/marketing/components/reui/**",
-    "**/*.md",
     "CHANGELOG.md",
     "pnpm-lock.yaml",
   ],

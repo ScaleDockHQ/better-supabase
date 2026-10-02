@@ -51,6 +51,17 @@ const SUPPORTED_VERSIONS: readonly string[] = [
 
 type Json = Readonly<Record<string, unknown>>;
 
+/** The `Host` header's hostname is in the list; a missing or malformed header is not. */
+function hostAllowed(request: Request, allowed: readonly string[]): boolean {
+  const host = request.headers.get("host");
+  if (!host) return false;
+  try {
+    return allowed.includes(new URL(`http://${host}`).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** MCP tool annotations (hints for clients, not guarantees). */
 export interface ToolAnnotations {
   readonly title?: string;
@@ -156,6 +167,13 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
   readonly scopes?: readonly string[];
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
+  /**
+   * Hostnames the `Host` header may name, without the port (DNS rebinding
+   * protection). List the production, preview and local hosts. Defaults to any.
+   */
+  readonly allowedHosts?: readonly string[];
+  /** A page that explains how to connect, published as RFC 9728 `resource_documentation`. */
+  readonly resourceDocumentation?: string;
   /** Custom jsonb types, as in `createOpenApi`. */
   readonly json?: Readonly<Record<string, unknown>>;
   /** Include internal error messages in tool results. Defaults to `NODE_ENV === 'development'`. */
@@ -275,11 +293,13 @@ const ANNOTATIONS: { readonly [K in ResourceOperation]: ToolAnnotations } = {
   },
 };
 
-function pageSchema(max: number): Json {
+function pageSchema(max: number, cursor: boolean): Json {
   return {
     type: "object",
     properties: {
-      page: { type: "integer", minimum: 1, default: 1 },
+      ...(cursor
+        ? { after: { type: "string" } }
+        : { page: { type: "integer", minimum: 1, default: 1 } }),
       size: { type: "integer", minimum: 1, maximum: max, default: 50 },
     },
     additionalProperties: false,
@@ -304,14 +324,25 @@ function tableTools(
     required: [keyParam!, ...Object.keys(more)],
     additionalProperties: false,
   });
-  const page: Json = {
-    type: "object",
-    properties: {
-      items: { type: "array", items: row },
-      page: { type: "object" },
-    },
-    required: ["items", "page"],
-  };
+  const cursor = resource.pagination === "cursor";
+  const page: Json = cursor
+    ? {
+        type: "object",
+        properties: {
+          items: { type: "array", items: row },
+          nextCursor: { type: ["string", "null"] },
+          hasMore: { type: "boolean" },
+        },
+        required: ["items", "nextCursor", "hasMore"],
+      }
+    : {
+        type: "object",
+        properties: {
+          items: { type: "array", items: row },
+          page: { type: "object" },
+        },
+        required: ["items", "page"],
+      };
   const tools: { info: ToolInfo; operation: ResourceOperation }[] = [];
   const add = (
     operation: ResourceOperation,
@@ -336,7 +367,7 @@ function tableTools(
       case "list": {
         // SAFETY: list schemas are JSON Schema objects.
         const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
-          pageSchema(resource.maxPageSize)) as Record<string, unknown>;
+          pageSchema(resource.maxPageSize, cursor)) as Record<string, unknown>;
         add(
           "list",
           `List ${table} rows visible to the caller, one page at a time.`,
@@ -732,6 +763,9 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     ) {
       return rpcError(null, INVALID_REQUEST, "Origin not allowed", 403);
     }
+    if (options.allowedHosts && !hostAllowed(request, options.allowedHosts)) {
+      return rpcError(null, INVALID_REQUEST, "Host not allowed", 403);
+    }
     if (request.method !== "POST") {
       return new Response(null, { status: 405, headers: { allow: "POST" } });
     }
@@ -867,6 +901,9 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         authorization_servers: [...authorizationServers()],
         bearer_methods_supported: ["header"],
         ...(scopes.length > 0 ? { scopes_supported: scopes } : {}),
+        ...(options.resourceDocumentation === undefined
+          ? {}
+          : { resource_documentation: options.resourceDocumentation }),
       },
       { headers: { "access-control-allow-origin": "*" } },
     );

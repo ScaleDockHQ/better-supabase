@@ -22,7 +22,9 @@ export function InstallButton({ command }: { command: string }) {
       if (resetTimer.current) {
         clearTimeout(resetTimer.current);
       }
-      resetTimer.current = setTimeout(() => setCopied(false), 2000);
+      resetTimer.current = setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     } catch {
       // Clipboard is unavailable outside a secure context.
     }

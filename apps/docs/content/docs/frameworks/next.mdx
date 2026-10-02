@@ -4,8 +4,8 @@ description: Proxy, Server Components, route handlers, server actions and cache 
 ---
 
 ```ts title="src/lib/supabase.server.ts"
-import { createNext } from 'better-supabase/next';
-import { sb } from './supabase';
+import { createNext } from "better-supabase/next";
+import { sb } from "./supabase";
 
 export const next = createNext(sb);
 ```
@@ -16,12 +16,14 @@ pieces below, so `next.admin()` and `next.actingAs()` work too.
 ## Proxy
 
 ```ts title="src/proxy.ts"
-import { next } from '@/lib/supabase.server';
+import { next } from "@/lib/supabase.server";
 
 export const proxy = (request) => next.proxy(request);
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)'],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)",
+  ],
 };
 ```
 
@@ -38,8 +40,8 @@ response you return:
 export const proxy = (request: NextRequest) =>
   next.proxy(request, {
     protect: (auth, req) =>
-      auth.kind !== 'user' && req.nextUrl.pathname.startsWith('/app')
-        ? NextResponse.redirect(new URL('/login', req.url))
+      auth.kind !== "user" && req.nextUrl.pathname.startsWith("/app")
+        ? NextResponse.redirect(new URL("/login", req.url))
         : undefined,
   });
 ```
@@ -54,7 +56,9 @@ durations.
 ```tsx
 export default async function Customers() {
   const { db } = await next.server();
-  const customers = await db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+  const customers = await db.customers
+    .findMany({ select: ["id", "name"] })
+    .orThrow();
   return <CustomerList customers={customers} />;
 }
 ```
@@ -72,7 +76,7 @@ number and then stays current over Realtime. See
 
 ```ts
 const session = await next.session();
-if (session.kind === 'user') session.claims.user_role;
+if (session.kind === "user") session.claims.user_role;
 ```
 
 `next.session()` is the same verification without the clients: an
@@ -89,7 +93,7 @@ for instant navigations and role-aware menus.
 
 ```ts title="src/app/api/customers/[id]/route.ts"
 export const GET = next.route<{ id: string }>((request, { db, params }) =>
-  db.customers.findById(params.id, { select: ['id', 'name'] }),
+  db.customers.findById(params.id, { select: ["id", "name"] }),
 );
 ```
 
@@ -110,11 +114,11 @@ carries `client_id` and `scope`; a token exchanged for an agent carries an
 RFC 8693 `act` chain. The session names who acts for the user, the way
 PermDock's `actorOf` and `delegationOf` read the same claims:
 
-| Token | `session.actor` | `session.delegation` |
-|---|---|---|
-| The user's own | not set | not set |
-| `client_id: 'c1'`, `scope: 'openid customers:read'` | `{ id: 'c1', kind: 'oauth-client' }` | `{ scopes: ['openid', 'customers:read'] }` |
-| `act: { sub: 'agent', act: { sub: 'mcp-42' } }` | `{ id: 'agent', kind: 'oauth-client', chain }` | `{ scopes, chain }` |
+| Token                                               | `session.actor`                                | `session.delegation`                       |
+| --------------------------------------------------- | ---------------------------------------------- | ------------------------------------------ |
+| The user's own                                      | not set                                        | not set                                    |
+| `client_id: 'c1'`, `scope: 'openid customers:read'` | `{ id: 'c1', kind: 'oauth-client' }`           | `{ scopes: ['openid', 'customers:read'] }` |
+| `act: { sub: 'agent', act: { sub: 'mcp-42' } }`     | `{ id: 'agent', kind: 'oauth-client', chain }` | `{ scopes, chain }`                        |
 
 The outermost `sub` is the current actor; nested levels are the actors
 before it, kept on `chain` for the audit log. An `act` that is not a chain
@@ -127,19 +131,19 @@ session is not limited, since it holds no `client_id` or `act`:
 ```ts title="src/app/api/customers/[id]/route.ts"
 export const GET = next.route<{ id: string }>(
   (request, { db, params }) =>
-    db.customers.findById(params.id, { select: ['id', 'name'] }),
-  { scopes: ['customers:read'] },
+    db.customers.findById(params.id, { select: ["id", "name"] }),
+  { scopes: ["customers:read"] },
 );
 ```
 
 Bearer callers get [Problem Details](/docs/auth/problems) for every refusal:
 
-| Case | Status | Header |
-|---|---|---|
-| No token | 401 | `WWW-Authenticate: Bearer realm="supabase"` |
-| A token that does not verify, or a malformed `act` chain | 401 | `WWW-Authenticate: Bearer realm="supabase", error="invalid_token"` |
-| A delegated token without a scope in `scopes` | 403 | `WWW-Authenticate: Bearer realm="supabase", error="insufficient_scope", scope="customers:read"` |
-| A row RLS hides from the user | 404 | none |
+| Case                                                     | Status | Header                                                                                          |
+| -------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| No token                                                 | 401    | `WWW-Authenticate: Bearer realm="supabase"`                                                     |
+| A token that does not verify, or a malformed `act` chain | 401    | `WWW-Authenticate: Bearer realm="supabase", error="invalid_token"`                              |
+| A delegated token without a scope in `scopes`            | 403    | `WWW-Authenticate: Bearer realm="supabase", error="insufficient_scope", scope="customers:read"` |
+| A row RLS hides from the user                            | 404    | none                                                                                            |
 
 RLS still decides the rows: the token's `sub` is the user, so a client sees
 at most what the user sees. `scopes` is accepted by `next.action`, the edge,
@@ -148,11 +152,11 @@ Hono and oRPC guards too.
 ## Server actions
 
 ```ts title="src/app/customers/actions.ts"
-'use server';
+"use server";
 
 export const createCustomer = next.action(
   { input: customerInput }, // any Standard Schema: zod, valibot, arktype
-  (input, { db }) => db.customers.create(input, { select: ['id'] }),
+  (input, { db }) => db.customers.create(input, { select: ["id"] }),
 );
 ```
 
@@ -169,17 +173,21 @@ elsewhere. Tag your cached reads to match:
 
 ```ts
 async function publicPlans() {
-  'use cache';
-  next.cacheTag('plans');
-  return next.admin().plans.findMany({ where: { public: true } }).orThrow();
+  "use cache";
+  next.cacheTag("plans");
+  return next
+    .admin()
+    .plans.findMany({ where: { public: true } })
+    .orThrow();
 }
 ```
 
 <Callout title="Caching user data">
   `"use cache"` functions cannot read cookies or headers. Cache public or
   service-level reads there. Per-user reads stay on `next.server()`, which is
-  already deduplicated per request; with Cache Components, wrap them in
-  `"use cache: private"` ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).
+  already deduplicated per request; with Cache Components, wrap them in `"use
+  cache: private"`
+  ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).
 </Callout>
 
 Turn invalidation off with `createNext(sb, { cacheTags: false })`. The

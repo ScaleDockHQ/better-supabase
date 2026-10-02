@@ -62,7 +62,9 @@ export type Models = {
       customers: { table: "customers"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
-    UniqueKeys: Record<never, never>;
+    UniqueKeys: {
+      contacts_id_organization_id_key: readonly ["id", "organizationId"];
+    };
     Checks: never;
     ForeignKeys: "contacts_organization_id_fkey";
     Flags: {
@@ -154,6 +156,7 @@ export type Models = {
     };
     PrimaryKey: "id";
     UniqueKeys: {
+      customers_id_organization_id_key: readonly ["id", "organizationId"];
       customers_organization_id_kvk_key: readonly ["organizationId", "kvk"];
     };
     Checks: "customers_status_check";
@@ -359,6 +362,7 @@ export type Models = {
     };
     PrimaryKey: "id";
     UniqueKeys: {
+      tags_id_organization_id_key: readonly ["id", "organizationId"];
       tags_organization_id_name_key: readonly ["organizationId", "name"];
     };
     Checks: "tags_color_check";
@@ -370,6 +374,12 @@ export type Models = {
 };
 
 export type Functions = {
+  rs_workspace_summary: {
+    Args: {
+      p: Json;
+    };
+    Returns: Json;
+  };
   search_notes: {
     Args: {
       k?: number;
@@ -460,7 +470,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       "primaryKey": [
         "id"
       ],
-      "uniqueKeys": {},
+      "uniqueKeys": {
+        "contacts_id_organization_id_key": [
+          "id",
+          "organizationId"
+        ]
+      },
       "relations": {
         "organization": {
           "table": "organizations",
@@ -482,10 +497,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": true,
           "foreignKey": "customers_primary_contact_id_fkey",
           "columns": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "references": [
-            "primaryContactId"
+            "primaryContactId",
+            "organizationId"
           ],
           "direction": "reverse",
           "onDelete": "set null"
@@ -536,10 +553,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": false,
           "foreignKey": "customer_tags_customer_id_fkey",
           "columns": [
-            "customerId"
+            "customerId",
+            "organizationId"
           ],
           "references": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "direction": "forward",
           "onDelete": "cascade"
@@ -564,10 +583,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": false,
           "foreignKey": "customer_tags_tag_id_fkey",
           "columns": [
-            "tagId"
+            "tagId",
+            "organizationId"
           ],
           "references": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "direction": "forward",
           "onDelete": "cascade"
@@ -673,6 +694,10 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         "id"
       ],
       "uniqueKeys": {
+        "customers_id_organization_id_key": [
+          "id",
+          "organizationId"
+        ],
         "customers_organization_id_kvk_key": [
           "organizationId",
           "kvk"
@@ -685,10 +710,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": true,
           "foreignKey": "customer_tags_customer_id_fkey",
           "columns": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "references": [
-            "customerId"
+            "customerId",
+            "organizationId"
           ],
           "direction": "reverse",
           "onDelete": "cascade"
@@ -713,10 +740,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": true,
           "foreignKey": "customers_primary_contact_id_fkey",
           "columns": [
-            "primaryContactId"
+            "primaryContactId",
+            "organizationId"
           ],
           "references": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "direction": "forward",
           "onDelete": "set null"
@@ -727,10 +756,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": true,
           "foreignKey": "locations_customer_id_fkey",
           "columns": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "references": [
-            "customerId"
+            "customerId",
+            "organizationId"
           ],
           "direction": "reverse",
           "onDelete": "cascade"
@@ -741,10 +772,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": true,
           "foreignKey": "notes_customer_id_fkey",
           "columns": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "references": [
-            "customerId"
+            "customerId",
+            "organizationId"
           ],
           "direction": "reverse",
           "onDelete": "cascade"
@@ -829,10 +862,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": false,
           "foreignKey": "locations_customer_id_fkey",
           "columns": [
-            "customerId"
+            "customerId",
+            "organizationId"
           ],
           "references": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "direction": "forward",
           "onDelete": "cascade"
@@ -940,10 +975,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": false,
           "foreignKey": "notes_customer_id_fkey",
           "columns": [
-            "customerId"
+            "customerId",
+            "organizationId"
           ],
           "references": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "direction": "forward",
           "onDelete": "cascade"
@@ -1236,6 +1273,10 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         "id"
       ],
       "uniqueKeys": {
+        "tags_id_organization_id_key": [
+          "id",
+          "organizationId"
+        ],
         "tags_organization_id_name_key": [
           "organizationId",
           "name"
@@ -1248,10 +1289,12 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "nullable": true,
           "foreignKey": "customer_tags_tag_id_fkey",
           "columns": [
-            "id"
+            "id",
+            "organizationId"
           ],
           "references": [
-            "tagId"
+            "tagId",
+            "organizationId"
           ],
           "direction": "reverse",
           "onDelete": "cascade"
@@ -1284,6 +1327,19 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
     ]
   },
   "functions": {
+    "rs_workspace_summary": {
+      "name": "rs_workspace_summary",
+      "schema": "public",
+      "args": [
+        {
+          "name": "p",
+          "type": "jsonb"
+        }
+      ],
+      "returns": "jsonb",
+      "returnsSet": false,
+      "volatility": "stable"
+    },
     "search_notes": {
       "name": "search_notes",
       "schema": "public",

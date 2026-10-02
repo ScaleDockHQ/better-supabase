@@ -51,7 +51,7 @@ export async function createUser(
     email_confirm: true,
     app_metadata: {
       tenant_id: orgId,
-      ...(options.role ? { user_role: options.role } : {}),
+      user_role: options.role,
     },
   });
   if (error) throw error;
@@ -92,10 +92,12 @@ export async function createUser(
 }
 
 /** Deletes rows created during a test, bypassing RLS. */
-export function cleanup(table: string): {
+export interface Cleanup {
   track: (id: string) => void;
   run: () => Promise<void>;
-} {
+}
+
+export function cleanup(table: string): Cleanup {
   const ids: string[] = [];
   return {
     track: (id) => void ids.push(id),

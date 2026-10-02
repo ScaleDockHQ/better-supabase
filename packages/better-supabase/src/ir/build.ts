@@ -90,7 +90,7 @@ function writable(meta: ColumnMeta, mode: "insert" | "update"): boolean {
 
 /** Escapes LIKE wildcards so user input matches literally. */
 export function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+  return value.replaceAll(/[\\%_]/g, (char) => `\\${char}`);
 }
 
 export class IrBuilder {
@@ -458,9 +458,7 @@ export class IrBuilder {
     // avg is always a plain number; sum keeps exact int8/numeric codecs.
     const codec = fn === "avg" ? undefined : meta?.codec;
     if (!codec) return { fn, key, alias, column };
-    return codec === "date"
-      ? { fn, key, alias, column, codec }
-      : { fn, key, alias, column, cast: "text", codec };
+    return { fn, key, alias, column, cast: "text", codec };
   }
 
   /** A selected column, with the cast and codec its metadata asks for. */
@@ -468,9 +466,7 @@ export class IrBuilder {
     const column = this.column(table, alias);
     const codec = table.columns[alias]?.codec;
     if (!codec) return { alias, column };
-    return codec === "date"
-      ? { alias, column, codec }
-      : { alias, column, cast: "text", codec };
+    return { alias, column, cast: "text", codec };
   }
 
   private counts(table: TableMeta, value: unknown): Include[] {

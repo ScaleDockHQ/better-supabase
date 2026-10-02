@@ -1209,7 +1209,7 @@ export type Models = {
       agendaCollectionPreferences: { table: "agendaCollectionPreferences"; kind: "many"; nullable: true };
       externalCalendar: { table: "agendaExternalCalendars"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
+      ownerUser: { table: "organizationUsers"; kind: "one"; nullable: true };
       agendaItems: { table: "agendaItems"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -1679,7 +1679,7 @@ export type Models = {
       agendaCollection: { table: "agendaCollections"; kind: "one"; nullable: false };
       externalCalendar: { table: "agendaExternalCalendars"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      agendaItem: { table: "agendaItems"; kind: "one"; nullable: true };
+      recurrenceParentItem: { table: "agendaItems"; kind: "one"; nullable: true };
       agendaItems: { table: "agendaItems"; kind: "many"; nullable: true };
       task: { table: "tasks"; kind: "one"; nullable: true };
       agendaTaskProjections: { table: "agendaTaskProjections"; kind: "many"; nullable: true };
@@ -2252,7 +2252,7 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      aiContextualArtifact: { table: "aiContextualArtifacts"; kind: "one"; nullable: false };
+      artifact: { table: "aiContextualArtifacts"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -2724,8 +2724,8 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      employeeByDelegateEmployeeOrganization: { table: "employees"; kind: "one"; nullable: false };
-      employeeByEmployeeOrganization: { table: "employees"; kind: "one"; nullable: false };
+      delegateEmployee: { table: "employees"; kind: "one"; nullable: false };
+      employee: { table: "employees"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -3023,8 +3023,8 @@ export type Models = {
       approvalEvents: { table: "approvalEvents"; kind: "many"; nullable: true };
       agentRun: { table: "aiAgentRuns"; kind: "one"; nullable: true };
       agentStep: { table: "aiAgentRunSteps"; kind: "one"; nullable: true };
-      employeeByApproverEmployeeOrganization: { table: "employees"; kind: "one"; nullable: true };
-      employeeByEmployeeOrganization: { table: "employees"; kind: "one"; nullable: true };
+      approverEmployee: { table: "employees"; kind: "one"; nullable: true };
+      employee: { table: "employees"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: true };
       responseRun: { table: "aiAgentRuns"; kind: "one"; nullable: true };
       thread: { table: "chatThreads"; kind: "one"; nullable: true };
@@ -4656,13 +4656,13 @@ export type Models = {
       customerAssetFiles: { table: "customerAssetFiles"; kind: "many"; nullable: true };
       currencyByCurrency: { table: "currencies"; kind: "one"; nullable: false };
       customerByCustomer: { table: "customers"; kind: "one"; nullable: false };
-      customerByCustomerOrganization: { table: "customers"; kind: "one"; nullable: false };
+      customerByCustomer_: { table: "customers"; kind: "one"; nullable: false };
       customerLocation: { table: "customerLocations"; kind: "one"; nullable: true };
       invoice: { table: "invoices"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
       quote: { table: "quotes"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
       quoteAssets: { table: "quoteAssets"; kind: "many"; nullable: true };
       tasks: { table: "tasks"; kind: "many"; nullable: true };
       templateTaskSettings: { table: "templateTaskSettings"; kind: "many"; nullable: true };
@@ -4694,7 +4694,7 @@ export type Models = {
     };
     Relations: {
       customerByCustomer: { table: "customers"; kind: "one"; nullable: false };
-      customerByCustomerOrganization: { table: "customers"; kind: "one"; nullable: false };
+      customerByCustomer_: { table: "customers"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
@@ -4804,7 +4804,7 @@ export type Models = {
     Relations: {
       customerAssets: { table: "customerAssets"; kind: "many"; nullable: true };
       customerByCustomer: { table: "customers"; kind: "one"; nullable: false };
-      customerByCustomerOrganization: { table: "customers"; kind: "one"; nullable: false };
+      customerByCustomer_: { table: "customers"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -4918,12 +4918,12 @@ export type Models = {
       chatThreadParticipants: { table: "chatThreadParticipants"; kind: "many"; nullable: true };
       commentThreads: { table: "commentThreads"; kind: "many"; nullable: true };
       customerAssetsByCustomer: { table: "customerAssets"; kind: "many"; nullable: true };
-      customerAssetsByCustomerOrganization: { table: "customerAssets"; kind: "many"; nullable: true };
+      customerAssetsByCustomer_: { table: "customerAssets"; kind: "many"; nullable: true };
       customerAssigneesByCustomer: { table: "customerAssignees"; kind: "many"; nullable: true };
-      customerAssigneesByCustomerOrganization: { table: "customerAssignees"; kind: "many"; nullable: true };
+      customerAssigneesByCustomer_: { table: "customerAssignees"; kind: "many"; nullable: true };
       customerContacts: { table: "customerContacts"; kind: "many"; nullable: true };
       customerLocationsByCustomer: { table: "customerLocations"; kind: "many"; nullable: true };
-      customerLocationsByCustomerOrganization: { table: "customerLocations"; kind: "many"; nullable: true };
+      customerLocationsByCustomer_: { table: "customerLocations"; kind: "many"; nullable: true };
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       expenseTrips: { table: "expenseTrips"; kind: "many"; nullable: true };
@@ -5100,7 +5100,7 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      employeeContract: { table: "employeeContracts"; kind: "one"; nullable: false };
+      contract: { table: "employeeContracts"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -5346,7 +5346,7 @@ export type Models = {
       position?: number;
     };
     Relations: {
-      employeeFieldDefinition: { table: "employeeFieldDefinitions"; kind: "one"; nullable: false };
+      definition: { table: "employeeFieldDefinitions"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       employeeFieldValues: { table: "employeeFieldValues"; kind: "many"; nullable: true };
     };
@@ -5396,9 +5396,9 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      employeeFieldDefinition: { table: "employeeFieldDefinitions"; kind: "one"; nullable: false };
+      definition: { table: "employeeFieldDefinitions"; kind: "one"; nullable: false };
       employee: { table: "employees"; kind: "one"; nullable: false };
-      employeeFieldOption: { table: "employeeFieldOptions"; kind: "one"; nullable: true };
+      option: { table: "employeeFieldOptions"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -5466,7 +5466,7 @@ export type Models = {
     };
     Relations: {
       equipmentAssignment: { table: "equipmentAssignments"; kind: "one"; nullable: true };
-      employeeJourney: { table: "employeeJourneys"; kind: "one"; nullable: false };
+      journey: { table: "employeeJourneys"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       task: { table: "tasks"; kind: "one"; nullable: true };
       equipmentRequests: { table: "equipmentRequests"; kind: "many"; nullable: true };
@@ -5528,8 +5528,8 @@ export type Models = {
     };
     Relations: {
       employeeJourneyItems: { table: "employeeJourneyItems"; kind: "many"; nullable: true };
-      employeeByBuddyEmployeeOrganization: { table: "employees"; kind: "one"; nullable: true };
-      employeeByEmployeeOrganization: { table: "employees"; kind: "one"; nullable: false };
+      buddyEmployee: { table: "employees"; kind: "one"; nullable: true };
+      employee: { table: "employees"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       template: { table: "templates"; kind: "one"; nullable: true };
     };
@@ -5689,7 +5689,7 @@ export type Models = {
     Relations: {
       employee: { table: "employees"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      timeOffPolicy: { table: "timeOffPolicies"; kind: "one"; nullable: false };
+      policy: { table: "timeOffPolicies"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -5821,23 +5821,23 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      approvalDelegationsByDelegateEmployeeOrganization: { table: "approvalDelegations"; kind: "many"; nullable: true };
-      approvalDelegationsByEmployeeOrganization: { table: "approvalDelegations"; kind: "many"; nullable: true };
-      approvalRequestsByApproverEmployeeOrganization: { table: "approvalRequests"; kind: "many"; nullable: true };
-      approvalRequestsByEmployeeOrganization: { table: "approvalRequests"; kind: "many"; nullable: true };
+      approvalDelegationsByDelegateEmployee: { table: "approvalDelegations"; kind: "many"; nullable: true };
+      approvalDelegationsByEmployee: { table: "approvalDelegations"; kind: "many"; nullable: true };
+      approvalRequestsByApproverEmployee: { table: "approvalRequests"; kind: "many"; nullable: true };
+      approvalRequestsByEmployee: { table: "approvalRequests"; kind: "many"; nullable: true };
       attendanceRecords: { table: "attendanceRecords"; kind: "many"; nullable: true };
       employeeContracts: { table: "employeeContracts"; kind: "many"; nullable: true };
       employeeDocuments: { table: "employeeDocuments"; kind: "many"; nullable: true };
       employeeFieldValues: { table: "employeeFieldValues"; kind: "many"; nullable: true };
-      employeeJourneysByBuddyEmployeeOrganization: { table: "employeeJourneys"; kind: "many"; nullable: true };
-      employeeJourneysByEmployeeOrganization: { table: "employeeJourneys"; kind: "many"; nullable: true };
+      employeeJourneysByBuddyEmployee: { table: "employeeJourneys"; kind: "many"; nullable: true };
+      employeeJourneysByEmployee: { table: "employeeJourneys"; kind: "many"; nullable: true };
       employeePrivateDetails: { table: "employeePrivateDetails"; kind: "many"; nullable: true };
       employeeSkills: { table: "employeeSkills"; kind: "many"; nullable: true };
       employeeTimeOffPolicies: { table: "employeeTimeOffPolicies"; kind: "many"; nullable: true };
       employeeWorkSchedules: { table: "employeeWorkSchedules"; kind: "many"; nullable: true };
-      team: { table: "teams"; kind: "one"; nullable: true };
+      departmentTeam: { table: "teams"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      employee: { table: "employees"; kind: "one"; nullable: true };
+      reportsToEmployee: { table: "employees"; kind: "one"; nullable: true };
       employees: { table: "employees"; kind: "many"; nullable: true };
       equipmentAssignments: { table: "equipmentAssignments"; kind: "many"; nullable: true };
       equipmentRequests: { table: "equipmentRequests"; kind: "many"; nullable: true };
@@ -6163,9 +6163,9 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      expenseByExpenseOrganization: { table: "expenses"; kind: "one"; nullable: false };
+      expense: { table: "expenses"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      expenseByRelatedExpenseOrganization: { table: "expenses"; kind: "one"; nullable: true };
+      relatedExpense: { table: "expenses"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -6216,7 +6216,7 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      expenseCategory: { table: "expenseCategories"; kind: "one"; nullable: true };
+      category: { table: "expenseCategories"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -6419,15 +6419,15 @@ export type Models = {
       invoiceId?: string | null;
     };
     Relations: {
-      expenseFlagsByExpenseOrganization: { table: "expenseFlags"; kind: "many"; nullable: true };
-      expenseFlagsByRelatedExpenseOrganization: { table: "expenseFlags"; kind: "many"; nullable: true };
-      expenseCategory: { table: "expenseCategories"; kind: "one"; nullable: true };
+      expenseFlagsByExpense: { table: "expenseFlags"; kind: "many"; nullable: true };
+      expenseFlagsByRelatedExpense: { table: "expenseFlags"; kind: "many"; nullable: true };
+      category: { table: "expenseCategories"; kind: "one"; nullable: true };
       customer: { table: "customers"; kind: "one"; nullable: true };
       employee: { table: "employees"; kind: "one"; nullable: true };
       invoice: { table: "invoices"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       task: { table: "tasks"; kind: "one"; nullable: true };
-      expenseTrip: { table: "expenseTrips"; kind: "one"; nullable: true };
+      trip: { table: "expenseTrips"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -6469,8 +6469,8 @@ export type Models = {
       deletedAt?: string | null;
     };
     Relations: {
-      node: { table: "fileNodes"; kind: "one"; nullable: false };
-      fileNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -6595,8 +6595,8 @@ export type Models = {
     Relations: {
       fileCopyOperationItems: { table: "fileCopyOperationItems"; kind: "many"; nullable: true };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
-      destinationDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      fileDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      destinationDriveByDestinationDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      destinationDriveByDestinationDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
       fileNode: { table: "fileNodes"; kind: "one"; nullable: true };
       destinationParent: { table: "fileNodes"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -6641,11 +6641,11 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      drive: { table: "fileDrives"; kind: "one"; nullable: false };
-      fileDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       teamByTeam: { table: "teams"; kind: "one"; nullable: true };
-      teamByTeamOrganization: { table: "teams"; kind: "one"; nullable: true };
+      teamByTeam_: { table: "teams"; kind: "one"; nullable: true };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
@@ -6702,17 +6702,17 @@ export type Models = {
     };
     Relations: {
       fileCopyOperationsByDestinationDrive: { table: "fileCopyOperations"; kind: "many"; nullable: true };
-      fileCopyOperationsByDestinationDriveOrganization: { table: "fileCopyOperations"; kind: "many"; nullable: true };
+      fileCopyOperationsByDestinationDrive_: { table: "fileCopyOperations"; kind: "many"; nullable: true };
       fileDriveGrantsByDrive: { table: "fileDriveGrants"; kind: "many"; nullable: true };
-      fileDriveGrantsByDriveOrganization: { table: "fileDriveGrants"; kind: "many"; nullable: true };
+      fileDriveGrantsByDrive_: { table: "fileDriveGrants"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
+      ownerUser: { table: "organizationUsers"; kind: "one"; nullable: true };
       fileNodesByDrive: { table: "fileNodes"; kind: "many"; nullable: true };
-      fileNodesByDriveOrganization: { table: "fileNodes"; kind: "many"; nullable: true };
+      fileNodesByDrive_: { table: "fileNodes"; kind: "many"; nullable: true };
       fileUploadReservationsByDrive: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      fileUploadReservationsByDriveOrganization: { table: "fileUploadReservations"; kind: "many"; nullable: true };
+      fileUploadReservationsByDrive_: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       fileVersionsByDrive: { table: "fileVersions"; kind: "many"; nullable: true };
-      fileVersionsByDriveOrganization: { table: "fileVersions"; kind: "many"; nullable: true };
+      fileVersionsByDrive_: { table: "fileVersions"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -6754,11 +6754,11 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      node: { table: "fileNodes"; kind: "one"; nullable: false };
-      fileNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       teamByTeam: { table: "teams"; kind: "one"; nullable: true };
-      teamByTeamOrganization: { table: "teams"; kind: "one"; nullable: true };
+      teamByTeam_: { table: "teams"; kind: "one"; nullable: true };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
@@ -6793,8 +6793,8 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      node: { table: "fileNodes"; kind: "one"; nullable: false };
-      fileNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
@@ -6870,31 +6870,31 @@ export type Models = {
     };
     Relations: {
       fileCommentsByNode: { table: "fileComments"; kind: "many"; nullable: true };
-      fileCommentsByNodeOrganization: { table: "fileComments"; kind: "many"; nullable: true };
+      fileCommentsByNode_: { table: "fileComments"; kind: "many"; nullable: true };
       fileCopyOperationItems: { table: "fileCopyOperationItems"; kind: "many"; nullable: true };
       fileCopyOperationsByDestinationParentDestinationDrive: { table: "fileCopyOperations"; kind: "many"; nullable: true };
       fileCopyOperationsByDestinationParent: { table: "fileCopyOperations"; kind: "many"; nullable: true };
       fileNodeGrantsByNode: { table: "fileNodeGrants"; kind: "many"; nullable: true };
-      fileNodeGrantsByNodeOrganization: { table: "fileNodeGrants"; kind: "many"; nullable: true };
+      fileNodeGrantsByNode_: { table: "fileNodeGrants"; kind: "many"; nullable: true };
       fileNodeUserStateByNode: { table: "fileNodeUserState"; kind: "many"; nullable: true };
-      fileNodeUserStateByNodeOrganization: { table: "fileNodeUserState"; kind: "many"; nullable: true };
+      fileNodeUserStateByNode_: { table: "fileNodeUserState"; kind: "many"; nullable: true };
       currentVersion: { table: "fileVersions"; kind: "one"; nullable: true };
       customer: { table: "customers"; kind: "one"; nullable: true };
-      drive: { table: "fileDrives"; kind: "one"; nullable: false };
-      fileDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      fileNode: { table: "fileNodes"; kind: "one"; nullable: true };
-      fileNodesByParentDrive: { table: "fileNodes"; kind: "many"; nullable: true };
-      parent: { table: "fileNodes"; kind: "one"; nullable: true };
+      parentByParent: { table: "fileNodes"; kind: "one"; nullable: true };
       fileNodesByParent: { table: "fileNodes"; kind: "many"; nullable: true };
+      parentByParent_: { table: "fileNodes"; kind: "one"; nullable: true };
+      fileNodesByParent_: { table: "fileNodes"; kind: "many"; nullable: true };
       fileShareLinksByNode: { table: "fileShareLinks"; kind: "many"; nullable: true };
-      fileShareLinksByNodeOrganization: { table: "fileShareLinks"; kind: "many"; nullable: true };
-      fileUploadReservationsByNodeDrive: { table: "fileUploadReservations"; kind: "many"; nullable: true };
+      fileShareLinksByNode_: { table: "fileShareLinks"; kind: "many"; nullable: true };
       fileUploadReservationsByNode: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      fileUploadReservationsByParentDrive: { table: "fileUploadReservations"; kind: "many"; nullable: true };
+      fileUploadReservationsByNode_: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       fileUploadReservationsByParent: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      fileVersionsByNodeDrive: { table: "fileVersions"; kind: "many"; nullable: true };
+      fileUploadReservationsByParent_: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       fileVersionsByNode: { table: "fileVersions"; kind: "many"; nullable: true };
+      fileVersionsByNode_: { table: "fileVersions"; kind: "many"; nullable: true };
       invoices: { table: "invoices"; kind: "many"; nullable: true };
       knowledgeFiles: { table: "knowledgeFiles"; kind: "many"; nullable: true };
       quoteVersions: { table: "quoteVersions"; kind: "many"; nullable: true };
@@ -6945,8 +6945,8 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      node: { table: "fileNodes"; kind: "one"; nullable: false };
-      fileNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -7060,14 +7060,14 @@ export type Models = {
     };
     Relations: {
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
-      drive: { table: "fileDrives"; kind: "one"; nullable: false };
-      fileDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
       finalizedVersion: { table: "fileVersions"; kind: "one"; nullable: true };
-      fileNodeByNodeDrive: { table: "fileNodes"; kind: "one"; nullable: true };
-      node: { table: "fileNodes"; kind: "one"; nullable: true };
+      nodeByNode: { table: "fileNodes"; kind: "one"; nullable: true };
+      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      fileNodeByParentDrive: { table: "fileNodes"; kind: "one"; nullable: true };
-      parent: { table: "fileNodes"; kind: "one"; nullable: true };
+      parentByParent: { table: "fileNodes"; kind: "one"; nullable: true };
+      parentByParent_: { table: "fileNodes"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -7137,10 +7137,10 @@ export type Models = {
       fileCopyOperationItems: { table: "fileCopyOperationItems"; kind: "many"; nullable: true };
       fileNodes: { table: "fileNodes"; kind: "many"; nullable: true };
       fileUploadReservations: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      drive: { table: "fileDrives"; kind: "one"; nullable: false };
-      fileDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      fileNode: { table: "fileNodes"; kind: "one"; nullable: false };
-      node: { table: "fileNodes"; kind: "one"; nullable: false };
+      driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
+      nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       invoices: { table: "invoices"; kind: "many"; nullable: true };
       quoteVersions: { table: "quoteVersions"; kind: "many"; nullable: true };
@@ -7336,10 +7336,10 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      hiringCandidate: { table: "hiringCandidates"; kind: "one"; nullable: false };
-      hiringJob: { table: "hiringJobs"; kind: "one"; nullable: false };
+      candidate: { table: "hiringCandidates"; kind: "one"; nullable: false };
+      job: { table: "hiringJobs"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      hiringStage: { table: "hiringStages"; kind: "one"; nullable: false };
+      stage: { table: "hiringStages"; kind: "one"; nullable: false };
       hiringInterviews: { table: "hiringInterviews"; kind: "many"; nullable: true };
       hiringScorecards: { table: "hiringScorecards"; kind: "many"; nullable: true };
     };
@@ -7462,7 +7462,7 @@ export type Models = {
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      hiringStage: { table: "hiringStages"; kind: "one"; nullable: true };
+      stage: { table: "hiringStages"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -7536,7 +7536,7 @@ export type Models = {
     Relations: {
       hiringInterviewInterviewers: { table: "hiringInterviewInterviewers"; kind: "many"; nullable: true };
       agendaItem: { table: "agendaItems"; kind: "one"; nullable: true };
-      hiringApplication: { table: "hiringApplications"; kind: "one"; nullable: false };
+      application: { table: "hiringApplications"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -7617,7 +7617,7 @@ export type Models = {
     };
     Relations: {
       hiringApplications: { table: "hiringApplications"; kind: "many"; nullable: true };
-      employee: { table: "employees"; kind: "one"; nullable: true };
+      hiringManagerEmployee: { table: "employees"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       team: { table: "teams"; kind: "one"; nullable: true };
       hiringStages: { table: "hiringStages"; kind: "many"; nullable: true };
@@ -7651,9 +7651,9 @@ export type Models = {
       score?: number;
     };
     Relations: {
-      hiringStageCriteria: { table: "hiringStageCriteria"; kind: "one"; nullable: false };
+      criterion: { table: "hiringStageCriteria"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      hiringScorecard: { table: "hiringScorecards"; kind: "one"; nullable: false };
+      scorecard: { table: "hiringScorecards"; kind: "one"; nullable: false };
     };
     PrimaryKey: "scorecardId" | "criterionId";
     UniqueKeys: Record<never, never>;
@@ -7697,9 +7697,9 @@ export type Models = {
     };
     Relations: {
       hiringScorecardScores: { table: "hiringScorecardScores"; kind: "many"; nullable: true };
-      hiringApplication: { table: "hiringApplications"; kind: "one"; nullable: false };
+      application: { table: "hiringApplications"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      hiringStage: { table: "hiringStages"; kind: "one"; nullable: true };
+      stage: { table: "hiringStages"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -7741,7 +7741,7 @@ export type Models = {
     Relations: {
       hiringScorecardScores: { table: "hiringScorecardScores"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      hiringStage: { table: "hiringStages"; kind: "one"; nullable: false };
+      stage: { table: "hiringStages"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -7787,7 +7787,7 @@ export type Models = {
       hiringEmailTemplates: { table: "hiringEmailTemplates"; kind: "many"; nullable: true };
       hiringScorecards: { table: "hiringScorecards"; kind: "many"; nullable: true };
       hiringStageCriteria: { table: "hiringStageCriteria"; kind: "many"; nullable: true };
-      hiringJob: { table: "hiringJobs"; kind: "one"; nullable: false };
+      job: { table: "hiringJobs"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -8674,7 +8674,7 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      integrationInstallation: { table: "integrationInstallations"; kind: "one"; nullable: false };
+      installation: { table: "integrationInstallations"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "installationId";
@@ -8734,8 +8734,8 @@ export type Models = {
       definition: { table: "integrationDefinitions"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
-      integrationUserAuthorizationsByInstallationOrganization: { table: "integrationUserAuthorizations"; kind: "many"; nullable: true };
       integrationUserAuthorizationsByInstallation: { table: "integrationUserAuthorizations"; kind: "many"; nullable: true };
+      integrationUserAuthorizationsByInstallation_: { table: "integrationUserAuthorizations"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -8840,8 +8840,8 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      integrationInstallation: { table: "integrationInstallations"; kind: "one"; nullable: false };
-      installation: { table: "integrationInstallations"; kind: "one"; nullable: false };
+      installationByInstallation: { table: "integrationInstallations"; kind: "one"; nullable: false };
+      installationByInstallation_: { table: "integrationInstallations"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
@@ -8908,9 +8908,9 @@ export type Models = {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
       quoteVersionLine: { table: "quoteVersionLines"; kind: "one"; nullable: true };
-      inventoryStockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: true };
+      stockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: true };
       taskMaterial: { table: "taskMaterials"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -8948,10 +8948,10 @@ export type Models = {
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       inventoryMovementsByLocation: { table: "inventoryMovements"; kind: "many"; nullable: true };
-      inventoryMovementsByLocationOrganization: { table: "inventoryMovements"; kind: "many"; nullable: true };
+      inventoryMovementsByLocation_: { table: "inventoryMovements"; kind: "many"; nullable: true };
       inventoryReorderRules: { table: "inventoryReorderRules"; kind: "many"; nullable: true };
       inventoryStockRecordsByLocation: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
-      inventoryStockRecordsByLocationOrganization: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
+      inventoryStockRecordsByLocation_: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
       purchaseOrders: { table: "purchaseOrders"; kind: "many"; nullable: true };
       shipments: { table: "shipments"; kind: "many"; nullable: true };
       suppliers: { table: "suppliers"; kind: "many"; nullable: true };
@@ -9042,20 +9042,20 @@ export type Models = {
     };
     Relations: {
       invoice: { table: "invoices"; kind: "one"; nullable: true };
-      location: { table: "inventoryLocations"; kind: "one"; nullable: true };
-      inventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      locationByLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      locationByLocation_: { table: "inventoryLocations"; kind: "one"; nullable: true };
       order: { table: "orders"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
-      productByProductOrganization: { table: "products"; kind: "one"; nullable: false };
+      productByProduct_: { table: "products"; kind: "one"; nullable: false };
       purchaseOrder: { table: "purchaseOrders"; kind: "one"; nullable: true };
       quote: { table: "quotes"; kind: "one"; nullable: true };
       shipment: { table: "shipments"; kind: "one"; nullable: true };
-      stockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
-      inventoryStockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
+      stockRecordByStockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
+      stockRecordByStockRecord_: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
       supplier: { table: "suppliers"; kind: "one"; nullable: true };
       taskMaterial: { table: "taskMaterials"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -9104,11 +9104,11 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
-      inventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      location: { table: "inventoryLocations"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
       supplier: { table: "suppliers"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: false };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -9189,14 +9189,14 @@ export type Models = {
     Relations: {
       inventoryAllocations: { table: "inventoryAllocations"; kind: "many"; nullable: true };
       inventoryMovementsByStockRecord: { table: "inventoryMovements"; kind: "many"; nullable: true };
-      inventoryMovementsByStockRecordOrganization: { table: "inventoryMovements"; kind: "many"; nullable: true };
+      inventoryMovementsByStockRecord_: { table: "inventoryMovements"; kind: "many"; nullable: true };
       currencyByCurrency: { table: "currencies"; kind: "one"; nullable: true };
-      location: { table: "inventoryLocations"; kind: "one"; nullable: true };
-      inventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      locationByLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      locationByLocation_: { table: "inventoryLocations"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
-      productByProductOrganization: { table: "products"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      productByProduct_: { table: "products"; kind: "one"; nullable: false };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -9362,7 +9362,7 @@ export type Models = {
       promotion: { table: "promotions"; kind: "one"; nullable: true };
       shipment: { table: "shipments"; kind: "one"; nullable: true };
       task: { table: "tasks"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
       timeEntries: { table: "timeEntries"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -10205,7 +10205,7 @@ export type Models = {
       notificationDeliveries: { table: "notificationDeliveries"; kind: "many"; nullable: true };
       event: { table: "notificationEvents"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
+      recipientUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -10379,7 +10379,7 @@ export type Models = {
       product: { table: "products"; kind: "one"; nullable: true };
       promotion: { table: "promotions"; kind: "one"; nullable: true };
       quoteLine: { table: "quoteLines"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
       productLicenseKeys: { table: "productLicenseKeys"; kind: "many"; nullable: true };
       shipmentLines: { table: "shipmentLines"; kind: "many"; nullable: true };
     };
@@ -12207,7 +12207,7 @@ export type Models = {
       parent: { table: "productCategories"; kind: "one"; nullable: true };
       productCategories: { table: "productCategories"; kind: "many"; nullable: true };
       productCategoryAssignmentsByCategory: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
-      productCategoryAssignmentsByCategoryOrganization: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
+      productCategoryAssignmentsByCategory_: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
       promotionTargets: { table: "promotionTargets"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -12242,11 +12242,11 @@ export type Models = {
       createdAt?: string;
     };
     Relations: {
-      category: { table: "productCategories"; kind: "one"; nullable: false };
-      productCategory: { table: "productCategories"; kind: "one"; nullable: false };
+      categoryByCategory: { table: "productCategories"; kind: "one"; nullable: false };
+      categoryByCategory_: { table: "productCategories"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
-      productByProductOrganization: { table: "products"; kind: "one"; nullable: false };
+      productByProduct_: { table: "products"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -12300,7 +12300,7 @@ export type Models = {
       orderDigitalGrants: { table: "orderDigitalGrants"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -12349,7 +12349,7 @@ export type Models = {
       orderLine: { table: "orderLines"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -12563,7 +12563,7 @@ export type Models = {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
       supplier: { table: "suppliers"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
       purchaseOrderLines: { table: "purchaseOrderLines"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -12789,14 +12789,14 @@ export type Models = {
       equipmentItems: { table: "equipmentItems"; kind: "many"; nullable: true };
       inventoryAllocations: { table: "inventoryAllocations"; kind: "many"; nullable: true };
       inventoryMovementsByProduct: { table: "inventoryMovements"; kind: "many"; nullable: true };
-      inventoryMovementsByProductOrganization: { table: "inventoryMovements"; kind: "many"; nullable: true };
+      inventoryMovementsByProduct_: { table: "inventoryMovements"; kind: "many"; nullable: true };
       inventoryReorderRules: { table: "inventoryReorderRules"; kind: "many"; nullable: true };
       inventoryStockRecordsByProduct: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
-      inventoryStockRecordsByProductOrganization: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
+      inventoryStockRecordsByProduct_: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
       invoiceLines: { table: "invoiceLines"; kind: "many"; nullable: true };
       orderLines: { table: "orderLines"; kind: "many"; nullable: true };
       productCategoryAssignmentsByProduct: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
-      productCategoryAssignmentsByProductOrganization: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
+      productCategoryAssignmentsByProduct_: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
       productDigitalFiles: { table: "productDigitalFiles"; kind: "many"; nullable: true };
       productLicenseKeys: { table: "productLicenseKeys"; kind: "many"; nullable: true };
       productOptions: { table: "productOptions"; kind: "many"; nullable: true };
@@ -13209,7 +13209,7 @@ export type Models = {
       product: { table: "products"; kind: "one"; nullable: false };
       productSupplierLink: { table: "productSupplierLinks"; kind: "one"; nullable: true };
       purchaseOrder: { table: "purchaseOrders"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: false };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
       shipmentLines: { table: "shipmentLines"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -13306,7 +13306,7 @@ export type Models = {
       inventoryMovements: { table: "inventoryMovements"; kind: "many"; nullable: true };
       purchaseOrderLines: { table: "purchaseOrderLines"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      inventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      shipToLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
       supplier: { table: "suppliers"; kind: "one"; nullable: false };
       template: { table: "templates"; kind: "one"; nullable: true };
       shipments: { table: "shipments"; kind: "many"; nullable: true };
@@ -13489,7 +13489,7 @@ export type Models = {
       promotion: { table: "promotions"; kind: "one"; nullable: true };
       quote: { table: "quotes"; kind: "one"; nullable: false };
       task: { table: "tasks"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -13668,7 +13668,7 @@ export type Models = {
       product: { table: "products"; kind: "one"; nullable: true };
       quoteVersion: { table: "quoteVersions"; kind: "one"; nullable: false };
       task: { table: "tasks"; kind: "one"; nullable: true };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -14350,7 +14350,7 @@ export type Models = {
       invoiceLines: { table: "invoiceLines"; kind: "many"; nullable: true };
       shipmentLines: { table: "shipmentLines"; kind: "many"; nullable: true };
       agendaItem: { table: "agendaItems"; kind: "one"; nullable: true };
-      inventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      location: { table: "inventoryLocations"; kind: "one"; nullable: true };
       order: { table: "orders"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       purchaseOrder: { table: "purchaseOrders"; kind: "one"; nullable: true };
@@ -14628,7 +14628,7 @@ export type Models = {
       productSupplierLinks: { table: "productSupplierLinks"; kind: "many"; nullable: true };
       purchaseOrders: { table: "purchaseOrders"; kind: "many"; nullable: true };
       currencyByCurrency: { table: "currencies"; kind: "one"; nullable: true };
-      inventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      defaultInventoryLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -14784,7 +14784,7 @@ export type Models = {
       product: { table: "products"; kind: "one"; nullable: false };
       quote: { table: "quotes"; kind: "one"; nullable: true };
       task: { table: "tasks"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -14952,9 +14952,9 @@ export type Models = {
       taskTags: { table: "taskTags"; kind: "many"; nullable: true };
       customerAsset: { table: "customerAssets"; kind: "one"; nullable: true };
       customer: { table: "customers"; kind: "one"; nullable: true };
-      taskHoldReason: { table: "taskHoldReasons"; kind: "one"; nullable: true };
+      holdReason: { table: "taskHoldReasons"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
-      task: { table: "tasks"; kind: "one"; nullable: true };
+      parentTask: { table: "tasks"; kind: "one"; nullable: true };
       tasks: { table: "tasks"; kind: "many"; nullable: true };
       taskTemplate: { table: "templates"; kind: "one"; nullable: true };
       timeEntries: { table: "timeEntries"; kind: "many"; nullable: true };
@@ -15046,9 +15046,9 @@ export type Models = {
       aiAgentRunHandoffs: { table: "aiAgentRunHandoffs"; kind: "many"; nullable: true };
       employees: { table: "employees"; kind: "many"; nullable: true };
       fileDriveGrantsByTeam: { table: "fileDriveGrants"; kind: "many"; nullable: true };
-      fileDriveGrantsByTeamOrganization: { table: "fileDriveGrants"; kind: "many"; nullable: true };
+      fileDriveGrantsByTeam_: { table: "fileDriveGrants"; kind: "many"; nullable: true };
       fileNodeGrantsByTeam: { table: "fileNodeGrants"; kind: "many"; nullable: true };
-      fileNodeGrantsByTeamOrganization: { table: "fileNodeGrants"; kind: "many"; nullable: true };
+      fileNodeGrantsByTeam_: { table: "fileNodeGrants"; kind: "many"; nullable: true };
       hiringJobs: { table: "hiringJobs"; kind: "many"; nullable: true };
       inboxThreads: { table: "inboxThreads"; kind: "many"; nullable: true };
       knowledgeCollectionGrants: { table: "knowledgeCollectionGrants"; kind: "many"; nullable: true };
@@ -15135,7 +15135,7 @@ export type Models = {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: true };
       template: { table: "templates"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -15279,7 +15279,7 @@ export type Models = {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: true };
       template: { table: "templates"; kind: "one"; nullable: false };
-      productVariant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -21089,7 +21089,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "organizationUser": {
+        "ownerUser": {
           "table": "organizationUsers",
           "kind": "one",
           "nullable": true,
@@ -22404,7 +22404,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "agendaItem": {
+        "recurrenceParentItem": {
           "table": "agendaItems",
           "kind": "one",
           "nullable": true,
@@ -24079,7 +24079,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "aiContextualArtifact": {
+        "artifact": {
           "table": "aiContextualArtifacts",
           "kind": "one",
           "nullable": false,
@@ -25176,7 +25176,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "employeeByDelegateEmployeeOrganization": {
+        "delegateEmployee": {
           "table": "employees",
           "kind": "one",
           "nullable": false,
@@ -25192,7 +25192,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "employeeByEmployeeOrganization": {
+        "employee": {
           "table": "employees",
           "kind": "one",
           "nullable": false,
@@ -25939,7 +25939,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "employeeByApproverEmployeeOrganization": {
+        "approverEmployee": {
           "table": "employees",
           "kind": "one",
           "nullable": true,
@@ -25955,7 +25955,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "employeeByEmployeeOrganization": {
+        "employee": {
           "table": "employees",
           "kind": "one",
           "nullable": true,
@@ -30229,7 +30229,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "customerByCustomerOrganization": {
+        "customerByCustomer_": {
           "table": "customers",
           "kind": "one",
           "nullable": false,
@@ -30318,7 +30318,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -30429,7 +30429,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "customerByCustomerOrganization": {
+        "customerByCustomer_": {
           "table": "customers",
           "kind": "one",
           "nullable": false,
@@ -30768,7 +30768,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "customerByCustomerOrganization": {
+        "customerByCustomer_": {
           "table": "customers",
           "kind": "one",
           "nullable": false,
@@ -31092,7 +31092,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "customerAssetsByCustomerOrganization": {
+        "customerAssetsByCustomer_": {
           "table": "customerAssets",
           "kind": "many",
           "nullable": true,
@@ -31122,7 +31122,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "customerAssigneesByCustomerOrganization": {
+        "customerAssigneesByCustomer_": {
           "table": "customerAssignees",
           "kind": "many",
           "nullable": true,
@@ -31166,7 +31166,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "customerLocationsByCustomerOrganization": {
+        "customerLocationsByCustomer_": {
           "table": "customerLocations",
           "kind": "many",
           "nullable": true,
@@ -31727,7 +31727,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "employeeContract": {
+        "contract": {
           "table": "employeeContracts",
           "kind": "one",
           "nullable": false,
@@ -32346,7 +32346,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "employeeFieldDefinition": {
+        "definition": {
           "table": "employeeFieldDefinitions",
           "kind": "one",
           "nullable": false,
@@ -32472,7 +32472,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "employeeFieldDefinition": {
+        "definition": {
           "table": "employeeFieldDefinitions",
           "kind": "one",
           "nullable": false,
@@ -32504,7 +32504,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "employeeFieldOption": {
+        "option": {
           "table": "employeeFieldOptions",
           "kind": "one",
           "nullable": true,
@@ -32671,7 +32671,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "employeeJourney": {
+        "journey": {
           "table": "employeeJourneys",
           "kind": "one",
           "nullable": false,
@@ -32863,7 +32863,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "employeeByBuddyEmployeeOrganization": {
+        "buddyEmployee": {
           "table": "employees",
           "kind": "one",
           "nullable": true,
@@ -32879,7 +32879,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "employeeByEmployeeOrganization": {
+        "employee": {
           "table": "employees",
           "kind": "one",
           "nullable": false,
@@ -33293,7 +33293,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "timeOffPolicy": {
+        "policy": {
           "table": "timeOffPolicies",
           "kind": "one",
           "nullable": false,
@@ -33583,7 +33583,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "approvalDelegationsByDelegateEmployeeOrganization": {
+        "approvalDelegationsByDelegateEmployee": {
           "table": "approvalDelegations",
           "kind": "many",
           "nullable": true,
@@ -33599,7 +33599,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "approvalDelegationsByEmployeeOrganization": {
+        "approvalDelegationsByEmployee": {
           "table": "approvalDelegations",
           "kind": "many",
           "nullable": true,
@@ -33615,7 +33615,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "approvalRequestsByApproverEmployeeOrganization": {
+        "approvalRequestsByApproverEmployee": {
           "table": "approvalRequests",
           "kind": "many",
           "nullable": true,
@@ -33631,7 +33631,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "approvalRequestsByEmployeeOrganization": {
+        "approvalRequestsByEmployee": {
           "table": "approvalRequests",
           "kind": "many",
           "nullable": true,
@@ -33711,7 +33711,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "employeeJourneysByBuddyEmployeeOrganization": {
+        "employeeJourneysByBuddyEmployee": {
           "table": "employeeJourneys",
           "kind": "many",
           "nullable": true,
@@ -33727,7 +33727,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "employeeJourneysByEmployeeOrganization": {
+        "employeeJourneysByEmployee": {
           "table": "employeeJourneys",
           "kind": "many",
           "nullable": true,
@@ -33807,7 +33807,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "team": {
+        "departmentTeam": {
           "table": "teams",
           "kind": "one",
           "nullable": true,
@@ -33837,7 +33837,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "employee": {
+        "reportsToEmployee": {
           "table": "employees",
           "kind": "one",
           "nullable": true,
@@ -34847,7 +34847,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "expenseByExpenseOrganization": {
+        "expense": {
           "table": "expenses",
           "kind": "one",
           "nullable": false,
@@ -34877,7 +34877,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "expenseByRelatedExpenseOrganization": {
+        "relatedExpense": {
           "table": "expenses",
           "kind": "one",
           "nullable": true,
@@ -34983,7 +34983,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "expenseCategory": {
+        "category": {
           "table": "expenseCategories",
           "kind": "one",
           "nullable": true,
@@ -35473,7 +35473,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "expenseFlagsByExpenseOrganization": {
+        "expenseFlagsByExpense": {
           "table": "expenseFlags",
           "kind": "many",
           "nullable": true,
@@ -35489,7 +35489,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "expenseFlagsByRelatedExpenseOrganization": {
+        "expenseFlagsByRelatedExpense": {
           "table": "expenseFlags",
           "kind": "many",
           "nullable": true,
@@ -35505,7 +35505,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "expenseCategory": {
+        "category": {
           "table": "expenseCategories",
           "kind": "one",
           "nullable": true,
@@ -35599,7 +35599,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "expenseTrip": {
+        "trip": {
           "table": "expenseTrips",
           "kind": "one",
           "nullable": true,
@@ -35678,7 +35678,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "node": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -35692,7 +35692,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNode": {
+        "nodeByNode_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -36038,7 +36038,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "destinationDrive": {
+        "destinationDriveByDestinationDrive": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -36052,7 +36052,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileDrive": {
+        "destinationDriveByDestinationDrive_": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -36180,7 +36180,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "drive": {
+        "driveByDrive": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -36194,7 +36194,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileDrive": {
+        "driveByDrive_": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -36238,7 +36238,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "teamByTeamOrganization": {
+        "teamByTeam_": {
           "table": "teams",
           "kind": "one",
           "nullable": true,
@@ -36394,7 +36394,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileCopyOperationsByDestinationDriveOrganization": {
+        "fileCopyOperationsByDestinationDrive_": {
           "table": "fileCopyOperations",
           "kind": "many",
           "nullable": true,
@@ -36424,7 +36424,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileDriveGrantsByDriveOrganization": {
+        "fileDriveGrantsByDrive_": {
           "table": "fileDriveGrants",
           "kind": "many",
           "nullable": true,
@@ -36454,7 +36454,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "organizationUser": {
+        "ownerUser": {
           "table": "organizationUsers",
           "kind": "one",
           "nullable": true,
@@ -36483,7 +36483,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodesByDriveOrganization": {
+        "fileNodesByDrive_": {
           "table": "fileNodes",
           "kind": "many",
           "nullable": true,
@@ -36513,7 +36513,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByDriveOrganization": {
+        "fileUploadReservationsByDrive_": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -36543,7 +36543,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileVersionsByDriveOrganization": {
+        "fileVersionsByDrive_": {
           "table": "fileVersions",
           "kind": "many",
           "nullable": true,
@@ -36627,7 +36627,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "node": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -36641,7 +36641,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNode": {
+        "nodeByNode_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -36685,7 +36685,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "teamByTeamOrganization": {
+        "teamByTeam_": {
           "table": "teams",
           "kind": "one",
           "nullable": true,
@@ -36769,7 +36769,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "node": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -36783,7 +36783,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNode": {
+        "nodeByNode_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -36991,7 +36991,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileCommentsByNodeOrganization": {
+        "fileCommentsByNode_": {
           "table": "fileComments",
           "kind": "many",
           "nullable": true,
@@ -37065,7 +37065,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodeGrantsByNodeOrganization": {
+        "fileNodeGrantsByNode_": {
           "table": "fileNodeGrants",
           "kind": "many",
           "nullable": true,
@@ -37095,7 +37095,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodeUserStateByNodeOrganization": {
+        "fileNodeUserStateByNode_": {
           "table": "fileNodeUserState",
           "kind": "many",
           "nullable": true,
@@ -37140,7 +37140,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "drive": {
+        "driveByDrive": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -37154,7 +37154,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileDrive": {
+        "driveByDrive_": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -37184,7 +37184,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNode": {
+        "parentByParent": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -37200,7 +37200,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNodesByParentDrive": {
+        "fileNodesByParent": {
           "table": "fileNodes",
           "kind": "many",
           "nullable": true,
@@ -37216,7 +37216,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "parent": {
+        "parentByParent_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -37230,7 +37230,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNodesByParent": {
+        "fileNodesByParent_": {
           "table": "fileNodes",
           "kind": "many",
           "nullable": true,
@@ -37258,7 +37258,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileShareLinksByNodeOrganization": {
+        "fileShareLinksByNode_": {
           "table": "fileShareLinks",
           "kind": "many",
           "nullable": true,
@@ -37274,7 +37274,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByNodeDrive": {
+        "fileUploadReservationsByNode": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -37290,7 +37290,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByNode": {
+        "fileUploadReservationsByNode_": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -37304,7 +37304,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByParentDrive": {
+        "fileUploadReservationsByParent": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -37320,7 +37320,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByParent": {
+        "fileUploadReservationsByParent_": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -37334,7 +37334,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileVersionsByNodeDrive": {
+        "fileVersionsByNode": {
           "table": "fileVersions",
           "kind": "many",
           "nullable": true,
@@ -37350,7 +37350,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileVersionsByNode": {
+        "fileVersionsByNode_": {
           "table": "fileVersions",
           "kind": "many",
           "nullable": true,
@@ -37511,7 +37511,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "node": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -37525,7 +37525,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNode": {
+        "nodeByNode_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -37789,7 +37789,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "drive": {
+        "driveByDrive": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -37803,7 +37803,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileDrive": {
+        "driveByDrive_": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -37833,7 +37833,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "fileNodeByNodeDrive": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -37849,7 +37849,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "node": {
+        "nodeByNode_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -37877,7 +37877,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNodeByParentDrive": {
+        "parentByParent": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -37893,7 +37893,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "parent": {
+        "parentByParent_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -38068,7 +38068,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "drive": {
+        "driveByDrive": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -38082,7 +38082,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileDrive": {
+        "driveByDrive_": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -38098,7 +38098,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNode": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -38114,7 +38114,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "node": {
+        "nodeByNode_": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -38627,7 +38627,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "hiringCandidate": {
+        "candidate": {
           "table": "hiringCandidates",
           "kind": "one",
           "nullable": false,
@@ -38643,7 +38643,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "hiringJob": {
+        "job": {
           "table": "hiringJobs",
           "kind": "one",
           "nullable": false,
@@ -38673,7 +38673,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "hiringStage": {
+        "stage": {
           "table": "hiringStages",
           "kind": "one",
           "nullable": false,
@@ -38983,7 +38983,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "hiringStage": {
+        "stage": {
           "table": "hiringStages",
           "kind": "one",
           "nullable": true,
@@ -39166,7 +39166,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "hiringApplication": {
+        "application": {
           "table": "hiringApplications",
           "kind": "one",
           "nullable": false,
@@ -39378,7 +39378,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "employee": {
+        "hiringManagerEmployee": {
           "table": "employees",
           "kind": "one",
           "nullable": true,
@@ -39480,7 +39480,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "hiringStageCriteria": {
+        "criterion": {
           "table": "hiringStageCriteria",
           "kind": "one",
           "nullable": false,
@@ -39510,7 +39510,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "hiringScorecard": {
+        "scorecard": {
           "table": "hiringScorecards",
           "kind": "one",
           "nullable": false,
@@ -39620,7 +39620,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "hiringApplication": {
+        "application": {
           "table": "hiringApplications",
           "kind": "one",
           "nullable": false,
@@ -39650,7 +39650,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "hiringStage": {
+        "stage": {
           "table": "hiringStages",
           "kind": "one",
           "nullable": true,
@@ -39758,7 +39758,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "hiringStage": {
+        "stage": {
           "table": "hiringStages",
           "kind": "one",
           "nullable": false,
@@ -39905,7 +39905,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "hiringJob": {
+        "job": {
           "table": "hiringJobs",
           "kind": "one",
           "nullable": false,
@@ -42091,7 +42091,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
       ],
       "uniqueKeys": {},
       "relations": {
-        "integrationInstallation": {
+        "installation": {
           "table": "integrationInstallations",
           "kind": "one",
           "nullable": false,
@@ -42297,7 +42297,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "integrationUserAuthorizationsByInstallationOrganization": {
+        "integrationUserAuthorizationsByInstallation": {
           "table": "integrationUserAuthorizations",
           "kind": "many",
           "nullable": true,
@@ -42313,7 +42313,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "integrationUserAuthorizationsByInstallation": {
+        "integrationUserAuthorizationsByInstallation_": {
           "table": "integrationUserAuthorizations",
           "kind": "many",
           "nullable": true,
@@ -42563,7 +42563,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "integrationInstallation": {
+        "installationByInstallation": {
           "table": "integrationInstallations",
           "kind": "one",
           "nullable": false,
@@ -42579,7 +42579,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "installation": {
+        "installationByInstallation_": {
           "table": "integrationInstallations",
           "kind": "one",
           "nullable": false,
@@ -42809,7 +42809,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "inventoryStockRecord": {
+        "stockRecord": {
           "table": "inventoryStockRecords",
           "kind": "one",
           "nullable": true,
@@ -42840,7 +42840,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -42939,7 +42939,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "inventoryMovementsByLocationOrganization": {
+        "inventoryMovementsByLocation_": {
           "table": "inventoryMovements",
           "kind": "many",
           "nullable": true,
@@ -42985,7 +42985,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "inventoryStockRecordsByLocationOrganization": {
+        "inventoryStockRecordsByLocation_": {
           "table": "inventoryStockRecords",
           "kind": "many",
           "nullable": true,
@@ -43232,7 +43232,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "location": {
+        "locationByLocation": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -43246,7 +43246,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "inventoryLocation": {
+        "locationByLocation_": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -43305,7 +43305,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "forward"
         },
-        "productByProductOrganization": {
+        "productByProduct_": {
           "table": "products",
           "kind": "one",
           "nullable": false,
@@ -43368,7 +43368,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "stockRecord": {
+        "stockRecordByStockRecord": {
           "table": "inventoryStockRecords",
           "kind": "one",
           "nullable": false,
@@ -43382,7 +43382,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "inventoryStockRecord": {
+        "stockRecordByStockRecord_": {
           "table": "inventoryStockRecords",
           "kind": "one",
           "nullable": false,
@@ -43430,7 +43430,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -43535,7 +43535,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "inventoryLocation": {
+        "location": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -43597,7 +43597,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": false,
@@ -43788,7 +43788,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "inventoryMovementsByStockRecordOrganization": {
+        "inventoryMovementsByStockRecord_": {
           "table": "inventoryMovements",
           "kind": "many",
           "nullable": true,
@@ -43817,7 +43817,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "forward"
         },
-        "location": {
+        "locationByLocation": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -43831,7 +43831,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "inventoryLocation": {
+        "locationByLocation_": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -43874,7 +43874,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "forward"
         },
-        "productByProductOrganization": {
+        "productByProduct_": {
           "table": "products",
           "kind": "one",
           "nullable": false,
@@ -43889,7 +43889,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "forward"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -44383,7 +44383,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -46744,7 +46744,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "organizationUser": {
+        "recipientUser": {
           "table": "organizationUsers",
           "kind": "one",
           "nullable": false,
@@ -47277,7 +47277,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -54709,7 +54709,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "productCategoryAssignmentsByCategoryOrganization": {
+        "productCategoryAssignmentsByCategory_": {
           "table": "productCategoryAssignments",
           "kind": "many",
           "nullable": true,
@@ -54789,7 +54789,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
         ]
       },
       "relations": {
-        "category": {
+        "categoryByCategory": {
           "table": "productCategories",
           "kind": "one",
           "nullable": false,
@@ -54803,7 +54803,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productCategory": {
+        "categoryByCategory_": {
           "table": "productCategories",
           "kind": "one",
           "nullable": false,
@@ -54847,7 +54847,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productByProductOrganization": {
+        "productByProduct_": {
           "table": "products",
           "kind": "one",
           "nullable": false,
@@ -54992,7 +54992,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -55146,7 +55146,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -55677,7 +55677,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -56525,7 +56525,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "reverse"
         },
-        "inventoryMovementsByProductOrganization": {
+        "inventoryMovementsByProduct_": {
           "table": "inventoryMovements",
           "kind": "many",
           "nullable": true,
@@ -56569,7 +56569,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "reverse"
         },
-        "inventoryStockRecordsByProductOrganization": {
+        "inventoryStockRecordsByProduct_": {
           "table": "inventoryStockRecords",
           "kind": "many",
           "nullable": true,
@@ -56627,7 +56627,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "productCategoryAssignmentsByProductOrganization": {
+        "productCategoryAssignmentsByProduct_": {
           "table": "productCategoryAssignments",
           "kind": "many",
           "nullable": true,
@@ -57990,7 +57990,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": false,
@@ -58249,7 +58249,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "inventoryLocation": {
+        "shipToLocation": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -58785,7 +58785,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -59289,7 +59289,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -61205,7 +61205,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "inventoryLocation": {
+        "location": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -61920,7 +61920,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           ],
           "direction": "forward"
         },
-        "inventoryLocation": {
+        "defaultInventoryLocation": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -62381,7 +62381,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -62993,7 +62993,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "set null"
         },
-        "taskHoldReason": {
+        "holdReason": {
           "table": "taskHoldReasons",
           "kind": "one",
           "nullable": true,
@@ -63023,7 +63023,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "task": {
+        "parentTask": {
           "table": "tasks",
           "kind": "one",
           "nullable": true,
@@ -63326,7 +63326,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileDriveGrantsByTeamOrganization": {
+        "fileDriveGrantsByTeam_": {
           "table": "fileDriveGrants",
           "kind": "many",
           "nullable": true,
@@ -63356,7 +63356,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodeGrantsByTeamOrganization": {
+        "fileNodeGrantsByTeam_": {
           "table": "fileNodeGrants",
           "kind": "many",
           "nullable": true,
@@ -63696,7 +63696,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,
@@ -64074,7 +64074,7 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productVariant": {
+        "variant": {
           "table": "productVariants",
           "kind": "one",
           "nullable": true,

@@ -12,6 +12,8 @@ const docsPaths = [
   "/llms-full.txt",
   "/llms.mdx/:path*",
   "/mcp",
+  // BotID's challenge proxy, which withBotId() rewrites in the docs app.
+  "/149e9513-01fa-4fb0-aad4-566afd725d1b/:path*",
 ];
 
 export default createNextConfig({

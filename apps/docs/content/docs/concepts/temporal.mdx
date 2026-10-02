@@ -1,0 +1,99 @@
+---
+title: Temporal
+description: Instants, durations and the clock as Temporal values, and the polyfill for runtimes without it.
+---
+
+Every time value better-supabase hands you or accepts is a `Temporal` value
+instead of a `Date`. An instant is a `Temporal.Instant`, a wall-clock
+`timestamp` column is a `Temporal.PlainDateTime`, and a length of time is a
+`Temporal.Duration`.
+
+## Install the polyfill where Temporal is missing
+
+Node 26 and current Chrome and Firefox ship `Temporal`. On Node 24, Safari and
+any other runtime without it, install the polyfill and import it once, before
+the first query:
+
+```bash
+pnpm add temporal-polyfill
+```
+
+```ts title="src/instrumentation.ts"
+import "temporal-polyfill/global";
+```
+
+`temporal-polyfill/global` installs only when the runtime has no native
+`Temporal`, so the import is safe to keep after you upgrade. better-supabase
+never imports the polyfill itself. When a call needs `Temporal` and it is
+missing, the call returns a `DbError` with kind `unexpected` and the message
+names the import.
+
+The types come from TypeScript's `esnext.temporal` lib, which the published
+declarations reference. TypeScript 6 and 7 include it; 5.9 does not.
+
+## Where Temporal appears
+
+| API                                     | Temporal type                                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `codecs.timestamptz: 'instant'`         | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
+| `defineSupabase({ now })`, plugin hooks | `now: () => Temporal.Instant`                                                                 |
+| `Job`, `EnqueueOptions`, `InboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |
+| `verifyWebhook`, `signWebhook`          | `timestamp` and `now`                                                                         |
+| `bucket.sweep`                          | `olderThan: Temporal.Instant` or `Temporal.Duration`                                          |
+| `toCloudEvents`, `forwardMutations`     | `now`                                                                                         |
+
+Auth keeps `now: () => number` in epoch milliseconds, the unit JWT `exp` and
+`iat` math uses.
+
+## Decoded columns
+
+With `codecs: { timestamptz: 'instant' }`, the generated select casts the
+column to `text` so Postgres sends its full microsecond value, and the
+repository parses it with `Temporal.Instant.from`. Filters and writes accept
+the same values back:
+
+```ts
+const since = Temporal.Now.instant().subtract({ hours: 24 });
+await db.orders.findMany({ where: { createdAt: { gte: since } } });
+```
+
+Without the codec, `timestamptz` columns stay ISO strings, as PostgREST
+returns them.
+
+## Durations
+
+`Temporal.Instant` arithmetic has no calendar, so a `Duration` passed to
+`sweep` may use days, hours, minutes and smaller units. A day counts as 24
+hours. Months and years need a calendar; compute the cutoff instant yourself:
+
+```ts
+const cutoff = Temporal.Now.zonedDateTimeISO("Europe/Amsterdam")
+  .subtract({ months: 3 })
+  .toInstant();
+await uploads.sweep({ olderThan: cutoff, referenced });
+```
+
+## Tests
+
+With the polyfill, Vitest fake timers drive `Temporal.Now` as well as `Date`,
+because the polyfill reads the clock through `Date.now`:
+
+```ts
+vi.useFakeTimers({ now: Date.parse("2026-01-01T00:00:00Z") });
+```
+
+`toEqual` compares Temporal objects by their own enumerable keys, and they have
+none, so two different instants compare equal. Compare with `.equals()` or
+`String(value)`, or register an equality tester in a setup file:
+
+```ts title="tests/setup.ts"
+import "temporal-polyfill/global";
+import { expect } from "vitest";
+
+expect.addEqualityTesters([
+  (a, b) =>
+    a instanceof Temporal.Instant && b instanceof Temporal.Instant
+      ? a.equals(b)
+      : undefined,
+]);
+```

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "transit": "true"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",

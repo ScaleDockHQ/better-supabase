@@ -16,7 +16,7 @@ export function timestamps(): Plugin<"timestamps"> {
       if (!flags) return op;
       const created = dbName(table, flags.createdAt);
       const updated = dbName(table, flags.updatedAt);
-      const stamp = now().toISOString();
+      const stamp = now().toString();
       switch (op.kind) {
         case "insert": {
           const stampCreated = insertsOnly(op);

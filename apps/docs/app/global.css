@@ -8,3 +8,13 @@
 html {
   scrollbar-gutter: stable;
 }
+
+/* Fumadocs' 45% gray is 4.2:1 on its light muted surfaces; AA needs 4.5:1. */
+:root:not(.dark) {
+  --color-fd-muted-foreground: hsl(0, 0%, 38%);
+}
+
+/* github-light-high-contrast comments are 4.46:1 on the 94.7% card gray. */
+:root:not(.dark) figure.shiki {
+  background-color: hsl(0, 0%, 97%);
+}

@@ -3,11 +3,11 @@
 Each adapter wraps the same `sb` from `src/lib/supabase.ts`:
 
 ```ts title="src/lib/supabase.ts"
-import { defineSupabase } from 'better-supabase';
+import { defineSupabase } from "better-supabase";
 
-import { schema } from './supabase/generated';
+import { schema } from "./supabase/generated";
 
-export type { Functions, Models } from './supabase/generated';
+export type { Functions, Models } from "./supabase/generated";
 
 export const sb = defineSupabase(schema);
 ```
@@ -15,17 +15,17 @@ export const sb = defineSupabase(schema);
 ## Next.js
 
 ```ts title="src/lib/supabase.server.ts"
-import { createNext } from 'better-supabase/next';
+import { createNext } from "better-supabase/next";
 
-import { sb } from './supabase';
+import { sb } from "./supabase";
 
 export const next = createNext(sb);
 ```
 
 ```ts title="src/proxy.ts"
-import type { NextRequest } from 'next/server';
+import type { NextRequest } from "next/server";
 
-import { next } from './lib/supabase.server';
+import { next } from "./lib/supabase.server";
 
 export const proxy = (request: NextRequest) => next.proxy(request);
 ```
@@ -35,24 +35,29 @@ route handlers and actions read the verified token:
 
 ```ts
 const { db } = await next.server();
-export const GET = next.route((request, { db }) => db.customers.findMany({ limit: 20 }));
+export const GET = next.route((request, { db }) =>
+  db.customers.findMany({ limit: 20 }),
+);
 ```
 
 ## Hono
 
 ```ts title="src/server.ts"
-import { type BetterEnv, createHono } from 'better-supabase/hono';
-import { Hono } from 'hono';
+import { type BetterEnv, createHono } from "better-supabase/hono";
+import { Hono } from "hono";
 
-import { type Functions, type Models, sb } from './lib/supabase';
+import { type Functions, type Models, sb } from "./lib/supabase";
 
 const bs = createHono(sb);
 
 const app = new Hono<BetterEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
-  .use('/api/*', bs.middleware())
-  .get('/api/me', (c) => c.json({ kind: c.var.auth.kind }))
-  .route('/api/customers', bs.resource('customers', { select: ['id', 'name'] }));
+  .use("/api/*", bs.middleware())
+  .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }))
+  .route(
+    "/api/customers",
+    bs.resource("customers", { select: ["id", "name"] }),
+  );
 
 export default app;
 ```
@@ -60,10 +65,10 @@ export default app;
 ## oRPC
 
 ```ts title="src/router.ts"
-import { os } from '@orpc/server';
-import { createOrpc, type OrpcRequestContext } from 'better-supabase/orpc';
+import { os } from "@orpc/server";
+import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
 
-import { sb } from './lib/supabase';
+import { sb } from "./lib/supabase";
 
 export const bs = createOrpc(sb);
 const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
@@ -78,28 +83,28 @@ export const router = {
 ## Edge Functions
 
 ```ts title="supabase/functions/api/index.ts"
-import { createEdge } from 'better-supabase/edge';
+import { createEdge } from "better-supabase/edge";
 
-import { sb } from '../_shared/supabase.ts';
+import { sb } from "../_shared/supabase.ts";
 
 const bs = createEdge(sb, { cors: true });
 
 Deno.serve(
-  bs.resources({ customers: { select: ['id', 'name'] } }, { basePath: '/api' }),
+  bs.resources({ customers: { select: ["id", "name"] } }, { basePath: "/api" }),
 );
 ```
 
 ## MCP
 
 ```ts title="supabase/functions/mcp/index.ts"
-import { createMcp } from 'better-supabase/mcp';
+import { createMcp } from "better-supabase/mcp";
 
-import { sb } from '../_shared/supabase.ts';
+import { sb } from "../_shared/supabase.ts";
 
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '0.1.0',
-  resources: { customers: { select: ['id', 'name'] } },
+  name: "crm",
+  version: "0.1.0",
+  resources: { customers: { select: ["id", "name"] } },
 });
 
 Deno.serve(mcp.fetch);

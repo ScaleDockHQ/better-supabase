@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Job } from "better-supabase/jobs";
 
 import { QueryClient } from "@tanstack/react-query";
 import {
   type AsyncResult,
-  type BetterResultShape,
+  type BetterResultValue,
   type CacheAdapter,
   type DbError,
   defineRepository,
@@ -131,6 +132,11 @@ export async function reads(): Promise<void> {
   await db.customers.restore("id");
 }
 
+// `lib` leaves out ESNext.Temporal: the published declarations reference it.
+export function jobAge(job: Job, now: Temporal.Instant): Temporal.Duration {
+  return now.since(job.enqueuedAt);
+}
+
 export function integrations(): unknown[] {
   const env = parseEnv({});
   const server = createServer(sb);
@@ -249,7 +255,7 @@ export function integrations(): unknown[] {
       toBetterResult(
         { ok: true, data: 1, error: null },
         { ok: (value) => ({ status: "ok", value }), err: (error) => error },
-      ) satisfies BetterResultShape<number, DbError>,
+      ) satisfies BetterResultValue<number, DbError>,
     ) satisfies Result<number>,
   ];
 }

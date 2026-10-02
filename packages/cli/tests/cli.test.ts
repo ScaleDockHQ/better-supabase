@@ -50,6 +50,30 @@ describe("fixtures", () => {
   });
 });
 
+describe("relations", () => {
+  it("names a composite tenant foreign key after its own column", async () => {
+    const model = buildModel(
+      await loadFixtureSnapshot(),
+      resolveConfig({ casing: "camel" }, fixtures),
+    );
+    const relation = (table: string, name: string) =>
+      model.tables
+        .find((entry) => entry.key === table)
+        ?.relations.find((entry) => entry.name === name)?.meta;
+    expect(relation("customers", "primaryContact")).toMatchObject({
+      table: "contacts",
+      columns: ["primaryContactId", "organizationId"],
+      references: ["id", "organizationId"],
+    });
+    expect(relation("locations", "customer")).toMatchObject({
+      columns: ["customerId", "organizationId"],
+    });
+    expect(relation("customerTags", "tag")).toMatchObject({
+      columns: ["tagId", "organizationId"],
+    });
+  });
+});
+
 describe("storagePaths", () => {
   const model = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
@@ -83,6 +107,23 @@ describe("storagePaths", () => {
     await expect(
       model({ storagePaths: { "customers.metadata": "logos" } }),
     ).rejects.toThrow("is jsonb, not a text column");
+  });
+});
+
+describe("codecs", () => {
+  const createdAt = async (config: BetterSupabaseConfig) =>
+    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures))
+      .tables.find((table) => table.key === "customers")
+      ?.columns.find((column) => column.db === "created_at");
+
+  it("types timestamptz columns as Temporal.Instant with the instant codec", async () => {
+    expect(
+      await createdAt({ codecs: { timestamptz: "instant" } }),
+    ).toMatchObject({ codec: "instant", tsType: "Temporal.Instant" });
+    expect(await createdAt({})).toMatchObject({
+      codec: undefined,
+      tsType: "string",
+    });
   });
 });
 
@@ -386,9 +427,10 @@ describe("sql", () => {
     expect(added.code).toBe(0);
     expect(added.stdout).not.toContain("tenant");
     expect(added.stdout).not.toContain("came along as a dependency");
-    const path = added.stdout.match(
-      /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/,
-    )![0];
+    const path =
+      /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/.exec(
+        added.stdout,
+      )![0];
     expect(await readFile(join(dir, path), "utf8")).toContain(
       '"public"."member_organization_ids_for"(feature_claims.user_id)',
     );

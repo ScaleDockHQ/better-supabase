@@ -4,16 +4,16 @@ description: Hide deleted rows everywhere, restore them, and avoid the RLS retur
 ---
 
 ```ts
-import { softDelete } from 'better-supabase/plugins/soft-delete';
+import { softDelete } from "better-supabase/plugins/soft-delete";
 
 const db = defineSupabase(schema).use(softDelete()).connect(supabase);
 
-await db.customers.delete(id);                  // sets archived_at
-await db.customers.findById(id);                // not_found
+await db.customers.delete(id); // sets archived_at
+await db.customers.findById(id); // not_found
 await db.customers.findMany({ withDeleted: true });
 await db.customers.findMany({ onlyDeleted: true });
-await db.customers.restore(id);                 // clears archived_at
-await db.customers.delete(id, { hard: true });  // really deletes
+await db.customers.restore(id); // clears archived_at
+await db.customers.delete(id, { hard: true }); // really deletes
 ```
 
 ## Where deleted rows are hidden
@@ -28,6 +28,27 @@ await db.customers.delete(id, { hard: true });  // really deletes
 
 `withDeleted` and `onlyDeleted` change the queried table only; nested
 includes stay filtered.
+
+## Indexes
+
+Every read adds `archived_at is null`, so index the live rows only. A partial
+index skips deleted rows, stays small as they pile up, and serves the filter
+the plugin adds:
+
+```sql
+create index on customers (organization_id, name) where archived_at is null;
+```
+
+Put the columns you filter and sort by in the index, as you would without
+soft delete. A unique constraint that should only hold for live rows becomes
+a partial unique index:
+
+```sql
+create unique index on customers (organization_id, kvk) where archived_at is null;
+```
+
+Doctor's [BS218](/docs/cli/doctor#bs218) points at soft-delete tables without
+a partial index.
 
 ## Deletes and RLS
 

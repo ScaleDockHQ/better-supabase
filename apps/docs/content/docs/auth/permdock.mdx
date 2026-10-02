@@ -10,15 +10,15 @@ other: they compose through `@supabase/middleware` and plain claim shapes.
 
 ## Who owns what
 
-| Area | better-supabase | PermDock |
-| --- | --- | --- |
-| Tokens | Verification through `@supabase/server`, sessions, refresh, `AuthSession` | Reads the verified claims into a subject |
-| Access token hook | None when PermDock is installed | `permdock supabase hook generate`, the only hook |
-| Roles and permissions | None | `role_permissions`, `authorize()`, and from `permdock rls generate`: `permdock_has`, `permitted_<scope>_ids`, `member_<scope>_ids` and table policies |
-| Data | Typed clients, repositories, typegen, jobs, webhooks | None |
-| Storage and Realtime | `defineBucket`, `defineTopic`, with a `permdock` policy mode that calls PermDock's helpers | The helpers those policies call, from `permdock rls generate` |
-| MCP | `createMcp`, its protected-resource metadata, and the `authorize` and `visible` hooks | Tool permissions, through `createMcp`'s hooks or through `permdock/mcp` on the official MCP SDK |
-| Lints | Token lifetime, refresh reuse, signing keys, splinter, claim size | Authorization lints |
+| Area                  | better-supabase                                                                            | PermDock                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tokens                | Verification through `@supabase/server`, sessions, refresh, `AuthSession`                  | Reads the verified claims into a subject                                                                                                              |
+| Access token hook     | None when PermDock is installed                                                            | `permdock supabase hook generate`, the only hook                                                                                                      |
+| Roles and permissions | None                                                                                       | `role_permissions`, `authorize()`, and from `permdock rls generate`: `permdock_has`, `permitted_<scope>_ids`, `member_<scope>_ids` and table policies |
+| Data                  | Typed clients, repositories, typegen, jobs, webhooks                                       | None                                                                                                                                                  |
+| Storage and Realtime  | `defineBucket`, `defineTopic`, with a `permdock` policy mode that calls PermDock's helpers | The helpers those policies call, from `permdock rls generate`                                                                                         |
+| MCP                   | `createMcp`, its protected-resource metadata, and the `authorize` and `visible` hooks      | Tool permissions, through `createMcp`'s hooks or through `permdock/mcp` on the official MCP SDK                                                       |
+| Lints                 | Token lifetime, refresh reuse, signing keys, splinter, claim size                          | Authorization lints                                                                                                                                   |
 
 ## Setup
 
@@ -59,36 +59,36 @@ step.
 
 The hook writes these claims:
 
-| Claim | Value |
-| --- | --- |
-| `user_role` | The user's global role, or an array when there are several |
-| `roles` | The user's global roles, always an array |
-| `memberships` | `[{ scope, id, roles }]`, the active tenant first, cut to the budget |
-| `tenant_id` | The active tenant, named by PermDock's `rls.tenantClaim` |
-| `attrs` | The attributes listed in `supabase.hook.attrs`, when there are any |
-| `authz_ver` | The user's authorization version from `permdock_authz_version`, bumped when their grants change |
-| `memberships_truncated` | `true` when memberships were dropped to fit the budget |
-| `features` | The plan features from `better_supabase.feature_claims`, when `supabase.hook.claims` names it |
+| Claim                   | Value                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `user_role`             | The user's global role, or an array when there are several                                      |
+| `roles`                 | The user's global roles, always an array                                                        |
+| `memberships`           | `[{ scope, id, roles }]`, the active tenant first, cut to the budget                            |
+| `tenant_id`             | The active tenant, named by PermDock's `rls.tenantClaim`                                        |
+| `attrs`                 | The attributes listed in `supabase.hook.attrs`, when there are any                              |
+| `authz_ver`             | The user's authorization version from `permdock_authz_version`, bumped when their grants change |
+| `memberships_truncated` | `true` when memberships were dropped to fit the budget                                          |
+| `features`              | The plan features from `better_supabase.feature_claims`, when `supabase.hook.claims` names it   |
 
 Claims better-supabase owns go through `supabase.hook.claims` in
 `permdock.config.ts`. Each value is a schema-qualified function that takes the
 user id and returns `jsonb`; the hook sets the claim to its result:
 
 ```ts title="permdock.config.ts"
-import { fromJunction } from 'permdock/supabase';
+import { fromJunction } from "permdock/supabase";
 
 export default {
   supabase: {
     hook: {
       memberships: [
         fromJunction({
-          table: 'better_supabase.memberships',
-          scope: 'organization',
-          id: 'org_id',
-          roles: 'role',
+          table: "better_supabase.memberships",
+          scope: "organization",
+          id: "org_id",
+          roles: "role",
         }),
       ],
-      claims: { features: 'better_supabase.feature_claims' },
+      claims: { features: "better_supabase.feature_claims" },
     },
   },
 };
@@ -114,7 +114,7 @@ names. Set `scope` to the name of your first PermDock scope:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  claims: { tenant: 'tenant_id', scope: 'organization' },
+  claims: { tenant: "tenant_id", scope: "organization" },
 });
 ```
 
@@ -152,10 +152,10 @@ PermDock unchanged. `extend(app)` adds your own hook claims, validated by your
 schema library:
 
 ```ts title="src/lib/supabase/client.ts"
-import { defineSupabase } from 'better-supabase';
-import { supabaseClaims } from 'permdock/supabase';
-import * as v from 'valibot';
-import { schema } from './generated';
+import { defineSupabase } from "better-supabase";
+import { supabaseClaims } from "permdock/supabase";
+import * as v from "valibot";
+import { schema } from "./generated";
 
 export const sb = defineSupabase(schema).claims(
   supabaseClaims().extend(
@@ -163,9 +163,9 @@ export const sb = defineSupabase(schema).claims(
       datetime_preferences: v.optional(
         v.object({
           timezone: v.string(),
-          week_start: v.picklist(['monday', 'sunday']),
+          week_start: v.picklist(["monday", "sunday"]),
           date_format: v.string(),
-          time_format: v.picklist(['12h', '24h']),
+          time_format: v.picklist(["12h", "24h"]),
         }),
       ),
     }),
@@ -191,18 +191,18 @@ through. Name the `features` claim in the app schema to type its keys
 contributes `ctx.permdock`. Both read what `withSupabase` verified:
 
 ```ts title="src/api/customers.ts"
-import { pipeline } from '@supabase/middleware';
-import { withSupabase } from '@supabase/server';
-import { withBetterSupabase } from 'better-supabase/server';
-import { createPermDock } from 'permdock/supabase/middleware';
-import { subjectFromSupabase } from 'permdock/supabase';
+import { pipeline } from "@supabase/middleware";
+import { withSupabase } from "@supabase/server";
+import { withBetterSupabase } from "better-supabase/server";
+import { createPermDock } from "permdock/supabase/middleware";
+import { subjectFromSupabase } from "permdock/supabase";
 
 const { withPermDock } = createPermDock(policy, {
   subject: (ctx) => subjectFromSupabase(ctx.jwtClaims),
 });
 
 export const listCustomers = pipeline(
-  [withSupabase({ auth: 'user' }), withBetterSupabase(sb)(), withPermDock()],
+  [withSupabase({ auth: "user" }), withBetterSupabase(sb)(), withPermDock()],
   async (_req, ctx) => {
     if (!ctx.permdock.can(permissions.customers.read)) {
       return new Response(null, { status: 403 });
@@ -222,29 +222,29 @@ and `authorize` with `can`. `meta` is `unknown` to better-supabase, which
 never imports PermDock, so narrow it with PermDock's `isPermission` first:
 
 ```ts title="supabase/functions/mcp/index.ts"
-import { createMcp } from 'better-supabase/mcp';
-import { createPermDock, isPermission, mayUse } from 'permdock';
-import { subjectFromSupabaseSession } from 'permdock/supabase';
+import { createMcp } from "better-supabase/mcp";
+import { createPermDock, isPermission, mayUse } from "permdock";
+import { subjectFromSupabaseSession } from "permdock/supabase";
 
 async function dockFor(ctx: { auth: { kind: string; claims?: unknown } }) {
   return createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
 }
 
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '1.0.0',
-  scopes: ['openid'],
+  name: "crm",
+  version: "1.0.0",
+  scopes: ["openid"],
   authorize: async (ctx, tool) => {
     if (!isPermission(tool.meta)) return { allowed: true };
     return (await dockFor(ctx)).can(tool.meta)
       ? { allowed: true }
-      : { allowed: false, reason: 'PermDock denied this tool' };
+      : { allowed: false, reason: "PermDock denied this tool" };
   },
   visible: async (ctx, tool) =>
     !isPermission(tool.meta) || mayUse(await dockFor(ctx), tool.meta),
 }).tool({
-  name: 'export_customers',
-  description: 'Export the organization’s customers as CSV.',
+  name: "export_customers",
+  description: "Export the organization’s customers as CSV.",
   meta: permissions.customers.export,
   run: (_args, { db }) => db.customers.findMany(),
 });
@@ -266,8 +266,8 @@ as it is. A `user` session becomes a PermDock subject from its claims; `anon`,
 `service` and `invalid` sessions become the anonymous subject.
 
 ```ts title="src/lib/permissions.ts"
-import { createPermDock } from 'permdock';
-import { subjectFromSupabaseSession } from 'permdock/supabase';
+import { createPermDock } from "permdock";
+import { subjectFromSupabaseSession } from "permdock/supabase";
 
 export async function permdockFor() {
   const session = await next.session();

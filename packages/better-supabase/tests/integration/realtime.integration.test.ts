@@ -64,10 +64,9 @@ function waitFor<T>(
   ms = 8000,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error("timed out waiting for a message")),
-      ms,
-    );
+    const timer = setTimeout(() => {
+      reject(new Error("timed out waiting for a message"));
+    }, ms);
     register((value) => {
       clearTimeout(timer);
       resolve(value);
@@ -120,7 +119,11 @@ describe.skipIf(!live)("Realtime kit", async () => {
       const sub = customers.subscribe(
         acme,
         { orgId: ACME },
-        { INSERT: (_payload, message) => resolve(message) },
+        {
+          INSERT: (_payload, message) => {
+            resolve(message);
+          },
+        },
       );
       // A cold Realtime server acknowledges the join before it relays database
       // broadcasts, and a message sent in that gap is never delivered.
@@ -128,7 +131,9 @@ describe.skipIf(!live)("Realtime kit", async () => {
         await insert();
         retry = setInterval(() => void insert(), 3000);
       });
-    }, 15_000).finally(() => clearInterval(retry));
+    }, 15_000).finally(() => {
+      clearInterval(retry);
+    });
     const received = await got;
     const change = rowChange(sb, "customers", received);
     expect(change).toMatchObject({
@@ -164,14 +169,18 @@ describe.skipIf(!live)("Realtime kit", async () => {
       notifications.send(acme, values, "created", { title: "Hello" }).orThrow();
     const message = await waitFor<{ title: string }>((resolve) => {
       const sub = notifications.subscribe(acme, values, {
-        created: (payload) => resolve(payload),
+        created: (payload) => {
+          resolve(payload);
+        },
       });
       // Same cold-server gap as the row broadcast above.
       void sub.ready.then(async () => {
         await send();
         retry = setInterval(() => void send(), 3000);
       });
-    }, 15_000).finally(() => clearInterval(retry));
+    }, 15_000).finally(() => {
+      clearInterval(retry);
+    });
     expect(message).toEqual({ title: "Hello" });
 
     const denied = await notifications.send(other, values, "created", {

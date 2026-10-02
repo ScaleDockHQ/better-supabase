@@ -41,8 +41,10 @@ function scalar(kind: ScalarKind): string {
       return "v.pipe(v.string(), v.isoTimestamp())";
     case "date":
       return "v.pipe(v.string(), v.isoDate())";
-    case "dateObject":
-      return "v.date()";
+    case "instant":
+      return "v.instance(Temporal.Instant)";
+    case "plainDateTime":
+      return "v.instance(Temporal.PlainDateTime)";
     case "bigint":
       return "v.bigint()";
     case "json":
@@ -68,9 +70,9 @@ function field(
     imported ??
     (plan.customJson
       ? `v.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
-      : plan.column.storage !== undefined
-        ? `(v.string() as unknown as v.GenericSchema<${rowType(table, plan)}>)`
-        : scalar(plan.scalar));
+      : plan.column.storage === undefined
+        ? scalar(plan.scalar)
+        : `(v.string() as unknown as v.GenericSchema<${rowType(table, plan)}>)`);
   if (plan.column.array) expr = `v.array(${expr})`;
   if (plan.nullable) expr = `v.nullable(${expr})`;
   if (plan.optional) expr = `v.exactOptional(${expr})`;
@@ -102,10 +104,12 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         );
       }
 
-      const lines = [HEADER, 'import * as v from "valibot";', ""];
-      lines.push(
+      const lines = [
+        HEADER,
+        'import * as v from "valibot";',
+        "",
         `import type { InsertOf, Json, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
-      );
+      ];
       for (const [from, names] of imports) {
         lines.push(
           `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
@@ -144,8 +148,9 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         }
       }
 
-      lines.push("", "/** Write validators for the validation plugin. */");
       lines.push(
+        "",
+        "/** Write validators for the validation plugin. */",
         "export const validators: {",
         ...validatorTypes,
         "} = {",

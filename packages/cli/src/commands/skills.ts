@@ -7,6 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { AnyCommand, CliArgs } from "../command.ts";
+import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
@@ -115,7 +116,7 @@ export async function loadSkills(
 export async function runSkills(
   config: ResolvedConfig,
   args: SkillsArgs,
-  env: Readonly<Record<string, string | undefined>>,
+  env: CliEnv,
 ): Promise<CommandResult> {
   const [action] = args._;
   const skills = await loadSkills(args.from ?? skillsRoot());
@@ -134,7 +135,7 @@ export async function runSkills(
     };
   }
   const global = args.global === true;
-  const base = global ? (env["HOME"] ?? homedir()) : config.root;
+  const base = global ? (env.HOME ?? homedir()) : config.root;
   const requested = list(args.agent);
   const unknown = requested.filter((name) => !isAgent(name));
   if (unknown.length > 0) {
@@ -157,26 +158,29 @@ export async function runSkills(
   const check = args.check === true;
   const lines: string[] = [];
   const stale: string[] = [];
-  for (const agent of agents) {
-    for (const skill of skills) {
-      for (const file of skill.files) {
-        const relativePath = join(AGENT_DIRS[agent], skill.name, file.path);
-        const path = resolve(base, relativePath);
-        const shown = global
-          ? `~/${relativePath}`
-          : display(config.root, relativePath);
-        if (check) {
-          const current = existsSync(path)
-            ? await readFile(path, "utf8")
-            : undefined;
-          if (current !== file.contents) stale.push(shown);
-          continue;
-        }
-        lines.push(
-          `${(await writeIfChanged(path, file.contents)) ? "Wrote" : "Unchanged"} ${shown}`,
-        );
-      }
+  const targets = agents.flatMap((agent) =>
+    skills.flatMap((skill) =>
+      skill.files.map((file) => ({
+        file,
+        relativePath: join(AGENT_DIRS[agent], skill.name, file.path),
+      })),
+    ),
+  );
+  for (const { file, relativePath } of targets) {
+    const path = resolve(base, relativePath);
+    const shown = global
+      ? `~/${relativePath}`
+      : display(config.root, relativePath);
+    if (check) {
+      const current = existsSync(path)
+        ? await readFile(path, "utf8")
+        : undefined;
+      if (current !== file.contents) stale.push(shown);
+      continue;
     }
+    lines.push(
+      `${(await writeIfChanged(path, file.contents)) ? "Wrote" : "Unchanged"} ${shown}`,
+    );
   }
   if (check) {
     return stale.length === 0

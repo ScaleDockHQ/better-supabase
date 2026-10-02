@@ -116,18 +116,18 @@ function tableKey(
 }
 
 const CODEC_TYPE: Record<Codec, string> = {
-  date: "Date",
+  instant: "Temporal.Instant",
+  plainDateTime: "Temporal.PlainDateTime",
   bigint: "bigint",
   string: "string",
 };
 
 function codecFor(udt: string, config: ResolvedConfig): Codec | undefined {
   const { codecs } = config;
-  if (
-    (udt === "timestamptz" || udt === "timestamp") &&
-    codecs.timestamptz === "date"
-  )
-    return "date";
+  if (codecs.timestamptz === "instant") {
+    if (udt === "timestamptz") return "instant";
+    if (udt === "timestamp") return "plainDateTime";
+  }
   if (udt === "int8" && codecs.int8 !== "number") return codecs.int8;
   if (udt === "numeric" && codecs.numeric === "string") return "string";
   return undefined;
@@ -141,7 +141,7 @@ function storagePathsOf(config: ResolvedConfig) {
     const bucket = config.buckets[name];
     if (!bucket) return name;
     return (
-      bucket.id ?? name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)
+      bucket.id ?? name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)
     );
   };
   const unused = new Set(Object.keys(config.storagePaths));
@@ -150,7 +150,7 @@ function storagePathsOf(config: ResolvedConfig) {
       const key = [`${schema}.${table}.${column}`, `${table}.${column}`].find(
         (candidate) => candidate in config.storagePaths,
       );
-      if (key === undefined) return undefined;
+      if (key === undefined) return;
       unused.delete(key);
       if (!TEXT_UDTS.has(udt)) {
         throw new TypeError(
@@ -158,7 +158,7 @@ function storagePathsOf(config: ResolvedConfig) {
         );
       }
       // SAFETY: the check above found this key in storagePaths, whose values are strings.
-      return bucketId(config.storagePaths[key] as string);
+      return bucketId(config.storagePaths[key]!);
     },
     assertUsed(): void {
       const [first] = unused;
@@ -180,7 +180,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const catalog = toCatalog(snapshot);
   const introspection = restrictSchemas(snapshot.generator, config.schemas);
   const tsType = (schema: string, format: string, typeSchema?: string) =>
-    tsTypeOf(introspection, schema, format, typeSchema).replace(
+    tsTypeOf(introspection, schema, format, typeSchema).replaceAll(
       /\(([\w.$]+)\)\[\]/g,
       "$1[]",
     );
@@ -321,9 +321,10 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         fk.onDelete === "set default"
           ? { onDelete: fk.onDelete }
           : {};
-      const [only] = fk.columns;
+      const naming = namingColumns(fk.columns, fk.refColumns);
+      const [only] = naming;
       const forwardBase =
-        fk.columns.length === 1 && only?.endsWith("_id")
+        naming.length === 1 && only?.endsWith("_id")
           ? only.slice(0, -3)
           : singular(fk.refTable);
       push(sourceId, {
@@ -563,7 +564,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
               {
                 id:
                   bucket.id ??
-                  name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
+                  name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
                 public: bucket.public ?? false,
                 path: bucket.path,
                 ...(bucket.policy ? { policy: bucket.policy } : {}),
@@ -603,6 +604,19 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
 }
 
 /**
+ * The columns that name a relation. A composite key that repeats a column on
+ * both sides, such as `(customer_id, organization_id)` referencing
+ * `(id, organization_id)` to keep rows in one tenant, is named by the rest.
+ */
+function namingColumns(
+  columns: readonly string[],
+  references: readonly string[],
+): readonly string[] {
+  const own = columns.filter((column, index) => column !== references[index]);
+  return own.length > 0 ? own : columns;
+}
+
+/**
  * Makes relation names unique per table and distinct from column names:
  * two FKs to the same table become `customersByPrimaryContact`-style names.
  */
@@ -618,10 +632,11 @@ function dedupeRelations(
   return list.map((relation) => {
     let name = relation.name;
     if ((counts.get(name) ?? 0) > 1 || columns.has(name)) {
+      const { columns: from, references: to } = relation.meta;
       const via =
         relation.meta.direction === "forward"
-          ? relation.meta.columns
-          : relation.meta.references;
+          ? namingColumns(from, to)
+          : namingColumns(to, from);
       const suffix = via
         .map((column) => column.replace(/_?[iI]d$/, ""))
         .join("_");

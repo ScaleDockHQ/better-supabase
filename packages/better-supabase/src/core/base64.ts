@@ -5,7 +5,7 @@ const decoder = new TextDecoder();
 export function toBase64(input: Uint8Array | string): string {
   const bytes = typeof input === "string" ? encoder.encode(input) : input;
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (const byte of bytes) binary += String.fromCodePoint(byte);
   return btoa(binary);
 }
 
@@ -15,7 +15,7 @@ export function fromBase64(text: string): Uint8Array<ArrayBuffer> {
   const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+    bytes[index] = binary.codePointAt(index) ?? 0;
   }
   return bytes;
 }

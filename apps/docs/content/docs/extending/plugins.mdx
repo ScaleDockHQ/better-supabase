@@ -4,13 +4,13 @@ description: Plugin API v1, its hooks, and typed repository extensions.
 ---
 
 ```ts
-import { column, definePlugin, and } from 'better-supabase';
+import { column, definePlugin, and } from "better-supabase";
 
 export const onlyPublished = definePlugin({
-  name: 'onlyPublished',
+  name: "onlyPublished",
   transformQuery(op) {
-    if (op.kind !== 'select' || !('published' in op.table.columns)) return op;
-    return { ...op, where: and(op.where, column('published', 'eq', true)) };
+    if (op.kind !== "select" || !("published" in op.table.columns)) return op;
+    return { ...op, where: and(op.where, column("published", "eq", true)) };
   },
 });
 ```
@@ -20,14 +20,14 @@ another version, and installing two plugins with the same name.
 
 ## Hooks
 
-| Hook | Level | Use it to |
-| --- | --- | --- |
-| `transformQuery(op, args)` | IR | Add filters, rewrite selections |
-| `beforeMutation(op, args)` | Mutation | Fill columns, reject writes, change the kind (turn a delete into an update) |
-| `afterMutation(event)` | Mutation | Audit, cache invalidation, outbox. Cannot change the result |
-| `wrapExecutor(executor)` | Execution | Tracing, retries, caching |
-| `mapError(raw, fallback)` | Errors | Map `RAISE` hint codes or custom SQLSTATEs to `DbError`s |
-| `repository(api)` | Repository | Add methods to matching tables |
+| Hook                       | Level      | Use it to                                                                   |
+| -------------------------- | ---------- | --------------------------------------------------------------------------- |
+| `transformQuery(op, args)` | IR         | Add filters, rewrite selections                                             |
+| `beforeMutation(op, args)` | Mutation   | Fill columns, reject writes, change the kind (turn a delete into an update) |
+| `afterMutation(event)`     | Mutation   | Audit, cache invalidation, outbox. Cannot change the result                 |
+| `wrapExecutor(executor)`   | Execution  | Tracing, retries, caching                                                   |
+| `mapError(raw, fallback)`  | Errors     | Map `RAISE` hint codes or custom SQLSTATEs to `DbError`s                    |
+| `repository(api)`          | Repository | Add methods to matching tables                                              |
 
 Hooks receive `args` with the table metadata, the request context, the
 per-call options (any argument the repository does not know, like

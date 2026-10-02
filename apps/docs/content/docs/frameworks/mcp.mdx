@@ -4,25 +4,25 @@ description: Tools from your tables and your own code, running as the signed-in 
 ---
 
 ```ts title="supabase/functions/mcp/index.ts"
-import { createMcp } from 'better-supabase/mcp';
-import { toStandardJsonSchema } from '@valibot/to-json-schema';
-import * as v from 'valibot';
-import { customerList, sb } from '../_shared/supabase.ts';
+import { createMcp } from "better-supabase/mcp";
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import * as v from "valibot";
+import { customerList, sb } from "../_shared/supabase.ts";
 
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '1.0.0',
-  instructions: 'Customers and notes of the signed-in user’s organization.',
+  name: "crm",
+  version: "1.0.0",
+  instructions: "Customers and notes of the signed-in user’s organization.",
   resources: {
-    customers: { list: customerList, select: ['id', 'name', 'status'] },
-    notes: { operations: ['list', 'get', 'create'] },
+    customers: { list: customerList, select: ["id", "name", "status"] },
+    notes: { operations: ["list", "get", "create"] },
   },
 }).tool({
-  name: 'archive_customer',
-  description: 'Archive a customer and everything attached to it.',
+  name: "archive_customer",
+  description: "Archive a customer and everything attached to it.",
   input: toStandardJsonSchema(v.object({ id: v.pipe(v.string(), v.uuid()) })),
   annotations: { destructiveHint: true, idempotentHint: true },
-  run: ({ id }, { db }) => db.customers.update(id, { status: 'archived' }),
+  run: ({ id }, { db }) => db.customers.update(id, { status: "archived" }),
 });
 
 Deno.serve(mcp.fetch);
@@ -87,17 +87,20 @@ the `scope` the user granted it. `toSession(ctx.auth)` from
 them, so `authorize` can check a scope per tool:
 
 ```ts title="supabase/functions/mcp/index.ts"
-import { toSession } from 'better-supabase/server';
+import { toSession } from "better-supabase/server";
 
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '1.0.0',
-  scopes: ['openid', 'crm.read', 'crm.write'],
+  name: "crm",
+  version: "1.0.0",
+  scopes: ["openid", "crm.read", "crm.write"],
   resources: { customers: true },
   authorize: (ctx, tool) => {
     const session = toSession(ctx.auth);
-    const granted = session.kind === 'user' ? session.delegation?.scopes : undefined;
-    const needed = tool.info.annotations?.readOnlyHint ? 'crm.read' : 'crm.write';
+    const granted =
+      session.kind === "user" ? session.delegation?.scopes : undefined;
+    const needed = tool.info.annotations?.readOnlyHint
+      ? "crm.read"
+      : "crm.write";
     return !granted || granted.includes(needed)
       ? { allowed: true }
       : { allowed: false, reason: `Needs ${needed}`, scopes: [needed] };
@@ -115,16 +118,18 @@ RFC 8693 `act` chain and `chain` keeps the actors before it. A malformed
 
 Each table in `resources` gets one tool per operation:
 
-| Tool | Input | Annotations |
-| --- | --- | --- |
-| `<table>_list` | the list query's JSON Schema, or `page`/`size` | `readOnlyHint` |
-| `<table>_get` | the key | `readOnlyHint` |
-| `<table>_create` | the `Insert` JSON Schema | `destructiveHint: false` |
-| `<table>_update` | the key and `patch` (the `Update` schema) | `destructiveHint`, `idempotentHint` |
-| `<table>_delete` | the key | `destructiveHint`, `idempotentHint` |
+| Tool             | Input                                          | Annotations                         |
+| ---------------- | ---------------------------------------------- | ----------------------------------- |
+| `<table>_list`   | the list query's JSON Schema, or `page`/`size` | `readOnlyHint`                      |
+| `<table>_get`    | the key                                        | `readOnlyHint`                      |
+| `<table>_create` | the `Insert` JSON Schema                       | `destructiveHint: false`            |
+| `<table>_update` | the key and `patch` (the `Update` schema)      | `destructiveHint`, `idempotentHint` |
+| `<table>_delete` | the key                                        | `destructiveHint`, `idempotentHint` |
 
-The schemas are generated from your database metadata, the same ones
-`createOpenApi` publishes. Rows come back as `structuredContent` with a
+With `pagination: 'cursor'` on the resource (or its list query), the list
+tool takes `after` instead of `page` and returns `nextCursor`, which suits
+agents that read a table one page at a time. The schemas are generated from
+your database metadata, the same ones `createOpenApi` publishes. Rows come back as `structuredContent` with a
 matching `outputSchema`.
 
 ## Custom tools
@@ -145,21 +150,21 @@ may use a tool at all, pass `authorize` and `visible`:
 
 ```ts title="supabase/functions/mcp/index.ts"
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '1.0.0',
-  scopes: ['openid', 'crm.read'],
+  name: "crm",
+  version: "1.0.0",
+  scopes: ["openid", "crm.read"],
   resources: { customers: true },
   authorize: (ctx, tool, args) =>
-    tool.meta === 'admin' && !isAdmin(ctx.auth)
-      ? { allowed: false, reason: 'Only admins can archive customers' }
+    tool.meta === "admin" && !isAdmin(ctx.auth)
+      ? { allowed: false, reason: "Only admins can archive customers" }
       : { allowed: true },
-  visible: (ctx, tool) => tool.meta !== 'admin' || isAdmin(ctx.auth),
+  visible: (ctx, tool) => tool.meta !== "admin" || isAdmin(ctx.auth),
 }).tool({
-  name: 'archive_customer',
-  description: 'Archive a customer.',
+  name: "archive_customer",
+  description: "Archive a customer.",
   input: toStandardJsonSchema(v.object({ id: v.pipe(v.string(), v.uuid()) })),
-  meta: 'admin',
-  run: ({ id }, { db }) => db.customers.update(id, { status: 'archived' }),
+  meta: "admin",
+  run: ({ id }, { db }) => db.customers.update(id, { status: "archived" }),
 });
 ```
 
@@ -196,5 +201,23 @@ validation `issues` with paths. Protocol problems use JSON-RPC errors: an
 unknown method, an unknown tool, a malformed message, headers that disagree
 with the body, or an unsupported protocol version.
 
-Set `allowedOrigins` to reject browser requests from other origins, which
-protects against DNS rebinding.
+Set `allowedOrigins` to reject browser requests from other origins, and
+`allowedHosts` to reject requests whose `Host` header names another host
+(compared without the port). Together they protect against DNS rebinding.
+List every host the server answers on: production, previews and local
+development.
+
+```ts title="src/mcp.ts"
+export const mcp = createMcp(sb, {
+  env,
+  name: "crm",
+  version: "1.0.0",
+  allowedOrigins: ["https://claude.ai"],
+  allowedHosts: ["crm.example.com", "crm.localhost", "localhost"],
+  resourceDocumentation: "https://crm.example.com/docs/mcp",
+});
+```
+
+`resourceDocumentation` is published as `resource_documentation` in the
+protected resource metadata, so a client that hits the 401 can link the user
+to the page that explains how to connect.

@@ -14,7 +14,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const fixed = {
   id: () => "evt-1",
-  now: () => new Date("2026-01-01T00:00:00Z"),
+  now: () => Temporal.Instant.from("2026-01-01T00:00:00Z"),
   source: "/crm",
 };
 
@@ -36,7 +36,7 @@ describe("CloudEvents", () => {
         source: "/crm",
         type: "dev.better-supabase.row.created",
         subject: "customers/c1",
-        time: "2026-01-01T00:00:00.000Z",
+        time: "2026-01-01T00:00:00Z",
         datacontenttype: "application/json",
         data: { table: "customers", row: { id: "c1", name: "Acme" } },
         partitionkey: "org-1",
@@ -95,7 +95,9 @@ describe("CloudEvents", () => {
       .connect(client)
       .customers.create({ organizationId: "o1", name: "N" })
       .orThrow();
-    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledOnce();
+    });
   });
 
   it("round-trips the HTTP binding in every mode", async () => {

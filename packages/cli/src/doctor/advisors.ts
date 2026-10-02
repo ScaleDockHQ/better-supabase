@@ -83,7 +83,7 @@ export function managementAdvisors(
       // SAFETY: JSON.parse returns any, and lints is checked below.
       const body = JSON.parse(text) as { lints?: unknown };
       if (!Array.isArray(body.lints)) {
-        throw new Error(
+        throw new TypeError(
           `Management API ${category} advisors returned no "lints".`,
         );
       }
@@ -143,7 +143,7 @@ function lintRows(result: unknown): readonly unknown[] {
 }
 
 /**
- * Runs splinter against a database (local stack or `--db-url`) in a
+ * Runs splinter against a database (local stack, `$DATABASE_URL` or `--db-url-stdin`) in a
  * read-only transaction that is rolled back.
  */
 export function splinterAdvisors(

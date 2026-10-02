@@ -8,7 +8,8 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@better-supabase/cli": "workspace:*",

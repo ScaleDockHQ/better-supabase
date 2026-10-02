@@ -3,11 +3,17 @@ title: Pagination
 description: Page numbers with totals, or keyset cursors for infinite lists.
 ---
 
+`paginate` takes either a `page` or an `after` cursor. Prefer cursors: the
+cost of a page number grows with the offset, because Postgres reads and
+discards every row before it, and a row inserted while someone pages shifts
+the rest by one. Page numbers stay for tables where people jump to page 7
+and the total matters.
+
 ## Page numbers
 
 ```ts
 const { items, page } = await db.customers
-  .paginate({ page: 2, size: 25, count: 'exact', orderBy: { name: 'asc' } })
+  .paginate({ page: 2, size: 25, count: "exact", orderBy: { name: "asc" } })
   .orThrow();
 // page: { number: 2, size: 25, total: 81, pages: 4, hasMore: true }
 ```
@@ -19,11 +25,11 @@ one extra row, so it never needs a count.
 
 ```ts
 const first = await db.customers
-  .paginate({ after: null, size: 25, orderBy: { name: 'asc' } })
+  .paginate({ after: null, size: 25, orderBy: { name: "asc" } })
   .orThrow();
 
 const next = await db.customers
-  .paginate({ after: first.nextCursor, size: 25, orderBy: { name: 'asc' } })
+  .paginate({ after: first.nextCursor, size: 25, orderBy: { name: "asc" } })
   .orThrow();
 ```
 
@@ -32,8 +38,22 @@ not an offset, so inserts do not shift pages and deep pages stay fast. The
 primary key is added as a tiebreaker, so rows with equal sort values are
 never skipped or repeated.
 
+Nullable sort columns work too: the next page follows where Postgres puts
+nulls (last for `asc`, first for `desc`, or what `nulls` says), so no row
+with a null sort value is skipped. Give the order an index that matches it,
+for example `create index on customers (name, id)`, and each page is one
+index range scan however deep it is.
+
+On the `better-supabase/postgres` executor the cursor compiles to a row
+comparison, `(name, id) > ($1, $2)`, when every column sorts the same way and
+none is nullable.
+
 A cursor is an opaque base64url string. Pass it back with the same `orderBy`
 and `where`.
+
+Lists and REST resources page by cursor with `pagination: 'cursor'` (see
+[list queries](/docs/kits/list#cursor-pagination)); their `size` stays capped
+by `maxPageSize`.
 
 ## Row caps
 
@@ -44,7 +64,7 @@ error. A `findMany` without `limit` can therefore look complete when it isn't.
 ```ts
 export const sb = defineSupabase(schema, { maxRows: 1000 });
 
-sb.on('query', ({ table, truncated }) => {
+sb.on("query", ({ table, truncated }) => {
   if (truncated) metrics.increment(`db.${table}.truncated`);
 });
 ```

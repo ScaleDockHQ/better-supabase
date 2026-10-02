@@ -3,7 +3,7 @@ import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
 import { defineDocs } from "fumadocs-mdx/macro";
 
-import type { DocsPageSummary } from "./docs-mcp-pages";
+import type { DocsPageSummary } from "./page-search";
 
 import { docsContentRoute, docsRoute } from "./shared";
 
@@ -36,7 +36,7 @@ export function getPageMarkdownUrl(page: DocsPage) {
   };
 }
 
-/** The page catalog the docs MCP server and Ask AI search. */
+/** The page catalog Ask AI searches. */
 export function getPageSummaries(): readonly DocsPageSummary[] {
   return source.getPages().map((page) => ({
     title: page.data.title,

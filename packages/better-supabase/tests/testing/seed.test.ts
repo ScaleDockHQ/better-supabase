@@ -49,7 +49,7 @@ describe("defineSeed", () => {
     expect(() => bad.statements()).toThrow('unknown column "nope"');
   });
 
-  it("quotes array elements and serialises dates", () => {
+  it("quotes array elements and serialises instants", () => {
     const column = (db: string, type: string, extra: object = {}) => ({
       db,
       type,
@@ -88,14 +88,14 @@ describe("defineSeed", () => {
         events: {
           one: {
             tags: ['a "b"', "c\\d", null],
-            at: new Date("2026-01-02T03:04:05.000Z"),
+            at: Temporal.Instant.from("2026-01-02T03:04:05Z"),
             payload: ["kept", "as json"],
           },
         },
       } as never,
     ).sql();
     expect(sql).toContain(
-      `('{"a \\"b\\"","c\\\\d",NULL}', '2026-01-02T03:04:05.000Z', '["kept","as json"]')`,
+      `('{"a \\"b\\"","c\\\\d",NULL}', '2026-01-02T03:04:05Z', '["kept","as json"]')`,
     );
   });
 
@@ -166,10 +166,12 @@ describe("defineSeed literals and ordering", () => {
     expect(
       render({
         values: {
-          one: { list: [[1, 2], [new Date("2026-01-01T00:00:00.000Z")]] },
+          one: {
+            list: [[1, 2], [Temporal.Instant.from("2026-01-01T00:00:00Z")]],
+          },
         },
       }).sql(),
-    ).toContain(`('{{"1","2"},{"2026-01-01T00:00:00.000Z"}}')`);
+    ).toContain(`('{{"1","2"},{"2026-01-01T00:00:00Z"}}')`);
   });
 
   it("rejects values it can't render, naming the cell", () => {

@@ -24,6 +24,8 @@ import {
   type TemplateParams,
   type TemplateValues,
 } from "../core/template.ts";
+import { temporalMissing } from "../core/temporal-required.ts";
+import { optionalTemporal } from "../core/temporal.ts";
 
 export type BucketPolicy = BucketPolicyName | PermdockBucketPolicy;
 
@@ -167,8 +169,11 @@ export interface ReplaceResult<Id extends string = string> {
 export interface SweepOptions<P extends string> {
   /** Only look under the path prefix these values fill. */
   readonly within?: Partial<TemplateValues<P>>;
-  /** Minimum age in milliseconds, or a cutoff date. */
-  readonly olderThan: number | Date;
+  /**
+   * A cutoff instant, or a minimum age. A duration counts a day as 24 hours
+   * and cannot use months or years.
+   */
+  readonly olderThan: Temporal.Instant | Temporal.Duration;
   /** Returns which of `paths` are still referenced. */
   readonly referenced: (
     paths: readonly string[],
@@ -176,7 +181,7 @@ export interface SweepOptions<P extends string> {
   readonly dryRun?: boolean;
   readonly batchSize?: number;
   readonly signal?: AbortSignal;
-  readonly now?: () => number;
+  readonly now?: () => Temporal.Instant;
 }
 
 export interface SweepResult {
@@ -578,10 +583,10 @@ export function defineBucket<
         string | undefined,
       ][] = [];
       const inBucket = `bucket_id = ${id}`;
-      const shape = `name ~ ${sqlString(template.sqlPattern)}`;
+      const pathMatch = `name ~ ${sqlString(template.sqlPattern)}`;
       if (accessCheck) {
         const using = `${inBucket} and ${accessCheck}`;
-        const write = `${using} and ${shape}`;
+        const write = `${using} and ${pathMatch}`;
         policies.push(
           ["select", "select", "authenticated", using, undefined],
           ["insert", "insert", "authenticated", undefined, write],
@@ -631,9 +636,15 @@ export function defineBucket<
             "insert",
             "authenticated",
             undefined,
-            `${write} and ${shape}`,
+            `${write} and ${pathMatch}`,
           ],
-          ["update", "update", "authenticated", write, `${write} and ${shape}`],
+          [
+            "update",
+            "update",
+            "authenticated",
+            write,
+            `${write} and ${pathMatch}`,
+          ],
           [
             "delete",
             "delete",
@@ -897,21 +908,23 @@ function connectBucket<P extends string, Id extends string>(
             ttlSeconds(options?.ttl),
             download(options?.download),
           ),
-        ).andThen(async (data) => {
+        ).andThen((data) => {
           const failed = data.find(
             (entry) => entry.error != null || !entry.signedUrl,
           );
           if (failed)
-            return err(
-              dbError(
-                "not_found",
-                failed.error ?? `No URL for ${String(failed.path)}`,
-                { table: bucket.id },
+            return Promise.resolve(
+              err(
+                dbError(
+                  "not_found",
+                  failed.error ?? `No URL for ${String(failed.path)}`,
+                  { table: bucket.id },
+                ),
               ),
             );
           // SAFETY: the failure check above returned early, so every entry has
           // a signed URL.
-          return ok(data.map((entry) => entry.signedUrl as string));
+          return Promise.resolve(ok(data.map((entry) => entry.signedUrl!)));
         });
       }),
     publicUrl(target, options) {
@@ -923,12 +936,14 @@ function connectBucket<P extends string, Id extends string>(
     },
     renderUrl(target, transform, options) {
       if (!bucket.public) return signedUrl(target, { ...options, transform });
-      return AsyncResult.from(async () =>
-        ok(
-          api().getPublicUrl(resolve(target), {
-            ...download(options?.download),
-            transform: { ...transform },
-          }).data.publicUrl,
+      return AsyncResult.from(() =>
+        Promise.resolve(
+          ok(
+            api().getPublicUrl(resolve(target), {
+              ...download(options?.download),
+              transform: { ...transform },
+            }).data.publicUrl,
+          ),
         ),
       );
     },
@@ -992,11 +1007,13 @@ function connectBucket<P extends string, Id extends string>(
       }),
     sweep: (options) =>
       AsyncResult.from(async () => {
-        const now = options.now?.() ?? Date.now();
+        const namespace = optionalTemporal();
+        if (namespace === undefined) return err(temporalMissing());
+        const now = options.now?.() ?? namespace.Now.instant();
         const cutoff =
-          options.olderThan instanceof Date
-            ? options.olderThan.getTime()
-            : now - options.olderThan;
+          options.olderThan instanceof namespace.Instant
+            ? options.olderThan.epochMilliseconds
+            : now.epochMilliseconds - options.olderThan.total("milliseconds");
         const found = await list(
           options.within,
           options.signal ? { signal: options.signal } : undefined,
@@ -1005,6 +1022,7 @@ function connectBucket<P extends string, Id extends string>(
         const candidates = found.data
           .filter((object) => bucket.match(object.path) !== null)
           .filter((object) => {
+            // Storage sends ISO text; epoch milliseconds compare directly.
             const created = Date.parse(
               object.createdAt ?? object.updatedAt ?? "",
             );

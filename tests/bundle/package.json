@@ -5,10 +5,12 @@
   "scripts": {
     "lint": "oxlint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit --checkers 4",
+    "transit": "true",
+    "typecheck": "tsc --noEmit",
     "update": "BUNDLE_UPDATE=1 vitest run"
   },
   "devDependencies": {
+    "@better-supabase/cli": "workspace:*",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",

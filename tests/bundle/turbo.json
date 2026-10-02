@@ -1,10 +1,11 @@
 {
-  "$schema": "https://v2-11-5.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
   "extends": ["//"],
   "tags": ["test"],
   "tasks": {
     "test": {
-      "env": ["BUNDLE_UPDATE"]
+      "env": ["BUNDLE_UPDATE"],
+      "dependsOn": ["^build"]
     }
   }
 }

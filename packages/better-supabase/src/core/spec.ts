@@ -140,11 +140,11 @@ export function isQuerySpec(value: unknown): value is QuerySpec {
   if (typeof value !== "object" || value === null) return false;
   // SAFETY: value is a non-null object here, and every field is checked below.
   const spec = value as Partial<QuerySpec>;
-  // SAFETY: includes only compares values, so any method string is safe to look up.
+  // includes only compares values, so a missing method is safe to look up.
   return (
     spec.v === 1 &&
     typeof spec.table === "string" &&
-    READ_METHODS.includes(spec.method as ReadMethod) &&
+    READ_METHODS.includes(spec.method!) &&
     Array.isArray(spec.args)
   );
 }

@@ -8,6 +8,8 @@ import type {
   TableMeta,
 } from "../schema/types.ts";
 
+import { temporalText } from "../core/temporal.ts";
+
 /** Named rows per table, in app casing: `{ customers: { acme: { ... } } }`. */
 export type SeedFixtures<M extends AnyModels> = {
   readonly [K in keyof M]?: Readonly<Record<string, M[K]["Insert"]>>;
@@ -51,8 +53,8 @@ function arrayLiteral(values: readonly unknown[]): string {
   const items = values.map((value) => {
     if (value === null) return "NULL";
     if (Array.isArray(value)) return arrayLiteral(value);
-    const text = value instanceof Date ? value.toISOString() : String(value);
-    return `"${text.replace(/[\\"]/g, "\\$&")}"`;
+    const text = temporalText(value) ?? String(value);
+    return `"${text.replaceAll(/[\\"]/g, "\\$&")}"`;
   });
   return `{${items.join(",")}}`;
 }
@@ -61,7 +63,8 @@ function literal(value: unknown, column: ColumnMeta, where: string): string {
   if (value === null) return "null";
   if (column.json) return quote(JSON.stringify(value));
   if (Array.isArray(value)) return quote(arrayLiteral(value));
-  if (value instanceof Date) return quote(value.toISOString());
+  const temporalValue = temporalText(value);
+  if (temporalValue !== undefined) return quote(temporalValue);
   const kind = typeof value;
   switch (kind) {
     case "string":

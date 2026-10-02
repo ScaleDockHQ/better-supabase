@@ -46,11 +46,6 @@ const INIT_ARGS = {
   },
   force: { type: "boolean", description: "Overwrite files that exist" },
   "dry-run": { type: "boolean", description: "Show what would be written" },
-  yes: {
-    type: "boolean",
-    alias: "y",
-    description: "Ask nothing; use the flags and the defaults",
-  },
 } as const;
 
 const ADD_ARGS = {
@@ -61,11 +56,6 @@ const ADD_ARGS = {
   },
   force: { type: "boolean", description: "Overwrite files that exist" },
   "dry-run": { type: "boolean", description: "Show what would be written" },
-  yes: {
-    type: "boolean",
-    alias: "y",
-    description: "Ask nothing; use the flags and the defaults",
-  },
 } as const;
 
 type WriteArgs = CliArgs<typeof WRITE_ARGS>;
@@ -321,8 +311,7 @@ export const initCommand: AnyCommand = defineCliCommand({
   },
   args: INIT_ARGS,
   lists: ["with"],
-  run: (args, { config, io }) =>
-    runInit(config, args, args.yes === true ? undefined : io.prompts),
+  run: (args, { config, io }) => runInit(config, args, io.prompts),
 });
 
 export const addCommand: AnyCommand = defineCliCommand({
@@ -331,6 +320,5 @@ export const addCommand: AnyCommand = defineCliCommand({
     description: "Adds glue for an integration to an existing project",
   },
   args: ADD_ARGS,
-  run: (args, { config, io }) =>
-    runAdd(config, args, args.yes === true ? undefined : io.prompts),
+  run: (args, { config, io }) => runAdd(config, args, io.prompts),
 });

@@ -32,13 +32,13 @@ and `['service']` for machine callers. Rejected callers get a 401 with a
 
 ## Adapters
 
-| Where | Setup | Handler |
-| --- | --- | --- |
-| Next.js | `createNext(sb)` in `lib/supabase.server.ts` | `next.route((req, { db }) => ...)`, `next.action({ input: schema }, (input, { db }) => ...)` |
-| Hono | `createHono(sb)`, `.use('/api/*', bs.middleware())` | `c.var.db`; `bs.resource('customers', {...})` for REST |
-| oRPC | `createOrpc(sb)`, `base.use(bs.middleware())` | `bs.unwrap(context.db.customers.findMany(...))` |
-| Edge Functions | `createEdge(sb, { cors: true })` | `Deno.serve(bs.handler((req, { db }) => ...))` |
-| MCP | `createMcp(sb, { name, version, resources })` | `.tool({ name, input, run: (args, { db }) => ... })` |
+| Where          | Setup                                               | Handler                                                                                      |
+| -------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Next.js        | `createNext(sb)` in `lib/supabase.server.ts`        | `next.route((req, { db }) => ...)`, `next.action({ input: schema }, (input, { db }) => ...)` |
+| Hono           | `createHono(sb)`, `.use('/api/*', bs.middleware())` | `c.var.db`; `bs.resource('customers', {...})` for REST                                       |
+| oRPC           | `createOrpc(sb)`, `base.use(bs.middleware())`       | `bs.unwrap(context.db.customers.findMany(...))`                                              |
+| Edge Functions | `createEdge(sb, { cors: true })`                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                               |
+| MCP            | `createMcp(sb, { name, version, resources })`       | `.tool({ name, input, run: (args, { db }) => ... })`                                         |
 
 Don't build error JSON by hand; errors become Problem Details.
 

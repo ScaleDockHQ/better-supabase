@@ -1,15 +1,15 @@
 # Plugins
 
 ```ts title="src/lib/supabase.ts"
-import { defineSupabase } from 'better-supabase';
-import { actor } from 'better-supabase/plugins/actor';
-import { softDelete } from 'better-supabase/plugins/soft-delete';
-import { tenant } from 'better-supabase/plugins/tenant';
-import { timestamps } from 'better-supabase/plugins/timestamps';
-import { validation } from 'better-supabase/plugins/validation';
+import { defineSupabase } from "better-supabase";
+import { actor } from "better-supabase/plugins/actor";
+import { softDelete } from "better-supabase/plugins/soft-delete";
+import { tenant } from "better-supabase/plugins/tenant";
+import { timestamps } from "better-supabase/plugins/timestamps";
+import { validation } from "better-supabase/plugins/validation";
 
-import { schema } from './supabase/generated.ts';
-import { validators } from './supabase/generated.zod.ts';
+import { schema } from "./supabase/generated.ts";
+import { validators } from "./supabase/generated.zod.ts";
 
 export const sb = defineSupabase(schema)
   .use(timestamps())
@@ -34,14 +34,14 @@ plugins: {
 A table without the columns is left alone, and the types follow:
 `restore()` and `withDeleted` only exist on soft-delete tables.
 
-| Plugin | What it does | Don't |
-| --- | --- | --- |
-| `timestamps()` | Sets `createdAt` and `updatedAt` | set them in `create` or `update` |
-| `softDelete()` | Hides deleted rows, turns `delete` into an update, adds `restore` | filter `deletedAt: null` by hand |
-| `tenant()` | Scopes queries to the request's tenant and fills it on insert | pass `organizationId` from the client |
-| `actor()` | Sets `createdBy` and `updatedBy` | pass the user id yourself |
-| `validation()` | Validates writes with any Standard Schema | validate the same input twice |
-| `rules()` | Flags unbounded reads, missing tenants, sensitive columns and admin keys in the browser | disable a rule without a reason |
+| Plugin         | What it does                                                                            | Don't                                 |
+| -------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
+| `timestamps()` | Sets `createdAt` and `updatedAt`                                                        | set them in `create` or `update`      |
+| `softDelete()` | Hides deleted rows, turns `delete` into an update, adds `restore`                       | filter `deletedAt: null` by hand      |
+| `tenant()`     | Scopes queries to the request's tenant and fills it on insert                           | pass `organizationId` from the client |
+| `actor()`      | Sets `createdBy` and `updatedBy`                                                        | pass the user id yourself             |
+| `validation()` | Validates writes with any Standard Schema                                               | validate the same input twice         |
+| `rules()`      | Flags unbounded reads, missing tenants, sensitive columns and admin keys in the browser | disable a rule without a reason       |
 
 ## Order
 

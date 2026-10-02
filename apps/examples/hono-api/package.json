@@ -12,7 +12,8 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "start": "node src/main.ts",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/server": "catalog:",

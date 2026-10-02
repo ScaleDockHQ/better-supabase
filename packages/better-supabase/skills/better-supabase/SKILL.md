@@ -13,12 +13,17 @@ The data layer is `sb = defineSupabase(schema)` in `src/lib/supabase.ts`.
 
 1. Write the migration (`supabase/schemas/*.sql` plus `supabase db diff`, or
    `supabase migration new`).
-2. Apply it with `supabase db reset` (or `supabase migration up`).
-3. Run `pnpm better-supabase gen`, then fix the type errors it surfaces.
+2. For a new table in an exposed schema, in the same file: `enable row level
+security`, a policy per role and command the app uses, and an index on
+   every column a policy filters by. List the table in `expose` in
+   `better-supabase.config.ts` and run `pnpm better-supabase sql add grants`:
+   new tables get no Data API grants on their own.
+3. Apply it with `supabase db reset` (or `supabase migration up`).
+4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces.
    The command comes from the `@better-supabase/cli` dev dependency.
-4. Run `pnpm better-supabase doctor` and fix every error it reports (RLS off,
-   missing policies, unindexed foreign keys, drift).
-5. Commit the generated files. CI runs `better-supabase gen --check`.
+5. Run `pnpm better-supabase doctor` and fix every error it reports (RLS off,
+   missing policies, missing grants, unindexed foreign keys, drift).
+6. Commit the generated files. CI runs `better-supabase gen --check`.
 
 Done when `gen --check` and `doctor` exit 0 and the project typechecks.
 
@@ -49,10 +54,10 @@ stay hidden.
 
 ```ts
 const result = await db.customers.findMany({
-  select: ['id', 'name'],
-  where: { status: 'active', notes: { some: { kind: 'call' } } },
-  include: { organization: { select: ['name'] } },
-  orderBy: { name: 'asc' },
+  select: ["id", "name"],
+  where: { status: "active", notes: { some: { kind: "call" } } },
+  include: { organization: { select: ["name"] } },
+  orderBy: { name: "asc" },
   limit: 20,
 });
 if (!result.ok) return result; // DbError: kind, message, status, code
@@ -83,3 +88,6 @@ See [references/troubleshooting.md](references/troubleshooting.md) for each
 https://bettersupabase.com/docs. Every page is also served as Markdown at
 `https://bettersupabase.com/docs/<path>.md`, and
 https://bettersupabase.com/llms.txt lists them all.
+
+For Supabase itself (Auth, Storage, RLS, Postgres performance), install
+Supabase's skills next to these: `npx skills add supabase/agent-skills`.

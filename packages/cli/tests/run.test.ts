@@ -30,7 +30,6 @@ describe("run", () => {
   const io = (overrides: Partial<CliIo> = {}): CliIo => ({
     stdout: () => {},
     stderr: () => {},
-    env: ENV,
     ...overrides,
   });
 
@@ -206,6 +205,7 @@ describe("run", () => {
     registerCommand("explode", () => Promise.reject(new Error("boom")));
     const lines: string[] = [];
     const result = await run(["explode", "--cwd", dir], {
+      env: ENV,
       io: io({ stderr: (text) => lines.push(text) }),
     });
     expect(result).toEqual({ code: 1, stdout: "", stderr: "boom\n" });
@@ -217,6 +217,7 @@ describe("run", () => {
     vi.stubGlobal("fetch", api.fetch);
     const introspect = (...argv: string[]) =>
       run(["introspect", "--project-ref", "abc", ...argv, "--cwd", dir], {
+        env: ENV,
         io: io(),
       });
 
@@ -257,7 +258,7 @@ describe("run", () => {
         "--cwd",
         dir,
       ],
-      { io: io() },
+      { env: ENV, io: io() },
     );
     expect(result.stdout).toBe("Wrote meta.json (0 tables).\n");
     const meta = JSON.parse(await readFile(join(dir, "meta.json"), "utf8")) as {
@@ -290,6 +291,7 @@ describe("run", () => {
       ],
       {
         signal: controller.signal,
+        env: ENV,
         io: io({
           stdout: (text) => {
             stdout.push(text);
@@ -321,10 +323,116 @@ describe("run", () => {
       ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
-        io: io({ stdout: () => setTimeout(() => controller.abort(), 0) }),
+        env: ENV,
+        io: io({
+          stdout: () =>
+            setTimeout(() => {
+              controller.abort();
+            }, 0),
+        }),
       },
     );
     expect(result.code).toBe(0);
     expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("suggests the closest command for a typo", async () => {
+    const typo = await run(["genn"]);
+    expect(typo.code).toBe(2);
+    expect(typo.stderr).toMatch(
+      /^Unknown command "genn"\. Did you mean "gen"\?\n\n/,
+    );
+    expect((await run(["doctr"])).stderr).toMatch(/Did you mean "doctor"\?/);
+    expect((await run(["zzzzzzzz"])).stderr).toMatch(
+      /^Unknown command "zzzzzzzz"\.\n/,
+    );
+  });
+
+  it("prints one JSON document on stdout under --json, errors included", async () => {
+    const unknown = await run(["genn", "--json"]);
+    expect(unknown).toMatchObject({ code: 2, stderr: "" });
+    expect(JSON.parse(unknown.stdout)).toMatchObject({
+      type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
+      code: "unknown_command",
+      suggestion: "gen",
+    });
+
+    expect(JSON.parse((await run(["--version", "--json"])).stdout)).toEqual({
+      version: VERSION,
+    });
+
+    const missing = await run([
+      "sql",
+      "list",
+      "--config",
+      "gone.json",
+      "--cwd",
+      dir,
+      "--json",
+    ]);
+    expect(missing.code).toBe(2);
+    expect(JSON.parse(missing.stdout)).toMatchObject({
+      code: "config_not_found",
+    });
+  });
+
+  it("rejects an invalid environment and an invalid config", async () => {
+    const env = await run(["sql", "list", "--cwd", dir], {
+      env: { DATABASE_URL: "not a url" },
+    });
+    expect(env.code).toBe(2);
+    expect(env.stderr).toMatch(
+      /^Invalid environment variable:\n {2}DATABASE_URL: /,
+    );
+
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ casing: "pascal" }),
+    );
+    const config = await run(["sql", "list", "--cwd", dir, "--json"]);
+    expect(config.code).toBe(2);
+    expect(JSON.parse(config.stdout)).toMatchObject({
+      code: "config_invalid",
+      issues: [expect.stringMatching(/^casing: /)],
+    });
+  });
+
+  it("drops the prompter under --json, --yes and CI", async () => {
+    registerCommand(
+      "asks",
+      defineCliCommand({
+        meta: { name: "asks", description: "Reports whether it can prompt" },
+        args: {},
+        run: (_args, context) =>
+          Promise.resolve({
+            code: 0,
+            output: context.io.prompts ? "prompts" : "no prompts",
+          }),
+      }),
+    );
+    const prompts: CliIo["prompts"] = {
+      confirm: () => Promise.resolve(true),
+      spinner: () => () => {},
+      select: () => Promise.reject(new Error("unused")),
+      multiselect: () => Promise.reject(new Error("unused")),
+    };
+    const ask = async (argv: string[], env = {}) =>
+      (await run(["asks", "--cwd", dir, ...argv], { env, io: io({ prompts }) }))
+        .stdout;
+    expect(await ask([])).toBe("prompts\n");
+    expect(await ask(["--yes"])).toBe("no prompts\n");
+    expect(await ask(["-y"])).toBe("no prompts\n");
+    expect(await ask([], { CI: "true" })).toBe("no prompts\n");
+    expect(JSON.parse(await ask(["--json"]))).toEqual({
+      message: "no prompts",
+    });
+  });
+
+  it("reads the connection string from stdin and refuses an empty pipe", async () => {
+    const empty = await run(["seed", "--db-url-stdin", "--cwd", dir], {
+      io: io({ stdin: () => Promise.resolve("  \n") }),
+    });
+    expect(empty.code).toBe(2);
+    expect(empty.stderr).toMatch(/^--db-url-stdin read nothing from stdin/);
   });
 });

@@ -348,11 +348,10 @@ export function requireAal(
 ): (auth: AuthState, request: NextRequest) => Response | undefined {
   return (auth, request) => {
     const { pathname, search } = request.nextUrl;
-    if (options.redirect !== undefined && pathname === options.redirect)
-      return undefined;
-    if (options.match && !options.match(pathname)) return undefined;
+    if (options.redirect !== undefined && pathname === options.redirect) return;
+    if (options.match && !options.match(pathname)) return;
     const denied = checkAal(auth, level);
-    if (!denied) return undefined;
+    if (!denied) return;
     if (options.redirect === undefined) return problemResponse(denied);
     const target = new URL(options.redirect, request.url);
     target.searchParams.set("next", `${pathname}${search}`);
@@ -406,18 +405,14 @@ export function createNext<
   const debug = options.debug;
   const statsHeader = debug?.header ?? "x-bs-db-calls";
   const statsRoute = debug?.route ?? "/api/bs-stats";
-  const development =
-    // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
-    typeof process !== "undefined" && process.env["NODE_ENV"] === "development";
-  const collector =
-    // oxlint-disable-next-line typescript/prefer-optional-chain -- without debug options there is no collector, even in development.
-    debug && (debug.enabled ?? development)
-      ? sharedCollector({
-          logger: sb.events.logger,
-          warn: development,
-          ...(debug.budget ? { budget: debug.budget } : {}),
-        })
-      : undefined;
+  const development = process.env["NODE_ENV"] === "development";
+  const collector = debug?.enabled
+    ? sharedCollector({
+        logger: sb.events.logger,
+        warn: development,
+        ...(debug.budget ? { budget: debug.budget } : {}),
+      })
+    : undefined;
   const statsFor = (request: Request): ContextOptions => {
     const id = collector && request.headers.get(REQUEST_ID_HEADER);
     return id ? { stats: collector.recorderFor(id) } : {};
@@ -608,22 +603,26 @@ export function createNext<
     },
 
     debugRoute() {
-      return async (request) => {
+      return (request) => {
         const id = new URL(request.url).searchParams.get("id");
         if (!collector || !id) {
-          return Response.json(
-            { error: collector ? "missing ?id=" : "debug is off" },
-            { status: 404, headers: { "cache-control": "no-store" } },
+          return Promise.resolve(
+            Response.json(
+              { error: collector ? "missing ?id=" : "debug is off" },
+              { status: 404, headers: { "cache-control": "no-store" } },
+            ),
           );
         }
         // A render served from private caches never records: it made no calls.
         const stats = collector.get(id) ?? EMPTY_STATS;
-        return Response.json(stats, {
-          headers: {
-            [statsHeader]: formatStats(stats),
-            "cache-control": "no-store",
-          },
-        });
+        return Promise.resolve(
+          Response.json(stats, {
+            headers: {
+              [statsHeader]: formatStats(stats),
+              "cache-control": "no-store",
+            },
+          }),
+        );
       };
     },
 

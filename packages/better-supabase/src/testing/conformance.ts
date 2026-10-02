@@ -16,6 +16,7 @@ import {
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
 import { ok } from "../core/result.ts";
+import { temporal } from "../core/temporal-required.ts";
 import { toCloudEvents } from "../events/index.ts";
 
 export interface ConformanceCheck {
@@ -93,7 +94,7 @@ const frozenCopy = <T>(value: T): T => deepFreeze(structuredClone(value));
 const same = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
-// oxlint-disable-next-line typescript/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any -- the kit takes any configured client, and its type parameters are invariant
 type AnySupabase = BetterSupabase<any, any, any, any>;
 type AnyDb = Record<
   string,
@@ -134,11 +135,12 @@ function tableKey(sb: AnySupabase, table: string | undefined): string {
 
 const hasName = (subject: { readonly name?: unknown }): Check => [
   "has a name",
-  () =>
+  () => {
     expect(
       typeof subject.name === "string" && subject.name.length > 0,
       "name must be a non-empty string",
-    ),
+    );
+  },
 ];
 
 export interface TestExecutorOptions {
@@ -650,19 +652,20 @@ export function testPlugin(
     schema: sb.meta,
     context,
     options: {},
-    now: () => new Date(0),
+    now: () => temporal().Instant.fromEpochMilliseconds(0),
   });
   const create = options.create;
   return conform(`Plugin "${plugin.name}"`, [
     hasName(plugin),
     [
       "targets plugin API v1",
-      () =>
+      () => {
         expect(
           // oxlint-disable-next-line typescript/no-unnecessary-condition -- the kit checks plugins written in JavaScript too.
           plugin.apiVersion === 1,
           `apiVersion is ${String(plugin.apiVersion)}`,
-        ),
+        );
+      },
     ],
     [
       "installs and builds repositories",

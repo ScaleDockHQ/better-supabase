@@ -1,5 +1,5 @@
 name: Setup
-description: Vercel Remote Cache through OIDC, then pnpm with Node 24 and the store cache.
+description: Vercel Remote Cache through OIDC, then pnpm with the Node major from .node-version and the store cache.
 
 inputs:
   cache:
@@ -14,13 +14,14 @@ runs:
   steps:
     # Needs `id-token: write`; builds still run without the cache.
     - if: inputs.cache == 'true'
-      uses: vercel/setup-turborepo-remote-cache-action@v1.1.0
+      uses: vercel/setup-turborepo-remote-cache-action@49d7b1b46ba4c9251e1977986bfe18336feabc8f # v1.1.0
       continue-on-error: true
       with:
         team: ${{ inputs.turbo-team }}
 
-    - uses: pnpm/setup@v3
+    - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
-        runtime: node@24
+        runtime: node
+        node-version-file: .node-version
         cache: ${{ inputs.cache == 'true' }}
         require-lockfile: true

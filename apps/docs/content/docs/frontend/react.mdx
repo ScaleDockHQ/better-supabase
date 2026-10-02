@@ -4,11 +4,11 @@ description: Provider, typed hooks and the server session.
 ---
 
 ```tsx title="src/app/providers.tsx"
-'use client';
+"use client";
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BetterSupabaseProvider } from 'better-supabase/react';
-import { browser } from '@/lib/supabase.browser';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BetterSupabaseProvider } from "better-supabase/react";
+import { browser } from "@/lib/supabase.browser";
 
 const queryClient = new QueryClient();
 
@@ -26,19 +26,26 @@ export function Providers({ children }: { children: React.ReactNode }) {
 Create hooks typed for your schema once:
 
 ```ts title="src/lib/hooks.ts"
-import { createHooks } from 'better-supabase/react';
-import type { browser } from './supabase.browser';
+import { createHooks } from "better-supabase/react";
+import type { browser } from "./supabase.browser";
 
-export const { useDb, useQueries, useAuth, useSupabase } = createHooks<typeof browser>();
+export const { useDb, useQueries, useAuth, useSupabase } =
+  createHooks<typeof browser>();
 ```
 
 ```tsx
 function CustomerList() {
   const q = useQueries();
-  const { data } = useQuery(q.customers.findMany({ select: ['id', 'name'] }));
+  const { data } = useQuery(q.customers.findMany({ select: ["id", "name"] }));
   const auth = useAuth();
-  if (auth.status === 'signed-out') return <SignIn />;
-  return <ul>{data?.map((c) => <li key={c.id}>{c.name}</li>)}</ul>;
+  if (auth.status === "signed-out") return <SignIn />;
+  return (
+    <ul>
+      {data?.map((c) => (
+        <li key={c.id}>{c.name}</li>
+      ))}
+    </ul>
+  );
 }
 ```
 
@@ -60,20 +67,20 @@ server-verified session instead: pass a `next.session()` promise to
 `SessionProvider` and read it with `useSession()`.
 
 ```tsx title="Server Component, inside <Suspense>"
-import { SessionProvider } from 'better-supabase/react';
+import { SessionProvider } from "better-supabase/react";
 
 <SessionProvider sessionPromise={getSession()}>
   <SideNav />
-</SessionProvider>
+</SessionProvider>;
 ```
 
 ```tsx title="Client Component"
-'use client';
-import { useSession } from 'better-supabase/react';
+"use client";
+import { useSession } from "better-supabase/react";
 
 export function SideNav() {
   const session = useSession(); // suspends until the promise resolves
-  return session.kind === 'user' ? <Menu claims={session.claims} /> : null;
+  return session.kind === "user" ? <Menu claims={session.claims} /> : null;
 }
 ```
 

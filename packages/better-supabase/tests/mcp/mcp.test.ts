@@ -109,6 +109,41 @@ describe("createMcp", () => {
     });
   });
 
+  it("checks the Host header and links the connect docs from the metadata", async () => {
+    const strict = createMcp(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      allowedHosts: ["tools.test", "localhost"],
+      resourceDocumentation: "https://tools.test/docs/mcp",
+    });
+    const post = (host: string | undefined) =>
+      strict.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(host === undefined ? {} : { host }),
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+        }),
+      );
+    expect((await post("evil.test")).status).toBe(403);
+    expect((await post(undefined)).status).toBe(403);
+    expect((await post("localhost:3000")).status).toBe(401);
+    expect((await post("tools.test")).status).toBe(401);
+
+    const metadata = await strict.fetch(
+      new Request(
+        "https://tools.test/.well-known/oauth-protected-resource/mcp",
+      ),
+    );
+    expect(await metadata.json()).toMatchObject({
+      resource_documentation: "https://tools.test/docs/mcp",
+    });
+  });
+
   it("initializes legacy clients and lists tools with JSON Schema inputs and annotations", async () => {
     expect(
       await result("initialize", {
@@ -542,5 +577,47 @@ describe("createMcp", () => {
     expect(() =>
       mcp.tool({ name: "echo", description: "again", run: () => null }),
     ).toThrow('Duplicate MCP tool "echo"');
+  });
+});
+
+describe("createMcp cursor lists", () => {
+  it("describes cursor pagination in the list tool schemas", async () => {
+    const sb = defineSupabase(schema);
+    const mcp = createMcp(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      resources: {
+        tags: { operations: ["list"], pagination: "cursor", maxPageSize: 10 },
+      },
+    });
+    const response = await mcp.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      }),
+    );
+    const { result } = (await response.json()) as {
+      result: {
+        tools: {
+          inputSchema: Record<string, unknown>;
+          outputSchema: Record<string, unknown>;
+        }[];
+      };
+    };
+    expect(result.tools[0]?.inputSchema).toMatchObject({
+      properties: {
+        after: { type: "string" },
+        size: { maximum: 10 },
+      },
+    });
+    expect(result.tools[0]?.outputSchema).toMatchObject({
+      required: ["items", "nextCursor", "hasMore"],
+    });
   });
 });

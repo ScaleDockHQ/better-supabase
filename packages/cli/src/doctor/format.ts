@@ -98,7 +98,7 @@ function sarif(
             informationUri: DOCS_URL,
             rules: rules.map((rule) => ({
               id: rule.code,
-              name: rule.title.replace(
+              name: rule.title.replaceAll(
                 /[^A-Za-z0-9]+(.)?/g,
                 (_, char: string | undefined) => (char ?? "").toUpperCase(),
               ),
@@ -164,6 +164,28 @@ export interface FormatOptions {
   readonly paint?: Paint;
 }
 
+/** The `doctor-report-v1.json` document that `--json` prints. */
+export interface DoctorReport {
+  readonly $schema: string;
+  readonly version: 1;
+  readonly tool: { readonly name: string; readonly version: string };
+  readonly summary: DoctorSummary;
+  readonly findings: readonly Finding[];
+}
+
+export function jsonReport(
+  findings: readonly Finding[],
+  version: string,
+): DoctorReport {
+  return {
+    $schema: DOCTOR_REPORT_SCHEMA_URL,
+    version: 1,
+    tool: { name: "better-supabase", version },
+    summary: summarize(findings),
+    findings,
+  };
+}
+
 export function formatReport(
   findings: readonly Finding[],
   options: FormatOptions,
@@ -172,17 +194,7 @@ export function formatReport(
     case "text":
       return text(findings, options.paint ?? plain);
     case "json":
-      return JSON.stringify(
-        {
-          $schema: DOCTOR_REPORT_SCHEMA_URL,
-          version: 1,
-          tool: { name: "better-supabase", version: options.version },
-          summary: summarize(findings),
-          findings,
-        },
-        null,
-        2,
-      );
+      return JSON.stringify(jsonReport(findings, options.version), null, 2);
     case "sarif":
       return JSON.stringify(
         sarif(findings, options.rules, options.version, options.fallbackFile),

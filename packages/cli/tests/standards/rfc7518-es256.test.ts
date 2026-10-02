@@ -24,7 +24,7 @@ const decode = (part: string): Record<string, unknown> =>
     new TextDecoder().decode(
       Uint8Array.from(
         atob(part.replaceAll("-", "+").replaceAll("_", "/")),
-        (c) => c.charCodeAt(0),
+        (c) => c.codePointAt(0) ?? 0,
       ),
     ),
   ) as Record<string, unknown>;

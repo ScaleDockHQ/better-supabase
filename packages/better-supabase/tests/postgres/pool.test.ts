@@ -14,7 +14,11 @@ function recordingPool(
   return Object.assign(fake, { values });
 }
 
-const CLAIMS_SQL = "select set_config('request.jwt.claims', $1, true)";
+const settingsSql = (count: number): string =>
+  `select ${Array.from({ length: count }, (_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`;
+
+/** statement_timeout, request.jwt.claims and role. */
+const USER_SQL = settingsSql(3);
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -37,32 +41,68 @@ describe("createPostgres", () => {
 
   it("sets a truncated statement timeout per transaction", async () => {
     const fake = recordingPool();
-    const pg = createPostgres({ pool: fake.pool, statementTimeout: 1500.9 });
+    const pg = createPostgres({
+      pool: fake.pool,
+      statementTimeout: 1500.9,
+      idleInTransactionTimeout: 30_000.5,
+    });
     await pg.admin.queryRaw("select 1");
+    await pg.anon.queryRaw("select 2");
     expect(fake.log).toEqual([
       "begin",
-      "set local statement_timeout = 1500",
+      settingsSql(2),
       "select 1",
       "commit",
+      "begin",
+      settingsSql(4),
+      "select 2",
+      "commit",
     ]);
+    expect(fake.values[1]).toEqual([
+      "statement_timeout",
+      "1500",
+      "idle_in_transaction_session_timeout",
+      "30000",
+    ]);
+    expect(fake.values[5]!.slice(0, 2)).toEqual(["statement_timeout", "1500"]);
+  });
+
+  it("applies Supabase's role timeouts unless set per role", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({
+      pool: fake.pool,
+      statementTimeout: { admin: 60_000, authenticated: 5000 },
+    });
+    await pg.admin.queryRaw("select 1");
+    await pg.asUser({ sub: "u1" }).queryRaw("select 2");
+    await pg.anon.queryRaw("select 3");
+    const timeouts = fake.values
+      .filter((values) => values[0] === "statement_timeout")
+      .map((values) => values[1]);
+    expect(timeouts).toEqual(["60000", "5000", "3000"]);
+    const defaults = recordingPool();
+    const plain = createPostgres({ pool: defaults.pool });
+    await plain.admin.queryRaw("select 1");
+    expect(defaults.log).toEqual(["begin", "select 1", "commit"]);
   });
 
   it("runs asUser queries as authenticated with the claims set locally", async () => {
     const fake = recordingPool();
     const pg = createPostgres({ pool: fake.pool });
     await pg.asUser({ sub: "u1", tenant_id: "t1" }).queryRaw("select 1");
-    expect(fake.log).toEqual([
-      "begin",
-      CLAIMS_SQL,
-      "set local role authenticated",
-      "select 1",
-      "commit",
+    expect(fake.log).toEqual(["begin", USER_SQL, "select 1", "commit"]);
+    const [, , claimsKey, claims, roleKey, role] = fake.values[1]!;
+    expect([claimsKey, roleKey, role]).toEqual([
+      "request.jwt.claims",
+      "role",
+      "authenticated",
     ]);
-    expect(JSON.parse(String(fake.values[1]![0]))).toEqual({
+    expect(JSON.parse(String(claims))).toEqual({
       sub: "u1",
       tenant_id: "t1",
       role: "authenticated",
     });
+    expect(fake.values[1]!.slice(0, 2)).toEqual(["statement_timeout", "8000"]);
   });
 
   it("uses anon for claims without a subject, and for postgres.anon", async () => {
@@ -70,19 +110,20 @@ describe("createPostgres", () => {
     const pg = createPostgres({ pool: fake.pool });
     await pg.asUser({}).queryRaw("select 1");
     await pg.anon.queryRaw("select 2");
-    expect(
-      fake.log.filter((text) => text.startsWith("set local role")),
-    ).toEqual(["set local role anon", "set local role anon"]);
-    expect(JSON.parse(String(fake.values[1]![0]))).toEqual({ role: "anon" });
-    expect(fake.log[6]).toBe(CLAIMS_SQL);
-    expect(JSON.parse(String(fake.values[6]![0]))).toEqual({ role: "anon" });
+    for (const at of [1, 5]) {
+      expect(fake.log[at]).toBe(USER_SQL);
+      const values = fake.values[at]!;
+      expect(values.slice(0, 2)).toEqual(["statement_timeout", "3000"]);
+      expect(JSON.parse(String(values[3]))).toEqual({ role: "anon" });
+      expect(values.slice(4)).toEqual(["role", "anon"]);
+    }
   });
 
   it("keeps an explicit anon role even when a subject is present", async () => {
     const fake = recordingPool();
     const pg = createPostgres({ pool: fake.pool });
     await pg.asUser({ sub: "u1", role: "anon" }).queryRaw("select 1");
-    expect(fake.log).toContain("set local role anon");
+    expect(fake.values[1]!.slice(4)).toEqual(["role", "anon"]);
   });
 
   it("refuses roles other than authenticated and anon", () => {
@@ -111,8 +152,7 @@ describe("createPostgres", () => {
     expect(result).toBe("done");
     expect(fake.log).toEqual([
       "begin",
-      CLAIMS_SQL,
-      "set local role authenticated",
+      USER_SQL,
       "insert into a values (1)",
       "insert into b values (2)",
       "commit",

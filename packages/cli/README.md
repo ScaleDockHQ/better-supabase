@@ -30,9 +30,9 @@ Every command takes `--help`. Commands that write files accept `--check` (exit 1
 `run` never calls `process.exit`. It returns the exit code and the output:
 
 ```ts
-import { run } from '@better-supabase/cli';
+import { run } from "@better-supabase/cli";
 
-const { code, stdout, stderr } = await run(['gen', '--check']);
+const { code, stdout, stderr } = await run(["gen", "--check"]);
 ```
 
 Add your own commands with `defineCliCommand` and `registerCommand`; see [the CLI docs](https://bettersupabase.com/docs/cli#programmatic-use).

@@ -4,7 +4,7 @@ export const GET = next.route((request, { db }) => {
   const search = request.nextUrl.searchParams.get("q");
   return db.customers.findMany({
     select: ["id", "name", "status", "organizationId"],
-    ...(search ? { where: { name: { ilike: `%${search}%` } } } : {}),
+    where: search ? { name: { ilike: `%${search}%` } } : {},
     orderBy: { name: "asc" },
     limit: 50,
   });

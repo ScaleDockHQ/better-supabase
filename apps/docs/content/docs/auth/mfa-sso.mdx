@@ -13,7 +13,7 @@ claim, so enforcing MFA costs no Auth server call.
 
 ```ts
 const session = await next.session();
-if (session.kind === 'user') {
+if (session.kind === "user") {
   session.aal; // 'aal1' | 'aal2'
   session.amr; // [{ method: 'totp', timestamp: 1767225600 }, { method: 'password', ... }]
 }
@@ -31,13 +31,14 @@ start a challenge rather than show a generic error:
 ```ts title="src/app/api/billing/route.ts"
 export const POST = next.route(
   async (request, { db }) => db.invoices.create(await request.json()),
-  { aal: 'aal2' },
+  { aal: "aal2" },
 );
 ```
 
 ```ts title="src/features/security/security-actions.ts"
-export const rotateApiKey = next.action({ aal: 'aal2' }, async (_input, { db }) =>
-  db.$rpc('rotate_api_key'),
+export const rotateApiKey = next.action(
+  { aal: "aal2" },
+  async (_input, { db }) => db.$rpc("rotate_api_key"),
 );
 ```
 
@@ -63,11 +64,11 @@ same error or `undefined`.
 redirected to your MFA page with `?next=<path>`:
 
 ```ts title="src/proxy.ts"
-import { requireAal } from 'better-supabase/next';
+import { requireAal } from "better-supabase/next";
 
-const mfa = requireAal('aal2', {
-  redirect: '/mfa',
-  match: (path) => path.startsWith('/settings/security'),
+const mfa = requireAal("aal2", {
+  redirect: "/mfa",
+  match: (path) => path.startsWith("/settings/security"),
 });
 
 export function proxy(request: NextRequest) {
@@ -118,7 +119,7 @@ in through its own identity provider, scope reads by the provider:
 
 ```ts title="src/lib/supabase.ts"
 export const sb = defineSupabase(schema).use(
-  tenant({ claim: ['tenant_id', 'amr.0.provider'] }),
+  tenant({ claim: ["tenant_id", "amr.0.provider"] }),
 );
 ```
 
@@ -129,7 +130,7 @@ read the tenant's rows through PostgREST:
 ```ts
 tenant({
   resolve: (context) =>
-    providers.get(amrOf(context.claims ?? {})[0]?.provider ?? ''),
+    providers.get(amrOf(context.claims ?? {})[0]?.provider ?? ""),
 });
 ```
 

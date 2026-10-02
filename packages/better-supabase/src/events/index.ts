@@ -3,6 +3,8 @@ import type { EventHub } from "../core/events.ts";
 import type { MutationKind } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
+import { nowInstant } from "../core/temporal.ts";
+
 /** A CloudEvents 1.0 event. Extension attributes are lowercase alphanumerics. */
 export interface CloudEvent<T = unknown> {
   readonly specversion: "1.0";
@@ -35,7 +37,7 @@ export interface CloudEventOptions {
   /** Replaces the `dev.better-supabase` type prefix. */
   readonly typePrefix?: string;
   readonly id?: () => string;
-  readonly now?: () => Date;
+  readonly now?: () => Temporal.Instant;
 }
 
 /** Sends events somewhere: a queue, a bus, an outbox table, an HTTP endpoint. */
@@ -68,7 +70,7 @@ export function toCloudEvents(
   const type = options.typePrefix
     ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[notice.kind].split(".").at(-1)!}`
     : ROW_EVENT_TYPES[notice.kind];
-  const time = (options.now?.() ?? new Date()).toISOString();
+  const time = (options.now ?? nowInstant)().toString();
   return notice.rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
     return {
@@ -106,11 +108,14 @@ export function forwardMutations(
     if (options.filter && !options.filter(notice)) return;
     const events = toCloudEvents(notice, { ...options, meta: sb.meta });
     if (events.length === 0) return;
-    const report = (error: unknown) =>
+    const report = (error: unknown) => {
       (
         options.onError ??
-        ((cause) => sb.events.logger.error("event sink failed", { cause }))
+        ((cause) => {
+          sb.events.logger.error("event sink failed", { cause });
+        })
       )(error, events);
+    };
     try {
       void Promise.resolve(sink.send(events)).catch(report);
     } catch (error) {
@@ -154,8 +159,8 @@ export function toHttp(
             value === undefined
           )
             continue;
-          headers[`ce-${key}`] = encodeURIComponent(String(value)).replace(
-            /%20/g,
+          headers[`ce-${key}`] = encodeURIComponent(String(value)).replaceAll(
+            "%20",
             " ",
           );
         }
@@ -206,7 +211,7 @@ export async function fromHttp(request: Request): Promise<CloudEvent[]> {
   if (contentType) event["datacontenttype"] = contentType;
   if (text)
     // SAFETY: JSON.parse returns any; this keeps the event data unknown.
-    event["data"] = /json/.test(contentType)
+    event["data"] = contentType.includes("json")
       ? (JSON.parse(text) as unknown)
       : text;
   if (!isCloudEvent(event)) throw new TypeError("Request is not a CloudEvent");

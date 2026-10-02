@@ -22,10 +22,10 @@ List the embedding columns:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   vectorSearch: {
-    chunks: 'embedding', // cosine distance
-    'docs.pages': { column: 'embedding', distance: 'inner_product' }, // or 'l2'
+    chunks: "embedding", // cosine distance
+    "docs.pages": { column: "embedding", distance: "inner_product" }, // or 'l2'
   },
-  sql: { kit: ['vector-search'] },
+  sql: { kit: ["vector-search"] },
 });
 ```
 
@@ -63,10 +63,10 @@ create index on public.chunks using hnsw (embedding extensions.vector_cosine_ops
 
 ```ts
 const embedding = await embed(question); // number[]
-const result = await ctx.db.$search('chunks', {
+const result = await ctx.db.$search("chunks", {
   vector: embedding,
   k: 8,
-  select: ['id', 'content', 'documentId'],
+  select: ["id", "content", "documentId"],
 });
 ```
 

@@ -7,7 +7,7 @@ type AppQueries = Queries<Models, unknown>;
 export const customerList = (queries: AppQueries, search = "") =>
   queries.customers.findMany({
     select: ["id", "name", "status"],
-    ...(search ? { where: { name: { ilike: `%${search}%` } } } : {}),
+    where: search ? { name: { ilike: `%${search}%` } } : {},
     orderBy: { name: "asc" },
     limit: 50,
   });

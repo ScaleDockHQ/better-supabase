@@ -11,16 +11,16 @@ import { next } from "./lib/supabase.server";
  */
 const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   const { pathname } = request.nextUrl;
-  if (pathname === "/login" || pathname.startsWith("/api/")) return undefined;
+  if (pathname === "/login" || pathname.startsWith("/api/")) return;
   // Prefetches never refresh; let the page render its own signed-out state.
-  if (auth.kind === "anon" && auth.reason === "expired") return undefined;
+  if (auth.kind === "anon" && auth.reason === "expired") return;
   const session = toSession(auth);
   if (session.kind !== "user")
     return NextResponse.redirect(new URL("/login", request.url));
   const permission = requiredPermission(pathname);
   if (permission && !can(session, permission))
     return NextResponse.redirect(new URL("/", request.url));
-  return undefined;
+  return;
 };
 
 export const proxy = (request: NextRequest) =>

@@ -17,6 +17,10 @@ export const ignorePatterns: readonly string[] = [
 export const restrictedImportPaths: { name: string; message: string }[] = [
   { name: "zod", message: "Use Valibot; any Standard Schema library works." },
   { name: "vaul", message: "Use the shadcn Drawer on Base UI." },
+  { name: "dayjs", message: "Use Temporal." },
+  { name: "luxon", message: "Use Temporal." },
+  { name: "moment", message: "Use Temporal." },
+  { name: "date-fns", message: "Use Temporal." },
   { name: "openai", message: "Call models through the AI SDK and AI Gateway." },
   {
     name: "@anthropic-ai/sdk",
@@ -31,6 +35,7 @@ export const restrictedImportPaths: { name: string; message: string }[] = [
 export const restrictedImportPatterns: { group: string[]; message: string }[] =
   [
     { group: ["@radix-ui/*"], message: "Use Base UI primitives." },
+    { group: ["date-fns/*", "@date-fns/*"], message: "Use Temporal." },
     {
       group: ["@ai-sdk/*", "!@ai-sdk/react", "!@ai-sdk/valibot"],
       message: 'Use plain "provider/model" strings through AI Gateway.',
@@ -64,6 +69,7 @@ export const core: OxlintConfig = defineConfig({
     correctness: "error",
     suspicious: "error",
     perf: "error",
+    pedantic: "error",
   },
   options: {
     typeAware: true,
@@ -86,7 +92,14 @@ export const core: OxlintConfig = defineConfig({
     "import/no-cycle": "error",
     "import/no-unassigned-import": [
       "error",
-      { allow: ["**/*.css", "server-only", "client-only"] },
+      {
+        allow: [
+          "**/*.css",
+          "server-only",
+          "client-only",
+          "temporal-polyfill/global",
+        ],
+      },
     ],
     "node/no-process-env": "error",
     "turbo/no-undeclared-env-vars": "error",
@@ -126,11 +139,43 @@ export const core: OxlintConfig = defineConfig({
     "typescript/no-unnecessary-template-expression": "error",
     "typescript/no-redundant-type-constituents": "error",
     "typescript/restrict-template-expressions": "error",
+    "typescript/strict-void-return": "error",
+    "typescript/consistent-type-exports": "error",
+    "typescript/dot-notation": "error",
+    "typescript/prefer-readonly": "error",
+    "typescript/prefer-find": "error",
+    "typescript/prefer-string-starts-ends-with": "error",
+    "typescript/prefer-regexp-exec": "error",
+    "typescript/no-confusing-void-expression": "error",
+    "typescript/prefer-includes": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/related-getter-setter-pairs": "error",
+    "typescript/require-await": "error",
+    "typescript/restrict-plus-operands": "error",
+    "typescript/non-nullable-type-assertion-style": "error",
+    // 312 findings when measured. Misuse (an unknown table, a role other
+    // than authenticated or anon) throws synchronously before any I/O, and
+    // tests assert that; `async` turns those throws into rejections.
+    "typescript/promise-function-async": "off",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/no-unnecessary-qualifier": "error",
+    "typescript/prefer-reduce-type-parameter": "error",
+    "typescript/prefer-return-this-type": "error",
+    "typescript/no-mixed-enums": "error",
 
     "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
     "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error",
 
@@ -166,6 +211,61 @@ export const core: OxlintConfig = defineConfig({
     "unicorn/prefer-add-event-listener": "off",
     // Spreading an iterable into a fresh array is how readonly inputs copy.
     "unicorn/no-useless-spread": "off",
+
+    // An explicit `undefined` argument or arrow body is how a call fills a
+    // required `T | undefined` parameter or an `() => undefined` contract.
+    "unicorn/no-useless-undefined": [
+      "error",
+      { checkArguments: false, checkArrowFunctionBody: false },
+    ],
+
+    // noImplicitReturns checks this with types, and the rule rejects the
+    // bare `return;` that no-useless-undefined writes for `T | undefined`;
+    // 20 findings when measured.
+    "typescript/consistent-return": "off",
+    // noImplicitReturns needs the final `return;` of a `T | undefined`
+    // function (TS7030); 8 findings when measured, all that case.
+    "eslint/no-useless-return": "off",
+    // Not type-aware: it flags every `.match()` call, and 2 of the 3
+    // findings when measured were custom path matchers.
+    "unicorn/prefer-regexp-test": "off",
+
+    // The 1,000-line limit of the repo standard, counting code only.
+    "eslint/max-lines": [
+      "error",
+      { max: 1000, skipBlankLines: true, skipComments: true },
+    ],
+    // 392 findings when measured. Builders, codegen emitters and test
+    // suites are long functions by design; max-lines bounds the file.
+    "eslint/max-lines-per-function": "off",
+    // 34 findings when measured: entry modules and test suites import
+    // many siblings, and Knip and Turbo boundaries already police imports.
+    "import/max-dependencies": "off",
+    // 1,764 findings when measured. Deep readonly on every parameter
+    // fights the SDK types the library wraps; `readonly` arrays and
+    // `Readonly<T>` are used where a function promises not to mutate.
+    "typescript/prefer-readonly-parameter-types": "off",
+    // 455 findings when measured. The `u` flag changes escape rules and
+    // case folding per pattern, so each needs review; backlog in
+    // docs/decisions/0002.
+    "eslint/require-unicode-regexp": "off",
+    // Duplicates typescript/require-await, which is type-aware (121 findings
+    // when measured, the same sites).
+    "eslint/require-await": "off",
+    // Duplicates unicorn/no-negated-condition, which has the same fix.
+    "eslint/no-negated-condition": "off",
+    // 40 findings when measured, all `.map(parseRow)` style calls on typed
+    // single-argument callbacks; the type-aware rules catch arity drift.
+    "unicorn/no-array-callback-reference": "off",
+    // 10 findings when measured, all deliberate: `string & {}` keeps literal
+    // autocomplete, and `{}` is the empty default of generic arguments.
+    "typescript/ban-types": "off",
+    // 6 findings when measured, all a Valibot schema and its inferred type
+    // sharing one name, which TypeScript resolves by declaration space.
+    "eslint/no-redeclare": "off",
+    // 4 findings when measured: an error class and its subclass, or a test
+    // file's fixture classes, belong together.
+    "eslint/max-classes-per-file": "off",
   },
 });
 
@@ -186,6 +286,7 @@ export const node: OxlintConfig = defineConfig({
 export const library: OxlintConfig = defineConfig({
   rules: {
     "import/no-default-export": "error",
+    "typescript/explicit-module-boundary-types": "error",
   },
   overrides: [
     {
@@ -208,6 +309,12 @@ const reactRules: OxlintConfig["rules"] = {
   "react/self-closing-comp": "error",
   "react/jsx-no-useless-fragment": "error",
   "react/no-unknown-property": "error",
+  // React Compiler restrictions: code the compiler cannot optimize.
+  "react/invariant": "error",
+  "react/todo": "error",
+  "react/syntax": "error",
+  "react/unsupported-syntax": "error",
+  "react/rule-suppression": "error",
   "react-doctor/no-derived-state-effect": "error",
   "react-doctor/no-fetch-in-effect": "error",
   "react-doctor/no-effect-chain": "error",
@@ -223,6 +330,7 @@ const reactRules: OxlintConfig["rules"] = {
 
 const a11yRules = [
   "alt-text",
+  "anchor-ambiguous-text",
   "anchor-has-content",
   "anchor-is-valid",
   "aria-activedescendant-has-tabindex",
@@ -300,8 +408,23 @@ export const test: OxlintConfig = defineConfig({
         "typescript/no-misused-promises": "off",
         // Plain `vi.fn()` spies stand in for callbacks of any shape.
         "vitest/require-mock-type-parameters": "off",
-        // Table-driven cases branch on the case inside one `it`.
+        // Table-driven cases branch on the case inside one `it`; 206
+        // no-conditional-in-test findings when measured.
         "vitest/no-conditional-tests": "off",
+        "vitest/no-conditional-in-test": "off",
+        // Suites are one file per module (AGENTS.md); 4 exceed 1,000 lines.
+        "eslint/max-lines": "off",
+        // Fakes implement async SDK methods without awaiting; 89
+        // require-await findings when measured.
+        "typescript/require-await": "off",
+        // Tests reject and throw non-Error values to cover how the code
+        // under test handles them; 10 findings when measured.
+        "eslint/prefer-promise-reject-errors": "off",
+        "typescript/prefer-promise-reject-errors": "off",
+        "eslint/no-throw-literal": "off",
+        // Spies and `vi.fn()` callbacks return values the caller ignores;
+        // 77 strict-void-return findings when measured.
+        "typescript/strict-void-return": "off",
         // Type tests assert with `expectTypeOf`, which the rule cannot see.
         "vitest/expect-expect": "off",
         // Tests hand fake clients and spans to typed APIs on purpose.

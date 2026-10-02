@@ -100,7 +100,7 @@ function receiverName(node: CallExpression): string | undefined {
 
 /** Matches `order_items`, `orderItems` and `public.order_items` alike. */
 const tableKey = (name: string): string =>
-  (name.split(".").at(-1) ?? name).replace(/_/g, "").toLowerCase();
+  (name.split(".").at(-1) ?? name).replaceAll("_", "").toLowerCase();
 
 function keyName(property: Property): string | undefined {
   if (property.computed) return undefined;

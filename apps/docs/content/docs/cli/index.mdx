@@ -7,26 +7,67 @@ description: Codegen, SQL and diagnostics for better-supabase projects.
 pnpm better-supabase <command> [options]
 ```
 
-| Command | What it does |
-| --- | --- |
-| [`init`](/docs/cli/init) | Writes the config, `lib/supabase.ts` and glue for the frameworks it finds |
-| [`add`](/docs/cli/init#add) | Adds an integration: `next`, `hono`, `orpc`, `edge`, `mcp`, `client`, `react` |
-| [`gen`](/docs/cli/gen) | Generates types, metadata and validators from your database |
-| `introspect` | Saves a schema snapshot, for codegen without a database |
-| [`env`](/docs/cli/local#env) | Writes the local stack's URL and keys to `.env.local` |
-| [`keys`](/docs/cli/local#keys) | Creates or rotates an ES256 signing key for the local stack |
-| [`seed`](/docs/cli/local#seed) | Renders typed fixtures to seed SQL |
-| [`openapi emit`](/docs/cli/local#openapi-emit) | Writes `openapi.json` from your `createOpenApi` module |
-| [`sql`](/docs/kits/sql) | Lists, adds, syncs and prints SQL kit modules |
-| [`doctor`](/docs/cli/doctor) | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations |
-| [`skills`](/docs/for-ai-agents) | Installs the Agent Skills that ship with the package |
+| Command                                        | What it does                                                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`init`](/docs/cli/init)                       | Writes the config, `lib/supabase.ts` and glue for the frameworks it finds                      |
+| [`add`](/docs/cli/init#add)                    | Adds an integration: `next`, `hono`, `orpc`, `edge`, `mcp`, `client`, `react`                  |
+| [`gen`](/docs/cli/gen)                         | Generates types, metadata and validators from your database                                    |
+| [`introspect`](/docs/cli/introspect)           | Saves a schema snapshot, for codegen without a database                                        |
+| [`env`](/docs/cli/local#env)                   | Writes the local stack's URL and keys to `.env.local`                                          |
+| [`keys`](/docs/cli/local#keys)                 | Creates or rotates an ES256 signing key for the local stack                                    |
+| [`seed`](/docs/cli/local#seed)                 | Renders typed fixtures to seed SQL                                                             |
+| [`openapi emit`](/docs/cli/local#openapi-emit) | Writes `openapi.json` from your `createOpenApi` module                                         |
+| [`sql`](/docs/kits/sql)                        | Lists, adds, syncs and prints SQL kit modules                                                  |
+| [`doctor`](/docs/cli/doctor)                   | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations |
+| [`skills`](/docs/for-ai-agents)                | Installs the Agent Skills that ship with the package                                           |
 
 Every command takes `--help`. Commands that write files accept `--check`
 (exit 1 on drift, with a unified diff of each stale file) or `--dry-run`.
 In a terminal, output is colored (set `NO_COLOR` to turn it off), `init` and
 `add` ask what they need, and database work shows a spinner on stderr.
+A mistyped command gets a suggestion: `Did you mean "gen"?`.
 
-Global options: `--cwd <dir>`, `--config <file>`, `--help`, `--version`.
+## Global options
+
+| Option            | Effect                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `--cwd <dir>`     | Project directory. Defaults to the current one.                                      |
+| `--config <file>` | Config file, relative to `--cwd`. Defaults to `better-supabase.config.*` in `--cwd`. |
+| `--json`          | Prints one JSON document on stdout, and errors as Problem Details. Never prompts.    |
+| `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                      |
+| `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                      |
+| `--version`       | Prints the version.                                                                  |
+
+Prompts only run in a terminal. In CI (`$CI` is set), and under `--json` or
+`--yes`, commands use their flags and defaults instead of asking.
+
+## Exit codes and JSON output
+
+The CLI exits with 0 on success, 1 when a command fails or finds a problem
+(`--check` drift, doctor errors), and 2 when the command line, the config or
+the environment needs a change. Every error has a code, listed on the
+[errors page](/docs/cli/errors).
+
+With `--json`, stdout holds exactly one JSON document: the command's result
+(`gen` prints `{ "tables", "written" }`, `doctor` its report), or a
+[Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document when it
+fails. Progress and diagnostics go to stderr, so
+`better-supabase gen --check --json | jq .stale` stays parseable.
+
+## Environment
+
+| Variable                | Used by                                                                    |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set |
+| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                    |
+| `SUPABASE_API_URL`      | Another Management API host                                                |
+| `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `supabase` on the `PATH`           |
+| `CI`                    | Turns prompts off                                                          |
+
+The CLI checks these once per run; a malformed URL stops it with
+[`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the
+database password, so no command takes one as an argument. Set
+`$DATABASE_URL`, or pipe one in with `--db-url-stdin`.
 
 ## Programmatic use
 
@@ -34,38 +75,52 @@ The CLI never calls `process.exit`. `run` returns the exit code and output,
 which is how the tests drive it:
 
 ```ts
-import { run } from '@better-supabase/cli';
+import { run } from "@better-supabase/cli";
 
-const { code, stdout, stderr } = await run(['gen', '--check']);
+const { code, stdout, stderr } = await run(["gen", "--check"], {
+  env: process.env,
+});
 ```
 
-`help()` returns the usage text, and `help(command)` the text for one
-command.
+`run` reads no process globals: it sees only the `env` you pass (none by
+default), and `--cwd` resolves against the `cwd` option. `help()` returns the
+usage text, and `help(command)` the text for one command.
 
 Add your own commands with `defineCliCommand` and `registerCommand`. Commands
 are [citty](https://github.com/unjs/citty) definitions: `args` declares the
 options, and `run` gets the parsed arguments and the context (`cwd`,
-`config`, `io`, `env`, `signal`). Options listed in `lists` may repeat or
+`config`, `io`, `env`, `json`, `signal`). Throw a `CliError` to report a
+coded error, and return `data` to give `--json` a document. Options listed in `lists` may repeat or
 take commas, and `list()` splits them.
 
 ```ts title="scripts/cli.ts"
-import { defineCliCommand, list, registerCommand, run } from '@better-supabase/cli';
+import {
+  defineCliCommand,
+  list,
+  registerCommand,
+  run,
+} from "@better-supabase/cli";
 
 registerCommand(
-  'schemas',
+  "schemas",
   defineCliCommand({
-    meta: { name: 'schemas', description: 'Prints the schemas codegen reads' },
-    args: { only: { type: 'string', description: 'Schemas to keep' } },
-    lists: ['only'],
+    meta: { name: "schemas", description: "Prints the schemas codegen reads" },
+    args: { only: { type: "string", description: "Schemas to keep" } },
+    lists: ["only"],
     run: async (args, { config }) => {
       const only = list(args.only);
-      const schemas = config.schemas.filter((name) => only.length === 0 || only.includes(name));
-      return { code: 0, output: schemas.join('\n') };
+      const schemas = config.schemas.filter(
+        (name) => only.length === 0 || only.includes(name),
+      );
+      return { code: 0, output: schemas.join("\n") };
     },
   }),
 );
 
-const { code } = await run(process.argv.slice(2));
+const { code } = await run(process.argv.slice(2), {
+  cwd: process.cwd(),
+  env: process.env,
+});
 process.exitCode = code;
 ```
 

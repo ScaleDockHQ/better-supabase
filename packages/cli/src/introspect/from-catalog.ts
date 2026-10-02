@@ -133,9 +133,9 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         comment: table.comment,
       });
     }
-    table.columns.forEach((entry, position) =>
-      meta.columns.push(column(table, id, entry, position)),
-    );
+    for (const [position, entry] of table.columns.entries()) {
+      meta.columns.push(column(table, id, entry, position));
+    }
     for (const name of table.primaryKey) {
       meta.primaryKeys.push({
         schema: table.schema,

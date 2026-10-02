@@ -13,7 +13,14 @@ export interface ResourceOptions {
   /** Defaults to every operation for tables, `list` and `get` for views. */
   readonly operations?: readonly ResourceOperation[];
   /** Parameters for `list`, from `defineListQuery`. */
-  readonly list?: { readonly openapi: readonly OpenApiParameter[] };
+  readonly list?: {
+    readonly openapi: readonly OpenApiParameter[];
+    readonly pagination?: "offset" | "cursor";
+  };
+  /** Paging of the default list, as in `defineResource`. Defaults to `offset`. */
+  readonly pagination?: "offset" | "cursor";
+  /** Largest page of the default list. Defaults to 200. */
+  readonly maxPageSize?: number;
   /** Path of the collection. Defaults to `/<table>`. */
   readonly path?: string;
   readonly tag?: string;
@@ -106,7 +113,7 @@ const ERRORS: readonly [string, number, string][] = [
 ];
 
 const pascal = (value: string): string =>
-  value.replace(/(^|[_-])(\w)/g, (_, _sep: string, char: string) =>
+  value.replaceAll(/(^|[_-])(\w)/g, (_, _sep: string, char: string) =>
     char.toUpperCase(),
   );
 const ref = (name: string): Json => ({ $ref: `#/components/schemas/${name}` });
@@ -125,23 +132,72 @@ function jsonBody(schema: Json, description: string): Json {
   return { description, content: { "application/json": { schema } } };
 }
 
-function pageParameters(): OpenApiParameter[] {
+function pageParameters(
+  cursor: boolean,
+  maxPageSize: number,
+): OpenApiParameter[] {
   return [
-    {
-      name: "page",
-      in: "query",
-      required: false,
-      description: "1-based page number.",
-      schema: { type: "integer", minimum: 1, default: 1 },
-    },
+    cursor
+      ? {
+          name: "after",
+          in: "query",
+          required: false,
+          description:
+            "`nextCursor` of the previous page. Leave it out for the first page.",
+          schema: { type: "string" },
+        }
+      : {
+          name: "page",
+          in: "query",
+          required: false,
+          description: "1-based page number.",
+          schema: { type: "integer", minimum: 1, default: 1 },
+        },
     {
       name: "size",
       in: "query",
       required: false,
       description: "Page size.",
-      schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+      schema: {
+        type: "integer",
+        minimum: 1,
+        maximum: maxPageSize,
+        default: 50,
+      },
     },
   ];
+}
+
+function pageSchema(row: Json, cursor: boolean): Json {
+  const items = { type: "array", items: row };
+  return cursor
+    ? {
+        type: "object",
+        required: ["items", "nextCursor", "hasMore"],
+        properties: {
+          items,
+          nextCursor: { type: ["string", "null"] },
+          hasMore: { type: "boolean" },
+        },
+      }
+    : {
+        type: "object",
+        required: ["items", "page"],
+        properties: {
+          items,
+          page: {
+            type: "object",
+            required: ["number", "size", "total", "pages", "hasMore"],
+            properties: {
+              number: { type: "integer" },
+              size: { type: "integer" },
+              total: { type: ["integer", "null"] },
+              pages: { type: ["integer", "null"] },
+              hasMore: { type: "boolean" },
+            },
+          },
+        },
+      };
 }
 
 /**
@@ -195,24 +251,10 @@ export function createOpenApi(
       const schema = defs[`${key}${variant}`];
       if (schema) schemas[`${name}${variant}`] = schema;
     }
-    schemas[`${name}Page`] = {
-      type: "object",
-      required: ["items", "page"],
-      properties: {
-        items: { type: "array", items: ref(`${name}Row`) },
-        page: {
-          type: "object",
-          required: ["number", "size", "total", "pages", "hasMore"],
-          properties: {
-            number: { type: "integer" },
-            size: { type: "integer" },
-            total: { type: ["integer", "null"] },
-            pages: { type: ["integer", "null"] },
-            hasMore: { type: "boolean" },
-          },
-        },
-      },
-    };
+    const cursor =
+      (resource.list ? resource.list.pagination : resource.pagination) ===
+      "cursor";
+    schemas[`${name}Page`] = pageSchema(ref(`${name}Row`), cursor);
 
     const collection = `${base}${resource.path ?? `/${key}`}`;
     const keyColumn =
@@ -244,7 +286,9 @@ export function createOpenApi(
       switch (operation) {
         case "list":
           (paths[collection] ??= {})["get"] = op("list", `List ${key}`, {
-            parameters: resource.list?.openapi ?? pageParameters(),
+            parameters:
+              resource.list?.openapi ??
+              pageParameters(cursor, resource.maxPageSize ?? 200),
             responses: {
               "200": jsonBody(ref(`${name}Page`), `A page of ${key}.`),
               ...errorResponses([400, 401, 403]),

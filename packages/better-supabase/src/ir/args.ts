@@ -1,7 +1,7 @@
 import type {
   AnyModels,
   Relations,
-  RelationShape,
+  RelationTypes,
   Row,
   Simplify,
 } from "../schema/types.ts";
@@ -254,7 +254,7 @@ type SelectPart<M extends AnyModels, T extends keyof M, A> = A extends {
   ? Pick<Row<M, T>, Extract<K, keyof Row<M, T>>>
   : Row<M, T>;
 
-type RelationPayload<M extends AnyModels, R, V> = R extends RelationShape
+type RelationPayload<M extends AnyModels, R, V> = R extends RelationTypes
   ? R["kind"] extends "many"
     ? Payload<M, Extract<R["table"], keyof M>, V extends true ? unknown : V>[]
     : R["nullable"] extends true

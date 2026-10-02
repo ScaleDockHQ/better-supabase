@@ -8,11 +8,11 @@ description: Agent Skills, llms.txt, Markdown pages and a docs MCP server that h
 The package ships [Agent Skills](https://agentskills.io) that teach coding
 agents the conventions in these docs:
 
-| Skill | Covers |
-| --- | --- |
-| `better-supabase` | Queries, writes, Results, and the codegen loop after a schema change |
-| `better-supabase-api` | Adapters, `allow`, REST resources, MCP tools, jobs, idempotency, webhooks |
-| `better-supabase-testing` | `asUser`, `localAuth`, typed seeds, pgTAP |
+| Skill                     | Covers                                                                    |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `better-supabase`         | Queries, writes, Results, and the codegen loop after a schema change      |
+| `better-supabase-api`     | Adapters, `allow`, REST resources, MCP tools, jobs, idempotency, webhooks |
+| `better-supabase-testing` | `asUser`, `localAuth`, typed seeds, pgTAP                                 |
 
 Install them with the [`skills`](https://skills.sh) CLI, which supports
 Cursor, Claude Code, Codex, OpenCode and most other agents:
@@ -33,7 +33,8 @@ pnpm better-supabase skills install --check         # in CI, after upgrading
 
 Skills go to `.cursor/skills`, `.claude/skills` or `.agents/skills`, or to
 your home directory with `--global`. Reinstall after an upgrade, and
-`--check` tells you when they are stale.
+`--check` tells you when they are stale. `--from <dir>` installs skills
+from a folder instead of the package, to try a change before you publish it.
 
 In Claude Code, the repository is also a plugin marketplace. The plugin
 installs the same skills and connects the [docs MCP server](#docs-mcp-server):
@@ -46,6 +47,16 @@ installs the same skills and connects the [docs MCP server](#docs-mcp-server):
 The repository has a Cursor plugin manifest (`.cursor-plugin/plugin.json`)
 with the same skills and server.
 
+These skills cover better-supabase. For Supabase itself (Auth, Storage, RLS
+and Postgres performance), add Supabase's own skills too. The
+`better-supabase` skill's schema workflow already asks for RLS, policies and
+[Data API grants](/docs/guides/data-api-grants) on every new table; Supabase's
+skills explain the policies in depth:
+
+```bash
+npx skills add supabase/agent-skills
+```
+
 ## Docs as Markdown
 
 - [`/llms.txt`](/llms.txt) is an index of every page, and
@@ -57,9 +68,11 @@ with the same skills and server.
 ## Docs MCP server
 
 `https://bettersupabase.com/mcp` is a read-only MCP server (Streamable HTTP)
-with two tools: `search_docs` finds pages by title, description and path, and
-`get_page` returns one page as Markdown. It takes no token and never sees
-your project. Install it in one click in
+with three tools: `search_docs` runs a full-text search over the pages and
+their headings, `get_page` returns one page as Markdown, and `list_pages`
+returns the whole index. It speaks the 2026-07-28 revision and answers 2025
+clients statelessly, takes no token and never sees your project. Install it
+in one click in
 [Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=better-supabase-docs&config=eyJ1cmwiOiJodHRwczovL2JldHRlcnN1cGFiYXNlLmNvbS9tY3AifQ==)
 or [VS Code](vscode:mcp/install?%7B%22name%22%3A%22better-supabase-docs%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fbettersupabase.com%2Fmcp%22%7D),
 or add it to Cursor by hand:
@@ -73,7 +86,20 @@ or add it to Cursor by hand:
 ```
 
 or to Claude Code with
-`claude mcp add --transport http better-supabase-docs https://bettersupabase.com/mcp`.
+`claude mcp add --transport http better-supabase-docs https://bettersupabase.com/mcp`,
+or commit it for everyone on the project in `.mcp.json`, which Claude Code
+reads:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "better-supabase-docs": {
+      "type": "http",
+      "url": "https://bettersupabase.com/mcp"
+    }
+  }
+}
+```
 
 ## What agents should rely on
 

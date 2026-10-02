@@ -290,6 +290,36 @@ describe("postgresExecutor", () => {
     });
   });
 
+  describe("split inserts", () => {
+    const many = Array.from({ length: 40_000 }, (_, index) => ({
+      name: `c${index}`,
+      kvk: String(index),
+    }));
+
+    it("runs every chunk in one transaction and adds up the rows", async () => {
+      const fake = fakeSql([[/^insert/, rowsOf({ id: "a" })]]);
+      const result = await postgresExecutor(fake.sql).execute(
+        insert({ rows: many }),
+        context,
+      );
+      expect(result.ok && result.data).toEqual({
+        rows: [{ id: "a" }, { id: "a" }],
+        count: 2,
+      });
+      expect(fake.transactions).toBe(1);
+      expect(fake.calls).toHaveLength(2);
+    });
+
+    it("adds up counts without returning, and runs in order without transactions", async () => {
+      const fake = fakeSql([[/^with m as \(insert/, [{ count: 3 }]]]);
+      const result = await postgresExecutor({
+        queryRaw: (text, params) => fake.sql.queryRaw(text, params),
+      }).execute(insert({ rows: many, returning: undefined }), context);
+      expect(result.ok && result.data).toEqual({ rows: [], count: 6 });
+      expect(fake.transactions).toBe(0);
+    });
+  });
+
   describe("batch", () => {
     it("runs the operations separately when the client has no transactions", async () => {
       const fake = fakeSql([[/^select/, rowsOf({ id: "a" })]]);

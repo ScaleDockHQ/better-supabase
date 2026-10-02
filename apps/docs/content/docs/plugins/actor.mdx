@@ -4,11 +4,11 @@ description: Record who created, changed and deleted each row.
 ---
 
 ```ts
-import { actor } from 'better-supabase/plugins/actor';
+import { actor } from "better-supabase/plugins/actor";
 
 const db = defineSupabase(schema)
   .use(actor())
-  .connect(supabase, { actor: { id: user.id, kind: 'user' } });
+  .connect(supabase, { actor: { id: user.id, kind: "user" } });
 ```
 
 - Inserts get `createdBy` and `updatedBy`.

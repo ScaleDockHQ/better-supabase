@@ -42,7 +42,7 @@ async function readJson(
   try {
     // SAFETY: callers only read optional fields and check their types.
     return JSON.parse(
-      text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"),
+      text.replaceAll(/^\s*\/\/.*$/gm, "").replaceAll(/,(\s*[}\]])/g, "$1"),
     ) as Record<string, unknown>;
   } catch {
     return undefined;

@@ -5,9 +5,11 @@
   "scripts": {
     "lint": "oxlint",
     "test:e2e": "vitest run",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@axe-core/playwright": "catalog:",
     "@better-supabase/example-edge": "workspace:*",
     "@better-supabase/example-hono-api": "workspace:*",
     "@better-supabase/example-mcp": "workspace:*",

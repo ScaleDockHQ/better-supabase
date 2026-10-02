@@ -6,7 +6,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/ScaleDockHQ/better-supabase/ci.yml?label=CI)](https://github.com/ScaleDockHQ/better-supabase/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9%20%7C%206%20%7C%207-3178c6.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6%20%7C%207-3178c6.svg)
 
 [Docs](https://bettersupabase.com/docs) · [Website](https://bettersupabase.com) · [Product](./PRODUCT.md) · [Design](./DESIGN.md) · [Agent guide](./AGENTS.md)
 
@@ -31,7 +31,7 @@ pnpm add -D @better-supabase/cli pg
 ```
 
 Or start with `npx @better-supabase/cli init`, which detects your frameworks
-and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 5.9, 6 and 7 are tested.
+and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 6 and 7 are tested.
 
 ## Quick start
 
@@ -47,10 +47,10 @@ pnpm better-supabase gen    # database.types.ts and generated.ts
 ### 2. Query
 
 ```ts
-import { createClient } from '@supabase/supabase-js';
-import { defineSupabase } from 'better-supabase';
+import { createClient } from "@supabase/supabase-js";
+import { defineSupabase } from "better-supabase";
 
-import { schema } from './lib/supabase/generated.ts';
+import { schema } from "./lib/supabase/generated.ts";
 
 export const sb = defineSupabase(schema);
 
@@ -58,10 +58,10 @@ const db = sb.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
   .findMany({
-    select: ['id', 'name'],
-    where: { status: 'active', notes: { some: { kind: 'call' } } },
-    include: { organization: { select: ['name'] } },
-    orderBy: { name: 'asc' },
+    select: ["id", "name"],
+    where: { status: "active", notes: { some: { kind: "call" } } },
+    include: { organization: { select: ["name"] } },
+    orderBy: { name: "asc" },
     limit: 20,
   })
   .orThrow();
@@ -80,7 +80,9 @@ export const proxy = (request: NextRequest) => next.proxy(request);
 // app/customers/page.tsx
 export default async function Customers() {
   const { db } = await next.server();
-  const customers = await db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+  const customers = await db.customers
+    .findMany({ select: ["id", "name"] })
+    .orThrow();
   return <CustomerList customers={customers} />;
 }
 ```
@@ -92,17 +94,20 @@ const bs = createHono(sb);
 
 const app = new Hono<BetterEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
-  .use('/api/*', bs.middleware())
-  .get('/api/customers', bs.handle((c, { db }) => db.customers.findMany({ limit: 20 })));
+  .use("/api/*", bs.middleware())
+  .get(
+    "/api/customers",
+    bs.handle((c, { db }) => db.customers.findMany({ limit: 20 })),
+  );
 ```
 
 ### MCP
 
 ```ts
 const mcp = createMcp(sb, {
-  name: 'crm',
-  version: '1.0.0',
-  resources: { customers: { select: ['id', 'name', 'status'] } },
+  name: "crm",
+  version: "1.0.0",
+  resources: { customers: { select: ["id", "name", "status"] } },
 });
 
 Deno.serve(mcp.fetch);
@@ -110,13 +115,13 @@ Deno.serve(mcp.fetch);
 
 ## Works with
 
-| Area | Supported |
-| --- | --- |
-| Frameworks | Next.js 16, Hono, oRPC, Supabase Edge Functions, Deno, Bun, Workers |
-| Frontend | React 19, TanStack Query 5, live queries over Realtime |
-| Validation | Zod, Valibot and any Standard Schema |
-| Standards | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP |
-| Testing | Vitest, pgTAP, the Supabase local stack |
+| Area       | Supported                                                                 |
+| ---------- | ------------------------------------------------------------------------- |
+| Frameworks | Next.js 16, Hono, oRPC, Supabase Edge Functions, Deno, Bun, Workers       |
+| Frontend   | React 19, TanStack Query 5, live queries over Realtime                    |
+| Validation | Zod, Valibot and any Standard Schema                                      |
+| Standards  | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP |
+| Testing    | Vitest, pgTAP, the Supabase local stack                                   |
 
 ## For AI agents
 
@@ -145,8 +150,9 @@ Maintainer rules for agents working on this repository are in [`AGENTS.md`](./AG
 ```bash
 pnpm install
 vercel link           # maintainers: link the scaledock team's project
-pnpm env:pull         # maintainers: .env.development.local and friends
+pnpm env:pull         # maintainers: hosted keys in .env.local
 pnpm supabase:start   # API on 55421, Postgres on 55422
+pnpm env:local        # local stack and Portless URLs in .env.development.local
 pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
 ```
 
@@ -154,36 +160,37 @@ The first `pnpm dev:portless` asks to trust the Portless certificate authority.
 
 ### Local URLs and logins
 
-| App | URL |
-|---|---|
-| Marketing | `https://www.localhost` |
-| Docs | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost` |
+| App             | URL                           |
+| --------------- | ----------------------------- |
+| Marketing       | `https://www.localhost`       |
+| Docs            | `https://docs.localhost/docs` |
+| Next.js example | `https://example.localhost`   |
 
 The seed creates two users in the Acme organization, both with the password
 `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role `member`).
 
 ### Scripts
 
-| Script | What it does |
-|---|---|
-| `pnpm verify` | The gate before every push: format, lint, prose, typecheck, Knip, boundaries, tests, doctor and audit |
-| `pnpm dev:portless` | Docs, marketing and the Next.js example on `.localhost` URLs |
-| `pnpm build` | Builds every package and app |
-| `pnpm test` | Unit and type tests |
-| `pnpm test:integration` | Integration tests against the local stack |
-| `pnpm test:e2e` | The example apps against the local stack |
-| `pnpm typecheck:matrix` | The published types against TypeScript 5.9, 6 and 7 |
-| `pnpm size` | Bundle size baselines and the WinterTC import check |
-| `pnpm supabase:reset` | Rebuilds the local database from the migrations and the seed |
-| `pnpm supabase:test` | pgTAP tests in `supabase/tests` |
-| `pnpm db:gen` | Regenerates the typed client in every example |
-| `pnpm changeset` | Records a user-visible change for the next release |
+| Script                  | What it does                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `pnpm verify`           | The gate before every push: format, lint, prose, typecheck, Knip, boundaries, tests, doctor and audit |
+| `pnpm dev:portless`     | Docs, marketing and the Next.js example on `.localhost` URLs                                          |
+| `pnpm build`            | Builds every package and app                                                                          |
+| `pnpm test`             | Unit and type tests                                                                                   |
+| `pnpm test:integration` | Integration tests against the local stack                                                             |
+| `pnpm test:e2e`         | The example apps against the local stack                                                              |
+| `pnpm typecheck:matrix` | The published types against TypeScript 6 and 7                                                        |
+| `pnpm size`             | Bundle size baselines and the WinterTC import check                                                   |
+| `pnpm supabase:reset`   | Rebuilds the local database from the migrations and the seed                                          |
+| `pnpm supabase:test`    | pgTAP tests in `supabase/tests`                                                                       |
+| `pnpm db:gen`           | Regenerates the typed client in every example                                                         |
+| `pnpm changeset`        | Records a user-visible change for the next release                                                    |
 
 ### Layout
 
 ```text
-packages/better-supabase   the published package, its CLI and consumer skills
+packages/better-supabase   the published library and its consumer skills
+packages/cli               @better-supabase/cli: the better-supabase command, codegen and doctor
 packages/next-config       shared Next.js config for docs and marketing
 packages/ox-config         Oxlint presets, Oxfmt config and the anti-slop plugin
 packages/typescript-config tsconfig presets

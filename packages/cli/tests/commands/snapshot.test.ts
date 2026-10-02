@@ -68,7 +68,7 @@ describe("managementTarget", () => {
 });
 
 describe("openSource", () => {
-  it("opens --db-url, the Management API, then DATABASE_URL", async () => {
+  it("opens a piped URL, the Management API, then DATABASE_URL", async () => {
     const open = fakeConnect(fakeSql().pg);
     const direct = await openSource(
       config(),

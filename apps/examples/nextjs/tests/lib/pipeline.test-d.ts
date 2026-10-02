@@ -12,10 +12,11 @@ import { sb } from "@/lib/supabase";
 // the shapes `permdock/supabase/middleware` and `permdock/supabase` export:
 // `withPermDock` needs `ctx.jwtClaims` upstream and contributes `ctx.permdock`,
 // and `subjectFromSupabaseSession` reads `{ kind, claims }`.
-// TODO: once `permdock@next` is on npm, add it as a devDependency of this
+// Once `permdock@next` is on npm, add it as a devDependency of this
 // example only and import `withPermDock` from `permdock/supabase/middleware`
 // and `subjectFromSupabaseSession` from `permdock/supabase` instead of these
 // stand-ins. Source: https://github.com/ScaleDockHQ/PermDock
+/* oxlint-disable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns -- the stand-ins copy the published PermDock signatures */
 type SupabaseJwtClaims = {
   readonly sub: string;
   readonly [claim: string]: unknown;
@@ -36,6 +37,7 @@ const withPermDock = defineMiddleware({
 declare function subjectFromSupabaseSession(
   session: SupabaseSessionLike,
 ): unknown;
+/* oxlint-enable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns */
 
 export const handler = pipeline(
   [withSupabase({ auth: "user" }), withBetterSupabase(sb)(), withPermDock()],

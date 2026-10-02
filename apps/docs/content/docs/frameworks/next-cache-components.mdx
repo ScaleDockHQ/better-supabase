@@ -33,13 +33,13 @@ so it can leave a `'use cache: private'` function and cross into Client
 Components.
 
 ```ts title="src/features/user/user-queries.ts"
-import 'server-only';
-import { type AuthSession, sessionStale } from 'better-supabase/next';
-import { cacheLife } from 'next/cache';
-import { next } from '@/lib/supabase.server';
+import "server-only";
+import { type AuthSession, sessionStale } from "better-supabase/next";
+import { cacheLife } from "next/cache";
+import { next } from "@/lib/supabase.server";
 
 export async function getSession(): Promise<AuthSession> {
-  'use cache: private';
+  "use cache: private";
   const session = await next.session();
   cacheLife({ stale: sessionStale(session) });
   return session;
@@ -51,11 +51,11 @@ more than the seconds left on the token and never less than `min`, so a
 signed-in view is not reused after its token expired. `stale` decides where
 the result can be reused:
 
-| `stale` | Effect |
-| --- | --- |
-| under 30 s | Not prefetched. The navigation waits for the server. |
+| `stale`       | Effect                                                        |
+| ------------- | ------------------------------------------------------------- |
+| under 30 s    | Not prefetched. The navigation waits for the server.          |
 | 30 s to 5 min | Available to per-link prefetching (`<Link prefetch={true}>`). |
-| 5 min or more | Part of the route's App Shell: navigations are instant. |
+| 5 min or more | Part of the route's App Shell: navigations are instant.       |
 
 A private cache never stores anything on the server across requests. The
 result only lives in that browser's router cache.
@@ -113,7 +113,7 @@ with `use()`. Create the promise **inside** the boundary, never at the top of
 a layout:
 
 ```tsx title="src/features/navigation/components/app-nav.tsx"
-import { SessionProvider } from 'better-supabase/react';
+import { SessionProvider } from "better-supabase/react";
 
 export function AppNav() {
   return (
@@ -125,13 +125,15 @@ export function AppNav() {
 ```
 
 ```tsx title="src/features/navigation/components/side-nav.tsx"
-'use client';
+"use client";
 
-import { useSession } from 'better-supabase/react';
+import { useSession } from "better-supabase/react";
 
 export function SideNav() {
   const session = useSession();
-  const visible = navItems.filter((item) => !item.requires || can(session, item.requires));
+  const visible = navItems.filter(
+    (item) => !item.requires || can(session, item.requires),
+  );
   return <nav aria-label="Main">{/* links */}</nav>;
 }
 ```
@@ -177,13 +179,15 @@ alike:
 
 ```ts title="src/features/user/user-permissions.ts"
 const grants = {
-  admin: ['customers.read', 'customers.write', 'users.manage' /* … */],
-  member: ['customers.read'],
+  admin: ["customers.read", "customers.write", "users.manage" /* … */],
+  member: ["customers.read"],
 } as const satisfies Record<Role, readonly Permission[]>;
 
 export function can(session: AuthSession, permission: Permission): boolean {
-  if (session.kind !== 'user') return false;
-  return rolesOf(session.claims).some((role) => grants[role].includes(permission));
+  if (session.kind !== "user") return false;
+  return rolesOf(session.claims).some((role) =>
+    grants[role].includes(permission),
+  );
 }
 ```
 
@@ -194,14 +198,14 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 
 ### Who owns what
 
-| Part | Owns |
-| --- | --- |
-| Supabase Auth | Identity, sessions, signing and refreshing tokens |
-| Your hook (SQL) | Which claims a token carries, read from your tables |
-| `sb.claims(schema)` | Validating and typing those claims on the server |
+| Part                      | Owns                                                    |
+| ------------------------- | ------------------------------------------------------- |
+| Supabase Auth             | Identity, sessions, signing and refreshing tokens       |
+| Your hook (SQL)           | Which claims a token carries, read from your tables     |
+| `sb.claims(schema)`       | Validating and typing those claims on the server        |
 | `sb.userMetadata(schema)` | A typed `session.profile` for display, never for access |
-| RLS | Enforcing access with the same claims (`auth.jwt()`) |
-| Your code or PermDock | Mapping roles to permissions |
+| RLS                       | Enforcing access with the same claims (`auth.jwt()`)    |
+| Your code or PermDock     | Mapping roles to permissions                            |
 
 The hook, the schema and your policies read the same claims, so agree on
 one shape. For multi-tenant apps, use PermDock's, which the `tenant` kit
@@ -241,14 +245,14 @@ validation. Keep the list short: every claim is sent with every request, and
 
 <Callout title="Using PermDock">
   For more than a handful of roles, use
-  [PermDock](https://github.com/ScaleDockHQ/PermDock).
-  `permdock rls generate` writes `role_permissions`, `authorize()`, the RLS
-  helpers and the table policies, and `permdock supabase hook generate` writes
-  the access token hook; don't add the kit's `tenant` hook next to it. On the server, build the subject with
-  `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a token with
-  `memberships_truncated` falls back to a database lookup. `permdock/next` and
-  `permdock/react` replace the hand-written `can()`. See
-  [better-supabase and PermDock](/docs/auth/permdock).
+  [PermDock](https://github.com/ScaleDockHQ/PermDock). `permdock rls generate`
+  writes `role_permissions`, `authorize()`, the RLS helpers and the table
+  policies, and `permdock supabase hook generate` writes the access token hook;
+  don't add the kit's `tenant` hook next to it. On the server, build the subject
+  with `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a token
+  with `memberships_truncated` falls back to a database lookup. `permdock/next`
+  and `permdock/react` replace the hand-written `can()`. See [better-supabase
+  and PermDock](/docs/auth/permdock).
 </Callout>
 
 ## 5. Optimistic redirects in the proxy
@@ -257,15 +261,17 @@ The proxy verifies the token locally anyway, so it can redirect before
 rendering at no extra cost:
 
 ```ts title="src/proxy.ts"
-const protect: NonNullable<ProxyOptions['protect']> = (auth, request) => {
+const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   const { pathname } = request.nextUrl;
-  if (pathname === '/login' || pathname.startsWith('/api/')) return undefined;
+  if (pathname === "/login" || pathname.startsWith("/api/")) return undefined;
   // Prefetches never refresh: let the page render its own signed-out state.
-  if (auth.kind === 'anon' && auth.reason === 'expired') return undefined;
+  if (auth.kind === "anon" && auth.reason === "expired") return undefined;
   const session = toSession(auth);
-  if (session.kind !== 'user') return NextResponse.redirect(new URL('/login', request.url));
+  if (session.kind !== "user")
+    return NextResponse.redirect(new URL("/login", request.url));
   const permission = requiredPermission(pathname);
-  if (permission && !can(session, permission)) return NextResponse.redirect(new URL('/', request.url));
+  if (permission && !can(session, permission))
+    return NextResponse.redirect(new URL("/", request.url));
   return undefined;
 };
 
@@ -279,9 +285,9 @@ query runs with the user's token and RLS decides what comes back:
 
 ```ts title="src/features/customers/customer-queries.ts"
 export async function getCustomers() {
-  'use cache: private';
+  "use cache: private";
   const { db } = await next.cached();
-  return db.customers.findMany({ select: ['id', 'name', 'status'] }).orThrow();
+  return db.customers.findMany({ select: ["id", "name", "status"] }).orThrow();
 }
 ```
 
@@ -307,19 +313,24 @@ way. The snapshot needs the session, so read it first, then let
 `stale` at the snapshot's expiry, and `sessionStale` caps it at the token's.
 
 ```ts title="src/lib/access.ts"
-import { snapshotFor } from 'permdock';
-import { cacheLifeFor, snapshotTag } from 'permdock/next';
-import { subjectFromSupabaseSession } from 'permdock/supabase';
-import { next } from '@/lib/supabase';
-import { policy } from '@/policy';
+import { snapshotFor } from "permdock";
+import { cacheLifeFor, snapshotTag } from "permdock/next";
+import { subjectFromSupabaseSession } from "permdock/supabase";
+import { next } from "@/lib/supabase";
+import { policy } from "@/policy";
 
 export async function loadSnapshot(orgId: string) {
-  'use cache: private';
+  "use cache: private";
   const session = await next.session();
-  const subject = subjectFromSupabaseSession(session, { memberships: 'memberships' });
+  const subject = subjectFromSupabaseSession(session, {
+    memberships: "memberships",
+  });
   const snapshot = snapshotFor(policy, subject, { tenant: orgId });
   await next.cached({
-    tags: [snapshotTag(session.kind === 'user' ? session.user.id : null), `org:${orgId}`],
+    tags: [
+      snapshotTag(session.kind === "user" ? session.user.id : null),
+      `org:${orgId}`,
+    ],
     life: cacheLifeFor(snapshot),
   });
   return snapshot;
@@ -330,12 +341,19 @@ Pass the promise to PermDock's provider (a Client Component) without awaiting
 it, so the layout stays synchronous and the snapshot streams in:
 
 ```tsx title="src/app/[orgSlug]/layout.tsx"
-import { PermDockProvider } from 'permdock/react';
-import { loadSnapshot } from '@/lib/access';
+import { PermDockProvider } from "permdock/react";
+import { loadSnapshot } from "@/lib/access";
 
-export default function OrgLayout({ children, params }: LayoutProps<'/[orgSlug]'>) {
+export default function OrgLayout({
+  children,
+  params,
+}: LayoutProps<"/[orgSlug]">) {
   const snapshotPromise = params.then(({ orgSlug }) => loadSnapshot(orgSlug));
-  return <PermDockProvider snapshotPromise={snapshotPromise}>{children}</PermDockProvider>;
+  return (
+    <PermDockProvider snapshotPromise={snapshotPromise}>
+      {children}
+    </PermDockProvider>
+  );
 }
 ```
 
@@ -364,10 +382,10 @@ repositories on first use, so islands that only read `auth` build none.
 Twelve islands in one render, four of which query (`pnpm --filter
 better-supabase bench`, Apple M5 Max, ES256):
 
-| | Signature checks | Clients built | Time per render |
-| --- | --- | --- | --- |
-| Before | 12 | 12 | 1.42 ms |
-| After | 1 | 4 | 0.10 ms |
+|        | Signature checks | Clients built | Time per render |
+| ------ | ---------------- | ------------- | --------------- |
+| Before | 12               | 12            | 1.42 ms         |
+| After  | 1                | 4             | 0.10 ms         |
 
 The database calls themselves are what's left; count them with the
 [budget](#budget).
@@ -387,8 +405,8 @@ holds the old private session. Call a Server Action that runs `refresh()`
 after signing in or out:
 
 ```ts title="src/features/user/user-actions.ts"
-'use server';
-import { refresh } from 'next/cache';
+"use server";
+import { refresh } from "next/cache";
 
 export async function sessionChanged(): Promise<void> {
   refresh();
@@ -398,7 +416,7 @@ export async function sessionChanged(): Promise<void> {
 ```ts
 await supabase.auth.signInWithPassword({ email, password });
 await sessionChanged();
-router.push('/');
+router.push("/");
 ```
 
 ## Asymmetric signing keys
@@ -416,12 +434,12 @@ A page renders in up to four stages. Each database read belongs to the
 earliest stage that can hold it; a read that lands later than it has to
 turns an instant navigation into a spinner.
 
-| Stage | Rendered | Holds | APIs |
-| --- | --- | --- | --- |
-| 1. Static shell | At build time, once for everyone | Layout, headings, skeletons, public data | `next.admin()` inside `'use cache'` |
-| 2. App Shell | Once per browser session, prefetched | The session and data derived from it | `next.cached()`, `next.session()`, `next.liveCount(spec, db)` |
-| 3. Link prefetch | When a link enters the viewport | The data behind that link | `next.cacheTags()`, read sets through `db.$many` |
-| 4. Navigation | On click, not prefetched | Per-request and uncached data | `next.server()`, `next.route()` |
+| Stage            | Rendered                             | Holds                                    | APIs                                                          |
+| ---------------- | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------- |
+| 1. Static shell  | At build time, once for everyone     | Layout, headings, skeletons, public data | `next.admin()` inside `'use cache'`                           |
+| 2. App Shell     | Once per browser session, prefetched | The session and data derived from it     | `next.cached()`, `next.session()`, `next.liveCount(spec, db)` |
+| 3. Link prefetch | When a link enters the viewport      | The data behind that link                | `next.cacheTags()`, read sets through `db.$many`              |
+| 4. Navigation    | On click, not prefetched             | Per-request and uncached data            | `next.server()`, `next.route()`                               |
 
 - **Stage 1** can't read the request. `next.admin()` bypasses RLS, so only
   use it for data every visitor may see, and tag the entry with
@@ -481,7 +499,7 @@ Fail CI when a page gets chattier with
 await expectDbBudget(page, {
   maxCalls: 8,
   maxWaves: 2,
-  during: () => page.goto('/customers'),
+  during: () => page.goto("/customers"),
 });
 ```
 
@@ -500,8 +518,8 @@ experimental: {
 
 ```ts
 await instant(page, async () => {
-  await page.getByRole('link', { name: 'Customers' }).click();
-  await page.waitForURL((url) => url.pathname === '/customers');
-  await page.getByText('Road Runner Inc').waitFor(); // from the per-session App Shell
+  await page.getByRole("link", { name: "Customers" }).click();
+  await page.waitForURL((url) => url.pathname === "/customers");
+  await page.getByText("Road Runner Inc").waitFor(); // from the per-session App Shell
 });
 ```

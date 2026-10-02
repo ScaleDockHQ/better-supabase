@@ -1,16 +1,16 @@
 {
-  "$schema": "https://v2-11-5.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
   "extends": ["//"],
   "tags": ["app"],
   "tasks": {
     "dev": {
       "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
     },
-    "test": {
-      "dependsOn": []
-    },
     "build": {
       "env": ["DOCS_ORIGIN", "NEXT_PUBLIC_SITE_URL"]
+    },
+    "dev:portless": {
+      "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
     }
   }
 }

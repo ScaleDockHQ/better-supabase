@@ -32,12 +32,20 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "@better-supabase/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    },
     "access": "public",
     "provenance": true
   },
@@ -47,16 +55,21 @@
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
     "test": "vitest run --coverage",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
+    "@t3-oss/env-core": "catalog:",
     "better-supabase": "workspace:*",
+    "c12": "catalog:",
     "citty": "catalog:",
     "diff": "catalog:",
+    "fastest-levenshtein": "catalog:",
     "smol-toml": "catalog:",
-    "tinyexec": "catalog:"
+    "tinyexec": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

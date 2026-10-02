@@ -2,11 +2,17 @@ name: Database
 
 on:
   push:
-    branches: [main, develop]
-    paths: ["supabase/**"]
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - "packages/cli/src/doctor/**"
+      - ".github/workflows/database.yml"
   pull_request:
-    branches: [main, develop]
-    paths: ["supabase/**"]
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - "packages/cli/src/doctor/**"
+      - ".github/workflows/database.yml"
 
 permissions:
   contents: read
@@ -17,7 +23,8 @@ concurrency:
 
 env:
   CI: true
-  SUPABASE_CLI_VERSION: 2.118.0
+  SUPABASE_CLI_VERSION: 2.119.0
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
   database:
@@ -28,16 +35,20 @@ jobs:
     steps:
       # Runs before checkout: the action runs npm in the workspace, and npm
       # rejects the root package.json, whose devEngines require pnpm.
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup
 
       - name: Create the local signing key
-        run: node packages/better-supabase/src/cli/bin.ts keys --cwd .
+        run: |
+          pnpm exec turbo run build --filter=@better-supabase/cli...
+          pnpm exec better-supabase keys --cwd .
 
       - name: Start Supabase
         run: supabase start
@@ -47,3 +58,11 @@ jobs:
 
       - name: Lint SQL
         run: supabase db lint --local --level warning --fail-on error
+
+      - name: Supabase advisors
+        run: supabase db advisors --local --type all --fail-on warn
+
+      - name: Doctor against the stack
+        run: |
+          echo "postgresql://postgres:postgres@127.0.0.1:55422/postgres" \
+            | pnpm exec better-supabase doctor --cwd apps/examples/nextjs --db-url-stdin --strict

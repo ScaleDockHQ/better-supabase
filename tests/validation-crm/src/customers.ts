@@ -59,12 +59,12 @@ function listWhere(
   organizationId: string,
   filter: CustomerListFilter,
 ): CustomerWhere {
-  const where: CustomerWhere[] = [{ organizationId }];
-  where.push(
+  const where: CustomerWhere[] = [
+    { organizationId },
     filter.statuses?.length
       ? { status: { in: filter.statuses } }
       : { status: { neq: "archived" } },
-  );
+  ];
   if (filter.types?.length === 1)
     where.push({ isBusiness: filter.types[0] === "business" });
 

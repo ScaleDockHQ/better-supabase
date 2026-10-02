@@ -16,7 +16,10 @@ const ANON = {
 };
 
 function base64url(text: string): string {
-  return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(text)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
 }
 
 function token(payload: unknown): string {
@@ -46,7 +49,9 @@ function setup() {
     browser,
     client,
     requests,
-    emit: (value: Session | null) => emit("SIGNED_IN", value),
+    emit: (value: Session | null) => {
+      emit("SIGNED_IN", value);
+    },
   };
 }
 

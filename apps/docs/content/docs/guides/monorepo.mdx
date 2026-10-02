@@ -20,16 +20,20 @@ apps/
 ## The runtime package
 
 ```ts title="packages/runtime/src/index.ts"
-import { defineSupabase } from 'better-supabase';
-import { createEdge, type EdgeOptions } from 'better-supabase/edge';
-import { type AuthSession, type ServerContext, toSession } from 'better-supabase/server';
+import { defineSupabase } from "better-supabase";
+import { createEdge, type EdgeOptions } from "better-supabase/edge";
+import {
+  type AuthSession,
+  type ServerContext,
+  toSession,
+} from "better-supabase/server";
 
-import { type Functions, type Models, schema } from './generated.ts';
+import { type Functions, type Models, schema } from "./generated.ts";
 
 export const sb = defineSupabase(schema);
 
 export type AppContext = ServerContext<Models, Functions, unknown>;
-export type Db = AppContext['db'];
+export type Db = AppContext["db"];
 
 export function sessionOf(ctx: AppContext): AuthSession {
   return toSession(ctx.auth);
@@ -49,13 +53,13 @@ with the same `sb`, so every adapter shares one definition.
 Domain packages import only types from the runtime:
 
 ```ts title="packages/crm/src/customers.ts"
-import type { Db } from '@acme/runtime';
+import type { Db } from "@acme/runtime";
 
 export function activeCustomers(db: Db) {
   return db.customers.findMany({
-    select: ['id', 'name', 'status'],
-    where: { status: 'active' },
-    orderBy: { name: 'asc' },
+    select: ["id", "name", "status"],
+    where: { status: "active" },
+    orderBy: { name: "asc" },
   });
 }
 ```

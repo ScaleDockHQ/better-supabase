@@ -255,7 +255,33 @@ begin
   execute format('drop trigger if exists bs_audit on %s', target);
   delete from better_supabase.audited_tables a where a.target = unaudit.target;
 end;
-$$;`,
+$$;
+
+-- Deletes up to batch entries older than older_than and returns how many.
+-- Ids grow with time, so the primary key finds the oldest rows first.
+-- Nightly with pg_cron: select cron.schedule('purge-audit-log', '15 3 * * *', 'select better_supabase.purge_audit_log()');
+create or replace function better_supabase.purge_audit_log(
+  older_than interval default '1 year',
+  batch integer default 10000
+)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with purged as (
+    delete from better_supabase.audit_log
+    where id in (
+      select l.id from better_supabase.audit_log l
+      where l.at < now() - older_than
+      order by l.id
+      limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+revoke execute on function better_supabase.purge_audit_log(interval, integer) from public, anon, authenticated;
+grant execute on function better_supabase.purge_audit_log(interval, integer) to service_role;`,
 };
 
 const tenantSql = (claims: ClaimsMeta): string => `${SCHEMA}
@@ -286,7 +312,22 @@ as $$
   select nullif(${jwtClaim(claims.tenant)}, '')::uuid
 $$;
 
--- using ((select better_supabase.has_org_role(organization_id, '{owner,admin}')))
+-- Policies compare against the set once per statement:
+--   using (organization_id in (select better_supabase.member_org_ids('{owner,admin}')))
+-- has_org_role(org) answers for one organization, in functions and checks.
+create or replace function better_supabase.member_org_ids(roles text[] default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.org_id
+  from better_supabase.memberships m
+  where m.user_id = (select auth.uid())
+    and (roles is null or m.role = any (roles))
+$$;
+
 create or replace function better_supabase.has_org_role(org uuid, roles text[] default null)
 returns boolean
 language sql
@@ -306,7 +347,12 @@ $$;
 drop policy if exists bs_memberships_read on better_supabase.memberships;
 create policy bs_memberships_read on better_supabase.memberships
   for select to authenticated
-  using (user_id = (select auth.uid()) or (select better_supabase.has_org_role(org_id)));
+  using (user_id = (select auth.uid()) or org_id in (select better_supabase.member_org_ids()));
+
+revoke execute on function better_supabase.member_org_ids(text[]) from public, anon;
+revoke execute on function better_supabase.has_org_role(uuid, text[]) from public, anon;
+grant execute on function better_supabase.member_org_ids(text[]) to authenticated, service_role;
+grant execute on function better_supabase.has_org_role(uuid, text[]) to authenticated, service_role;
 
 -- The memberships claim in PermDock's shape: [{ scope, id, roles }]. With
 -- PermDock, \`permdock supabase hook generate\` writes the hook instead.
@@ -336,7 +382,7 @@ const TENANT: SqlModule = {
   name: "tenant",
   title: "Tenant memberships and permission helper",
   description:
-    "Memberships with roles, has_org_role() for RLS policies and membership_claims() for the access token hook. A template: edit the roles to fit your app.",
+    "Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. A template: edit the roles to fit your app.",
   requires: [],
   target: "schema",
   sql: tenantSql(DEFAULT_CLAIMS),
@@ -537,6 +583,10 @@ create index if not exists invitations_invited_by_idx
 create index if not exists invitations_accepted_by_idx
   on better_supabase.invitations (accepted_by);
 
+alter table better_supabase.invitations drop constraint if exists invitations_role_check;
+alter table better_supabase.invitations
+  add constraint invitations_role_check check (role in ('owner', 'admin', 'member', 'viewer'));
+
 alter table better_supabase.invitations enable row level security;
 revoke all on better_supabase.invitations from anon, authenticated;
 grant select on better_supabase.invitations to authenticated;
@@ -545,7 +595,7 @@ grant all on better_supabase.invitations to service_role;
 drop policy if exists bs_invitations_read on better_supabase.invitations;
 create policy bs_invitations_read on better_supabase.invitations
   for select to authenticated
-  using ((select better_supabase.has_org_role(org_id, '{owner,admin}')));
+  using (org_id in (select better_supabase.member_org_ids('{owner,admin}')));
 
 -- Returns the token to send; only its hash is stored.
 create or replace function better_supabase.create_invitation(
@@ -561,9 +611,14 @@ set search_path = ''
 as $$
 declare
   token text := encode(extensions.gen_random_bytes(24), 'hex');
+  privileged boolean := coalesce(auth.jwt() ->> 'role', '') = 'service_role';
 begin
-  if auth.role() <> 'service_role' and not better_supabase.has_org_role(org, '{owner,admin}') then
+  if not privileged and not better_supabase.has_org_role(org, '{owner,admin}') then
     raise exception 'Only owners and admins can invite' using errcode = '42501';
+  end if;
+  -- Admins invite admins and below; only an owner hands out ownership.
+  if invitee_role = 'owner' and not privileged and not better_supabase.has_org_role(org, '{owner}') then
+    raise exception 'Only owners can invite an owner' using errcode = '42501', hint = 'INVITATION_ROLE_FORBIDDEN';
   end if;
   delete from better_supabase.invitations i
   where i.org_id = org and lower(i.email) = lower(invitee_email) and i.accepted_at is null;
@@ -601,6 +656,13 @@ begin
   end if;
   if lower(invite.email) <> lower(coalesce(auth.jwt() ->> 'email', '')) then
     raise exception 'The invitation is for another email address' using errcode = '42501', hint = 'INVITATION_EMAIL_MISMATCH';
+  end if;
+  -- The email claim alone does not prove the address: an unconfirmed sign-up carries it too.
+  if not exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.email_confirmed_at is not null and lower(u.email) = lower(invite.email)
+  ) then
+    raise exception 'Confirm your email address before accepting the invitation' using errcode = '42501', hint = 'INVITATION_EMAIL_UNCONFIRMED';
   end if;
   insert into better_supabase.memberships (org_id, user_id, role)
   values (invite.org_id, auth.uid(), invite.role)
@@ -717,6 +779,23 @@ drop function if exists better_supabase.complete_job(bigint, text);
 drop function if exists better_supabase.fail_job(bigint, text, text, interval);
 drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
 
+-- Deduplicated enqueues look the key up under an advisory lock, so each
+-- queue table gets a partial index on it.
+create or replace function better_supabase.index_job_queue(queue text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format(
+    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
+    'q_' || queue || '_dedupe_idx',
+    'q_' || queue
+  );
+end;
+$$;
+
 -- Queue names: lowercase letters, digits and underscores (pgmq's rule).
 create or replace function better_supabase.ensure_job_queue(queue text)
 returns void
@@ -727,9 +806,12 @@ as $$
 begin
   if not exists (select 1 from pgmq.list_queues() q where q.queue_name = queue) then
     perform pgmq.create(queue);
+    perform better_supabase.index_job_queue(queue);
   end if;
 end;
 $$;
+
+select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 -- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
 create or replace function better_supabase.enqueue_job(
@@ -750,7 +832,7 @@ begin
   perform better_supabase.ensure_job_queue(queue);
   if dedupe_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
-    execute format('select msg_id from pgmq.%I where message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)
+    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)
       into existing using dedupe_key;
     if existing is not null then
       return existing;
@@ -850,6 +932,30 @@ begin
 end;
 $$;
 
+-- pgmq keeps completed and dead messages in pgmq.a_<queue>. Deletes up to
+-- batch of them archived longer than older_than.
+-- Nightly with pg_cron: select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
+create or replace function better_supabase.purge_job_archive(
+  queue text,
+  older_than interval default '7 days',
+  batch integer default 10000
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  purged integer;
+begin
+  execute format(
+    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
+    'a_' || queue
+  ) into purged using older_than, batch;
+  return purged;
+end;
+$$;
+
 -- Recurring jobs with pg_cron: select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
 create or replace function better_supabase.schedule_job(job_name text, schedule text, queue text, payload jsonb default '{}')
 returns bigint
@@ -885,6 +991,7 @@ declare
   fn text;
 begin
   foreach fn in array array[
+    'index_job_queue(text)',
     'ensure_job_queue(text)',
     'enqueue_job(text, jsonb, integer, integer, text)',
     'claim_jobs(text, integer, integer)',
@@ -892,7 +999,8 @@ begin
     'fail_job(text, bigint, integer, text, integer)',
     'extend_job_lease(text, bigint, integer, integer)',
     'schedule_job(text, text, text, jsonb)',
-    'unschedule_job(text)'
+    'unschedule_job(text)',
+    'purge_job_archive(text, interval, integer)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);
@@ -1154,6 +1262,33 @@ as $$
   returning status
 $$;
 
+-- Deletes up to batch processed messages (and dead ones with include_dead)
+-- older than older_than. A sender that retries a purged message id gets it
+-- stored again, so keep older_than above the sender's retry window.
+-- Nightly with pg_cron: select cron.schedule('purge-webhooks', '30 3 * * *', 'select better_supabase.purge_webhooks()');
+create or replace function better_supabase.purge_webhooks(
+  older_than interval default '30 days',
+  include_dead boolean default false,
+  batch integer default 10000
+)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with purged as (
+    delete from better_supabase.webhook_inbox
+    where id in (
+      select w.id from better_supabase.webhook_inbox w
+      where (w.status = 'processed' and w.processed_at < now() - older_than)
+        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than)
+      order by w.id
+      limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+
 do $$
 declare
   fn text;
@@ -1162,7 +1297,8 @@ begin
     'receive_webhook(text, text, text, jsonb, jsonb)',
     'claim_webhooks(text, text, integer, interval)',
     'complete_webhook(bigint, text)',
-    'fail_webhook(bigint, text, text, interval)'
+    'fail_webhook(bigint, text, text, interval)',
+    'purge_webhooks(interval, boolean, integer)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);
@@ -1390,6 +1526,9 @@ as $$
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated, service_role;
+-- create_user writes auth.users as its definer; anon tests must not mint users.
+revoke execute on function tests.create_user(text, jsonb, jsonb) from public, anon;
+grant execute on function tests.create_user(text, jsonb, jsonb) to authenticated, service_role;
 
 select extensions.plan(1);
 select extensions.pass('better-supabase test helpers installed');
@@ -1908,7 +2047,7 @@ export function renderKit(
   const prefix = layout.prefix ?? "900_better_supabase";
   const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
   return resolveModules(names, layout).map((module) => {
-    const slug = module.name.replace(/-/g, "_");
+    const slug = module.name.replaceAll("-", "_");
     const path =
       module.target === "test"
         ? `${testsDir}/000_better_supabase_${slug}.test.sql`

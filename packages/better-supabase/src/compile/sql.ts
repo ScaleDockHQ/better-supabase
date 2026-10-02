@@ -26,7 +26,15 @@ export interface SqlPlan {
   readonly count: SqlQuery | undefined;
   /** No row can match; the executor returns an empty result without a query. */
   readonly never: boolean;
+  /**
+   * The rest of an insert split to stay under the bind-parameter limit. They
+   * run after this plan, in the same transaction; rows and counts add up.
+   */
+  readonly chunks?: readonly SqlPlan[];
 }
+
+// The wire protocol counts bind parameters in 16 bits.
+const MAX_PARAMS = 65_535;
 
 // json_build_object takes at most 100 arguments.
 const MAX_PAIRS = 50;
@@ -48,6 +56,47 @@ function dbColumn(table: TableMeta, app: string): string {
 
 function columnType(table: TableMeta, db: string): string | undefined {
   return Object.values(table.columns).find((meta) => meta.db === db)?.type;
+}
+
+type ColumnCondition = Extract<Condition, { kind: "column" }>;
+
+/**
+ * `a > x or (a = x and b > y) or ...` as `(a, b) > (x, y)`, which an index
+ * on `(a, b)` serves. Both forms give the same result under SQL's
+ * three-valued logic, nulls included.
+ */
+function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
+  readonly columns: string[];
+  readonly op: "gt" | "lt";
+  readonly values: unknown[];
+} | null {
+  const steps: ColumnCondition[] = [];
+  for (const [index, item] of condition.items.entries()) {
+    const terms = index === 0 ? [item] : item.kind === "and" ? item.items : [];
+    if (terms.length !== index + 1) return null;
+    const step = terms[index]!;
+    if (step.kind !== "column" || (step.op !== "gt" && step.op !== "lt"))
+      return null;
+    for (const [at, term] of terms.slice(0, index).entries()) {
+      const prev = steps[at]!;
+      if (
+        term.kind !== "column" ||
+        term.op !== "eq" ||
+        term.column !== prev.column ||
+        !Object.is(term.value, prev.value)
+      )
+        return null;
+    }
+    steps.push(step);
+  }
+  const op = steps[0]?.op;
+  if (op !== "gt" && op !== "lt") return null;
+  if (steps.length < 2 || steps.some((step) => step.op !== op)) return null;
+  return {
+    columns: steps.map((step) => step.column),
+    op,
+    values: steps.map((step) => step.value),
+  };
 }
 
 class SqlCompiler {
@@ -75,6 +124,12 @@ class SqlCompiler {
       case "or": {
         if (condition.items.length === 0)
           return condition.kind === "and" ? "true" : "false";
+        const row = condition.kind === "or" ? rowComparison(condition) : null;
+        if (row) {
+          const columns = row.columns.map((name) => this.column(alias, name));
+          const values = row.values.map((value) => this.param(value));
+          return `(${columns.join(", ")}) ${row.op === "gt" ? ">" : "<"} (${values.join(", ")})`;
+        }
         const joiner = condition.kind === "and" ? " and " : " or ";
         return `(${condition.items.map((item) => this.condition(item, table, alias)).join(joiner)})`;
       }
@@ -179,6 +234,8 @@ class SqlCompiler {
     target: TableMeta,
     targetAlias: string,
   ): string {
+    if (relation.columns.length !== relation.references.length)
+      invalidRequest(`Relation to "${target.key}" has mismatched columns`);
     return relation.columns
       .map((column, index) => {
         const reference = relation.references[index];
@@ -380,39 +437,21 @@ export function compileSql(op: Operation): SqlPlan {
       if (op.rows.length === 0)
         return { rows: undefined, count: undefined, never: true };
       const columns = insertColumns(op);
-      let body: string;
-      if (columns.length === 0) {
-        if (op.rows.length > 1)
-          invalidRequest("Cannot insert several rows without columns");
-        body = "default values";
-      } else {
-        const values = op.rows.map(
-          (row) =>
-            `(${columns
-              .map((column) =>
-                column in row
-                  ? compiler.param(row[column])
-                  : op.defaultToNull
-                    ? "null"
-                    : "default",
-              )
-              .join(", ")})`,
+      const perChunk = Math.floor(MAX_PARAMS / Math.max(columns.length, 1));
+      if (op.rows.length <= perChunk)
+        return insertPlan(compiler, from, alias, op, columns);
+      const [first, ...rest] = chunk(op.rows, perChunk).map((rows) => {
+        const own = new SqlCompiler();
+        const ownAlias = own.alias();
+        return insertPlan(
+          own,
+          `${tableRef(op.table)} as ${ownAlias}`,
+          ownAlias,
+          { ...op, rows },
+          columns,
         );
-        body = `(${columns.map(quoteIdent).join(", ")}) values ${values.join(", ")}`;
-      }
-      let conflict = "";
-      if (op.onConflict) {
-        const target = `(${op.onConflict.columns.map(quoteIdent).join(", ")})`;
-        const updates = columns.map(
-          (column) => `${quoteIdent(column)} = excluded.${quoteIdent(column)}`,
-        );
-        conflict =
-          op.onConflict.action === "ignore" || updates.length === 0
-            ? ` on conflict ${target} do nothing`
-            : ` on conflict ${target} do update set ${updates.join(", ")}`;
-      }
-      const statement = `insert into ${from} ${body}${conflict}${returningRows(compiler, op, alias)}`;
-      return mutation(statement, op.returning !== undefined, compiler.params);
+      });
+      return { ...first!, chunks: rest };
     }
     case "update": {
       const simple = simplifyOrFalse(op.where);
@@ -448,6 +487,55 @@ export function compileSql(op: Operation): SqlPlan {
       return exhaustive;
     }
   }
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let start = 0; start < items.length; start += size)
+    out.push(items.slice(start, start + size));
+  return out;
+}
+
+function insertPlan(
+  compiler: SqlCompiler,
+  from: string,
+  alias: string,
+  op: InsertOp,
+  columns: readonly string[],
+): SqlPlan {
+  let body: string;
+  if (columns.length === 0) {
+    if (op.rows.length > 1)
+      invalidRequest("Cannot insert several rows without columns");
+    body = "default values";
+  } else {
+    const values = op.rows.map(
+      (row) =>
+        `(${columns
+          .map((column) =>
+            column in row
+              ? compiler.param(row[column])
+              : op.defaultToNull
+                ? "null"
+                : "default",
+          )
+          .join(", ")})`,
+    );
+    body = `(${columns.map(quoteIdent).join(", ")}) values ${values.join(", ")}`;
+  }
+  let conflict = "";
+  if (op.onConflict) {
+    const target = `(${op.onConflict.columns.map(quoteIdent).join(", ")})`;
+    const updates = columns.map(
+      (column) => `${quoteIdent(column)} = excluded.${quoteIdent(column)}`,
+    );
+    conflict =
+      op.onConflict.action === "ignore" || updates.length === 0
+        ? ` on conflict ${target} do nothing`
+        : ` on conflict ${target} do update set ${updates.join(", ")}`;
+  }
+  const statement = `insert into ${from} ${body}${conflict}${returningRows(compiler, op, alias)}`;
+  return mutation(statement, op.returning !== undefined, compiler.params);
 }
 
 function mutation(

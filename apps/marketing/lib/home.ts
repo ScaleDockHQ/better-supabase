@@ -130,7 +130,7 @@ export const faq: readonly {
   {
     question: "Which runtimes and TypeScript versions are supported?",
     answer:
-      "Runtime entries import no Node built-ins, so they run on every WinterTC runtime. Published types are tested against TypeScript 5.9, 6 and 7.",
+      "Runtime entries import no Node built-ins, so they run on every WinterTC runtime. Published types are tested against TypeScript 6 and 7.",
   },
   {
     question: "Is this an official Supabase project?",

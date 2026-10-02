@@ -12,7 +12,7 @@ import {
 } from "../../src/doctor/live.ts";
 import { type DoctorContext, RULES, runRules } from "../../src/doctor/rules.ts";
 import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";
-import { snapshotFixture as fixture } from "../fixtures/library.ts";
+import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const snapshot = parseSnapshot(fixture);
 
@@ -253,13 +253,13 @@ describe("BS212 --explain", () => {
       {
         severity: "warning",
         message:
-          "--explain needs a direct database connection (local stack or --db-url).",
+          "--explain needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin).",
       },
     ]);
     expect(
       await check("BS212", { explain, database: { skipped: "saved file" } }),
     ).toMatchObject([
-      { message: expect.stringMatching(/--db-url\): saved file$/) },
+      { message: expect.stringMatching(/--db-url-stdin\): saved file$/) },
     ]);
   });
 

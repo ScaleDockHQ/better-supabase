@@ -17,7 +17,7 @@ export function DeleteAccountButton() {
       <button
         type="button"
         disabled={pending}
-        onClick={() =>
+        onClick={() => {
           startTransition(async () => {
             if (!confirm("Delete your account and all your data?")) return;
             const result = await deleteMyAccount(undefined);
@@ -29,8 +29,8 @@ export function DeleteAccountButton() {
             await supabase.auth.signOut({ scope: "local" });
             await sessionChanged();
             router.push("/login");
-          })
-        }
+          });
+        }}
       >
         Delete account
       </button>

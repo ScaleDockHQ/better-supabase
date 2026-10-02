@@ -10,13 +10,19 @@ Supabase signs HTTP Auth hooks with [Standard Webhooks](https://www.standardwebh
 serializes the answer:
 
 ```ts title="app/api/hooks/access-token/route.ts"
-import { authHook, hookError } from 'better-supabase/webhooks';
+import { authHook, hookError } from "better-supabase/webhooks";
 
-export const POST = authHook('custom_access_token', process.env.AUTH_HOOK_SECRET!, async ({ user_id, claims }) => {
-  const membership = await admin.memberships.findFirst({ where: { userId: user_id } }).orThrow();
-  if (!membership) return hookError(403, 'No organization');
-  return { claims: { ...claims, tenant_id: membership.organizationId } };
-});
+export const POST = authHook(
+  "custom_access_token",
+  process.env.AUTH_HOOK_SECRET!,
+  async ({ user_id, claims }) => {
+    const membership = await admin.memberships
+      .findFirst({ where: { userId: user_id } })
+      .orThrow();
+    if (!membership) return hookError(403, "No organization");
+    return { claims: { ...claims, tenant_id: membership.organizationId } };
+  },
+);
 ```
 
 The hooks are `custom_access_token`, `send_email`, `send_sms`,
@@ -31,16 +37,21 @@ policies read.
 ## Any Standard Webhook
 
 ```ts
-import { verifyWebhook, signWebhook } from 'better-supabase/webhooks';
+import { verifyWebhook, signWebhook } from "better-supabase/webhooks";
 
-const result = await verifyWebhook<MyPayload>(request, [currentSecret, previousSecret]);
+const result = await verifyWebhook<MyPayload>(request, [
+  currentSecret,
+  previousSecret,
+]);
 if (!result.ok) return problemResponse(result.error); // 401 with a WEBHOOK_* code
 ```
 
 It checks `webhook-id`, `webhook-timestamp` (5 minutes of tolerance by
 default) and every `v1` signature against each secret, in constant time. Pass
-several secrets while rotating. `signWebhook(secret, { id, body })` gives the
-headers for sending, and is useful in tests.
+several secrets while rotating. The verified result carries `timestamp` as a
+`Temporal.Instant`. `signWebhook(secret, { id, body })` gives the headers for
+sending, and is useful in tests; pass `timestamp` (a `Temporal.Instant`) to fix
+the signing time.
 
 ## Database webhooks
 
@@ -49,8 +60,8 @@ create them and check it with `verifySharedSecret(request, secret)`. Then
 read the payload with `databaseChange`:
 
 ```ts
-const change = databaseChange(sb, 'customers', await request.json());
-if (change?.type === 'INSERT') await welcome(change.record!.email);
+const change = databaseChange(sb, "customers", await request.json());
+if (change?.type === "INSERT") await welcome(change.record!.email);
 ```
 
 `record` and `oldRecord` are app-cased and typed. `databaseChange` returns

@@ -189,7 +189,7 @@ describe("testAuthResolver", () => {
       name: "api-key",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === null) return undefined;
+        if (key === null) return;
         return key === "good"
           ? { kind: "service", keyName: "ci" }
           : {
@@ -375,7 +375,12 @@ describe("conform", () => {
           throw new RangeError("bad");
         },
       ],
-      ["violates", () => conformExpect(false, "must hold")],
+      [
+        "violates",
+        () => {
+          conformExpect(false, "must hold");
+        },
+      ],
     ]).catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(ConformanceError);
     expect((error as Error).message).toBe(
@@ -570,7 +575,7 @@ describe("testAuthResolver edge cases", () => {
       name: "odd",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === null) return undefined;
+        if (key === null) return;
         // oxlint-disable-next-line typescript/only-throw-error -- the kit must report non-Error throws.
         if (key === "throw") throw "offline";
         return key === "user"
@@ -651,12 +656,12 @@ describe("testGenerator imports", () => {
     expect(
       await failures(testGenerator(windows, { meta: schema.meta })),
     ).toEqual(["writes files inside the project"]);
-    const shapeless: Generator = {
-      name: "shapeless",
+    const malformed: Generator = {
+      name: "malformed",
       generate: () => [{ path: 1, contents: "" }] as never,
     };
     expect(
-      await failures(testGenerator(shapeless, { meta: schema.meta })),
+      await failures(testGenerator(malformed, { meta: schema.meta })),
     ).toContain("writes files inside the project");
   });
 });

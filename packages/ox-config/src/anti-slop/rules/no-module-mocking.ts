@@ -59,6 +59,7 @@ function isTestFrameworkObject(
 function mockedSpecifier(node: ESTree.CallExpression): string | null {
   const [first] = node.arguments;
   if (first === undefined || first.type === "SpreadElement") return null;
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- a Literal's value is a closed union from the parser, not input
   if (first.type === "Literal" && typeof first.value === "string")
     return first.value;
   if (first.type === "TemplateLiteral" && first.quasis.length === 1) {

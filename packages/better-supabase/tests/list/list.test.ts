@@ -228,6 +228,7 @@ describe("defineListQuery", () => {
       "q",
       "sort",
       "page",
+      "after",
       "size",
       "status",
       "kvk",
@@ -460,5 +461,67 @@ describe("defineListQuery", () => {
       status: { lead: 2, active: 0, archived: 0 },
       kvk: { [UNSET]: 2, "9": 7 },
     });
+  });
+
+  it("pages by cursor when pagination is cursor", async () => {
+    const cursorList = defineListQuery(sb, "customers", {
+      sorts: { name: [{ name: "asc" }, { id: "asc" }] },
+      defaultSort: "name",
+      pagination: "cursor",
+      pageSize: 1,
+      maxPageSize: 2,
+    });
+    expect(cursorList.pagination).toBe("cursor");
+    expect(cursorList.parse({ page: 2 }).issues).toEqual([
+      { message: "This list pages with `after`, not `page`", path: ["page"] },
+    ]);
+    expect(cursorList.parse({ size: 3 }).ok).toBe(false);
+    expect(cursorList.parse({ after: 1 } as never).issues).toEqual([
+      { message: "Must be text", path: ["after"] },
+    ]);
+    expect(list.parse(new URLSearchParams("after=abc")).issues).toEqual([
+      { message: "This list pages with `page`, not `after`", path: ["after"] },
+    ]);
+    const first = cursorList.parse(new URLSearchParams()).value!;
+    expect(cursorList.args(first)).toEqual({
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      size: 1,
+      after: null,
+    });
+
+    const { client, last } = capturingClient(() => ({
+      body: [
+        { id: "c1", name: "Acme" },
+        { id: "c2", name: "Beta" },
+      ],
+    }));
+    const db = sb.connect(client);
+    const page = await cursorList
+      .run(db, first, { select: ["id", "name"] })
+      .orThrow();
+    expect(page.items).toEqual([{ id: "c1", name: "Acme" }]);
+    expect(page.hasMore).toBe(true);
+    expect(last().headers.get("prefer") ?? "").not.toContain("count");
+
+    const next = cursorList.parse(
+      cursorList.toSearchParams({ after: page.nextCursor! }),
+    ).value!;
+    expect(next.after).toBe(page.nextCursor);
+    await cursorList.run(db, next, { select: ["id", "name"] }).orThrow();
+    expect(last().params.get("or")).toBe(
+      '(name.gt."Acme",and(name.eq."Acme",id.gt."c1"))',
+    );
+    expect(cursorList.parsers.after.parse("")).toBeNull();
+    expect(cursorList.parsers.after.serialize("x")).toBe("x");
+    expect(cursorList.openapi.map((parameter) => parameter.name)).toEqual([
+      "sort",
+      "after",
+      "size",
+    ]);
+    expect(Object.keys(cursorList.jsonSchema["properties"] as object)).toEqual([
+      "sort",
+      "after",
+      "size",
+    ]);
   });
 });

@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { OffsetPage } from "../../src/core/repository-types.ts";
+import type {
+  CursorPage,
+  OffsetPage,
+} from "../../src/core/repository-types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery, type ListQuery } from "../../src/list/index.ts";
@@ -28,6 +31,20 @@ describe("list types", () => {
     expectTypeOf(page).toEqualTypeOf<
       OffsetPage<{ id: string; name: string }>
     >();
+  });
+
+  it("returns a cursor page with cursor pagination", async () => {
+    const list = defineListQuery(sb, "customers", {
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      pagination: "cursor",
+    });
+    expectTypeOf(list.pagination).toEqualTypeOf<"cursor">();
+    const page = await list
+      .run(db, list.defaults, { select: ["id"] })
+      .orThrow();
+    expectTypeOf(page).toEqualTypeOf<CursorPage<{ id: string }>>();
+    expectTypeOf(list.args(list.defaults).after).toEqualTypeOf<string | null>();
   });
 
   it("types facet counts and relation includes", async () => {

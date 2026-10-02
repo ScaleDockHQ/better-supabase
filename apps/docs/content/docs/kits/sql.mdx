@@ -22,26 +22,26 @@ before the schemas that call their functions.
 
 ## Modules
 
-| Module | What it adds |
-| --- | --- |
-| `updated-at` | `track_updated_at(table)` keeps an `updated_at` column current |
-| `actor` | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin |
-| `audit` | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, including which columns changed and any impersonating admin |
-| `tenant` | `memberships`, `current_tenant_id()`, `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook |
-| `invitations` | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's email |
-| `reserved-slugs` | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs |
-| `jobs` | Jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, dedupe keys and pg_cron schedules. Used by [`better-supabase/jobs`](/docs/kits/jobs) |
-| `idempotency` | Stores `Idempotency-Key` results so retried requests replay the first response |
-| `webhook-inbox` | Stores verified webhooks once and hands them to a worker |
-| `realtime-tables` | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables` |
-| `jsonb-schemas` | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below) |
-| `pgtap` | Test helpers for `supabase test db`. See [Testing](/docs/testing) |
-| `grants` | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants) |
-| `read-sets` | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets) |
-| `mfa` | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso) |
-| `entitlements` | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements) |
-| `vector-search` | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search) |
-| `rate-limit` | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes) |
+| Module            | What it adds                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updated-at`      | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                            |
+| `actor`           | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin  |
+| `audit`           | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, including which columns changed and any impersonating admin                 |
+| `tenant`          | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook    |
+| `invitations`     | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email     |
+| `reserved-slugs`  | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                      |
+| `jobs`            | Jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, dedupe keys and pg_cron schedules. Used by [`better-supabase/jobs`](/docs/kits/jobs)          |
+| `idempotency`     | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                            |
+| `webhook-inbox`   | Stores verified webhooks once and hands them to a worker                                                                                                                  |
+| `realtime-tables` | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                         |
+| `jsonb-schemas`   | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                      |
+| `pgtap`           | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                         |
+| `grants`          | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                           |
+| `read-sets`       | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                       |
+| `mfa`             | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                   |
+| `entitlements`    | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)         |
+| `vector-search`   | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                   |
+| `rate-limit`      | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes) |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. The
 `tenant` module is a template: edit the roles and policies to fit your app.
@@ -64,13 +64,56 @@ select better_supabase.track_updated_at('public.customers');
 select better_supabase.track_actor('public.customers');
 select better_supabase.audit('public.customers', ignore => '{updated_at}');
 
-create policy "admins update" on public.customers for update
-  using (better_supabase.has_org_role(organization_id, '{owner,admin}'));
+create policy "admins update" on public.customers for update to authenticated
+  using (organization_id in (select better_supabase.member_org_ids('{owner,admin}')))
+  with check (organization_id in (select better_supabase.member_org_ids('{owner,admin}')));
 ```
 
+`member_org_ids()` returns the user's organizations as a set, so Postgres runs
+it once per statement and compares each row against the result. Calling
+`has_org_role(organization_id)` in a policy runs it once per row instead; keep
+that one for functions and single checks. `with check` stops an update from
+moving a row into an organization the user can't manage.
+
+Admins can invite members, viewers and other admins. Only an owner, or the
+service role, can invite an owner, and the invitee has to confirm their email
+address before `accept_invitation` adds them.
+
 Errors raised by the kit carry a stable code in the `hint` field, for example
-`SLUG_RESERVED`, `SLUG_INVALID` or `INVITATION_INVALID`. They come back as
+`SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
+`INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
+
+## Retention
+
+The audit log, the webhook inbox and the job archives only grow. Each module
+has a purge function that deletes rows older than an interval, at most `batch`
+rows per call (10,000 by default), and returns how many it deleted. They
+delete in primary-key order, so they find the oldest rows through the primary
+key index without a full scan. Only `service_role` can call them.
+
+| Function                                           | Deletes                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`                       |
+| `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones |
+| `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs in pgmq's archive table `pgmq.a_<queue>`  |
+| `purge_idempotency_keys()`                         | expired idempotency keys                                          |
+
+Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
+hour. Enable the extension once (`create extension pg_cron with schema
+pg_catalog`), then:
+
+```sql
+select cron.schedule('purge-audit-log', '15 3 * * *', $$select better_supabase.purge_audit_log()$$);
+select cron.schedule('purge-webhooks', '30 3 * * *', $$select better_supabase.purge_webhooks()$$);
+select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
+select cron.schedule('purge-idempotency-keys', '0 4 * * *', $$select better_supabase.purge_idempotency_keys()$$);
+```
+
+When a table holds more old rows than one batch, the next run picks up the
+rest; run the job more often, or raise `batch`, until it keeps up. Keep the
+webhook retention above your senders' retry window: a retried message whose id
+was purged is stored and processed again.
 
 ## Rate limiting writes
 
@@ -112,10 +155,12 @@ The module sets `pgrst.db_pre_request` on the `authenticator` role, and only
 if no other pre-request function is set. `supabase db diff` doesn't capture
 role settings, so copy the `do` block at the end of the file into a
 migration. If you already have a pre-request function, keep it and call the
-check from it:
+check from it. Put it in a schema the Data API doesn't expose, so clients
+can't call it through `/rpc`:
 
 ```sql
-create or replace function public.pre_request() returns void language plpgsql as $$
+create schema if not exists private;
+create or replace function private.pre_request() returns void language plpgsql as $$
 begin
   perform better_supabase.check_request();
   -- your checks
@@ -134,18 +179,24 @@ reject. `schema` takes a JSON Schema object, or any Standard JSON Schema value
 (zod 4, valibot, arktype):
 
 ```ts title="better-supabase.config.ts"
-import { toStandardJsonSchema } from '@valibot/to-json-schema';
-import * as v from 'valibot';
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import * as v from "valibot";
 
 export const CustomerMetadata = toStandardJsonSchema(
-  v.object({ source: v.string(), tier: v.optional(v.picklist(['free', 'pro'])) }),
+  v.object({
+    source: v.string(),
+    tier: v.optional(v.picklist(["free", "pro"])),
+  }),
 );
 
 export default defineConfig({
   json: {
-    'customers.metadata': { import: './lib/metadata.ts#CustomerMetadata', schema: CustomerMetadata },
+    "customers.metadata": {
+      import: "./lib/metadata.ts#CustomerMetadata",
+      schema: CustomerMetadata,
+    },
   },
-  sql: { kit: ['jsonb-schemas'] },
+  sql: { kit: ["jsonb-schemas"] },
 });
 ```
 
@@ -161,20 +212,22 @@ you add other modules. List the modules you use in the config:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { kit: ['audit', 'jobs', 'invitations'], testsDir: 'supabase/tests' },
+  sql: { kit: ["audit", "jobs", "invitations"], testsDir: "supabase/tests" },
 });
 ```
 
 `better-supabase sql sync` rewrites those files after an upgrade, and
 `sql sync --check` fails in CI when a file is out of date. Use
 `sql print <module>` to copy a module into a hand-written migration instead.
+`sql add` and `sql sync` take `--dry-run` to show what they would write, and
+`--tests-dir <dir>` overrides `sql.testsDir` for the pgTAP module.
 
-| Option | Default |
-| --- | --- |
-| `sql.dir` | `supabase/schemas` |
-| `sql.prefix` | `900_better_supabase` |
-| `sql.testsDir` | `supabase/tests` |
-| `sql.kit` | `[]` |
+| Option         | Default               |
+| -------------- | --------------------- |
+| `sql.dir`      | `supabase/schemas`    |
+| `sql.prefix`   | `900_better_supabase` |
+| `sql.testsDir` | `supabase/tests`      |
+| `sql.kit`      | `[]`                  |
 
 ## Rendering modules in code
 
@@ -184,14 +237,14 @@ paths, `renderKit` returns the files with their managed headers (dependencies
 included), and `resolveModules` lists the modules a set of names pulls in.
 
 ```ts title="scripts/write-kit.ts"
-import { resolveConfig } from 'better-supabase/config';
-import { kitLayout, renderKit, resolveModules } from 'better-supabase/sql';
+import { resolveConfig } from "better-supabase/config";
+import { kitLayout, renderKit, resolveModules } from "better-supabase/sql";
 
-import config from '../better-supabase.config.ts';
+import config from "../better-supabase.config.ts";
 
 const layout = kitLayout(resolveConfig(config, process.cwd()));
-const modules = resolveModules(['audit', 'jobs'], layout).map((m) => m.name);
-const files = renderKit(['audit', 'jobs'], layout);
+const modules = resolveModules(["audit", "jobs"], layout).map((m) => m.name);
+const files = renderKit(["audit", "jobs"], layout);
 ```
 
 `compileReadSets` turns the read sets in `generated.ts` into the SQL views and

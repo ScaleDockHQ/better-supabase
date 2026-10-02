@@ -11,6 +11,10 @@ on:
         description: Base commit for `turbo --affected`.
         type: string
         default: ""
+    secrets:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY:
+        description: Signs and verifies Remote Cache artifacts.
+        required: false
 
 permissions:
   contents: read
@@ -20,6 +24,7 @@ env:
   TURBO_UI: stream
   TURBO_SCM_BASE: ${{ inputs.base }}
   AFFECTED: ${{ inputs.affected && '--affected' || '' }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
   verify:
@@ -38,7 +43,7 @@ jobs:
           - task: format
             run: pnpm run format:check
           - task: lint
-            run: pnpm exec turbo run lint $AFFECTED && pnpm run lint:root
+            run: pnpm exec turbo run lint lint:root --log-file $AFFECTED
           - task: prose
             run: pnpm run check:prose
           - task: knip
@@ -47,39 +52,49 @@ jobs:
             run: pnpm run boundaries
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
-            run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED && pnpm run typecheck:tooling
+            run: pnpm exec turbo run typecheck --concurrency=1 --log-file $AFFECTED && pnpm run typecheck:tooling
           - task: test
-            run: pnpm exec turbo run test --concurrency=1 $AFFECTED
+            run: pnpm exec turbo run test --concurrency=1 --log-file $AFFECTED
           - task: audit
             run: pnpm run audit:high
           - task: typecheck matrix
-            run: pnpm exec turbo run build --filter=better-supabase && pnpm run typecheck:matrix
+            run: pnpm exec turbo run build --filter=@better-supabase/cli... && pnpm run typecheck:matrix
           - task: type performance
-            run: pnpm exec turbo run build --filter=better-supabase && pnpm run typecheck:perf
+            run: pnpm exec turbo run build --filter=@better-supabase/cli... && pnpm run typecheck:perf
           - task: size
-            run: pnpm exec turbo run build --filter=better-supabase && pnpm run size
+            run: pnpm exec turbo run build --filter=@better-supabase/cli... && pnpm run size
           - task: publish checks
             run: pnpm run check:publish
           - task: generated code drift
             run: |
-              pnpm exec turbo run build --filter=better-supabase
+              pnpm exec turbo run build --filter=@better-supabase/cli...
               for project in apps/examples/* tests/validation-*; do
                 pnpm exec better-supabase gen --check --cwd "$project"
               done
           - task: doctor
             run: |
-              pnpm exec turbo run build --filter=better-supabase
+              pnpm exec turbo run build --filter=@better-supabase/cli...
               pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
     steps:
       - uses: actions/checkout@v7
         with:
           # `turbo --affected` compares against the base commit.
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: ./.github/actions/setup
 
       - name: ${{ matrix.task }}
         run: ${{ matrix.run }}
+
+      - name: Upload the Turbo logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: turbo-logs-${{ strategy.job-index }}
+          path: .turbo/logs/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload doctor findings
         if: always() && matrix.task == 'doctor'

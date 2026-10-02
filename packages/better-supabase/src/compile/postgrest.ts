@@ -10,6 +10,7 @@ import type {
 } from "../ir/types.ts";
 import type { RelationMeta, TableMeta } from "../schema/types.ts";
 
+import { temporalText } from "../core/temporal.ts";
 import { invalidRequest } from "../ir/build.ts";
 import { simplifyOrFalse } from "../ir/simplify.ts";
 
@@ -70,8 +71,9 @@ interface EmbedNode {
 // Value formatting
 
 function scalar(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
   if (typeof value === "string") return value;
+  const temporalValue = temporalText(value);
+  if (temporalValue !== undefined) return temporalValue;
   if (
     typeof value === "number" ||
     typeof value === "bigint" ||
@@ -86,7 +88,7 @@ function scalar(value: unknown): string {
 /** Double-quotes a value for PostgREST lists and logic trees. */
 function quote(value: unknown): string {
   const text = scalar(value);
-  return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 function list(values: readonly unknown[], open: string, close: string): string {
@@ -302,7 +304,7 @@ class PostgrestCompiler {
 
   // Filter embeds created from a logic tree hang off the current embed list;
   // their path is resolved by the caller that owns the list.
-  #paths = new WeakMap<EmbedNode[], string | undefined>();
+  readonly #paths = new WeakMap<EmbedNode[], string | undefined>();
 
   withPath(embeds: EmbedNode[], path: string | undefined): EmbedNode[] {
     this.#paths.set(embeds, path);
@@ -343,18 +345,20 @@ class PostgrestCompiler {
       const column = first ? include.target.columns[first]?.db : undefined;
       if (!column)
         invalidRequest(`Cannot filter "${include.alias}" to nothing`);
-      this.filters.push({
-        kind: "filter",
-        path: `${aliasPath}.${column}`,
-        operator: "is",
-        value: "null",
-      });
-      this.filters.push({
-        kind: "filter",
-        path: `${aliasPath}.${column}`,
-        operator: "not.is",
-        value: "null",
-      });
+      this.filters.push(
+        {
+          kind: "filter",
+          path: `${aliasPath}.${column}`,
+          operator: "is",
+          value: "null",
+        },
+        {
+          kind: "filter",
+          path: `${aliasPath}.${column}`,
+          operator: "not.is",
+          value: "null",
+        },
+      );
     } else if (where.condition) {
       this.andContext(where.condition, aliasPath, node.children);
     }

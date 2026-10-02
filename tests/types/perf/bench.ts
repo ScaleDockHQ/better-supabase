@@ -2,7 +2,6 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   type CatalogColumn,
@@ -36,13 +35,13 @@ interface BaselineEntry extends Profile {
 
 type Baseline = Readonly<Record<string, BaselineEntry>>;
 
-const PROFILES: Readonly<Record<string, Profile>> = {
+const PROFILES = {
   default: { tables: 150, queried: 40, composite: false },
   centrakit: { tables: 250, queried: 40, composite: true },
-};
+} satisfies Readonly<Record<string, Profile>>;
 const TOLERANCE = 0.1;
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const work = join(here, "tmp");
 const require = createRequire(import.meta.url);
 const tsc = join(
@@ -51,10 +50,9 @@ const tsc = join(
   "tsc",
 );
 const cli = join(
-  dirname(require.resolve("better-supabase/package.json")),
-  "dist",
-  "cli",
-  "bin.js",
+  dirname(require.resolve("@better-supabase/cli/package.json")),
+  "bin",
+  "better-supabase.js",
 );
 
 const name = (i: number): string => `t${String(i).padStart(3, "0")}`;
@@ -274,7 +272,7 @@ function run(profile: Profile): Measurement & {
     join(work, "better-supabase.config.json"),
     JSON.stringify({
       source: { snapshot: "snapshot.json" },
-      ...(profile.composite ? { schemas: ["public", "graphql_public"] } : {}),
+      schemas: profile.composite ? ["public", "graphql_public"] : undefined,
       casing: "camel",
       output: "generated.ts",
       plugins: {

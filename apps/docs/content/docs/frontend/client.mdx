@@ -4,8 +4,8 @@ description: Repositories in the browser that follow the session.
 ---
 
 ```ts title="src/lib/supabase.browser.ts"
-import { createBrowser } from 'better-supabase/client';
-import { sb } from './supabase';
+import { createBrowser } from "better-supabase/client";
+import { sb } from "./supabase";
 
 export const browser = createBrowser(sb, {
   env: {
@@ -14,7 +14,9 @@ export const browser = createBrowser(sb, {
   },
 });
 
-const customers = await browser.db.customers.findMany({ select: ['id', 'name'] }).orThrow();
+const customers = await browser.db.customers
+  .findMany({ select: ["id", "name"] })
+  .orThrow();
 ```
 
 - `browser.db` carries the current session's actor and claims, so plugins
@@ -29,19 +31,23 @@ const customers = await browser.db.customers.findMany({ select: ['id', 'name'] }
 
 ## Storage
 
-| `storage`           | Use it for                                                                 |
-| ------------------- | -------------------------------------------------------------------------- |
+| `storage`           | Use it for                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------- |
 | `cookies` (default) | apps with a server (Next.js, SvelteKit, …): the session is shared via `@supabase/ssr` cookies |
-| `local`             | SPAs without a server: the session lives in localStorage                   |
+| `local`             | SPAs without a server: the session lives in localStorage                                      |
 
 For React Native and Expo, pass your own client:
 
 ```ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const browser = createBrowser(sb, {
   client: createClient(url, publishableKey, {
-    auth: { storage: AsyncStorage, persistSession: true, detectSessionInUrl: false },
+    auth: {
+      storage: AsyncStorage,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
   }),
 });
 ```

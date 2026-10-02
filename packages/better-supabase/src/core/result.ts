@@ -66,7 +66,7 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
     return new AsyncResult<T>(Promise.resolve(err(error)));
   }
 
-  // oxlint-disable-next-line unicorn/no-thenable
+  // oxlint-disable-next-line unicorn/no-thenable -- `await` on an AsyncResult yields its Result by design
   then<R1 = Result<T>, R2 = never>(
     onfulfilled?: ((value: Result<T>) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
@@ -125,7 +125,7 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
 }
 
 /** What `toBetterResult` returns: the `status`/`value`/`error` fields every better-result value has. */
-export type BetterResultShape<T, E> =
+export type BetterResultValue<T, E> =
   | { readonly status: "ok"; readonly value: T }
   | { readonly status: "error"; readonly error: E };
 
@@ -151,20 +151,20 @@ export function toBetterResult<T, E>(
   result: Result<T>,
   api: BetterResultApi<T, E>,
   mapError: (error: DbError) => E,
-): BetterResultShape<T, E>;
+): BetterResultValue<T, E>;
 export function toBetterResult<T>(
   result: Result<T>,
   api: BetterResultApi<T, DbError>,
-): BetterResultShape<T, DbError>;
+): BetterResultValue<T, DbError>;
 export function toBetterResult<T, E>(
   result: AsyncResult<T>,
   api: BetterResultApi<T, E>,
   mapError: (error: DbError) => E,
-): Promise<BetterResultShape<T, E>>;
+): Promise<BetterResultValue<T, E>>;
 export function toBetterResult<T>(
   result: AsyncResult<T>,
   api: BetterResultApi<T, unknown>,
-): Promise<BetterResultShape<T, unknown>>;
+): Promise<BetterResultValue<T, unknown>>;
 export function toBetterResult(
   result: Result<unknown> | AsyncResult<unknown>,
   api: BetterResultApi<unknown, unknown>,
@@ -188,7 +188,7 @@ export function toBetterResult(
  * (default `toDbError`).
  */
 export function fromBetterResult<T>(
-  result: BetterResultShape<T, unknown>,
+  result: BetterResultValue<T, unknown>,
   mapError: (error: unknown) => DbError = toDbError,
 ): Result<T> {
   switch (result.status) {

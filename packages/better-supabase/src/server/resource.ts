@@ -21,6 +21,7 @@ import { respond, type RespondOptions } from "./respond.ts";
 /** What a resource needs from `defineListQuery`. */
 export interface ResourceList {
   readonly table: string;
+  readonly pagination?: ResourcePagination;
   readonly openapi: readonly unknown[];
   readonly jsonSchema: Readonly<Record<string, unknown>>;
   parse(
@@ -46,9 +47,17 @@ export interface ResourceRouteOptions<
     readonly create?: StandardSchemaV1<unknown, Insert<M, T>>;
     readonly update?: StandardSchemaV1<unknown, Update<M, T>>;
   };
-  /** Largest page for the default `page`/`size` list. Defaults to 200. */
+  /**
+   * Paging of the default list: `offset` (`page` and `size`) or `cursor`
+   * (`after` and `size`, keyset). A `list` query brings its own. Defaults
+   * to `offset`.
+   */
+  readonly pagination?: ResourcePagination;
+  /** Largest page for the default list. Defaults to 200. */
   readonly maxPageSize?: number;
 }
+
+export type ResourcePagination = "offset" | "cursor";
 
 export interface ResourceInput {
   /** Primary key value; strings are converted for integer keys. */
@@ -66,6 +75,7 @@ export interface ResourceHandler {
   /** Name of the key parameter, or `undefined` for tables without a single-column key. */
   readonly keyParam: string | undefined;
   readonly list: ResourceList | undefined;
+  readonly pagination: ResourcePagination;
   readonly maxPageSize: number;
   /** Runs one operation as whoever `db` is bound to. Resolves to a `Result`. */
   execute(
@@ -120,31 +130,48 @@ async function readBody(request: Request): Promise<Result<unknown>> {
 function pageArgs(
   query: ResourceInput["query"],
   max: number,
-): Result<{ page: number; size: number }> {
-  const read = (name: string, fallback: number): number | undefined => {
-    const raw: unknown =
+  pagination: ResourcePagination,
+): Result<
+  { page: number; size: number } | { after: string | null; size: number }
+> {
+  const raw = (name: string): unknown => {
+    const value: unknown =
       query instanceof URLSearchParams ? query.get(name) : query?.[name];
-    if (raw === null || raw === undefined || raw === "") return fallback;
-    const value = Number(raw);
-    return Number.isSafeInteger(value) && value >= 1 ? value : undefined;
+    return value === null || value === "" ? undefined : value;
   };
-  const page = read("page", 1);
+  const read = (name: string, fallback: number): number | undefined => {
+    const value = raw(name);
+    if (value === undefined) return fallback;
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number >= 1 ? number : undefined;
+  };
+  const issues: ValidationIssue[] = [];
   const size = read("size", 50);
-  if (page === undefined || size === undefined || size > max) {
-    return err(
-      dbError("validation", "Invalid page parameters", {
-        issues: [
-          ...(page === undefined
-            ? [{ message: "Must be a positive integer", path: ["page"] }]
-            : []),
-          ...(size === undefined || size > max
-            ? [{ message: `Must be between 1 and ${max}`, path: ["size"] }]
-            : []),
-        ],
-      }),
-    );
+  if (size === undefined || size > max)
+    issues.push({ message: `Must be between 1 and ${max}`, path: ["size"] });
+  const [used, unused] =
+    pagination === "cursor" ? ["after", "page"] : ["page", "after"];
+  if (raw(unused) !== undefined)
+    issues.push({
+      message: `This list pages with \`${used}\``,
+      path: [unused],
+    });
+  const page = read("page", 1);
+  if (pagination === "offset" && page === undefined)
+    issues.push({ message: "Must be a positive integer", path: ["page"] });
+  const after = raw("after");
+  if (
+    pagination === "cursor" &&
+    after !== undefined &&
+    typeof after !== "string"
+  )
+    issues.push({ message: "Must be text", path: ["after"] });
+  if (issues.length > 0 || size === undefined) {
+    return err(dbError("validation", "Invalid page parameters", { issues }));
   }
-  return ok({ page, size });
+  return pagination === "cursor"
+    ? ok({ after: typeof after === "string" ? after : null, size })
+    : ok({ page: page ?? 1, size });
 }
 
 function asObject(value: unknown): Result<unknown> {
@@ -200,6 +227,9 @@ export function defineResource<
   const extra = options.select === undefined ? {} : { select: options.select };
   const maxPageSize = options.maxPageSize ?? 200;
   const list = options.list;
+  const pagination = list
+    ? (list.pagination ?? "offset")
+    : (options.pagination ?? "offset");
 
   const execute = async (
     db: object,
@@ -238,7 +268,7 @@ export function defineResource<
             list.run(db as never, query.value as never, extra as never),
           );
         }
-        const page = pageArgs(input.query, maxPageSize);
+        const page = pageArgs(input.query, maxPageSize, pagination);
         if (!page.ok) return page;
         // SAFETY: the resource erases table generics; page holds validated
         // paginate options for this table.
@@ -246,7 +276,7 @@ export function defineResource<
           repository.paginate({
             ...extra,
             ...page.data,
-            count: "exact",
+            ...("page" in page.data ? { count: "exact" } : {}),
           } as never),
         );
       }
@@ -347,6 +377,7 @@ export function defineResource<
     operations,
     keyParam,
     list,
+    pagination,
     maxPageSize,
     execute,
     handle(request, db, id, respondOptions = {}) {

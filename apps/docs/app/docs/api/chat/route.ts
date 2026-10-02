@@ -6,15 +6,19 @@ import {
   toUIMessageStream,
   type UIMessage,
 } from "ai";
+import { checkBotId } from "botid/server";
+import * as v from "valibot";
 
 import { env } from "@/env";
-import { searchDocs } from "@/lib/docs-mcp";
+import { searchDocs } from "@/lib/page-search";
 import { siteUrl } from "@/lib/site-url";
 import { getLLMText, getPageSummaries, source } from "@/lib/source";
 
 const MODEL = "anthropic/claude-sonnet-5.5";
 const CONTEXT_PAGES = 4;
 const MAX_MESSAGES = 20;
+
+const ChatBody = v.object({ messages: v.array(v.unknown()) });
 
 const SYSTEM = `You answer questions about better-supabase, a TypeScript
 library for Supabase. Answer only from the documentation pages below. When they
@@ -59,17 +63,27 @@ export async function POST(request: Request): Promise<Response> {
     return problem(503, "Ask AI is not configured on this deployment");
   }
 
-  let body: unknown;
+  const verdict = await checkBotId().catch(() => undefined);
+  if (verdict === undefined) {
+    return problem(503, "Bot protection is not available on this deployment");
+  }
+  if (verdict.isBot) {
+    return problem(403, "Ask AI is not available to automated clients");
+  }
+
+  let json: unknown;
   try {
-    body = await request.json();
+    json = await request.json();
   } catch {
     return problem(400, "The request body is not JSON");
   }
-  const messages =
-    typeof body === "object" && body !== null && "messages" in body
-      ? body.messages
-      : undefined;
-  const parsed = await safeValidateUIMessages({ messages });
+  const body = v.safeParse(ChatBody, json);
+  if (!body.success) {
+    return problem(400, "Send between 1 and 20 chat messages");
+  }
+  const parsed = await safeValidateUIMessages({
+    messages: body.output.messages,
+  });
   if (!parsed.success || parsed.data.length > MAX_MESSAGES) {
     return problem(400, "Send between 1 and 20 chat messages");
   }

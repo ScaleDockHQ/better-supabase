@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import {
@@ -18,7 +18,7 @@ const ID = "msg_p5jXN8AQM9LWM0D4loKWxJek";
 const TIMESTAMP = 1_614_265_330;
 const BODY = '{"test": 2432232314}';
 const SIGNATURE = "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=";
-const now = () => TIMESTAMP * 1000;
+const now = () => Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000);
 
 const headers = (signature = SIGNATURE, timestamp = String(TIMESTAMP)) => ({
   "webhook-id": ID,
@@ -27,13 +27,25 @@ const headers = (signature = SIGNATURE, timestamp = String(TIMESTAMP)) => ({
 });
 
 describe("Standard Webhooks", () => {
+  it("returns an error instead of throwing when Temporal is missing", async () => {
+    vi.stubGlobal("Temporal", undefined);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const result = await verifyWebhook(
+      { headers: headers(), body: BODY },
+      SECRET,
+    );
+    expect(result.error).toMatchObject({ kind: "unexpected" });
+  });
+
   it("matches the reference signature", async () => {
     expect(
       (
         await signWebhook(SECRET, {
           id: ID,
           body: BODY,
-          timestamp: new Date(TIMESTAMP * 1000),
+          timestamp: Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000),
         })
       )["webhook-signature"],
     ).toBe(SIGNATURE);
@@ -47,7 +59,7 @@ describe("Standard Webhooks", () => {
       error: null,
       data: {
         id: ID,
-        timestamp: new Date(TIMESTAMP * 1000),
+        timestamp: Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000),
         payload: { test: 2_432_232_314 },
         body: BODY,
       },

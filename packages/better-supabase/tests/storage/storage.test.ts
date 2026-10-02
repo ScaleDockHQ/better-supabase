@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -1066,7 +1066,7 @@ describe("BucketClient signed uploads", () => {
 });
 
 describe("BucketClient sweep", () => {
-  const NOW = Date.parse("2026-01-02T00:00:00.000Z");
+  const NOW = Temporal.Instant.from("2026-01-02T00:00:00Z");
   const files = () =>
     fakeStorage({
       files: {
@@ -1083,7 +1083,7 @@ describe("BucketClient sweep", () => {
       paths.filter((path) => path === "o1/u1/a.txt"),
     );
     const result = await docs.connect(storage.client).sweep({
-      olderThan: 3_600_000,
+      olderThan: Temporal.Duration.from({ hours: 1 }),
       now: () => NOW,
       referenced,
     });
@@ -1111,34 +1111,50 @@ describe("BucketClient sweep", () => {
     const referenced = vi.fn(() => []);
     expect(
       await bucket.sweep({
-        olderThan: 2 * TTL.day * 1000,
+        olderThan: Temporal.Duration.from({ days: 2 }),
         now: () => NOW,
         referenced,
       }),
     ).toEqual(ok({ scanned: 4, orphans: [], removed: [] }));
     expect(
-      await bucket.sweep({ olderThan: new Date("2025-12-31"), referenced }),
+      await bucket.sweep({
+        olderThan: Temporal.Instant.from("2025-12-31T00:00:00Z"),
+        referenced,
+      }),
     ).toEqual(ok({ scanned: 4, orphans: [], removed: [] }));
     expect(referenced).not.toHaveBeenCalled();
     const old = await bucket.sweep({
-      olderThan: new Date("2026-01-02"),
+      olderThan: Temporal.Instant.from("2026-01-02T00:00:00Z"),
       referenced: async () => new Set(["o1/u1/a.txt", "o1/u1/b.txt"]),
     });
     expect(old.ok && old.data.removed).toEqual(["o1/u2/c.txt"]);
   });
 
+  it("returns an error instead of throwing when Temporal is missing", async () => {
+    const bucket = docs.connect(files().client);
+    const olderThan = Temporal.Duration.from({ hours: 1 });
+    vi.stubGlobal("Temporal", undefined);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const result = await bucket.sweep({ olderThan, referenced: () => [] });
+    expect(result.error).toMatchObject({ kind: "unexpected" });
+  });
+
   it("uses the real clock by default", async () => {
     const storage = files();
-    const result = await docs
-      .connect(storage.client)
-      .sweep({ olderThan: 1000, referenced: () => [], dryRun: true });
+    const result = await docs.connect(storage.client).sweep({
+      olderThan: Temporal.Duration.from({ seconds: 1 }),
+      referenced: () => [],
+      dryRun: true,
+    });
     expect(result.ok && result.data.orphans).toHaveLength(3);
   });
 
   it("reports orphans without removing them on a dry run", async () => {
     const storage = files();
     const result = await docs.connect(storage.client).sweep({
-      olderThan: 0,
+      olderThan: Temporal.Duration.from({ seconds: 0 }),
       now: () => NOW,
       referenced: () => [],
       dryRun: true,
@@ -1159,7 +1175,7 @@ describe("BucketClient sweep", () => {
     );
     const result = await docs.connect(storage.client).sweep({
       within: { orgId: "o1", userId: "u1" },
-      olderThan: 0,
+      olderThan: Temporal.Duration.from({ seconds: 0 }),
       now: () => NOW,
       batchSize: 1,
       referenced,
@@ -1210,7 +1226,7 @@ describe("BucketClient sweep", () => {
     });
     const result = await docs.connect(stubClient({ list })).sweep({
       within: { orgId: "o1", userId: "u1" },
-      olderThan: 0,
+      olderThan: Temporal.Duration.from({ seconds: 0 }),
       now: () => NOW,
       referenced: () => [],
       dryRun: true,
@@ -1223,9 +1239,10 @@ describe("BucketClient sweep", () => {
       fail: { list: storageError("denied", { statusCode: "403" }) },
     });
     expect(
-      await docs
-        .connect(listing.client)
-        .sweep({ olderThan: 0, referenced: () => [] }),
+      await docs.connect(listing.client).sweep({
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
+        referenced: () => [],
+      }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
 
     const storage = fakeStorage({
@@ -1234,7 +1251,7 @@ describe("BucketClient sweep", () => {
     });
     expect(
       await docs.connect(storage.client).sweep({
-        olderThan: 0,
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
         now: () => NOW,
         referenced: () => [],
       }),
@@ -1242,7 +1259,7 @@ describe("BucketClient sweep", () => {
 
     expect(
       await docs.connect(files().client).sweep({
-        olderThan: 0,
+        olderThan: Temporal.Duration.from({ seconds: 0 }),
         referenced: () => [],
         signal: AbortSignal.abort(),
       }),

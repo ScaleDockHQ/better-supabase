@@ -56,8 +56,9 @@ function schema<T>(
 }
 
 const exp = (token: string): number =>
-  JSON.parse(atob(token.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/")))
-    .exp as number;
+  JSON.parse(
+    atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/")),
+  ).exp as number;
 
 describe("verified token memo", () => {
   it("reuses a verified token until it expires", async () => {

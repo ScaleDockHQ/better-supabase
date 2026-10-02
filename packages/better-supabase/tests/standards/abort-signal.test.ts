@@ -23,9 +23,15 @@ function hangingClient() {
     seen.push(signal);
     return new Promise((_resolve, reject) => {
       if (signal?.aborted) reject(signal.reason);
-      signal?.addEventListener("abort", () => reject(signal.reason), {
-        once: true,
-      });
+      signal?.addEventListener(
+        "abort",
+        () => {
+          reject(signal.reason);
+        },
+        {
+          once: true,
+        },
+      );
     });
   };
   const client = createClient("http://localhost:54321", "sb_publishable_test", {
@@ -54,7 +60,9 @@ describe("AbortSignal", () => {
     const pending = sb
       .connect(client)
       .customers.findMany({ signal: controller.signal });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
     expect(seen.at(-1)).toBeDefined();
     controller.abort(new DOMException("stop", "AbortError"));
     const result = await pending;

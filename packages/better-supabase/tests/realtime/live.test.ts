@@ -38,7 +38,9 @@ function fakeClient(
         subscribe: (callback: (status: string, error?: unknown) => void) => {
           statusCallbacks.set(topic, callback);
           const [status, error] = first(topic);
-          queueMicrotask(() => callback(status, error));
+          queueMicrotask(() => {
+            callback(status, error);
+          });
           return channel;
         },
       };
@@ -63,7 +65,10 @@ function fakeClient(
   };
 }
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const wait = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 describe("liveTopic", () => {
   it("scopes tenant tables and requires the tenant", () => {

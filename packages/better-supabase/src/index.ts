@@ -16,7 +16,7 @@ export {
 } from "./core/result.ts";
 export type {
   BetterResultApi,
-  BetterResultShape,
+  BetterResultValue,
   Err,
   Ok,
   Result,

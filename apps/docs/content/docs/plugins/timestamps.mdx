@@ -4,7 +4,7 @@ description: createdAt and updatedAt without remembering them.
 ---
 
 ```ts
-import { timestamps } from 'better-supabase/plugins/timestamps';
+import { timestamps } from "better-supabase/plugins/timestamps";
 
 defineSupabase(schema).use(timestamps());
 ```
@@ -15,8 +15,9 @@ defineSupabase(schema).use(timestamps());
   original `createdAt` survives. With `ignoreDuplicates: true` both are set.
 - Values you pass yourself are kept.
 
-The time comes from `defineSupabase(schema, { now })`, which makes tests
-deterministic.
+The time comes from `defineSupabase(schema, { now })`, a function that returns
+a `Temporal.Instant`, which makes tests deterministic. See
+[Temporal](/docs/concepts/temporal).
 
 <Callout title="Writes outside the app">
   SQL functions, dashboards and other services bypass the plugin. Add the

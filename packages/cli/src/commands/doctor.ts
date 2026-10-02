@@ -6,11 +6,13 @@ import { resolve } from "node:path";
 
 import type { AnyCommand, CliArgs } from "../command.ts";
 import type { LiveDatabase } from "../doctor/live.ts";
+import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
+import { stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
 import {
   type AdvisorSource,
@@ -21,6 +23,7 @@ import {
   DOCTOR_FORMATS,
   type DoctorFormat,
   formatReport,
+  jsonReport,
 } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
@@ -34,6 +37,7 @@ import {
   type SqlObject,
   type TextFile,
 } from "../doctor/rules.ts";
+import { CliError } from "../errors.ts";
 import { writeIfChanged } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
@@ -57,7 +61,7 @@ const ARGS = {
   format: {
     type: "string",
     description:
-      "text (default), json, sarif (code scanning) or github (workflow annotations)",
+      "text (default), sarif (code scanning) or github (workflow annotations); --json for the JSON report",
     valueHint: "format",
   },
   out: {
@@ -84,10 +88,10 @@ const ARGS = {
     description: "Check a saved snapshot instead of the database",
     valueHint: "file",
   },
-  "db-url": {
-    type: "string",
-    description: "Read this database",
-    valueHint: "url",
+  "db-url-stdin": {
+    type: "boolean",
+    description:
+      "Read the connection string from stdin instead of $DATABASE_URL or the config",
   },
   "project-ref": {
     type: "string",
@@ -182,7 +186,7 @@ async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
 }
 
 const escape = (name: string): string =>
-  name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Where a table, function or policy is declared: declarative schemas first, then the newest migration. */
 export function locate(
@@ -210,12 +214,28 @@ export function locate(
   return undefined;
 }
 
-function parseFormat(value: string | undefined): DoctorFormat | undefined {
-  if (value === undefined) return "text";
-  // SAFETY: includes only compares values; the check makes value a DoctorFormat.
-  return (DOCTOR_FORMATS as readonly string[]).includes(value)
-    ? (value as DoctorFormat)
-    : undefined;
+const FLAG_FORMATS = DOCTOR_FORMATS.filter((format) => format !== "json");
+
+/** `--json` picks the JSON report; `--format` picks between the others. */
+function reportFormat(args: DoctorArgs): DoctorFormat {
+  if (args.format === "json") {
+    throw new CliError("usage", "--format json is now the global --json flag");
+  }
+  if (args.json === true) {
+    if (args.format !== undefined) {
+      throw new CliError("usage", "Pass --json or --format, not both");
+    }
+    return "json";
+  }
+  if (args.format === undefined) return "text";
+  const format = FLAG_FORMATS.find((candidate) => candidate === args.format);
+  if (!format) {
+    throw new CliError(
+      "usage",
+      `--format must be one of ${FLAG_FORMATS.join(", ")}`,
+    );
+  }
+  return format;
 }
 
 export interface DoctorOptions {
@@ -229,12 +249,14 @@ export interface DoctorOptions {
   readonly connect?: typeof connect;
   /** Colors the text report. */
   readonly paint?: Paint;
+  /** The connection string `--db-url-stdin` read. */
+  readonly dbUrl?: string;
 }
 
 /** Checks that read the database itself rather than the snapshot. */
 const LIVE_CODES = new Set(["BS100", "BS200", "BS208", "BS209", "BS212"]);
 
-type Env = Readonly<Record<string, string | undefined>>;
+type Env = CliEnv;
 
 interface OpenLive {
   readonly advisors: DoctorContext["advisors"];
@@ -256,7 +278,7 @@ function openLive(
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
   if (file) {
-    const skipped = `reading the saved snapshot ${file}; pass --db-url or --project-ref to check a database.`;
+    const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
     return { ...none, advisors: { skipped }, database: { skipped } };
   }
   let opened: Promise<IntrospectionSource> | undefined;
@@ -324,15 +346,10 @@ function explainClaims(
 export async function runDoctor(
   config: ResolvedConfig,
   args: DoctorArgs,
-  env: Readonly<Record<string, string | undefined>>,
+  env: CliEnv,
   options: DoctorOptions = {},
 ): Promise<CommandResult> {
-  const format = parseFormat(args.format);
-  if (!format)
-    return {
-      code: 2,
-      error: `--format must be one of ${DOCTOR_FORMATS.join(", ")}`,
-    };
+  const format = reportFormat(args);
   const only = list(args.only);
   const ignore = new Set([...config.doctor.ignore, ...list(args.ignore)]);
   const unknown = [...only, ...ignore].filter(
@@ -366,7 +383,7 @@ export async function runDoctor(
       );
 
   const snapshotPath = args.snapshot;
-  const dbUrl = args["db-url"];
+  const dbUrl = options.dbUrl;
   const projectRef = args["project-ref"];
   const source: SnapshotSource = {
     // Statistics, plans and hook calls need the database, not the saved snapshot.
@@ -389,12 +406,12 @@ export async function runDoctor(
         }
       : {
           ...openLive(config, env, source, pg),
-          ...(options.advisors !== undefined
-            ? { advisors: options.advisors }
-            : {}),
-          ...(options.database !== undefined
-            ? { database: options.database }
-            : {}),
+          ...(options.advisors === undefined
+            ? {}
+            : { advisors: options.advisors }),
+          ...(options.database === undefined
+            ? {}
+            : { database: options.database }),
         };
   const envFiles = (
     await Promise.all(ENV_FILES.map((path) => readText(config.root, path)))
@@ -460,9 +477,12 @@ export async function runDoctor(
     return {
       code,
       output: `Wrote ${out}: ${errors} errors, ${warnings} warnings.`,
+      data: { out, errors, warnings },
     };
   }
-  return { code, output: report };
+  return format === "json"
+    ? { code, data: jsonReport(findings, VERSION) }
+    : { code, output: report };
 }
 
 export const doctorCommand: AnyCommand = defineCliCommand({
@@ -473,10 +493,16 @@ export const doctorCommand: AnyCommand = defineCliCommand({
   },
   args: ARGS,
   lists: ["only", "ignore", "explain"],
-  run: (args, { config, env, io }) =>
-    withSpinner(
+  run: async (args, { config, env, io }) => {
+    const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
+    return withSpinner(
       args.snapshot === undefined ? io.prompts : undefined,
       "Checking the database",
-      () => runDoctor(config, args, env, { paint: painter(io.color) }),
-    ),
+      () =>
+        runDoctor(config, args, env, {
+          paint: painter(io.color),
+          ...(dbUrl ? { dbUrl } : {}),
+        }),
+    );
+  },
 });

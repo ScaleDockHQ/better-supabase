@@ -50,7 +50,7 @@ export function singular(name: string): string {
 
 export function pascal(name: string): string {
   return name
-    .replace(/(^|[_-]+)([a-z0-9])/g, (_, __, char: string) =>
+    .replaceAll(/(^|[_-]+)([a-z0-9])/g, (_, __, char: string) =>
       char.toUpperCase(),
     )
     .replace(/^[a-z]/, (char) => char.toUpperCase());
@@ -76,7 +76,7 @@ export function parseCheckUnion(
   const any = CHECK_ANY.exec(definition);
   if (any?.[1] && any[2]) {
     const values = [...any[2].matchAll(LITERAL)].map((match) =>
-      (match[1] ?? "").replace(/''/g, "'"),
+      (match[1] ?? "").replaceAll("''", "'"),
     );
     return values.length > 0 ? { column: any[1], values } : undefined;
   }
@@ -90,7 +90,7 @@ export function parseCheckUnion(
       if (!match?.[1]) return undefined;
       if (column && column !== match[1]) return undefined;
       column = match[1];
-      values.push((match[2] ?? "").replace(/''/g, "'"));
+      values.push((match[2] ?? "").replaceAll("''", "'"));
     }
     return column && values.length > 1 ? { column, values } : undefined;
   }

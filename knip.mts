@@ -21,6 +21,9 @@ const browserExample = {
 const config: KnipConfig = {
   treatConfigHintsAsErrors: true,
   tags: ["-internal"],
+  ignoreExportsUsedInFile: { interface: true, type: true },
+  // Vendored maintainer skills (ADR 0004) carry their own scripts.
+  ignore: [".agents/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`).
   ignoreBinaries: ["vercel"],
   ignoreIssues: {
@@ -37,7 +40,6 @@ const config: KnipConfig = {
     },
     "packages/better-supabase": {
       entry: [
-        "src/index.ts",
         "src/*/index.ts",
         "src/*/*/index.ts",
         "src/react/{server,session}.ts",
@@ -65,9 +67,10 @@ const config: KnipConfig = {
       ],
     },
     "packages/typescript-config": {},
+    "packages/next-config": {},
     "apps/docs": {
-      // Twoslash snippets import better-supabase; twoslash is a peer of fumadocs-twoslash.
-      ignoreDependencies: ["better-supabase", "twoslash"],
+      // twoslash is a peer of fumadocs-twoslash.
+      ignoreDependencies: ["twoslash"],
     },
     "apps/marketing": {
       ignore: ["components/ui/**", "components/reui/**"],
@@ -82,8 +85,9 @@ const config: KnipConfig = {
     },
     "apps/examples/vite-react": browserExample,
     "tests/bundle": {
-      // The size and export checks resolve the built package by name.
-      ignoreDependencies: ["better-supabase"],
+      // The size checks read the built packages from disk; the dependencies
+      // make Turbo build them first.
+      ignoreDependencies: ["better-supabase", "@better-supabase/cli"],
     },
     "tests/e2e": {
       ignoreBinaries: ["next"],
@@ -94,7 +98,10 @@ const config: KnipConfig = {
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],
     },
-    "tests/types/perf": {},
+    "tests/types/perf": {
+      // The consumer that bench.ts writes to tmp/ imports both.
+      ignoreDependencies: ["better-supabase", "@supabase/supabase-js"],
+    },
     // Modules ported from production apps; their exports are the app's API.
     "tests/validation-*": {
       entry: ["src/**/*.ts"],

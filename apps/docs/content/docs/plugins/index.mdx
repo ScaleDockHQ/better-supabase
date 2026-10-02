@@ -4,15 +4,15 @@ description: First-party plugins for the columns every app repeats.
 ---
 
 ```ts title="src/lib/supabase.ts"
-import { defineSupabase } from 'better-supabase';
-import { actor } from 'better-supabase/plugins/actor';
-import { softDelete } from 'better-supabase/plugins/soft-delete';
-import { tenant } from 'better-supabase/plugins/tenant';
-import { timestamps } from 'better-supabase/plugins/timestamps';
-import { validation } from 'better-supabase/plugins/validation';
+import { defineSupabase } from "better-supabase";
+import { actor } from "better-supabase/plugins/actor";
+import { softDelete } from "better-supabase/plugins/soft-delete";
+import { tenant } from "better-supabase/plugins/tenant";
+import { timestamps } from "better-supabase/plugins/timestamps";
+import { validation } from "better-supabase/plugins/validation";
 
-import { schema } from './supabase/generated.ts';
-import { validators } from './supabase/generated.valibot.ts';
+import { schema } from "./supabase/generated.ts";
+import { validators } from "./supabase/generated.valibot.ts";
 
 export const sb = defineSupabase(schema)
   .use(timestamps())
@@ -46,14 +46,14 @@ Hooks run in `use()` order, with two exceptions:
 - `validation()` runs last (`enforce: 'post'`), so it validates the row
   after `tenant()` filled `organizationId`.
 
-| Plugin | What it does |
-| --- | --- |
-| [`timestamps()`](/docs/plugins/timestamps) | Sets `createdAt` and `updatedAt` |
-| [`softDelete()`](/docs/plugins/soft-delete) | Hides deleted rows, turns `delete` into an update, adds `restore` |
-| [`tenant()`](/docs/plugins/tenant) | Scopes queries to the request's tenant and fills it on insert |
-| [`actor()`](/docs/plugins/actor) | Sets `createdBy` and `updatedBy` |
-| [`validation()`](/docs/plugins/validation) | Validates writes with any Standard Schema |
-| [`rules()`](/docs/plugins/rules) | Flags unbounded reads, missing tenants, sensitive columns and admin keys in the browser |
+| Plugin                                      | What it does                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`timestamps()`](/docs/plugins/timestamps)  | Sets `createdAt` and `updatedAt`                                                        |
+| [`softDelete()`](/docs/plugins/soft-delete) | Hides deleted rows, turns `delete` into an update, adds `restore`                       |
+| [`tenant()`](/docs/plugins/tenant)          | Scopes queries to the request's tenant and fills it on insert                           |
+| [`actor()`](/docs/plugins/actor)            | Sets `createdBy` and `updatedBy`                                                        |
+| [`validation()`](/docs/plugins/validation)  | Validates writes with any Standard Schema                                               |
+| [`rules()`](/docs/plugins/rules)            | Flags unbounded reads, missing tenants, sensitive columns and admin keys in the browser |
 
 The [lint plugin](/docs/plugins/lint) catches some of the same mistakes in
 your editor.

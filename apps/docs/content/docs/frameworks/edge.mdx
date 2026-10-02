@@ -4,15 +4,15 @@ description: Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers.
 ---
 
 ```ts title="supabase/functions/api/index.ts"
-import { createEdge } from 'better-supabase/edge';
-import { sb } from '../_shared/supabase.ts';
+import { createEdge } from "better-supabase/edge";
+import { sb } from "../_shared/supabase.ts";
 
 const bs = createEdge(sb, { cors: true });
 
 Deno.serve(
   bs.handler(async (request, { db }) => {
     const { name } = await request.json();
-    return db.customers.create({ name, organizationId: '...' });
+    return db.customers.create({ name, organizationId: "..." });
   }),
 );
 ```
@@ -24,8 +24,7 @@ same way as in the other adapters:
 - A `Result` becomes JSON on success, or Problem Details on failure.
 - `undefined` becomes `204`.
 - A `Response` is sent as is.
-- A thrown `DbException` becomes its Problem Details, and any other error a
-  500.
+- A thrown `DbException` becomes its Problem Details, and any other error a 500.
 
 Anyone not in `allow` (default `['user']`) gets a 401 or 403 before your code
 runs.
@@ -38,8 +37,11 @@ without a router:
 ```ts
 Deno.serve(
   bs.resources(
-    { customers: { list: customerList }, tags: { operations: ['list', 'get'] } },
-    { basePath: '/api' },
+    {
+      customers: { list: customerList },
+      tags: { operations: ["list", "get"] },
+    },
+    { basePath: "/api" },
   ),
 );
 ```
@@ -54,7 +56,7 @@ On Supabase, the function name is the first path segment, so `basePath` is
 Restrict it with an allow-list:
 
 ```ts
-createEdge(sb, { cors: { origin: ['https://app.example.com'], maxAge: 600 } });
+createEdge(sb, { cors: { origin: ["https://app.example.com"], maxAge: 600 } });
 ```
 
 A request from an origin that isn't listed gets no CORS headers, and error

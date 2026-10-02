@@ -9,22 +9,25 @@ uploaded, the Auth user, and every row that points at `auth.users`.
 repository call.
 
 ```ts title="src/features/user/user-actions.ts"
-'use server';
+"use server";
 
-import { dbError, err } from 'better-supabase';
+import { dbError, err } from "better-supabase";
 
-import { avatars, documents } from '@/lib/buckets';
-import { next } from '@/lib/supabase.server';
+import { avatars, documents } from "@/lib/buckets";
+import { next } from "@/lib/supabase.server";
 
-export const deleteMyAccount = next.action({ aal: 'aal2' }, async (_input, { auth }) => {
-  if (auth.kind !== 'user') {
-    return err(dbError('unauthorized', 'Sign in to delete your account'));
-  }
-  return next.deleteAccount(auth.user.id, {
-    buckets: [avatars, documents],
-    cascades: ['notifications', 'memberships'],
-  });
-});
+export const deleteMyAccount = next.action(
+  { aal: "aal2" },
+  async (_input, { auth }) => {
+    if (auth.kind !== "user") {
+      return err(dbError("unauthorized", "Sign in to delete your account"));
+    }
+    return next.deleteAccount(auth.user.id, {
+      buckets: [avatars, documents],
+      cascades: ["notifications", "memberships"],
+    });
+  },
+);
 ```
 
 ```ts
@@ -33,6 +36,28 @@ export const deleteMyAccount = next.action({ aal: 'aal2' }, async (_input, { aut
 
 It is on every server (`createServer`, `createNext`, Hono, oRPC, edge, MCP) and
 needs `SUPABASE_SECRET_KEY`. Without one it returns an `unexpected` error.
+
+## Ended sessions
+
+better-supabase verifies access tokens locally, so a token stays valid until
+it expires (an hour by default), even after the user signs out everywhere or
+an admin ends the session. For actions you can't undo, also check that the
+session still exists. `checkSession` reads `auth.sessions` with one query and
+returns an `unauthorized` error with code `SESSION_REVOKED` when it is gone:
+
+```ts
+import { checkSession } from "better-supabase/server";
+
+import { postgres } from "@/lib/postgres";
+
+const ended = await checkSession(postgres.admin, auth);
+if (ended) return err(ended);
+```
+
+The client needs to read `auth.sessions`, which the Data API roles can't, so
+pass `createPostgres().admin` or another connection as `postgres`. Service and
+anonymous callers pass through. Nothing calls it on its own: every other
+request keeps verifying the token without a database or Auth round trip.
 
 ## What it does
 
@@ -59,12 +84,12 @@ and the call can be retried; objects already removed stay removed.
 
 ## Errors
 
-| kind | When |
-| --- | --- |
-| `conflict` | A foreign key to `auth.users` blocks the delete (`hint` points at BS406) |
-| `not_found` | No user with that id |
-| `network` | Auth or Storage is unreachable |
-| Storage kinds | A list or remove failed, with `table` set to the bucket id |
+| kind          | When                                                                     |
+| ------------- | ------------------------------------------------------------------------ |
+| `conflict`    | A foreign key to `auth.users` blocks the delete (`hint` points at BS406) |
+| `not_found`   | No user with that id                                                     |
+| `network`     | Auth or Storage is unreachable                                           |
+| Storage kinds | A list or remove failed, with `table` set to the bucket id               |
 
 ## Foreign keys
 
@@ -92,7 +117,7 @@ In the browser, sign out locally after the action succeeds. A normal
 `signOut()` would call Auth for a user that no longer exists:
 
 ```ts
-await supabase.auth.signOut({ scope: 'local' });
+await supabase.auth.signOut({ scope: "local" });
 ```
 
 ## Exports and retention

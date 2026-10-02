@@ -6,7 +6,12 @@ import type {
   Executor,
 } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
-import type { Condition, Operation, SelectOp } from "../../src/ir/types.ts";
+import type {
+  Condition,
+  InsertOp,
+  Operation,
+  SelectOp,
+} from "../../src/ir/types.ts";
 
 import { encodeCursor } from "../../src/core/cursor.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -508,6 +513,33 @@ describe("upsert and upsertMany", () => {
     ).toEqual(ok(null));
   });
 
+  it("sorts upsertMany rows by the conflict key, nulls last", async () => {
+    const { db, ops } = connect(() => rowsOf([]));
+    const rows = () => (ops.at(-1) as InsertOp).rows;
+    const names = () => rows().map((row) => row["name"]);
+    await db.customers.upsertMany(
+      [
+        { organizationId: "o2", kvk: "2", name: "D" },
+        { organizationId: "o1", kvk: null, name: "C" },
+        { organizationId: "o1", kvk: "10", name: "B" },
+        { organizationId: "o1", kvk: "1", name: "A" },
+        { organizationId: "o1", kvk: "1", name: "A2" },
+      ],
+      { onConflict: ["organizationId", "kvk"] },
+    );
+    expect(names()).toEqual(["A", "A2", "B", "C", "D"]);
+    await db.tags.upsertMany([
+      { id: 10, organizationId: "o", name: "b" },
+      { id: 9, organizationId: "o", name: "a" },
+    ] as never);
+    expect(rows().map((row) => row["id"])).toEqual([9, 10]);
+    await db.customers.createMany([
+      { organizationId: "o", name: "Z" },
+      { organizationId: "o", name: "Y" },
+    ]);
+    expect(names()).toEqual(["Z", "Y"]);
+  });
+
   it("passes upsert errors through", async () => {
     const { db } = connect(failing);
     expect(
@@ -790,6 +822,47 @@ describe("cursor pagination", () => {
             },
           ],
         },
+      ],
+    });
+  });
+
+  it("places nulls of a nullable sort column where Postgres sorts them", async () => {
+    const whereAfter = async (after: unknown[], direction: "asc" | "desc") => {
+      const { db, select } = connect(() => rowsOf([]));
+      await db.customers.paginate({
+        select: ["id"],
+        orderBy: { archivedAt: direction },
+        size: 2,
+        after: encodeCursor(after),
+      });
+      return select().where;
+    };
+    const isNull = col("archived_at", "is", null);
+    // asc puts nulls last, so they follow every timestamp.
+    expect(await whereAfter(["2026-01-01", "c2"], "asc")).toEqual({
+      kind: "or",
+      items: [
+        { kind: "or", items: [col("archived_at", "gt", "2026-01-01"), isNull] },
+        {
+          kind: "and",
+          items: [
+            col("archived_at", "eq", "2026-01-01"),
+            col("id", "gt", "c2"),
+          ],
+        },
+      ],
+    });
+    // Inside the trailing nulls only the tie-breaker moves on.
+    expect(await whereAfter([null, "c2"], "asc")).toEqual({
+      kind: "and",
+      items: [isNull, col("id", "gt", "c2")],
+    });
+    // desc puts nulls first: after them come all the timestamps.
+    expect(await whereAfter([null, "c2"], "desc")).toEqual({
+      kind: "or",
+      items: [
+        { kind: "not", item: isNull },
+        { kind: "and", items: [isNull, col("id", "lt", "c2")] },
       ],
     });
   });

@@ -62,7 +62,9 @@ export class StatsCollector {
     this.#prune();
     const entry: Entry = {
       created: Date.now(),
-      recorder: new CollectedRecorder(() => this.#schedule(id)),
+      recorder: new CollectedRecorder(() => {
+        this.#schedule(id);
+      }),
     };
     this.#entries.set(id, entry);
     return entry.recorder;

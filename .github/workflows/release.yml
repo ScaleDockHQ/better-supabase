@@ -11,11 +11,23 @@ concurrency:
 permissions: {}
 
 jobs:
+  # The same gate as CI, on the release commit.
+  verify:
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    uses: ./.github/workflows/verify.yml
+    secrets:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
   select-mode:
     name: Select mode
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     outputs:
       mode: ${{ steps.select-mode.outputs.mode }}
     steps:
@@ -26,15 +38,9 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      - name: Verify
-        run: pnpm run verify
-
-      - name: Publish checks
-        run: pnpm run check:publish
-
       - name: Select mode
         id: select-mode
-        uses: changesets/action/select-mode@v2
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
 
   version:
     name: Version
@@ -52,12 +58,15 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Create or update the release pull request
-        uses: changesets/action/version@v2
+        uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           # Also writes the root CHANGELOG.md and formats the result.
           script: pnpm run version-packages
           pr-title: "chore: version packages"
           commit-message: "chore: version packages"
+        env:
+          # @changesets/changelog-github looks up the PR and author of each changeset.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # npm trusted publishing: the registry trusts this workflow file and the `npm`
   # environment through OIDC, so no npm token exists anywhere. Publishing stays
@@ -84,9 +93,10 @@ jobs:
           persist-credentials: false
 
       # No store cache in the job that can mint npm credentials.
-      - uses: pnpm/setup@v3
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          runtime: node@24
+          runtime: node
+          node-version-file: .node-version
           cache: false
           require-lockfile: true
 
@@ -97,7 +107,7 @@ jobs:
           npm --version
 
       - name: Publish
-        uses: changesets/action/publish@v2
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           # Builds, then runs `changeset publish`.
           script: pnpm run release

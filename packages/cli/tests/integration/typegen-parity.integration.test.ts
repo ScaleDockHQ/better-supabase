@@ -49,7 +49,7 @@ async function normalize(source: string): Promise<string> {
       /\n {2}\/\/ Allows to automatically[^\n]*\n[^\n]*\n {2}__InternalSupabase: \{\n[^\n]*\n {2}\}\n/,
       "\n",
     )
-    .replace(/NonNullable<Json>/g, "Json")
+    .replaceAll("NonNullable<Json>", "Json")
     .trimEnd();
 }
 

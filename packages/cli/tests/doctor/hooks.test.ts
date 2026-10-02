@@ -16,7 +16,12 @@ import { parseToml } from "../../src/supabase-toml.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
-const base = parseSnapshot(fixture);
+const fixtureSnapshot = parseSnapshot(fixture);
+// The fixture's own hook writes user_role; each test adds the hook it needs.
+const base: Snapshot = {
+  ...fixtureSnapshot,
+  extras: { ...fixtureSnapshot.extras, hooks: [] },
+};
 
 const HOOK_TOML = `[auth.hook.custom_access_token]
 enabled = true
@@ -147,12 +152,12 @@ describe("BS405 --as", () => {
       {
         severity: "info",
         message:
-          "Measuring the hook's claims needs a direct database connection (local stack or --db-url).",
+          "Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin).",
         target: "rbac.custom_access_token_hook(event jsonb):claims",
       },
     ]);
     expect(await run({ skipped: "a saved snapshot" })).toMatchObject([
-      { message: expect.stringMatching(/--db-url\): a saved snapshot$/) },
+      { message: expect.stringMatching(/--db-url-stdin\): a saved snapshot$/) },
     ]);
     const management: LiveDatabase = {
       describe: "api",

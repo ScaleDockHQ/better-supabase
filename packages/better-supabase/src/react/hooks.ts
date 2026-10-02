@@ -212,9 +212,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   }
 
   useEffect(() => {
-    if (!name || auth.status === "loading") return undefined;
+    if (!name || auth.status === "loading") return;
     const matched = topic.match(name);
-    if (!matched) return undefined;
+    if (!matched) return;
     const forward = (payload: unknown, message: TopicMessage) => {
       const current = latest.current;
       // SAFETY: handlers are keyed by table and event, and the payload comes
@@ -311,7 +311,7 @@ export function useLiveQuery(
   const debounceMs = options.debounceMs;
 
   useEffect(() => {
-    if (!key || !queryClient || auth.status === "loading") return undefined;
+    if (!key || !queryClient || auth.status === "loading") return;
     // SAFETY: key is JSON.stringify of the QuerySpec this hook received.
     const live = liveQuery(
       browser.sb,
@@ -380,7 +380,7 @@ export function useLiveCount(
   const hasInitial = initial !== undefined;
 
   useEffect(() => {
-    if (!key || auth.status === "loading") return undefined;
+    if (!key || auth.status === "loading") return;
     // SAFETY: the browser db runs count specs, and key is JSON.stringify of a count spec.
     const live = liveCount(
       browser.sb,
@@ -389,13 +389,16 @@ export function useLiveCount(
       JSON.parse(key) as QuerySpec<string, "count", number>,
       {
         immediate: !hasInitial,
-        onCount: (count) => setState({ key, count, error: undefined }),
-        onError: (error) =>
+        onCount: (count) => {
+          setState({ key, count, error: undefined });
+        },
+        onError: (error) => {
           setState((previous) => ({
             key,
             count: previous.key === key ? previous.count : undefined,
             error,
-          })),
+          }));
+        },
         onStatus: setStatus,
         ...(tenant === undefined ? {} : { tenant }),
         ...(debounceMs === undefined ? {} : { debounceMs }),

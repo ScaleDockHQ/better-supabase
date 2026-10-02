@@ -7,7 +7,10 @@ import { ok } from "../../src/core/result.ts";
 import { StatsRecorder } from "../../src/core/stats.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const tick = (): Promise<void> => new Promise((done) => setTimeout(done, 1));
+const tick = (): Promise<void> =>
+  new Promise((done) => {
+    setTimeout(done, 1);
+  });
 
 const executor: Executor = {
   name: "fake",

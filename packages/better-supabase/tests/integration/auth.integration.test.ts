@@ -7,6 +7,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { resolveAuth } from "../../src/auth/resolve.ts";
+import { checkSession } from "../../src/auth/revocation.ts";
 import {
   readSession,
   sessionCookieName,
@@ -260,9 +261,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
       seen.push(browser.auth.current().status),
     );
     await browser.supabase.auth.signInWithPassword({ email, password });
-    await vi.waitFor(() =>
-      expect(browser.auth.current().status).toBe("signed-in"),
-    );
+    await vi.waitFor(() => {
+      expect(browser.auth.current().status).toBe("signed-in");
+    });
     expect(browser.db.$context.actor).toMatchObject({
       id: userId,
       kind: "user",
@@ -276,9 +277,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
     expect(customers.length).toBeGreaterThan(0);
 
     await browser.supabase.auth.signOut();
-    await vi.waitFor(() =>
-      expect(browser.auth.current().status).toBe("signed-out"),
-    );
+    await vi.waitFor(() => {
+      expect(browser.auth.current().status).toBe("signed-out");
+    });
     expect(browser.db.$context.actor).toMatchObject({ kind: "anon" });
     expect(seen).toContain("signed-in");
     stop();
@@ -324,5 +325,37 @@ describe.skipIf(!live)("auth against the local stack", () => {
     expect(response.status).toBe(200);
     expect(body.rest).toBe(body.sql);
     expect(body.actor).toMatchObject({ id: userId, kind: "user" });
+  });
+
+  it("rejects the access token of a signed-out session with checkSession", async () => {
+    const client = createClient(url, publishableKey, {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    const token = data.session.access_token;
+    const auth = await resolveAuth(
+      new Request("https://app.test/", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      { env },
+    );
+    expect(auth.auth.kind).toBe("user");
+    expect(await checkSession(postgres.admin, auth.auth)).toBeUndefined();
+
+    await client.auth.signOut({ scope: "global" });
+    const after = await resolveAuth(
+      new Request("https://app.test/", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      { env },
+    );
+    expect(after.auth.kind).toBe("user");
+    expect(await checkSession(postgres.admin, after.auth)).toMatchObject({
+      code: "SESSION_REVOKED",
+    });
   });
 });

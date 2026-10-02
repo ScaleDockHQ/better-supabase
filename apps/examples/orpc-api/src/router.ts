@@ -28,7 +28,7 @@ export const router = {
         bs.unwrap(
           context.db.customers.findMany({
             select: customer,
-            ...(input.q ? { where: { name: { ilike: `%${input.q}%` } } } : {}),
+            where: input.q ? { name: { ilike: `%${input.q}%` } } : {},
             orderBy: { name: "asc" },
             limit: input.limit,
           }),

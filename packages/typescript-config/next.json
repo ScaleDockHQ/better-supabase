@@ -5,6 +5,7 @@
     "jsx": "react-jsx",
     "lib": ["ES2025", "ESNext.Disposable", "DOM", "DOM.Iterable"],
     "allowJs": true,
+    "checkJs": true,
     "incremental": true,
     "plugins": [{ "name": "next" }]
   },

@@ -9,6 +9,7 @@ export interface RefreshOptions {
    */
   readonly forwardedFor?: { readonly ip: string; readonly secretKey: string };
   readonly fetch?: typeof fetch;
+  /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
   readonly now?: () => number;
 }
 

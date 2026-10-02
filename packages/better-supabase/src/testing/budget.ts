@@ -55,7 +55,9 @@ function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
     new Promise((done) => {
       timer = setTimeout(done, ms);
     }),
-  ]).finally(() => clearTimeout(timer));
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
 }
 
 /**

@@ -1,12 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { AsyncResult } from "../../src/core/result.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { timestamps } from "../../src/plugins/timestamps/index.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -62,6 +65,49 @@ describe.skipIf(!live)("PostgREST integration", () => {
   afterAll(async () => {
     if (created.length > 0)
       await admin.customers.deleteMany({ where: { id: { in: created } } });
+  });
+
+  it("decodes timestamptz to Temporal.Instant and filters with it exactly", async () => {
+    const customers = schema.meta.tables["customers"]!;
+    const instants = defineSupabase(
+      defineSchema({
+        ...schema.meta,
+        tables: {
+          ...schema.meta.tables,
+          customers: {
+            ...customers,
+            columns: {
+              ...customers.columns,
+              createdAt: {
+                ...customers.columns["createdAt"]!,
+                codec: "instant",
+              },
+            },
+          },
+        },
+      }),
+    ).connect(
+      createClient(url, secretKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      }),
+    ) as unknown as {
+      customers: {
+        findMany(
+          args: object,
+        ): AsyncResult<{ id: string; createdAt: unknown }[]>;
+      };
+    };
+    const [first] = await instants.customers
+      .findMany({ select: ["id", "createdAt"], limit: 1 })
+      .orThrow();
+    expect(first?.createdAt).toBeInstanceOf(Temporal.Instant);
+    const same = await instants.customers
+      .findMany({
+        select: ["id"],
+        where: { id: first?.id, createdAt: first?.createdAt },
+      })
+      .orThrow();
+    expect(same.map((row) => row.id)).toEqual([first?.id]);
   });
 
   it("filters with some, none and every against real data", async () => {

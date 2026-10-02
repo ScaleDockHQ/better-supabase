@@ -1,6 +1,17 @@
 import { defineConfig } from "vitest/config";
 
+// Workspace packages resolve to their TypeScript source, so tests run without
+// building them first. The rest is Vite's default server condition list.
+const conditions = [
+  "@better-supabase/source",
+  "module",
+  "node",
+  "development|production",
+];
+
 export default defineConfig({
+  resolve: { conditions },
+  ssr: { resolve: { conditions } },
   test: {
     projects: [
       {
@@ -32,7 +43,7 @@ export default defineConfig({
         statements: 96,
         lines: 97,
         functions: 98,
-        branches: 87,
+        branches: 88,
         autoUpdate: (next: number) => Math.floor(next),
       },
     },

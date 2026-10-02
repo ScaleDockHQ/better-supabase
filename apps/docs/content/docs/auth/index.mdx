@@ -11,17 +11,17 @@ who is calling? `resolveAuth(request)` answers it in this order:
 3. the `@supabase/ssr` session cookie, for browsers.
 
 ```ts
-import { resolveAuth } from 'better-supabase/server';
-import { loadEnv } from 'better-supabase/env';
+import { resolveAuth } from "better-supabase/server";
+import { loadEnv } from "better-supabase/env";
 
 const env = loadEnv();
 const { auth } = await resolveAuth(request, { env });
 
 switch (auth.kind) {
-  case 'user':    // auth.user.id, auth.claims, auth.token
-  case 'service': // a secret key, when `secret: true`
-  case 'anon':    // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
-  case 'invalid': // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims) | 'actor' (malformed act chain): answer 401
+  case "user": // auth.user.id, auth.claims, auth.token
+  case "service": // a secret key, when `secret: true`
+  case "anon": // auth.reason: 'none' | 'expired' | 'signed_out' | 'refresh_failed'
+  case "invalid": // auth.reason: 'token' (did not verify) | 'claims' (failed sb.claims) | 'actor' (malformed act chain): answer 401
 }
 ```
 
@@ -37,12 +37,12 @@ switch (auth.kind) {
 
 <Callout title="Use asymmetric signing keys">
   Local verification needs asymmetric JWT signing keys (ES256 or RS256), whose
-  public half is in the JWKS. Hosted projects use them by default; for the
-  local stack, `better-supabase keys` creates `signing_keys_path` and
-  `better-supabase doctor` warns when it is missing. With a legacy HS256
-  secret there is no public key to check against. This is what lets the
-  Next.js proxy, Server Components and `'use cache: private'` session reads
-  stay free of network calls ([Cache Components](/docs/frameworks/next-cache-components)).
+  public half is in the JWKS. Hosted projects use them by default; for the local
+  stack, `better-supabase keys` creates `signing_keys_path` and `better-supabase
+  doctor` warns when it is missing. With a legacy HS256 secret there is no
+  public key to check against. This is what lets the Next.js proxy, Server
+  Components and `'use cache: private'` session reads stay free of network calls
+  ([Cache Components](/docs/frameworks/next-cache-components)).
 </Callout>
 
 ## Refreshing
@@ -87,12 +87,12 @@ carries something you understand, `undefined` otherwise:
 
 ```ts
 const apiKeys: AuthResolver = {
-  name: 'partner-api-keys',
+  name: "partner-api-keys",
   async resolve(request) {
-    const key = request.headers.get('x-api-key');
+    const key = request.headers.get("x-api-key");
     if (!key) return undefined;
     const partner = await lookupPartner(key);
-    return partner ? { kind: 'service', keyName: partner.id } : undefined;
+    return partner ? { kind: "service", keyName: partner.id } : undefined;
   },
 };
 
@@ -112,13 +112,19 @@ returns a new definition whose servers validate the verified claims and
 whose sessions are typed by the schema's output:
 
 ```ts title="src/lib/supabase/sb.ts"
-import * as v from 'valibot';
+import * as v from "valibot";
 
 export const Claims = v.looseObject({
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   roles: v.optional(v.array(v.string()), []),
   memberships: v.optional(
-    v.array(v.looseObject({ scope: v.string(), id: v.string(), roles: v.array(v.string()) })),
+    v.array(
+      v.looseObject({
+        scope: v.string(),
+        id: v.string(),
+        roles: v.array(v.string()),
+      }),
+    ),
     [],
   ),
 });
@@ -166,6 +172,24 @@ doesn't always set should be optional or have a default.
 `search_path`, and with `--as <user id>` how large the claims it returns are
 ([BS405](/docs/cli/doctor#bs405)).
 
+### When claims change
+
+Claims are copied into the access token when Auth issues it, and verified
+locally after that. When you change a user's `app_metadata`, their
+memberships, or anything the hook reads, the user's current token still
+carries the old values until it is refreshed: up to the token's lifetime (an
+hour by default), or until the proxy refreshes the session. The same goes for
+`auth.jwt()` in policies. Revoking a role therefore takes effect on the next
+refresh, not immediately.
+
+When that window matters, read the source of truth instead of the claim:
+policies can check the `memberships` table (`member_org_ids()` from the
+[SQL kit](/docs/kits/sql) does). After a change the user made themselves,
+such as joining an organization, the browser can call
+`supabase.auth.refreshSession()` to pick up the new claims at once. Shorter
+token lifetimes narrow the window for everyone
+([BS402](/docs/cli/doctor#bs402)).
+
 ## Profile
 
 `user_metadata` holds what users say about themselves: a display name, an
@@ -183,7 +207,7 @@ export const sb = defineSupabase(schema).claims(Claims).userMetadata(Profile);
 
 ```tsx title="src/app/account/page.tsx"
 const session = await next.session();
-if (session.kind === 'user') {
+if (session.kind === "user") {
   return <h1>Hello, {session.profile?.display_name ?? session.user.email}</h1>;
 }
 ```
