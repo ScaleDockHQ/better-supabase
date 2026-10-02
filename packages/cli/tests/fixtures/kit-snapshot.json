@@ -3560,6 +3560,40 @@
       {
         "id": 3000019,
         "schema": "better_supabase",
+        "name": "purge_audit_log",
+        "language": "sql",
+        "definition": "\n  with purged as (\n    delete from better_supabase.audit_log\n    where id in (\n      select l.id from better_supabase.audit_log l\n      where l.at < now() - older_than\n      order by l.id\n      limit batch\n    )\n    returning 1\n  )\n  select count(*)::integer from purged\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.purge_audit_log(older_than interval DEFAULT '1 year'::interval, batch integer DEFAULT 10000)\n RETURNS integer\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  with purged as (\n    delete from better_supabase.audit_log\n    where id in (\n      select l.id from better_supabase.audit_log l\n      where l.at < now() - older_than\n      order by l.id\n      limit batch\n    )\n    returning 1\n  )\n  select count(*)::integer from purged\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "batch",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "older_than",
+            "type_id": 1186,
+            "has_default": true
+          }
+        ],
+        "argument_types": "older_than interval DEFAULT '1 year'::interval, batch integer DEFAULT 10000",
+        "identity_argument_types": "older_than interval, batch integer",
+        "return_type_id": 23,
+        "return_type": "integer",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000020,
+        "schema": "better_supabase",
         "name": "purge_idempotency_keys",
         "language": "sql",
         "definition": "\n  with purged as (\n    delete from better_supabase.idempotency_keys where expires_at < now() returning 1\n  )\n  select count(*)::integer from purged\n",
@@ -3579,7 +3613,87 @@
         }
       },
       {
-        "id": 3000020,
+        "id": 3000021,
+        "schema": "better_supabase",
+        "name": "purge_job_archive",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  purged integer;\nbegin\n  execute format(\n    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',\n    'a_' || queue\n  ) into purged using older_than, batch;\n  return purged;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.purge_job_archive(queue text, older_than interval DEFAULT '7 days'::interval, batch integer DEFAULT 10000)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  purged integer;\nbegin\n  execute format(\n    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',\n    'a_' || queue\n  ) into purged using older_than, batch;\n  return purged;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "batch",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "older_than",
+            "type_id": 1186,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "queue",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "queue text, older_than interval DEFAULT '7 days'::interval, batch integer DEFAULT 10000",
+        "identity_argument_types": "queue text, older_than interval, batch integer",
+        "return_type_id": 23,
+        "return_type": "integer",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000022,
+        "schema": "better_supabase",
+        "name": "purge_webhooks",
+        "language": "sql",
+        "definition": "\n  with purged as (\n    delete from better_supabase.webhook_inbox\n    where id in (\n      select w.id from better_supabase.webhook_inbox w\n      where (w.status = 'processed' and w.processed_at < now() - older_than)\n        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than)\n      order by w.id\n      limit batch\n    )\n    returning 1\n  )\n  select count(*)::integer from purged\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.purge_webhooks(older_than interval DEFAULT '30 days'::interval, include_dead boolean DEFAULT false, batch integer DEFAULT 10000)\n RETURNS integer\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  with purged as (\n    delete from better_supabase.webhook_inbox\n    where id in (\n      select w.id from better_supabase.webhook_inbox w\n      where (w.status = 'processed' and w.processed_at < now() - older_than)\n        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than)\n      order by w.id\n      limit batch\n    )\n    returning 1\n  )\n  select count(*)::integer from purged\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "batch",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "include_dead",
+            "type_id": 16,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "older_than",
+            "type_id": 1186,
+            "has_default": true
+          }
+        ],
+        "argument_types": "older_than interval DEFAULT '30 days'::interval, include_dead boolean DEFAULT false, batch integer DEFAULT 10000",
+        "identity_argument_types": "older_than interval, include_dead boolean, batch integer",
+        "return_type_id": 23,
+        "return_type": "integer",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000023,
         "schema": "better_supabase",
         "name": "receive_webhook",
         "language": "plpgsql",
@@ -3643,7 +3757,7 @@
         }
       },
       {
-        "id": 3000021,
+        "id": 3000024,
         "schema": "better_supabase",
         "name": "release_idempotent",
         "language": "sql",
@@ -3677,7 +3791,7 @@
         }
       },
       {
-        "id": 3000022,
+        "id": 3000025,
         "schema": "better_supabase",
         "name": "schedule_job",
         "language": "plpgsql",
@@ -3723,7 +3837,7 @@
         }
       },
       {
-        "id": 3000023,
+        "id": 3000026,
         "schema": "better_supabase",
         "name": "slug_problem",
         "language": "sql",
@@ -3751,7 +3865,7 @@
         }
       },
       {
-        "id": 3000024,
+        "id": 3000027,
         "schema": "better_supabase",
         "name": "track_actor",
         "language": "plpgsql",
@@ -3797,7 +3911,7 @@
         }
       },
       {
-        "id": 3000025,
+        "id": 3000028,
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
@@ -3831,7 +3945,7 @@
         }
       },
       {
-        "id": 3000026,
+        "id": 3000029,
         "schema": "better_supabase",
         "name": "track_slug",
         "language": "plpgsql",
@@ -3865,7 +3979,7 @@
         }
       },
       {
-        "id": 3000027,
+        "id": 3000030,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -3899,7 +4013,7 @@
         }
       },
       {
-        "id": 3000028,
+        "id": 3000031,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -3927,7 +4041,7 @@
         }
       },
       {
-        "id": 3000029,
+        "id": 3000032,
         "schema": "better_supabase",
         "name": "unschedule_job",
         "language": "plpgsql",
@@ -3955,7 +4069,7 @@
         }
       },
       {
-        "id": 3000030,
+        "id": 3000033,
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
@@ -3983,7 +4097,7 @@
         }
       },
       {
-        "id": 3000031,
+        "id": 3000034,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -4011,7 +4125,7 @@
         }
       },
       {
-        "id": 3000032,
+        "id": 3000035,
         "schema": "public",
         "name": "search_notes",
         "language": "sql",
@@ -5887,6 +6001,18 @@
         "signature": "user_id uuid",
         "language": "sql",
         "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "purge_job_archive",
+        "signature": "queue text, older_than interval, batch integer",
+        "language": "plpgsql",
+        "volatility": "volatile",
         "securityDefiner": true,
         "settings": {
           "search_path": "\"\""

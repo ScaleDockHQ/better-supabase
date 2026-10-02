@@ -255,7 +255,33 @@ begin
   execute format('drop trigger if exists bs_audit on %s', target);
   delete from better_supabase.audited_tables a where a.target = unaudit.target;
 end;
-$$;`,
+$$;
+
+-- Deletes up to batch entries older than older_than and returns how many.
+-- Ids grow with time, so the primary key finds the oldest rows first.
+-- Nightly with pg_cron: select cron.schedule('purge-audit-log', '15 3 * * *', 'select better_supabase.purge_audit_log()');
+create or replace function better_supabase.purge_audit_log(
+  older_than interval default '1 year',
+  batch integer default 10000
+)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with purged as (
+    delete from better_supabase.audit_log
+    where id in (
+      select l.id from better_supabase.audit_log l
+      where l.at < now() - older_than
+      order by l.id
+      limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+revoke execute on function better_supabase.purge_audit_log(interval, integer) from public, anon, authenticated;
+grant execute on function better_supabase.purge_audit_log(interval, integer) to service_role;`,
 };
 
 const tenantSql = (claims: ClaimsMeta): string => `${SCHEMA}
@@ -906,6 +932,30 @@ begin
 end;
 $$;
 
+-- pgmq keeps completed and dead messages in pgmq.a_<queue>. Deletes up to
+-- batch of them archived longer than older_than.
+-- Nightly with pg_cron: select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
+create or replace function better_supabase.purge_job_archive(
+  queue text,
+  older_than interval default '7 days',
+  batch integer default 10000
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  purged integer;
+begin
+  execute format(
+    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
+    'a_' || queue
+  ) into purged using older_than, batch;
+  return purged;
+end;
+$$;
+
 -- Recurring jobs with pg_cron: select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
 create or replace function better_supabase.schedule_job(job_name text, schedule text, queue text, payload jsonb default '{}')
 returns bigint
@@ -949,7 +999,8 @@ begin
     'fail_job(text, bigint, integer, text, integer)',
     'extend_job_lease(text, bigint, integer, integer)',
     'schedule_job(text, text, text, jsonb)',
-    'unschedule_job(text)'
+    'unschedule_job(text)',
+    'purge_job_archive(text, interval, integer)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);
@@ -1211,6 +1262,33 @@ as $$
   returning status
 $$;
 
+-- Deletes up to batch processed messages (and dead ones with include_dead)
+-- older than older_than. A sender that retries a purged message id gets it
+-- stored again, so keep older_than above the sender's retry window.
+-- Nightly with pg_cron: select cron.schedule('purge-webhooks', '30 3 * * *', 'select better_supabase.purge_webhooks()');
+create or replace function better_supabase.purge_webhooks(
+  older_than interval default '30 days',
+  include_dead boolean default false,
+  batch integer default 10000
+)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with purged as (
+    delete from better_supabase.webhook_inbox
+    where id in (
+      select w.id from better_supabase.webhook_inbox w
+      where (w.status = 'processed' and w.processed_at < now() - older_than)
+        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than)
+      order by w.id
+      limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+
 do $$
 declare
   fn text;
@@ -1219,7 +1297,8 @@ begin
     'receive_webhook(text, text, text, jsonb, jsonb)',
     'claim_webhooks(text, text, integer, interval)',
     'complete_webhook(bigint, text)',
-    'fail_webhook(bigint, text, text, interval)'
+    'fail_webhook(bigint, text, text, interval)',
+    'purge_webhooks(interval, boolean, integer)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);

@@ -84,6 +84,37 @@ Errors raised by the kit carry a stable code in the `hint` field, for example
 `INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
 
+## Retention
+
+The audit log, the webhook inbox and the job archives only grow. Each module
+has a purge function that deletes rows older than an interval, at most `batch`
+rows per call (10,000 by default), and returns how many it deleted. They
+delete in primary-key order, so they find the oldest rows through the primary
+key index without a full scan. Only `service_role` can call them.
+
+| Function                                           | Deletes                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`                       |
+| `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones |
+| `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs in pgmq's archive table `pgmq.a_<queue>`  |
+| `purge_idempotency_keys()`                         | expired idempotency keys                                          |
+
+Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
+hour. Enable the extension once (`create extension pg_cron with schema
+pg_catalog`), then:
+
+```sql
+select cron.schedule('purge-audit-log', '15 3 * * *', $$select better_supabase.purge_audit_log()$$);
+select cron.schedule('purge-webhooks', '30 3 * * *', $$select better_supabase.purge_webhooks()$$);
+select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
+select cron.schedule('purge-idempotency-keys', '0 4 * * *', $$select better_supabase.purge_idempotency_keys()$$);
+```
+
+When a table holds more old rows than one batch, the next run picks up the
+rest; run the job more often, or raise `batch`, until it keeps up. Keep the
+webhook retention above your senders' retry window: a retried message whose id
+was purged is stored and processed again.
+
 ## Rate limiting writes
 
 Auth rate-limits sign-ins, but the Data API has no limit of its own: a signed-in

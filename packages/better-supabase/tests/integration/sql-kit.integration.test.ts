@@ -866,6 +866,85 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     });
   });
 
+  it("purges old audit entries, processed webhooks and job archives", async () => {
+    const old = "now() - interval '11 years'";
+    const count = async (text: string, params: unknown[] = []) =>
+      (await pool.query<{ n: number }>(text, params)).rows[0]!.n;
+    const purge = (call: string) => count(`select ${call} as n`);
+
+    await pool.query(
+      `insert into better_supabase.audit_log (table_name, op, at)
+       values ($1, 'insert', ${old}), ($1, 'update', ${old}), ($1, 'delete', now())`,
+      [`purge_${RUN}`],
+    );
+    expect(await purge("better_supabase.purge_audit_log('10 years', 1)")).toBe(
+      1,
+    );
+    expect(await purge("better_supabase.purge_audit_log('10 years')")).toBe(1);
+    expect(await purge("better_supabase.purge_audit_log('10 years')")).toBe(0);
+    expect(
+      await count(
+        "select count(*)::int as n from better_supabase.audit_log where table_name = $1",
+        [`purge_${RUN}`],
+      ),
+    ).toBe(1);
+    await pool.query(
+      "delete from better_supabase.audit_log where table_name = $1",
+      [`purge_${RUN}`],
+    );
+
+    await pool.query(
+      `insert into better_supabase.webhook_inbox (source, message_id, payload, status, processed_at, received_at)
+       values ($1, 'old-done', '{}', 'processed', ${old}, ${old}),
+              ($1, 'old-dead', '{}', 'dead', null, ${old}),
+              ($1, 'old-pending', '{}', 'pending', null, ${old})`,
+      [`kit-${RUN}`],
+    );
+    expect(await purge("better_supabase.purge_webhooks('10 years')")).toBe(1);
+    expect(
+      await purge(
+        "better_supabase.purge_webhooks('10 years', include_dead => true)",
+      ),
+    ).toBe(1);
+    expect(
+      await count(
+        "select count(*)::int as n from better_supabase.webhook_inbox where source = $1 and message_id like 'old-%'",
+        [`kit-${RUN}`],
+      ),
+    ).toBe(1);
+
+    const queue = `kit_${RUN}_purge`;
+    await pool.query("select better_supabase.ensure_job_queue($1)", [queue]);
+    for (let index = 0; index < 2; index += 1)
+      await pool.query("select pgmq.archive($1, pgmq.send($1, '{}'::jsonb))", [
+        queue,
+      ]);
+    await pool.query(
+      `update pgmq.a_${queue} set archived_at = ${old} where msg_id = (select min(msg_id) from pgmq.a_${queue})`,
+    );
+    expect(
+      await count(
+        "select better_supabase.purge_job_archive($1, '10 years') as n",
+        [queue],
+      ),
+    ).toBe(1);
+    expect(await count(`select count(*)::int as n from pgmq.a_${queue}`)).toBe(
+      1,
+    );
+
+    const executable = await pool.query<{ role: string; allowed: boolean }>(
+      `select r.role, has_function_privilege(r.role, f.fn, 'execute') as allowed
+       from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
+            unnest(array[
+              'better_supabase.purge_audit_log(interval, integer)',
+              'better_supabase.purge_webhooks(interval, boolean, integer)',
+              'better_supabase.purge_job_archive(text, interval, integer)'
+            ]) as f(fn)`,
+    );
+    for (const row of executable.rows)
+      expect(row.allowed).toBe(row.role === "service_role");
+  });
+
   it("pgTAP helpers authenticate as a user under RLS", async () => {
     const client = await pool.connect();
     try {
