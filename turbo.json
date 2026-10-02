@@ -33,17 +33,17 @@
       },
       "app": {
         "dependents": {
-          "deny": ["published", "config", "example"]
+          "deny": ["published", "config", "tooling", "app", "example"]
         }
       },
       "example": {
         "dependents": {
-          "deny": ["published", "config", "app"]
+          "deny": ["published", "config", "tooling", "app"]
         }
       },
       "test": {
         "dependents": {
-          "deny": ["published", "config", "app", "example"]
+          "deny": ["published", "config", "tooling", "app", "example"]
         }
       }
     }

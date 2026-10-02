@@ -66,7 +66,7 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
     return new AsyncResult<T>(Promise.resolve(err(error)));
   }
 
-  // oxlint-disable-next-line unicorn/no-thenable
+  // oxlint-disable-next-line unicorn/no-thenable -- `await` on an AsyncResult yields its Result by design
   then<R1 = Result<T>, R2 = never>(
     onfulfilled?: ((value: Result<T>) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,

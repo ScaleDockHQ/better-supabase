@@ -93,7 +93,7 @@ const frozenCopy = <T>(value: T): T => deepFreeze(structuredClone(value));
 const same = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
-// oxlint-disable-next-line typescript/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any -- the kit takes any configured client, and its type parameters are invariant
 type AnySupabase = BetterSupabase<any, any, any, any>;
 type AnyDb = Record<
   string,

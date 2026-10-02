@@ -145,7 +145,7 @@ export interface Plugin<
   readonly "~ext"?: Ext;
 }
 
-// oxlint-disable-next-line typescript/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any -- the extension type is invariant, so `unknown` would reject typed plugins
 export type AnyPlugin = Plugin<string, any>;
 
 /** The plugin's repository extension; `unknown` for plugins that add none. */

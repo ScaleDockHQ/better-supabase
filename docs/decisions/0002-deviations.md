@@ -59,10 +59,53 @@ backlogs too large to clear in the upgrade.
 These rules are off with a comment that gives the reason and the count. Each
 is cleared in its own commit series, then turned on.
 
-| Rule | Findings when measured |
-|---|---|
-| `typescript/strict-boolean-expressions` | 426 |
-| `typescript/no-non-null-assertion` | 335 (222 in tests) |
+| Rule                                           | Findings when measured |
+| ---------------------------------------------- | ---------------------- |
+| `typescript/strict-boolean-expressions`        | 426                    |
+| `typescript/no-non-null-assertion`             | 335 (222 in tests)     |
+| `typescript/prefer-readonly-parameter-types`   | 1,764                  |
+| `eslint/require-unicode-regexp`                | 455                    |
+| `eslint/max-lines-per-function`                | 392                    |
+| `typescript/promise-function-async`            | 312                    |
+| `unicorn/no-array-callback-reference`          | 40                     |
+| `import/max-dependencies`                      | 34                     |
+| `anti-slop/no-runtime-typeof`                  | 229 library, 51 CLI    |
+| `anti-slop/no-unsafe-dictionary-type`          | 213 library, 36 CLI    |
+| `anti-slop/no-unknown-parameters`              | 208 library, 30 CLI    |
+| `anti-slop/no-unknown-returns`                 | 59 library, 10 CLI     |
+| `anti-slop/no-known-value-widening`            | 49 library, 17 CLI     |
+| `anti-slop/no-object-parameters`               | 29 library             |
+| `anti-slop/no-conditional-empty-object-spread` | 127 library, 72 CLI    |
+
+The anti-slop rules are errors everywhere else. The library and the CLI
+decode PostgREST, Auth, webhook, catalog and `config.toml` payloads without a
+schema dependency (invariant 1), so their decoders take `unknown` and branch
+on `typeof`; the backlog ends when those decoders move behind Standard Schema
+parsers. `no-conditional-empty-object-spread` conflicts with
+`exactOptionalPropertyTypes`, which forbids `key: undefined`, so the spread is
+how an absent option stays absent. `promise-function-async` would turn
+synchronous throws for misuse (an unknown table, a missing pool) into
+rejections that tests assert on.
+
+These rules stay off by design, each with its reason in the preset:
+
+| Rule                                  | Findings     | Reason                                               |
+| ------------------------------------- | ------------ | ---------------------------------------------------- |
+| `typescript/consistent-return`        | 20           | `noImplicitReturns` covers it                        |
+| `eslint/no-useless-return`            | 8            | TS7030 needs the final `return;`                     |
+| `unicorn/prefer-regexp-test`          | 3            | not type-aware; custom matchers have a `match`       |
+| `eslint/require-await`                | 121          | duplicates the type-aware `typescript/require-await` |
+| `eslint/no-negated-condition`         | not measured | duplicates `unicorn/no-negated-condition`            |
+| `typescript/ban-types`                | 10           | `string & {}` and the `{}` generic defaults          |
+| `eslint/no-redeclare`                 | 6            | a Valibot schema and its type share a name           |
+| `eslint/max-classes-per-file`         | 4            | an error class next to its subclass                  |
+| `typescript/no-unsafe-type-assertion` | 402          | each assertion carries a `SAFETY:` comment instead   |
+| `typescript/no-base-to-string`        | 27           | `String(unknown)` for SQL literals and error text    |
+
+The test preset also turns off `vitest/no-conditional-in-test` (206),
+`typescript/require-await` (89), `typescript/strict-void-return` (77),
+`eslint/max-lines` and the promise-rejection rules (10), because fakes,
+table-driven cases and rejection tests need them.
 
 `anti-slop/require-safety-comment-for-type-assertion` had 470 findings (282
 outside tests). Those were annotated and the rule is an error everywhere
