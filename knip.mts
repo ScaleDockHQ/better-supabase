@@ -21,6 +21,7 @@ const browserExample = {
 const config: KnipConfig = {
   treatConfigHintsAsErrors: true,
   tags: ["-internal"],
+  ignoreExportsUsedInFile: { interface: true, type: true },
   // Vendored maintainer skills (ADR 0004) carry their own scripts.
   ignore: [".agents/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`).
@@ -67,6 +68,7 @@ const config: KnipConfig = {
       ],
     },
     "packages/typescript-config": {},
+    "packages/next-config": {},
     "apps/docs": {
       // Twoslash snippets import better-supabase; twoslash is a peer of fumadocs-twoslash.
       ignoreDependencies: ["better-supabase", "twoslash"],

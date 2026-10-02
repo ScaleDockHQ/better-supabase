@@ -81,6 +81,10 @@
     "dev:portless": {
       "cache": false,
       "persistent": true
+    },
+    "analyze": {
+      "cache": false,
+      "persistent": true
     }
   }
 }

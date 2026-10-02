@@ -15,7 +15,7 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/ssr": "catalog:",

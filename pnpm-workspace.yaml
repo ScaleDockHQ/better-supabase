@@ -107,6 +107,8 @@ catalogs:
     typescript: 5.9.3
   ts6:
     typescript: 6.0.3
+  # Ranges the published packages declare as peers, so consumers pick the
+  # version. They are deliberately not exact pins.
   peers:
     "@opentelemetry/api": ">=1.9"
     "@orpc/server": ">=2.0.0-0"
@@ -126,8 +128,12 @@ strictPeerDependencies: true
 strictDepBuilds: true
 engineStrict: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExcludePrune: true
 trustPolicy: no-downgrade
+# Releases older than 30 days are trusted as they are; several of the
+# transitive packages predate npm provenance.
 trustPolicyIgnoreAfter: 43200
+trustPolicyExcludePrune: true
 # The native TypeScript 7 compiler resolves its platform binary from the root.
 publicHoistPattern:
   - "@typescript/*"
@@ -135,6 +141,8 @@ nodeOptions: "${NODE_OPTIONS:- } --disable-warning=MODULE_TYPELESS_PACKAGE_JSON"
 
 # `typescript` is deliberately not overridden: tests/types/* and apps/docs pin
 # 5.9 and 6 through the ts59 and ts6 catalogs for the compatibility matrix.
+# Fumadocs, @next/playwright and the examples peer on wide next and react
+# ranges; one version keeps every app on the same runtime.
 overrides:
   next: "catalog:"
   react: "catalog:"

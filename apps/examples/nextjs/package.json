@@ -17,7 +17,7 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "start": "next start -p 3100",
-    "typecheck": "next typegen && tsc --noEmit --checkers 4"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@supabase/server": "catalog:",

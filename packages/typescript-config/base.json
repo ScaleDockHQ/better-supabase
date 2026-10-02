@@ -6,6 +6,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
+    "types": [],
     "noEmit": true,
 
     "strict": true,

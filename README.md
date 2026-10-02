@@ -145,8 +145,9 @@ Maintainer rules for agents working on this repository are in [`AGENTS.md`](./AG
 ```bash
 pnpm install
 vercel link           # maintainers: link the scaledock team's project
-pnpm env:pull         # maintainers: .env.development.local and friends
+pnpm env:pull         # maintainers: hosted keys in .env.local
 pnpm supabase:start   # API on 55421, Postgres on 55422
+pnpm env:local        # local stack and Portless URLs in .env.development.local
 pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
 ```
 

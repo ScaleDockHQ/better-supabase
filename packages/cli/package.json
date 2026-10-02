@@ -47,7 +47,7 @@
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
     "test": "vitest run --coverage",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@clack/prompts": "catalog:",

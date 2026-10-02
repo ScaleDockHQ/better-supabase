@@ -1,5 +1,5 @@
 import type { Route } from "next";
-import type { ComponentProps } from "react";
+import type { ReactNode } from "react";
 
 import Link from "next/link";
 
@@ -13,20 +13,22 @@ function isAppRoute(href: string): href is Route {
   );
 }
 
-export function SiteLink({
-  href,
-  children,
-  ...props
-}: ComponentProps<"a"> & { href: string }) {
+interface SiteLinkProps {
+  readonly href: string;
+  readonly className?: string;
+  readonly children: ReactNode;
+}
+
+export function SiteLink({ href, className, children }: SiteLinkProps) {
   if (!isAppRoute(href)) {
     return (
-      <a href={href} {...props}>
+      <a href={href} className={className}>
         {children}
       </a>
     );
   }
   return (
-    <Link href={href} {...props}>
+    <Link href={href} className={className}>
       {children}
     </Link>
   );

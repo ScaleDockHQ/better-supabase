@@ -7,7 +7,7 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit --checkers 4"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "valibot": "catalog:"

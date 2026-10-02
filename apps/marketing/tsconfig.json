@@ -4,7 +4,6 @@
   "compilerOptions": {
     "declaration": false,
     "isolatedDeclarations": false,
-    "exactOptionalPropertyTypes": false,
     "paths": {
       "@/*": ["./*"]
     }
