@@ -31,7 +31,7 @@ export default defineConfig({
       thresholds: {
         statements: 96,
         lines: 97,
-        functions: 97,
+        functions: 98,
         branches: 87,
         autoUpdate: (next: number) => Math.floor(next),
       },
