@@ -273,6 +273,22 @@ describe("env", () => {
     expect(result.stdout).toContain("VITE_SUPABASE_PUBLISHABLE_KEY=eyJlegacy");
   });
 
+  it("falls back to status --env for the native stack", async () => {
+    await project({});
+    const bin = join(dir, "fake-supabase");
+    await writeFile(
+      bin,
+      `#!/bin/sh\nif [ "$2" = "-o" ]; then echo 'The legacy -o/--output flag is not supported here' >&2; exit 1; fi\necho '${JSON.stringify(status)}'\n`,
+    );
+    await chmod(bin, 0o755);
+    const result = await run(["env", "--print", "--cwd", dir], {
+      env: { SUPABASE_BIN: bin },
+      io: { stdout: () => {}, stderr: () => {} },
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("SUPABASE_URL=http://127.0.0.1:54321");
+  });
+
   it("keeps comments and export lines when merging", () => {
     expect(mergeEnv("# mine\nexport A=1\n", { A: "2", B: "3" })).toBe(
       "# mine\nA=2\n\n# Local Supabase stack (better-supabase env)\nB=3\n",

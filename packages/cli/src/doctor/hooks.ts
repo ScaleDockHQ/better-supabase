@@ -6,7 +6,12 @@ import {
   parseHookMarker,
   permdockSource,
 } from "../permdock.ts";
-import { type PgFunctionHook, pgFunctionHooks } from "../supabase-toml.ts";
+import {
+  type DiffEngine,
+  diffEngine,
+  type PgFunctionHook,
+  pgFunctionHooks,
+} from "../supabase-toml.ts";
 import { errorText, ident, literal, type LiveDatabase } from "./live.ts";
 import { lineOf } from "./shared.ts";
 
@@ -257,10 +262,12 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
 }
 
 /** The sentence that tells the reader how to apply `fix`. */
-function grantFixText(fix: HookGrantFix): string {
+function grantFixText(fix: HookGrantFix, engine: DiffEngine): string {
   switch (fix.kind) {
     case "sql":
-      return `Append to the migration \`supabase db diff\` wrote (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
+      return engine === "pg-delta"
+        ? `Add to the schema file that defines the function, then run \`supabase db schema declarative sync\` (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`
+        : `Append to the migration \`supabase db diff\` wrote (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
     case "permdock":
       return `It is PermDock's hook, so let PermDock write the grants: \`${PERMDOCK_GRANTS_COMMAND}\`.`;
     case "migration":
@@ -273,12 +280,17 @@ function grantFixText(fix: HookGrantFix): string {
 }
 
 /** `doctor --fix-grants`: the SQL block for every BS404 problem, as one migration snippet. */
-export function hookGrantBlock(problems: readonly HookGrantProblem[]): string {
+export function hookGrantBlock(
+  problems: readonly HookGrantProblem[],
+  engine: DiffEngine = "migra",
+): string {
   if (problems.length === 0)
     return "-- Every configured Auth hook function has its grants.";
   const lines = [
     "-- Auth hook grants (better-supabase doctor --fix-grants).",
-    "-- `supabase db diff` does not carry function grants; append this to its migration.",
+    engine === "pg-delta"
+      ? "-- Add this to the schema file that defines the function, then run `supabase db schema declarative sync`."
+      : "-- `supabase db diff` does not carry function grants; append this to its migration.",
   ];
   for (const { fn, hook, fix } of problems) {
     const name = `${signatureOf(fn)} ([auth.hook.${hook}])`;
@@ -404,7 +416,7 @@ export const HOOK_RULES: readonly Rule[] = [
       ),
       ...hookGrantProblems(context).map(
         ({ hook, fn, problems, fix }): FindingInput => ({
-          message: `${signatureOf(fn)} ([auth.hook.${hook}]): ${problems.join("; ")}. ${grantFixText(fix)}`,
+          message: `${signatureOf(fn)} ([auth.hook.${hook}]): ${problems.join("; ")}. ${grantFixText(fix, diffEngine(context.configToml))}`,
           target: signatureOf(fn),
           object: { kind: "function", schema: fn.schema, name: fn.name },
         }),

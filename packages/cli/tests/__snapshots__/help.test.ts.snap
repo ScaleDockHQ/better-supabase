@@ -39,7 +39,7 @@ OPTIONS
    --explain=<tables>    EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)                                                  
           --as=<uuid>    Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
       --claims=<json>    Plan with these JWT claims ({"role":"authenticated",...})                                                    
-         --fix-grants    Print the grant and revoke SQL BS404 asks for, to append to the migration \`supabase db diff\` wrote           
+         --fix-grants    Print the grant and revoke SQL BS404 asks for, to add to your schema or migration                            
           --cwd=<dir>    Project directory                                                                                            
       --config=<file>    Config file, relative to --cwd                                                                               
                --json    Print one JSON document on stdout; errors as Problem Details                                                 

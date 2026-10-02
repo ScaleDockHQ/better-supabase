@@ -379,6 +379,22 @@ describe("sql", () => {
     );
     const listed = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
+    expect(listed.stdout).toContain(
+      "Then create a migration: supabase db diff -f better_supabase_kit",
+    );
+  });
+
+  it("names the pg-delta sync and skips the schema_paths note under pg-delta", async () => {
+    await mkdir(join(dir, "supabase"), { recursive: true });
+    await writeFile(
+      join(dir, "supabase/config.toml"),
+      '[db.migrations]\nschema_paths = ["./schemas/010_app.sql"]\n\n[experimental.pgdelta]\nenabled = true\n',
+    );
+    const added = await run(["sql", "add", "audit", "--cwd", dir]);
+    expect(added.stdout).not.toContain("no entry matches");
+    expect(added.stdout).toContain(
+      "Then create a migration: supabase db schema declarative sync -f better_supabase_kit",
+    );
   });
 
   it("syncs sql.kit and detects stale files with --check", async () => {

@@ -53,7 +53,16 @@ async function readStatus(
     return JSON.parse(
       await readFile(resolve(config.root, from), "utf8"),
     ) as Status;
-  const result = await supabaseCli(["status", "-o", "json"], config.root, env);
+  let result = await supabaseCli(["status", "-o", "json"], config.root, env);
+  // The native stack (`[experimental] stack`) rejects `-o` and prints the same keys with `--env`.
+  if (result.code !== 0) {
+    const native = await supabaseCli(
+      ["status", "--env", "--output-format", "json"],
+      config.root,
+      env,
+    );
+    if (native.code === 0) result = native;
+  }
   if (result.code !== 0) {
     throw new Error(
       `supabase status failed (${result.code}). Is the local stack running (supabase start)?`,
@@ -61,7 +70,7 @@ async function readStatus(
   }
   const start = result.stdout.indexOf("{");
   if (start === -1) throw new Error("supabase status printed no JSON.");
-  // SAFETY: supabase status -o json prints a Status object.
+  // SAFETY: both supabase status forms print a flat Status object.
   return JSON.parse(result.stdout.slice(start)) as Status;
 }
 
