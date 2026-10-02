@@ -344,6 +344,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      rs_workspace_summary: { Args: { p: Json }; Returns: Json }
       search_notes: {
         Args: { k?: number; query: string }
         Returns: {

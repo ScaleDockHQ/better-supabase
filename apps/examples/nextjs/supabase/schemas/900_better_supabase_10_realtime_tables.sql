@@ -90,7 +90,7 @@ $$;
 revoke execute on function better_supabase.track_realtime(regclass, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, and tenant topics of their own org.
+-- Signed-in users receive unscoped topics, and topics of their active tenant.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (

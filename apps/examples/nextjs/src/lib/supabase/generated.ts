@@ -360,6 +360,12 @@ export type Models = {
 };
 
 export type Functions = {
+  rs_workspace_summary: {
+    Args: {
+      p: Json;
+    };
+    Returns: Json;
+  };
   search_notes: {
     Args: {
       k?: number;
@@ -1239,6 +1245,19 @@ export const schema: Schema<Models, Database, Functions> = defineSchema({
     ]
   },
   "functions": {
+    "rs_workspace_summary": {
+      "name": "rs_workspace_summary",
+      "schema": "public",
+      "args": [
+        {
+          "name": "p",
+          "type": "jsonb"
+        }
+      ],
+      "returns": "jsonb",
+      "returnsSet": false,
+      "volatility": "stable"
+    },
     "search_notes": {
       "name": "search_notes",
       "schema": "public",

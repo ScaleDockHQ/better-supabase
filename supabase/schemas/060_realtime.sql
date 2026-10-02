@@ -88,7 +88,7 @@ end;
 $$;
 
 
--- Signed-in users receive unscoped topics, and tenant topics of their own org.
+-- Signed-in users receive unscoped topics, and topics of their active tenant.
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
