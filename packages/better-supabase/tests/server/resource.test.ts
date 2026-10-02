@@ -158,4 +158,51 @@ describe("defineResource", () => {
       'not "tags"',
     );
   });
+
+  it("pages the default list by cursor", async () => {
+    const { db, queries } = fakeDb();
+    const customers = defineResource(sb, "customers", {
+      pagination: "cursor",
+      maxPageSize: 5,
+    });
+    expect(customers.pagination).toBe("cursor");
+    const first = await customers.execute(db, "list", {
+      query: new URLSearchParams("size=1"),
+    });
+    expect(first.ok && first.data).toMatchObject({
+      items: [{ id: "c1" }],
+      hasMore: false,
+      nextCursor: null,
+    });
+    expect(queries[0]).toMatchObject({ kind: "select", limit: 2 });
+    expect((queries[0] as { count?: unknown }).count).toBeUndefined();
+    const rejected = await customers.execute(db, "list", {
+      query: { page: 2, after: 3, size: 9 },
+    });
+    expect(!rejected.ok && rejected.error).toMatchObject({
+      kind: "validation",
+      issues: [
+        { path: ["size"] },
+        { message: "This list pages with `after`", path: ["page"] },
+        { message: "Must be text", path: ["after"] },
+      ],
+    });
+    const offset = defineResource(sb, "customers");
+    expect(offset.pagination).toBe("offset");
+    const mixed = await offset.execute(db, "list", {
+      query: { after: "x", page: 0 },
+    });
+    expect(!mixed.ok && mixed.error).toMatchObject({
+      issues: [
+        { message: "This list pages with `page`", path: ["after"] },
+        { message: "Must be a positive integer", path: ["page"] },
+      ],
+    });
+    const list = defineListQuery(sb, "customers", {
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      pagination: "cursor",
+    });
+    expect(defineResource(sb, "customers", { list }).pagination).toBe("cursor");
+  });
 });

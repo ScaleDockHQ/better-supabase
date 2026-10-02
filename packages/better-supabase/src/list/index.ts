@@ -5,6 +5,7 @@ export type {
   ListDefinition,
   ListExtra,
   ListPage,
+  ListPagination,
   ListParseResult,
   ListParsers,
   ListQuery,

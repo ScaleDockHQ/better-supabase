@@ -126,8 +126,10 @@ Each table in `resources` gets one tool per operation:
 | `<table>_update` | the key and `patch` (the `Update` schema)      | `destructiveHint`, `idempotentHint` |
 | `<table>_delete` | the key                                        | `destructiveHint`, `idempotentHint` |
 
-The schemas are generated from your database metadata, the same ones
-`createOpenApi` publishes. Rows come back as `structuredContent` with a
+With `pagination: 'cursor'` on the resource (or its list query), the list
+tool takes `after` instead of `page` and returns `nextCursor`, which suits
+agents that read a table one page at a time. The schemas are generated from
+your database metadata, the same ones `createOpenApi` publishes. Rows come back as `structuredContent` with a
 matching `outputSchema`.
 
 ## Custom tools

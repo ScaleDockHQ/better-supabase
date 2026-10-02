@@ -23,6 +23,8 @@ import {
   type Selection,
   type UpdateOp,
   and,
+  column as columnIs,
+  not,
   or,
 } from "../ir/types.ts";
 import { decodeCursor, encodeCursor } from "./cursor.ts";
@@ -647,7 +649,13 @@ export function createRepository(
       if (!values || values.length !== orderBy.length) {
         return runner.fail(table, dbError("invalid_request", "Invalid cursor"));
       }
-      after = keysetCondition(orderBy, values);
+      after = keysetCondition(
+        orderBy,
+        values,
+        (name) =>
+          Object.values(table.columns).find((meta) => meta.db === name)
+            ?.nullable ?? true,
+      );
     }
 
     const op = selectOp(args, {
@@ -722,27 +730,48 @@ function strip(row: Row, keys: readonly string[]): Row {
   return copy;
 }
 
-/** `(a, b) > (x, y)` for mixed directions, as an OR of ANDs. */
+/**
+ * The rows after the cursor `values` in `orderBy` order, as an OR of ANDs:
+ * `a > x or (a = x and b > y)`. The SQL compiler sends that shape as the row
+ * comparison `(a, b) > (x, y)`. Nulls sort where Postgres puts them: last
+ * for `asc`, first for `desc`, unless the term says otherwise.
+ */
 function keysetCondition(
   orderBy: readonly OrderTerm[],
   values: readonly unknown[],
+  nullable: (column: string) => boolean,
 ): Condition {
-  const branches: Condition[] = orderBy.map((term, index) => {
-    const equal: Condition[] = orderBy
+  const isNull = (name: string): Condition => columnIs(name, "is", null);
+  const branches = orderBy.flatMap((term, index): Condition[] => {
+    const value = values[index];
+    const nullsFirst =
+      (term.nulls ?? (term.direction === "desc" ? "first" : "last")) ===
+      "first";
+    const after = columnIs(
+      term.column,
+      term.direction === "asc" ? "gt" : "lt",
+      value,
+    );
+    const step =
+      value === null
+        ? nullsFirst
+          ? not(isNull(term.column))
+          : undefined
+        : nullsFirst || !nullable(term.column)
+          ? after
+          : or(after, isNull(term.column));
+    if (!step) return [];
+    const equal = orderBy
       .slice(0, index)
-      .map((prev, prevIndex) => ({
-        kind: "column",
-        column: prev.column,
-        op: "eq",
-        value: values[prevIndex],
-      }));
-    const step: Condition = {
-      kind: "column",
-      column: term.column,
-      op: term.direction === "asc" ? "gt" : "lt",
-      value: values[index],
-    };
-    return and(...equal, step) ?? step;
+      .map((prev, prevIndex) =>
+        values[prevIndex] === null
+          ? isNull(prev.column)
+          : columnIs(prev.column, "eq", values[prevIndex]),
+      );
+    return [and(...equal, step) ?? step];
   });
-  return or(...branches);
+  // A null in the last nulls-last term leaves nothing after the cursor.
+  return branches.length > 0
+    ? or(...branches)
+    : columnIs(orderBy[0]?.column ?? "", "in", []);
 }

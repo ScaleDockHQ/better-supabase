@@ -78,5 +78,6 @@ export type {
   ResourceHandler,
   ResourceInput,
   ResourceList,
+  ResourcePagination,
   ResourceRouteOptions,
 } from "./resource.ts";

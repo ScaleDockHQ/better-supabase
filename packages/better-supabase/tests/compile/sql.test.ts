@@ -231,6 +231,57 @@ describe("compileSql boolean conditions", () => {
       `((t0."name" = $1 and t0."status" = $2) or not t0."kvk" is null)`,
       ["A", "lead"],
     ],
+    [
+      "a keyset step as a row comparison",
+      {
+        kind: "or",
+        items: [
+          col("created_at", "lt", "2026-02-01"),
+          {
+            kind: "and",
+            items: [
+              col("created_at", "eq", "2026-02-01"),
+              col("id", "lt", "c2"),
+            ],
+          },
+        ],
+      },
+      `(t0."created_at", t0."id") < ($1, $2)`,
+      ["2026-02-01", "c2"],
+    ],
+    [
+      "mixed directions as an OR of ANDs",
+      {
+        kind: "or",
+        items: [
+          col("created_at", "lt", "2026-02-01"),
+          {
+            kind: "and",
+            items: [
+              col("created_at", "eq", "2026-02-01"),
+              col("id", "gt", "c2"),
+            ],
+          },
+        ],
+      },
+      `(t0."created_at" < $1 or (t0."created_at" = $2 and t0."id" > $3))`,
+      ["2026-02-01", "2026-02-01", "c2"],
+    ],
+    [
+      "a step whose equality doesn't match the previous column",
+      {
+        kind: "or",
+        items: [
+          col("name", "gt", "A"),
+          {
+            kind: "and",
+            items: [col("kvk", "eq", "A"), col("id", "gt", "c2")],
+          },
+        ],
+      },
+      `(t0."name" > $1 or (t0."kvk" = $2 and t0."id" > $3))`,
+      ["A", "A", "c2"],
+    ],
   ])("%s", (_name, where, expected, params) => {
     expect(rows(select({ where }))).toEqual({
       text: `${BASE} where ${expected}`,

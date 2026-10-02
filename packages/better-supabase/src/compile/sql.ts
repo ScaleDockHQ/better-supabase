@@ -50,6 +50,47 @@ function columnType(table: TableMeta, db: string): string | undefined {
   return Object.values(table.columns).find((meta) => meta.db === db)?.type;
 }
 
+type ColumnCondition = Extract<Condition, { kind: "column" }>;
+
+/**
+ * `a > x or (a = x and b > y) or ...` as `(a, b) > (x, y)`, which an index
+ * on `(a, b)` serves. Both forms give the same result under SQL's
+ * three-valued logic, nulls included.
+ */
+function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
+  readonly columns: string[];
+  readonly op: "gt" | "lt";
+  readonly values: unknown[];
+} | null {
+  const steps: ColumnCondition[] = [];
+  for (const [index, item] of condition.items.entries()) {
+    const terms = index === 0 ? [item] : item.kind === "and" ? item.items : [];
+    if (terms.length !== index + 1) return null;
+    const step = terms[index]!;
+    if (step.kind !== "column" || (step.op !== "gt" && step.op !== "lt"))
+      return null;
+    for (const [at, term] of terms.slice(0, index).entries()) {
+      const prev = steps[at]!;
+      if (
+        term.kind !== "column" ||
+        term.op !== "eq" ||
+        term.column !== prev.column ||
+        !Object.is(term.value, prev.value)
+      )
+        return null;
+    }
+    steps.push(step);
+  }
+  const op = steps[0]?.op;
+  if (op !== "gt" && op !== "lt") return null;
+  if (steps.length < 2 || steps.some((step) => step.op !== op)) return null;
+  return {
+    columns: steps.map((step) => step.column),
+    op,
+    values: steps.map((step) => step.value),
+  };
+}
+
 class SqlCompiler {
   readonly params: unknown[] = [];
   #aliases = 0;
@@ -75,6 +116,12 @@ class SqlCompiler {
       case "or": {
         if (condition.items.length === 0)
           return condition.kind === "and" ? "true" : "false";
+        const row = condition.kind === "or" ? rowComparison(condition) : null;
+        if (row) {
+          const columns = row.columns.map((name) => this.column(alias, name));
+          const values = row.values.map((value) => this.param(value));
+          return `(${columns.join(", ")}) ${row.op === "gt" ? ">" : "<"} (${values.join(", ")})`;
+        }
         const joiner = condition.kind === "and" ? " and " : " or ";
         return `(${condition.items.map((item) => this.condition(item, table, alias)).join(joiner)})`;
       }

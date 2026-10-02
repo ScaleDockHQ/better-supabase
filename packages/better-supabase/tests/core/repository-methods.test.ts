@@ -794,6 +794,47 @@ describe("cursor pagination", () => {
     });
   });
 
+  it("places nulls of a nullable sort column where Postgres sorts them", async () => {
+    const whereAfter = async (after: unknown[], direction: "asc" | "desc") => {
+      const { db, select } = connect(() => rowsOf([]));
+      await db.customers.paginate({
+        select: ["id"],
+        orderBy: { archivedAt: direction },
+        size: 2,
+        after: encodeCursor(after),
+      });
+      return select().where;
+    };
+    const isNull = col("archived_at", "is", null);
+    // asc puts nulls last, so they follow every timestamp.
+    expect(await whereAfter(["2026-01-01", "c2"], "asc")).toEqual({
+      kind: "or",
+      items: [
+        { kind: "or", items: [col("archived_at", "gt", "2026-01-01"), isNull] },
+        {
+          kind: "and",
+          items: [
+            col("archived_at", "eq", "2026-01-01"),
+            col("id", "gt", "c2"),
+          ],
+        },
+      ],
+    });
+    // Inside the trailing nulls only the tie-breaker moves on.
+    expect(await whereAfter([null, "c2"], "asc")).toEqual({
+      kind: "and",
+      items: [isNull, col("id", "gt", "c2")],
+    });
+    // desc puts nulls first: after them come all the timestamps.
+    expect(await whereAfter([null, "c2"], "desc")).toEqual({
+      kind: "or",
+      items: [
+        { kind: "not", item: isNull },
+        { kind: "and", items: [isNull, col("id", "lt", "c2")] },
+      ],
+    });
+  });
+
   it("orders by the primary key alone without orderBy", async () => {
     const { db, select } = connect(() => rowsOf([{ id: "a" }, { id: "b" }]));
     const result = await db.customers.paginate({

@@ -293,11 +293,13 @@ const ANNOTATIONS: { readonly [K in ResourceOperation]: ToolAnnotations } = {
   },
 };
 
-function pageSchema(max: number): Json {
+function pageSchema(max: number, cursor: boolean): Json {
   return {
     type: "object",
     properties: {
-      page: { type: "integer", minimum: 1, default: 1 },
+      ...(cursor
+        ? { after: { type: "string" } }
+        : { page: { type: "integer", minimum: 1, default: 1 } }),
       size: { type: "integer", minimum: 1, maximum: max, default: 50 },
     },
     additionalProperties: false,
@@ -322,14 +324,25 @@ function tableTools(
     required: [keyParam!, ...Object.keys(more)],
     additionalProperties: false,
   });
-  const page: Json = {
-    type: "object",
-    properties: {
-      items: { type: "array", items: row },
-      page: { type: "object" },
-    },
-    required: ["items", "page"],
-  };
+  const cursor = resource.pagination === "cursor";
+  const page: Json = cursor
+    ? {
+        type: "object",
+        properties: {
+          items: { type: "array", items: row },
+          nextCursor: { type: ["string", "null"] },
+          hasMore: { type: "boolean" },
+        },
+        required: ["items", "nextCursor", "hasMore"],
+      }
+    : {
+        type: "object",
+        properties: {
+          items: { type: "array", items: row },
+          page: { type: "object" },
+        },
+        required: ["items", "page"],
+      };
   const tools: { info: ToolInfo; operation: ResourceOperation }[] = [];
   const add = (
     operation: ResourceOperation,
@@ -354,7 +367,7 @@ function tableTools(
       case "list": {
         // SAFETY: list schemas are JSON Schema objects.
         const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
-          pageSchema(resource.maxPageSize)) as Record<string, unknown>;
+          pageSchema(resource.maxPageSize, cursor)) as Record<string, unknown>;
         add(
           "list",
           `List ${table} rows visible to the caller, one page at a time.`,

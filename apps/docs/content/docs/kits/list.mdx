@@ -55,6 +55,28 @@ The total uses `count: 'exact'` by default. On large tables, set
 `count: 'planned'` or `'estimated'` in the config, or pass `count` to one
 `run`; see [Pagination](/docs/repository/pagination) for what each mode costs.
 
+## Cursor pagination
+
+Set `pagination: 'cursor'` and the list takes `after` instead of `page`:
+
+```ts
+export const customerFeed = defineListQuery(sb, "customers", {
+  sorts: { newest: [{ createdAt: "desc" }, { id: "desc" }] },
+  defaultSort: "newest",
+  pagination: "cursor",
+});
+
+const page = await customerFeed.run(db, query).orThrow();
+// page: { items, nextCursor, hasMore }
+customerFeed.toSearchParams({ ...query, after: page.nextCursor! });
+```
+
+A cursor page skips the count and reads the same number of rows however
+deep it is (see [Pagination](/docs/repository/pagination#cursors)). `page`
+in the input is rejected with an issue, as is `after` on an offset list.
+`size` is still capped by `maxPageSize`, and the OpenAPI parameters and JSON
+Schema describe `after`.
+
 ## Facet counts
 
 Filter UIs usually show how many rows each facet value would match

@@ -3,6 +3,8 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ValidationIssue } from "../core/errors.ts";
 import type {
+  CursorPage,
+  CursorPageArgs,
   FindExt,
   OffsetPage,
   OffsetPageArgs,
@@ -36,12 +38,16 @@ type TextColumn<M extends AnyModels, T extends keyof M> = {
   [K in Column<M, T>]: [NonNullable<Row<M, T>[K]>] extends [string] ? K : never;
 }[Column<M, T>];
 
+/** `offset` pages by number; `cursor` continues after the last row (keyset). */
+export type ListPagination = "offset" | "cursor";
+
 export interface ListQueryConfig<
   M extends AnyModels,
   T extends keyof M,
   S extends string,
   F extends string,
   C extends boolean = boolean,
+  P extends ListPagination = ListPagination,
 > {
   /**
    * Also count rows per facet value, with one grouped aggregate that runs
@@ -59,6 +65,12 @@ export interface ListQueryConfig<
   /** Named orderings. Add a unique column last for stable pages. */
   readonly sorts: { readonly [K in S]: OrderByArg<M, T> };
   readonly defaultSort: NoInfer<S>;
+  /**
+   * `cursor` takes an `after` cursor instead of `page` and returns
+   * `nextCursor`: the cost of a page stays the same however deep it is, and
+   * rows inserted meanwhile don't shift it. Defaults to `offset`.
+   */
+  readonly pagination?: P;
   /** Defaults to 50. */
   readonly pageSize?: number;
   /** Defaults to 200. */
@@ -70,8 +82,10 @@ export interface ListQueryConfig<
 export interface ListQuery<S extends string, F extends string> {
   readonly q?: string;
   readonly sort: S;
-  /** 1-based. */
+  /** 1-based. Always 1 with cursor pagination. */
   readonly page: number;
+  /** Cursor pagination: the `nextCursor` of the previous page. */
+  readonly after?: string;
   readonly size: number;
   readonly facets: { readonly [K in F]?: readonly string[] };
 }
@@ -81,6 +95,7 @@ export interface ListQueryInput<S extends string, F extends string> {
   readonly q?: string;
   readonly sort?: S;
   readonly page?: number;
+  readonly after?: string;
   readonly size?: number;
   readonly facets?: { readonly [K in F]?: readonly string[] };
 }
@@ -131,7 +146,12 @@ export type FacetCounts<F extends string> = {
 };
 
 /** A page of a list; with `facetCounts: true`, also the counts per facet value. */
-export type ListPage<R, F extends string, C extends boolean> = OffsetPage<R> &
+export type ListPage<
+  R,
+  F extends string,
+  C extends boolean,
+  P extends ListPagination = "offset",
+> = ([P] extends ["cursor"] ? CursorPage<R> : OffsetPage<R>) &
   ([C] extends [true]
     ? { readonly facetCounts: FacetCounts<F> }
     : [C] extends [false]
@@ -145,8 +165,10 @@ export interface ListDefinition<
   S extends string,
   F extends string,
   C extends boolean = false,
+  P extends ListPagination = "offset",
 > {
   readonly table: T;
+  readonly pagination: P;
   readonly defaults: ListQuery<S, F>;
   readonly facets: readonly FacetInfo[];
   /** Validates typed input or URL params. Also a Standard Schema (`schema`). */
@@ -164,8 +186,10 @@ export interface ListDefinition<
   nuqs<P>(createParser: (spec: ParserSpec<unknown>) => P): {
     readonly [K in keyof ListParsers<S, F>]: P;
   };
-  /** Repository arguments: `where`, `orderBy`, `page`, `size`, `count`. */
-  args(query: ListQuery<S, F>): OffsetPageArgs<M, T>;
+  /** Repository arguments: `where`, `orderBy`, `size`, and `page` and `count` or `after`. */
+  args(
+    query: ListQuery<S, F>,
+  ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T>;
   /**
    * Runs the list against a table, merging your `select`, `include`, `where`
    * and `count`. One request, plus one for `facetCounts`, always one wave.
@@ -174,7 +198,7 @@ export interface ListDefinition<
     db: { readonly [K in T]: RepositoryOf<M, K, E> },
     query: ListQuery<S, F>,
     extra?: A,
-  ): AsyncResult<ListPage<Payload<M, T, A>, F, C>>;
+  ): AsyncResult<ListPage<Payload<M, T, A>, F, C, P>>;
   /** OpenAPI 3.1 query parameters. */
   readonly openapi: readonly OpenApiParameter[];
   /** JSON Schema of the typed input, e.g. for MCP tool arguments. */
@@ -193,10 +217,11 @@ export type ListParsers<S extends string, F extends string> = {
   readonly q: ParserSpec<string>;
   readonly sort: ParserSpec<S>;
   readonly page: ParserSpec<number>;
+  readonly after: ParserSpec<string>;
   readonly size: ParserSpec<number>;
 } & { readonly [K in F]: ParserSpec<readonly string[]> };
 
-const RESERVED = new Set(["q", "sort", "page", "size"]);
+const RESERVED = new Set(["q", "sort", "page", "after", "size"]);
 
 function first(
   value: string | readonly string[] | undefined,
@@ -263,16 +288,18 @@ export function defineListQuery<
   const S extends string,
   const F extends string = never,
   const C extends boolean = false,
+  const P extends ListPagination = "offset",
 >(
   sb: BetterSupabase<M, D, Fn, E>,
   table: T,
-  config: ListQueryConfig<M, T, S, F, C>,
-): ListDefinition<M, T, E, S, F, C> {
+  config: ListQueryConfig<M, T, S, F, C, P>,
+): ListDefinition<M, T, E, S, F, C, P> {
   const meta: TableMeta | undefined = sb.meta.tables[table];
   if (!meta) throw new TypeError(`defineListQuery: unknown table "${table}"`);
   const pageSize = config.pageSize ?? 50;
   const maxPageSize = config.maxPageSize ?? 200;
   const maxSearch = config.maxSearchLength ?? 200;
+  const cursor = config.pagination === "cursor";
   // SAFETY: config.sorts is keyed by S, and Object.keys widens the keys to string.
   const sortKeys = Object.keys(config.sorts) as S[];
   // SAFETY: config.facets is keyed by F, and Object.entries widens the keys to string.
@@ -313,6 +340,7 @@ export function defineListQuery<
     q?: unknown;
     sort?: unknown;
     page?: unknown;
+    after?: unknown;
     size?: unknown;
     facets: Partial<Record<string, readonly string[]>>;
   }): ListParseResult<S, F> {
@@ -350,6 +378,22 @@ export function defineListQuery<
         message: "Must be a whole number of at least 1",
         path: ["page"],
       });
+    else if (cursor && page !== 1)
+      issues.push({
+        message: "This list pages with `after`, not `page`",
+        path: ["page"],
+      });
+    let after: string | undefined;
+    if (raw.after !== undefined && raw.after !== "") {
+      if (cursor && typeof raw.after === "string") after = raw.after;
+      else
+        issues.push({
+          message: cursor
+            ? "Must be text"
+            : "This list pages with `page`, not `after`",
+          path: ["after"],
+        });
+    }
     const size =
       raw.size === undefined || raw.size === "" ? pageSize : toInt(raw.size);
     if (
@@ -392,6 +436,7 @@ export function defineListQuery<
         ...(q ? { q } : {}),
         sort,
         page: page ?? 1,
+        ...(after ? { after } : {}),
         size: size ?? pageSize,
         facets: facetValues,
       },
@@ -418,6 +463,7 @@ export function defineListQuery<
         q: first(record["q"]),
         sort: first(record["sort"]),
         page: first(record["page"]),
+        after: first(record["after"]),
         size: first(record["size"]),
         facets: facetValues,
       });
@@ -444,6 +490,7 @@ export function defineListQuery<
       q: typed.q,
       sort: typed.sort,
       page: typed.page,
+      after: typed.after,
       size: typed.size,
       facets: rawFacets as Record<string, string[]>,
     });
@@ -496,17 +543,21 @@ export function defineListQuery<
     ]);
   }
 
-  function args(query: ListQuery<S, F>): OffsetPageArgs<M, T> {
+  function args(
+    query: ListQuery<S, F>,
+  ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T> {
     const filter = where(query);
-    // SAFETY: orderBy comes from config.sorts for table T, and the filter is
-    // built from its columns.
+    const paging = cursor
+      ? { after: query.after ?? null }
+      : { page: query.page, count: config.count ?? "exact" };
+    // SAFETY: orderBy comes from config.sorts for table T, the filter is
+    // built from its columns, and `paging` matches the pagination P.
     return {
       ...(filter ? { where: filter } : {}),
       orderBy: config.sorts[query.sort],
-      page: query.page,
       size: query.size,
-      count: config.count ?? "exact",
-    } as OffsetPageArgs<M, T>;
+      ...paging,
+    } as never;
   }
 
   /** Whether a group's value passes the facet's selected values. */
@@ -576,6 +627,10 @@ export function defineListQuery<
       serialize: (value: S) => value,
     },
     page: intParser,
+    after: {
+      parse: (value: string) => value || null,
+      serialize: (value: string) => value,
+    },
     size: intParser,
     ...Object.fromEntries(facets.map((facet) => [facet.key, listParser])),
   } as ListParsers<S, F>;
@@ -616,13 +671,22 @@ export function defineListQuery<
       description: `Ordering. Default \`${config.defaultSort}\`.`,
       schema: { type: "string", enum: sortKeys, default: config.defaultSort },
     },
-    {
-      name: "page",
-      in: "query",
-      required: false,
-      description: "1-based page number.",
-      schema: { type: "integer", minimum: 1, default: 1 },
-    },
+    cursor
+      ? {
+          name: "after",
+          in: "query",
+          required: false,
+          description:
+            "`nextCursor` of the previous page. Leave it out for the first page.",
+          schema: { type: "string" },
+        }
+      : {
+          name: "page",
+          in: "query",
+          required: false,
+          description: "1-based page number.",
+          schema: { type: "integer", minimum: 1, default: 1 },
+        },
     {
       name: "size",
       in: "query",
@@ -660,7 +724,9 @@ export function defineListQuery<
           }
         : {}),
       sort: { type: "string", enum: sortKeys, default: config.defaultSort },
-      page: { type: "integer", minimum: 1, default: 1 },
+      ...(cursor
+        ? { after: { type: "string" } }
+        : { page: { type: "integer", minimum: 1, default: 1 } }),
       size: {
         type: "integer",
         minimum: 1,
@@ -683,6 +749,8 @@ export function defineListQuery<
 
   return {
     table,
+    // SAFETY: `pagination` is P when given, and P defaults to `offset`.
+    pagination: (config.pagination ?? "offset") as P,
     defaults,
     facets,
     parse,
@@ -709,6 +777,7 @@ export function defineListQuery<
         params.set("sort", query.sort);
       if (query.page && query.page !== 1)
         params.set("page", String(query.page));
+      if (query.after) params.set("after", query.after);
       if (query.size !== undefined && query.size > 0 && query.size !== pageSize)
         params.set("size", String(query.size));
       for (const facet of facets) {
@@ -755,7 +824,7 @@ export function defineListQuery<
       const page = repository.paginate({
         ...extra,
         ...base,
-        count: count ?? base["count"],
+        ...(cursor ? {} : { count: count ?? base["count"] }),
         ...(combined ? { where: combined } : {}),
       });
       if (!config.facetCounts) {

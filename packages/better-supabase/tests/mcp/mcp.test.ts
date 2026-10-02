@@ -579,3 +579,45 @@ describe("createMcp", () => {
     ).toThrow('Duplicate MCP tool "echo"');
   });
 });
+
+describe("createMcp cursor lists", () => {
+  it("describes cursor pagination in the list tool schemas", async () => {
+    const sb = defineSupabase(schema);
+    const mcp = createMcp(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      resources: {
+        tags: { operations: ["list"], pagination: "cursor", maxPageSize: 10 },
+      },
+    });
+    const response = await mcp.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      }),
+    );
+    const { result } = (await response.json()) as {
+      result: {
+        tools: {
+          inputSchema: Record<string, unknown>;
+          outputSchema: Record<string, unknown>;
+        }[];
+      };
+    };
+    expect(result.tools[0]?.inputSchema).toMatchObject({
+      properties: {
+        after: { type: "string" },
+        size: { maximum: 10 },
+      },
+    });
+    expect(result.tools[0]?.outputSchema).toMatchObject({
+      required: ["items", "nextCursor", "hasMore"],
+    });
+  });
+});

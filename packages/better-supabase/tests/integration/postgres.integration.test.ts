@@ -271,6 +271,37 @@ describe.skipIf(!live)("Postgres executor", async () => {
     }
   });
 
+  it("walks every row by cursor over a nullable sort column", async () => {
+    for (const direction of ["asc", "desc"] as const) {
+      for (const db of [rest, sql]) {
+        const expected = await db.customers
+          .findMany({
+            select: ["id"],
+            orderBy: [{ primaryContactId: direction }, { id: direction }],
+          })
+          .orThrow();
+        // Anvil Supplies has no primary contact; Road Runner has one.
+        expect(expected).toHaveLength(2);
+        const walked: unknown[] = [];
+        let after: string | null = null;
+        do {
+          const page: { items: { id: string }[]; nextCursor: string | null } =
+            await db.customers
+              .paginate({
+                select: ["id"],
+                orderBy: { primaryContactId: direction },
+                size: 1,
+                after,
+              })
+              .orThrow();
+          walked.push(...page.items);
+          after = page.nextCursor;
+        } while (after !== null);
+        expect(walked).toEqual(expected);
+      }
+    }
+  });
+
   for (const [name, run] of queries) {
     it(`matches PostgREST: ${name}`, async () => {
       expect(await run(sql)).toEqual(await run(rest));

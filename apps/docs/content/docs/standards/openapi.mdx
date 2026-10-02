@@ -38,7 +38,9 @@ check it in CI with `better-supabase openapi emit --check`.
   CHECK unions become `enum`; nullable columns become `["string", "null"]`.
 - **List parameters:** pass a [list query](/docs/kits/list) and its search,
   sort, page, size and facet parameters are used as they are. Otherwise
-  `page`/`size`.
+  `page`/`size`, or `after`/`size` with `pagination: 'cursor'` on the
+  resource, capped by its `maxPageSize`. Cursor resources get a
+  `CustomersPage` of `items`, `nextCursor` and `hasMore`.
 - **Errors:** `400`–`422` responses use `application/problem+json` with a
   shared `Problem` schema that matches what [route handlers](/docs/auth/problems)
   send.
