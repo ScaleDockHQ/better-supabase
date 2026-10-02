@@ -15,6 +15,7 @@ The data layer is `sb = defineSupabase(schema)` in `src/lib/supabase.ts`.
    `supabase migration new`).
 2. Apply it with `supabase db reset` (or `supabase migration up`).
 3. Run `pnpm better-supabase gen`, then fix the type errors it surfaces.
+   The command comes from the `@better-supabase/cli` dev dependency.
 4. Run `pnpm better-supabase doctor` and fix every error it reports (RLS off,
    missing policies, unindexed foreign keys, drift).
 5. Commit the generated files. CI runs `better-supabase gen --check`.

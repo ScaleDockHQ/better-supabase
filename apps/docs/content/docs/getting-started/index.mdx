@@ -11,10 +11,12 @@ description: Install better-supabase, generate your schema and run your first ty
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D pg
+pnpm add -D @better-supabase/cli pg
 ```
 
-`pg` is only used by the CLI to read your database schema. TypeScript 5.9, 6
+`@better-supabase/cli` is the `better-supabase` command, released at the
+same version as the library. `pg` is only used by the CLI to read your
+database schema. TypeScript 5.9, 6
 and 7 are supported, with `nodenext` or `bundler` module resolution.
 
 </Step>
@@ -24,7 +26,10 @@ and 7 are supported, with `nodenext` or `bundler` module resolution.
 ### Configure
 
 Run `pnpm better-supabase init` to write the config, `src/lib/supabase.ts`,
-and glue for the frameworks it finds (see [init](/docs/cli/init)). Or create
+and glue for the frameworks it finds (see [init](/docs/cli/init)). In a
+terminal it asks for the row casing and the integrations; `--yes` takes the
+defaults. Before installing anything, `npx @better-supabase/cli init` does
+the same and prints the install command for your package manager. Or create
 `better-supabase.config.ts` in your project root yourself:
 
 ```ts title="better-supabase.config.ts"

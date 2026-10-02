@@ -19,6 +19,8 @@ ESM only. The CLI ships as [`@better-supabase/cli`](https://www.npmjs.com/packag
 
 ## Quick start
 
+Or start with `npx @better-supabase/cli init`, which detects your frameworks and prints the install command.
+
 ```bash
 supabase start
 pnpm better-supabase init   # config, src/lib/supabase.ts and framework glue

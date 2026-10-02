@@ -27,10 +27,11 @@ better-supabase removes the glue code every Supabase app rewrites: auth wiring, 
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D pg
+pnpm add -D @better-supabase/cli pg
 ```
 
-ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 5.9, 6 and 7 are tested.
+Or start with `npx @better-supabase/cli init`, which detects your frameworks
+and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 5.9, 6 and 7 are tested.
 
 ## Quick start
 

@@ -22,7 +22,9 @@ pnpm better-supabase <command> [options]
 | [`skills`](/docs/for-ai-agents) | Installs the Agent Skills that ship with the package |
 
 Every command takes `--help`. Commands that write files accept `--check`
-(exit 1 on drift) or `--dry-run`.
+(exit 1 on drift, with a unified diff of each stale file) or `--dry-run`.
+In a terminal, output is colored (set `NO_COLOR` to turn it off), `init` and
+`add` ask what they need, and database work shows a spinner on stderr.
 
 Global options: `--cwd <dir>`, `--config <file>`, `--help`, `--version`.
 
@@ -37,4 +39,35 @@ import { run } from '@better-supabase/cli';
 const { code, stdout, stderr } = await run(['gen', '--check']);
 ```
 
-Register your own commands with `registerCommand(name, command)`.
+`help()` returns the usage text, and `help(command)` the text for one
+command.
+
+Add your own commands with `defineCliCommand` and `registerCommand`. Commands
+are [citty](https://github.com/unjs/citty) definitions: `args` declares the
+options, and `run` gets the parsed arguments and the context (`cwd`,
+`config`, `io`, `env`, `signal`). Options listed in `lists` may repeat or
+take commas, and `list()` splits them.
+
+```ts title="scripts/cli.ts"
+import { defineCliCommand, list, registerCommand, run } from '@better-supabase/cli';
+
+registerCommand(
+  'schemas',
+  defineCliCommand({
+    meta: { name: 'schemas', description: 'Prints the schemas codegen reads' },
+    args: { only: { type: 'string', description: 'Schemas to keep' } },
+    lists: ['only'],
+    run: async (args, { config }) => {
+      const only = list(args.only);
+      const schemas = config.schemas.filter((name) => only.length === 0 || only.includes(name));
+      return { code: 0, output: schemas.join('\n') };
+    },
+  }),
+);
+
+const { code } = await run(process.argv.slice(2));
+process.exitCode = code;
+```
+
+Commands written for 0.2, `(context) => CommandResult`, still register with
+`registerCommand(name, command, help)`. That overload is deprecated.

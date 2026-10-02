@@ -4,7 +4,8 @@ description: Scaffold the config, the data layer and framework glue for your pro
 ---
 
 ```bash
-pnpm better-supabase init
+npx @better-supabase/cli init   # before the CLI is installed
+pnpm better-supabase init       # once it is a dev dependency
 ```
 
 `init` reads your `package.json` and writes:
@@ -15,8 +16,14 @@ pnpm better-supabase init
 
 It then prints the next steps: the install command for your package manager,
 `supabase start`, `better-supabase env` and `better-supabase gen`. Files that
-already exist are never overwritten unless you pass `--force`, and
-`--dry-run` shows what would be written.
+already exist are never overwritten unless you pass `--force` or confirm the
+prompt, and `--dry-run` shows what would be written.
+
+In a terminal, `init` asks for the casing (unless you pass `--casing`), the
+integrations, with the detected ones checked (unless you pass `--with`), and
+whether to overwrite files that exist. `add` without names asks which
+integrations to add. It never asks in CI, when stdin or stdout is not a
+terminal, or with `--yes`, which takes the flags and the defaults.
 
 | Found in `package.json` | Integrations |
 | --- | --- |

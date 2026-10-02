@@ -30,7 +30,7 @@ don't rebuild for nothing.
 
 | Option | Effect |
 | --- | --- |
-| `--check` | Writes nothing; exits 1 when a generated file is out of date. Use it in CI. |
+| `--check` | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI. |
 | `--watch` | Regenerates when the schema changes (polls every `--interval` ms, default 2000). |
 | `--snapshot <file>` | Reads a saved snapshot instead of connecting. |
 | `--db-url <url>` | Connection string; overrides the config and `$DATABASE_URL`. |
