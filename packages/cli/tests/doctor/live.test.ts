@@ -12,7 +12,7 @@ import {
 } from "../../src/doctor/live.ts";
 import { type DoctorContext, RULES, runRules } from "../../src/doctor/rules.ts";
 import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";
-import { snapshotFixture as fixture } from "../fixtures/library.ts";
+import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const snapshot = parseSnapshot(fixture);
 

@@ -11,7 +11,7 @@ import {
   validateGeneratorMetadata,
 } from "../../src/introspect/typegen.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
-import { snapshotFixture as fixture } from "../fixtures/library.ts";
+import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const generator = validateGeneratorMetadata(fixture.generator);
 
