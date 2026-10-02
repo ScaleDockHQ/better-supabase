@@ -1,12 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { IntrospectionSource } from "../../src/cli/introspect/source.ts";
-
-import { introspect } from "../../src/cli/introspect/index.ts";
-import { pgSource } from "../../src/cli/introspect/source.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { openPg } from "../fixtures/pg.ts";
 
 const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const secretKey =
@@ -18,19 +15,8 @@ const dbUrl =
 
 const GLOBEX = "00000000-0000-4000-8000-000000000002";
 const PREFIX = `cap-${Date.now()}-`;
-const SCHEMA = `bs_caps_${Date.now()}`;
 
-async function open(): Promise<IntrospectionSource | undefined> {
-  try {
-    const source = await pgSource(dbUrl);
-    await source.queryable.query("select 1");
-    return source;
-  } catch {
-    return undefined;
-  }
-}
-
-const source = await open();
+const source = await openPg(dbUrl);
 
 describe.skipIf(!source)("row caps against the local stack", () => {
   const db = source!;
@@ -54,22 +40,12 @@ describe.skipIf(!source)("row caps against the local stack", () => {
         { returning: false },
       )
       .orThrow();
-    await db.queryable.query(`
-      create schema ${SCHEMA};
-      create table ${SCHEMA}.events (id bigint primary key);
-      create table ${SCHEMA}.settings (id bigint primary key);
-      insert into ${SCHEMA}.events select generate_series(1, 10000);
-      insert into ${SCHEMA}.settings values (1);
-      analyze ${SCHEMA}.events;
-      analyze ${SCHEMA}.settings;
-    `);
   });
 
   afterAll(async () => {
     await admin.tags.deleteMany({
       where: { name: { startsWith: PREFIX } },
     });
-    await db.queryable.query(`drop schema if exists ${SCHEMA} cascade`);
     await db.close();
   });
 
@@ -104,13 +80,5 @@ describe.skipIf(!source)("row caps against the local stack", () => {
     const ids = first.map((row) => row.id);
     expect(ids).toEqual([...ids].sort());
     expect((await read()).map((row) => row.id)).toEqual(ids);
-  });
-
-  it("marks tables Postgres estimates at 10,000 rows or more as large", async () => {
-    const snapshot = await introspect(db.queryable, [SCHEMA]);
-    const flags = Object.fromEntries(
-      snapshot.extras.tables.map((table) => [table.name, table.large]),
-    );
-    expect(flags).toEqual({ events: true, settings: undefined });
   });
 });

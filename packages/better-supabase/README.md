@@ -12,10 +12,10 @@
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D pg
+pnpm add -D @better-supabase/cli pg
 ```
 
-ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime (Node, Deno, Bun, Workers, Supabase Edge Functions). TypeScript 5.9, 6 and 7 are tested.
+ESM only. The CLI ships as [`@better-supabase/cli`](https://www.npmjs.com/package/@better-supabase/cli), always at the same version as `better-supabase`, and needs Node 24 or later; the runtime entries run on every WinterTC runtime (Node, Deno, Bun, Workers, Supabase Edge Functions). TypeScript 5.9, 6 and 7 are tested.
 
 ## Quick start
 
@@ -66,6 +66,7 @@ if (!result.ok) return result; // DbError: kind, message, status, code
 | `better-supabase/env` | Validated Supabase settings |
 | `better-supabase/events`, `/webhooks`, `/openapi`, `/otel` | CloudEvents, Standard Webhooks, OpenAPI 3.1 and OpenTelemetry |
 | `better-supabase/plugins/*` | Timestamps, soft delete, tenant, actor, validation and runtime rules |
+| `better-supabase/sql` | The SQL kit modules and read-set compiler behind `better-supabase sql` |
 | `better-supabase/lint` | Editor rules for unbounded reads and unscoped deletes |
 | `better-supabase/testing` | `asUser`, `localAuth`, typed seeds and conformance kits |
 

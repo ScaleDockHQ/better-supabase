@@ -32,7 +32,7 @@ The CLI never calls `process.exit`. `run` returns the exit code and output,
 which is how the tests drive it:
 
 ```ts
-import { run } from 'better-supabase/cli';
+import { run } from '@better-supabase/cli';
 
 const { code, stdout, stderr } = await run(['gen', '--check']);
 ```

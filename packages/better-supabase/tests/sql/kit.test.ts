@@ -2,7 +2,6 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import { kitLayout } from "../../src/cli/commands/sql.ts";
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import {
   renderKit,
@@ -10,6 +9,7 @@ import {
   sameKitFile,
   SQL_MODULES,
 } from "../../src/sql/kit.ts";
+import { kitLayout } from "../../src/sql/layout.ts";
 
 describe("resolveModules", () => {
   it("adds dependencies and keeps registry order", () => {

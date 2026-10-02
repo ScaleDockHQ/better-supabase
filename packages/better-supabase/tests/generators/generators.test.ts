@@ -1,18 +1,22 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
-import { importPath } from "../../src/cli/io.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
 import fixture from "../fixtures/snapshot.json" with { type: "json" };
+
+function importPath(fromFile: string, toFile: string): string {
+  const path = relative(dirname(fromFile), toFile).split(sep).join("/");
+  return path.startsWith(".") ? path : `./${path}`;
+}
 
 const customer = {
   organizationId: "00000000-0000-4000-8000-000000000001",

@@ -62,7 +62,6 @@ export default defineConfig({
       files: [
         "src/postgres/pool.ts",
         "src/testing/**",
-        "src/cli/run.ts",
         "src/next/create.ts",
         "src/server/respond.ts",
       ],

@@ -1,5 +1,12 @@
-import type { PgQueryable } from "../../src/cli/db.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
+
+/** The subset of `pg.Client` the fake answers. */
+export interface PgQueryable {
+  query<R = Record<string, unknown>>(
+    text: string,
+    values?: readonly unknown[],
+  ): Promise<{ rows: R[] }>;
+}
 
 export interface SqlCall {
   readonly text: string;

@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-import { kitLayout } from "../../src/cli/commands/sql.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { renderKit } from "../../src/sql/kit.ts";
+import { kitLayout } from "../../src/sql/layout.ts";
 
 const contents = (name: string, config: Record<string, unknown> = {}) =>
   renderKit([name], kitLayout(resolveConfig(config, "/project"))).find((file) =>

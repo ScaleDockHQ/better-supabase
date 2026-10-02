@@ -6,15 +6,17 @@ consumer skill: apps that use better-supabase get the skills in
 or `better-supabase skills install`). `CLAUDE.md` is the one line `@AGENTS.md`
 so tools that read both names load this file once; put everything here.
 
-`better-supabase` is one ESM package (`packages/better-supabase`) with subpath
-exports, a CLI (`better-supabase`), plugins and kits. Docs live in `apps/docs`
+`better-supabase` is an ESM package (`packages/better-supabase`) with subpath
+exports, plugins and kits. Its CLI (`better-supabase`) ships separately as
+`@better-supabase/cli` (`packages/cli`), released at the same version. Docs live in `apps/docs`
 (Fumadocs), examples in `apps/examples/*`, cross-package tests in `tests/*`.
 
 ## Repo layout
 
 ```
 packages/
-  better-supabase/     the published package: src/, tests/, skills/, schemas/, api/exports.json
+  better-supabase/     the published library: src/, tests/, skills/, schemas/, api/exports.json
+  cli/                 @better-supabase/cli: the `better-supabase` bin, codegen, doctor, tests/fixtures
   next-config/         createNextConfig() and the security headers for docs and marketing
   ox-config/           Oxlint presets (core, react, node, library, test, playwright), Oxfmt, anti-slop
   typescript-config/   tsconfig presets (base, library, react-library, next)
@@ -49,9 +51,9 @@ docs/
 - `pnpm build`: tsdown build of every package and app.
 - `pnpm test`: unit and type tests (vitest, `expectTypeOf`). Tests live in each
   workspace's `tests/` folder, and the root `vitest.config.ts` lists the projects.
-  The package's unit tests alone must hold the coverage thresholds in
-  `packages/better-supabase/vitest.config.ts` (never below 90% lines,
-  statements and functions, 80% branches); `autoUpdate` raises them.
+  Each published package's unit tests alone must hold the coverage thresholds
+  in its `vitest.config.ts` (never below 90% lines, statements and functions,
+  80% branches); `autoUpdate` raises them.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack, a reset from the migrations and seed, and the pgTAP tests.
@@ -85,6 +87,7 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
 1. The core (`better-supabase`) has no runtime dependency beyond
    `@standard-schema/spec` and the Supabase packages. Everything else is an
    optional peer, loaded lazily, or typed structurally without importing it.
+   CLI-only dependencies belong in `@better-supabase/cli`.
 2. Generated code never uses `declare module` augmentation. It calls inferring
    functions (`defineSchema`) that carry the types.
 3. Rows keep the configured casing everywhere: `casing: 'snake'` returns
@@ -94,8 +97,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
    whose errors are plain, serializable `DbError` objects. `.orThrow()` is the
    only way to turn one into an exception.
 5. Event handlers (`sb.on`) and sinks can never change a result.
-6. Runtime entries (everything except `cli`, `postgres` and `testing`) import no
-   Node built-ins, so they run on every WinterTC runtime.
+6. Runtime entries (everything except `postgres` and `testing`) import no
+   Node built-ins, so they run on every WinterTC runtime. `@better-supabase/cli`
+   is Node-only.
 7. Auth never calls the Auth server when the access token is still valid.
    Refresh happens only in the proxy, never in Server Components.
 8. Every draft or versioned spec the code follows is pinned in `SPEC_PINS`
@@ -105,17 +109,18 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
    export-names snapshot test and `apps/docs/content/docs`.
 10. Plugins and extension interfaces are versioned (`apiVersion: 1`). Breaking
     their contract needs a new `apiVersion`, never a silent change.
-11. Only `src/cli` imports `@supabase/postgrest-typegen`, through
-    `src/cli/introspect/typegen.ts`. It is pinned to an exact version so
+11. Only `@better-supabase/cli` imports `@supabase/postgrest-typegen` at
+    runtime, through `packages/cli/src/introspect/typegen.ts`; the library
+    imports its types only (`src/config/snapshot.ts`). It is pinned to an exact version so
     `database.types.ts` matches `supabase gen types`; bumping it needs the
     parity test and a changeset.
 12. Imports stay at the top of the module. The one exception is optional
     peers loaded lazily through a variable specifier (`@supabase/config/io`
-    in `src/cli/supabase-toml.ts`), each with a comment and a built-in
+    in `packages/cli/src/supabase-toml.ts`), each with a comment and a built-in
     fallback.
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
-    match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).
+    match `SPLINTER_SHA256` (`packages/cli/src/doctor/advisors.ts`).
 14. Don't bypass the supply-chain policy (`minimumReleaseAge` in
     `pnpm-workspace.yaml`). If a release is too new, pin the previous one.
 
@@ -183,19 +188,19 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 
 | Change | Also update |
 |---|---|
-| A generated-file shape | `tests/fixtures` (`node scripts/gen-fixtures.ts` in `packages/better-supabase`), `apps/examples/*/src/lib/supabase/*` |
+| A generated-file shape | `packages/better-supabase/tests/fixtures` (`pnpm --filter @better-supabase/cli gen:fixtures`), `apps/examples/*/src/lib/supabase/*` |
 | A doctor finding | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`) |
 | The splinter pin | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together |
 | A rule in `plugins/rules` or `lint` | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx` |
 | A SQL kit module | `src/sql/kit.ts` registry, `sql-kit.integration.test.ts`, `kits/sql.mdx` |
 | A `DbError` kind | `problem.ts` status map, the errors docs page |
 | A subpath | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md` |
-| A public export | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff |
+| A public export | `api/exports.json` in `packages/better-supabase` or `packages/cli` (`vitest run tests/exports.test.ts -u`), review the diff |
 | An extension interface | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page |
 | A spec version | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin |
-| An adopted standard | a conformance test in `packages/better-supabase/tests/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
+| An adopted standard | a conformance test in `tests/standards` of the library or the CLI and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
 | A vendored official schema | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256) |
-| A consumer skill | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests |
+| A consumer skill | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `packages/cli/src/commands/skills.ts` tests |
 | The package version | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not) |
 | A workflow | keep actions on their current major tag; Dependabot bumps them |
 | A docs route (`/mcp`, `/llms*`) | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts` |
@@ -212,7 +217,7 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 - Never commit secrets. Server-only keys never get a `NEXT_PUBLIC_` prefix,
   and `.env.example` lists keys without values.
 - Never edit generated files by hand: `database.types.ts`, the generated
-  `src/lib/supabase/*` in the examples and `api/exports.json` come from their generators.
+  `src/lib/supabase/*` in the examples and the `api/exports.json` files come from their generators.
 - Never change a pushed migration. Edit `supabase/schemas` and generate a new one.
 - Never turn a lint rule off without a comment that gives the reason and the finding count.
 - Pin exact versions in the catalog, and never bypass `minimumReleaseAge`.

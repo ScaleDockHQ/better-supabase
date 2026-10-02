@@ -1,0 +1,34 @@
+{
+  "values": [
+    "buildModel",
+    "emitModule",
+    "fromCatalog",
+    "GENERATED_HEADER",
+    "HELP",
+    "introspect",
+    "loadConfig",
+    "loadSnapshot",
+    "managementSource",
+    "parseSnapshot",
+    "pgSource",
+    "registerCommand",
+    "renderFiles",
+    "run",
+    "runGen",
+    "serializeSnapshot",
+    "toCatalog",
+    "VERSION"
+  ],
+  "types": [
+    "* from ./introspect/types.ts",
+    "CliIo",
+    "Command",
+    "CommandContext",
+    "CommandResult",
+    "IntrospectionSource",
+    "ManagementSourceOptions",
+    "Queryable",
+    "RunOptions",
+    "RunResult"
+  ]
+}

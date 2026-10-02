@@ -41,12 +41,14 @@ const config: KnipConfig = {
         "src/*/index.ts",
         "src/*/*/index.ts",
         "src/react/{server,session}.ts",
-        "scripts/*.ts",
       ],
       ignore: [
         "tests/fixtures/generated*.ts",
         "tests/fixtures/database.types.ts",
       ],
+    },
+    "packages/cli": {
+      entry: ["scripts/*.ts"],
       // Peers of @supabase/config, which supabase-toml.ts loads lazily.
       ignoreDependencies: [
         "@supabase/config",

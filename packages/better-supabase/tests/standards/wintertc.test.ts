@@ -8,12 +8,7 @@ import { describe, expect, it } from "vitest";
 // web-platform globals and modules, so they load on Node, Deno, Bun, workerd
 // and edge runtimes. Node-only entries are listed in AGENTS.md invariant 6.
 const SRC = resolve(import.meta.dirname, "../../src");
-const NODE_ENTRIES = new Set([
-  "cli/index",
-  "cli/bin",
-  "postgres/index",
-  "testing/index",
-]);
+const NODE_ENTRIES = new Set(["postgres/index", "testing/index"]);
 const BUILTINS = new Set([
   ...builtinModules,
   ...builtinModules.map((name) => `node:${name}`),
@@ -87,8 +82,8 @@ describe("WinterTC runtime entries", async () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the CLI does use Node built-ins, so the walk sees them", async () => {
-    const { externals } = await closure("cli/index");
+  it("testing does use Node built-ins, so the walk sees them", async () => {
+    const { externals } = await closure("testing/index");
     expect([...externals.keys()].some((name) => BUILTINS.has(name))).toBe(true);
   });
 });

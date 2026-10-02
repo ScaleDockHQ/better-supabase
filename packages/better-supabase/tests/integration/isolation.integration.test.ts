@@ -1,15 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { IntrospectionSource } from "../../src/cli/introspect/source.ts";
 import type { LocalStack } from "../../src/testing/as-user.ts";
 
-import { pgSource } from "../../src/cli/introspect/source.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { ConformanceError } from "../../src/testing/conformance.ts";
 import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { openPg } from "../fixtures/pg.ts";
 
 const stack: LocalStack = {
   url: process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421",
@@ -30,17 +29,7 @@ const RUN = Date.now();
 const LEAKY = `00000000-0000-4000-8000-${String(RUN).slice(-12).padStart(12, "0")}`;
 const USER = "00000000-0000-4000-8000-0000000000ff";
 
-async function open(): Promise<IntrospectionSource | undefined> {
-  try {
-    const source = await pgSource(dbUrl);
-    await source.queryable.query("select 1");
-    return source;
-  } catch {
-    return undefined;
-  }
-}
-
-const source = await open();
+const source = await openPg(dbUrl);
 const sb = defineSupabase(schema).use(tenant());
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({

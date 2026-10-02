@@ -33,9 +33,8 @@ const entries = [
   "plugins/tenant/index",
   "plugins/actor/index",
   "plugins/validation/index",
+  "sql/index",
   "testing/index",
-  "cli/index",
-  "cli/bin",
 ];
 
 export default defineConfig({

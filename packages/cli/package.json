@@ -1,0 +1,91 @@
+{
+  "name": "@better-supabase/cli",
+  "version": "0.2.0",
+  "description": "The better-supabase CLI: init, codegen, doctor, the SQL kit and local stack keys.",
+  "keywords": [
+    "cli",
+    "codegen",
+    "postgres",
+    "supabase",
+    "typescript"
+  ],
+  "homepage": "https://bettersupabase.com/docs/cli",
+  "bugs": {
+    "url": "https://github.com/ScaleDockHQ/better-supabase/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ScaleDockHQ/better-supabase.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "better-supabase": "./bin/better-supabase.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
+    "gen:fixtures": "node scripts/gen-fixtures.ts",
+    "lint": "oxlint",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit --checkers 4"
+  },
+  "dependencies": {
+    "@supabase/postgrest-typegen": "catalog:",
+    "better-supabase": "workspace:*"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@effect/platform-node": "catalog:",
+    "@supabase/config": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "effect": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "pg": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@supabase/config": "catalog:peers",
+    "pg": "catalog:peers"
+  },
+  "peerDependenciesMeta": {
+    "@supabase/config": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

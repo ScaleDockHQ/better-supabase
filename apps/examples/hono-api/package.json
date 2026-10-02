@@ -21,6 +21,7 @@
     "hono": "catalog:"
   },
   "devDependencies": {
+    "@better-supabase/cli": "workspace:*",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",

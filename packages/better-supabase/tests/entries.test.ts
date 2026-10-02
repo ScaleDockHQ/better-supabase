@@ -16,6 +16,7 @@ const PURE_BARRELS = [
   "query",
   "react",
   "realtime",
+  "sql",
   "storage",
   "webhooks",
 ];

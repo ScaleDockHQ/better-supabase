@@ -1,3 +1,9 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import {
   type CatalogColumn,
   type CatalogForeignKey,
@@ -6,12 +12,7 @@ import {
   type CatalogUnique,
   fromCatalog,
   type Snapshot,
-} from "better-supabase/cli";
-import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+} from "@better-supabase/cli";
 
 interface Measurement {
   readonly types: number;

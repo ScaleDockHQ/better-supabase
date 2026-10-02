@@ -36,7 +36,7 @@
     "supabase:types": "supabase gen types typescript --local --schema public",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @better-supabase/e2e test:e2e",
-    "test:integration": "pnpm --filter better-supabase exec vitest run --project integration",
+    "test:integration": "pnpm --filter better-supabase --filter @better-supabase/cli exec vitest run --project integration",
     "typecheck": "turbo run typecheck",
     "typecheck:matrix": "pnpm --filter './tests/types/*' run typecheck:matrix",
     "typecheck:perf": "pnpm --filter @better-supabase/types-perf run bench",
@@ -45,6 +45,7 @@
     "version-packages": "node scripts/root-changelog.ts && changeset version && pnpm run format"
   },
   "devDependencies": {
+    "@better-supabase/cli": "workspace:*",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@changesets/assemble-release-plan": "catalog:",
@@ -57,7 +58,6 @@
     "@commitlint/types": "catalog:",
     "@manypkg/get-packages": "catalog:",
     "@types/node": "catalog:",
-    "better-supabase": "workspace:*",
     "dotenv-cli": "catalog:",
     "knip": "catalog:",
     "lefthook": "catalog:",

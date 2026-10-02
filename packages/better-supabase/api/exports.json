@@ -172,14 +172,17 @@
     "values": [
       "buildJsonSchema",
       "CONFIG_SCHEMA_URL",
+      "DEFAULT_CLAIMS",
       "defineConfig",
       "jsonSchema",
       "resolveConfig",
       "resolveJsonSchema",
+      "tenantClaimPaths",
       "valibot",
       "zod"
     ],
     "types": [
+      "* from ./snapshot.ts",
       "ActorConfig",
       "BetterSupabaseConfig",
       "BucketConfig",
@@ -797,6 +800,25 @@
       "ValidationOptions"
     ]
   },
+  "./sql": {
+    "values": [
+      "compileReadSet",
+      "compileReadSets",
+      "kitLayout",
+      "permdockKeys",
+      "renderKit",
+      "resolveModules",
+      "sameKitFile",
+      "SQL_MODULES"
+    ],
+    "types": [
+      "CompiledReadSet",
+      "KitFile",
+      "KitLayout",
+      "KitPermdock",
+      "SqlModule"
+    ]
+  },
   "./testing": {
     "values": [
       "asUser",
@@ -843,40 +865,6 @@
       "TestPluginOptions",
       "TestSigner",
       "TestUser"
-    ]
-  },
-  "./cli": {
-    "values": [
-      "buildModel",
-      "emitModule",
-      "fromCatalog",
-      "GENERATED_HEADER",
-      "HELP",
-      "introspect",
-      "loadConfig",
-      "loadSnapshot",
-      "managementSource",
-      "parseSnapshot",
-      "pgSource",
-      "registerCommand",
-      "renderFiles",
-      "run",
-      "runGen",
-      "serializeSnapshot",
-      "toCatalog",
-      "VERSION"
-    ],
-    "types": [
-      "* from ./introspect/types.ts",
-      "CliIo",
-      "Command",
-      "CommandContext",
-      "CommandResult",
-      "IntrospectionSource",
-      "ManagementSourceOptions",
-      "Queryable",
-      "RunOptions",
-      "RunResult"
     ]
   }
 }

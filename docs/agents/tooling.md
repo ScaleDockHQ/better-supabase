@@ -18,13 +18,16 @@
 
 ## Tests and coverage
 
-- Coverage counts every file in `packages/better-supabase/src` except
-  `cli/bin.ts`, from unit tests only. Code that needs a database or the
+- Coverage counts every file in `packages/better-supabase/src` and
+  `packages/cli/src` (except `bin.ts`), from unit tests only. Code that needs a database or the
   network gets a fake from `tests/fixtures` (`fake-sql`, `fake-pg-pool`,
   `fake-fetch`, `fake-storage`, `fake-connect`) or an injectable seam with a
   default, such as `connect(url, load)` or `createPostgres({ pool })`.
 - `thresholds.autoUpdate` rewrites `vitest.config.ts` when coverage grows.
   Commit that change; never lower a threshold to make a run pass.
+- The CLI tests read the library's fixtures through runtime paths
+  (`packages/cli/tests/fixtures/library.ts`) and never import library test
+  code, so the library never depends on the CLI.
 - `tests/standards` holds one conformance test per adopted standard. Tests
   that have an official JSON Schema validate against a vendored copy in
   `tests/standards/schemas`; `sources.test.ts` fails when a file's SHA-256

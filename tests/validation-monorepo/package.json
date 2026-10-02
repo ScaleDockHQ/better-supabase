@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit --checkers 4"
   },
   "devDependencies": {
+    "@better-supabase/cli": "workspace:*",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
     "@types/node": "catalog:",

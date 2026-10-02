@@ -10,7 +10,7 @@ const BASELINE = resolve(import.meta.dirname, "baseline.json");
 /** Growth allowed before the size check fails: 5% or 256 bytes, whichever is larger. */
 const TOLERANCE = { ratio: 0.05, bytes: 256 };
 /** Entries that may use Node built-ins. Everything else must run on any WinterTC runtime. */
-const NODE_ENTRIES = new Set(["./cli", "./postgres", "./testing"]);
+const NODE_ENTRIES = new Set(["./postgres", "./testing"]);
 
 const BUILTINS = new Set([
   ...builtinModules,
@@ -87,7 +87,7 @@ describe("bundle", () => {
       );
     expect(offenders).toEqual([]);
     expect(
-      closures.get("./cli")?.externals.some((name) => BUILTINS.has(name)),
+      closures.get("./testing")?.externals.some((name) => BUILTINS.has(name)),
     ).toBe(true);
   });
 
@@ -129,9 +129,8 @@ describe("bundle", () => {
     ).toEqual([]);
   });
 
-  it("imports postgrest-typegen only from the CLI", () => {
+  it("never imports postgrest-typegen at runtime (only @better-supabase/cli does)", () => {
     const offenders = [...closures]
-      .filter(([subpath]) => subpath !== "./cli")
       .filter(([, { externals }]) =>
         externals.some((name) =>
           name.startsWith("@supabase/postgrest-typegen"),

@@ -175,3 +175,24 @@ export default defineConfig({
 | `sql.prefix` | `900_better_supabase` |
 | `sql.testsDir` | `supabase/tests` |
 | `sql.kit` | `[]` |
+
+## Rendering modules in code
+
+`better-supabase/sql` exports what the `sql` command uses, for build scripts
+and tests that write the files themselves. `kitLayout(config)` returns the
+paths, `renderKit` returns the files with their managed headers (dependencies
+included), and `resolveModules` lists the modules a set of names pulls in.
+
+```ts title="scripts/write-kit.ts"
+import { resolveConfig } from 'better-supabase/config';
+import { kitLayout, renderKit, resolveModules } from 'better-supabase/sql';
+
+import config from '../better-supabase.config.ts';
+
+const layout = kitLayout(resolveConfig(config, process.cwd()));
+const modules = resolveModules(['audit', 'jobs'], layout).map((m) => m.name);
+const files = renderKit(['audit', 'jobs'], layout);
+```
+
+`compileReadSets` turns the read sets in `generated.ts` into the SQL views and
+functions that `better-supabase gen` writes.

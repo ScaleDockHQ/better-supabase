@@ -36,6 +36,8 @@ export type {
   VectorDistance,
   VectorSearchConfig,
 } from "./config.ts";
+export type * from "./snapshot.ts";
+export { DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 export {
   buildJsonSchema,
   jsonSchema,

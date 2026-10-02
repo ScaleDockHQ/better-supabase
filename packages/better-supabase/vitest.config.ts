@@ -29,7 +29,6 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/cli/bin.ts"],
       reporter: ["text-summary", "json-summary", "json", "html"],
       // Unit tests alone must hold these; the floor is 90/90/90/80.
       // autoUpdate raises them when coverage grows, in whole percents.
@@ -37,7 +36,7 @@ export default defineConfig({
         statements: 95,
         lines: 96,
         functions: 97,
-        branches: 90,
+        branches: 91,
         autoUpdate: (next: number) => Math.floor(next),
       },
     },
