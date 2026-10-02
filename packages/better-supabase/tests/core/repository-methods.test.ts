@@ -6,7 +6,12 @@ import type {
   Executor,
 } from "../../src/core/executor.ts";
 import type { AnyPlugin } from "../../src/core/plugin.ts";
-import type { Condition, Operation, SelectOp } from "../../src/ir/types.ts";
+import type {
+  Condition,
+  InsertOp,
+  Operation,
+  SelectOp,
+} from "../../src/ir/types.ts";
 
 import { encodeCursor } from "../../src/core/cursor.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -510,8 +515,8 @@ describe("upsert and upsertMany", () => {
 
   it("sorts upsertMany rows by the conflict key, nulls last", async () => {
     const { db, ops } = connect(() => rowsOf([]));
-    const names = () =>
-      (ops.at(-1) as { rows: { name: string }[] }).rows.map((row) => row.name);
+    const rows = () => (ops.at(-1) as InsertOp).rows;
+    const names = () => rows().map((row) => row["name"]);
     await db.customers.upsertMany(
       [
         { organizationId: "o2", kvk: "2", name: "D" },
@@ -527,9 +532,7 @@ describe("upsert and upsertMany", () => {
       { id: 10, organizationId: "o", name: "b" },
       { id: 9, organizationId: "o", name: "a" },
     ] as never);
-    expect(
-      (ops.at(-1) as { rows: { id: number }[] }).rows.map((row) => row.id),
-    ).toEqual([9, 10]);
+    expect(rows().map((row) => row["id"])).toEqual([9, 10]);
     await db.customers.createMany([
       { organizationId: "o", name: "Z" },
       { organizationId: "o", name: "Y" },

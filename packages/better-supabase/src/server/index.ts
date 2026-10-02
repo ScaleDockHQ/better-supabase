@@ -23,6 +23,7 @@ export {
   AUTH_CACHE_HEADERS,
   authContext,
   checkAal,
+  checkSession,
   clientIp,
   impersonatorOf,
   readSession,
@@ -51,6 +52,7 @@ export type {
   ResolvedState,
   SessionActor,
   SessionDelegation,
+  SessionLookup,
   StoredSession,
 } from "../auth/index.ts";
 export {
