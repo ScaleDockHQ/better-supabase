@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { join, posix } from "node:path";
+import { parse } from "smol-toml";
 
 export type TomlValue =
   | string
@@ -20,7 +21,7 @@ export interface SupabaseToml {
   readonly text: string;
   /** The keys present in the file (snake_case, as written), after `env()` interpolation when parsed by `@supabase/config`. */
   readonly document: TomlTable;
-  readonly parser: "@supabase/config" | "builtin";
+  readonly parser: "@supabase/config" | "smol-toml";
 }
 
 const CONFIG_TOML = "supabase/config.toml";
@@ -35,7 +36,7 @@ interface SupabaseConfigIo {
 /**
  * `@supabase/config` is an optional peer (it needs `effect` and
  * `@effect/platform-node`), so it is imported lazily through a variable:
- * projects without it get the built-in parser instead of a load error.
+ * projects without it get smol-toml instead of a load error.
  */
 async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
   const specifier = "@supabase/config/io";
@@ -48,85 +49,41 @@ async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
   }
 }
 
-function parseScalar(raw: string): TomlValue {
-  const value = raw.trim();
-  if (value.startsWith('"') || value.startsWith("'")) {
-    const quote = value[0]!;
-    const end = value.indexOf(quote, 1);
-    return value.slice(1, end === -1 ? undefined : end);
+function toTomlValue(value: unknown): TomlValue {
+  if (Array.isArray(value)) return value.map(toTomlValue);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, toTomlValue(item)]),
+    );
   }
-  if (value.startsWith("[")) {
-    const inner = value.slice(1, value.lastIndexOf("]"));
-    return inner
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map(parseScalar);
-  }
-  const bare = value.replace(/\s+#.*$/, "");
-  if (bare === "true") return true;
-  if (bare === "false") return false;
-  const number = Number(bare.replaceAll("_", ""));
-  return bare !== "" && Number.isFinite(number) ? number : bare;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  )
+    return value;
+  return String(value);
 }
 
-/** `line` without a trailing `# comment`, keeping `#` inside quoted strings. */
-const withoutComment = (line: string): string =>
-  line.replaceAll(
-    /("[^"]*"|'[^']*')|#.*$/g,
-    (_, quoted?: string) => quoted ?? "",
-  );
-
-/** Whether the brackets outside quoted strings in `text` are balanced. */
-const closed = (text: string): boolean => {
-  const bare = text.replaceAll(/"[^"]*"|'[^']*'/g, "");
-  return bare.split("[").length === bare.split("]").length;
-};
-
-/**
- * Tables, `key = value` pairs, strings, numbers, booleans and arrays of
- * scalars, also over several lines (`schema_paths = [` ... `]`): the subset
- * `supabase init` writes. Multi-line strings and inline tables are skipped.
- */
-export function parseTomlSubset(text: string): TomlTable {
-  const root: Record<string, TomlValue> = {};
-  let table = root;
-  const lines = text.split("\n");
-  for (let index = 0; index < lines.length; index += 1) {
-    let line = lines[index]!.trim();
-    if (line === "" || line.startsWith("#")) continue;
-    if (/^[A-Za-z0-9_-]+\s*=\s*\[/.test(line)) {
-      line = withoutComment(line);
-      while (!closed(line) && index + 1 < lines.length) {
-        index += 1;
-        line += ` ${withoutComment(lines[index]!).trim()}`;
-      }
-    }
-    const header = /^\[([^[\]]+)\]$/.exec(line);
-    if (header) {
-      table = root;
-      for (const part of header[1]!
-        .split(".")
-        .map((p) => p.trim().replace(/^"(.*)"$/, "$1"))) {
-        const next = table[part];
-        if (typeof next !== "object" || Array.isArray(next)) {
-          table[part] = {};
-        }
-        // SAFETY: the check above replaced any non-table value at this key with
-        // an empty table.
-        table = table[part] as Record<string, TomlValue>;
-      }
-      continue;
-    }
-    const pair = /^([A-Za-z0-9_-]+)\s*=\s*(.+)$/.exec(line);
-    if (pair) table[pair[1]!] = parseScalar(pair[2]!);
+/** `text` as TOML, with dates as ISO strings; an empty table when it does not parse. */
+export function parseToml(text: string): TomlTable {
+  try {
+    return Object.fromEntries(
+      Object.entries(parse(text)).map(([key, value]) => [
+        key,
+        toTomlValue(value),
+      ]),
+    );
+  } catch {
+    return {};
   }
-  return root;
 }
 
 /**
  * Reads `supabase/config.toml` with `@supabase/config` when it is installed,
- * otherwise with the built-in subset parser.
+ * otherwise with smol-toml.
  */
 export async function readSupabaseToml(
   root: string,
@@ -157,8 +114,8 @@ export async function readSupabaseToml(
   return {
     path: CONFIG_TOML,
     text,
-    document: parseTomlSubset(text),
-    parser: "builtin",
+    document: parseToml(text),
+    parser: "smol-toml",
   };
 }
 

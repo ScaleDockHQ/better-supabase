@@ -4,8 +4,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseArgs } from "../../src/args.ts";
-import { runSeed } from "../../src/commands/seed.ts";
+import { parseCommandArgs } from "../../src/command.ts";
+import {
+  seedCommand,
+  type SeedArgs,
+  runSeed,
+} from "../../src/commands/seed.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 
@@ -34,7 +38,7 @@ describe("seed", () => {
   const seed = (argv: string[], open?: ReturnType<typeof fakeConnect>) =>
     runSeed(
       resolveConfig({}, root),
-      parseArgs(["seed", ...argv]),
+      parseCommandArgs(seedCommand, argv) as SeedArgs,
       { DATABASE_URL: "postgresql://u:secret@db:5432/app" },
       open?.connect,
     );

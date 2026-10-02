@@ -3,10 +3,11 @@ import type { ResolvedConfig } from "better-supabase/config";
 import { existsSync } from "node:fs";
 import { posix, resolve } from "node:path";
 
-import type { ParsedArgs } from "../args.ts";
+import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
+import type { Prompter } from "../prompts.ts";
 
-import { flagList, flagBool, flagString } from "../args.ts";
+import { defineCliCommand, list } from "../command.ts";
 import { findConfig } from "../config.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { detectProject, installCommand, type Project } from "../project.ts";
@@ -25,25 +26,82 @@ import {
 } from "../templates.ts";
 import { VERSION } from "../version.ts";
 
-export const INIT_HELP: string = `Usage: better-supabase init [--casing camel|snake] [--with <integration...>] [--force] [--dry-run]
+const WRITE_ARGS = {
+  force: { type: "boolean", description: "Overwrite files that exist" },
+  "dry-run": { type: "boolean", description: "Show what would be written" },
+} as const;
 
-Writes better-supabase.config.ts and src/lib/supabase.ts, plus glue for the
-frameworks it finds in package.json. Existing files are kept unless --force.
+const INIT_ARGS = {
+  casing: {
+    type: "string",
+    description:
+      "Row keys in camelCase (camel, the default) or the database's snake_case (snake)",
+    valueHint: "camel|snake",
+  },
+  with: {
+    type: "string",
+    description:
+      "Integrations to add next to the detected ones: next, hono, orpc, edge, mcp, client, react",
+    valueHint: "integration,...",
+  },
+  force: { type: "boolean", description: "Overwrite files that exist" },
+  "dry-run": { type: "boolean", description: "Show what would be written" },
+  yes: {
+    type: "boolean",
+    alias: "y",
+    description: "Ask nothing; use the flags and the defaults",
+  },
+} as const;
 
-Integrations: ${INTEGRATIONS.join(", ")}`;
+const ADD_ARGS = {
+  integration: {
+    type: "positional",
+    required: false,
+    description: "next, hono, orpc, edge, mcp, client or react",
+  },
+  force: { type: "boolean", description: "Overwrite files that exist" },
+  "dry-run": { type: "boolean", description: "Show what would be written" },
+  yes: {
+    type: "boolean",
+    alias: "y",
+    description: "Ask nothing; use the flags and the defaults",
+  },
+} as const;
 
-export const ADD_HELP: string = `Usage: better-supabase add <integration...> [--force] [--dry-run]
+type WriteArgs = CliArgs<typeof WRITE_ARGS>;
+export type InitArgs = CliArgs<typeof INIT_ARGS>;
+export type AddArgs = CliArgs<typeof ADD_ARGS>;
 
-Integrations
-${INTEGRATIONS.map((name) => `  ${name.padEnd(8)} ${TEMPLATES[name].description}`).join("\n")}`;
+const CANCELLED: CommandResult = { code: 1, error: "Cancelled." };
+
+/** `--force`, or the person's answer when files exist; `undefined` when they cancel. */
+async function overwrite(
+  root: string,
+  files: readonly TemplateFile[],
+  args: WriteArgs,
+  prompts: Prompter | undefined,
+): Promise<boolean | undefined> {
+  if (args.force === true) return true;
+  const existing = [
+    ...new Set(
+      files
+        .map((file) => file.path)
+        .filter((path) => existsSync(resolve(root, path))),
+    ),
+  ];
+  if (!prompts || existing.length === 0) return false;
+  return prompts.confirm(
+    `${existing.map((path) => display(root, path)).join(", ")} ${existing.length === 1 ? "exists" : "exist"}. Overwrite?`,
+  );
+}
 
 async function writeFiles(
   root: string,
   files: readonly TemplateFile[],
-  args: ParsedArgs,
+  args: WriteArgs,
+  force: boolean,
 ): Promise<string[]> {
-  const force = flagBool(args.flags, "force");
-  const dryRun = flagBool(args.flags, "dry-run");
+  const dryRun = args["dry-run"] === true;
   const lines: string[] = [];
   const seen = new Set<string>();
   for (const file of files) {
@@ -95,6 +153,29 @@ function packagesFor(
   return [...new Set(wanted)].filter((name) => !(name in project.dependencies));
 }
 
+/** The CLI and pg as dev dependencies, when the project lacks them. */
+function devPackages(project: Project): string[][] {
+  const missing = ["@better-supabase/cli", "pg"].filter(
+    (name) => !(name in project.dependencies),
+  );
+  return missing.length > 0 ? [missing] : [];
+}
+
+function chooseIntegrations(
+  prompts: Prompter,
+  initial: readonly Integration[],
+): Promise<Integration[] | undefined> {
+  return prompts.multiselect(
+    "Integrations",
+    INTEGRATIONS.map((name) => ({
+      value: name,
+      label: name,
+      hint: TEMPLATES[name].description,
+    })),
+    initial,
+  );
+}
+
 function parseIntegrations(values: readonly string[]): Integration[] | string {
   const unknown = values.filter((value) => !isIntegration(value));
   if (unknown.length > 0)
@@ -104,47 +185,69 @@ function parseIntegrations(values: readonly string[]): Integration[] | string {
 
 export async function runInit(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: InitArgs,
+  prompts?: Prompter,
 ): Promise<CommandResult> {
-  const casing = flagString(args.flags, "casing") ?? "camel";
+  const casing =
+    args.casing ??
+    (prompts
+      ? await prompts.select(
+          "Row keys",
+          [
+            { value: "camel", label: "camelCase", hint: "customerId" },
+            {
+              value: "snake",
+              label: "snake_case",
+              hint: "customer_id, as in the database",
+            },
+          ],
+          "camel",
+        )
+      : "camel");
+  if (casing === undefined) return CANCELLED;
   if (casing !== "camel" && casing !== "snake") {
     return { code: 2, error: '--casing must be "camel" or "snake"' };
   }
   const project = await detectProject(config.root);
-  const requested = parseIntegrations(flagList(args.flags, "with"));
+  const requested = parseIntegrations(list(args.with));
   if (typeof requested === "string") return { code: 2, error: requested };
-  const integrations = resolveIntegrations([
+  const detected = resolveIntegrations([
     ...suggestedIntegrations(project.frameworks),
     ...requested,
   ]);
+  const chosen =
+    args.with === undefined && prompts
+      ? await chooseIntegrations(prompts, detected)
+      : detected;
+  if (chosen === undefined) return CANCELLED;
+  const integrations = resolveIntegrations(chosen);
   const hasConfig = findConfig(config.root) !== undefined;
   const generated = hasConfig
     ? config.output
     : posix.normalize(posix.join(project.srcDir, "lib/supabase/generated.ts"));
   const templateContext = context(project, generated);
 
+  const files = [
+    ...baseFiles(templateContext, casing, needsLib(integrations)),
+    ...integrationFiles(integrations, templateContext),
+  ];
+  const force = await overwrite(config.root, files, args, prompts);
+  if (force === undefined) return CANCELLED;
   const lines = [
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}.`
       : "No framework found.",
     "",
-    ...(await writeFiles(
-      config.root,
-      [
-        ...baseFiles(templateContext, casing, needsLib(integrations)),
-        ...integrationFiles(integrations, templateContext),
-      ],
-      args,
-    )),
+    ...(await writeFiles(config.root, files, args, force)),
   ];
   const packages = packagesFor(project, integrations);
   const steps = [
     ...(packages.length > 0
       ? [installCommand(project.packageManager, packages)]
       : []),
-    ...("pg" in project.dependencies
-      ? []
-      : [installCommand(project.packageManager, ["pg"], true)]),
+    ...devPackages(project).map((names) =>
+      installCommand(project.packageManager, names, true),
+    ),
     ...(project.hasSupabase ? [] : ["supabase init"]),
     "supabase start",
     "better-supabase env",
@@ -164,20 +267,28 @@ export async function runInit(
 
 export async function runAdd(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: AddArgs,
+  prompts?: Prompter,
 ): Promise<CommandResult> {
-  if (args.rest.length === 0) return { code: 2, error: ADD_HELP };
-  const requested = parseIntegrations(args.rest);
-  if (typeof requested === "string")
-    return { code: 2, error: `${requested}\n\n${ADD_HELP}` };
+  const named =
+    args._.length === 0 && prompts
+      ? await chooseIntegrations(prompts, [])
+      : args._;
+  if (named === undefined) return CANCELLED;
+  if (named.length === 0)
+    return {
+      code: 2,
+      error: `Name at least one integration: ${INTEGRATIONS.join(", ")}`,
+    };
+  const requested = parseIntegrations(named);
+  if (typeof requested === "string") return { code: 2, error: requested };
   const project = await detectProject(config.root);
   const integrations = resolveIntegrations(requested);
   const templateContext = context(project, config.output);
-  const lines = await writeFiles(
-    config.root,
-    integrationFiles(integrations, templateContext),
-    args,
-  );
+  const files = integrationFiles(integrations, templateContext);
+  const force = await overwrite(config.root, files, args, prompts);
+  if (force === undefined) return CANCELLED;
+  const lines = await writeFiles(config.root, files, args, force);
   const lib = posix.join(libDir(templateContext), "supabase.ts");
   if (
     !existsSync(resolve(config.root, lib)) &&
@@ -201,3 +312,25 @@ export async function runAdd(
   }
   return { code: 0, output: lines.join("\n") };
 }
+
+export const initCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "init",
+    description:
+      "Writes better-supabase.config.ts, src/lib/supabase.ts and glue for the frameworks in package.json",
+  },
+  args: INIT_ARGS,
+  lists: ["with"],
+  run: (args, { config, io }) =>
+    runInit(config, args, args.yes === true ? undefined : io.prompts),
+});
+
+export const addCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "add",
+    description: "Adds glue for an integration to an existing project",
+  },
+  args: ADD_ARGS,
+  run: (args, { config, io }) =>
+    runAdd(config, args, args.yes === true ? undefined : io.prompts),
+});

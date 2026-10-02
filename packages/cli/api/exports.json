@@ -1,11 +1,13 @@
 {
   "values": [
     "buildModel",
+    "defineCliCommand",
     "emitModule",
     "fromCatalog",
     "GENERATED_HEADER",
-    "HELP",
+    "help",
     "introspect",
+    "list",
     "loadConfig",
     "loadSnapshot",
     "managementSource",
@@ -21,12 +23,16 @@
   ],
   "types": [
     "* from ./introspect/types.ts",
+    "CliArgs",
+    "CliCommandDef",
+    "CliContext",
     "CliIo",
     "Command",
     "CommandContext",
     "CommandResult",
     "IntrospectionSource",
     "ManagementSourceOptions",
+    "ParsedArgs",
     "Queryable",
     "RunOptions",
     "RunResult"

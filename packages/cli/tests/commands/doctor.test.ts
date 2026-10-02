@@ -7,8 +7,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { parseArgs } from "../../src/args.ts";
-import { runDoctor } from "../../src/commands/doctor.ts";
+import { parseCommandArgs } from "../../src/command.ts";
+import {
+  doctorCommand,
+  type DoctorArgs,
+  runDoctor,
+} from "../../src/commands/doctor.ts";
 import { parseSnapshot } from "../../src/commands/snapshot.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
@@ -49,7 +53,7 @@ describe("doctor command", () => {
   ) =>
     runDoctor(
       resolveConfig(config, root),
-      parseArgs(["doctor", ...argv]),
+      parseCommandArgs(doctorCommand, argv) as DoctorArgs,
       env,
       options,
     );

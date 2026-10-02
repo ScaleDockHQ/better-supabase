@@ -12,7 +12,7 @@ import { parseSnapshot } from "../../src/commands/snapshot.ts";
 import { hookGrantBlock, hookGrantProblems } from "../../src/doctor/hooks.ts";
 import { type DoctorContext, RULES, runRules } from "../../src/doctor/rules.ts";
 import { parseManifest } from "../../src/permdock.ts";
-import { parseTomlSubset } from "../../src/supabase-toml.ts";
+import { parseToml } from "../../src/supabase-toml.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
@@ -64,8 +64,8 @@ function context(
     configToml: {
       path: "supabase/config.toml",
       text: HOOK_TOML,
-      document: parseTomlSubset(HOOK_TOML),
-      parser: "builtin",
+      document: parseToml(HOOK_TOML),
+      parser: "smol-toml",
     },
     envFiles: [],
     gitignore: "",
@@ -220,8 +220,8 @@ describe("BS405 --as", () => {
           configToml: {
             path: "supabase/config.toml",
             text: toml,
-            document: parseTomlSubset(toml),
-            parser: "builtin",
+            document: parseToml(toml),
+            parser: "smol-toml",
           },
         }),
         only("BS405"),

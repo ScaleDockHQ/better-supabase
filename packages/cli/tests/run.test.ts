@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CliIo } from "../src/io.ts";
 
+import { defineCliCommand } from "../src/command.ts";
 import { registerCommand, run } from "../src/run.ts";
+import { VERSION } from "../src/version.ts";
 import { fakeFetch } from "./fixtures/fake-fetch.ts";
 
 const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
@@ -36,7 +38,7 @@ describe("run", () => {
     const unknown = await run(["nope"]);
     expect(unknown.code).toBe(2);
     expect(unknown.stderr).toMatch(
-      /^Unknown command "nope"\.\n\nbetter-supabase /,
+      /^Unknown command "nope"\.\n\n.*\(better-supabase v/,
     );
 
     const missing = await run([
@@ -57,12 +59,150 @@ describe("run", () => {
   it("prints the usage to stderr without a command and to stdout for help", async () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
-    expect((await run(["sql", "--help"])).stdout).toMatch(
-      /^Usage: better-supabase sql/,
+    expect((await run(["sql", "--help"])).stdout).toContain(
+      "USAGE better-supabase sql [OPTIONS] [ACTION]",
+    );
+    expect((await run(["help", "sql"])).stdout).toContain(
+      "USAGE better-supabase sql",
     );
   });
 
+  it("runs a registered citty command with the context and its parsed args", async () => {
+    registerCommand(
+      "greet",
+      defineCliCommand({
+        meta: { name: "greet", description: "Says hello" },
+        args: {
+          name: { type: "string", required: true },
+          loud: { type: "boolean" },
+        },
+        run: (args, { config }) =>
+          Promise.resolve({
+            code: 0,
+            output: `${args.loud === true ? "HELLO" : "hello"} ${args.name} in ${config.root}`,
+          }),
+      }),
+    );
+    expect(
+      await run(["greet", "--name", "ada", "--loud", "--cwd", dir]),
+    ).toEqual({ code: 0, stdout: `HELLO ada in ${dir}\n`, stderr: "" });
+    expect((await run(["help"])).stdout).toMatch(/greet +Says hello/);
+
+    const missing = await run(["greet", "--cwd", dir]);
+    expect(missing.code).toBe(2);
+    expect(missing.stderr).toMatch(
+      /^Missing required argument: --name\n\n.*USAGE better-supabase greet/s,
+    );
+  });
+
+  it("adapts the deprecated (context) => result commands", async () => {
+    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
+    registerCommand(
+      "legacy",
+      ({ args, cwd }) =>
+        Promise.resolve({
+          code: 0,
+          output: JSON.stringify({ rest: args.rest, flags: args.flags, cwd }),
+        }),
+      "Usage: better-supabase legacy",
+    );
+    const result = await run([
+      "legacy",
+      "one",
+      "--only",
+      "a,b",
+      "--check",
+      "--out",
+      "x.json",
+      "--cwd",
+      dir,
+    ]);
+    expect(JSON.parse(result.stdout)).toEqual({
+      rest: ["one"],
+      flags: { only: ["a", "b"], check: true, out: "x.json", cwd: dir },
+      cwd: dir,
+    });
+    expect((await run(["legacy", "--help"])).stdout).toContain(
+      "Usage: better-supabase legacy",
+    );
+  });
+
+  it("finds the command after global options and reports bad actions and values", async () => {
+    expect(
+      (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
+    ).toContain("USAGE better-supabase [OPTIONS]");
+    expect((await run(["--", "gen"])).code).toBe(2);
+    expect((await run(["--cwd", dir, "openapi"])).stderr).toBe(
+      "Name an action. Run `better-supabase openapi emit`.\n",
+    );
+    expect((await run(["openapi", "publish", "--cwd", dir])).stderr).toMatch(
+      /^Unknown openapi action "publish"/,
+    );
+    expect((await run(["skills", "--cwd", dir])).stderr).toMatch(
+      /^Name an action\. Use `skills list`/,
+    );
+    expect((await run(["skills", "remove", "--cwd", dir])).stderr).toMatch(
+      /^Unknown skills action "remove"/,
+    );
+    expect(
+      await run(["init", "--casing", "pascal", "--cwd", dir]),
+    ).toMatchObject({
+      code: 2,
+      stderr: '--casing must be "camel" or "snake"\n',
+    });
+    expect(
+      await run(["introspect", "--format", "xml", "--cwd", dir]),
+    ).toMatchObject({
+      code: 2,
+      stderr: '--format must be "snapshot" or "generator-metadata"\n',
+    });
+  });
+
+  it("exits 0 for a command that returns no result", async () => {
+    registerCommand(
+      "quiet",
+      defineCliCommand({
+        meta: { name: "quiet" },
+        args: {},
+        // SAFETY: a third-party command may resolve to nothing.
+        run: () => Promise.resolve(undefined as unknown as { code: number }),
+      }),
+    );
+    expect(await run(["quiet", "--cwd", dir])).toEqual({
+      code: 0,
+      stdout: "",
+      stderr: "",
+    });
+  });
+
+  it("parses legacy flags with =, -h and --", async () => {
+    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
+    registerCommand("legacy-flags", ({ args }) =>
+      Promise.resolve({ code: 0, output: JSON.stringify(args) }),
+    );
+    const result = await run([
+      "legacy-flags",
+      "--out=a.json",
+      "--only",
+      "x",
+      "--only=y",
+      "-h2",
+      "--",
+      "--raw",
+    ]);
+    expect(JSON.parse(result.stdout)).toEqual({
+      command: "legacy-flags",
+      rest: ["-h2", "--raw"],
+      flags: { out: "a.json", only: ["x", "y"] },
+    });
+  });
+
+  it("prints the version", async () => {
+    expect((await run(["version"])).stdout).toBe(`${VERSION}\n`);
+  });
+
   it("turns a thrown error into exit code 1 and writes through a custom io", async () => {
+    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
     registerCommand("explode", () => Promise.reject(new Error("boom")));
     const lines: string[] = [];
     const result = await run(["explode", "--cwd", dir], {

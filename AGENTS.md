@@ -116,8 +116,8 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     parity test and a changeset.
 12. Imports stay at the top of the module. The one exception is optional
     peers loaded lazily through a variable specifier (`@supabase/config/io`
-    in `packages/cli/src/supabase-toml.ts`), each with a comment and a built-in
-    fallback.
+    in `packages/cli/src/supabase-toml.ts`), each with a comment and a
+    fallback (smol-toml for `config.toml`).
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
     match `SPLINTER_SHA256` (`packages/cli/src/doctor/advisors.ts`).

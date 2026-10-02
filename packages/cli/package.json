@@ -50,8 +50,13 @@
     "typecheck": "tsc --noEmit --checkers 4"
   },
   "dependencies": {
+    "@clack/prompts": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
-    "better-supabase": "workspace:*"
+    "better-supabase": "workspace:*",
+    "citty": "catalog:",
+    "diff": "catalog:",
+    "smol-toml": "catalog:",
+    "tinyexec": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

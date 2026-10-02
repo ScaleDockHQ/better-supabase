@@ -4,24 +4,38 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { ParsedArgs } from "../args.ts";
+import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagString } from "../args.ts";
+import { defineCliCommand } from "../command.ts";
 import { supabaseCli } from "../exec.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { detectProject, publicPrefix } from "../project.ts";
 
-export const ENV_HELP = `Usage: better-supabase env [--out .env.local] [--prefix NEXT_PUBLIC_|none] [--print]
+const ARGS = {
+  out: {
+    type: "string",
+    description: "Env file to write. Defaults to .env.local",
+    valueHint: "file",
+  },
+  prefix: {
+    type: "string",
+    description:
+      'Prefix for browser variables, detected from your framework; "none" for no prefix',
+    valueHint: "prefix",
+  },
+  from: {
+    type: "string",
+    description: "Read `supabase status -o json` output from a file",
+    valueHint: "file",
+  },
+  print: {
+    type: "boolean",
+    description: "Print the variables instead of writing them",
+  },
+} as const;
 
-Writes the local stack's URL and keys (from \`supabase status\`) to an env file.
-Other lines in the file are kept. Values are never printed unless --print is given.
-
-Options
-  --out <file>      Defaults to .env.local
-  --prefix <p>      Prefix for browser variables. Detected from your framework; "none" for no prefix.
-  --from <file>     Read \`supabase status -o json\` output from a file
-  --print           Print the variables instead of writing them`;
+export type EnvArgs = CliArgs<typeof ARGS>;
 
 interface Status {
   readonly [key: string]: unknown;
@@ -29,10 +43,10 @@ interface Status {
 
 async function readStatus(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: EnvArgs,
   env: Readonly<Record<string, string | undefined>>,
 ): Promise<Status> {
-  const from = flagString(args.flags, "from");
+  const from = args.from;
   if (from)
     // SAFETY: the file is the JSON output of supabase status.
     return JSON.parse(
@@ -85,12 +99,12 @@ export function mergeEnv(
 
 export async function runEnv(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: EnvArgs,
   env: Readonly<Record<string, string | undefined>>,
 ): Promise<CommandResult> {
   const status = await readStatus(config, args, env);
   const project = await detectProject(config.root);
-  const prefixFlag = flagString(args.flags, "prefix");
+  const prefixFlag = args.prefix;
   const prefix =
     prefixFlag === undefined
       ? publicPrefix(project)
@@ -118,7 +132,7 @@ export async function runEnv(
   const jwtSecret = text(status, "JWT_SECRET");
   if (jwtSecret) values["SUPABASE_JWT_SECRET"] = jwtSecret;
 
-  if (flagBool(args.flags, "print")) {
+  if (args.print === true) {
     return {
       code: 0,
       output: Object.entries(values)
@@ -127,7 +141,7 @@ export async function runEnv(
     };
   }
 
-  const out = flagString(args.flags, "out") ?? ".env.local";
+  const out = args.out ?? ".env.local";
   const path = resolve(config.root, out);
   const current = existsSync(path) ? await readFile(path, "utf8") : "";
   const wrote = await writeIfChanged(path, mergeEnv(current, values));
@@ -155,3 +169,13 @@ export async function runEnv(
     );
   return { code: 0, output: lines.join("\n") };
 }
+
+export const envCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "env",
+    description:
+      "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
+  },
+  args: ARGS,
+  run: (args, { config, env }) => runEnv(config, args, env),
+});

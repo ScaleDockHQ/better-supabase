@@ -101,10 +101,14 @@ describe("gen", () => {
       join(root, READ_SET_FILE),
       sql.replace("rs_chrome", "rs_other"),
     );
-    expect(await gen(true)).toEqual({
+    const stale = await gen(true);
+    expect(stale).toMatchObject({
       code: 1,
       error: `Generated files are out of date:\n  ${READ_SET_FILE}\nRun \`better-supabase gen\`.`,
     });
+    expect(stale.output).toContain(
+      "-create or replace function public.rs_other(p jsonb)\n+create or replace function public.rs_chrome(p jsonb)",
+    );
   });
 
   it("reports missing files with --check", async () => {

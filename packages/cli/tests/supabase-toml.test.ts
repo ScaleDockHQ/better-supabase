@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { readSupabasePort } from "../src/config.ts";
 import {
-  parseTomlSubset,
+  parseToml,
   readSupabaseToml,
   schemaPaths,
   type SupabaseToml,
@@ -57,9 +57,9 @@ describe("readSupabaseToml", () => {
   });
 });
 
-describe("parseTomlSubset", () => {
+describe("parseToml", () => {
   it("reads arrays over several lines, with comments", () => {
-    const document = parseTomlSubset(
+    const document = parseToml(
       [
         "[db.migrations]",
         "schema_paths = [",
@@ -75,6 +75,15 @@ describe("parseTomlSubset", () => {
       "./schemas/030_crm/*.sql",
     ]);
     expect(tomlGet(document, ["db", "migrations", "enabled"])).toBe(true);
+  });
+
+  it("turns dates into ISO strings and invalid files into an empty table", () => {
+    expect(
+      parseToml("[auth]\nsince = 2026-01-02T03:04:05Z\nlimits = { rate = 10 }"),
+    ).toEqual({
+      auth: { since: "2026-01-02T03:04:05.000Z", limits: { rate: 10 } },
+    });
+    expect(parseToml("[auth\nbroken")).toEqual({});
   });
 });
 
@@ -101,8 +110,8 @@ describe("schemaPaths", () => {
   const tomlWith = (text: string): SupabaseToml => ({
     path: "supabase/config.toml",
     text,
-    document: parseTomlSubset(text),
-    parser: "builtin",
+    document: parseToml(text),
+    parser: "smol-toml",
   });
 
   it("keeps the listed order, expands globs by name and puts unmatched files last", async () => {

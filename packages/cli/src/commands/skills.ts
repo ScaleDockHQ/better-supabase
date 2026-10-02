@@ -6,24 +6,40 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ParsedArgs } from "../args.ts";
+import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagList, flagString } from "../args.ts";
+import { defineCliCommand, list } from "../command.ts";
 import { display, writeIfChanged } from "../io.ts";
 
-export const SKILLS_HELP = `Usage: better-supabase skills <list|install> [--agent cursor,claude,agents] [--global] [--check]
+const ARGS = {
+  action: {
+    type: "positional",
+    required: false,
+    description: "list or install",
+  },
+  agent: {
+    type: "string",
+    description:
+      "cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to the agent folders the project has, else agents",
+    valueHint: "names",
+  },
+  global: {
+    type: "boolean",
+    description: "Install into your home directory instead of the project",
+  },
+  check: {
+    type: "boolean",
+    description: "Fail when installed skills differ from this version",
+  },
+  from: {
+    type: "string",
+    description: "Read skills from this folder instead of the package",
+    valueHint: "dir",
+  },
+} as const;
 
-Installs the Agent Skills that ship with better-supabase, so coding agents
-use the typed repositories, adapters and tests the way the docs describe.
-The installed skills match the installed package version. For any other
-agent, \`npx skills add ScaleDockHQ/better-supabase\` installs them from GitHub.
-
-Options
-  --agent <names>   cursor (.cursor/skills), claude (.claude/skills), agents (.agents/skills).
-                    Defaults to the agent folders the project already has, else agents.
-  --global          Install into your home directory instead of the project
-  --check           Fail when installed skills differ from this version`;
+export type SkillsArgs = CliArgs<typeof ARGS>;
 
 const AGENT_DIRS = {
   cursor: ".cursor/skills",
@@ -98,13 +114,11 @@ export async function loadSkills(
 
 export async function runSkills(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: SkillsArgs,
   env: Readonly<Record<string, string | undefined>>,
 ): Promise<CommandResult> {
-  const [action] = args.rest;
-  const skills = await loadSkills(
-    flagString(args.flags, "from") ?? skillsRoot(),
-  );
+  const [action] = args._;
+  const skills = await loadSkills(args.from ?? skillsRoot());
   if (action === "list") {
     return {
       code: 0,
@@ -116,14 +130,12 @@ export async function runSkills(
   if (action !== "install") {
     return {
       code: 2,
-      error: action
-        ? `Unknown skills action "${action}".\n\n${SKILLS_HELP}`
-        : SKILLS_HELP,
+      error: `${action ? `Unknown skills action "${action}"` : "Name an action"}. Use \`skills list\` or \`skills install\`.`,
     };
   }
-  const global = flagBool(args.flags, "global");
+  const global = args.global === true;
   const base = global ? (env["HOME"] ?? homedir()) : config.root;
-  const requested = flagList(args.flags, "agent");
+  const requested = list(args.agent);
   const unknown = requested.filter((name) => !isAgent(name));
   if (unknown.length > 0) {
     return {
@@ -142,7 +154,7 @@ export async function runSkills(
         ? detected
         : ["agents"];
 
-  const check = flagBool(args.flags, "check");
+  const check = args.check === true;
   const lines: string[] = [];
   const stale: string[] = [];
   for (const agent of agents) {
@@ -176,3 +188,14 @@ export async function runSkills(
   }
   return { code: 0, output: lines.join("\n") };
 }
+
+export const skillsCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "skills",
+    description:
+      "Installs the Agent Skills that ship with this version of better-supabase",
+  },
+  args: ARGS,
+  lists: ["agent"],
+  run: (args, { config, env }) => runSkills(config, args, env),
+});

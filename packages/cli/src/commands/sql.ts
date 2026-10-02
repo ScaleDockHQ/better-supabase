@@ -13,26 +13,43 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { ParsedArgs } from "../args.ts";
+import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagString } from "../args.ts";
+import { defineCliCommand } from "../command.ts";
+import { fileDiff } from "../diff.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { entitlementsMode, permdockConfig, readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
+import { type Paint, painter, plain } from "../style.ts";
 import { readSupabaseToml, schemaPaths } from "../supabase-toml.ts";
 
-export const SQL_HELP = `Usage: better-supabase sql <list|add|sync|print> [modules...]
+const SQL_ARGS = {
+  action: {
+    type: "positional",
+    required: false,
+    description:
+      "list (modules and whether they are installed), add <module...>, sync or print <module>",
+  },
+  check: {
+    type: "boolean",
+    description: "With sync: fail when a file is stale",
+  },
+  "tests-dir": {
+    type: "string",
+    description: "Where the pgtap module goes. Defaults to sql.testsDir",
+    valueHint: "dir",
+  },
+  "dry-run": { type: "boolean", description: "Show what would be written" },
+  force: {
+    type: "boolean",
+    description: "Write tenant even though a permdock.config.ts is present",
+  },
+} as const;
 
-  list                 Modules and whether they are installed
-  add <module...>      Write the modules (and what they need) to sql.dir
-  sync [--check]       Rewrite the modules in sql.kit; --check fails when a file is stale
-  print <module>       Print a module's SQL, e.g. to paste into a migration
+export type SqlArgs = CliArgs<typeof SQL_ARGS>;
 
-Options
-  --tests-dir <dir>    Where the pgtap module goes. Defaults to sql.testsDir.
-  --dry-run            Show what would be written
-  --force              Write tenant even though a permdock.config.ts is present`;
+const USAGE = "Run `better-supabase sql --help` for the actions.";
 
 /** Modules that fill a claim PermDock's hook also writes (`memberships`). */
 const PERMDOCK_OWNED: ReadonlySet<string> = new Set(["tenant"]);
@@ -61,20 +78,15 @@ async function permdockFor(
 
 async function layout(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: SqlArgs,
 ): Promise<KitLayout> {
-  return kitLayout(
-    config,
-    flagString(args.flags, "tests-dir"),
-    [],
-    await permdockFor(config),
-  );
+  return kitLayout(config, args["tests-dir"], [], await permdockFor(config));
 }
 
 /** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
 async function layoutFor(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: SqlArgs,
   names: readonly string[],
 ): Promise<KitLayout> {
   const permdock = await permdockFor(config);
@@ -83,7 +95,7 @@ async function layoutFor(
   }).some((module) => module.name === "read-sets");
   return kitLayout(
     config,
-    flagString(args.flags, "tests-dir"),
+    args["tests-dir"],
     needsReadSets ? await compiledReadSets(config) : [],
     permdock,
   );
@@ -91,12 +103,12 @@ async function layoutFor(
 
 async function write(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: SqlArgs,
   names: readonly string[],
   kit: KitLayout,
 ): Promise<string[]> {
   const lines: string[] = [];
-  const dryRun = flagBool(args.flags, "dry-run");
+  const dryRun = args["dry-run"] === true;
   for (const file of renderKit(names, kit)) {
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
@@ -141,9 +153,10 @@ async function unlistedKitFiles(
 
 export async function runSql(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: SqlArgs,
+  paint: Paint = plain,
 ): Promise<CommandResult> {
-  const [action, ...names] = args.rest;
+  const [action, ...names] = args._;
   switch (action) {
     case "list": {
       const kit = await layout(config, args);
@@ -173,7 +186,7 @@ export async function runSql(
     }
     case "add": {
       if (names.length === 0) {
-        return { code: 2, error: `Name at least one module.\n\n${SQL_HELP}` };
+        return { code: 2, error: `Name at least one module.\n${USAGE}` };
       }
       const unknown = names.filter((name) => !(name in SQL_MODULES));
       if (unknown.length > 0) {
@@ -184,11 +197,7 @@ export async function runSql(
       }
       const permdock = permdockConfig(config.root);
       const hookModules = names.filter((name) => PERMDOCK_OWNED.has(name));
-      if (
-        permdock &&
-        hookModules.length > 0 &&
-        !flagBool(args.flags, "force")
-      ) {
+      if (permdock && hookModules.length > 0 && args.force !== true) {
         return {
           code: 1,
           error: [
@@ -221,7 +230,7 @@ export async function runSql(
           `  sql: { kit: [${[...config.sql.kit, ...untracked].map((name) => `'${name}'`).join(", ")}] }`,
         );
       }
-      if (!flagBool(args.flags, "dry-run"))
+      if (args["dry-run"] !== true)
         lines.push(...(await unlistedKitFiles(config, names, kit)));
       lines.push(
         "",
@@ -233,7 +242,7 @@ export async function runSql(
       if (config.sql.kit.length === 0) {
         return { code: 0, output: "sql.kit is empty; nothing to sync." };
       }
-      if (!flagBool(args.flags, "check")) {
+      if (args.check !== true) {
         return {
           code: 0,
           output: (
@@ -247,6 +256,7 @@ export async function runSql(
         };
       }
       const stale: string[] = [];
+      const diffs: string[] = [];
       for (const file of renderKit(
         config.sql.kit,
         await layoutFor(config, args, config.sql.kit),
@@ -255,13 +265,17 @@ export async function runSql(
           resolve(config.root, file.path),
           "utf8",
         ).catch(() => undefined);
-        if (!sameKitFile(current, file.contents))
-          stale.push(display(config.root, file.path));
+        if (!sameKitFile(current, file.contents)) {
+          const shown = display(config.root, file.path);
+          stale.push(shown);
+          diffs.push(fileDiff(shown, current, file.contents, paint));
+        }
       }
       return stale.length === 0
         ? { code: 0, output: "SQL kit files are up to date." }
         : {
             code: 1,
+            output: diffs.join("\n\n"),
             error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
           };
     }
@@ -282,11 +296,20 @@ export async function runSql(
       };
     }
     case undefined:
-      return { code: 2, error: SQL_HELP };
+      return { code: 2, error: `Name an action.\n${USAGE}` };
     default:
       return {
         code: 2,
-        error: `Unknown sql action "${action}".\n\n${SQL_HELP}`,
+        error: `Unknown sql action "${action}".\n${USAGE}`,
       };
   }
 }
+
+export const sqlCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "sql",
+    description: "Lists, adds, syncs and prints SQL kit modules",
+  },
+  args: SQL_ARGS,
+  run: (args, { config, io }) => runSql(config, args, painter(io.color)),
+});

@@ -2,12 +2,18 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
+import type { Prompter } from "./prompts.ts";
+
 export interface CliIo {
   readonly stdout: (text: string) => void;
   readonly stderr: (text: string) => void;
   readonly now?: () => Date;
   /** Environment; defaults to `process.env`. */
   readonly env?: Readonly<Record<string, string | undefined>>;
+  /** Color the output with ANSI escapes. Off unless set. */
+  readonly color?: boolean;
+  /** Prompts and spinners for a person at a terminal. Without one, commands never ask. */
+  readonly prompts?: Prompter;
 }
 
 export interface RunResult {

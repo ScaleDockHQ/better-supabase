@@ -32,7 +32,7 @@ import { fromCatalog } from "../../src/introspect/from-catalog.ts";
 import { parseManifest } from "../../src/permdock.ts";
 import { run } from "../../src/run.ts";
 import {
-  parseTomlSubset,
+  parseToml,
   pgFunctionHooks,
   type SupabaseToml,
 } from "../../src/supabase-toml.ts";
@@ -52,8 +52,8 @@ const PERMDOCK: PermdockProject = {
 const toml = (text: string): SupabaseToml => ({
   path: "supabase/config.toml",
   text,
-  document: parseTomlSubset(text),
-  parser: "builtin",
+  document: parseToml(text),
+  parser: "smol-toml",
 });
 
 function snapshot(
@@ -902,7 +902,7 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
     it("parses pg-functions hooks from config.toml", () => {
       expect(
         pgFunctionHooks(
-          parseTomlSubset(`${HOOK_TOML}
+          parseToml(`${HOOK_TOML}
 [auth.hook.send_email]
 enabled = false
 uri = "pg-functions://postgres/public/send"
@@ -1599,7 +1599,7 @@ uri = "https://example.com/hook"
 
   it("parses the config.toml subset supabase init writes", () => {
     expect(
-      parseTomlSubset(
+      parseToml(
         '# c\n[db]\nport = 54_322\n[auth.email]\nenable_confirmations = false\nsite_url = "http://x" # note\nredirects = ["a", \'b\']\n[storage.buckets."my-bucket"]\npublic = true\n',
       ),
     ).toEqual({

@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseArgs } from "../../src/args.ts";
-import { runSql, SQL_HELP } from "../../src/commands/sql.ts";
+import { parseCommandArgs } from "../../src/command.ts";
+import { sqlCommand, type SqlArgs, runSql } from "../../src/commands/sql.ts";
 import { VERSION } from "../../src/version.ts";
 
 const fixtures = resolve(import.meta.dirname, "../fixtures");
@@ -69,20 +69,28 @@ describe("runSql", () => {
   });
 
   const sql = (argv: string[], config: BetterSupabaseConfig = {}) =>
-    runSql(resolveConfig(config, root), parseArgs(["sql", ...argv]));
+    runSql(
+      resolveConfig(config, root),
+      parseCommandArgs(sqlCommand, argv) as SqlArgs,
+    );
 
-  it("shows the help without an action and rejects unknown ones", async () => {
-    expect(await sql([])).toEqual({ code: 2, error: SQL_HELP });
+  it("asks for an action and rejects unknown ones", async () => {
+    const usage = "Run `better-supabase sql --help` for the actions.";
+    expect(await sql([])).toEqual({
+      code: 2,
+      error: `Name an action.\n${usage}`,
+    });
     expect(await sql(["drop"])).toEqual({
       code: 2,
-      error: `Unknown sql action "drop".\n\n${SQL_HELP}`,
+      error: `Unknown sql action "drop".\n${usage}`,
     });
   });
 
   it("asks for module names", async () => {
     expect(await sql(["add"])).toEqual({
       code: 2,
-      error: `Name at least one module.\n\n${SQL_HELP}`,
+      error:
+        "Name at least one module.\nRun `better-supabase sql --help` for the actions.",
     });
     const names = Object.keys(SQL_MODULES).join(", ");
     expect(await sql(["print"])).toEqual({

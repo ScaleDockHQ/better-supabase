@@ -188,6 +188,9 @@ catalogs:
     '@changesets/read':
       specifier: 1.0.1
       version: 1.0.1
+    '@clack/prompts':
+      specifier: 1.8.1
+      version: 1.8.1
     '@commitlint/cli':
       specifier: 21.2.3
       version: 21.2.3
@@ -296,12 +299,18 @@ catalogs:
     better-result:
       specifier: 3.0.1
       version: 3.0.1
+    citty:
+      specifier: 0.2.2
+      version: 0.2.2
     class-variance-authority:
       specifier: 0.7.1
       version: 0.7.1
     clsx:
       specifier: 2.1.1
       version: 2.1.1
+    diff:
+      specifier: 9.0.0
+      version: 9.0.0
     dotenv-cli:
       specifier: 11.0.0
       version: 11.0.0
@@ -377,6 +386,9 @@ catalogs:
     shiki:
       specifier: 4.4.3
       version: 4.4.3
+    smol-toml:
+      specifier: 1.9.0
+      version: 1.9.0
     supabase:
       specifier: 2.118.0
       version: 2.118.0
@@ -386,6 +398,9 @@ catalogs:
     tailwindcss:
       specifier: 4.3.3
       version: 4.3.3
+    tinyexec:
+      specifier: 1.3.1
+      version: 1.3.1
     tsdown:
       specifier: 0.23.0
       version: 0.23.0
@@ -1058,12 +1073,27 @@ importers:
 
   packages/cli:
     dependencies:
+      '@clack/prompts':
+        specifier: 'catalog:'
+        version: 1.8.1
       '@supabase/postgrest-typegen':
         specifier: 'catalog:'
         version: 0.2.2
       better-supabase:
         specifier: workspace:*
         version: link:../better-supabase
+      citty:
+        specifier: 'catalog:'
+        version: 0.2.2
+      diff:
+        specifier: 'catalog:'
+        version: 9.0.0
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.9.0
+      tinyexec:
+        specifier: 'catalog:'
+        version: 1.3.1
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: 'catalog:'
@@ -4489,6 +4519,9 @@ packages:
     resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
     engines: {node: '>= 20.19.0'}
 
+  citty@0.2.2:
+    resolution: {integrity: sha512-+6vJA3L98yv+IdfKGZHBNiGW5KHn22e/JwID0Strsz8h4S/csAu/OuICwxrg44k5MRiZHWIo8XXuJgQTriRP4w==}
+
   cjs-module-lexer@1.4.3:
     resolution: {integrity: sha512-9z8TZaGM1pfswYeXrUpzPrkx8UnWYdhJclsiYMm6x/w5+nN+8Tf/LnAgfLGQCm59qAOxU8WwHEq2vNwF6i4j+Q==}
 
@@ -4727,6 +4760,10 @@ packages:
 
   diff@8.0.4:
     resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
+    engines: {node: '>=0.3.1'}
+
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
 
   dot-prop@6.0.1:
@@ -9893,6 +9930,8 @@ snapshots:
     dependencies:
       readdirp: 5.1.1
 
+  citty@0.2.2: {}
+
   cjs-module-lexer@1.4.3: {}
 
   class-variance-authority@0.7.1:
@@ -10083,6 +10122,8 @@ snapshots:
       dequal: 2.0.3
 
   diff@8.0.4: {}
+
+  diff@9.0.0: {}
 
   dot-prop@6.0.1:
     dependencies:

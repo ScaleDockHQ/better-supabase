@@ -1,204 +1,119 @@
 import type { ResolvedConfig } from "better-supabase/config";
 
-import { readFile } from "node:fs/promises";
+import {
+  type CommandDef,
+  defineCommand,
+  parseArgs,
+  renderUsage,
+  runCommand,
+} from "citty";
 import { resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { stripVTControlCharacters } from "node:util";
 
-import { flagBool, flagString, type ParsedArgs, parseArgs } from "./args.ts";
-import { DOCTOR_HELP, runDoctor } from "./commands/doctor.ts";
-import { ENV_HELP, runEnv } from "./commands/env.ts";
-import { runGen } from "./commands/gen.ts";
-import { ADD_HELP, INIT_HELP, runAdd, runInit } from "./commands/init.ts";
-import { KEYS_HELP, runKeys } from "./commands/keys.ts";
-import { OPENAPI_HELP, runOpenApi } from "./commands/openapi.ts";
-import { runSeed, SEED_HELP } from "./commands/seed.ts";
-import { runSkills, SKILLS_HELP } from "./commands/skills.ts";
 import {
-  loadSnapshot,
-  serializeSnapshot,
-  type SnapshotSource,
-} from "./commands/snapshot.ts";
-import { runSql, SQL_HELP } from "./commands/sql.ts";
+  type AnyCommand,
+  type CliContext,
+  GLOBAL_ARGS,
+  joinRepeated,
+  listArgs,
+} from "./command.ts";
 import { loadConfig } from "./config.ts";
-import { restrictSchemas, serializeGenerator } from "./introspect/typegen.ts";
-import {
-  type CliIo,
-  type CommandResult,
-  display,
-  type RunResult,
-  writeIfChanged,
-} from "./io.ts";
+import { type CliIo, type CommandResult, type RunResult } from "./io.ts";
+import { type Command, legacyCommand } from "./legacy.ts";
+import { highlight, painter } from "./style.ts";
 import { VERSION } from "./version.ts";
 
-export const HELP: string = `better-supabase ${VERSION}
+type Loader = () => Promise<AnyCommand>;
 
-Usage: better-supabase <command> [options]
+const COMMANDS = new Map<string, Loader>([
+  ["init", () => import("./commands/init.ts").then((m) => m.initCommand)],
+  ["add", () => import("./commands/init.ts").then((m) => m.addCommand)],
+  ["env", () => import("./commands/env.ts").then((m) => m.envCommand)],
+  ["keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
+  ["skills", () => import("./commands/skills.ts").then((m) => m.skillsCommand)],
+  ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
+  [
+    "introspect",
+    () => import("./commands/introspect.ts").then((m) => m.introspectCommand),
+  ],
+  [
+    "openapi",
+    () => import("./commands/openapi.ts").then((m) => m.openapiCommand),
+  ],
+  ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
+  ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
+  ["sql", () => import("./commands/sql.ts").then((m) => m.sqlCommand)],
+]);
 
-Setup
-  init [--casing camel|snake] [--with <integration...>]
-  add <next|hono|orpc|edge|mcp|client|react...>
-  env [--out .env.local]            local stack URL and keys from \`supabase status\`
-  keys [--rotate]                   ES256 signing key for the local stack
-  skills list | install [--agent cursor,claude,agents]
-
-Codegen
-  gen [--check] [--watch] [--snapshot <file>] [--db-url <url> | --project-ref <ref>]
-  introspect [--out supabase/snapshot.json] [--format snapshot|generator-metadata]
-  openapi emit [--check]
-  seed [--check] [--apply]
-
-Checks
-  doctor [--format text|json|sarif|github] [--strict] [--only BS100,...]
-
-SQL kit
-  sql list | add <module...> | sync [--check] | print <module>
-
-Run \`better-supabase <command> --help\` for a command's options.
-
-Global
-  --cwd <dir>   --config <file>   --help   --version
-`;
-
-export type Command = (context: CommandContext) => Promise<CommandResult>;
-
-export interface CommandContext {
-  readonly args: ParsedArgs;
-  readonly cwd: string;
-  readonly config: ResolvedConfig;
-  readonly io: CliIo;
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly signal: AbortSignal | undefined;
-}
-
-const COMMANDS = new Map<string, Command>();
-const COMMAND_HELP = new Map<string, string>();
-
-/** Registers a command; the built-in commands register themselves below. */
+/** Registers a citty command; `defineCliCommand` gives it the `CliContext`. */
+export function registerCommand(name: string, command: AnyCommand): void;
+/** @deprecated Pass a citty `CommandDef` from `defineCliCommand` instead. */
 export function registerCommand(
   name: string,
   command: Command,
   help?: string,
+): void;
+export function registerCommand(
+  name: string,
+  command: AnyCommand | Command,
+  help?: string,
 ): void {
-  COMMANDS.set(name, command);
-  if (help) COMMAND_HELP.set(name, help);
+  const def =
+    typeof command === "function"
+      ? legacyCommand(name, command, help)
+      : command;
+  COMMANDS.set(name, () => Promise.resolve(def));
 }
 
-function sourceFlags(args: ParsedArgs): SnapshotSource {
-  const snapshotPath = flagString(args.flags, "snapshot");
-  const dbUrl = flagString(args.flags, "db-url");
-  const projectRef = flagString(args.flags, "project-ref");
-  return {
-    ...(snapshotPath ? { snapshotPath } : {}),
-    ...(dbUrl ? { dbUrl } : {}),
-    ...(projectRef ? { projectRef } : {}),
-  };
+const ROOT = defineCommand({
+  meta: {
+    name: "better-supabase",
+    version: VERSION,
+    description:
+      "Typed Supabase: codegen, doctor, the SQL kit and project setup",
+  },
+  args: GLOBAL_ARGS,
+  subCommands: () =>
+    Object.fromEntries([...COMMANDS].map(([name, load]) => [name, load])),
+});
+
+/** The usage text for the CLI, or for one command; plain unless `color` is set. */
+export async function help(command?: string, color = false): Promise<string> {
+  const load = command === undefined ? undefined : COMMANDS.get(command);
+  const text = load
+    ? await renderUsage(await load(), ROOT)
+    : await renderUsage(ROOT);
+  return color ? text : stripVTControlCharacters(text);
 }
-
-registerCommand("gen", async ({ args, config, env, io, signal }) => {
-  const options = {
-    config,
-    env,
-    check: flagBool(args.flags, "check"),
-    ...sourceFlags(args),
-  } as const;
-
-  if (!flagBool(args.flags, "watch")) return runGen(options);
-
-  const interval = Number(flagString(args.flags, "interval") ?? 2000);
-  let last = "";
-  const aborted = (): boolean => signal?.aborted ?? false;
-  while (!aborted()) {
-    try {
-      const snapshot = await loadSnapshot(config, env, options);
-      const fingerprint = JSON.stringify(snapshot);
-      if (fingerprint !== last) {
-        last = fingerprint;
-        const result = await runGen({ ...options, snapshot });
-        if (result.output) io.stdout(`${result.output}\n`);
-        if (result.error) io.stderr(`${result.error}\n`);
-      }
-    } catch (cause) {
-      io.stderr(`${cause instanceof Error ? cause.message : String(cause)}\n`);
-    }
-    await sleep(interval, signal);
-  }
-  return { code: 0 };
-});
-
-registerCommand("introspect", async ({ args, config, env }) => {
-  const format = flagString(args.flags, "format") ?? "snapshot";
-  if (format !== "snapshot" && format !== "generator-metadata") {
-    return {
-      code: 2,
-      error: '--format must be "snapshot" or "generator-metadata"',
-    };
-  }
-  const { snapshotPath: _ignored, ...source } = sourceFlags(args);
-  const snapshot = await loadSnapshot(config, env, { ...source, live: true });
-  const out =
-    flagString(args.flags, "out") ??
-    (format === "snapshot"
-      ? "supabase/snapshot.json"
-      : "supabase/generator-metadata.json");
-  const contents =
-    format === "snapshot"
-      ? serializeSnapshot(snapshot)
-      : `${serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
-  if (flagBool(args.flags, "check")) {
-    const current = await readFile(resolve(config.root, out), "utf8").catch(
-      () => undefined,
-    );
-    return current === contents
-      ? { code: 0, output: `${display(config.root, out)} is up to date.` }
-      : {
-          code: 1,
-          error: `${display(config.root, out)} is out of date. Run \`better-supabase introspect\`.`,
-        };
-  }
-  const wrote = await writeIfChanged(resolve(config.root, out), contents);
-  return {
-    code: 0,
-    output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)} (${snapshot.extras.tables.length} tables).`,
-  };
-});
-
-registerCommand("sql", ({ args, config }) => runSql(config, args), SQL_HELP);
-registerCommand("init", ({ args, config }) => runInit(config, args), INIT_HELP);
-registerCommand("add", ({ args, config }) => runAdd(config, args), ADD_HELP);
-registerCommand(
-  "env",
-  ({ args, config, env }) => runEnv(config, args, env),
-  ENV_HELP,
-);
-registerCommand("keys", ({ args, config }) => runKeys(config, args), KEYS_HELP);
-registerCommand(
-  "seed",
-  ({ args, config, env }) => runSeed(config, args, env),
-  SEED_HELP,
-);
-registerCommand(
-  "openapi",
-  ({ args, config }) => runOpenApi(config, args),
-  OPENAPI_HELP,
-);
-registerCommand(
-  "skills",
-  ({ args, config, env }) => runSkills(config, args, env),
-  SKILLS_HELP,
-);
-registerCommand(
-  "doctor",
-  ({ args, config, env }) => runDoctor(config, args, env),
-  DOCTOR_HELP,
-);
-
-const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
-  delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
 
 export interface RunOptions {
   readonly cwd?: string;
   readonly io?: CliIo;
   readonly signal?: AbortSignal;
+}
+
+/** The index of the command name: the first token that is not an option or an option's value. */
+function commandIndex(argv: readonly string[]): number {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]!;
+    if (token === "--") return -1;
+    if (!token.startsWith("-")) return index;
+    if (token === "--cwd" || token === "--config") index += 1;
+  }
+  return -1;
+}
+
+function isCommandResult(value: unknown): value is CommandResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "code" in value &&
+    typeof value.code === "number"
+  );
+}
+
+function isUsageError(cause: unknown): cause is Error {
+  return cause instanceof Error && cause.name === "CLIError";
 }
 
 /** Runs the CLI. Never exits the process; returns the exit code and output. */
@@ -222,67 +137,75 @@ export async function run(
     if (options.io) stderr.push(line);
     io.stderr(line);
   };
+  const paint = painter(io.color);
+  const usage = (command?: string): Promise<string> =>
+    help(command, io.color === true);
   const finish = (code: number): RunResult => ({
     code,
     stdout: stdout.join(""),
     stderr: stderr.join(""),
   });
 
-  const args = parseArgs(argv);
-  if (flagBool(args.flags, "version") || args.command === "version") {
+  const index = commandIndex(argv);
+  const name = index === -1 ? undefined : argv[index];
+  const rest = index === -1 ? [...argv] : argv.toSpliced(index, 1);
+  const flags = new Set(
+    rest.slice(0, rest.includes("--") ? rest.indexOf("--") : undefined),
+  );
+  const wantsHelp = flags.has("--help") || flags.has("-h");
+
+  if (flags.has("--version") || name === "version") {
     out(VERSION);
     return finish(0);
   }
-  const commandHelp = args.command ? COMMAND_HELP.get(args.command) : undefined;
-  if (commandHelp && flagBool(args.flags, "help")) {
-    out(commandHelp);
+  if (name === undefined) {
+    (wantsHelp ? out : fail)(await usage());
+    return finish(wantsHelp ? 0 : 2);
+  }
+  if (name === "help") {
+    const topic = rest.find((token) => !token.startsWith("-"));
+    out(await usage(topic));
     return finish(0);
   }
-  if (
-    flagBool(args.flags, "help") ||
-    args.command === "help" ||
-    args.command === undefined
-  ) {
-    (args.command === undefined && !flagBool(args.flags, "help") ? fail : out)(
-      HELP,
-    );
-    return finish(
-      args.command === undefined && !flagBool(args.flags, "help") ? 2 : 0,
-    );
-  }
-
-  const command = COMMANDS.get(args.command);
-  if (!command) {
-    fail(`Unknown command "${args.command}".\n\n${HELP}`);
+  const load = COMMANDS.get(name);
+  if (!load) {
+    fail(`Unknown command "${name}".\n\n${await usage()}`);
     return finish(2);
   }
+  if (wantsHelp) {
+    out(await usage(name));
+    return finish(0);
+  }
 
-  const cwd = resolve(
-    options.cwd ?? process.cwd(),
-    flagString(args.flags, "cwd") ?? ".",
-  );
+  const command: CommandDef = await load();
+  const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
+  const cwd = resolve(options.cwd ?? process.cwd(), globals.cwd ?? ".");
   const env = io.env ?? process.env;
   let config: ResolvedConfig;
   try {
-    config = await loadConfig(cwd, flagString(args.flags, "config"));
+    config = await loadConfig(cwd, globals.config);
   } catch (cause) {
     fail(cause instanceof Error ? cause.message : String(cause));
     return finish(2);
   }
 
+  const context: CliContext = { cwd, config, io, env, signal: options.signal };
   try {
-    const result = await command({
-      args,
-      cwd,
-      config,
-      io,
-      env,
-      signal: options.signal,
+    const { result } = await runCommand(command, {
+      rawArgs: joinRepeated(rest, listArgs(command)),
+      data: context,
     });
-    if (result.output) out(result.output);
-    if (result.error) fail(result.error);
+    if (!isCommandResult(result)) return finish(0);
+    if (result.output) out(highlight(result.output, paint));
+    if (result.error) fail(paint("red", result.error));
     return finish(result.code);
   } catch (cause) {
+    if (isUsageError(cause)) {
+      fail(
+        `${stripVTControlCharacters(cause.message)}\n\n${await usage(name)}`,
+      );
+      return finish(2);
+    }
     fail(cause instanceof Error ? cause.message : String(cause));
     return finish(1);
   }

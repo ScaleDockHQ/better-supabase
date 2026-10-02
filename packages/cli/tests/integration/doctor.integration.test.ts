@@ -9,7 +9,7 @@ import type { PermdockProject } from "../../src/permdock.ts";
 import { type DoctorContext, RULES, runRules } from "../../src/doctor/rules.ts";
 import { introspect } from "../../src/introspect/index.ts";
 import { pgSource } from "../../src/introspect/source.ts";
-import { parseTomlSubset } from "../../src/supabase-toml.ts";
+import { parseToml } from "../../src/supabase-toml.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -225,8 +225,8 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       return {
         path: "supabase/config.toml",
         text,
-        document: parseTomlSubset(text),
-        parser: "builtin" as const,
+        document: parseToml(text),
+        parser: "smol-toml" as const,
       };
     };
     const run = async (

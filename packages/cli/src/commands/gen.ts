@@ -9,9 +9,13 @@ import {
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
+import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
+import { defineCliCommand } from "../command.ts";
+import { fileDiff } from "../diff.ts";
 import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitModule } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
@@ -23,13 +27,17 @@ import {
   writeIfChanged,
 } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
+import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
+import { type Paint, painter } from "../style.ts";
 import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
 
 export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly check: boolean;
+  /** Colors the `--check` diffs. */
+  readonly paint?: Paint;
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
 }
@@ -121,13 +129,21 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
 
   if (options.check) {
     const stale: string[] = [];
+    const diffs: string[] = [];
+    const compare = (
+      file: { readonly path: string; readonly contents: string },
+      current: string | undefined,
+    ): void => {
+      const shown = display(config.root, file.path);
+      stale.push(shown);
+      diffs.push(fileDiff(shown, current, file.contents, options.paint));
+    };
     for (const file of files) {
       const path = resolve(config.root, file.path);
       const current = existsSync(path)
         ? await readFile(path, "utf8")
         : undefined;
-      if (current !== file.contents)
-        stale.push(display(config.root, file.path));
+      if (current !== file.contents) compare(file, current);
     }
     const readSets = await readSetFile(config);
     if (readSets) {
@@ -135,12 +151,12 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       const current = existsSync(path)
         ? await readFile(path, "utf8")
         : undefined;
-      if (!sameKitFile(current, readSets.contents))
-        stale.push(display(config.root, readSets.path));
+      if (!sameKitFile(current, readSets.contents)) compare(readSets, current);
     }
     if (stale.length > 0) {
       return {
         code: 1,
+        output: diffs.join("\n\n"),
         error: `Generated files are out of date:\n${stale.map((path) => `  ${path}`).join("\n")}\nRun \`better-supabase gen\`.`,
       };
     }
@@ -178,3 +194,100 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join("\n")}`,
   };
 }
+
+/** Where to read the schema from, shared by gen, introspect and doctor. */
+export const SOURCE_ARGS = {
+  snapshot: {
+    type: "string",
+    description: "Read a saved snapshot instead of the database",
+    valueHint: "file",
+  },
+  "db-url": {
+    type: "string",
+    description: "Read this database",
+    valueHint: "url",
+  },
+  "project-ref": {
+    type: "string",
+    description: "Read a hosted project through the Management API",
+    valueHint: "ref",
+  },
+} as const;
+
+export function sourceArgs(args: CliArgs<typeof SOURCE_ARGS>): SnapshotSource {
+  const snapshotPath = args.snapshot;
+  const dbUrl = args["db-url"];
+  const projectRef = args["project-ref"];
+  return {
+    ...(snapshotPath ? { snapshotPath } : {}),
+    ...(dbUrl ? { dbUrl } : {}),
+    ...(projectRef ? { projectRef } : {}),
+  };
+}
+
+const ARGS = {
+  check: {
+    type: "boolean",
+    description: "Fail when a generated file is out of date",
+  },
+  watch: {
+    type: "boolean",
+    description: "Regenerate whenever the schema changes",
+  },
+  interval: {
+    type: "string",
+    description: "Milliseconds between checks in --watch. Defaults to 2000",
+    valueHint: "ms",
+  },
+  ...SOURCE_ARGS,
+} as const;
+
+const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
+  delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
+
+async function watch(
+  options: GenOptions,
+  interval: number,
+  { io, signal }: CliContext,
+): Promise<CommandResult> {
+  let last = "";
+  const aborted = (): boolean => signal?.aborted ?? false;
+  while (!aborted()) {
+    try {
+      const snapshot = await loadSnapshot(options.config, options.env, options);
+      const fingerprint = JSON.stringify(snapshot);
+      if (fingerprint !== last) {
+        last = fingerprint;
+        const result = await runGen({ ...options, snapshot });
+        if (result.output) io.stdout(`${result.output}\n`);
+        if (result.error) io.stderr(`${result.error}\n`);
+      }
+    } catch (cause) {
+      io.stderr(`${cause instanceof Error ? cause.message : String(cause)}\n`);
+    }
+    await sleep(interval, signal);
+  }
+  return { code: 0 };
+}
+
+export const genCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "gen",
+    description: "Writes database.types.ts and generated.ts from the database",
+  },
+  args: ARGS,
+  run: (args, context) => {
+    const options: GenOptions = {
+      config: context.config,
+      env: context.env,
+      check: args.check === true,
+      paint: painter(context.io.color),
+      ...sourceArgs(args),
+    };
+    return args.watch === true
+      ? watch(options, Number(args.interval ?? 2000), context)
+      : withSpinner(context.io.prompts, "Generating from the schema", () =>
+          runGen(options),
+        );
+  },
+});

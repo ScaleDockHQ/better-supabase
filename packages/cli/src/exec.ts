@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { x } from "tinyexec";
 
 export interface ExecResult {
   readonly code: number;
@@ -6,29 +6,28 @@ export interface ExecResult {
   readonly stderr: string;
 }
 
-function exec(
+async function exec(
   command: string,
   args: readonly string[],
   cwd: string,
 ): Promise<ExecResult> {
-  return new Promise((done) => {
-    const child = spawn(command, args, {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
+  try {
+    const result = await x(command, [...args], {
+      nodeOptions: { cwd, stdio: ["ignore", "pipe", "pipe"] },
+      throwOnError: false,
     });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", (error) =>
-      done({ code: 127, stdout, stderr: error.message }),
-    );
-    child.on("close", (code) => done({ code: code ?? 1, stdout, stderr }));
-  });
+    return {
+      code: result.exitCode ?? 1,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+  } catch (error) {
+    return {
+      code: 127,
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 /** Runs the Supabase CLI: `$SUPABASE_BIN`, then `supabase`, then `npx supabase`. */

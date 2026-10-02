@@ -1,5 +1,7 @@
+import type { Format, Paint } from "../style.ts";
 import type { Finding, Rule, Severity } from "./rules.ts";
 
+import { plain } from "../style.ts";
 import { DOCS_URL } from "./rules.ts";
 
 export type DoctorFormat = "text" | "json" | "sarif" | "github";
@@ -35,7 +37,13 @@ function summarize(findings: readonly Finding[]): DoctorSummary {
 const plural = (count: number, word: string): string =>
   `${count} ${word}${count === 1 ? "" : "s"}`;
 
-function text(findings: readonly Finding[]): string {
+const SEVERITY_FORMAT: Readonly<Record<Severity, Format>> = {
+  error: "red",
+  warning: "yellow",
+  info: "cyan",
+};
+
+function text(findings: readonly Finding[], paint: Paint): string {
   if (findings.length === 0) return "No problems found.";
   const order: readonly Severity[] = ["error", "warning", "info"];
   const lines = [...findings]
@@ -45,7 +53,7 @@ function text(findings: readonly Finding[]): string {
         a.code.localeCompare(b.code),
     )
     .flatMap((finding) => [
-      `${finding.severity.padEnd(7)} ${finding.code} ${finding.title}${finding.location ? `  ${finding.location.file}:${finding.location.line}` : ""}`,
+      `${paint(SEVERITY_FORMAT[finding.severity], finding.severity.padEnd(7))} ${paint("bold", finding.code)} ${finding.title}${finding.location ? `  ${finding.location.file}:${finding.location.line}` : ""}`,
       `        ${finding.message}`,
       `        ${finding.help}`,
     ]);
@@ -152,6 +160,8 @@ export interface FormatOptions {
   readonly version: string;
   /** File SARIF results point at when a finding has no location. */
   readonly fallbackFile: string;
+  /** Colors the text format's severities; plain by default. */
+  readonly paint?: Paint;
 }
 
 export function formatReport(
@@ -160,7 +170,7 @@ export function formatReport(
 ): string {
   switch (options.format) {
     case "text":
-      return text(findings);
+      return text(findings, options.paint ?? plain);
     case "json":
       return JSON.stringify(
         {

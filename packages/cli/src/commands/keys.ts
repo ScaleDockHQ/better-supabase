@@ -4,21 +4,27 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
-import type { ParsedArgs } from "../args.ts";
+import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagString } from "../args.ts";
+import { defineCliCommand } from "../command.ts";
 import { display } from "../io.ts";
 
-export const KEYS_HELP = `Usage: better-supabase keys [--out supabase/signing_keys.json] [--rotate] [--force]
+const ARGS = {
+  out: {
+    type: "string",
+    description: "Defaults to supabase/signing_keys.json",
+    valueHint: "file",
+  },
+  rotate: {
+    type: "boolean",
+    description:
+      "Put a new key first (it signs) and keep the old ones (they still verify)",
+  },
+  force: { type: "boolean", description: "Replace the file" },
+} as const;
 
-Creates an ES256 signing key for the local stack, so local tokens are signed
-the way your hosted project signs them and verify through JWKS.
-
-Options
-  --out <file>   Defaults to supabase/signing_keys.json
-  --rotate       Put a new key first (it signs) and keep the old ones (they still verify)
-  --force        Replace the file`;
+export type KeysArgs = CliArgs<typeof ARGS>;
 
 interface SigningKey {
   readonly kty: "EC";
@@ -56,13 +62,13 @@ async function createSigningKey(): Promise<SigningKey> {
 
 export async function runKeys(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: KeysArgs,
 ): Promise<CommandResult> {
-  const out = flagString(args.flags, "out") ?? "supabase/signing_keys.json";
+  const out = args.out ?? "supabase/signing_keys.json";
   const path = resolve(config.root, out);
-  const rotate = flagBool(args.flags, "rotate");
+  const rotate = args.rotate === true;
   const exists = existsSync(path);
-  if (exists && !rotate && !flagBool(args.flags, "force")) {
+  if (exists && !rotate && args.force !== true) {
     return {
       code: 1,
       error: `${display(config.root, out)} exists. Use --rotate to add a key or --force to replace it.`,
@@ -123,3 +129,13 @@ export async function runKeys(
     );
   return { code: 0, output: lines.join("\n") };
 }
+
+export const keysCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "keys",
+    description:
+      "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
+  },
+  args: ARGS,
+  run: (args, { config }) => runKeys(config, args),
+});

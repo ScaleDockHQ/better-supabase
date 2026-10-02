@@ -21,7 +21,7 @@ import { parseSnapshot } from "../../src/commands/snapshot.ts";
 import { type DoctorContext, RULES, runRules } from "../../src/doctor/rules.ts";
 import { toCatalog } from "../../src/introspect/catalog.ts";
 import { fromCatalog } from "../../src/introspect/from-catalog.ts";
-import { parseTomlSubset } from "../../src/supabase-toml.ts";
+import { parseToml } from "../../src/supabase-toml.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const base = parseSnapshot(fixture);
@@ -42,8 +42,8 @@ const table = (tables: Mutable<CatalogTable>[], name: string) =>
 const toml = (text: string): DoctorContext["configToml"] => ({
   path: "supabase/config.toml",
   text,
-  document: parseTomlSubset(text),
-  parser: "builtin",
+  document: parseToml(text),
+  parser: "smol-toml",
 });
 
 function context(

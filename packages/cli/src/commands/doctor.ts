@@ -4,13 +4,13 @@ import { existsSync } from "node:fs";
 import { glob, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { ParsedArgs } from "../args.ts";
+import type { AnyCommand, CliArgs } from "../command.ts";
 import type { LiveDatabase } from "../doctor/live.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { CommandResult } from "../io.ts";
 
-import { flagBool, flagList, flagString } from "../args.ts";
+import { defineCliCommand, list } from "../command.ts";
 import { connect } from "../db.ts";
 import {
   type AdvisorSource,
@@ -36,7 +36,9 @@ import {
 } from "../doctor/rules.ts";
 import { writeIfChanged } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
+import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
+import { type Paint, painter } from "../style.ts";
 import {
   readSupabaseToml,
   schemaPaths,
@@ -51,30 +53,76 @@ import {
   snapshotFile,
 } from "./snapshot.ts";
 
-export const DOCTOR_HELP: string = `Usage: better-supabase doctor [--format text|json|sarif|github] [--out <file>] [--strict]
+const ARGS = {
+  format: {
+    type: "string",
+    description:
+      "text (default), json, sarif (code scanning) or github (workflow annotations)",
+    valueHint: "format",
+  },
+  out: {
+    type: "string",
+    description: "Write the report to a file",
+    valueHint: "file",
+  },
+  only: {
+    type: "string",
+    description: "Run only these checks, e.g. --only BS100,BS304",
+    valueHint: "codes",
+  },
+  ignore: {
+    type: "string",
+    description: "Skip checks; also doctor.ignore in the config",
+    valueHint: "codes",
+  },
+  strict: {
+    type: "boolean",
+    description: "Fail on warnings; also doctor.strict",
+  },
+  snapshot: {
+    type: "string",
+    description: "Check a saved snapshot instead of the database",
+    valueHint: "file",
+  },
+  "db-url": {
+    type: "string",
+    description: "Read this database",
+    valueHint: "url",
+  },
+  "project-ref": {
+    type: "string",
+    description: "Read a hosted project through the Management API",
+    valueHint: "ref",
+  },
+  stats: {
+    type: "boolean",
+    description:
+      "Report slow frequent statements from pg_stat_statements (BS209)",
+  },
+  explain: {
+    type: "string",
+    description: "EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)",
+    valueHint: "tables",
+  },
+  as: {
+    type: "string",
+    description:
+      "Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)",
+    valueHint: "uuid",
+  },
+  claims: {
+    type: "string",
+    description: 'Plan with these JWT claims ({"role":"authenticated",...})',
+    valueHint: "json",
+  },
+  "fix-grants": {
+    type: "boolean",
+    description:
+      "Print the grant and revoke SQL BS404 asks for, to append to the migration `supabase db diff` wrote",
+  },
+} as const;
 
-Checks the database, supabase/config.toml and env files for security,
-performance and drift problems. BS100/BS200 are Supabase's Security and
-Performance Advisors (Management API for hosted projects, splinter otherwise). Exits 1 when there are errors (or warnings with --strict).
-
-Options
-  --format <f>      text (default), json, sarif (code scanning) or github (workflow annotations)
-  --out <file>      Write the report to a file
-  --only <codes>    Run only these checks, e.g. --only BS100,BS304
-  --ignore <codes>  Skip checks; also doctor.ignore in the config
-  --strict          Fail on warnings; also doctor.strict
-  --snapshot <file> Check a saved snapshot instead of the database
-  --db-url <url>    Read this database
-  --project-ref <r> Read a hosted project through the Management API
-  --stats           Report slow frequent statements from pg_stat_statements (BS209)
-  --explain <t,..>  EXPLAIN ANALYZE the tables under RLS, rolled back (BS212)
-  --as <uuid>       Plan as this authenticated user; measure the claims
-                    the custom access token hook returns for them (BS405)
-  --claims <json>   Plan with these JWT claims ({"role":"authenticated",...})
-  --fix-grants      Print the grant and revoke SQL BS404 asks for, to append
-                    to the migration \`supabase db diff\` wrote
-
-Checks: ${RULE_CODES.join(", ")}`;
+export type DoctorArgs = CliArgs<typeof ARGS>;
 
 const ENV_FILES = [
   ".env",
@@ -179,6 +227,8 @@ export interface DoctorOptions {
   readonly database?: DoctorContext["database"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;
+  /** Colors the text report. */
+  readonly paint?: Paint;
 }
 
 /** Checks that read the database itself rather than the snapshot. */
@@ -246,10 +296,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** `--as <uuid>` or `--claims <json>` as `request.jwt.claims`. */
 function explainClaims(
-  args: ParsedArgs,
+  args: DoctorArgs,
 ): Record<string, unknown> | { error: string } {
-  const as = flagString(args.flags, "as");
-  const claims = flagString(args.flags, "claims");
+  const as = args.as;
+  const claims = args.claims;
   if (as && claims) return { error: "Pass --as or --claims, not both" };
   if (as) {
     if (!UUID.test(as))
@@ -273,21 +323,18 @@ function explainClaims(
 
 export async function runDoctor(
   config: ResolvedConfig,
-  args: ParsedArgs,
+  args: DoctorArgs,
   env: Readonly<Record<string, string | undefined>>,
   options: DoctorOptions = {},
 ): Promise<CommandResult> {
-  const format = parseFormat(flagString(args.flags, "format"));
+  const format = parseFormat(args.format);
   if (!format)
     return {
       code: 2,
       error: `--format must be one of ${DOCTOR_FORMATS.join(", ")}`,
     };
-  const only = flagList(args.flags, "only");
-  const ignore = new Set([
-    ...config.doctor.ignore,
-    ...flagList(args.flags, "ignore"),
-  ]);
+  const only = list(args.only);
+  const ignore = new Set([...config.doctor.ignore, ...list(args.ignore)]);
   const unknown = [...only, ...ignore].filter(
     (code) => !RULE_CODES.includes(code),
   );
@@ -296,18 +343,18 @@ export async function runDoctor(
       code: 2,
       error: `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
     };
-  const explainTables = flagList(args.flags, "explain");
-  const stats = flagBool(args.flags, "stats");
+  const explainTables = list(args.explain);
+  const stats = args.stats === true;
   const claims = explainClaims(args);
   if ("error" in claims) return { code: 2, error: String(claims.error) };
   // --stats and --explain ask for their checks even when --only leaves them out.
-  const hookUser = flagString(args.flags, "as");
+  const hookUser = args.as;
   const asked = new Set([
     ...(stats ? ["BS209"] : []),
     ...(explainTables.length > 0 ? ["BS212"] : []),
     ...(hookUser ? ["BS405"] : []),
   ]);
-  const fixGrants = flagBool(args.flags, "fix-grants");
+  const fixGrants = args["fix-grants"] === true;
   const rules = fixGrants
     ? RULES.filter((rule) => rule.code === "BS404")
     : RULES.filter(
@@ -318,9 +365,9 @@ export async function runDoctor(
           !ignore.has(rule.code),
       );
 
-  const snapshotPath = flagString(args.flags, "snapshot");
-  const dbUrl = flagString(args.flags, "db-url");
-  const projectRef = flagString(args.flags, "project-ref");
+  const snapshotPath = args.snapshot;
+  const dbUrl = args["db-url"];
+  const projectRef = args["project-ref"];
   const source: SnapshotSource = {
     // Statistics, plans and hook calls need the database, not the saved snapshot.
     ...(stats || explainTables.length > 0 || hookUser ? { live: true } : {}),
@@ -391,11 +438,13 @@ export async function runDoctor(
     return location ? { ...finding, location } : finding;
   });
 
+  const out = args.out;
   const report = formatReport(findings, {
     format,
     rules,
     version: VERSION,
     fallbackFile: context.configToml?.path ?? "package.json",
+    ...(options.paint && !out ? { paint: options.paint } : {}),
   });
   const errors = findings.filter(
     (finding) => finding.severity === "error",
@@ -403,10 +452,9 @@ export async function runDoctor(
   const warnings = findings.filter(
     (finding) => finding.severity === "warning",
   ).length;
-  const strict = flagBool(args.flags, "strict") || config.doctor.strict;
+  const strict = args.strict === true || config.doctor.strict;
   const code = errors > 0 || (strict && warnings > 0) ? 1 : 0;
 
-  const out = flagString(args.flags, "out");
   if (out) {
     await writeIfChanged(resolve(config.root, out), `${report}\n`);
     return {
@@ -416,3 +464,19 @@ export async function runDoctor(
   }
   return { code, output: report };
 }
+
+export const doctorCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "doctor",
+    description:
+      "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
+  },
+  args: ARGS,
+  lists: ["only", "ignore", "explain"],
+  run: (args, { config, env, io }) =>
+    withSpinner(
+      args.snapshot === undefined ? io.prompts : undefined,
+      "Checking the database",
+      () => runDoctor(config, args, env, { paint: painter(io.color) }),
+    ),
+});

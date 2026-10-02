@@ -1,5 +1,14 @@
-export type FlagValue = string | boolean | readonly string[];
+import type { ResolvedConfig } from "better-supabase/config";
 
+import { type CommandDef, defineCommand } from "citty";
+
+import type { CommandResult, CliIo } from "./io.ts";
+
+import { cliContext } from "./command.ts";
+
+type FlagValue = string | boolean | readonly string[];
+
+/** The arguments of a `(context) => CommandResult` command, parsed the 0.2 way. */
 export interface ParsedArgs {
   readonly command: string | undefined;
   readonly rest: readonly string[];
@@ -35,7 +44,7 @@ const BOOLEAN_FLAGS = new Set([
   "fix-grants",
 ]);
 
-export function parseArgs(argv: readonly string[]): ParsedArgs {
+function parseArgs(argv: readonly string[]): ParsedArgs {
   const flags: Record<string, FlagValue> = {};
   const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
@@ -92,27 +101,33 @@ function setFlag(
   flags[name] = value;
 }
 
-export function flagString(
-  flags: Readonly<Record<string, FlagValue>>,
-  name: string,
-): string | undefined {
-  const value = flags[name];
-  return typeof value === "string" ? value : undefined;
+/** What a `(context) => CommandResult` command receives. */
+export interface CommandContext {
+  readonly args: ParsedArgs;
+  readonly cwd: string;
+  readonly config: ResolvedConfig;
+  readonly io: CliIo;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly signal: AbortSignal | undefined;
 }
 
-export function flagBool(
-  flags: Readonly<Record<string, FlagValue>>,
-  name: string,
-): boolean {
-  return flags[name] === true || flags[name] === "true";
-}
+/** The command shape before 0.3; `registerCommand` still accepts it, deprecated. */
+export type Command = (context: CommandContext) => Promise<CommandResult>;
 
-export function flagList(
-  flags: Readonly<Record<string, FlagValue>>,
+/**
+ * Wraps a `(context) => CommandResult` command as a citty command. Its flags
+ * are parsed the way 0.2 parsed them, because it declares no citty args.
+ */
+export function legacyCommand(
   name: string,
-): readonly string[] {
-  const value = flags[name];
-  if (typeof value === "object") return value;
-  if (typeof value === "string") return [value];
-  return [];
+  command: Command,
+  help?: string,
+): CommandDef {
+  return defineCommand({
+    meta: { name, description: help ?? "" },
+    run: ({ rawArgs, data }) => {
+      const parsed = parseArgs([name, ...rawArgs]);
+      return command({ ...cliContext(data), args: parsed });
+    },
+  });
 }

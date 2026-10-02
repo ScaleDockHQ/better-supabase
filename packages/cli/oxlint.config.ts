@@ -14,7 +14,7 @@ export default defineConfig({
   overrides: [
     {
       // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.
-      files: ["src/run.ts"],
+      files: ["src/run.ts", "src/bin.ts"],
       rules: { "node/no-process-env": "off" },
     },
   ],

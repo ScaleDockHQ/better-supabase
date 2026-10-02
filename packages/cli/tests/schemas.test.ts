@@ -7,7 +7,7 @@ import type { Snapshot } from "../src/introspect/types.ts";
 import { formatReport } from "../src/doctor/format.ts";
 import { RULES, runRules } from "../src/doctor/rules.ts";
 import { generatorJsonSchema } from "../src/introspect/typegen.ts";
-import { parseTomlSubset } from "../src/supabase-toml.ts";
+import { parseToml } from "../src/supabase-toml.ts";
 import { snapshotFixture as fixture } from "./fixtures/library.ts";
 
 type Schema = Readonly<Record<string, unknown>>;
@@ -173,8 +173,8 @@ describe("shipped JSON Schemas", () => {
       configToml: {
         path: "supabase/config.toml",
         text: "[auth]\njwt_expiry = 7200\n",
-        document: parseTomlSubset("[auth]\njwt_expiry = 7200\n"),
-        parser: "builtin" as const,
+        document: parseToml("[auth]\njwt_expiry = 7200\n"),
+        parser: "smol-toml" as const,
       },
       envFiles: [{ path: ".env", text: "SUPABASE_SECRET_KEY=x\n" }],
       gitignore: "",
