@@ -4,7 +4,7 @@ description: Generate database types, typed models, relation metadata and valida
 ---
 
 ```bash
-better-supabase gen [--check] [--watch] [--snapshot <file>] [--db-url <url> | --project-ref <ref>]
+better-supabase gen [--check] [--watch] [--snapshot <file>] [--db-url-stdin | --project-ref <ref>]
 ```
 
 `gen` introspects your database with
@@ -33,14 +33,25 @@ don't rebuild for nothing.
 | `--check`             | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI. |
 | `--watch`             | Regenerates when the schema changes (polls every `--interval` ms, default 2000).                          |
 | `--snapshot <file>`   | Reads a saved snapshot instead of connecting.                                                             |
-| `--db-url <url>`      | Connection string; overrides the config and `$DATABASE_URL`.                                              |
+| `--db-url-stdin`      | Reads the connection string from stdin; overrides the config and `$DATABASE_URL`.                         |
 | `--project-ref <ref>` | Reads a hosted project through the Management API.                                                        |
+
+With `--json`, `gen` prints `{ "tables", "written" }`, and `gen --check`
+prints `{ "upToDate", "stale" }`.
+
+A connection string holds the database password, so no command takes one as
+an argument, where it would land in shell history and the process list. Set
+`$DATABASE_URL`, or pipe it in:
+
+```bash
+printf %s "$PROD_DB_URL" | better-supabase gen --check --db-url-stdin
+```
 
 ## Where the schema comes from
 
 In order:
 
-1. `--db-url`, or `--project-ref`;
+1. `--db-url-stdin`, or `--project-ref`;
 2. `source.dbUrl` or `source.projectRef` in the config;
 3. `source.snapshot`, when neither flag is passed;
 4. `$DATABASE_URL`;
@@ -97,13 +108,4 @@ better-supabase gen --snapshot supabase/snapshot.json
 ```
 
 A committed snapshot lets CI and contributors generate without a database.
-The snapshot stores postgrest-typegen's own metadata plus the extras
-better-supabase reads (policies, indexes, triggers, buckets, realtime), and
-follows
-[`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
-`introspect --check` fails when it no longer matches the database.
-Row counts are left out so the file stays stable; tables Postgres estimates
-at 10,000 rows or more only get `large: true`, which the
-[`unbounded-read`](/docs/plugins/lint#unbounded-read) lint rule reads.
-`introspect --format generator-metadata` prints only the postgrest-typegen
-part, for tools that consume it directly.
+[`introspect`](/docs/cli/introspect) writes and checks it.

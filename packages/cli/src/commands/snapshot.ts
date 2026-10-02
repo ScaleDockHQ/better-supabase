@@ -4,10 +4,12 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
+import { CliError } from "../errors.ts";
 import { introspect } from "../introspect/index.ts";
 import {
   type IntrospectionSource,
@@ -31,7 +33,7 @@ export interface SnapshotSource {
   readonly live?: boolean;
 }
 
-type Env = Readonly<Record<string, string | undefined>>;
+type Env = CliEnv;
 
 export interface ManagementTarget {
   readonly projectRef: string;
@@ -50,22 +52,23 @@ export function managementTarget(
     source.projectRef ??
     (config.source.dbUrl ? undefined : config.source.projectRef);
   if (!projectRef) return undefined;
-  const accessToken =
-    config.source.accessToken ?? env["SUPABASE_ACCESS_TOKEN"] ?? undefined;
+  const accessToken = config.source.accessToken ?? env.SUPABASE_ACCESS_TOKEN;
   if (!accessToken) {
-    throw new Error(
-      `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens) or pass --db-url.`,
+    throw new CliError(
+      "missing_value",
+      `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens), or read the database with $DATABASE_URL or --db-url-stdin.`,
+      { flag: "SUPABASE_ACCESS_TOKEN" },
     );
   }
   return {
     projectRef,
     accessToken,
-    ...(env["SUPABASE_API_URL"] ? { apiUrl: env["SUPABASE_API_URL"] } : {}),
+    ...(env.SUPABASE_API_URL ? { apiUrl: env.SUPABASE_API_URL } : {}),
   };
 }
 
 /**
- * Where to read the schema from: `--db-url`, `--project-ref`, then the
+ * Where to read the schema from: `--db-url-stdin`, `--project-ref`, then the
  * config's `source.dbUrl` / `source.projectRef`, `$DATABASE_URL`, and finally
  * the local stack.
  */

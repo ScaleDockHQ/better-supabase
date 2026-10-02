@@ -24,6 +24,9 @@ The browser variables get your framework's prefix (`NEXT_PUBLIC_`, `VITE_`,
 
 Values are never printed unless you pass `--print`. `env` warns when the
 file isn't in `.gitignore`, and when your Supabase CLI only prints legacy keys.
+`--out <file>` writes another file than `.env.local`, and `--from <file>`
+reads saved `supabase status -o json` output instead of running the
+Supabase CLI.
 
 ## keys
 
@@ -35,7 +38,8 @@ This writes an ES256 key to `supabase/signing_keys.json` with mode `0600`.
 Point `[auth] signing_keys_path` at it, and local tokens are then signed the way
 your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
-existing tokens still verify.
+existing tokens still verify. `keys` refuses to overwrite an existing file
+unless you pass `--force`, and `--out <file>` writes somewhere else.
 
 ## seed
 
@@ -65,6 +69,11 @@ pnpm better-supabase seed --check  # fails in CI when the SQL is stale
 pnpm better-supabase seed --apply  # also inserts into the local database
 ```
 
+`--entry <file>` and `--out <file>` override `seed.entry` and
+`seed.output`. `--apply` connects to `$DATABASE_URL`, or to the local stack;
+to seed another database, pipe its connection string in with
+`--db-url-stdin`.
+
 - Tables are inserted parents first, following foreign keys.
 - Missing columns use their defaults, and every insert is
   `on conflict do nothing`, so a seed can run twice.
@@ -87,4 +96,5 @@ pnpm better-supabase openapi emit --check
 This imports `openapi.entry` (default `src/lib/openapi.ts`), which exports
 the [`createOpenApi`](/docs/standards/openapi) document as `openapi` or
 default (or a function that returns it), and writes `openapi.json`.
-`--check` fails when the file is out of date.
+`--check` fails when the file is out of date. `--entry <file>` and
+`--out <file>` override `openapi.entry` and `openapi.output`.

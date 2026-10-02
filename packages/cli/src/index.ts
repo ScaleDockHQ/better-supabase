@@ -1,10 +1,19 @@
 // oxlint-disable-next-line typescript/no-deprecated -- only registerCommand's legacy overload is deprecated.
-export { help, run, registerCommand } from "./run.ts";
+export { commandNames, help, run, registerCommand } from "./run.ts";
 export type { RunOptions } from "./run.ts";
 export { defineCliCommand, list } from "./command.ts";
 export type { CliArgs, CliCommandDef, CliContext } from "./command.ts";
 export type { Command, CommandContext, ParsedArgs } from "./legacy.ts";
 export type { CliIo, CommandResult, RunResult } from "./io.ts";
+export { CLI_ERRORS_URL, CliError } from "./errors.ts";
+export type {
+  CliErrorCode,
+  CliErrorOptions,
+  CliProblem,
+  CliProblemExtensions,
+  ExitCode,
+} from "./errors.ts";
+export type { CliEnv } from "./env.ts";
 export { renderFiles, runGen } from "./commands/gen.ts";
 export {
   loadSnapshot,

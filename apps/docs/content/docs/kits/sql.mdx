@@ -174,6 +174,8 @@ export default defineConfig({
 `better-supabase sql sync` rewrites those files after an upgrade, and
 `sql sync --check` fails in CI when a file is out of date. Use
 `sql print <module>` to copy a module into a hand-written migration instead.
+`sql add` and `sql sync` take `--dry-run` to show what they would write, and
+`--tests-dir <dir>` overrides `sql.testsDir` for the pgTAP module.
 
 | Option         | Default               |
 | -------------- | --------------------- |

@@ -1,5 +1,3 @@
-import type { ResolvedConfig } from "better-supabase/config";
-
 import {
   type CommandDef,
   defineCommand,
@@ -7,6 +5,7 @@ import {
   renderUsage,
   runCommand,
 } from "citty";
+import { closest, distance } from "fastest-levenshtein";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
@@ -18,9 +17,12 @@ import {
   listArgs,
 } from "./command.ts";
 import { loadConfig } from "./config.ts";
+import { parseEnv } from "./env.ts";
+import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { type CliIo, type CommandResult, type RunResult } from "./io.ts";
 import { type Command, legacyCommand } from "./legacy.ts";
-import { highlight, painter } from "./style.ts";
+import { type Rendered, renderError, renderResult } from "./output.ts";
+import { painter } from "./style.ts";
 import { VERSION } from "./version.ts";
 
 type Loader = () => Promise<AnyCommand>;
@@ -87,7 +89,10 @@ export async function help(command?: string, color = false): Promise<string> {
 }
 
 export interface RunOptions {
+  /** Directory `--cwd` is relative to. */
   readonly cwd?: string;
+  /** Environment variables. Empty unless passed; the bin passes `process.env`. */
+  readonly env?: Readonly<Record<string, string | undefined>>;
   readonly io?: CliIo;
   readonly signal?: AbortSignal;
 }
@@ -112,8 +117,26 @@ function isCommandResult(value: unknown): value is CommandResult {
   );
 }
 
-function isUsageError(cause: unknown): cause is Error {
-  return cause instanceof Error && cause.name === "CLIError";
+/** The names `run()` dispatches, registered commands included. */
+export function commandNames(): string[] {
+  return [...COMMANDS.keys()];
+}
+
+/** The registered command closest to a mistyped one, if it is close enough to be a typo. */
+function suggestCommand(name: string): string | undefined {
+  const names = [...COMMANDS.keys()];
+  if (names.length === 0) return undefined;
+  const candidate = closest(name, names);
+  return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
+    ? candidate
+    : undefined;
+}
+
+const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
+
+function withoutPrompts(io: CliIo): CliIo {
+  const { prompts: _prompts, ...rest } = io;
+  return rest;
 }
 
 /** Runs the CLI. Never exits the process; returns the exit code and output. */
@@ -157,9 +180,31 @@ export async function run(
     rest.slice(0, rest.includes("--") ? rest.indexOf("--") : undefined),
   );
   const wantsHelp = flags.has("--help") || flags.has("-h");
+  const json = flags.has("--json");
+  const report = (rendered: Rendered): void => {
+    if (rendered.stdout) out(rendered.stdout);
+    if (rendered.stderr) fail(rendered.stderr);
+  };
+  const reportError = async (cause: unknown): Promise<RunResult> => {
+    const error = toCliError(cause);
+    const shown =
+      error.code === "usage"
+        ? new CliError("usage", stripVTControlCharacters(error.message))
+        : error;
+    report(
+      renderError(shown, {
+        json,
+        paint,
+        ...(SHOWS_USAGE.has(error.code)
+          ? { usage: await usage(error.code === "usage" ? name : undefined) }
+          : {}),
+      }),
+    );
+    return finish(error.exitCode);
+  };
 
   if (flags.has("--version") || name === "version") {
-    out(VERSION);
+    out(json ? JSON.stringify({ version: VERSION }) : VERSION);
     return finish(0);
   }
   if (name === undefined) {
@@ -173,44 +218,59 @@ export async function run(
   }
   const load = COMMANDS.get(name);
   if (!load) {
-    fail(`Unknown command "${name}".\n\n${await usage()}`);
-    return finish(2);
+    const suggestion = suggestCommand(name);
+    return reportError(
+      new CliError(
+        "unknown_command",
+        `Unknown command "${name}".${suggestion ? ` Did you mean "${suggestion}"?` : ""}`,
+        suggestion ? { suggestion } : {},
+      ),
+    );
   }
   if (wantsHelp) {
     out(await usage(name));
     return finish(0);
   }
 
-  const command: CommandDef = await load();
-  const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
-  const cwd = resolve(options.cwd ?? process.cwd(), globals.cwd ?? ".");
-  const env = io.env ?? process.env;
-  let config: ResolvedConfig;
+  let context: CliContext;
+  let command: CommandDef;
   try {
-    config = await loadConfig(cwd, globals.config);
+    command = await load();
+    const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
+    const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
+    const env = parseEnv(options.env ?? {});
+    const config = await loadConfig(cwd, globals.config).catch(
+      (cause: unknown) => {
+        throw cause instanceof CliError
+          ? cause
+          : new CliError("config_invalid", toCliError(cause).message, {
+              cause,
+            });
+      },
+    );
+    const interactive =
+      globals.json !== true && globals.yes !== true && env.CI === undefined;
+    context = {
+      cwd,
+      config,
+      io: interactive ? io : withoutPrompts(io),
+      env,
+      json: globals.json === true,
+      signal: options.signal,
+    };
   } catch (cause) {
-    fail(cause instanceof Error ? cause.message : String(cause));
-    return finish(2);
+    return reportError(cause);
   }
 
-  const context: CliContext = { cwd, config, io, env, signal: options.signal };
   try {
     const { result } = await runCommand(command, {
       rawArgs: joinRepeated(rest, listArgs(command)),
       data: context,
     });
     if (!isCommandResult(result)) return finish(0);
-    if (result.output) out(highlight(result.output, paint));
-    if (result.error) fail(paint("red", result.error));
+    report(renderResult(result, { json, paint }));
     return finish(result.code);
   } catch (cause) {
-    if (isUsageError(cause)) {
-      fail(
-        `${stripVTControlCharacters(cause.message)}\n\n${await usage(name)}`,
-      );
-      return finish(2);
-    }
-    fail(cause instanceof Error ? cause.message : String(cause));
-    return finish(1);
+    return reportError(cause);
   }
 }

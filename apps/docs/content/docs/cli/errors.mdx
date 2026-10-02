@@ -1,0 +1,70 @@
+---
+title: Errors
+description: What each CLI error code means, its exit code, and how to fix it.
+---
+
+Every error the CLI reports has a code. In a terminal it prints the message
+on stderr. With `--json` it prints one
+[Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document on
+stdout instead, whose `type` links to the code's section on this page:
+
+```json
+{
+  "type": "https://bettersupabase.com/docs/cli/errors#unknown_command",
+  "title": "Unknown command",
+  "detail": "Unknown command \"genn\". Did you mean \"gen\"?",
+  "code": "unknown_command",
+  "exitCode": 2,
+  "suggestion": "gen"
+}
+```
+
+Exit code 2 means the command line, the config or the environment needs a
+change; running the same command again fails the same way. Exit code 1 means
+the command ran and failed, or found something (`--check` drift, doctor
+errors).
+
+## `usage`
+
+An option is missing, unknown or has the wrong value. The message names the
+option, and the text output adds the command's usage. Exit code 2.
+
+## `unknown_command`
+
+The first argument isn't a command. When one is close enough to be a typo,
+`suggestion` names it. Run `better-supabase --help` for the list. Exit
+code 2.
+
+## `missing_value`
+
+The command needs a value it didn't get, such as `SUPABASE_ACCESS_TOKEN` for
+`--project-ref`, or a connection string on stdin for `--db-url-stdin`.
+`flag` names the variable or option that supplies it. Exit code 2.
+
+## `config_not_found`
+
+`--config` points at a file that doesn't exist. The path is relative to
+`--cwd`. Exit code 2.
+
+## `config_invalid`
+
+`better-supabase.config.*` failed to load, or has a key or value the CLI
+doesn't accept. `issues` lists each problem as `path: message`, for example
+`codecs.timestamptz: Invalid type`. Exit code 2.
+
+## `env_invalid`
+
+An environment variable the CLI reads has a malformed value, for example a
+`DATABASE_URL` that isn't a URL. `issues` lists each variable. Exit code 2.
+
+## `failed`
+
+The command ran and reported a failure, such as a stale file under
+`--check`. `exitCode` is the command's own exit code, usually 1.
+
+## `internal`
+
+Something the CLI didn't expect went wrong, such as a database that refused
+the connection. `detail` has the underlying message. Exit code 1. If it
+looks like a bug, [open an issue](https://github.com/ScaleDockHQ/better-supabase/issues)
+with the command and the message.

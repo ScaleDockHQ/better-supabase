@@ -7,6 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { AnyCommand, CliArgs } from "../command.ts";
+import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
@@ -115,7 +116,7 @@ export async function loadSkills(
 export async function runSkills(
   config: ResolvedConfig,
   args: SkillsArgs,
-  env: Readonly<Record<string, string | undefined>>,
+  env: CliEnv,
 ): Promise<CommandResult> {
   const [action] = args._;
   const skills = await loadSkills(args.from ?? skillsRoot());
@@ -134,7 +135,7 @@ export async function runSkills(
     };
   }
   const global = args.global === true;
-  const base = global ? (env["HOME"] ?? homedir()) : config.root;
+  const base = global ? (env.HOME ?? homedir()) : config.root;
   const requested = list(args.agent);
   const unknown = requested.filter((name) => !isAgent(name));
   if (unknown.length > 0) {

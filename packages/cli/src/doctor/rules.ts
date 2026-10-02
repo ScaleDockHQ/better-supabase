@@ -274,7 +274,7 @@ const OWN_RULES: readonly Rule[] = [
     "BS100",
     "security",
     "Supabase security advisor",
-    "Findings from the Security Advisor (splinter): RLS disabled in exposed schemas, RLS without policies, mutable search_path, security definer functions callable by anon, exposed auth.users and more. Hosted projects use the Management API; local stacks and --db-url run the pinned splinter.sql.",
+    "Findings from the Security Advisor (splinter): RLS disabled in exposed schemas, RLS without policies, mutable search_path, security definer functions callable by anon, exposed auth.users and more. Hosted projects use the Management API; local stacks and direct connections run the pinned splinter.sql.",
   ),
   {
     code: "BS103",

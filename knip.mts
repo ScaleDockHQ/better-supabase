@@ -86,8 +86,9 @@ const config: KnipConfig = {
     },
     "apps/examples/vite-react": browserExample,
     "tests/bundle": {
-      // The size and export checks resolve the built package by name.
-      ignoreDependencies: ["better-supabase"],
+      // The size checks read the built packages from disk; the dependencies
+      // make Turbo build them first.
+      ignoreDependencies: ["better-supabase", "@better-supabase/cli"],
     },
     "tests/e2e": {
       ignoreBinaries: ["next"],

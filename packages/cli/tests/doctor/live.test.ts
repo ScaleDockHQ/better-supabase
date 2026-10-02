@@ -253,13 +253,13 @@ describe("BS212 --explain", () => {
       {
         severity: "warning",
         message:
-          "--explain needs a direct database connection (local stack or --db-url).",
+          "--explain needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin).",
       },
     ]);
     expect(
       await check("BS212", { explain, database: { skipped: "saved file" } }),
     ).toMatchObject([
-      { message: expect.stringMatching(/--db-url\): saved file$/) },
+      { message: expect.stringMatching(/--db-url-stdin\): saved file$/) },
     ]);
   });
 

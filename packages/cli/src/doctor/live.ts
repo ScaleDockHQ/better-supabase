@@ -336,7 +336,7 @@ export const LIVE_RULES: readonly Rule[] = [
         return [
           {
             severity: "warning",
-            message: `--explain needs a direct database connection (local stack or --db-url)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
+            message: `--explain needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
           },
         ];
       }

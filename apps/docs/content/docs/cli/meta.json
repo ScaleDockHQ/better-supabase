@@ -1,4 +1,13 @@
 {
   "title": "CLI",
-  "pages": ["index", "init", "gen", "local", "doctor", "config"]
+  "pages": [
+    "index",
+    "init",
+    "gen",
+    "introspect",
+    "local",
+    "doctor",
+    "config",
+    "errors"
+  ]
 }

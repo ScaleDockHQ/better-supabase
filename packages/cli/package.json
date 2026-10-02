@@ -52,11 +52,15 @@
   "dependencies": {
     "@clack/prompts": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
+    "@t3-oss/env-core": "catalog:",
     "better-supabase": "workspace:*",
+    "c12": "catalog:",
     "citty": "catalog:",
     "diff": "catalog:",
+    "fastest-levenshtein": "catalog:",
     "smol-toml": "catalog:",
-    "tinyexec": "catalog:"
+    "tinyexec": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

@@ -127,7 +127,8 @@ export function legacyCommand(
     meta: { name, description: help ?? "" },
     run: ({ rawArgs, data }) => {
       const parsed = parseArgs([name, ...rawArgs]);
-      return command({ ...cliContext(data), args: parsed });
+      const context = cliContext(data);
+      return command({ ...context, env: { ...context.env }, args: parsed });
     },
   });
 }

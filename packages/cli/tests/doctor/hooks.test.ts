@@ -147,12 +147,12 @@ describe("BS405 --as", () => {
       {
         severity: "info",
         message:
-          "Measuring the hook's claims needs a direct database connection (local stack or --db-url).",
+          "Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin).",
         target: "rbac.custom_access_token_hook(event jsonb):claims",
       },
     ]);
     expect(await run({ skipped: "a saved snapshot" })).toMatchObject([
-      { message: expect.stringMatching(/--db-url\): a saved snapshot$/) },
+      { message: expect.stringMatching(/--db-url-stdin\): a saved snapshot$/) },
     ]);
     const management: LiveDatabase = {
       describe: "api",

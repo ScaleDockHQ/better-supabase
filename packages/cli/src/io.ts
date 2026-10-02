@@ -7,12 +7,14 @@ import type { Prompter } from "./prompts.ts";
 export interface CliIo {
   readonly stdout: (text: string) => void;
   readonly stderr: (text: string) => void;
-  readonly now?: () => Date;
-  /** Environment; defaults to `process.env`. */
-  readonly env?: Readonly<Record<string, string | undefined>>;
+  /** All of stdin, for the `--*-stdin` flags that keep secrets out of arguments. */
+  readonly stdin?: () => Promise<string>;
   /** Color the output with ANSI escapes. Off unless set. */
   readonly color?: boolean;
-  /** Prompts and spinners for a person at a terminal. Without one, commands never ask. */
+  /**
+   * Prompts and spinners for a person at a terminal. `run()` drops them in
+   * CI and under `--json` or `--yes`, and without them commands never ask.
+   */
   readonly prompts?: Prompter;
 }
 
@@ -26,6 +28,8 @@ export interface CommandResult {
   readonly code: number;
   readonly output?: string;
   readonly error?: string;
+  /** The JSON document `--json` prints instead of `output`. */
+  readonly data?: unknown;
 }
 
 /** Writes a file when its contents changed. Returns whether it wrote. */

@@ -1,0 +1,39 @@
+---
+title: introspect
+description: Save a schema snapshot so codegen and doctor run without a database.
+---
+
+```bash
+better-supabase introspect [--out <file>] [--format <snapshot|generator-metadata>] [--check]
+```
+
+`introspect` reads your database the way [`gen`](/docs/cli/gen) does and
+writes what it found to `supabase/snapshot.json`. Commit the file, set
+`source.snapshot` in the config, and CI and contributors can run `gen` and
+`doctor` without a database.
+
+## Options
+
+| Option                | Effect                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `--out <file>`        | Where to write. Defaults to `supabase/snapshot.json`, or `supabase/generator-metadata.json`. |
+| `--format <format>`   | `snapshot` (the default) or `generator-metadata`, postgrest-typegen's input on its own.      |
+| `--check`             | Writes nothing; exits 1 when the file no longer matches the database.                        |
+| `--snapshot <file>`   | Reads a saved snapshot instead of the database, to convert it with `--format`.               |
+| `--db-url-stdin`      | Reads the connection string from stdin.                                                      |
+| `--project-ref <ref>` | Reads a hosted project through the Management API.                                           |
+
+The schema comes from the same places as for `gen`, in the
+[same order](/docs/cli/gen#where-the-schema-comes-from). With `--json`,
+`introspect` prints `{ "file", "written", "tables" }`, and `--check` prints
+`{ "file", "upToDate" }`.
+
+## What the snapshot holds
+
+The snapshot stores postgrest-typegen's own metadata plus the extras
+better-supabase reads (policies, indexes, triggers, buckets, realtime), and
+follows
+[`snapshot-v2.json`](https://unpkg.com/better-supabase/schemas/snapshot-v2.json).
+Row counts are left out so the file stays stable; tables Postgres estimates
+at 10,000 rows or more only get `large: true`, which the
+[`unbounded-read`](/docs/plugins/lint#unbounded-read) lint rule reads.

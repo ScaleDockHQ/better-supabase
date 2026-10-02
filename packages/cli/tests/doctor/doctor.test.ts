@@ -1785,8 +1785,7 @@ describe("doctor command", () => {
       "doctor",
       "--snapshot",
       "snapshot.json",
-      "--format",
-      "json",
+      "--json",
       "--cwd",
       dir,
     ]);

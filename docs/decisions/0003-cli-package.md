@@ -24,8 +24,10 @@ webhook verification and the MCP JSON-RPC layer.
 The CLI moved to `packages/cli` as `@better-supabase/cli`, with the
 `better-supabase` bin. It depends on `better-supabase` and is released at the
 same version through a `fixed` group in `.changeset/config.json`. The library
-lost the bin, the `./cli` subpath and its `@supabase/postgrest-typegen` and
-`@supabase/config` dependencies. The SQL kit stays in the library under
+lost the bin, the `./cli` subpath and its `@supabase/config` dependency. It
+keeps `@supabase/postgrest-typegen` as a dependency only because the
+published `.d.ts` of `./config` imports its metadata types (invariant 11); no
+runtime entry imports it, which `tests/bundle` checks. The SQL kit stays in the library under
 `./sql`, because the library's tests and generated code use it, and
 `./config` now exports the snapshot types the CLI reads.
 
@@ -46,8 +48,42 @@ install command.
 citty was chosen over `commander` and `yargs` for typed arguments, lazy
 subcommands (each command is its own chunk, so `better-supabase --version`
 loads none of them) and its size. Colors come from `node:util` `styleText`,
-so `picocolors` is not needed. Commands only prompt when stdin and stdout
-are terminals, `CI` is unset and `--yes` is absent.
+so `picocolors` is not needed.
+
+### Conventions from the repo standard's `cli.md`
+
+| Package               | Version    | Used for                                                                  |
+| --------------------- | ---------- | ------------------------------------------------------------------------- |
+| `c12`                 | 4.0.0-rc.2 | Loading `better-supabase.config.*`                                        |
+| `valibot`             | 1.5.0      | The config schema (`config-schema.ts`) and the env schema                 |
+| `@t3-oss/env-core`    | 0.13.11    | Reading `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` and the rest once per run |
+| `fastest-levenshtein` | 1.0.16     | `Did you mean "gen"?` for a mistyped command                              |
+
+c12 is pinned to a release candidate on purpose: 4.0 is npm's `latest`
+tag, and it makes `jiti` optional, so a `.ts` config loads through Node's
+type stripping instead of a second TypeScript loader. rc files,
+`package.json`, dotenv, env-specific overrides and `extends` are off, so the
+one file is the whole config. The Valibot check runs after c12 rather than
+through c12's `schema` option, because a Valibot object rebuilds the value
+and would drop the methods on `generators`. Move to 4.0.0 when it ships.
+
+The rest of `cli.md` is in `run.ts`, `errors.ts` and `output.ts`:
+
+- `--json` and `--yes` are global. Under `--json`, stdout holds one JSON
+  document (the command's `data`, or RFC 9457 Problem Details for an error
+  whose `type` links to `/docs/cli/errors#<code>`); text goes to stderr.
+- Exit codes are 0, 1 for a failure and 2 for a usage, config or env error.
+- Prompts run only when stdin and stdout are terminals, `CI` is unset and
+  neither `--json` nor `--yes` is passed; `run()` drops the prompter
+  otherwise, so commands never check.
+- `run()` reads no process globals: the bin passes `cwd`, `env` and a stdin
+  reader. Tests pass their own.
+- No argument carries a secret. `--db-url` is gone; a connection string comes
+  from the config, `$DATABASE_URL` or `--db-url-stdin`.
+- `tests/help.test.ts` snapshots every command's help,
+  `tests/docs-drift.test.ts` checks that every flag is on its docs page,
+  `tests/bin.test.ts` spawns the built bin, and `tests/bundle` holds the
+  startup size (what `--version` loads).
 
 Two citty limits shaped `run.ts`. `runCommand` passes `data` only to the
 command it is given, so `run()` resolves the top-level command itself and

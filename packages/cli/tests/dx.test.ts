@@ -265,7 +265,8 @@ describe("env", () => {
     const result = await run(
       ["env", "--print", "--prefix", "VITE_", "--cwd", dir],
       {
-        io: { stdout: () => {}, stderr: () => {}, env: { SUPABASE_BIN: bin } },
+        env: { SUPABASE_BIN: bin },
+        io: { stdout: () => {}, stderr: () => {} },
       },
     );
     expect(result.code).toBe(0);

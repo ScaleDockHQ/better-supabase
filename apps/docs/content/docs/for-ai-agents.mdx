@@ -33,7 +33,8 @@ pnpm better-supabase skills install --check         # in CI, after upgrading
 
 Skills go to `.cursor/skills`, `.claude/skills` or `.agents/skills`, or to
 your home directory with `--global`. Reinstall after an upgrade, and
-`--check` tells you when they are stale.
+`--check` tells you when they are stale. `--from <dir>` installs skills
+from a folder instead of the package, to try a change before you publish it.
 
 In Claude Code, the repository is also a plugin marketplace. The plugin
 installs the same skills and connects the [docs MCP server](#docs-mcp-server):

@@ -30,5 +30,6 @@
   "./plugins/actor": 4210,
   "./plugins/validation": 6314,
   "./sql": 40033,
-  "./testing": 55233
+  "./testing": 55233,
+  "@better-supabase/cli (startup)": 12096
 }

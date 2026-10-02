@@ -21,13 +21,13 @@ with 1 when there are errors, or with any warning under `--strict`.
 
 | Option                | Description                                                                                                                                 |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--format <f>`        | `text` (default), `json`, `sarif` or `github`                                                                                               |
+| `--format <f>`        | `text` (default), `sarif` or `github`. The global `--json` prints the JSON report                                                           |
 | `--out <file>`        | Write the report to a file                                                                                                                  |
 | `--only <codes>`      | Run only these checks, e.g. `--only BS100,BS304`                                                                                            |
 | `--ignore <codes>`    | Skip checks. Adds to `doctor.ignore` in the config                                                                                          |
 | `--strict`            | Fail on warnings. Same as `doctor.strict`                                                                                                   |
 | `--snapshot <file>`   | Check a saved snapshot instead of the database                                                                                              |
-| `--db-url <url>`      | Database to introspect                                                                                                                      |
+| `--db-url-stdin`      | Read the connection string of the database to check from stdin                                                                              |
 | `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                           |
 | `--stats`             | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                 |
 | `--explain <tables>`  | Plan these tables under RLS ([BS212](#bs212))                                                                                               |
@@ -56,7 +56,7 @@ For GitHub code scanning, upload SARIF:
     sarif_file: doctor.sarif
 ```
 
-`--format json` follows
+`doctor --json` prints one report that follows
 [`doctor-report-v1.json`](https://unpkg.com/better-supabase/schemas/doctor-report-v1.json).
 
 ## Ignoring checks
@@ -98,7 +98,7 @@ Where the findings come from depends on what doctor reads:
 - **Hosted projects** (`--project-ref` or `source.projectRef`): the Management
   API's `GET /v1/projects/{ref}/advisors/security`, the same data the dashboard
   shows.
-- **Local stack or `--db-url`:** [splinter](https://github.com/supabase/splinter),
+- **Local stack, `$DATABASE_URL` or `--db-url-stdin`:** [splinter](https://github.com/supabase/splinter),
   the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
   commit, checks its SHA-256, caches it in
   `node_modules/.cache/better-supabase` and runs it in a read-only transaction
@@ -263,7 +263,7 @@ number of InitPlans and each function's share of the execution time from
 `pg_stat_xact_user_functions`. A SubPlan that runs more than once means a
 policy is evaluated per row, and the finding becomes a warning: wrap the
 policy's function calls in `(select ...)` so they run once as an InitPlan.
-`--explain` needs a direct connection (local stack or `--db-url`); the
+`--explain` needs a direct connection (local stack, `$DATABASE_URL` or `--db-url-stdin`); the
 Management API's read-only endpoint can't switch roles.
 
 ```text
@@ -446,7 +446,7 @@ as PermDock's `--budget` or `supabase.hook.budget` when you change it. When the
 hook sets `memberships_truncated`, doctor also reports that
 the token lists only some memberships, so server checks for that user need a
 database lookup. Keep ids and roles in the token and look everything else up.
-This needs a direct connection (local stack or `--db-url`).
+This needs a direct connection (local stack, `$DATABASE_URL` or `--db-url-stdin`).
 
 ### BS406
 

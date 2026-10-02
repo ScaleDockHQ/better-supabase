@@ -46,7 +46,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
         error: '--format must be "snapshot" or "generator-metadata"',
       };
     }
-    const { snapshotPath: _ignored, ...source } = sourceArgs(args);
+    const { snapshotPath: _ignored, ...source } = await sourceArgs(args, io);
     const snapshot = await withSpinner(io.prompts, "Reading the schema", () =>
       loadSnapshot(config, env, { ...source, live: true }),
     );
@@ -63,23 +63,26 @@ export const introspectCommand: AnyCommand = defineCliCommand({
       const current = await readFile(resolve(config.root, out), "utf8").catch(
         () => undefined,
       );
+      const file = display(config.root, out);
       return current === contents
-        ? { code: 0, output: `${display(config.root, out)} is up to date.` }
+        ? {
+            code: 0,
+            output: `${file} is up to date.`,
+            data: { file, upToDate: true },
+          }
         : {
             code: 1,
-            output: fileDiff(
-              display(config.root, out),
-              current,
-              contents,
-              painter(io.color),
-            ),
-            error: `${display(config.root, out)} is out of date. Run \`better-supabase introspect\`.`,
+            output: fileDiff(file, current, contents, painter(io.color)),
+            error: `${file} is out of date. Run \`better-supabase introspect\`.`,
+            data: { file, upToDate: false },
           };
     }
     const wrote = await writeIfChanged(resolve(config.root, out), contents);
+    const tables = snapshot.extras.tables.length;
     return {
       code: 0,
-      output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)} (${snapshot.extras.tables.length} tables).`,
+      output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)} (${tables} tables).`,
+      data: { file: display(config.root, out), written: wrote, tables },
     };
   },
 });

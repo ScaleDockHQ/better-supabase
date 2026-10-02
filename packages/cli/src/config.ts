@@ -1,9 +1,18 @@
-import { type ResolvedConfig, resolveConfig } from "better-supabase/config";
+import {
+  type BetterSupabaseConfig,
+  type ResolvedConfig,
+  resolveConfig,
+} from "better-supabase/config";
+import { loadConfig as loadC12Config } from "c12";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import type { CliEnv } from "./env.ts";
+
+import { configIssues } from "./config-schema.ts";
+import { CliError } from "./errors.ts";
+import { type CliIo, display } from "./io.ts";
 import { readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
 const CONFIG_FILES = [
@@ -43,14 +52,15 @@ export async function importExport(
   return loaded[name] ?? loaded["default"];
 }
 
-async function importConfig(path: string): Promise<unknown> {
-  const loaded = await importModule(path);
-  return loaded["default"] ?? loaded;
+function isConfig(value: unknown): value is BetterSupabaseConfig {
+  return configIssues(value).length === 0;
 }
 
 /**
- * Loads the config with a native `import()`. Node 24 strips types from
- * `.ts` files, so no loader is needed.
+ * Loads `better-supabase.config.*` with c12 and checks it against the config
+ * schema. c12 imports `.ts` natively (Node 24 strips the types), so no
+ * loader is needed; rc files, `package.json`, env overrides and `extends`
+ * are off so the one file is the whole config.
  */
 export async function loadConfig(
   cwd: string,
@@ -58,14 +68,26 @@ export async function loadConfig(
 ): Promise<ResolvedConfig> {
   const path = findConfig(cwd, explicit);
   if (!path) return resolveConfig({}, cwd);
-  if (!existsSync(path)) throw new Error(`Config file not found: ${path}`);
-  // SAFETY: JSON.parse returns any; resolveConfig validates the value.
-  const config = path.endsWith(".json")
-    ? (JSON.parse(await readFile(path, "utf8")) as unknown)
-    : await importConfig(path);
-  if (typeof config !== "object" || config === null) {
-    throw new Error(
-      `${path} must export a config object (export default defineConfig({...}))`,
+  if (!existsSync(path)) {
+    throw new CliError("config_not_found", `Config file not found: ${path}`);
+  }
+  const { config } = await loadC12Config({
+    cwd,
+    configFile: path,
+    rcFile: false,
+    globalRc: false,
+    packageJson: false,
+    dotenv: false,
+    envName: false,
+    extend: false,
+    giget: false,
+  });
+  if (!isConfig(config)) {
+    const issues = configIssues(config);
+    throw new CliError(
+      "config_invalid",
+      `${display(cwd, path)} is not a valid config:\n${issues.map((issue) => `  ${issue}`).join("\n")}`,
+      { issues },
     );
   }
   return resolveConfig(config, cwd);
@@ -80,15 +102,32 @@ export async function readSupabasePort(
   return toml ? tomlNumber(toml.document, [section, "port"]) : undefined;
 }
 
-/** Connection string: flag, config, `$DATABASE_URL`, then the local stack. */
+/** The connection string piped in for `--db-url-stdin`, when it was passed. */
+export async function stdinDatabaseUrl(
+  enabled: boolean | undefined,
+  io: CliIo,
+): Promise<string | undefined> {
+  if (enabled !== true) return undefined;
+  const url = (await io.stdin?.())?.trim();
+  if (!url) {
+    throw new CliError(
+      "missing_value",
+      '--db-url-stdin read nothing from stdin. Pipe the connection string: printf %s "$URL" | better-supabase <command> --db-url-stdin',
+      { flag: "--db-url-stdin" },
+    );
+  }
+  return url;
+}
+
+/** Connection string: stdin, config, `$DATABASE_URL`, then the local stack. */
 export async function databaseUrl(
   config: ResolvedConfig,
-  env: Readonly<Record<string, string | undefined>>,
-  flag?: string,
+  env: CliEnv,
+  fromStdin?: string,
 ): Promise<string> {
-  if (flag) return flag;
+  if (fromStdin) return fromStdin;
   if (config.source.dbUrl) return config.source.dbUrl;
-  if (env["DATABASE_URL"]) return env["DATABASE_URL"];
+  if (env.DATABASE_URL) return env.DATABASE_URL;
   const port = (await readSupabasePort(config.root, "db")) ?? 54322;
   return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
 }

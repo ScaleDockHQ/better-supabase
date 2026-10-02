@@ -7,6 +7,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CommandResult } from "../../src/io.ts";
+
 import { parseCommandArgs } from "../../src/command.ts";
 import {
   doctorCommand,
@@ -58,8 +60,8 @@ describe("doctor command", () => {
       options,
     );
 
-  const findings = (output: string | undefined): Report["findings"] =>
-    (JSON.parse(output ?? "{}") as Report).findings;
+  const findings = (result: CommandResult): Report["findings"] =>
+    (result.data as Report).findings;
 
   it("rejects conflicting or malformed claims before reading anything", async () => {
     const user = "8a6f1c3e-2b4d-4e5f-9a7b-1c2d3e4f5a6b";
@@ -83,19 +85,12 @@ describe("doctor command", () => {
   it("reads the database once for the snapshot and once for live checks, then closes both", async () => {
     const db = fakeSql([TEMP_FILES]);
     const open = fakeConnect(db.pg);
-    const result = await doctor(
-      [
-        "--db-url",
-        "postgresql://u:pw@h/db",
-        "--only",
-        "BS208",
-        "--format",
-        "json",
-      ],
-      { connect: open.connect },
-    );
+    const result = await doctor(["--only", "BS208", "--json"], {
+      connect: open.connect,
+      dbUrl: "postgresql://u:pw@h/db",
+    });
     expect(result.code).toBe(0);
-    expect(findings(result.output)).toEqual([
+    expect(findings(result)).toEqual([
       expect.objectContaining({
         code: "BS208",
         severity: "warning",
@@ -117,12 +112,12 @@ describe("doctor command", () => {
     const db = fakeSql();
     const open = fakeConnect(db.pg);
     const result = await doctor(
-      ["--only", "BS100,BS200", "--format", "json"],
+      ["--only", "BS100,BS200", "--json"],
       { connect: open.connect },
       {},
       { DATABASE_URL: "postgresql://env/db" },
     );
-    const reported = findings(result.output);
+    const reported = findings(result);
     expect(reported.map((finding) => finding.code)).toEqual(["BS100", "BS200"]);
     expect(reported[0]!.message).toMatch(
       /^The security advisor could not run \(database \(splinter\)\): /,
@@ -144,14 +139,12 @@ describe("doctor command", () => {
     vi.stubGlobal("fetch", api.fetch);
     const open = fakeConnect(fakeSql().pg);
     const result = await doctor(
-      ["--project-ref", "abc", "--only", "BS100,BS208", "--format", "json"],
+      ["--project-ref", "abc", "--only", "BS100,BS208", "--json"],
       { connect: open.connect },
       {},
       { SUPABASE_ACCESS_TOKEN: "sbp_test" },
     );
-    expect(findings(result.output).map((finding) => finding.code)).toEqual([
-      "BS208",
-    ]);
+    expect(findings(result).map((finding) => finding.code)).toEqual(["BS208"]);
     expect(open.urls).toEqual([]);
     const urls = api.calls.map((call) => call.url);
     expect(urls).toContain(
@@ -171,15 +164,14 @@ describe("doctor command", () => {
       "snapshot.json",
       "--only",
       "BS100,BS208",
-      "--format",
-      "json",
+      "--json",
     ]);
-    expect(findings(result.output)).toEqual([
+    expect(findings(result)).toEqual([
       expect.objectContaining({
         code: "BS100",
         severity: "info",
         message:
-          "Skipped the security advisor: reading the saved snapshot snapshot.json; pass --db-url or --project-ref to check a database.",
+          "Skipped the security advisor: reading the saved snapshot snapshot.json; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.",
       }),
     ]);
   });
@@ -199,17 +191,17 @@ describe("doctor command", () => {
       extras: { ...fixture.extras, roleSettings: {} },
     });
     await write("node_modules/dep/index.ts", "db.notes.aggregate({});\n");
-    const clean = await doctor(["--only", "BS210", "--format", "json"], {
+    const clean = await doctor(["--only", "BS210", "--json"], {
       snapshot,
     });
-    expect(findings(clean.output)).toEqual([]);
+    expect(findings(clean)).toEqual([]);
 
     await write("src/z.ts", "\n\ndb.notes.aggregate({});\n");
     await write("src/a.ts", "db.notes.list({ facetCounts: true });\n");
-    const result = await doctor(["--only", "BS210", "--format", "json"], {
+    const result = await doctor(["--only", "BS210", "--json"], {
       snapshot,
     });
-    expect(findings(result.output)).toEqual([
+    expect(findings(result)).toEqual([
       expect.objectContaining({
         code: "BS210",
         message: expect.stringMatching(/^src\/a\.ts uses aggregates/),
@@ -221,18 +213,16 @@ describe("doctor command", () => {
     const snapshot = parseSnapshot(fixture);
     const config = { sql: { kit: ["read-sets"] } };
     const loaded = await doctor(
-      ["--only", "BS304", "--format", "json"],
+      ["--only", "BS304", "--json"],
       { snapshot },
       config,
     );
-    expect(findings(loaded.output).map((finding) => finding.code)).toEqual([
-      "BS304",
-    ]);
+    expect(findings(loaded).map((finding) => finding.code)).toEqual(["BS304"]);
     const skipped = await doctor(
-      ["--only", "BS304", "--format", "json"],
+      ["--only", "BS304", "--json"],
       { snapshot },
       { ...config, readSets: ["src/missing.ts"] },
     );
-    expect(findings(skipped.output)).toEqual([]);
+    expect(findings(skipped)).toEqual([]);
   });
 });

@@ -31,6 +31,7 @@ catalog:
   "@supabase/server": 1.9.0
   "@supabase/ssr": 0.12.7
   "@supabase/supabase-js": 2.117.2
+  "@t3-oss/env-core": 0.13.11
   "@t3-oss/env-nextjs": 0.13.11
   "@tailwindcss/postcss": 4.3.3
   "@tanstack/query-core": 5.104.0
@@ -49,12 +50,16 @@ catalog:
   ajv-formats: 3.0.1
   "@vitest/coverage-v8": 5.0.3
   better-result: 3.0.1
+  # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
+  # through Node's type stripping (docs/decisions/0003-cli-package.md).
+  c12: 4.0.0-rc.2
   citty: 0.2.2
   class-variance-authority: 0.7.1
   clsx: 2.1.1
   diff: 9.0.0
   dotenv-cli: 11.0.0
   effect: 4.0.0
+  fastest-levenshtein: 1.0.16
   fumadocs-core: 16.15.17
   fumadocs-mdx: 15.4.5
   fumadocs-twoslash: 4.0.1

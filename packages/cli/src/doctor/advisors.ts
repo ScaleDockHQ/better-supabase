@@ -143,7 +143,7 @@ function lintRows(result: unknown): readonly unknown[] {
 }
 
 /**
- * Runs splinter against a database (local stack or `--db-url`) in a
+ * Runs splinter against a database (local stack, `$DATABASE_URL` or `--db-url-stdin`) in a
  * read-only transaction that is rolled back.
  */
 export function splinterAdvisors(

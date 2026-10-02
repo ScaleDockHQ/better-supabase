@@ -1,5 +1,7 @@
 import { x } from "tinyexec";
 
+import type { CliEnv } from "./env.ts";
+
 export interface ExecResult {
   readonly code: number;
   readonly stdout: string;
@@ -34,9 +36,9 @@ async function exec(
 export async function supabaseCli(
   args: readonly string[],
   cwd: string,
-  env: Readonly<Record<string, string | undefined>>,
+  env: CliEnv,
 ): Promise<ExecResult> {
-  const result = await exec(env["SUPABASE_BIN"] ?? "supabase", args, cwd);
+  const result = await exec(env.SUPABASE_BIN ?? "supabase", args, cwd);
   if (result.code !== 127) return result;
   return exec("npx", ["--yes", "supabase", ...args], cwd);
 }

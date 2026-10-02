@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://unpkg.com/better-supabase/schemas/doctor-report-v1.json",
   "title": "better-supabase doctor report",
-  "description": "Output of `better-supabase doctor --format json`.",
+  "description": "Output of `better-supabase doctor --json`.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "version", "tool", "summary", "findings"],

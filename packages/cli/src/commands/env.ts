@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { AnyCommand, CliArgs } from "../command.ts";
+import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
@@ -44,7 +45,7 @@ interface Status {
 async function readStatus(
   config: ResolvedConfig,
   args: EnvArgs,
-  env: Readonly<Record<string, string | undefined>>,
+  env: CliEnv,
 ): Promise<Status> {
   const from = args.from;
   if (from)
@@ -100,7 +101,7 @@ export function mergeEnv(
 export async function runEnv(
   config: ResolvedConfig,
   args: EnvArgs,
-  env: Readonly<Record<string, string | undefined>>,
+  env: CliEnv,
 ): Promise<CommandResult> {
   const status = await readStatus(config, args, env);
   const project = await detectProject(config.root);

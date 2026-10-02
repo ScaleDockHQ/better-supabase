@@ -12,15 +12,18 @@ import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
+import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { defineCliCommand } from "../command.ts";
+import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
 import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitModule } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
 import { generateDatabaseTypes } from "../introspect/typegen.ts";
 import {
+  type CliIo,
   type CommandResult,
   display,
   importPath,
@@ -34,7 +37,7 @@ import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
 
 export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
-  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly env: CliEnv;
   readonly check: boolean;
   /** Colors the `--check` diffs. */
   readonly paint?: Paint;
@@ -158,11 +161,13 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         code: 1,
         output: diffs.join("\n\n"),
         error: `Generated files are out of date:\n${stale.map((path) => `  ${path}`).join("\n")}\nRun \`better-supabase gen\`.`,
+        data: { upToDate: false, stale },
       };
     }
     return {
       code: 0,
       output: `Generated files are up to date (${files.length + (readSets ? 1 : 0)}).`,
+      data: { upToDate: true, stale: [] },
     };
   }
 
@@ -192,6 +197,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       written.length === 0
         ? `No changes (${tables} tables).`
         : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join("\n")}`,
+    data: { tables, written },
   };
 }
 
@@ -202,10 +208,10 @@ export const SOURCE_ARGS = {
     description: "Read a saved snapshot instead of the database",
     valueHint: "file",
   },
-  "db-url": {
-    type: "string",
-    description: "Read this database",
-    valueHint: "url",
+  "db-url-stdin": {
+    type: "boolean",
+    description:
+      "Read the connection string from stdin instead of $DATABASE_URL or the config",
   },
   "project-ref": {
     type: "string",
@@ -214,9 +220,12 @@ export const SOURCE_ARGS = {
   },
 } as const;
 
-export function sourceArgs(args: CliArgs<typeof SOURCE_ARGS>): SnapshotSource {
+export async function sourceArgs(
+  args: CliArgs<typeof SOURCE_ARGS>,
+  io: CliIo,
+): Promise<SnapshotSource> {
   const snapshotPath = args.snapshot;
-  const dbUrl = args["db-url"];
+  const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
   const projectRef = args["project-ref"];
   return {
     ...(snapshotPath ? { snapshotPath } : {}),
@@ -276,13 +285,13 @@ export const genCommand: AnyCommand = defineCliCommand({
     description: "Writes database.types.ts and generated.ts from the database",
   },
   args: ARGS,
-  run: (args, context) => {
+  run: async (args, context) => {
     const options: GenOptions = {
       config: context.config,
       env: context.env,
       check: args.check === true,
       paint: painter(context.io.color),
-      ...sourceArgs(args),
+      ...(await sourceArgs(args, context.io)),
     };
     return args.watch === true
       ? watch(options, Number(args.interval ?? 2000), context)
