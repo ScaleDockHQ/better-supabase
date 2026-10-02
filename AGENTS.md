@@ -242,9 +242,12 @@ package. They ship in the npm tarball and are exposed to `npx skills add`
 through `.claude-plugin/marketplace.json`. Keep them short, task-shaped and
 free of repository internals; this file is where maintainer rules go.
 
-Don't vendor third-party skills into `.agents/skills` or `.claude/skills`
-here. Those folders are discovery roots for `npx skills add`, so anything in
-them would be offered to users next to ours.
+Maintainer skills (third-party skills for working on this repo) live in
+`.agents/skills` and are pinned in `skills-lock.json`; both are committed
+(`docs/decisions/0004-commit-maintainer-skills.md`). Add or update one with
+`npx skills add <owner/repo>` and commit the folder and the lock file. That
+folder is a discovery root for `npx skills add`, so keep it to skills
+maintainers need, and never put consumer skills there.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

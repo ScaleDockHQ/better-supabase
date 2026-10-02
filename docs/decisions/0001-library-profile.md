@@ -27,9 +27,8 @@ do not apply, and the repo does not add them:
   and the Supabase OAuth server. The fixture schema has tenants and RBAC
   because the library supports them, not because the repo is multi-tenant.
 - Sentry and Resend. Docs and marketing are static sites that send no email.
-- Vendored skills. The repo ships its own consumer skills, and `.agents/skills`
-  is a discovery root for `npx skills add`, so it stays empty. There is no
-  `skills-lock.json` and no `.cursorignore`.
+- `.cursorignore`. (Vendored skills were also excluded here; ADR 0004
+  supersedes that, and `.agents/skills` and `skills-lock.json` are committed.)
 - The `dev:oauth`, `email:dev` and `openapi:generate` scripts, and the i18n
   item in the pull request checklist.
 

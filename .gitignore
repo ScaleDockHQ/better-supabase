@@ -72,7 +72,3 @@ doctor.sarif
 .cursor/permissions.json
 .claude/settings.local.json
 .kilo/
-
-# third-party skills installed locally with `npx skills add`
-.agents/
-skills-lock.json
