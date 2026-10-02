@@ -25,7 +25,7 @@ env:
   CI: true
   # The TUI swallows task output on non-TTY runners.
   TURBO_UI: stream
-  SUPABASE_CLI_VERSION: 2.118.0
+  SUPABASE_CLI_VERSION: 2.119.0
 
 jobs:
   verify:
