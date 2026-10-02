@@ -12,6 +12,10 @@ what the repo standard says about it.
 
 What we do, in one or two paragraphs. Name the files and settings it changes.
 
+## Alternatives considered
+
+The options we rejected, and why each one lost.
+
 ## Consequences
 
 What gets easier, what gets harder, and what would make us revisit it.

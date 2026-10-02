@@ -115,9 +115,11 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `database.types.ts` matches `supabase gen types`; bumping it needs the
     parity test and a changeset.
 12. Imports stay at the top of the module. The one exception is optional
-    peers loaded lazily through a variable specifier (`@supabase/config/io`
-    in `packages/cli/src/supabase-toml.ts`), each with a comment and a
-    fallback (smol-toml for `config.toml`).
+    peers loaded lazily, each with a comment and a fallback:
+    `@supabase/config/io` through a variable specifier in
+    `packages/cli/src/supabase-toml.ts` (smol-toml parses `config.toml`
+    without it) and `pg` in `packages/cli/src/db.ts` (an install message
+    when it is missing).
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
     match `SPLINTER_SHA256` (`packages/cli/src/doctor/advisors.ts`).
@@ -202,14 +204,27 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | A vendored official schema          | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256)                                                                                                  |
 | A consumer skill                    | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `packages/cli/src/commands/skills.ts` tests    |
 | The package version                 | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not)                                    |
-| A workflow                          | keep actions on their current major tag; Dependabot bumps them                                                                                                |
+| A workflow                          | GitHub-owned actions on their major tag, third-party actions on a commit SHA with a `# vX.Y.Z` comment; zizmor checks both (`.github/zizmor.yml`)             |
 | A docs route (`/mcp`, `/llms*`)     | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts`                                                                              |
 | A fixture table                     | its file in `supabase/schemas`, a migration from `pnpm supabase:diff` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                   |
 | An env key                          | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example`                                                   |
 | A route in docs or marketing        | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public                  |
 | A UI primitive in marketing         | `DESIGN.md`                                                                                                                                                   |
-| A dependency bump                   | the catalog pin in `pnpm-workspace.yaml`, the changeset or commit note, an ADR when it changes a one-library line                                             |
+| A dependency bump                   | the catalog pin in `pnpm-workspace.yaml`, the "Pre-release pins" list, the changeset or commit note, an ADR when it changes a one-library line                |
+| A CLI command or flag               | its docs page under `cli/`, the help snapshot (`tests/help.test.ts`), the changeset                                                                           |
+| A `typescript` bump                 | `oxlint-tsgolint` in the same commit                                                                                                                          |
+| A Next.js bump                      | run `next dev` once in each Next.js app, and keep the managed `AGENTS.md` files it writes gitignored                                                          |
 | A user-visible change               | a changeset (`pnpm changeset`)                                                                                                                                |
+
+## Agent workflow
+
+- One branch and one PR per chat or plan. Branch from `main`, commit as you
+  go, and push once `pnpm verify` passes.
+- Commit messages follow Conventional Commits: a header of at most 72
+  characters and body lines of at most 100.
+- Never commit `.cursor/hooks/state/*`; it is local hook state.
+- Read the `docs/agents` page for the area first, and add a correction there
+  when an agent needs it twice.
 
 ## Hard rules
 
@@ -222,6 +237,27 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 - Never turn a lint rule off without a comment that gives the reason and the finding count.
 - Pin exact versions in the catalog, and never bypass `minimumReleaseAge`.
 - Commits follow Conventional Commits (`commitlint.config.ts`); the hooks run on every commit and push.
+
+## Deviations
+
+Each ADR in `docs/decisions` records one decision that departs from the repo
+standard or sets how the repo works.
+
+- 0001: the repo follows the library profile of the repo standard.
+- 0002: the deviations from the standard and the lint backlogs, each with what would end it.
+- 0003: the CLI ships as `@better-supabase/cli` on citty; the MCP SDK spike failed the size check.
+- 0004: the maintainer skills in `.agents/skills` are committed.
+- 0005: the public API uses Temporal for time values.
+
+## Pre-release pins
+
+| Package        | Version       | Why                                                                        |
+| -------------- | ------------- | -------------------------------------------------------------------------- |
+| `@orpc/server` | 2.0.0-beta.40 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
+| `c12`          | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
+
+Move each to its stable release when it ships, and update this list with
+every bump.
 
 ## Agent notes
 

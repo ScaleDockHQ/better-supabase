@@ -26,6 +26,9 @@ backlogs too large to clear in the upgrade.
   files that the root changelog is built from.
 - `vercel.json` stays JSON until `@vercel/config` types `services` and
   per-service rewrites.
+- `devEngines.packageManager` uses `onFail: "download"` instead of
+  `"error"`. Vercel builds run whatever pnpm the image ships, and
+  `"download"` lets them fetch the pinned 12.8.1 (commit `19f5247`).
 - `engines.node` in the published packages stays `>=24`, a floor for
   consumers, instead of the `24.x` the repo develops on (`.node-version`).
   Pinning a published package to one major would reject Node 25 and later.
@@ -63,6 +66,28 @@ backlogs too large to clear in the upgrade.
   `/mcp`. The Vercel Firewall rate limit for the route is set in the
   dashboard, not in code.
 
+- Docs and marketing use `lucide-react`, not Hugeicons. `fumadocs-ui`
+  renders Lucide icons and lists it as a peer, so a second icon set would
+  ship both.
+- Fenced code needs a `title` only when it shows a file. Shell commands,
+  type signatures and output have no path to name, and a made-up title
+  would mislead.
+- Docs and marketing do not register `@vercel/otel`. Their pages are
+  prerendered, and the routes that run at request time (`/mcp`, Ask AI)
+  are covered by Vercel Observability and their own logs.
+- `react/hooks.ts` in the library memoizes with `useMemo`. tsdown builds
+  the library without the React Compiler, and apps do not compile code in
+  `node_modules`, so nothing else memoizes it.
+
+### Tests
+
+- The library's unit tests stub `fetch` instead of mocking a feature hook or
+  service. `fetch` is the library's public boundary: what it sends to
+  PostgREST, Auth and Storage is the behavior under test.
+- `pnpm test:integration` and `pnpm test:e2e` run in CI only (the `stack`
+  job in `ci.yml` and `database.yml`), not in `pnpm verify`. They need a
+  running Supabase stack, which a pre-push hook cannot assume.
+
 ### Database
 
 - The fixture schema uses the migra diff engine, so the numbered files in
@@ -73,7 +98,18 @@ backlogs too large to clear in the upgrade.
 ### Workflow
 
 - Dependabot targets `main` until a `develop` branch exists.
-- `actionlint` is not installed; the workflows are checked by parsing them.
+- `actionlint` is not installed; the workflows are checked by parsing them,
+  and zizmor runs on workflow changes (`security.yml`).
+
+### Agent files
+
+- `AGENTS.md` is over the 12 KB limit and holds every rule itself, so
+  there is no `.agents/rules` directory with `.cursor/rules` and
+  `.claude/rules` symlinks. Splitting it is its own change.
+- The `AGENTS.md` and `CLAUDE.md` files that `next dev` writes in the
+  Next.js apps are gitignored instead of committed. The root `AGENTS.md`
+  is the one guide, and three copies of the Next.js block would drift
+  between apps.
 
 ### Lint backlogs
 
@@ -145,4 +181,5 @@ rule cannot see (11 findings).
 
 Each item names what would end it: twoslash on the native compiler, a typed
 `services` config in `@vercel/config`, `fumadocs-core/mcp` setting tool
-annotations, a `develop` branch, or an empty backlog. When one happens, update the config and this record.
+annotations, a `develop` branch, Vercel honoring `devEngines`, an
+`AGENTS.md` split into rules, or an empty backlog. When one happens, update the config and this record.

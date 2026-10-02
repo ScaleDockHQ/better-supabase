@@ -1,14 +1,33 @@
 {
   "mcpServers": {
-    "better-supabase-docs": { "url": "https://bettersupabase.com/mcp" },
-    "vercel": { "url": "https://mcp.vercel.com" },
+    "better-supabase-docs": {
+      "url": "https://bettersupabase.com/mcp"
+    },
+    "vercel": {
+      "url": "https://mcp.vercel.com"
+    },
     "shadcn": {
       "command": "pnpm",
-      "args": ["--dir", "apps/marketing", "exec", "shadcn", "mcp"]
+      "args": [
+        "--dir",
+        "apps/marketing",
+        "exec",
+        "shadcn",
+        "mcp"
+      ]
     },
     "reui": {
       "url": "https://mcp.reui.io",
-      "headers": { "Authorization": "Bearer ${env:REUI_LICENSE_KEY}" }
+      "headers": {
+        "Authorization": "Bearer ${env:REUI_LICENSE_KEY}"
+      }
+    },
+    "next-devtools": {
+      "command": "pnpm",
+      "args": [
+        "dlx",
+        "next-devtools-mcp@0.4.0"
+      ]
     }
   }
 }

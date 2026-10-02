@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to better-supabase. This repository is a pnpm and Turborepo monorepo with one published package, `packages/better-supabase`. Maintainer rules and invariants live in [`AGENTS.md`](./AGENTS.md).
+Thanks for contributing to better-supabase. This repository is a pnpm and Turborepo monorepo with two published packages released at the same version: the library in `packages/better-supabase` and the CLI, `@better-supabase/cli`, in `packages/cli`. Maintainer rules and invariants live in [`AGENTS.md`](./AGENTS.md).
 
 ## Requirements
 
@@ -51,7 +51,7 @@ docs: explain read replicas
 ## Pull requests
 
 - Open a [feature request](https://github.com/ScaleDockHQ/better-supabase/issues/new?template=feature.yml) before adding a subpath, changing an exported identifier, or adding a CLI flag.
-- Every user-visible change needs a changeset (`pnpm changeset`).
+- Every user-visible change needs a changeset (`pnpm changeset`). The two packages are in one `fixed` group, so a changeset for either releases both.
 - Follow the "When you change X, also update Y" table in [`AGENTS.md`](./AGENTS.md).
 - Docs pages are Fumadocs MDX. Each has a `title` and `description` in its frontmatter, no `# h1`, and a place in its folder's `meta.json`.
 

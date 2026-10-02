@@ -189,7 +189,8 @@ The seed creates two users in the Acme organization, both with the password
 ### Layout
 
 ```text
-packages/better-supabase   the published package, its CLI and consumer skills
+packages/better-supabase   the published library and its consumer skills
+packages/cli               @better-supabase/cli: the better-supabase command, codegen and doctor
 packages/next-config       shared Next.js config for docs and marketing
 packages/ox-config         Oxlint presets, Oxfmt config and the anti-slop plugin
 packages/typescript-config tsconfig presets
