@@ -47,6 +47,16 @@ installs the same skills and connects the [docs MCP server](#docs-mcp-server):
 The repository has a Cursor plugin manifest (`.cursor-plugin/plugin.json`)
 with the same skills and server.
 
+These skills cover better-supabase. For Supabase itself (Auth, Storage, RLS
+and Postgres performance), add Supabase's own skills too. The
+`better-supabase` skill's schema workflow already asks for RLS, policies and
+[Data API grants](/docs/guides/data-api-grants) on every new table; Supabase's
+skills explain the policies in depth:
+
+```bash
+npx skills add supabase/agent-skills
+```
+
 ## Docs as Markdown
 
 - [`/llms.txt`](/llms.txt) is an index of every page, and

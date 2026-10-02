@@ -67,6 +67,14 @@ through the Management API's read-only SQL endpoint
 `SUPABASE_ACCESS_TOKEN`, not the database password, and the queries run as a
 read-only role.
 
+Create a scoped token for this: limit it to the project and the read-only
+query permission the
+[personal access tokens guide](https://supabase.com/docs/guides/platform/personal-access-tokens)
+lists for that endpoint. A classic token carries your whole account, on every
+organization and project, which is more than CI or an agent needs. A scoped
+token that lacks the permission answers "You do not have permission to
+perform this action".
+
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   source: { projectRef: "abcdefghijklmnopqrst" },

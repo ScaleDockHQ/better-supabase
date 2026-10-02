@@ -107,7 +107,10 @@ Where the findings come from depends on what doctor reads:
   finding saying the advisors were skipped.
 
 If the advisors can't run (offline, no access token), doctor reports a warning
-instead of failing silently.
+instead of failing silently. For `--project-ref`, use a scoped personal access
+token limited to the project and the advisor and read-only query permissions
+(see [Hosted projects](/docs/cli/gen#hosted-projects-without-a-database-password)),
+not a classic token with access to your whole account.
 
 ### BS200
 

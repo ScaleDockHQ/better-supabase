@@ -172,6 +172,24 @@ doesn't always set should be optional or have a default.
 `search_path`, and with `--as <user id>` how large the claims it returns are
 ([BS405](/docs/cli/doctor#bs405)).
 
+### When claims change
+
+Claims are copied into the access token when Auth issues it, and verified
+locally after that. When you change a user's `app_metadata`, their
+memberships, or anything the hook reads, the user's current token still
+carries the old values until it is refreshed: up to the token's lifetime (an
+hour by default), or until the proxy refreshes the session. The same goes for
+`auth.jwt()` in policies. Revoking a role therefore takes effect on the next
+refresh, not immediately.
+
+When that window matters, read the source of truth instead of the claim:
+policies can check the `memberships` table (`member_org_ids()` from the
+[SQL kit](/docs/kits/sql) does). After a change the user made themselves,
+such as joining an organization, the browser can call
+`supabase.auth.refreshSession()` to pick up the new claims at once. Shorter
+token lifetimes narrow the window for everyone
+([BS402](/docs/cli/doctor#bs402)).
+
 ## Profile
 
 `user_metadata` holds what users say about themselves: a display name, an

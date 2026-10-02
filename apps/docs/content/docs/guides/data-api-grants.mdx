@@ -39,6 +39,15 @@ The `grants` module writes plain `grant ... on table ... to ...` statements.
 It only adds grants; revoke by hand what a role should lose. RLS still
 decides which rows a role sees.
 
+A grant on a table in an exposed schema is a door to the internet: anyone with
+the publishable key can call the Data API as `anon`, and any signed-in user as
+`authenticated`. Pair every grant with `alter table ... enable row level
+security` and policies for each role and command you grant, in the same file.
+A table with grants and RLS off is readable and writable by everyone; doctor
+reports it as an error ([BS100](/docs/cli/doctor#bs100)). Grant `anon` only
+what signed-out visitors need, and leave `truncate`, `references` and
+`trigger` out ([BS111](/docs/cli/doctor#bs111)).
+
 Tables with a `serial` column also need `usage` on the sequence for inserts
 (identity columns don't). Functions called with `db.$rpc()` need `execute`.
 

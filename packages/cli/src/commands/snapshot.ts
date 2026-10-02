@@ -56,7 +56,7 @@ export function managementTarget(
   if (!accessToken) {
     throw new CliError(
       "missing_value",
-      `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens), or read the database with $DATABASE_URL or --db-url-stdin.`,
+      `Reading project ${projectRef} needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN to a token scoped to this project (https://supabase.com/dashboard/account/tokens), or read the database with $DATABASE_URL or --db-url-stdin.`,
       { flag: "SUPABASE_ACCESS_TOKEN" },
     );
   }
