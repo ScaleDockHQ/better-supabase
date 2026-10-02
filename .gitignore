@@ -72,3 +72,6 @@ doctor.sarif
 .cursor/permissions.json
 .claude/settings.local.json
 .kilo/
+
+# per-user agent hook state
+.cursor/hooks/state/
