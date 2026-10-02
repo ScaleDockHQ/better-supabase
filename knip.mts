@@ -21,6 +21,8 @@ const browserExample = {
 const config: KnipConfig = {
   treatConfigHintsAsErrors: true,
   tags: ["-internal"],
+  // Vendored maintainer skills (ADR 0004) carry their own scripts.
+  ignore: [".agents/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`).
   ignoreBinaries: ["vercel"],
   ignoreIssues: {

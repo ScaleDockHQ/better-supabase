@@ -53,22 +53,22 @@ jobs:
           - task: audit
             run: pnpm run audit:high
           - task: typecheck matrix
-            run: pnpm exec turbo run build --filter=better-supabase && pnpm run typecheck:matrix
+            run: pnpm exec turbo run build --filter=@better-supabase/cli... && pnpm run typecheck:matrix
           - task: type performance
-            run: pnpm exec turbo run build --filter=better-supabase && pnpm run typecheck:perf
+            run: pnpm exec turbo run build --filter=@better-supabase/cli... && pnpm run typecheck:perf
           - task: size
-            run: pnpm exec turbo run build --filter=better-supabase && pnpm run size
+            run: pnpm exec turbo run build --filter=@better-supabase/cli... && pnpm run size
           - task: publish checks
             run: pnpm run check:publish
           - task: generated code drift
             run: |
-              pnpm exec turbo run build --filter=better-supabase
+              pnpm exec turbo run build --filter=@better-supabase/cli...
               for project in apps/examples/* tests/validation-*; do
                 pnpm exec better-supabase gen --check --cwd "$project"
               done
           - task: doctor
             run: |
-              pnpm exec turbo run build --filter=better-supabase
+              pnpm exec turbo run build --filter=@better-supabase/cli...
               pnpm exec better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
     steps:
       - uses: actions/checkout@v7

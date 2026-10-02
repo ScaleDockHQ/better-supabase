@@ -37,7 +37,9 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Create the local signing key
-        run: node packages/better-supabase/src/cli/bin.ts keys --cwd .
+        run: |
+          pnpm exec turbo run build --filter=@better-supabase/cli...
+          pnpm exec better-supabase keys --cwd .
 
       - name: Start Supabase
         run: supabase start
