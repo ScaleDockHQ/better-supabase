@@ -63,7 +63,8 @@ export default defineConfig({
 
 `better-supabase gen` compiles each set into one function in the
 [`read-sets` module](/docs/kits/sql), then you create a migration with
-`supabase db diff`:
+`supabase db schema declarative sync` (`supabase db diff` on the legacy migra
+engine):
 
 ```sql
 create or replace function public.rs_workspace_summary(p jsonb)
@@ -163,4 +164,4 @@ Any mutation of those tables revalidates the entry. See
 
 [BS304](/docs/cli/doctor#bs304) reports a `read-sets` file that no longer
 matches the sets in `readSets`. Run `better-supabase gen` (or
-`better-supabase sql sync`), then `supabase db diff`.
+`better-supabase sql sync`), then `supabase db schema declarative sync`.

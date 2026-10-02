@@ -11,7 +11,8 @@ supabase-js, and don't use the service role for anything a user does.
 ## Workflow: test a table or policy
 
 1. Start the stack (`supabase start`) and write `.env.local` with
-   `better-supabase env`.
+   `better-supabase env`. In a sandbox without Docker, start it with
+   `SUPABASE_EXPERIMENTAL_STACK=1` (the Supabase CLI's native stack).
 2. Add the rows the test needs to `supabase/seed.ts`, including one row
    owned by another tenant, then `supabase db reset`.
 3. Write the RLS test with `asUser` for each role that matters.

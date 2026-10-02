@@ -11,8 +11,11 @@ The data layer is `sb = defineSupabase(schema)` in `src/lib/supabase.ts`.
 
 ## Workflow: change the schema
 
-1. Write the migration (`supabase/schemas/*.sql` plus `supabase db diff`, or
-   `supabase migration new`).
+1. Write the migration: edit `supabase/schemas/*.sql`, then run
+   `supabase db schema declarative sync -f <name>` (pg-delta;
+   `supabase db diff -f <name>` when `config.toml` has no
+   `[experimental.pgdelta] enabled = true`), or `supabase migration new` for
+   data and role settings.
 2. For a new table in an exposed schema, in the same file: `enable row level
 security`, a policy per role and command the app uses, and an index on
    every column a policy filters by. List the table in `expose` in

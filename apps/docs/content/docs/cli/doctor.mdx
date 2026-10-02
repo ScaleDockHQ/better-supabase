@@ -33,7 +33,7 @@ with 1 when there are errors, or with any warning under `--strict`.
 | `--explain <tables>`  | Plan these tables under RLS ([BS212](#bs212))                                                                                               |
 | `--as <uuid>`         | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405)) |
 | `--claims <json>`     | With `--explain`: plan with these JWT claims                                                                                                |
-| `--fix-grants`        | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a migration                                                  |
+| `--fix-grants`        | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                   |
 
 Doctor never prints env values, only variable names and line numbers.
 
@@ -490,7 +490,8 @@ is the same check as `gen --check`.
 
 **Warning: SQL kit files are out of date.** A module in `sql.kit` differs from
 the version this release ships. Run `better-supabase sql sync`, then
-`supabase db diff` to create a migration.
+`supabase db schema declarative sync` (`supabase db diff` on migra) to create
+a migration.
 
 For the `read-sets` module, doctor imports the modules in `readSets` and
 compares the functions they compile to. If a module can't be imported,
@@ -501,7 +502,8 @@ doctor skips that file instead of reporting it.
 **Warning: live query table without change broadcasts.** A table in
 `realtime.tables` has no `bs_realtime` trigger, so
 [live queries](/docs/frontend/live-queries) never hear about its changes. Run
-`better-supabase sql add realtime-tables`, then `supabase db diff`.
+`better-supabase sql add realtime-tables`, then
+`supabase db schema declarative sync`.
 
 ### BS306
 
@@ -549,9 +551,12 @@ grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase
 revoke execute on function rbac.custom_access_token_hook(event jsonb) from authenticated, anon, public;
 ```
 
-`supabase db diff` does not carry function grants, so append them to the
-migration it wrote. `better-supabase doctor --fix-grants` prints the block for
-every hook at once:
+With pg-delta (`[experimental.pgdelta] enabled = true`), add the statements to
+the schema file that defines the function and run
+`supabase db schema declarative sync`: pg-delta carries function grants into
+the migration. The legacy `supabase db diff` does not, so on migra append them
+to the migration it wrote. `better-supabase doctor --fix-grants` prints the
+block for every hook at once:
 
 ```bash
 supabase db diff -f auth_hook
@@ -564,9 +569,11 @@ the grants migration with a `-- permdock:grants v1` marker. When a migration
 with that marker already grants the function, the database is behind the
 migrations, and the finding says to run `supabase migration up`.
 
-Doctor reads the declarative schemas in `[db.migrations] schema_paths` order,
-then the files no entry matches, then the migrations newest first. Findings
-point at the first file that declares the object.
+Doctor reads the declarative schemas, then the migrations newest first, and
+points findings at the first file that declares the object. With pg-delta it
+reads every file in `declarative_schema_path` (default `supabase/schemas`) in
+name order. On migra it follows `[db.migrations] schema_paths`, then the files
+no entry matches.
 
 A hook whose function doesn't exist is reported at its `config.toml` line,
 because every sign-in fails until it does. Snapshots taken before the hook
