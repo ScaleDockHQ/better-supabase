@@ -2,6 +2,7 @@ import type { JWTClaims } from "@supabase/server";
 
 import type { AuthResolver } from "../auth/resolve.ts";
 
+import { base64ToText, fromBase64, toBase64Url } from "../core/base64.ts";
 import { dbError } from "../core/errors.ts";
 
 export interface TestJwtClaims {
@@ -14,16 +15,6 @@ export interface TestJwtClaims {
 }
 
 const encoder = new TextEncoder();
-
-function base64url(input: Uint8Array | string): string {
-  const bytes = typeof input === "string" ? encoder.encode(input) : input;
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
 
 /**
  * Signs an HS256 access token the local Supabase stack accepts. Test-only:
@@ -43,8 +34,8 @@ export async function signTestJwt(
     exp: now + expiresIn,
     ...rest,
   };
-  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = base64url(JSON.stringify(payload));
+  const header = toBase64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = toBase64Url(JSON.stringify(payload));
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -57,12 +48,7 @@ export async function signTestJwt(
     key,
     encoder.encode(`${header}.${body}`),
   );
-  return `${header}.${body}.${base64url(new Uint8Array(signature))}`;
-}
-
-function base64urlDecode(input: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(input.replaceAll("-", "+").replaceAll("_", "/"));
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return `${header}.${body}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
 /**
@@ -90,15 +76,13 @@ export function localAuth(secret: string): AuthResolver {
         .verify(
           "HMAC",
           await key,
-          base64urlDecode(signature),
+          fromBase64(signature),
           encoder.encode(`${header}.${body}`),
         )
         .catch(() => false);
       if (!valid) return undefined;
       // SAFETY: the signature was verified above, and exp is checked before use.
-      const claims = JSON.parse(
-        new TextDecoder().decode(base64urlDecode(body)),
-      ) as JWTClaims;
+      const claims = JSON.parse(base64ToText(body)) as JWTClaims;
       if (typeof claims.exp === "number" && claims.exp * 1000 < Date.now()) {
         return {
           kind: "invalid",
@@ -147,14 +131,14 @@ async function signEs256(
     exp: now + expiresIn,
     ...rest,
   };
-  const header = base64url(JSON.stringify({ alg: "ES256", typ: "JWT", kid }));
-  const body = base64url(JSON.stringify(payload));
+  const header = toBase64Url(JSON.stringify({ alg: "ES256", typ: "JWT", kid }));
+  const body = toBase64Url(JSON.stringify(payload));
   const signature = await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     key,
     encoder.encode(`${header}.${body}`),
   );
-  return `${header}.${body}.${base64url(new Uint8Array(signature))}`;
+  return `${header}.${body}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
 /**
