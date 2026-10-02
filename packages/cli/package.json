@@ -32,12 +32,20 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "@better-supabase/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    },
     "access": "public",
     "provenance": true
   },
@@ -47,6 +55,7 @@
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
     "test": "vitest run --coverage",
+    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -15,5 +15,8 @@
     "./library.json": "./library.json",
     "./react-library.json": "./react-library.json",
     "./next.json": "./next.json"
+  },
+  "scripts": {
+    "transit": "true"
   }
 }

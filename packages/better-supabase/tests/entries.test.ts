@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import api from "../api/exports.json" with { type: "json" };
+import packageJson from "../package.json" with { type: "json" };
 
 const entryOf = (subpath: string): string =>
   subpath === "." ? "index" : `${subpath.slice(2)}/index`;
@@ -50,4 +51,29 @@ describe("subpath entries", () => {
         /^export\s+(type\s+)?(\*|\{[^}]*\})\s+from\s+"[^"]+"$/,
       );
   });
+});
+
+describe("the source export condition", () => {
+  it("adds only the source path to the published exports", () => {
+    const published: Record<string, unknown> =
+      packageJson.publishConfig.exports;
+    const withoutSource = Object.fromEntries(
+      Object.entries(packageJson.exports).map(([key, value]) => {
+        if (typeof value === "string") return [key, value];
+        const { "@better-supabase/source": _, ...rest } = value;
+        return [key, rest];
+      }),
+    );
+    expect(withoutSource).toEqual(published);
+  });
+
+  it.each(Object.entries(packageJson.exports))(
+    "%s points the source condition at the file its build starts from",
+    (_, value) => {
+      if (typeof value === "string") return;
+      expect(value["@better-supabase/source"]).toBe(
+        value.default.replace(/^\.\/dist\//, "./src/").replace(/\.js$/, ".ts"),
+      );
+    },
+  );
 });

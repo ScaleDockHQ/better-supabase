@@ -17,6 +17,7 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "start": "next start -p 3100",
+    "transit": "true",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

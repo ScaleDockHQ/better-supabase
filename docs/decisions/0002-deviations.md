@@ -29,6 +29,16 @@ backlogs too large to clear in the upgrade.
 - `engines.node` in the published packages stays `>=24`, a floor for
   consumers, instead of the `24.x` the repo develops on (`.node-version`).
   Pinning a published package to one major would reject Node 25 and later.
+- `turbo.json` turns on every future flag except `globalConfiguration` and
+  keeps `globalEnv`, `globalPassThroughEnv` and `globalDependencies` at the
+  top level. Oxlint's `turbo/no-undeclared-env-vars` reads only those keys,
+  so the `global` block made it report 65 declared variables as undeclared.
+- `pnpm test` runs each workspace's Vitest through Turbo instead of one root
+  `vitest run`. Each published package's unit tests have to hold its
+  coverage thresholds alone; a root run merges coverage, and the CLI's
+  tests would count toward the library's source through the
+  `@better-supabase/source` condition. The root `vitest.config.ts` lists the
+  projects for `vitest --project` in an editor.
 
 ### Docs site
 

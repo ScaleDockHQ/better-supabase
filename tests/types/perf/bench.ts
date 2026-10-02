@@ -50,10 +50,9 @@ const tsc = join(
   "tsc",
 );
 const cli = join(
-  dirname(require.resolve("better-supabase/package.json")),
-  "dist",
-  "cli",
-  "bin.js",
+  dirname(require.resolve("@better-supabase/cli/package.json")),
+  "bin",
+  "better-supabase.js",
 );
 
 const name = (i: number): string => `t${String(i).padStart(3, "0")}`;

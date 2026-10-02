@@ -8,10 +8,10 @@
       "env": ["NEXT_PUBLIC_SITE_URL"],
       "passThroughEnv": ["AI_GATEWAY_API_KEY"]
     },
-    "test": {
-      "dependsOn": ["^build"]
-    },
     "dev": {
+      "passThroughEnv": ["AI_GATEWAY_API_KEY"]
+    },
+    "dev:portless": {
       "passThroughEnv": ["AI_GATEWAY_API_KEY"]
     }
   }

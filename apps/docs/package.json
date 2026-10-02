@@ -11,6 +11,7 @@
     "lint": "oxlint",
     "start": "next start",
     "test": "vitest run",
+    "transit": "true",
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit"
   },
   "dependencies": {

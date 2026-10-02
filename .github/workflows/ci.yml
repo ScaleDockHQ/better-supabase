@@ -26,6 +26,7 @@ env:
   # The TUI swallows task output on non-TTY runners.
   TURBO_UI: stream
   SUPABASE_CLI_VERSION: 2.119.0
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
   verify:
@@ -37,6 +38,8 @@ jobs:
     with:
       affected: ${{ github.event_name == 'pull_request' }}
       base: ${{ github.event.pull_request.base.sha || '' }}
+    secrets:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
   stack:
     name: Integration and e2e
@@ -76,7 +79,7 @@ jobs:
 
       # Next builds run one at a time on GitHub-hosted runners.
       - name: Build
-        run: pnpm exec turbo run build --concurrency=1
+        run: pnpm exec turbo run build --concurrency=1 --log-file
 
       - name: Integration
         run: pnpm run test:integration

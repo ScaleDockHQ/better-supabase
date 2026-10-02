@@ -12,6 +12,7 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "start": "node src/main.ts",
+    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

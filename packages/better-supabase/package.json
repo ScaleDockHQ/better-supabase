@@ -36,131 +36,163 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "@better-supabase/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./config": {
+      "@better-supabase/source": "./src/config/index.ts",
       "types": "./dist/config/index.d.ts",
       "default": "./dist/config/index.js"
     },
     "./client": {
+      "@better-supabase/source": "./src/client/index.ts",
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
     "./react": {
+      "@better-supabase/source": "./src/react/index.ts",
       "types": "./dist/react/index.d.ts",
       "react-server": "./dist/react/server.js",
       "default": "./dist/react/index.js"
     },
     "./query": {
+      "@better-supabase/source": "./src/query/index.ts",
       "types": "./dist/query/index.d.ts",
       "default": "./dist/query/index.js"
     },
     "./server": {
+      "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
       "default": "./dist/server/index.js"
     },
     "./postgres": {
+      "@better-supabase/source": "./src/postgres/index.ts",
       "types": "./dist/postgres/index.d.ts",
       "default": "./dist/postgres/index.js"
     },
     "./ssr": {
+      "@better-supabase/source": "./src/ssr/index.ts",
       "types": "./dist/ssr/index.d.ts",
       "default": "./dist/ssr/index.js"
     },
     "./next": {
+      "@better-supabase/source": "./src/next/index.ts",
       "types": "./dist/next/index.d.ts",
       "default": "./dist/next/index.js"
     },
     "./next/image": {
+      "@better-supabase/source": "./src/next/image/index.ts",
       "types": "./dist/next/image/index.d.ts",
       "default": "./dist/next/image/index.js"
     },
     "./hono": {
+      "@better-supabase/source": "./src/hono/index.ts",
       "types": "./dist/hono/index.d.ts",
       "default": "./dist/hono/index.js"
     },
     "./orpc": {
+      "@better-supabase/source": "./src/orpc/index.ts",
       "types": "./dist/orpc/index.d.ts",
       "default": "./dist/orpc/index.js"
     },
     "./edge": {
+      "@better-supabase/source": "./src/edge/index.ts",
       "types": "./dist/edge/index.d.ts",
       "default": "./dist/edge/index.js"
     },
     "./mcp": {
+      "@better-supabase/source": "./src/mcp/index.ts",
       "types": "./dist/mcp/index.d.ts",
       "default": "./dist/mcp/index.js"
     },
     "./jobs": {
+      "@better-supabase/source": "./src/jobs/index.ts",
       "types": "./dist/jobs/index.d.ts",
       "default": "./dist/jobs/index.js"
     },
     "./env": {
+      "@better-supabase/source": "./src/env/index.ts",
       "types": "./dist/env/index.d.ts",
       "default": "./dist/env/index.js"
     },
     "./list": {
+      "@better-supabase/source": "./src/list/index.ts",
       "types": "./dist/list/index.d.ts",
       "default": "./dist/list/index.js"
     },
     "./storage": {
+      "@better-supabase/source": "./src/storage/index.ts",
       "types": "./dist/storage/index.d.ts",
       "default": "./dist/storage/index.js"
     },
     "./realtime": {
+      "@better-supabase/source": "./src/realtime/index.ts",
       "types": "./dist/realtime/index.d.ts",
       "default": "./dist/realtime/index.js"
     },
     "./events": {
+      "@better-supabase/source": "./src/events/index.ts",
       "types": "./dist/events/index.d.ts",
       "default": "./dist/events/index.js"
     },
     "./webhooks": {
+      "@better-supabase/source": "./src/webhooks/index.ts",
       "types": "./dist/webhooks/index.d.ts",
       "default": "./dist/webhooks/index.js"
     },
     "./openapi": {
+      "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
       "default": "./dist/openapi/index.js"
     },
     "./otel": {
+      "@better-supabase/source": "./src/otel/index.ts",
       "types": "./dist/otel/index.d.ts",
       "default": "./dist/otel/index.js"
     },
     "./plugins/timestamps": {
+      "@better-supabase/source": "./src/plugins/timestamps/index.ts",
       "types": "./dist/plugins/timestamps/index.d.ts",
       "default": "./dist/plugins/timestamps/index.js"
     },
     "./lint": {
+      "@better-supabase/source": "./src/lint/index.ts",
       "types": "./dist/lint/index.d.ts",
       "default": "./dist/lint/index.js"
     },
     "./plugins/rules": {
+      "@better-supabase/source": "./src/plugins/rules/index.ts",
       "types": "./dist/plugins/rules/index.d.ts",
       "default": "./dist/plugins/rules/index.js"
     },
     "./plugins/soft-delete": {
+      "@better-supabase/source": "./src/plugins/soft-delete/index.ts",
       "types": "./dist/plugins/soft-delete/index.d.ts",
       "default": "./dist/plugins/soft-delete/index.js"
     },
     "./plugins/tenant": {
+      "@better-supabase/source": "./src/plugins/tenant/index.ts",
       "types": "./dist/plugins/tenant/index.d.ts",
       "default": "./dist/plugins/tenant/index.js"
     },
     "./plugins/actor": {
+      "@better-supabase/source": "./src/plugins/actor/index.ts",
       "types": "./dist/plugins/actor/index.d.ts",
       "default": "./dist/plugins/actor/index.js"
     },
     "./plugins/validation": {
+      "@better-supabase/source": "./src/plugins/validation/index.ts",
       "types": "./dist/plugins/validation/index.d.ts",
       "default": "./dist/plugins/validation/index.js"
     },
     "./sql": {
+      "@better-supabase/source": "./src/sql/index.ts",
       "types": "./dist/sql/index.d.ts",
       "default": "./dist/sql/index.js"
     },
     "./testing": {
+      "@better-supabase/source": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
@@ -168,6 +200,139 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./config": {
+        "types": "./dist/config/index.d.ts",
+        "default": "./dist/config/index.js"
+      },
+      "./client": {
+        "types": "./dist/client/index.d.ts",
+        "default": "./dist/client/index.js"
+      },
+      "./react": {
+        "types": "./dist/react/index.d.ts",
+        "react-server": "./dist/react/server.js",
+        "default": "./dist/react/index.js"
+      },
+      "./query": {
+        "types": "./dist/query/index.d.ts",
+        "default": "./dist/query/index.js"
+      },
+      "./server": {
+        "types": "./dist/server/index.d.ts",
+        "default": "./dist/server/index.js"
+      },
+      "./postgres": {
+        "types": "./dist/postgres/index.d.ts",
+        "default": "./dist/postgres/index.js"
+      },
+      "./ssr": {
+        "types": "./dist/ssr/index.d.ts",
+        "default": "./dist/ssr/index.js"
+      },
+      "./next": {
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
+      },
+      "./next/image": {
+        "types": "./dist/next/image/index.d.ts",
+        "default": "./dist/next/image/index.js"
+      },
+      "./hono": {
+        "types": "./dist/hono/index.d.ts",
+        "default": "./dist/hono/index.js"
+      },
+      "./orpc": {
+        "types": "./dist/orpc/index.d.ts",
+        "default": "./dist/orpc/index.js"
+      },
+      "./edge": {
+        "types": "./dist/edge/index.d.ts",
+        "default": "./dist/edge/index.js"
+      },
+      "./mcp": {
+        "types": "./dist/mcp/index.d.ts",
+        "default": "./dist/mcp/index.js"
+      },
+      "./jobs": {
+        "types": "./dist/jobs/index.d.ts",
+        "default": "./dist/jobs/index.js"
+      },
+      "./env": {
+        "types": "./dist/env/index.d.ts",
+        "default": "./dist/env/index.js"
+      },
+      "./list": {
+        "types": "./dist/list/index.d.ts",
+        "default": "./dist/list/index.js"
+      },
+      "./storage": {
+        "types": "./dist/storage/index.d.ts",
+        "default": "./dist/storage/index.js"
+      },
+      "./realtime": {
+        "types": "./dist/realtime/index.d.ts",
+        "default": "./dist/realtime/index.js"
+      },
+      "./events": {
+        "types": "./dist/events/index.d.ts",
+        "default": "./dist/events/index.js"
+      },
+      "./webhooks": {
+        "types": "./dist/webhooks/index.d.ts",
+        "default": "./dist/webhooks/index.js"
+      },
+      "./openapi": {
+        "types": "./dist/openapi/index.d.ts",
+        "default": "./dist/openapi/index.js"
+      },
+      "./otel": {
+        "types": "./dist/otel/index.d.ts",
+        "default": "./dist/otel/index.js"
+      },
+      "./plugins/timestamps": {
+        "types": "./dist/plugins/timestamps/index.d.ts",
+        "default": "./dist/plugins/timestamps/index.js"
+      },
+      "./lint": {
+        "types": "./dist/lint/index.d.ts",
+        "default": "./dist/lint/index.js"
+      },
+      "./plugins/rules": {
+        "types": "./dist/plugins/rules/index.d.ts",
+        "default": "./dist/plugins/rules/index.js"
+      },
+      "./plugins/soft-delete": {
+        "types": "./dist/plugins/soft-delete/index.d.ts",
+        "default": "./dist/plugins/soft-delete/index.js"
+      },
+      "./plugins/tenant": {
+        "types": "./dist/plugins/tenant/index.d.ts",
+        "default": "./dist/plugins/tenant/index.js"
+      },
+      "./plugins/actor": {
+        "types": "./dist/plugins/actor/index.d.ts",
+        "default": "./dist/plugins/actor/index.js"
+      },
+      "./plugins/validation": {
+        "types": "./dist/plugins/validation/index.d.ts",
+        "default": "./dist/plugins/validation/index.js"
+      },
+      "./sql": {
+        "types": "./dist/sql/index.d.ts",
+        "default": "./dist/sql/index.js"
+      },
+      "./testing": {
+        "types": "./dist/testing/index.d.ts",
+        "default": "./dist/testing/index.js"
+      },
+      "./schemas/*.json": "./schemas/*.json",
+      "./package.json": "./package.json"
+    },
     "access": "public",
     "provenance": true
   },
@@ -177,6 +342,7 @@
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "lint": "oxlint",
     "test": "vitest run --coverage",
+    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

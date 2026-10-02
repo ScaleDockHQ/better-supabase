@@ -6,11 +6,11 @@
     "dev": {
       "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
     },
-    "test": {
-      "dependsOn": []
-    },
     "build": {
       "env": ["DOCS_ORIGIN", "NEXT_PUBLIC_SITE_URL"]
+    },
+    "dev:portless": {
+      "passThroughEnv": ["PORT", "DOCS_ORIGIN"]
     }
   }
 }

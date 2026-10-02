@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
+import packageJson from "../package.json" with { type: "json" };
+
 /** Type-only exports declared in an entry file: `export type { A }` and `export type * from`. */
 function typeExports(source: string): string[] {
   const names = new Set<string>();
@@ -31,6 +33,17 @@ describe("public API", () => {
     };
     await expect(`${JSON.stringify(api, null, 2)}\n`).toMatchFileSnapshot(
       "../api/exports.json",
+    );
+  });
+});
+
+describe("the source export condition", () => {
+  it("adds only the source path to the published exports", () => {
+    const { "@better-supabase/source": source, ...published } =
+      packageJson.exports["."];
+    expect(source).toBe("./src/index.ts");
+    expect({ ...packageJson.exports, ".": published }).toEqual(
+      packageJson.publishConfig.exports,
     );
   });
 });

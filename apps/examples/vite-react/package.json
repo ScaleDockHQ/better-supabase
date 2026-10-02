@@ -15,6 +15,7 @@
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "preview": "vite preview",
+    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

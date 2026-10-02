@@ -1,9 +1,17 @@
 {
   "$schema": "https://v2-11-6.turborepo.dev/schema.json",
   "futureFlags": {
-    "affectedUsingTaskInputs": true
+    "affectedUsingTaskInputs": true,
+    "filterUsingTasks": true,
+    "watchUsingTaskInputs": true,
+    "pruneIncludesGlobalFiles": true,
+    "githubActionsRemoteBaseRefFallback": true,
+    "errorsOnlyShowHash": true,
+    "longerSignatureKey": true
   },
   "envMode": "strict",
+  "cacheMaxAge": "14d",
+  "cacheMaxSize": "10GB",
   "globalEnv": ["CI", "NODE_ENV", "EXPOSE_TESTING_API"],
   "globalPassThroughEnv": [
     "SUPABASE_*",
@@ -12,17 +20,20 @@
     "PORTLESS*",
     "REUI_LICENSE_KEY",
     "GITHUB_ACTIONS",
-    "LEFTHOOK"
+    "LEFTHOOK",
+    "TURBO_REMOTE_CACHE_SIGNATURE_KEY"
   ],
   "globalDependencies": [
     "tsconfig.json",
     "oxlint.config.ts",
     "oxfmt.config.ts",
-    "packages/typescript-config/*.json"
+    "pnpm-workspace.yaml",
+    "packages/typescript-config/**",
+    "packages/ox-config/**"
   ],
   "remoteCache": {
     "teamSlug": "scaledock",
-    "signature": false
+    "signature": true
   },
   "boundaries": {
     "tags": {
@@ -63,13 +74,23 @@
       ]
     },
     "lint": {
-      "dependsOn": ["^build", "transit"]
+      "dependsOn": ["transit"]
+    },
+    "//#lint:root": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!apps/**",
+        "!packages/**",
+        "!tests/**",
+        "!supabase/**",
+        "!docs/**"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build", "transit"]
+      "dependsOn": ["transit"]
     },
     "test": {
-      "dependsOn": ["build", "^build"]
+      "dependsOn": ["transit"]
     },
     "check:publish": {
       "dependsOn": ["build", "^build"]

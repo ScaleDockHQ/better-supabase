@@ -40,7 +40,6 @@ const config: KnipConfig = {
     },
     "packages/better-supabase": {
       entry: [
-        "src/index.ts",
         "src/*/index.ts",
         "src/*/*/index.ts",
         "src/react/{server,session}.ts",
@@ -99,7 +98,10 @@ const config: KnipConfig = {
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],
     },
-    "tests/types/perf": {},
+    "tests/types/perf": {
+      // The consumer that bench.ts writes to tmp/ imports both.
+      ignoreDependencies: ["better-supabase", "@supabase/supabase-js"],
+    },
     // Modules ported from production apps; their exports are the app's API.
     "tests/validation-*": {
       entry: ["src/**/*.ts"],

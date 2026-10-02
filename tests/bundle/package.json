@@ -5,6 +5,7 @@
   "scripts": {
     "lint": "oxlint",
     "test": "vitest run",
+    "transit": "true",
     "typecheck": "tsc --noEmit",
     "update": "BUNDLE_UPDATE=1 vitest run"
   },

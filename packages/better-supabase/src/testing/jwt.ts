@@ -1,4 +1,5 @@
 import type { JWTClaims } from "@supabase/server";
+import type { webcrypto } from "node:crypto";
 
 import type { AuthResolver } from "../auth/resolve.ts";
 
@@ -107,17 +108,20 @@ export function localAuth(secret: string): AuthResolver {
 
 export interface TestSigner {
   /** Public JWKS; pass as `jwks` to `resolveAuth` / `createServer({ auth: { jwks } })`. */
-  readonly jwks: { readonly keys: readonly JsonWebKey[] };
+  readonly jwks: { readonly keys: readonly webcrypto.JsonWebKey[] };
   sign(claims: TestJwtClaims): Promise<string>;
 }
 
 /** A private ES256 JWK, as `better-supabase keys` writes to `supabase/signing_keys.json`. */
-export interface SigningJwk extends JsonWebKey {
+export interface SigningJwk extends webcrypto.JsonWebKey {
   readonly kid: string;
 }
 
+/** The key type of the global `crypto`, which the DOM lib and `@types/node` both declare. */
+type SigningKey = Parameters<typeof crypto.subtle.sign>[1];
+
 async function signEs256(
-  key: CryptoKey,
+  key: SigningKey,
   kid: string,
   claims: TestJwtClaims,
 ): Promise<string> {

@@ -18,6 +18,7 @@ concurrency:
 env:
   CI: true
   SUPABASE_CLI_VERSION: 2.119.0
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
   database:

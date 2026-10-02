@@ -5,6 +5,7 @@
   "scripts": {
     "bench": "node bench.ts",
     "lint": "oxlint",
+    "transit": "true",
     "update": "BENCH_UPDATE=1 node bench.ts"
   },
   "devDependencies": {

@@ -4,7 +4,8 @@
   "tags": ["test"],
   "tasks": {
     "test": {
-      "env": ["BUNDLE_UPDATE"]
+      "env": ["BUNDLE_UPDATE"],
+      "dependsOn": ["^build"]
     }
   }
 }

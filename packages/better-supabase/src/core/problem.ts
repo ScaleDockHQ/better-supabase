@@ -70,7 +70,7 @@ export interface ProblemOptions {
 }
 
 export interface ProblemResponseOptions extends ProblemOptions {
-  readonly headers?: HeadersInit;
+  readonly headers?: ConstructorParameters<typeof Headers>[0];
   /** `realm` of the RFC 6750 challenge on 401. */
   readonly realm?: string;
 }

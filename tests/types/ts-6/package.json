@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "transit": "true",
     "typecheck:matrix": "tsc --stableTypeOrdering -p ../shared/tsconfig.json && tsc --stableTypeOrdering -p ../shared/tsconfig.bundler.json"
   },
   "devDependencies": {

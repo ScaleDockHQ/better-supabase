@@ -11,6 +11,7 @@
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
+    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

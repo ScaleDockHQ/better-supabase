@@ -4,7 +4,8 @@
   "tags": ["published"],
   "tasks": {
     "test": {
-      "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"]
+      "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"],
+      "dependsOn": ["build", "^build"]
     }
   }
 }

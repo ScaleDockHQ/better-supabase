@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "transit": "true",
     "typecheck:matrix": "tsc -p ../shared/tsconfig.json && tsc -p ../shared/tsconfig.bundler.json"
   },
   "devDependencies": {

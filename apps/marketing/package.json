@@ -11,6 +11,7 @@
     "lint": "oxlint",
     "start": "next start -p ${PORT:-3000}",
     "test": "vitest run",
+    "transit": "true",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

@@ -5,6 +5,7 @@
   "scripts": {
     "lint": "oxlint",
     "test:e2e": "vitest run",
+    "transit": "true",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
