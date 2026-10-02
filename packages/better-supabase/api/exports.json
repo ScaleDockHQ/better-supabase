@@ -367,6 +367,7 @@
       "PgPoolClient",
       "Postgres",
       "PostgresOptions",
+      "PostgresTimeouts",
       "SqlClaims",
       "SqlClient",
       "SqlPlan",

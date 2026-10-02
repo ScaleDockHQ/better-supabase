@@ -30,9 +30,52 @@ through both and compares them.
 | `postgres.asUser(c)` | `authenticated`, with `request.jwt.claims` set, so RLS applies |
 | `postgres.anon`      | `anon`                                                         |
 
-Claims and role are transaction-local (`set_config(…, true)`, `set local
-role`), so nothing leaks back into the pool. Only `authenticated` and `anon`
-can be assumed this way.
+Claims and role are transaction-local (`set_config(…, true)`), so nothing
+leaks back into the pool. Each transaction sets them, with its timeouts, in
+one query after `begin`. Only `authenticated` and `anon` can be assumed this
+way.
+
+## Timeouts
+
+`set role` doesn't apply a role's own settings, so the `statement_timeout`
+Supabase sets on `authenticated` (8 s) and `anon` (3 s) would not limit these
+queries. `createPostgres` applies those two values per transaction instead,
+and leaves `admin` without a limit for jobs and migrations.
+
+| Option                     | Default                               | Sets                                                                   |
+| -------------------------- | ------------------------------------- | ---------------------------------------------------------------------- |
+| `statementTimeout`         | `{ authenticated: 8000, anon: 3000 }` | `statement_timeout` per transaction; a number applies to every role    |
+| `idleInTransactionTimeout` | unset                                 | `idle_in_transaction_session_timeout`, so a transaction left open ends |
+| `connectionTimeout`        | `10000`                               | how long `connect` waits for a free connection                         |
+| `idleTimeout`              | `10000`                               | how long an unused connection stays in the pool                        |
+
+```ts
+const postgres = createPostgres({
+  statementTimeout: { admin: 60_000, authenticated: 5000 },
+  idleInTransactionTimeout: 30_000,
+});
+```
+
+All values are milliseconds. `connectionTimeout` and `idleTimeout` apply to
+the pool `createPostgres` opens, not to one you pass as `pool`.
+
+## Which connection string
+
+Supabase offers three ways in, and the right one depends on where the code
+runs:
+
+| Connection                  | Host and port                       | Use it for                       |
+| --------------------------- | ----------------------------------- | -------------------------------- |
+| Direct                      | `db.<ref>.supabase.co:5432` (IPv6)  | long-running servers, migrations |
+| Supavisor, session mode     | `<region>.pooler.supabase.com:5432` | long-running servers on IPv4     |
+| Supavisor, transaction mode | `<region>.pooler.supabase.com:6543` | serverless and edge functions    |
+
+Serverless functions open a connection per invocation, so use transaction
+mode there and keep `max` small (1 to 3 per instance). Transaction mode
+doesn't keep session state between transactions, which `createPostgres`
+doesn't need: everything it sets is transaction-local. Doctor's
+[BS221](/docs/cli/doctor#bs221) flags a direct or session-mode URL in a
+serverless app.
 
 ## Transactions
 
