@@ -6,7 +6,7 @@ packages:
   - tests/types/*
 
 catalog:
-  "@ai-sdk/react": 4.0.125
+  "@ai-sdk/react": 4.0.126
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.8.0
   "@changesets/assemble-release-plan": 7.0.0
@@ -20,7 +20,7 @@ catalog:
   "@commitlint/types": 21.2.3
   "@effect/platform-node": 4.0.0-rc.117
   "@manypkg/get-packages": 3.1.0
-  "@next/playwright": 16.3.6
+  "@next/playwright": 16.3.7
   "@opentelemetry/api": 1.9.1
   "@orpc/server": 2.0.0-beta.40
   "@playwright/test": 1.63.0
@@ -36,7 +36,7 @@ catalog:
   "@tanstack/query-core": 5.104.0
   "@tanstack/react-query": 5.104.0
   "@types/mdx": 2.0.14
-  "@types/node": 24.19.0
+  "@types/node": 26.6.3
   "@types/pg": 8.23.1
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
@@ -44,7 +44,7 @@ catalog:
   "@vercel/analytics": 2.0.1
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.1
-  ai: 7.0.122
+  ai: 7.0.123
   ajv: 8.20.0
   ajv-formats: 3.0.1
   "@vitest/coverage-v8": 5.0.2
@@ -54,17 +54,17 @@ catalog:
   clsx: 2.1.1
   diff: 9.0.0
   dotenv-cli: 11.0.0
-  effect: 4.0.0-rc.117
+  effect: 4.0.0-rc.118
   fumadocs-core: 16.15.15
   fumadocs-mdx: 15.4.5
   fumadocs-twoslash: 4.0.1
   fumadocs-typescript: 5.4.1
   # Base UI build of fumadocs-ui, kept on the fumadocs-core version.
   fumadocs-ui: npm:@fumadocs/base-ui@16.15.15
-  hono: 4.13.10
+  hono: 4.13.11
   knip: 6.38.0
   lefthook: 2.1.14
-  lucide-react: 1.48.0
+  lucide-react: 1.49.0
   next: 16.3.7
   next-themes: 0.4.6
   oxfmt: 0.71.0
