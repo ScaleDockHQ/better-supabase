@@ -17,9 +17,14 @@ const meta: SchemaMeta = {
 const sb = defineSupabase(defineSchema(meta));
 const typed = defineSupabase(schema);
 
-function fakeClient() {
+function fakeClient(
+  first: (topic: string) => readonly [string, unknown?] = () => ["SUBSCRIBED"],
+) {
   const channels = new Map<string, Set<() => void>>();
-  const statusCallbacks = new Map<string, (status: string) => void>();
+  const statusCallbacks = new Map<
+    string,
+    (status: string, error?: unknown) => void
+  >();
   const client = {
     channel: vi.fn((topic: string, _options: unknown) => {
       const listeners = new Set<() => void>();
@@ -30,9 +35,10 @@ function fakeClient() {
           listeners.add(listener);
           return channel;
         },
-        subscribe: (callback: (status: string) => void) => {
+        subscribe: (callback: (status: string, error?: unknown) => void) => {
           statusCallbacks.set(topic, callback);
-          queueMicrotask(() => callback("SUBSCRIBED"));
+          const [status, error] = first(topic);
+          queueMicrotask(() => callback(status, error));
           return channel;
         },
       };
@@ -66,6 +72,129 @@ describe("liveTopic", () => {
       "bs:t:public.customers:o1",
     );
     expect(() => liveTopic(sb.meta, "customers")).toThrow(/pass `tenant`/);
+  });
+
+  it("rejects an unknown table", () => {
+    expect(() => liveTopic(sb.meta, "nope")).toThrow(/unknown table "nope"/);
+  });
+});
+
+describe("liveQuery join states", () => {
+  it("resolves ready on CLOSED and reports subscribed", async () => {
+    const { client } = fakeClient(() => ["CLOSED"]);
+    const statuses: string[] = [];
+    const live = liveQuery(sb, client, ["notes"], {
+      onChange: vi.fn(),
+      onStatus: (status) => statuses.push(status),
+    });
+    await live.ready;
+    expect(statuses).toEqual(["joining", "subscribed"]);
+    await live.unsubscribe();
+  });
+
+  it("rejects ready with the channel error, or a named one", async () => {
+    const cause = new Error("denied");
+    const { client } = fakeClient((topic) =>
+      topic.endsWith("notes") ? ["CHANNEL_ERROR", cause] : ["TIMED_OUT"],
+    );
+    const errors: (Error | undefined)[] = [];
+    const notes = liveQuery(sb, client, ["notes"], {
+      onChange: vi.fn(),
+      onStatus: (status, error) => {
+        if (status === "error") errors.push(error);
+      },
+    });
+    await expect(notes.ready).rejects.toBe(cause);
+    const customers = liveQuery(sb, client, ["customers"], {
+      tenant: "o1",
+      onChange: vi.fn(),
+    });
+    await expect(customers.ready).rejects.toThrow(
+      "Realtime timed_out on bs:t:public.customers:o1",
+    );
+    expect(errors).toEqual([cause]);
+    await notes.unsubscribe();
+    await customers.unsubscribe();
+  });
+
+  it("rejects an unknown status and wraps non-Error causes", async () => {
+    const { client } = fakeClient(() => ["WEIRD"]);
+    const errors: (Error | undefined)[] = [];
+    const live = liveQuery(sb, client, ["notes"], {
+      onChange: vi.fn(),
+      onStatus: (status, error) => {
+        if (status === "error") errors.push(error);
+      },
+    });
+    await expect(live.ready).rejects.toThrow("Unknown realtime status WEIRD");
+    expect(errors[0]?.message).toBe("Unknown realtime status WEIRD");
+
+    const { client: failing } = fakeClient(() => ["CHANNEL_ERROR", "nope"]);
+    const wrapped = liveQuery(sb, failing, ["notes"], {
+      onChange: vi.fn(),
+    });
+    await expect(wrapped.ready).rejects.toThrow("nope");
+    await live.unsubscribe();
+    await wrapped.unsubscribe();
+  });
+
+  it("wraps a rejected setAuth that is not an Error", async () => {
+    const { client, raw } = fakeClient();
+    raw.realtime.setAuth.mockRejectedValueOnce("no token");
+    const errors: (Error | undefined)[] = [];
+    const live = liveQuery(sb, client, ["notes"], {
+      onChange: vi.fn(),
+      onStatus: (status, error) => {
+        if (status === "error") errors.push(error);
+      },
+    });
+    await expect(live.ready).rejects.toThrow("no token");
+    expect(errors[0]).toBeInstanceOf(Error);
+    expect(errors[0]?.message).toBe("no token");
+    await live.unsubscribe();
+  });
+
+  it("reports closed with no broadcasting tables and never subscribes", async () => {
+    const { client, raw } = fakeClient();
+    const statuses: string[] = [];
+    const live = liveQuery(sb, client, ["organizations"], {
+      onChange: vi.fn(),
+      onStatus: (status) => statuses.push(status),
+    });
+    await live.ready;
+    expect(live.tables).toEqual([]);
+    expect(live.unwatched).toEqual(["organizations"]);
+    expect(raw.channel).not.toHaveBeenCalled();
+    expect(statuses).toEqual(["closed"]);
+  });
+
+  it("drops a pending change on unsubscribe and unsubscribes once", async () => {
+    const { client, raw, emit } = fakeClient();
+    const onChange = vi.fn();
+    const statuses: string[] = [];
+    const live = liveQuery(sb, client, ["notes"], {
+      onChange,
+      debounceMs: 5,
+      onStatus: (status) => statuses.push(status),
+    });
+    await live.ready;
+    emit("bs:t:public.notes");
+    await live.unsubscribe();
+    await live.unsubscribe();
+    await wait(15);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    expect(statuses.filter((status) => status === "closed")).toHaveLength(1);
+  });
+
+  it("disposes with using", async () => {
+    const { client, raw } = fakeClient();
+    {
+      using live = liveQuery(sb, client, ["notes"], { onChange: vi.fn() });
+      await live.ready;
+    }
+    await wait(1);
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -214,6 +343,59 @@ describe("liveCount", () => {
     release(3);
     await wait(5);
     expect(counts).toEqual([7]);
+    await live.unsubscribe();
+  });
+
+  it("passes tenant, debounce and status through, and ignores answers after dispose", async () => {
+    const { client, raw, emit } = fakeClient();
+    let release: (value: number) => void = () => undefined;
+    const run = vi.fn(() =>
+      AsyncResult.from(async () => ({
+        ok: true as const,
+        data: await new Promise<number>((resolve) => {
+          release = resolve;
+        }),
+        error: null,
+      })),
+    );
+    const counts: number[] = [];
+    const statuses: string[] = [];
+    {
+      using live = liveCount(
+        sb,
+        client,
+        { $run: run },
+        typed.spec.customers.count(),
+        {
+          tenant: "o1",
+          debounceMs: 1,
+          onCount: (count) => counts.push(count),
+          onStatus: (status) => statuses.push(status),
+        },
+      );
+      await live.ready;
+      expect(raw.channel).toHaveBeenCalledWith("bs:t:public.customers:o1", {
+        config: { private: true },
+      });
+    }
+    release(4);
+    await wait(5);
+    emit("bs:t:public.customers:o1");
+    await wait(5);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(counts).toEqual([]);
+    expect(statuses).toEqual(["joining", "subscribed", "closed"]);
+  });
+
+  it("drops errors without onError", async () => {
+    const { client } = fakeClient();
+    const run = vi.fn(() => AsyncResult.err(dbError("network", "offline")));
+    const onCount = vi.fn();
+    const live = liveCount(sb, client, { $run: run }, spec, { onCount });
+    await live.ready;
+    await wait(1);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(onCount).not.toHaveBeenCalled();
     await live.unsubscribe();
   });
 });

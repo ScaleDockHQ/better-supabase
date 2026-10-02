@@ -16,6 +16,25 @@
   message, and runs `turbo run lint typecheck test --affected` on push.
 - Commit headers stay under 73 characters and body lines under 101.
 
+## Tests and coverage
+
+- Coverage counts every file in `packages/better-supabase/src` except
+  `cli/bin.ts`, from unit tests only. Code that needs a database or the
+  network gets a fake from `tests/fixtures` (`fake-sql`, `fake-pg-pool`,
+  `fake-fetch`, `fake-storage`, `fake-connect`) or an injectable seam with a
+  default, such as `connect(url, load)` or `createPostgres({ pool })`.
+- `thresholds.autoUpdate` rewrites `vitest.config.ts` when coverage grows.
+  Commit that change; never lower a threshold to make a run pass.
+- `tests/standards` holds one conformance test per adopted standard. Tests
+  that have an official JSON Schema validate against a vendored copy in
+  `tests/standards/schemas`; `sources.test.ts` fails when a file's SHA-256
+  differs from `SOURCES.md`. Ajv needs two adjustments, both noted there:
+  the draft-04 SARIF schema has its `id` renamed to `$id`, and the OpenAPI
+  schemas have `$dynamicRef` rewritten to a static `$ref`.
+- The `index.ts` of storage, jobs, mcp, list, next, realtime, config, query,
+  react and webhooks only re-exports; `tests/entries.test.ts` enforces it.
+  Put code in a sibling module.
+
 ## Changesets and releases
 
 - `pnpm version-packages` runs `scripts/root-changelog.ts` before

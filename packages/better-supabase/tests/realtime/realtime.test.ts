@@ -30,7 +30,16 @@ const title: StandardSchemaV1<unknown, { title: string }> = {
 
 type Listener = (message: { event: string; payload: unknown }) => void;
 
-function fakeClient(status: "SUBSCRIBED" | "CHANNEL_ERROR" = "SUBSCRIBED") {
+type SendAnswer =
+  | { success: true }
+  | { success: false; status: number; error: string };
+
+function fakeClient(
+  status: string = "SUBSCRIBED",
+  error: Error | null = status === "SUBSCRIBED"
+    ? null
+    : new Error("Unauthorized"),
+) {
   const listeners: Listener[] = [];
   const removed: unknown[] = [];
   const channel = {
@@ -38,16 +47,15 @@ function fakeClient(status: "SUBSCRIBED" | "CHANNEL_ERROR" = "SUBSCRIBED") {
       listeners.push(listener);
       return channel;
     },
-    subscribe: (callback: (status: string, error?: Error) => void) => {
-      queueMicrotask(() =>
-        callback(
-          status,
-          status === "SUBSCRIBED" ? undefined : new Error("Unauthorized"),
-        ),
-      );
+    subscribe: vi.fn((callback: (status: string, error?: Error) => void) => {
+      queueMicrotask(() => callback(status, error ?? undefined));
       return channel;
-    },
-    httpSend: vi.fn(async () => ({ success: true as const })),
+    }),
+    httpSend: vi.fn(
+      async (_event: string, _payload: unknown): Promise<SendAnswer> => ({
+        success: true,
+      }),
+    ),
   };
   const client = {
     channel: vi.fn(() => channel),
@@ -249,6 +257,271 @@ describe("defineTopic", () => {
       .orThrow();
     expect(channel.httpSend).toHaveBeenCalledWith("created", { title: "Hi" });
   });
+
+  it("maps failed sends to DbError kinds and removes the channel", async () => {
+    const room = defineTopic("room:{roomId}", { private: false });
+    const cases: [number, string, number][] = [
+      [401, "unauthorized", 401],
+      [403, "forbidden", 403],
+      [429, "network", 429],
+      [502, "network", 502],
+      [0, "network", 503],
+      [418, "invalid_request", 418],
+    ];
+    for (const [status, kind, reported] of cases) {
+      const { client, raw, channel, removed } = fakeClient();
+      channel.httpSend.mockResolvedValueOnce({
+        success: false,
+        status,
+        error: `failed ${status}`,
+      });
+      const result = await room.send(client, { roomId: "r1" }, "ping", {});
+      expect(result.error).toMatchObject({ kind, message: `failed ${status}` });
+      expect((result.error as { status?: number } | null)?.status).toBe(
+        reported,
+      );
+      expect(raw.realtime.setAuth).not.toHaveBeenCalled();
+      expect(raw.channel).toHaveBeenCalledWith("room:r1", {
+        config: { private: false },
+      });
+      expect(removed).toEqual([channel]);
+    }
+  });
+
+  it("joins public topics without setAuth and passes self", async () => {
+    const room = defineTopic("room:{roomId}", { private: false });
+    const { client, raw } = fakeClient();
+    const subscription = room.subscribe(
+      client,
+      { roomId: "r1" },
+      {},
+      { self: true },
+    );
+    await subscription.ready;
+    expect(raw.realtime.setAuth).not.toHaveBeenCalled();
+    expect(raw.channel).toHaveBeenCalledWith("room:r1", {
+      config: { private: false, broadcast: { self: true } },
+    });
+  });
+
+  it("ignores events without a handler and validates nothing for unknown events", async () => {
+    const { client, emit } = fakeClient();
+    const created = vi.fn();
+    const subscription = notifications.subscribe(
+      client,
+      { orgId: "o1", userId: "u1" },
+      { created },
+    );
+    await subscription.ready;
+    emit("deleted", { id: 1 });
+    emit("created", { title: "Yo" });
+    await flush();
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(created).toHaveBeenCalledWith({ title: "Yo" }, expect.anything());
+  });
+
+  it("reports issues without a path and keeps numeric path parts", async () => {
+    const strict: StandardSchemaV1 = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) =>
+          value === "flat"
+            ? { issues: [{ message: "flat issue" }] }
+            : { issues: [{ message: "deep issue", path: [0, "x"] }] },
+      },
+    };
+    const topic = defineTopic("room:{roomId}", { events: { msg: strict } });
+    const { client, emit } = fakeClient();
+    const onInvalid = vi.fn();
+    const subscription = topic.subscribe(
+      client,
+      { roomId: "r1" },
+      { msg: vi.fn() },
+      { onInvalid },
+    );
+    await subscription.ready;
+    emit("msg", "flat");
+    emit("msg", "deep");
+    await flush();
+    expect(onInvalid.mock.calls.map((call) => call[1])).toEqual([
+      [{ message: "flat issue" }],
+      [{ message: "deep issue", path: [0, "x"] }],
+    ]);
+    // Without onInvalid an invalid payload is dropped.
+    const quiet = topic.subscribe(client, { roomId: "r1" }, { msg: vi.fn() });
+    await quiet.ready;
+    emit("msg", "flat");
+    await flush();
+  });
+
+  it("resolves ready on CLOSED and names a refusal without an error", async () => {
+    const closed = fakeClient("CLOSED");
+    const statuses: string[] = [];
+    const subscription = notifications.subscribe(
+      closed.client,
+      { orgId: "o1", userId: "u1" },
+      {},
+      { onStatus: (status) => statuses.push(status) },
+    );
+    await subscription.ready;
+    expect(statuses).toEqual(["joining", "closed"]);
+
+    const timedOut = fakeClient("TIMED_OUT", null);
+    await expect(
+      notifications.subscribe(
+        timedOut.client,
+        { orgId: "o1", userId: "u1" },
+        {},
+      ).ready,
+    ).rejects.toThrow("Realtime timed_out on org:o1:notifications:u1");
+
+    const weird = fakeClient("WEIRD", null);
+    await expect(
+      notifications.subscribe(weird.client, { orgId: "o1", userId: "u1" }, {})
+        .ready,
+    ).rejects.toThrow("Unknown realtime status WEIRD");
+  });
+
+  it("skips the join when unsubscribed during setAuth and unsubscribes once", async () => {
+    const { client, raw, channel } = fakeClient();
+    let release: () => void = () => undefined;
+    raw.realtime.setAuth.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          release = () => resolve(undefined);
+        }),
+    );
+    const subscription = notifications.subscribe(
+      client,
+      { orgId: "o1", userId: "u1" },
+      {},
+    );
+    await subscription.unsubscribe();
+    await subscription.unsubscribe();
+    release();
+    await subscription.ready;
+    expect(channel.subscribe).not.toHaveBeenCalled();
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("disposes asynchronously with await using", async () => {
+    const { client, removed } = fakeClient();
+    {
+      await using subscription = notifications.subscribe(
+        client,
+        { orgId: "o1", userId: "u1" },
+        {},
+      );
+      await subscription.ready;
+    }
+    expect(removed).toHaveLength(1);
+  });
+});
+
+describe("defineTopic policies", () => {
+  it("falls back to the name 'topic' for an all-parameter template", () => {
+    expect(defineTopic("{roomId}").name).toBe("topic");
+    expect(defineTopic("room:{roomId}", { name: "Lobby" }).name).toBe("lobby");
+  });
+
+  it("uses a custom tenant claim, param or SQL", () => {
+    expect(
+      defineTopic("team:{teamId}", {
+        tenant: { param: "teamId", claim: "app_metadata.team_id" },
+      }).sql(),
+    ).toContain(
+      "split_part((select realtime.topic()), ':', 2) = ((select auth.jwt()) -> 'app_metadata' ->> 'team_id')",
+    );
+    expect(
+      defineTopic("org:{orgId}", { tenant: { sql: "private.org_id()" } }).sql(),
+    ).toContain(
+      "split_part((select realtime.topic()), ':', 2) = (private.org_id())",
+    );
+  });
+
+  it("throws when a checked parameter is not a whole segment", () => {
+    expect(() => defineTopic("org-{orgId}", { tenant: {} })).toThrow(
+      /the tenant check needs \{orgId\} as a whole segment in "org-\{orgId\}"/,
+    );
+    expect(() => defineTopic("user-{userId}", { owner: {} })).toThrow(
+      /the owner check needs \{userId\}/,
+    );
+    expect(() =>
+      defineTopic("org-{orgId}", {
+        permdock: { receive: "a.read", scope: "organization" },
+      }),
+    ).toThrow(/the PermDock check needs \{orgId\}/);
+  });
+
+  it("drops the tenant and owner checks when disabled", () => {
+    const sql = defineTopic("org:{orgId}:inbox:{userId}", {
+      tenant: false,
+      owner: false,
+    }).sql();
+    expect(sql).not.toContain("split_part");
+  });
+
+  it("uses an explicit PermDock segment and the default orgId without a tenant", () => {
+    expect(
+      defineTopic("x:{a}:{orgId}", {
+        tenant: false,
+        permdock: { receive: "a.read", scope: "organization" },
+      }).sql(),
+    ).toContain("split_part((select realtime.topic()), ':', 3) in");
+    expect(
+      defineTopic("x:{a}:{b}", {
+        permdock: { receive: "a.read", scope: "organization", segment: 2 },
+      }).sql(),
+    ).toContain("split_part((select realtime.topic()), ':', 2) in");
+  });
+
+  it("authorizes presence and adds a send policy for it", () => {
+    const sql = defineTopic("room:{roomId}", { presence: true }).sql();
+    expect(sql).toContain(
+      "realtime.messages.extension in ('broadcast', 'presence')",
+    );
+    expect(sql).toContain(
+      '"bs_topic_room_send" on realtime.messages for insert',
+    );
+  });
+});
+
+describe("triggerSql", () => {
+  const customers = defineTopic(topics.customers);
+
+  it("rejects unknown tables and unmapped parameters", () => {
+    expect(() =>
+      // @ts-expect-error unknown table
+      customers.triggerSql(sb, "nope", { values: { orgId: "id" } }),
+    ).toThrow('defineTopic: unknown table "nope"');
+    expect(() =>
+      customers.triggerSql(sb, "customers", {
+        // @ts-expect-error missing value
+        values: {},
+      }),
+    ).toThrow('defineTopic: no column for {orgId} on "customers"');
+    expect(() =>
+      customers.triggerSql(sb, "customers", {
+        // @ts-expect-error unknown column
+        values: { orgId: "missing" },
+      }),
+    ).toThrow('defineTopic: no column for {orgId} on "customers"');
+  });
+
+  it("uses the given events and function schema", () => {
+    const sql = customers.triggerSql(sb, "customers", {
+      values: { orgId: "organizationId" },
+      events: ["insert"],
+      functionSchema: "private",
+    });
+    expect(sql).toContain(
+      'create or replace function "private"."bs_broadcast_org_customers_customers"()',
+    );
+    expect(sql).toContain(
+      'create trigger "bs_broadcast_org_customers" after insert on "public"."customers"',
+    );
+  });
 });
 
 describe("rowChange", () => {
@@ -271,5 +544,40 @@ describe("rowChange", () => {
       oldRecord: { id: "c1", name: "Old" },
     });
     expect(rowChange(sb, "notes", message)).toBeNull();
+  });
+
+  it("falls back to the event name and keeps null records", () => {
+    expect(
+      rowChange(sb, "customers", {
+        event: "INSERT",
+        topic: "org:o1:customers",
+        payload: { table: "customers", record: { id: "c1" }, old_record: null },
+      }),
+    ).toEqual({
+      operation: "INSERT",
+      table: "customers",
+      record: { id: "c1" },
+      oldRecord: null,
+    });
+    expect(
+      rowChange(sb, "customers", {
+        event: "x",
+        topic: "t",
+        payload: { table: "customers", operation: "DELETE", record: null },
+      }),
+    ).toMatchObject({ operation: "DELETE", record: null, oldRecord: null });
+  });
+
+  it("returns null for other schemas, unknown operations, empty payloads and unknown tables", () => {
+    const at = (payload: unknown, event = "UPDATE") =>
+      rowChange(sb, "customers", { event, topic: "t", payload });
+    expect(at({ table: "customers", schema: "audit" })).toBeNull();
+    expect(at({ table: "customers", operation: "TRUNCATE" })).toBeNull();
+    expect(at({ table: "customers" }, "custom")).toBeNull();
+    expect(at(null)).toBeNull();
+    expect(
+      // @ts-expect-error unknown table
+      rowChange(sb, "nope", { event: "UPDATE", topic: "t", payload: {} }),
+    ).toBeNull();
   });
 });

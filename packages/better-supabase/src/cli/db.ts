@@ -15,8 +15,13 @@ interface PgModule {
   Client: new (options: { connectionString: string }) => PgClient;
 }
 
+const loadPg = (): Promise<unknown> => import("pg");
+
 /** Opens a `pg` connection. `pg` is an optional peer, loaded on demand. */
-export async function connect(url: string): Promise<{
+export async function connect(
+  url: string,
+  load: () => Promise<unknown> = loadPg,
+): Promise<{
   client: PgQueryable;
   close: () => Promise<void>;
   describe: string;
@@ -24,8 +29,7 @@ export async function connect(url: string): Promise<{
   let pg: PgModule;
   try {
     // SAFETY: pg is an optional peer loaded without its types.
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- pg is an optional peer loaded without its types.
-    const mod = (await import("pg")) as unknown as {
+    const mod = (await load()) as {
       default?: PgModule;
     } & PgModule;
     pg = mod.default ?? mod;

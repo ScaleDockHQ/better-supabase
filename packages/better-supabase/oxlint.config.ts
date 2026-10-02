@@ -63,7 +63,7 @@ export default defineConfig({
         "src/postgres/pool.ts",
         "src/testing/**",
         "src/cli/run.ts",
-        "src/next/index.ts",
+        "src/next/create.ts",
         "src/server/respond.ts",
       ],
       rules: { "node/no-process-env": "off" },

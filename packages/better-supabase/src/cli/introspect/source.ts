@@ -15,8 +15,11 @@ export interface IntrospectionSource {
  * A `pg` connection. Typegen issues its queries concurrently; one `pg.Client`
  * must run them one at a time, so calls are queued.
  */
-export async function pgSource(url: string): Promise<IntrospectionSource> {
-  const { client, close, describe } = await connect(url);
+export async function pgSource(
+  url: string,
+  open: typeof connect = connect,
+): Promise<IntrospectionSource> {
+  const { client, close, describe } = await open(url);
   let queue: Promise<unknown> = Promise.resolve();
   const queryable: Queryable = {
     query(sql: string) {

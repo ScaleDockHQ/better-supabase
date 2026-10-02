@@ -44,8 +44,10 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
     case "none":
       break;
     default: {
-      const exhaustive: never = ctx.authMode;
-      return exhaustive;
+      const unknown: never = ctx.authMode;
+      throw new TypeError(
+        `contextFromSupabase: unknown auth mode "${String(unknown)}"`,
+      );
     }
   }
   return {

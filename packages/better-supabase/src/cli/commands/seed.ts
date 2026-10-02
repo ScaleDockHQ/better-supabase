@@ -28,6 +28,7 @@ export async function runSeed(
   config: ResolvedConfig,
   args: ParsedArgs,
   env: Readonly<Record<string, string | undefined>>,
+  open: typeof connect = connect,
 ): Promise<CommandResult> {
   const entry = flagString(args.flags, "entry") ?? config.seed.entry;
   const out = flagString(args.flags, "out") ?? config.seed.output;
@@ -62,7 +63,7 @@ export async function runSeed(
     `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)} (${statements.length} table${statements.length === 1 ? "" : "s"})`,
   ];
   if (flagBool(args.flags, "apply")) {
-    const { client, close } = await connect(
+    const { client, close } = await open(
       await databaseUrl(config, env, flagString(args.flags, "db-url")),
     );
     try {

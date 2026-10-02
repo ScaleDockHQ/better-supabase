@@ -44,6 +44,8 @@ catalog:
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.1
   ai: 7.0.122
+  ajv: 8.20.0
+  ajv-formats: 3.0.1
   "@vitest/coverage-v8": 5.0.2
   better-result: 3.0.1
   class-variance-authority: 0.7.1

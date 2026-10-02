@@ -10,6 +10,7 @@ import type { Snapshot } from "../introspect/types.ts";
 import type { CommandResult } from "../io.ts";
 
 import { flagBool, flagList, flagString } from "../args.ts";
+import { connect } from "../db.ts";
 import {
   type AdvisorSource,
   managementAdvisors,
@@ -175,6 +176,8 @@ export interface DoctorOptions {
   readonly advisors?: DoctorContext["advisors"];
   /** The live database (tests); otherwise the database being checked. */
   readonly database?: DoctorContext["database"];
+  /** Opens `pg` connections (tests); defaults to `connect`. */
+  readonly connect?: typeof connect;
 }
 
 /** Checks that read the database itself rather than the snapshot. */
@@ -197,6 +200,7 @@ function openLive(
   config: ResolvedConfig,
   env: Env,
   source: SnapshotSource,
+  pg: typeof connect,
 ): OpenLive {
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
@@ -206,7 +210,7 @@ function openLive(
   }
   let opened: Promise<IntrospectionSource> | undefined;
   const open = (): Promise<IntrospectionSource> =>
-    (opened ??= openSource(config, env, source));
+    (opened ??= openSource(config, env, source, pg));
   const target = managementTarget(config, env, source);
   const database: LiveDatabase = {
     describe: target
@@ -323,8 +327,9 @@ export async function runDoctor(
     ...(dbUrl ? { dbUrl } : {}),
     ...(projectRef ? { projectRef } : {}),
   };
+  const pg = options.connect ?? connect;
   const snapshot =
-    options.snapshot ?? (await loadSnapshot(config, env, source));
+    options.snapshot ?? (await loadSnapshot(config, env, source, pg));
   const wantsLive =
     hookUser !== undefined || rules.some((rule) => LIVE_CODES.has(rule.code));
   const opened: OpenLive =
@@ -335,7 +340,7 @@ export async function runDoctor(
           close: () => Promise.resolve(),
         }
       : {
-          ...openLive(config, env, source),
+          ...openLive(config, env, source, pg),
           ...(options.advisors !== undefined
             ? { advisors: options.advisors }
             : {}),

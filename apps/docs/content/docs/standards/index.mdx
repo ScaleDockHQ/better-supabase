@@ -18,37 +18,42 @@ explicit change.
 
 ## Registry
 
-| Standard | Posture | Where |
-|---|---|---|
-| [Standard Schema v1](https://standardschema.dev) | Adopted | validation plugin, `route()`/`action()` inputs, `/list`, `/env`, typed jsonb, `defineRpc` |
-| [Standard JSON Schema](https://standardschema.dev/json-schema) | Adopted | converting user schemas for OpenAPI and [MCP tools](/docs/frameworks/mcp#custom-tools) |
-| [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) | Adopted | generated table schemas, config, doctor report and metadata `$schema` URLs |
-| [OpenAPI 3.1 / 3.2](https://spec.openapis.org/oas/v3.2.0) | Adopted | [`/openapi`](/docs/standards/openapi), `better-supabase openapi emit` |
-| [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) | Adopted | `toProblem()`, every server adapter |
-| [RFC 6750 Bearer tokens](https://www.rfc-editor.org/rfc/rfc6750) | Adopted | `WWW-Authenticate` on 401, `insufficient_scope` on 403 from `/mcp`, `resolveAuth` |
-| [RFC 9728 Protected Resource Metadata](https://www.rfc-editor.org/rfc/rfc9728) | Adopted | [`/mcp`](/docs/frameworks/mcp): the metadata document, `scopes_supported` and `resource_metadata` in every challenge |
-| [RFC 7518 ES256 JSON Web Keys](https://www.rfc-editor.org/rfc/rfc7518#section-3.4) | Adopted | `better-supabase keys`, the local stack and [`asUser`](/docs/testing) sign with ES256; HS256 is explicit and local-only |
-| [MCP 2026-07-28 (Streamable HTTP, authorization)](https://modelcontextprotocol.io/specification/2026-07-28) | Adopted (pinned) | [`/mcp`](/docs/frameworks/mcp) serves stateless 2026-07-28 requests and the 2025-11-25, 2025-06-18 and 2025-03-26 handshake |
-| [OpenTelemetry DB semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/) | Adopted (pinned) | [`/otel`](/docs/standards/otel) |
-| [W3C Server Timing (Working Draft)](https://www.w3.org/TR/2026/WD-server-timing-20260407/) | Adopted (pinned) | `next.proxy({ serverTiming: true })` emits `bs-proxy` and `bs-verify` ([middleware](/docs/auth/middleware#server-timing)) |
-| [W3C Trace Context](https://www.w3.org/TR/trace-context/) | Adopted | `/otel` propagates `traceparent` through the supabase-js `fetch` |
-| [CloudEvents 1.0](https://cloudevents.io) | Adopted | [`/events`](/docs/standards/events) |
-| [Standard Webhooks](https://www.standardwebhooks.com) | Adopted | [`/webhooks`](/docs/standards/webhooks) (Supabase Auth hooks, database webhooks), the [webhook inbox](/docs/kits/jobs#webhook-inbox) |
-| [Idempotency-Key header (IETF draft)](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) | Adopted (draft) | [`/jobs`](/docs/kits/jobs#idempotency-keys) |
-| [pgTAP](https://pgtap.org) | Adopted | [`sql add pgtap`](/docs/testing#pgtap) |
-| [WinterTC minimum common API](https://min-common-api.proposal.wintertc.org) | Adopted | runtime entries import no Node built-ins (checked in CI) |
-| [AbortSignal](https://dom.spec.whatwg.org/#interface-AbortSignal) | Adopted | every repository, storage and RPC call takes `signal` |
-| [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) | Adopted | `await using tx`, `using sub` |
-| [PostgREST aggregate functions (12+)](https://docs.postgrest.org/en/v12/references/api/aggregate_functions.html) | Adopted (pinned) | [`aggregate()` and `_sum`/`_avg`/`_min`/`_max` includes](/docs/repository/aggregates) |
-| [Stripe Sync Engine schema](https://github.com/supabase/stripe-sync-engine/tree/v0.48.5/packages/sync-engine/src/database/migrations) | Adopted (pinned) | the [`entitlements` kit module](/docs/kits/entitlements) reads `stripe.active_entitlements` |
-| [pgvector iterative index scans (0.8+)](https://github.com/pgvector/pgvector#iterative-index-scans) | Adopted (pinned) | the [`vector-search` kit module](/docs/kits/vector-search) sets `hnsw.iterative_scan` |
-| [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | Adopted | `doctor --format sarif` |
-| [Agent Skills](https://agentskills.io) | Adopted | `skills/` in the package, `npx skills add ScaleDockHQ/better-supabase`, `better-supabase skills install` ([for AI agents](/docs/for-ai-agents)) |
-| [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org) | Adopted | repo root and these docs (`/llms.txt`, `/llms-full.txt`, `/docs/<page>.md`) |
-| [MCP Registry `server.json`](https://github.com/modelcontextprotocol/registry) | Adopted | the read-only docs MCP server at `/mcp` ([for AI agents](/docs/for-ai-agents#docs-mcp-server)) |
-| [npm provenance](https://docs.npmjs.com/generating-provenance-statements) | Adopted | release workflow |
-| [AsyncAPI 3](https://www.asyncapi.com/docs/reference/specification/v3.0.0) | Tracked | describing realtime topics |
-| [OpenFeature](https://openfeature.dev) | Tracked | feature flags in context |
+Each adopted standard has a conformance test in
+`packages/better-supabase/tests/standards`. Where an official JSON Schema
+exists (OpenAPI, SARIF, CloudEvents, MCP, the MCP Registry), the test
+validates the output against a vendored copy of it.
+
+| Standard | Posture | Where | Tests |
+|---|---|---|---|
+| [Standard Schema v1](https://standardschema.dev) | Adopted | validation plugin, `route()`/`action()` inputs, `/list`, `/env`, typed jsonb, `defineRpc` | `standard-schema.test.ts` |
+| [Standard JSON Schema](https://standardschema.dev/json-schema) | Adopted | converting user schemas for OpenAPI and [MCP tools](/docs/frameworks/mcp#custom-tools) | `standard-schema.test.ts` |
+| [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) | Adopted | generated table schemas, config, doctor report and metadata `$schema` URLs | `json-schema-2020-12.test.ts` |
+| [OpenAPI 3.1 / 3.2](https://spec.openapis.org/oas/v3.2.0) | Adopted | [`/openapi`](/docs/standards/openapi), `better-supabase openapi emit` | `openapi.test.ts` |
+| [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) | Adopted | `toProblem()`, every server adapter | `rfc9457-problem-details.test.ts` |
+| [RFC 6750 Bearer tokens](https://www.rfc-editor.org/rfc/rfc6750) | Adopted | `WWW-Authenticate` on 401, `insufficient_scope` on 403 from `/mcp`, `resolveAuth` | `rfc6750-bearer.test.ts` |
+| [RFC 9728 Protected Resource Metadata](https://www.rfc-editor.org/rfc/rfc9728) | Adopted | [`/mcp`](/docs/frameworks/mcp): the metadata document, `scopes_supported` and `resource_metadata` in every challenge | `rfc9728-protected-resource.test.ts` |
+| [RFC 7518 ES256 JSON Web Keys](https://www.rfc-editor.org/rfc/rfc7518#section-3.4) | Adopted | `better-supabase keys`, the local stack and [`asUser`](/docs/testing) sign with ES256; HS256 is explicit and local-only | `rfc7518-es256.test.ts` |
+| [MCP 2026-07-28 (Streamable HTTP, authorization)](https://modelcontextprotocol.io/specification/2026-07-28) | Adopted (pinned) | [`/mcp`](/docs/frameworks/mcp) serves stateless 2026-07-28 requests and the 2025-11-25, 2025-06-18 and 2025-03-26 handshake | `mcp.test.ts` |
+| [OpenTelemetry DB semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/) | Adopted (pinned) | [`/otel`](/docs/standards/otel) | `otel-semconv.test.ts` |
+| [W3C Server Timing (Working Draft)](https://www.w3.org/TR/2026/WD-server-timing-20260407/) | Adopted (pinned) | `next.proxy({ serverTiming: true })` emits `bs-proxy` and `bs-verify` ([middleware](/docs/auth/middleware#server-timing)) | `w3c-server-timing.test.ts` |
+| [W3C Trace Context](https://www.w3.org/TR/trace-context/) | Adopted | `/otel` propagates `traceparent` through the supabase-js `fetch` | `w3c-trace-context.test.ts` |
+| [CloudEvents 1.0](https://cloudevents.io) | Adopted | [`/events`](/docs/standards/events) | `cloudevents.test.ts` |
+| [Standard Webhooks](https://www.standardwebhooks.com) | Adopted | [`/webhooks`](/docs/standards/webhooks) (Supabase Auth hooks, database webhooks), the [webhook inbox](/docs/kits/jobs#webhook-inbox) | `standard-webhooks.test.ts` |
+| [Idempotency-Key header (IETF draft)](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) | Adopted (draft) | [`/jobs`](/docs/kits/jobs#idempotency-keys) | `idempotency-key.test.ts` |
+| [pgTAP](https://pgtap.org) | Adopted | [`sql add pgtap`](/docs/testing#pgtap) | `sql-kit-standards.test.ts` |
+| [WinterTC minimum common API](https://min-common-api.proposal.wintertc.org) | Adopted | runtime entries import no Node built-ins (checked in CI) | `wintertc.test.ts` |
+| [AbortSignal](https://dom.spec.whatwg.org/#interface-AbortSignal) | Adopted | every repository, storage and RPC call takes `signal` | `abort-signal.test.ts` |
+| [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) | Adopted | `await using tx`, `using sub` | `explicit-resource-management.test.ts` |
+| [PostgREST aggregate functions (12+)](https://docs.postgrest.org/en/v12/references/api/aggregate_functions.html) | Adopted (pinned) | [`aggregate()` and `_sum`/`_avg`/`_min`/`_max` includes](/docs/repository/aggregates) | `postgrest-aggregates.test.ts` |
+| [Stripe Sync Engine schema](https://github.com/supabase/stripe-sync-engine/tree/v0.48.5/packages/sync-engine/src/database/migrations) | Adopted (pinned) | the [`entitlements` kit module](/docs/kits/entitlements) reads `stripe.active_entitlements` | `sql-kit-standards.test.ts` |
+| [pgvector iterative index scans (0.8+)](https://github.com/pgvector/pgvector#iterative-index-scans) | Adopted (pinned) | the [`vector-search` kit module](/docs/kits/vector-search) sets `hnsw.iterative_scan` | `sql-kit-standards.test.ts` |
+| [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | Adopted | `doctor --format sarif` | `sarif.test.ts` |
+| [Agent Skills](https://agentskills.io) | Adopted | `skills/` in the package, `npx skills add ScaleDockHQ/better-supabase`, `better-supabase skills install` ([for AI agents](/docs/for-ai-agents)) | `agent-standards.test.ts` |
+| [AGENTS.md](https://agents.md) and [llms.txt](https://llmstxt.org) | Adopted | repo root and these docs (`/llms.txt`, `/llms-full.txt`, `/docs/<page>.md`) | `agent-standards.test.ts` |
+| [MCP Registry `server.json`](https://github.com/modelcontextprotocol/registry) | Adopted | the read-only docs MCP server at `/mcp` ([for AI agents](/docs/for-ai-agents#docs-mcp-server)) | `mcp-registry-server-json.test.ts` |
+| [npm provenance](https://docs.npmjs.com/generating-provenance-statements) | Adopted | release workflow | `npm-provenance.test.ts` |
+| [AsyncAPI 3](https://www.asyncapi.com/docs/reference/specification/v3.0.0) | Tracked | describing realtime topics |  |
+| [OpenFeature](https://openfeature.dev) | Tracked | feature flags in context |  |
 
 ## Pins
 

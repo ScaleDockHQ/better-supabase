@@ -6,6 +6,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
+import { connect } from "../db.ts";
 import { introspect } from "../introspect/index.ts";
 import {
   type IntrospectionSource,
@@ -71,11 +72,12 @@ export async function openSource(
   config: ResolvedConfig,
   env: Env,
   source: SnapshotSource,
+  open: typeof connect = connect,
 ): Promise<IntrospectionSource> {
-  if (source.dbUrl) return pgSource(source.dbUrl);
+  if (source.dbUrl) return pgSource(source.dbUrl, open);
   const target = managementTarget(config, env, source);
   if (target) return managementSource(target);
-  return pgSource(await databaseUrl(config, env));
+  return pgSource(await databaseUrl(config, env), open);
 }
 
 /** Whether `loadSnapshot` reads a saved file rather than a database. */
@@ -96,12 +98,13 @@ export async function loadSnapshot(
   config: ResolvedConfig,
   env: Env,
   source: SnapshotSource,
+  open: typeof connect = connect,
 ): Promise<Snapshot> {
   const path = snapshotFile(config, source);
   if (path) return readSnapshotFile(resolve(config.root, path), path);
   const toml = await readSupabaseToml(config.root);
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
-  const db = await openSource(config, env, source);
+  const db = await openSource(config, env, source, open);
   try {
     return await introspect(
       db.queryable,

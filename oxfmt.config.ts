@@ -11,6 +11,7 @@ export default oxfmt({
     "apps/examples/**/lib/supabase/generated.ts",
     "tests/validation-*/src/generated.ts",
     "packages/better-supabase/api/**",
+    "packages/better-supabase/tests/standards/schemas/**",
     "apps/marketing/components/ui/**",
     "apps/marketing/components/reui/**",
     "**/*.md",

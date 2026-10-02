@@ -48,6 +48,20 @@ await postgres.transaction(
 A thrown error rolls everything back. Plugins run as usual inside the
 transaction.
 
+## An existing pool
+
+Pass `pool` to run on a pool you already have, such as the app's `pg.Pool`
+or a test double. Anything with `connect()` and `end()` works (the `PgPool`
+type), and `postgres.end()` ends it.
+
+```ts
+import { Pool } from 'pg';
+import { createPostgres } from 'better-supabase/postgres';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
+await using postgres = createPostgres({ pool });
+```
+
 ## When to use it
 
 - jobs, scripts and webhook handlers (with `actingAs` for user-scoped work);

@@ -250,5 +250,215 @@ describe("defineListQuery", () => {
         defaultSort: "name",
       }),
     ).toThrow(/reserved/);
+    expect(() =>
+      // @ts-expect-error unknown table
+      defineListQuery(sb, "nope", {
+        sorts: { name: { name: "asc" } },
+        defaultSort: "name",
+      }),
+    ).toThrow('defineListQuery: unknown table "nope"');
+    expect(() =>
+      defineListQuery(sb, "customers", {
+        // @ts-expect-error unknown column
+        facets: { color: "color" },
+        sorts: { name: { name: "asc" } },
+        defaultSort: "name",
+      }),
+    ).toThrow('defineListQuery: unknown column "customers.color"');
+  });
+
+  it("rejects inputs that are not objects or have bad values", () => {
+    // @ts-expect-error not an object
+    expect(list.parse("q=x")).toEqual({
+      ok: false,
+      issues: [{ message: "Expected an object or URL parameters" }],
+    });
+    expect(list.parse({ q: 5 as unknown as string }).issues).toEqual([
+      { message: "Must be text", path: ["q"] },
+    ]);
+    expect(
+      list.parse({ q: null as unknown as string }).value?.q,
+    ).toBeUndefined();
+    expect(list.parse({ q: "   " }).value).not.toHaveProperty("q");
+    expect(
+      list.parse({ facets: { status: "active" as unknown as string[] } }),
+    ).toEqual({
+      ok: false,
+      issues: [
+        { message: "Must be a list of values", path: ["facets", "status"] },
+      ],
+    });
+    expect(
+      list.parse({ facets: { status: [1] as unknown as string[] } }).issues,
+    ).toEqual([
+      { message: "Must be a list of values", path: ["facets", "status"] },
+    ]);
+  });
+
+  it("reads a Next.js searchParams record with repeated keys as URL input", () => {
+    expect(
+      list.parse({
+        status: ["active", "lead,archived"],
+        page: "2",
+        q: undefined,
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        sort: "newest",
+        page: 2,
+        size: 25,
+        facets: { status: ["active", "lead", "archived"] },
+      },
+    });
+  });
+
+  it("accepts typed numbers and rejects fractions, text and empty sorts", () => {
+    expect(list.parse({ page: 2, size: 10 })).toMatchObject({
+      ok: true,
+      value: { page: 2, size: 10 },
+    });
+    expect(list.parse({ sort: "" as "name" }).value?.sort).toBe("newest");
+    expect(
+      list
+        .parse({ page: 1.5, size: "ten" as unknown as number })
+        .issues?.map((issue) => issue.path),
+    ).toEqual([["page"], ["size"]]);
+    expect(list.parse(new URLSearchParams("page=&size=")).value).toMatchObject({
+      page: 1,
+      size: 25,
+    });
+  });
+
+  it("builds filters for empty-only, mixed and full-text searches", () => {
+    const empty = list.parse({ facets: { kvk: [UNSET] } }).value!;
+    expect(list.args(empty)).toMatchObject({ where: { kvk: null } });
+    const mixed = list.parse({ facets: { kvk: ["1", UNSET] } }).value!;
+    expect(list.args(mixed)).toMatchObject({
+      where: { OR: [{ kvk: { in: ["1"] } }, { kvk: null }] },
+    });
+    expect(list.args(list.defaults)).not.toHaveProperty("where");
+
+    const fts = defineListQuery(sb, "customers", {
+      search: { fts: "name", config: "dutch" },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+    expect(fts.args(fts.parse({ q: "road" }).value!)).toMatchObject({
+      where: { name: { search: { query: "road", config: "dutch" } } },
+      count: "exact",
+      page: 1,
+      size: 50,
+    });
+    expect(fts.openapi[0]).toMatchObject({
+      name: "q",
+      description: "Full-text search (web search syntax).",
+    });
+    const plain = defineListQuery(sb, "customers", {
+      search: { fts: "name" },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+    expect(plain.args(plain.parse({ q: "road" }).value!)).toMatchObject({
+      where: { name: { search: "road" } },
+    });
+
+    const none = defineListQuery(sb, "customers", {
+      search: [],
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+    expect(none.args(none.parse({ q: "road" }).value!)).not.toHaveProperty(
+      "where",
+    );
+    const unsearchable = defineListQuery(sb, "customers", {
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+    expect(unsearchable.openapi.map((parameter) => parameter.name)).toEqual([
+      "sort",
+      "page",
+      "size",
+    ]);
+    expect(unsearchable.jsonSchema["properties"]).not.toHaveProperty("q");
+    expect(unsearchable.jsonSchema["properties"]).not.toHaveProperty("facets");
+  });
+
+  it("writes non-default pages and sizes to URL params", () => {
+    expect(
+      list
+        .toSearchParams({
+          sort: "newest",
+          page: 3,
+          size: 10,
+          facets: { status: [] },
+        })
+        .toString(),
+    ).toBe("page=3&size=10");
+  });
+
+  it("parses each URL value with its parser", () => {
+    expect(list.parsers.q.parse("  hi ")).toBe("hi");
+    expect(list.parsers.q.parse("   ")).toBeNull();
+    expect(list.parsers.q.serialize("hi")).toBe("hi");
+    expect(list.parsers.sort.parse("name")).toBe("name");
+    expect(list.parsers.sort.serialize("name")).toBe("name");
+    expect(list.parsers.page.parse("4")).toBe(4);
+    expect(list.parsers.page.parse("4a")).toBeNull();
+    expect(list.parsers.size.serialize(10)).toBe("10");
+    expect(list.parsers.status.parse(" , ")).toBeNull();
+    expect(list.parsers.status.serialize(["a", "b"])).toBe("a,b");
+  });
+
+  it("reports issues through the Standard Schema", async () => {
+    expect(await list.schema["~standard"].validate({ sort: "oldest" })).toEqual(
+      {
+        issues: [{ message: "Must be one of: name, newest", path: ["sort"] }],
+      },
+    );
+  });
+
+  it("adds empty facet counts when there are no facets", async () => {
+    const counted = defineListQuery(sb, "customers", {
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      facetCounts: true,
+    });
+    const { client, requests } = capturingClient(() => ({
+      body: [{ id: "c1" }],
+      headers: { "content-range": "0-0/1" },
+    }));
+    const page = await counted
+      .run(sb.connect(client), counted.defaults)
+      .orThrow();
+    expect(page.facetCounts).toEqual({});
+    expect(page.items).toEqual([{ id: "c1" }]);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("counts empty values and rows without _count, filtering by other facets", async () => {
+    const faceted = defineListQuery(sb, "customers", {
+      facets: { status: "status", kvk: "kvk" },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      facetCounts: true,
+    });
+    const { client } = capturingClient((request) =>
+      request.params.get("select")?.includes("count()")
+        ? {
+            body: [
+              { status: "lead", kvk: null, _count: 2 },
+              { status: "active", kvk: null },
+              { status: "lead", kvk: "9", _count: 7 },
+            ],
+          }
+        : { body: [], headers: { "content-range": "*/0" } },
+    );
+    const query = faceted.parse({ facets: { kvk: [UNSET] } }).value!;
+    const page = await faceted.run(sb.connect(client), query).orThrow();
+    expect(page.facetCounts).toEqual({
+      status: { lead: 2, active: 0, archived: 0 },
+      kvk: { [UNSET]: 2, "9": 7 },
+    });
   });
 });

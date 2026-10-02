@@ -66,6 +66,7 @@ export default defineConfig({
       if (
         log.code === "MODULE_LEVEL_DIRECTIVE" &&
         (log.id?.endsWith("src/react/index.ts") ||
+          log.id?.endsWith("src/react/hooks.ts") ||
           log.id?.endsWith("src/react/session.ts"))
       )
         return;

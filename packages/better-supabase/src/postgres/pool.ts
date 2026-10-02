@@ -1,10 +1,24 @@
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 
 import type { SqlClient } from "./executor.ts";
+
+/** The part of a `pg` pool client `createPostgres` uses. */
+export interface PgPoolClient {
+  query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
+  release(): void;
+}
+
+/** The part of a `pg.Pool` `createPostgres` uses. */
+export interface PgPool {
+  connect(): Promise<PgPoolClient>;
+  end(): Promise<void>;
+}
 
 export interface PostgresOptions {
   /** Defaults to `$SUPABASE_DB_URL`, then `$DATABASE_URL`. */
   readonly connectionString?: string;
+  /** An existing pool to run on instead of opening one. `end()` ends it. */
+  readonly pool?: PgPool;
   readonly max?: number;
   /** Statement timeout in milliseconds, applied per transaction. */
   readonly statementTimeout?: number;
@@ -45,6 +59,19 @@ function roleOf(claims: SqlClaims): string {
   return role;
 }
 
+function openPool(options: PostgresOptions): PgPool {
+  const connectionString =
+    options.connectionString ??
+    process.env["SUPABASE_DB_URL"] ??
+    process.env["DATABASE_URL"];
+  if (!connectionString) {
+    throw new TypeError(
+      "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
+    );
+  }
+  return new Pool({ connectionString, max: options.max ?? 10 });
+}
+
 type Session =
   | { readonly claims: SqlClaims; readonly role: string }
   | undefined;
@@ -55,18 +82,9 @@ type Session =
  * transaction-local, so nothing leaks back into the pool.
  */
 export function createPostgres(options: PostgresOptions = {}): Postgres {
-  const connectionString =
-    options.connectionString ??
-    process.env["SUPABASE_DB_URL"] ??
-    process.env["DATABASE_URL"];
-  if (!connectionString) {
-    throw new TypeError(
-      "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
-    );
-  }
-  const pool = new Pool({ connectionString, max: options.max ?? 10 });
+  const pool = options.pool ?? openPool(options);
 
-  async function begin(client: PoolClient, session: Session): Promise<void> {
+  async function begin(client: PgPoolClient, session: Session): Promise<void> {
     await client.query("begin");
     if (options.statementTimeout !== undefined) {
       await client.query(

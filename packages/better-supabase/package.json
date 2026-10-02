@@ -207,6 +207,8 @@
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
     "effect": "catalog:",
     "hono": "catalog:",
     "next": "catalog:",

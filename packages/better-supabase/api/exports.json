@@ -360,6 +360,8 @@
       "sqlCompiler"
     ],
     "types": [
+      "PgPool",
+      "PgPoolClient",
       "Postgres",
       "PostgresOptions",
       "SqlClaims",

@@ -49,6 +49,9 @@ docs/
 - `pnpm build`: tsdown build of every package and app.
 - `pnpm test`: unit and type tests (vitest, `expectTypeOf`). Tests live in each
   workspace's `tests/` folder, and the root `vitest.config.ts` lists the projects.
+  The package's unit tests alone must hold the coverage thresholds in
+  `packages/better-supabase/vitest.config.ts` (never below 90% lines,
+  statements and functions, 80% branches); `autoUpdate` raises them.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack, a reset from the migrations and seed, and the pgTAP tests.
@@ -189,7 +192,9 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | A subpath | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md` |
 | A public export | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff |
 | An extension interface | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page |
-| A spec version | `SPEC_PINS`, standards docs page |
+| A spec version | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin |
+| An adopted standard | a conformance test in `packages/better-supabase/tests/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
+| A vendored official schema | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256) |
 | A consumer skill | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests |
 | The package version | `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json` and `server.json` versions (the changesets version PR does not) |
 | A workflow | keep actions on their current major tag; Dependabot bumps them |
