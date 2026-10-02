@@ -6,10 +6,11 @@ import {
   toUIMessageStream,
   type UIMessage,
 } from "ai";
+import { checkBotId } from "botid/server";
 import * as v from "valibot";
 
 import { env } from "@/env";
-import { searchDocs } from "@/lib/docs-mcp";
+import { searchDocs } from "@/lib/page-search";
 import { siteUrl } from "@/lib/site-url";
 import { getLLMText, getPageSummaries, source } from "@/lib/source";
 
@@ -60,6 +61,14 @@ export async function POST(request: Request): Promise<Response> {
     env.VERCEL_OIDC_TOKEN === undefined
   ) {
     return problem(503, "Ask AI is not configured on this deployment");
+  }
+
+  const verdict = await checkBotId().catch(() => undefined);
+  if (verdict === undefined) {
+    return problem(503, "Bot protection is not available on this deployment");
+  }
+  if (verdict.isBot) {
+    return problem(403, "Ask AI is not available to automated clients");
   }
 
   let json: unknown;

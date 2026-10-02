@@ -51,6 +51,17 @@ const SUPPORTED_VERSIONS: readonly string[] = [
 
 type Json = Readonly<Record<string, unknown>>;
 
+/** The `Host` header's hostname is in the list; a missing or malformed header is not. */
+function hostAllowed(request: Request, allowed: readonly string[]): boolean {
+  const host = request.headers.get("host");
+  if (!host) return false;
+  try {
+    return allowed.includes(new URL(`http://${host}`).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** MCP tool annotations (hints for clients, not guarantees). */
 export interface ToolAnnotations {
   readonly title?: string;
@@ -156,6 +167,13 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
   readonly scopes?: readonly string[];
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
+  /**
+   * Hostnames the `Host` header may name, without the port (DNS rebinding
+   * protection). List the production, preview and local hosts. Defaults to any.
+   */
+  readonly allowedHosts?: readonly string[];
+  /** A page that explains how to connect, published as RFC 9728 `resource_documentation`. */
+  readonly resourceDocumentation?: string;
   /** Custom jsonb types, as in `createOpenApi`. */
   readonly json?: Readonly<Record<string, unknown>>;
   /** Include internal error messages in tool results. Defaults to `NODE_ENV === 'development'`. */
@@ -732,6 +750,9 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     ) {
       return rpcError(null, INVALID_REQUEST, "Origin not allowed", 403);
     }
+    if (options.allowedHosts && !hostAllowed(request, options.allowedHosts)) {
+      return rpcError(null, INVALID_REQUEST, "Host not allowed", 403);
+    }
     if (request.method !== "POST") {
       return new Response(null, { status: 405, headers: { allow: "POST" } });
     }
@@ -867,6 +888,9 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
         authorization_servers: [...authorizationServers()],
         bearer_methods_supported: ["header"],
         ...(scopes.length > 0 ? { scopes_supported: scopes } : {}),
+        ...(options.resourceDocumentation === undefined
+          ? {}
+          : { resource_documentation: options.resourceDocumentation }),
       },
       { headers: { "access-control-allow-origin": "*" } },
     );

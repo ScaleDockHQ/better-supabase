@@ -199,5 +199,23 @@ validation `issues` with paths. Protocol problems use JSON-RPC errors: an
 unknown method, an unknown tool, a malformed message, headers that disagree
 with the body, or an unsupported protocol version.
 
-Set `allowedOrigins` to reject browser requests from other origins, which
-protects against DNS rebinding.
+Set `allowedOrigins` to reject browser requests from other origins, and
+`allowedHosts` to reject requests whose `Host` header names another host
+(compared without the port). Together they protect against DNS rebinding.
+List every host the server answers on: production, previews and local
+development.
+
+```ts title="src/mcp.ts"
+export const mcp = createMcp(sb, {
+  env,
+  name: "crm",
+  version: "1.0.0",
+  allowedOrigins: ["https://claude.ai"],
+  allowedHosts: ["crm.example.com", "crm.localhost", "localhost"],
+  resourceDocumentation: "https://crm.example.com/docs/mcp",
+});
+```
+
+`resourceDocumentation` is published as `resource_documentation` in the
+protected resource metadata, so a client that hits the 401 can link the user
+to the page that explains how to connect.

@@ -109,6 +109,41 @@ describe("createMcp", () => {
     });
   });
 
+  it("checks the Host header and links the connect docs from the metadata", async () => {
+    const strict = createMcp(sb, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      allowedHosts: ["tools.test", "localhost"],
+      resourceDocumentation: "https://tools.test/docs/mcp",
+    });
+    const post = (host: string | undefined) =>
+      strict.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(host === undefined ? {} : { host }),
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+        }),
+      );
+    expect((await post("evil.test")).status).toBe(403);
+    expect((await post(undefined)).status).toBe(403);
+    expect((await post("localhost:3000")).status).toBe(401);
+    expect((await post("tools.test")).status).toBe(401);
+
+    const metadata = await strict.fetch(
+      new Request(
+        "https://tools.test/.well-known/oauth-protected-resource/mcp",
+      ),
+    );
+    expect(await metadata.json()).toMatchObject({
+      resource_documentation: "https://tools.test/docs/mcp",
+    });
+  });
+
   it("initializes legacy clients and lists tools with JSON Schema inputs and annotations", async () => {
     expect(
       await result("initialize", {

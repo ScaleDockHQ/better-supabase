@@ -70,8 +70,8 @@ const config: KnipConfig = {
     "packages/typescript-config": {},
     "packages/next-config": {},
     "apps/docs": {
-      // Twoslash snippets import better-supabase; twoslash is a peer of fumadocs-twoslash.
-      ignoreDependencies: ["better-supabase", "twoslash"],
+      // twoslash is a peer of fumadocs-twoslash.
+      ignoreDependencies: ["twoslash"],
     },
     "apps/marketing": {
       ignore: ["components/ui/**", "components/reui/**"],

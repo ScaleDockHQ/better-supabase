@@ -14,7 +14,8 @@ export default defineConfig({
       ],
     ],
     rehypeCodeOptions: {
-      themes: { light: "github-light", dark: "github-dark" },
+      // github-light's orange and red are under 4.5:1 on the code background.
+      themes: { light: "github-light-high-contrast", dark: "github-dark" },
       langs: ["ts", "tsx", "sql", "bash", "json", "yaml", "toml"],
       transformers: [
         ...(rehypeCodeDefaultOptions.transformers ?? []),

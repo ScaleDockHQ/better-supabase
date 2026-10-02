@@ -31,12 +31,12 @@ export const documentSecurityHeaderRules: HeaderRules = [
 ];
 
 /**
- * The shared baseline for the docs and marketing apps. `experimental` and
- * `typescript` merge key by key, and `headers` runs after the security rules
- * so an app can add to them.
+ * The shared baseline for the docs and marketing apps. `experimental`,
+ * `compiler` and `typescript` merge key by key, and `headers` runs after the
+ * security rules so an app can add to them.
  */
 export function createNextConfig(overrides: NextConfig = {}): NextConfig {
-  const { experimental, typescript, headers, ...rest } = overrides;
+  const { experimental, typescript, compiler, headers, ...rest } = overrides;
   return {
     reactCompiler: true,
     typedRoutes: true,
@@ -50,23 +50,28 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       reference: { stale: 900, revalidate: 900, expire: 86_400 },
     },
     ...rest,
+    compiler: {
+      removeConsole:
+        process.env.NODE_ENV === "production"
+          ? { exclude: ["error", "warn"] }
+          : false,
+      ...compiler,
+    },
     experimental: {
       varyParams: true,
       optimisticRouting: true,
-      cachedNavigations: true,
       prefetchInlining: true,
       useOffline: true,
       globalNotFound: true,
       appNewScrollHandler: true,
-      instantInsights: { validationLevel: "warning" },
       requestInsights: true,
       authInterrupts: true,
       typedEnv: true,
+      // Both opt the app directory into react@experimental.
       taint: true,
+      blockingSSR: true,
       turbopackRustReactCompiler: true,
-      turbopackFileSystemCacheForBuild:
-        process.env["GITHUB_ACTIONS"] !== "true",
-      useTypeScriptCli: true,
+      serverComponentsHmrCancellation: true,
       webVitalsAttribution: ["CLS", "LCP"],
       exposeTestingApiInProductionBuild:
         process.env["EXPOSE_TESTING_API"] === "1",

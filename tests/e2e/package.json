@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@axe-core/playwright": "catalog:",
     "@better-supabase/example-edge": "workspace:*",
     "@better-supabase/example-hono-api": "workspace:*",
     "@better-supabase/example-mcp": "workspace:*",

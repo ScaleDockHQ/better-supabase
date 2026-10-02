@@ -26,6 +26,9 @@ backlogs too large to clear in the upgrade.
   files that the root changelog is built from.
 - `vercel.json` stays JSON until `@vercel/config` types `services` and
   per-service rewrites.
+- `engines.node` in the published packages stays `>=24`, a floor for
+  consumers, instead of the `24.x` the repo develops on (`.node-version`).
+  Pinning a published package to one major would reject Node 25 and later.
 
 ### Docs site
 
@@ -41,6 +44,14 @@ backlogs too large to clear in the upgrade.
 - Ask AI searches the docs before it calls the model and passes the four best
   pages as context, instead of giving the model a search tool. One request
   then makes one model call.
+- The docs MCP server at `/mcp` registers its own tools on
+  `@modelcontextprotocol/server` instead of the `fumadocs-core/mcp` helpers.
+  Those helpers register tools without `annotations` or an `outputSchema`, so
+  clients could not tell the tools are read-only or read structured results.
+- BotID guards `/docs/api/chat`. Its challenge proxy lives at a fixed root
+  path, so `vercel.json` sends that prefix to the docs service next to
+  `/mcp`. The Vercel Firewall rate limit for the route is set in the
+  dashboard, not in code.
 
 ### Database
 
@@ -113,6 +124,9 @@ except the test preset, where fakes are handed to typed APIs on purpose.
 
 The test preset turns off the `typescript/no-unsafe-*` rules, because Vitest's
 asymmetric matchers and `Response.json()` are typed `any` (60 findings).
+The docs table wrapper disables `jsx-a11y/no-noninteractive-tabindex` on one
+line: axe requires a scrolling region to take keyboard focus
+(`scrollable-region-focusable`), which that rule forbids.
 Marketing turns off `jsx-a11y/control-has-associated-label`: Base UI buttons
 rendered as links take their label from their children at runtime, which the
 rule cannot see (11 findings).
@@ -120,5 +134,5 @@ rule cannot see (11 findings).
 ## Consequences
 
 Each item names what would end it: twoslash on the native compiler, a typed
-`services` config in `@vercel/config`, a `develop` branch, or an empty
-backlog. When one happens, update the config and this record.
+`services` config in `@vercel/config`, `fumadocs-core/mcp` setting tool
+annotations, a `develop` branch, or an empty backlog. When one happens, update the config and this record.

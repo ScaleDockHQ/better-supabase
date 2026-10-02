@@ -22,6 +22,7 @@
     "dev:hosted": "dotenv -e .env.local -- turbo run dev:portless",
     "dev:portless": "dotenv -e .env.development.local -e .env.local -- turbo run dev:portless",
     "dev:www": "dotenv -e .env.development.local -e .env.local -- turbo run dev:portless --filter=marketing --filter=docs",
+    "docs:drift": "node scripts/docs-drift.ts && pnpm --filter @better-supabase/cli exec vitest run --project unit tests/docs-drift.test.ts",
     "doctor": "better-supabase doctor --cwd apps/examples/nextjs",
     "env:local": "node scripts/env-local.ts",
     "env:pull": "vercel env pull .env.local --environment=development --yes",
@@ -49,7 +50,7 @@
     "typecheck:matrix": "pnpm --filter './tests/types/*' run typecheck:matrix",
     "typecheck:perf": "pnpm --filter @better-supabase/types-perf run bench",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "pnpm run check && pnpm run check:prose && pnpm run typecheck:tooling && pnpm run knip && pnpm run boundaries && pnpm run test && pnpm run build:packages && pnpm run gen:check && pnpm run doctor && pnpm run check:publish && pnpm run size && pnpm run typecheck:matrix && pnpm run typecheck:perf && pnpm run audit:high",
+    "verify": "pnpm run check && pnpm run check:prose && pnpm run docs:drift && pnpm run typecheck:tooling && pnpm run knip && pnpm run boundaries && pnpm run test && pnpm run build:packages && pnpm run gen:check && pnpm run doctor && pnpm run check:publish && pnpm run size && pnpm run typecheck:matrix && pnpm run typecheck:perf && pnpm run audit:high",
     "version-packages": "node scripts/root-changelog.ts && changeset version && pnpm run format"
   },
   "devDependencies": {
@@ -76,6 +77,7 @@
     "supabase": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
+    "valibot": "catalog:",
     "vitest": "catalog:"
   },
   "devEngines": {

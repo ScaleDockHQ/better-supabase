@@ -8,6 +8,7 @@ packages:
 catalog:
   "@ai-sdk/react": 4.0.129
   "@arethetypeswrong/cli": 0.18.5
+  "@axe-core/playwright": 4.13.0
   "@base-ui/react": 1.8.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/cli": 3.0.3
@@ -20,6 +21,8 @@ catalog:
   "@commitlint/types": 21.2.3
   "@effect/platform-node": 4.0.0
   "@manypkg/get-packages": 3.1.0
+  "@modelcontextprotocol/client": 2.2.0
+  "@modelcontextprotocol/server": 2.2.0
   "@next/playwright": 16.3.8
   "@opentelemetry/api": 1.9.1
   "@orpc/server": 2.0.0-beta.40
@@ -50,6 +53,7 @@ catalog:
   ajv-formats: 3.0.1
   "@vitest/coverage-v8": 5.0.3
   better-result: 3.0.1
+  botid: 1.5.11
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
   # through Node's type stripping (docs/decisions/0003-cli-package.md).
   c12: 4.0.0-rc.2
