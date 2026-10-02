@@ -7,6 +7,7 @@ Applies to product repos. Library repos follow the exception below, and tooling 
 ## Location
 
 - Skills live in `.agents/skills`, are symlinked from `.claude/skills` and `.cursor/skills`, and are pinned in `skills-lock.json`. Install with `pnpm dlx skills add <owner/repo> --skill <name> -y`; if a name moved, use find-skills.
+- Commit `.agents/`, the `.claude/skills` and `.cursor/skills` symlinks, and `skills-lock.json`, so every teammate, cloud agent and CI run gets the same skills from a clone. Never add them to `.gitignore`; a skill installed only on one machine is missing for everyone else.
 - `.cursorignore` excludes bulky skill assets.
 - **Library repos** (they ship their own consumer skills) never vendor third-party skills in `.agents/skills`, `.claude/skills` or `skills/`, because those are `npx skills add` discovery roots. Their maintainers install third-party skills at user level.
 
@@ -16,20 +17,20 @@ Applies to product repos. Library repos follow the exception below, and tooling 
   - `vercel-labs/skills`: find-skills
   - `vercel/turborepo`: turborepo
   - `vercel/vercel`: vercel-cli
-  - `vercel-labs/vercel-plugin`: env-vars, vercel-functions, routing-middleware, ai-gateway, flags-sdk, vercel-sandbox, vercel-queues
+  - `vercel-labs/vercel-plugin`: env-vars, vercel-functions, vercel-services, routing-middleware, ai-gateway, flags-sdk, vercel-sandbox, queues
   - `vercel-labs/agent-skills`: deploy-to-vercel, writing-guidelines
   - `mattpocock/skills`: domain-modeling, tdd, writing-for-agents
   - `delexw/claude-code-misc`: oxlint
   - `brianlovin/agent-config`: knip
   - `vercel-labs/portless`: portless
-  - `vercel-labs/agent-browser`: agent-browser
+  - `vercel-labs/agent-browser`: agent-browser (the CLI at 0.27 or later, for `--enable react-devtools`)
   - `currents-dev/playwright-best-practices-skill`: playwright-best-practices
   - `open-circle/agent-skills`: valibot
   - `wshobson/agents`: typescript-advanced-types
 - **Next.js:**
   - `aurorascharff/nextjs-app-architecture-skill`: nextjs-app-architecture (latest version; in upgrade mode, update an older vendored copy)
   - `vercel/next.js`: next-dev-loop, next-cache-components-adoption, next-cache-components-optimizer, next-partial-prefetching-adoption, next-partial-prefetching-optimizer
-  - `vercel-labs/vercel-plugin`: next-cache-components
+  - The Next.js knowledge skills are retired: the managed AGENTS.md block points agents at the bundled docs instead. Remove any vendored copy, and `vercel-labs/vercel-plugin` next-cache-components, which is no longer published.
   - `vercel-labs/agent-skills`: vercel-react-best-practices, vercel-composition-patterns, web-design-guidelines
   - `pproenca/dot-skills`: nuqs
 - **Expo:**
