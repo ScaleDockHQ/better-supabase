@@ -175,6 +175,7 @@ a hook with `supabase.hook.claims` lets `supabase_auth_admin` execute it.
 Doctor reports [BS408](/docs/cli/doctor#bs408) when the manifest or the
 database lacks one of them, and names the `permdock.config.ts` setting that
 adds it.
+
 `hasEntitlement(session, ...)` reads the `features` claim: name
 `feature_claims` in PermDock's hook, and the generated hook writes it:
 
@@ -193,6 +194,11 @@ Then run `permdock supabase hook generate --grants-out <file>`: with
 execute on `member_<scope>_ids_for`, which `feature_claims` calls. Run the
 command again after changing the config instead of editing the generated
 hook, because it overwrites the hook.
+
+The kit's `feature_claims` reads Stripe's `stripe.active_entitlements`, so
+an app whose plan features live in its own table keeps its own
+`feature_claims` and names that one in the hook instead.
+
 `subjectFromSupabaseSession(session, { plans: 'features' })` reads the active
 tenant's `features` into PermDock's `principal.plans`.
 
