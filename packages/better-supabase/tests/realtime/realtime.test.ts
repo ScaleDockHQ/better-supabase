@@ -42,12 +42,15 @@ function fakeClient(
 ) {
   const listeners: Listener[] = [];
   const removed: unknown[] = [];
+  const open: unknown[] = [];
   const channel = {
+    topic: "",
     on: (_type: string, _filter: unknown, listener: Listener) => {
       listeners.push(listener);
       return channel;
     },
     subscribe: vi.fn((callback: (status: string, error?: Error) => void) => {
+      open.push(channel);
       queueMicrotask(() => {
         callback(status, error ?? undefined);
       });
@@ -60,9 +63,14 @@ function fakeClient(
     ),
   };
   const client = {
-    channel: vi.fn(() => channel),
+    channel: vi.fn((topic: string) => {
+      if (!open.includes(channel)) channel.topic = `realtime:${topic}`;
+      return channel;
+    }),
+    getChannels: vi.fn(() => open),
     removeChannel: vi.fn(async (value: unknown) => {
       removed.push(value);
+      open.splice(open.indexOf(value), 1);
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },
@@ -266,6 +274,24 @@ describe("defineTopic", () => {
       .send(client, { orgId: "o1", userId: "u1" }, "created", { title: "Hi" })
       .orThrow();
     expect(channel.httpSend).toHaveBeenCalledWith("created", { title: "Hi" });
+  });
+
+  it("keeps a subscribed channel open when sending on its topic", async () => {
+    const { client, raw } = fakeClient();
+    const subscription = notifications.subscribe(
+      client,
+      { orgId: "o1", userId: "u1" },
+      {},
+    );
+    await subscription.ready;
+    raw.realtime.setAuth.mockClear();
+    await notifications
+      .send(client, { orgId: "o1", userId: "u1" }, "created", { title: "Hi" })
+      .orThrow();
+    expect(raw.removeChannel).not.toHaveBeenCalled();
+    expect(raw.realtime.setAuth).not.toHaveBeenCalled();
+    await subscription.unsubscribe();
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
   });
 
   it("maps failed sends to DbError kinds and removes the channel", async () => {

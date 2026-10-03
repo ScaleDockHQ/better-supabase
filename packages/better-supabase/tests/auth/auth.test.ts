@@ -224,12 +224,63 @@ describe("resolveAuth", async () => {
   });
 
   it("reports expired sessions where refreshing is not allowed", async () => {
-    const token = await signer.sign({ sub: USER, expiresIn: 30 });
+    const token = await signer.sign({ sub: USER, expiresIn: -5 });
     const { auth } = await resolveAuth(
       cookieRequest(sessionFor(token)),
       options,
     );
     expect(auth).toEqual({ kind: "anon", reason: "expired" });
+  });
+
+  it("keeps a token inside the refresh leeway valid where refreshing is not allowed", async () => {
+    const token = await signer.sign({ sub: USER, expiresIn: 30 });
+    const { auth } = await resolveAuth(
+      cookieRequest(sessionFor(token)),
+      options,
+    );
+    expect(auth).toMatchObject({ kind: "user", source: "cookie" });
+  });
+
+  it("times out a hung refresh as a network failure and retries the next request", async () => {
+    const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+    const hung = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(init.signal?.reason);
+          });
+        }),
+    );
+    const request = () =>
+      resolveAuth(cookieRequest(sessionFor(stale, "refresh-hung")), {
+        ...options,
+        refresh: true,
+        refreshTimeoutMs: 5,
+        fetch: hung,
+      });
+    expect((await request()).auth).toEqual({
+      kind: "anon",
+      reason: "refresh_failed",
+    });
+    await request();
+    expect(hung).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses a rejected refresh for parallel requests", async () => {
+    const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+    const dead = vi.fn<typeof fetch>(async () =>
+      Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
+    );
+    const request = () =>
+      resolveAuth(cookieRequest(sessionFor(stale, "refresh-reused-dead")), {
+        ...options,
+        refresh: true,
+        fetch: dead,
+      });
+    await request();
+    const again = await request();
+    expect(again.auth).toEqual({ kind: "anon", reason: "signed_out" });
+    expect(dead).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes once for concurrent requests and writes cookies with no-store headers", async () => {

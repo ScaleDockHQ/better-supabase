@@ -49,8 +49,10 @@ switch (auth.kind) {
 
 An expiring cookie session is refreshed only when you pass `refresh: true`,
 which you should only do where cookies can be written: the proxy or
-middleware in front of page loads and server actions. Everywhere else an
-expired session reads as `{ kind: 'anon', reason: 'expired' }`.
+middleware in front of page loads and server actions. With `refresh: true`
+the session is refreshed when its token expires within `leeway` seconds (60
+by default). Everywhere else the token stays valid until its `exp`, and only
+an expired session reads as `{ kind: 'anon', reason: 'expired' }`.
 
 When it does refresh:
 
@@ -63,8 +65,11 @@ When it does refresh:
   CDN caches one user's session for another;
 - `requestCookies` holds the cookies the rest of the request should see, so
   Server Components rendered after the proxy use the new token;
-- a rejected refresh token signs the user out (cookies cleared); a network
-  failure keeps the session so the next request can retry.
+- a rejected refresh token signs the user out (cookies cleared), and the
+  rejection is reused for ten seconds as well; a network failure keeps the
+  session so the next request can retry;
+- a refresh that takes longer than `refreshTimeoutMs` (5000 by default)
+  counts as a network failure, so a slow Auth server never holds up the proxy.
 
 ```ts
 const resolution = await resolveAuth(request, { env, refresh: true });

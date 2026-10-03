@@ -136,7 +136,7 @@ export interface Subscription extends Disposable, AsyncDisposable {
 
 export type RealtimeClient = Pick<
   SupabaseClient,
-  "channel" | "removeChannel" | "realtime"
+  "channel" | "getChannels" | "removeChannel" | "realtime"
 >;
 
 export interface TriggerOptions<
@@ -518,7 +518,12 @@ export function defineTopic<
               issues: checked.issues,
             }),
           );
-        if (isPrivate) await client.realtime.setAuth();
+        // client.channel() returns the open channel for a subscribed topic;
+        // removing that one would end the caller's subscription.
+        const open = client
+          .getChannels()
+          .some((existing) => existing.topic === `realtime:${topic}`);
+        if (isPrivate && !open) await client.realtime.setAuth();
         const channel = client.channel(topic, {
           config: { private: isPrivate },
         });
@@ -528,7 +533,7 @@ export function defineTopic<
             ? ok(undefined)
             : err(sendError(response.status, response.error));
         } finally {
-          await client.removeChannel(channel);
+          if (!open) await client.removeChannel(channel);
         }
       });
     },

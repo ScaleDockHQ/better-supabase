@@ -274,6 +274,14 @@ export function createRepository(
   ): Promise<Result<ExecuteResult>> =>
     runner.run(op, optionsOf(args), signalOf(args));
 
+  let primaryOrder: readonly OrderTerm[] | undefined;
+  /** `primaryKey` holds app names; order terms take database names. */
+  const defaultOrder = (): readonly OrderTerm[] =>
+    (primaryOrder ??= table.primaryKey.map((name): OrderTerm => ({
+      column: builder.column(table, name),
+      direction: "asc",
+    })));
+
   const notFound = <T>(): Result<T> =>
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
 
@@ -287,13 +295,7 @@ export function createRepository(
         const ordered =
           op.orderBy.length > 0 || table.primaryKey.length === 0
             ? op
-            : {
-                ...op,
-                orderBy: table.primaryKey.map((column): OrderTerm => ({
-                  column,
-                  direction: "asc",
-                })),
-              };
+            : { ...op, orderBy: defaultOrder() };
         const result = await run(ordered, args);
         return result.ok ? ok(result.data.rows) : result;
       });
