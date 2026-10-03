@@ -35,8 +35,9 @@ route handlers and actions read the verified token:
 
 ```ts
 const { db } = await next.server();
-export const GET = next.route((request, { db }) =>
-  db.customers.findMany({ limit: 20 }),
+export const GET = next.route(
+  (request, { db }) => db.customers.findMany({ limit: 20 }),
+  { scopes: ["customers:read"] }, // only limits OAuth clients and agents
 );
 ```
 
@@ -98,16 +99,33 @@ Deno.serve(
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from "better-supabase/mcp";
+import { toSession } from "better-supabase/server";
 
 import { sb } from "../_shared/supabase.ts";
 
 const mcp = createMcp(sb, {
   name: "crm",
   version: "0.1.0",
-  resources: { customers: { select: ["id", "name"] } },
+  scopes: ["openid", "crm.read"],
+  allowedOrigins: ["https://claude.ai"],
+  allowedHosts: ["crm.example.com", "localhost"],
+  resourceDocumentation: "https://crm.example.com/docs/mcp",
+  resources: {
+    customers: { select: ["id", "name"], pagination: "cursor" },
+  },
+  authorize: (ctx) => {
+    const session = toSession(ctx.auth);
+    const granted =
+      session.kind === "user" ? session.delegation?.scopes : undefined;
+    return !granted || granted.includes("crm.read")
+      ? { allowed: true }
+      : { allowed: false, reason: "Needs crm.read", scopes: ["crm.read"] };
+  },
 });
 
 Deno.serve(mcp.fetch);
 ```
 
-Tools run as the calling user, so RLS applies to every tool call.
+Tools run as the calling user, so RLS applies to every tool call. `scopes`
+on `createMcp` only advertises scopes; `authorize` refuses the call. A
+`delegation` that is unset means the user's own token, which no scope limits.

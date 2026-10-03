@@ -1,6 +1,6 @@
 ---
 name: better-supabase-testing
-description: Test Supabase RLS policies, APIs and SQL against the local stack with better-supabase/testing, typed seeds and pgTAP. Use when writing or fixing tests that touch the database, policies or auth.
+description: Test Supabase RLS policies, APIs and SQL against the local stack with better-supabase/testing, typed seeds and pgTAP. Use when writing or fixing tests that touch the database, policies, auth, OAuth or agent scopes, or Temporal time values.
 ---
 
 # Testing with better-supabase
@@ -60,6 +60,56 @@ expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({
 
 Send `authorization: Bearer ${alice.token}` (or a token from `signLocalJwt`).
 The adapter verifies it against the local JWKS; no test-only resolver is needed.
+
+For a route with `scopes`, sign a delegated token the way the Supabase OAuth
+server or an agent token exchange would, and assert both sides:
+
+```ts
+const client = await signLocalJwt({
+  sub: aliceId,
+  tenant_id: ACME,
+  client_id: "c1",
+  scope: "openid", // add "customers:read" to pass
+});
+const response = await app.request("/api/customers", {
+  headers: { authorization: `Bearer ${client}` },
+});
+expect(response.status).toBe(403);
+expect(response.headers.get("www-authenticate")).toContain(
+  'error="insufficient_scope"',
+);
+```
+
+The user's own token (no `client_id`, no `act`) must still pass, and a
+malformed `act` claim (`act: { sub: "" }`) must get a 401.
+
+## Time values
+
+With `codecs.timestamptz: 'instant'`, rows hold `Temporal` values. Import
+`temporal-polyfill/global` in the test setup on Node 24, and compare with
+`.equals()` or an equality tester, because `toEqual` treats any two instants
+as equal:
+
+```ts title="tests/setup.ts"
+import "temporal-polyfill/global";
+import { expect } from "vitest";
+
+expect.addEqualityTesters([
+  (a, b) =>
+    a instanceof Temporal.Instant && b instanceof Temporal.Instant
+      ? a.equals(b)
+      : undefined,
+]);
+```
+
+With the polyfill, `vi.useFakeTimers({ now })` drives `Temporal.Now` too.
+
+## Doctor in CI
+
+Run `pnpm better-supabase doctor` against the reset stack and fail the job on
+a nonzero exit. `--json` prints the report with each finding's code,
+`--format github` annotates the pull request, and
+`--format sarif --out doctor.sarif` feeds code scanning.
 
 ## pgTAP
 

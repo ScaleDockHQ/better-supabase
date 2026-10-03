@@ -8,11 +8,12 @@ description: Agent Skills, llms.txt, Markdown pages and a docs MCP server that h
 The package ships [Agent Skills](https://agentskills.io) that teach coding
 agents the conventions in these docs:
 
-| Skill                     | Covers                                                                    |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `better-supabase`         | Queries, writes, Results, and the codegen loop after a schema change      |
-| `better-supabase-api`     | Adapters, `allow`, REST resources, MCP tools, jobs, idempotency, webhooks |
-| `better-supabase-testing` | `asUser`, `localAuth`, typed seeds, pgTAP                                 |
+| Skill                     | Covers                                                                                                   |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `better-supabase`         | Queries, writes, Results, cursors, Temporal values, the codegen loop after a schema change, and upgrades |
+| `better-supabase-api`     | Adapters, `allow` and `scopes`, REST resources, MCP tools, jobs and their cleanup, idempotency, webhooks |
+| `better-supabase-auth`    | Sessions, typed claims, OAuth clients and agents, `checkSession`, claim changes, PermDock                |
+| `better-supabase-testing` | `asUser`, `signLocalJwt`, delegated-token tests, Temporal in tests, typed seeds, pgTAP, doctor in CI     |
 
 Install them with the [`skills`](https://skills.sh) CLI, which supports
 Cursor, Claude Code, Codex, OpenCode and most other agents:
