@@ -7,6 +7,7 @@ import type { BetterPostgres, SqlClaims } from "../../src/postgres/pool.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
@@ -204,13 +205,13 @@ function stubFetch() {
 function fakePostgres() {
   const fake = fakeSql();
   const claims: SqlClaims[] = [];
-  // SAFETY: the server only calls asUser; the executor only calls queryRaw.
+  // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
   const postgres = {
     admin: fake.sql,
     anon: fake.sql,
-    asUser: (value: SqlClaims) => {
+    executorFor: (value: SqlClaims) => {
       claims.push(value);
-      return fake.sql;
+      return postgresExecutor(fake.sql);
     },
   } as unknown as BetterPostgres;
   return { postgres, claims, fake };

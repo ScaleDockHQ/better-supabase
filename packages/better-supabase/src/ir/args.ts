@@ -350,6 +350,10 @@ export type AggregateResult<
   : AggregateRow<M, T, A>;
 
 /** The row type returned for read arguments `A` on table `T`. */
-export type Payload<M extends AnyModels, T extends keyof M, A> = Simplify<
-  SelectPart<M, T, A> & IncludePart<M, T, A>
->;
+export type Payload<M extends AnyModels, T extends keyof M, A> = A extends {
+  readonly include: unknown;
+}
+  ? Simplify<SelectPart<M, T, A> & IncludePart<M, T, A>>
+  : A extends { readonly select: readonly unknown[] }
+    ? Simplify<SelectPart<M, T, A>>
+    : Row<M, T>;

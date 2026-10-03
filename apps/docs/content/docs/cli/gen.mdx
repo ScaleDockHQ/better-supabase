@@ -15,10 +15,14 @@ the same generator behind `supabase gen types typescript`, and writes:
    same schema (CI checks this against the Supabase CLI), so
    `createClient<Database>()` works as usual;
 2. the main module (`output`), with models in your casing, enum and CHECK
-   constants, typed constraint names, relation metadata with foreign key
-   actions, and the `schema` object;
-3. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`);
-4. with `readSets` configured, the `read-sets` SQL kit file: one function per
+   constants, typed constraint names, and the `schema` object;
+3. the runtime metadata next to it (`generated.meta.js`, with
+   `generated.meta.d.ts`): tables, columns, relations with foreign key
+   actions, and functions. It is plain JavaScript typed as `SchemaMeta`, so
+   TypeScript doesn't check a large object literal in every program that
+   imports the main module. Commit both files with the main module;
+4. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`);
+5. with `readSets` configured, the `read-sets` SQL kit file: one function per
    [read set](/docs/repository/read-sets). `gen` imports those modules after
    writing the main module, since they import it.
 

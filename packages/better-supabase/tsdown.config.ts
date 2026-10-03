@@ -59,6 +59,12 @@ const library = defineConfig({
   dts: true,
   clean: true,
   exports: false,
+  // Library modules only declare; the "use client" React modules keep theirs
+  // so their directive survives in the entry chunks.
+  treeshake: {
+    moduleSideEffects: (id) =>
+      /src\/react\/(index|hooks|session)\.ts$/.test(id) || !id.startsWith(src),
+  },
   plugins: [
     {
       // The declaration bundler drops `/// <reference lib>` directives, and

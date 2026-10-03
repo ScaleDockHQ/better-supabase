@@ -23,7 +23,6 @@ import {
 } from "../core/postgrest-executor.ts";
 import { type DbStats, StatsRecorder } from "../core/stats.ts";
 import { type BetterSupabaseEnv, loadEnv } from "../env/index.ts";
-import { postgresExecutor } from "../postgres/executor.ts";
 import {
   deleteAccount,
   type DeleteAccountOptions,
@@ -351,7 +350,7 @@ export function createServer<
       );
     }
     return betterSupabase.connect(
-      postgresExecutor(options.postgres.asUser(claims)),
+      options.postgres.executorFor(claims),
       context,
       stats ? { stats } : {},
     );

@@ -257,7 +257,10 @@ describe("gen", () => {
     expect(
       (await run(["gen", "--snapshot", "snapshot.json", "--cwd", dir])).code,
     ).toBe(0);
-    const generated = await readFile(join(dir, "src/db/generated.ts"), "utf8");
+    const generated = await readFile(
+      join(dir, "src/db/generated.meta.js"),
+      "utf8",
+    );
     expect(generated).toMatch(
       /"realtime": \{\s+"customers": \{\s+"tenant": "organizationId"\s+\},\s+"tags": \{\s+"tenant": "organizationId"\s+\},\s+"organizations": \{\}/,
     );

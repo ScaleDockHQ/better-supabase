@@ -37,7 +37,7 @@ export type WebhookInput =
       readonly body: string;
     };
 
-const encoder = new TextEncoder();
+const encoder = /* @__PURE__ */ new TextEncoder();
 
 /** Accepts `whsec_…`, `v1,whsec_…` (Supabase Auth hooks) or raw base64. */
 function secretBytes(secret: string): Uint8Array<ArrayBuffer> {

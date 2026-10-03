@@ -4,7 +4,8 @@
   "tags": ["test"],
   "tasks": {
     "bench": {
-      "env": ["BENCH_UPDATE"]
+      "env": ["BENCH_UPDATE"],
+      "dependsOn": ["^build"]
     }
   }
 }

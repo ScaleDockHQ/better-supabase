@@ -85,7 +85,7 @@ export interface BetterOrpc<
   toOrpcError(error: DbError): ORPCError<string, ProblemDetails>;
 }
 
-const CODES = new Map<number, string>(
+const CODES = /* @__PURE__ */ new Map<number, string>(
   Object.entries(COMMON_ERROR_STATUS_MAP).map(([code, status]) => [
     status,
     code,

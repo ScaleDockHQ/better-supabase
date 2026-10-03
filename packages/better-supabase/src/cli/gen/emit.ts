@@ -131,6 +131,51 @@ export interface EmitOptions {
   readonly databaseTypesImport?: string;
   /** Import path for each JSON type import, keyed by the configured path. */
   readonly importPathFor: (from: string) => string;
+  /** Import path from the generated module to the metadata module (`emitMeta`). */
+  readonly metaImport?: string;
+}
+
+/** The metadata module next to `generated.ts`: `generated.meta.js` and its `.d.ts`. */
+export function metaPaths(output: string): { js: string; dts: string } {
+  const base = output.replace(/\.[cm]?[jt]sx?$/, "");
+  return { js: `${base}.meta.js`, dts: `${base}.meta.d.ts` };
+}
+
+/**
+ * The schema metadata as plain JavaScript plus a one-line declaration, so
+ * TypeScript reads `SchemaMeta` instead of checking thousands of lines of
+ * object literal in every program that imports the generated module.
+ */
+export function emitMeta(
+  model: Model,
+  options: Pick<EmitOptions, "runtimeImport"> & {
+    readonly types?: string;
+  } = {},
+): { js: string; dts: string } {
+  const runtime = options.runtimeImport ?? "better-supabase";
+  return {
+    js: [
+      GENERATED_HEADER,
+      // Deno does not pick up a sibling .d.ts without this pragma.
+      `// @ts-self-types="${options.types ?? "./generated.meta.d.ts"}"`,
+      "/* oxlint-disable */",
+      "/* eslint-disable */",
+      "",
+      `export default ${JSON.stringify(model.meta, null, 2)};`,
+      "",
+    ].join("\n"),
+    dts: [
+      GENERATED_HEADER,
+      "/* oxlint-disable */",
+      "/* eslint-disable */",
+      "",
+      `import type { SchemaMeta } from ${q(runtime)};`,
+      "",
+      "declare const meta: SchemaMeta;",
+      "export default meta;",
+      "",
+    ].join("\n"),
+  };
 }
 
 /** Renders the generated module. */
@@ -165,6 +210,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     );
   }
   lines.push(
+    `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
     "",
     "export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];",
     "",
@@ -224,7 +270,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     );
   }
   lines.push(
-    `export const schema: Schema<Models, Database, Functions> = defineSchema(${JSON.stringify(model.meta, null, 2)});`,
+    "export const schema: Schema<Models, Database, Functions> = defineSchema(meta);",
     "",
   );
   return lines.join("\n");

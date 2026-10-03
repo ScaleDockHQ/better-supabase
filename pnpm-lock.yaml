@@ -404,6 +404,9 @@ catalogs:
     publint:
       specifier: 0.3.24
       version: 0.3.24
+    rolldown:
+      specifier: 1.2.12
+      version: 1.2.12
     server-only:
       specifier: 0.0.1
       version: 0.0.1
@@ -1220,6 +1223,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.86.0(oxlint-tsgolint@7.0.2003)
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.12
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

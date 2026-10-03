@@ -18,10 +18,12 @@ export default defineConfig({
     "**/*.generated.ts",
     "**/database.types.ts",
     // Generated fixtures open with a blanket disable for consumers' linters.
-    "tests/fixtures/generated*.ts",
+    "tests/fixtures/generated*",
     "api/**",
   ],
   rules: {
+    // Bundlers read `/* @__PURE__ */` only right before the call it marks.
+    "no-inline-comments": ["error", { ignorePattern: "^ @__PURE__ $" }],
     // The core decodes PostgREST, Auth, webhook and storage payloads without
     // a schema dependency (invariant 1), and the CLI's introspection and
     // doctor read catalog rows, config.toml and splinter JSON, so their

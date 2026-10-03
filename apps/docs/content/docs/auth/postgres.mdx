@@ -30,6 +30,11 @@ through both and compares them.
 | `postgres.asUser(c)` | `authenticated`, with `request.jwt.claims` set, so RLS applies |
 | `postgres.anon`      | `anon`                                                         |
 
+`postgres.executorFor(claims)` is `postgresExecutor(postgres.asUser(claims))`.
+`createServer` calls it for `ctx.sql` and `actingAs()`, so the SQL compiler is
+only bundled into apps that import `better-supabase/postgres`. A custom
+`BetterPostgres` passed to `createServer` implements it too.
+
 Claims and role are transaction-local (`set_config(…, true)`), so nothing
 leaks back into the pool. Each transaction sets them, with its timeouts, in
 one query after `begin`. Only `authenticated` and `anon` can be assumed this
