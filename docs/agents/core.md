@@ -32,3 +32,13 @@ listeners get a copy of the returned rows (`cloneRows` in
 `src/core/repository.ts`), which keeps invariant 5 without trusting each
 hook. Copy plain objects and arrays only: Temporal values are immutable and
 `structuredClone` drops their prototype.
+
+## Cross-tenant contexts
+
+A request context is data that adapters, jobs and callers build, so a plain
+key such as `{ allTenants: true }` in it could come from a payload or claims.
+Skipping the tenant scope for a whole connection goes through
+`allTenantsContext(context)` in `src/core/plugin.ts`, which sets a module
+symbol that JSON can't produce and `$with` copies. `tenant()` and tenant
+buckets check it with `spansAllTenants`; per-call opt-outs stay
+`{ allTenants: true }` in the call options.
