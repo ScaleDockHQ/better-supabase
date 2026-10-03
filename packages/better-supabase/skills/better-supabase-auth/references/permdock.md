@@ -51,10 +51,34 @@ the other.
   `authorize` returns `{ allowed: false }`. Use `decide` instead of `can` to
   put the denial reason in the refusal. `can` decides without a row, so check
   row-conditioned permissions inside `run` or rely on RLS.
-- In Next.js, cache the permission snapshot with
-  `bs.cached({ tags: [snapshotTag(userId)], life: cacheLifeFor(snapshot) })`
-  and drop it with `bs.invalidateSession(userId, { tags: [snapshotTag(userId)] })`
-  when a role or plan changes.
+- In Next.js, cache the permission snapshot in a `'use cache: private'`
+  loader. The user id and the snapshot only exist after `bs.cached()`
+  returns, so pass it the static tags only, then tag and time the entry from
+  inside the loader with Next.js's `cacheTag` and `cacheLife`:
+
+  ```ts
+  import { cacheLife, cacheTag } from "next/cache";
+  import { snapshotFor } from "permdock";
+  import { cacheLifeFor, snapshotTag } from "permdock/next";
+  import { subjectFromSupabaseSession } from "permdock/supabase";
+
+  export async function loadSnapshot(orgId: string) {
+    "use cache: private";
+    const { session } = await bs.cached({ tags: [`org:${orgId}`] });
+    const snapshot = snapshotFor(policy, subjectFromSupabaseSession(session), {
+      tenant: orgId,
+    });
+    if (session.kind === "user") cacheTag(snapshotTag(session.user.id));
+    cacheLife(cacheLifeFor(snapshot));
+    return snapshot;
+  }
+  ```
+
+  `bs.cached()` already caps the stale time at the token's expiry, and Next.js
+  keeps the smaller `stale` of the two `cacheLife` calls. When a role or plan
+  changes, drop the user's entries and the snapshot with
+  `bs.invalidateSession(userId, { tags: [snapshotTag(userId)] })`.
+
 - Doctor BS405 measures `memberships` plus `attrs` against PermDock's 1 KB
   budget and the whole token against 2 KB; run `doctor --as <user id>`.
 
