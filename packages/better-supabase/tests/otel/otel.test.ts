@@ -86,9 +86,9 @@ describe("otel", () => {
   it("records a client span per operation without filter values", async () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
-    const sb = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({ body: [{ id: "c1" }] }));
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.findMany({ where: { name: "secret value" }, select: ["id"] })
       .orThrow();
@@ -119,12 +119,14 @@ describe("otel", () => {
 
   it("marks failed operations", async () => {
     const { tracer, spans } = memoryTracer();
-    const sb = defineSupabase(schema).use(otel({ tracer, metrics: false }));
+    const betterSupabase = defineSupabase(schema).use(
+      otel({ tracer, metrics: false }),
+    );
     const { client } = capturingClient(() => ({
       status: 409,
       body: { code: "23505", message: "duplicate key value" },
     }));
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
       .customers.create({ organizationId: "o1", name: "A" });
     expect(result.error?.kind).toBe("conflict");

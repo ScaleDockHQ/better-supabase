@@ -14,7 +14,7 @@ const meta: SchemaMeta = {
   ...schema.meta,
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
-const sb = defineSupabase(defineSchema(meta));
+const betterSupabase = defineSupabase(defineSchema(meta));
 const typed = defineSupabase(schema);
 
 function fakeClient(
@@ -72,15 +72,19 @@ const wait = (ms: number) =>
 
 describe("liveTopic", () => {
   it("scopes tenant tables and requires the tenant", () => {
-    expect(liveTopic(sb.meta, "notes")).toBe("bs:t:public.notes");
-    expect(liveTopic(sb.meta, "customers", "o1")).toBe(
+    expect(liveTopic(betterSupabase.meta, "notes")).toBe("bs:t:public.notes");
+    expect(liveTopic(betterSupabase.meta, "customers", "o1")).toBe(
       "bs:t:public.customers:o1",
     );
-    expect(() => liveTopic(sb.meta, "customers")).toThrow(/pass `tenant`/);
+    expect(() => liveTopic(betterSupabase.meta, "customers")).toThrow(
+      /pass `tenant`/,
+    );
   });
 
   it("rejects an unknown table", () => {
-    expect(() => liveTopic(sb.meta, "nope")).toThrow(/unknown table "nope"/);
+    expect(() => liveTopic(betterSupabase.meta, "nope")).toThrow(
+      /unknown table "nope"/,
+    );
   });
 });
 
@@ -88,7 +92,7 @@ describe("liveQuery join states", () => {
   it("resolves ready on CLOSED and reports subscribed", async () => {
     const { client } = fakeClient(() => ["CLOSED"]);
     const statuses: string[] = [];
-    const live = liveQuery(sb, client, ["notes"], {
+    const live = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status) => statuses.push(status),
     });
@@ -103,14 +107,14 @@ describe("liveQuery join states", () => {
       topic.endsWith("notes") ? ["CHANNEL_ERROR", cause] : ["TIMED_OUT"],
     );
     const errors: (Error | undefined)[] = [];
-    const notes = liveQuery(sb, client, ["notes"], {
+    const notes = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status, error) => {
         if (status === "error") errors.push(error);
       },
     });
     await expect(notes.ready).rejects.toBe(cause);
-    const customers = liveQuery(sb, client, ["customers"], {
+    const customers = liveQuery(betterSupabase, client, ["customers"], {
       tenant: "o1",
       onChange: vi.fn(),
     });
@@ -125,7 +129,7 @@ describe("liveQuery join states", () => {
   it("rejects an unknown status and wraps non-Error causes", async () => {
     const { client } = fakeClient(() => ["WEIRD"]);
     const errors: (Error | undefined)[] = [];
-    const live = liveQuery(sb, client, ["notes"], {
+    const live = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status, error) => {
         if (status === "error") errors.push(error);
@@ -135,7 +139,7 @@ describe("liveQuery join states", () => {
     expect(errors[0]?.message).toBe("Unknown realtime status WEIRD");
 
     const { client: failing } = fakeClient(() => ["CHANNEL_ERROR", "nope"]);
-    const wrapped = liveQuery(sb, failing, ["notes"], {
+    const wrapped = liveQuery(betterSupabase, failing, ["notes"], {
       onChange: vi.fn(),
     });
     await expect(wrapped.ready).rejects.toThrow("nope");
@@ -147,7 +151,7 @@ describe("liveQuery join states", () => {
     const { client, raw } = fakeClient();
     raw.realtime.setAuth.mockRejectedValueOnce("no token");
     const errors: (Error | undefined)[] = [];
-    const live = liveQuery(sb, client, ["notes"], {
+    const live = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status, error) => {
         if (status === "error") errors.push(error);
@@ -162,7 +166,7 @@ describe("liveQuery join states", () => {
   it("reports closed with no broadcasting tables and never subscribes", async () => {
     const { client, raw } = fakeClient();
     const statuses: string[] = [];
-    const live = liveQuery(sb, client, ["organizations"], {
+    const live = liveQuery(betterSupabase, client, ["organizations"], {
       onChange: vi.fn(),
       onStatus: (status) => statuses.push(status),
     });
@@ -177,7 +181,7 @@ describe("liveQuery join states", () => {
     const { client, raw, emit } = fakeClient();
     const onChange = vi.fn();
     const statuses: string[] = [];
-    const live = liveQuery(sb, client, ["notes"], {
+    const live = liveQuery(betterSupabase, client, ["notes"], {
       onChange,
       debounceMs: 5,
       onStatus: (status) => statuses.push(status),
@@ -195,7 +199,9 @@ describe("liveQuery join states", () => {
   it("disposes with using", async () => {
     const { client, raw } = fakeClient();
     {
-      using live = liveQuery(sb, client, ["notes"], { onChange: vi.fn() });
+      using live = liveQuery(betterSupabase, client, ["notes"], {
+        onChange: vi.fn(),
+      });
       await live.ready;
     }
     await wait(1);
@@ -209,7 +215,7 @@ describe("liveQuery", () => {
     const onChange = vi.fn();
     const statuses: string[] = [];
     const live = liveQuery(
-      sb,
+      betterSupabase,
       client,
       typed.spec.customers.findMany({
         include: { notes: true, organization: true },
@@ -243,11 +249,11 @@ describe("liveQuery", () => {
     const { client, raw, emit } = fakeClient();
     const first = vi.fn();
     const second = vi.fn();
-    const a = liveQuery(sb, client, ["notes"], {
+    const a = liveQuery(betterSupabase, client, ["notes"], {
       onChange: first,
       debounceMs: 1,
     });
-    const b = liveQuery(sb, client, ["notes"], {
+    const b = liveQuery(betterSupabase, client, ["notes"], {
       onChange: second,
       debounceMs: 1,
     });
@@ -268,7 +274,10 @@ describe("liveQuery", () => {
   it("refetches once after the channel rejoins", async () => {
     const { client, status } = fakeClient();
     const onChange = vi.fn();
-    const live = liveQuery(sb, client, ["notes"], { onChange, debounceMs: 1 });
+    const live = liveQuery(betterSupabase, client, ["notes"], {
+      onChange,
+      debounceMs: 1,
+    });
     await live.ready;
     await wait(5);
     expect(onChange).not.toHaveBeenCalled();
@@ -295,7 +304,7 @@ describe("liveCount", () => {
     const run = vi.fn(() => answers.shift() ?? AsyncResult.ok(0));
     const counts: number[] = [];
     const errors: string[] = [];
-    const live = liveCount(sb, client, { $run: run }, spec, {
+    const live = liveCount(betterSupabase, client, { $run: run }, spec, {
       debounceMs: 1,
       onCount: (count) => counts.push(count),
       onError: (error) => errors.push(error.kind),
@@ -333,7 +342,7 @@ describe("liveCount", () => {
       )
       .mockReturnValueOnce(AsyncResult.ok(7));
     const counts: number[] = [];
-    const live = liveCount(sb, client, { $run: run }, spec, {
+    const live = liveCount(betterSupabase, client, { $run: run }, spec, {
       immediate: false,
       debounceMs: 1,
       onCount: (count) => counts.push(count),
@@ -367,7 +376,7 @@ describe("liveCount", () => {
     const statuses: string[] = [];
     {
       using live = liveCount(
-        sb,
+        betterSupabase,
         client,
         { $run: run },
         typed.spec.customers.count(),
@@ -396,7 +405,9 @@ describe("liveCount", () => {
     const { client } = fakeClient();
     const run = vi.fn(() => AsyncResult.err(dbError("network", "offline")));
     const onCount = vi.fn();
-    const live = liveCount(sb, client, { $run: run }, spec, { onCount });
+    const live = liveCount(betterSupabase, client, { $run: run }, spec, {
+      onCount,
+    });
     await live.ready;
     await wait(1);
     expect(run).toHaveBeenCalledTimes(1);

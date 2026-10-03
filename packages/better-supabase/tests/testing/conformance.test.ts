@@ -41,7 +41,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 async function failures(pending: Promise<unknown>): Promise<string[]> {
   const error = await pending.then(
@@ -92,7 +92,7 @@ const tagRows = [
 describe("testExecutor", () => {
   it("passes a conforming executor", async () => {
     const report = await testExecutor(memoryExecutor(tagRows), {
-      sb,
+      betterSupabase,
       table: "tags",
     });
     expect(report.subject).toBe('Executor "memory"');
@@ -111,14 +111,14 @@ describe("testExecutor", () => {
         );
       },
     };
-    expect(await failures(testExecutor(broken, { sb, table: "tags" }))).toEqual(
-      [
-        "reads rows keyed by the selection aliases",
-        "counts rows",
-        "returns an aborted error for an aborted signal",
-        "returns failures as results instead of throwing",
-      ],
-    );
+    expect(
+      await failures(testExecutor(broken, { betterSupabase, table: "tags" })),
+    ).toEqual([
+      "reads rows keyed by the selection aliases",
+      "counts rows",
+      "returns an aborted error for an aborted signal",
+      "returns failures as results instead of throwing",
+    ]);
   });
 });
 
@@ -275,7 +275,7 @@ describe("testPlugin", () => {
       validation({ schemas: validators }),
     ]) {
       await testPlugin(plugin, {
-        sb,
+        betterSupabase,
         table: "customers",
         context,
         create: { ...create, status: "lead" },
@@ -298,7 +298,9 @@ describe("testPlugin", () => {
         },
       }),
     });
-    expect(await failures(testPlugin(sneaky, { sb, table: "tags" }))).toEqual([
+    expect(
+      await failures(testPlugin(sneaky, { betterSupabase, table: "tags" })),
+    ).toEqual([
       "transformQuery is pure and deterministic",
       "wrapExecutor keeps results intact",
     ]);
@@ -312,7 +314,7 @@ describe("testPlugin", () => {
       beforeMutation: (op) => op,
     });
     const report = await testPlugin(mappers, {
-      sb,
+      betterSupabase,
       table: "tags",
       create: { organizationId: ACME, name: "x" },
     });
@@ -335,7 +337,11 @@ describe("testPlugin", () => {
     });
     expect(
       await failures(
-        testPlugin(broken, { sb, table: "tags", create: { name: "x" } }),
+        testPlugin(broken, {
+          betterSupabase,
+          table: "tags",
+          create: { name: "x" },
+        }),
       ),
     ).toEqual([
       "beforeMutation is pure and deterministic",
@@ -345,11 +351,14 @@ describe("testPlugin", () => {
 
   it("rejects an unknown table and a wrong apiVersion", async () => {
     expect(() =>
-      testPlugin(definePlugin({ name: "p" }), { sb, table: "nope" }),
+      testPlugin(definePlugin({ name: "p" }), {
+        betterSupabase,
+        table: "nope",
+      }),
     ).toThrow('better-supabase: unknown table "nope"');
     const old = { ...definePlugin({ name: "old" }), apiVersion: 0 as 1 };
-    // sb.use() refuses the plugin too, so installing fails as well.
-    expect(await failures(testPlugin(old, { sb }))).toEqual([
+    // betterSupabase.use() refuses the plugin too, so installing fails as well.
+    expect(await failures(testPlugin(old, { betterSupabase }))).toEqual([
       "targets plugin API v1",
       "installs and builds repositories",
     ]);
@@ -510,7 +519,7 @@ function storeExecutor(
 describe("testExecutor optional contracts", () => {
   it("passes rpc, source, batch and write round-trip checks", async () => {
     const report = await testExecutor(storeExecutor(tagRows), {
-      sb,
+      betterSupabase,
       table: "tags",
       create: { organizationId: ACME, name: "fresh", color: "red" },
     });
@@ -538,7 +547,7 @@ describe("testExecutor optional contracts", () => {
             batchDrops: true,
             renames: true,
           }),
-          { sb, table: "tags", create },
+          { betterSupabase, table: "tags", create },
         ),
       ),
     ).toEqual([
@@ -549,7 +558,7 @@ describe("testExecutor optional contracts", () => {
     ]);
     const error = await testExecutor(
       storeExecutor(tagRows, { keepsDeleted: true }),
-      { sb, table: "tags", create },
+      { betterSupabase, table: "tags", create },
     ).catch((cause: unknown) => cause);
     expect((error as ConformanceError).report.checks.at(-1)).toEqual({
       name: "round-trips a write",
@@ -560,11 +569,11 @@ describe("testExecutor optional contracts", () => {
 
   it("defaults to the first table and rejects unknown ones", async () => {
     expect(() =>
-      testExecutor(storeExecutor(tagRows), { sb, table: "nope" }),
+      testExecutor(storeExecutor(tagRows), { betterSupabase, table: "nope" }),
     ).toThrow('better-supabase: unknown table "nope"');
     // The first table is not `tags`, so the memory executor fails its reads.
     expect(
-      await failures(testExecutor(storeExecutor(tagRows), { sb })),
+      await failures(testExecutor(storeExecutor(tagRows), { betterSupabase })),
     ).toContain("reads rows keyed by the selection aliases");
   });
 });

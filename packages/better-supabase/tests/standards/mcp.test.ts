@@ -18,9 +18,9 @@ const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const ENDPOINT = "https://tools.test/mcp";
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
-const mcp = createMcp(sb, {
+const mcp = createMcp(betterSupabase, {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
@@ -32,7 +32,7 @@ const mcp = createMcp(sb, {
   instructions: "Customer records.",
   resources: {
     customers: {
-      list: defineListQuery(sb, "customers", {
+      list: defineListQuery(betterSupabase, "customers", {
         search: ["name"],
         sorts: { name: { name: "asc" } },
         defaultSort: "name",

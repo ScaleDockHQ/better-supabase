@@ -93,6 +93,6 @@ describe("expectDbBudget", () => {
   it("explains a missing debug route", async () => {
     await expect(
       expectDbBudget(fakePage({ doc: stats(1, 1) }), { maxCalls: 8 }),
-    ).rejects.toThrow(/answered 404\. Mount next\.debugRoute\(\)/);
+    ).rejects.toThrow(/answered 404\. Mount bs\.debugRoute\(\)/);
   });
 });

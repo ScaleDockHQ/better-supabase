@@ -21,7 +21,7 @@ export interface CacheTarget {
 /**
  * Invalidates cached reads after a mutation. First-party adapters:
  * `nextCache()` (Next.js cache tags) and `queryCache(client)` (TanStack
- * Query). Attach one with `sb.cache(adapter)`; prove custom ones with
+ * Query). Attach one with `betterSupabase.cache(adapter)`; prove custom ones with
  * `testCacheAdapter`.
  */
 export interface CacheAdapter {

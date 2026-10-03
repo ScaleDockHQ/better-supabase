@@ -11,11 +11,11 @@ import { compileReadSet, compileReadSets } from "../../src/sql/read-sets.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 const USER = "00000000-0000-0000-0000-000000000001";
 
 const chrome = defineReadSet(
-  sb,
+  betterSupabase,
   "app_chrome",
   { params: { orgId: "uuid", kinds: "text[]", search: "text" } },
   (s, p) => ({
@@ -67,14 +67,16 @@ function fakeExecutor(): Executor & {
 describe("defineReadSet", () => {
   it("rejects names that are not snake_case", () => {
     expect(() =>
-      defineReadSet(sb, "App-Chrome", {}, (s) => ({ all: s.tags.count() })),
+      defineReadSet(betterSupabase, "App-Chrome", {}, (s) => ({
+        all: s.tags.count(),
+      })),
     ).toThrow(/snake_case/);
   });
 
   it("rejects parameter types that are not plain type names", () => {
     expect(() =>
       defineReadSet(
-        sb,
+        betterSupabase,
         "typed",
         { params: { id: "uuid); drop table x; --" as "uuid" } },
         (s) => ({ all: s.tags.count() }),
@@ -84,7 +86,9 @@ describe("defineReadSet", () => {
 
   it("rejects entries that are not specs", () => {
     expect(() =>
-      defineReadSet(sb, "broken", {}, () => ({ nope: {} as never })),
+      defineReadSet(betterSupabase, "broken", {}, () => ({
+        nope: {} as never,
+      })),
     ).toThrow(/not a spec/);
   });
 
@@ -116,9 +120,14 @@ describe("compileReadSet", () => {
   });
 
   it("grants the roles the set lists", async () => {
-    const open = defineReadSet(sb, "open", { roles: ["anon"] }, (s) => ({
-      tags: s.tags.count(),
-    }));
+    const open = defineReadSet(
+      betterSupabase,
+      "open",
+      { roles: ["anon"] },
+      (s) => ({
+        tags: s.tags.count(),
+      }),
+    );
     expect((await compileReadSet(open)).sql).toContain(
       "grant execute on function public.rs_open(jsonb) to anon;",
     );
@@ -126,7 +135,7 @@ describe("compileReadSet", () => {
 
   it("refuses a placeholder used as the wrong shape", async () => {
     const wrong = defineReadSet(
-      sb,
+      betterSupabase,
       "wrong",
       { params: { id: "uuid" } },
       (s, p) => ({
@@ -138,7 +147,7 @@ describe("compileReadSet", () => {
 
   it("inlines booleans, numbers, instants and escaped lists", async () => {
     const at = Temporal.Instant.from("2026-01-02T03:04:05Z");
-    const set = defineReadSet(sb, "literals", {}, (s) => ({
+    const set = defineReadSet(betterSupabase, "literals", {}, (s) => ({
       primary: s.locations.count({
         where: { isPrimary: true, city: { notIn: ['a"b', "c\\d"] } },
       }),
@@ -162,7 +171,7 @@ describe("compileReadSet", () => {
   });
 
   it("writes an empty entry for a filter that matches nothing", async () => {
-    const set = defineReadSet(sb, "nothing", {}, (s) => ({
+    const set = defineReadSet(betterSupabase, "nothing", {}, (s) => ({
       none: s.customers.findMany({ where: { id: { in: [] } } }),
     }));
     expect((await compileReadSet(set)).sql).toContain(
@@ -171,12 +180,12 @@ describe("compileReadSet", () => {
   });
 
   it("refuses values it cannot inline", async () => {
-    const infinite = defineReadSet(sb, "infinite", {}, (s) => ({
+    const infinite = defineReadSet(betterSupabase, "infinite", {}, (s) => ({
       one: s.customers.count({ where: { name: Infinity as never } }),
     }));
     await expect(compileReadSet(infinite)).rejects.toThrow(/Cannot inline/);
     const nested = defineReadSet(
-      sb,
+      betterSupabase,
       "nested",
       { params: { id: "uuid" } },
       (s, p) => ({
@@ -192,7 +201,7 @@ describe("compileReadSet", () => {
 
   it("refuses a placeholder for an unknown parameter", async () => {
     const set = defineReadSet(
-      sb,
+      betterSupabase,
       "unknown_param",
       { params: { id: "uuid" } },
       (s, p) => ({ one: s.customers.count({ where: { id: p.id } }) }),
@@ -203,7 +212,7 @@ describe("compileReadSet", () => {
   });
 
   it("refuses an entry for an unknown table", async () => {
-    const set = defineReadSet(sb, "unknown_table", {}, (s) => ({
+    const set = defineReadSet(betterSupabase, "unknown_table", {}, (s) => ({
       one: s.tags.count(),
     }));
     const broken = {
@@ -216,7 +225,7 @@ describe("compileReadSet", () => {
   });
 
   it("refuses a body that holds the dollar-quote tag", async () => {
-    const set = defineReadSet(sb, "tagged", {}, (s) => ({
+    const set = defineReadSet(betterSupabase, "tagged", {}, (s) => ({
       one: s.customers.count({ where: { name: "$rs$" } }),
     }));
     await expect(compileReadSet(set)).rejects.toThrow(/contains "\$rs\$"/);
@@ -224,8 +233,12 @@ describe("compileReadSet", () => {
 });
 
 describe("compileReadSets", () => {
-  const a = defineReadSet(sb, "b_set", {}, (s) => ({ one: s.tags.count() }));
-  const b = defineReadSet(sb, "a_set", {}, (s) => ({ one: s.tags.count() }));
+  const a = defineReadSet(betterSupabase, "b_set", {}, (s) => ({
+    one: s.tags.count(),
+  }));
+  const b = defineReadSet(betterSupabase, "a_set", {}, (s) => ({
+    one: s.tags.count(),
+  }));
 
   it("compiles each set once, sorted by name", async () => {
     const compiled = await compileReadSets([a, b, a]);
@@ -233,7 +246,7 @@ describe("compileReadSets", () => {
   });
 
   it("throws on two sets with the same name", async () => {
-    const twin = defineReadSet(sb, "b_set", {}, (s) => ({
+    const twin = defineReadSet(betterSupabase, "b_set", {}, (s) => ({
       one: s.notes.count(),
     }));
     await expect(compileReadSets([a, twin])).rejects.toThrow(
@@ -251,7 +264,7 @@ describe("db.$many over PostgREST", () => {
         first: { rows: [], count: null },
       },
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const result = await db.$many(chrome, {
       orgId: USER,
       kinds: ["call"],
@@ -275,7 +288,7 @@ describe("db.$many over PostgREST", () => {
 
   it("fails without calling the database when a parameter is missing", async () => {
     const { client, requests } = capturingClient();
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
       .$many(chrome, { orgId: USER } as never);
     expect(!result.ok && result.error.kind).toBe("invalid_request");
@@ -288,10 +301,10 @@ describe("db.$many over PostgREST", () => {
         ? { body: [{ id: "t1" }] }
         : { body: [], headers: { "content-range": "*/7" } },
     );
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const result = await db.$many([
-      sb.spec.tags.findMany({ select: ["id"] }),
-      sb.spec.notes.count(),
+      betterSupabase.spec.tags.findMany({ select: ["id"] }),
+      betterSupabase.spec.notes.count(),
     ]);
     expect(result.ok && result.data).toEqual([[{ id: "t1" }], 7]);
     expect(requests).toHaveLength(2);
@@ -302,11 +315,11 @@ describe("db.$many over PostgREST", () => {
 describe("db.$many with Executor.batch", () => {
   it("sends ad-hoc specs as one batch", async () => {
     const executor = fakeExecutor();
-    const result = await sb
+    const result = await betterSupabase
       .connect(executor)
       .$many([
-        sb.spec.tags.findMany({ select: ["id"] }),
-        sb.spec.notes.count(),
+        betterSupabase.spec.tags.findMany({ select: ["id"] }),
+        betterSupabase.spec.notes.count(),
       ]);
     expect(result.ok && result.data).toEqual([[{ id: "tags" }], 3]);
     expect(executor.batches).toHaveLength(1);
@@ -319,7 +332,7 @@ describe("db.$many with Executor.batch", () => {
 
   it("binds read-set parameters instead of calling a function", async () => {
     const executor = fakeExecutor();
-    const result = await sb.connect(executor).$many(chrome, {
+    const result = await betterSupabase.connect(executor).$many(chrome, {
       orgId: USER,
       kinds: ["call", "email"],
       search: "ac",
@@ -358,7 +371,7 @@ describe("batchingExecutor", () => {
 
 async function captureOp(): Promise<Operation> {
   let seen: Operation | undefined;
-  await sb
+  await betterSupabase
     .connect({
       name: "capture",
       execute: async (op) => {

@@ -156,8 +156,10 @@ describe("argument checking", () => {
   });
 
   it("types QuerySpec results like the repository", async () => {
-    const sb = defineSupabase(camel);
-    const spec = sb.spec.customers.findMany({ select: ["id", "status"] });
+    const betterSupabase = defineSupabase(camel);
+    const spec = betterSupabase.spec.customers.findMany({
+      select: ["id", "status"],
+    });
     expectTypeOf<InferResult<typeof spec>>().toEqualTypeOf<
       { id: string; status: CustomersStatus }[]
     >();
@@ -165,12 +167,17 @@ describe("argument checking", () => {
     expectTypeOf(rows).toEqualTypeOf<
       { id: string; status: CustomersStatus }[]
     >();
-    const page = sb.spec.customers.paginate({ size: 10, after: null });
+    const page = betterSupabase.spec.customers.paginate({
+      size: 10,
+      after: null,
+    });
     expectTypeOf<InferResult<typeof page>["nextCursor"]>().toEqualTypeOf<
       string | null
     >();
-    // @ts-expect-error specs never carry a signal
-    sb.spec.customers.findMany({ signal: new AbortController().signal });
+    betterSupabase.spec.customers.findMany({
+      // @ts-expect-error specs never carry a signal
+      signal: new AbortController().signal,
+    });
   });
 });
 

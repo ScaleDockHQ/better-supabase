@@ -30,13 +30,13 @@ function items(select: string): string[] {
 }
 
 describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregates}+)`, () => {
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
 
   it("compiles aggregate() to the aggregate select grammar with group-by columns", async () => {
     const { client, last } = capturingClient(() => ({
       body: [{ status: "active", _count: 2 }],
     }));
-    await sb.connect(client).customers.aggregate({
+    await betterSupabase.connect(client).customers.aggregate({
       groupBy: ["status"],
       _count: true,
       _min: { createdAt: true },
@@ -51,7 +51,7 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
 
   it("compiles _sum/_avg/_min/_max includes to embedded aggregates", async () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
-    await sb.connect(client).customers.findMany({
+    await betterSupabase.connect(client).customers.findMany({
       select: ["id"],
       include: {
         _sum: { notes: { id: true } },
@@ -69,7 +69,7 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
 
   it("rejects _sum on a non-numeric column before sending a request", async () => {
     const { client, requests } = capturingClient();
-    const result = await sb.connect(client).customers.findMany({
+    const result = await betterSupabase.connect(client).customers.findMany({
       include: { _sum: { notes: { body: true } } } as never,
     });
     expect(result.ok).toBe(false);

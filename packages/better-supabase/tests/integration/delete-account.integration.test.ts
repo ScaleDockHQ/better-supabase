@@ -52,8 +52,8 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   });
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const table = `bs_del_${RUN}`;
-  const sb = defineSupabase(schema);
-  const server = createServer(sb, {
+  const betterSupabase = defineSupabase(schema);
+  const server = createServer(betterSupabase, {
     env: {
       url,
       publishableKey,
@@ -128,7 +128,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       drop constraint ${table}_user_id_fkey,
       add foreign key (user_id) references auth.users (id) on delete cascade`);
     const notices: MutationNotice[] = [];
-    const off = sb.on("mutation", (notice) => notices.push(notice));
+    const off = betterSupabase.on("mutation", (notice) => notices.push(notice));
 
     const result = await server.deleteAccount(userId, {
       buckets: [documents, shared, logos],

@@ -30,7 +30,7 @@ const LEAKY = `00000000-0000-4000-8000-${String(RUN).slice(-12).padStart(12, "0"
 const USER = "00000000-0000-4000-8000-0000000000ff";
 
 const source = await openPg(dbUrl);
-const sb = defineSupabase(schema).use(tenant());
+const betterSupabase = defineSupabase(schema).use(tenant());
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({
     organizationId: owner.id,
@@ -59,7 +59,7 @@ describe.skipIf(!source)(
     });
 
     it("passes when every command is scoped to the tenant", async () => {
-      const report = await expectTenantIsolation(sb, {
+      const report = await expectTenantIsolation(betterSupabase, {
         stack,
         tenants: [
           { id: ACME, name: "acme", claims: { sub: USER, tenant_id: ACME } },
@@ -80,7 +80,7 @@ describe.skipIf(!source)(
     });
 
     it("names the table and command of each leak", async () => {
-      const error = await expectTenantIsolation(sb, {
+      const error = await expectTenantIsolation(betterSupabase, {
         stack,
         tenants: [
           {

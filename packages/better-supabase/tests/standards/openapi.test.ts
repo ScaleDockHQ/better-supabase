@@ -7,15 +7,15 @@ import { createOpenApi } from "../../src/openapi/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { metaSchema2020, problems, validatorFor } from "./validator.ts";
 
-const sb = defineSupabase(schema);
-const customers = defineListQuery(sb, "customers", {
+const betterSupabase = defineSupabase(schema);
+const customers = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
   facets: { status: "status" },
   sorts: { name: { name: "asc" } },
   defaultSort: "name",
 });
 
-const doc = createOpenApi(sb, {
+const doc = createOpenApi(betterSupabase, {
   info: { title: "CRM", version: "1.0.0", description: "Customers" },
   servers: [{ url: "https://api.test" }],
   basePath: "/api",

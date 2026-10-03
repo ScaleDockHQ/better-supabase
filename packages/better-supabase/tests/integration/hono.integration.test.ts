@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
-import { type BetterEnv, createHono } from "../../src/hono/index.ts";
+import { type HonoEnv, createHono } from "../../src/hono/index.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import {
@@ -40,21 +40,21 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 describe.skipIf(!live)("Hono adapter against the local stack", async () => {
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
   const env = parseEnv({
     SUPABASE_URL: url,
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
-  const bs = createHono(sb, {
+  const bs = createHono(betterSupabase, {
     env,
   });
-  const list = defineListQuery(sb, "customers", {
+  const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
     sorts: { name: { name: "asc" } },
     defaultSort: "name",
     pageSize: 20,
   });
-  const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+  const app = new Hono<HonoEnv<Models, Functions, unknown>>()
     .onError(bs.onError)
     .use("/api/*", bs.middleware())
     .route(
@@ -64,7 +64,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
         select: ["id", "name", "organizationId"],
       }),
     );
-  const admin = sb.connect(
+  const admin = betterSupabase.connect(
     createClient(url, secretKey, { auth: { persistSession: false } }),
   );
   const created: string[] = [];

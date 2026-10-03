@@ -10,7 +10,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 // DOM AbortSignal semantics: an aborted signal stops work before it starts,
 // an abort during a request rejects the fetch, and either way the caller
 // gets a value (an `aborted` DbError), not a thrown AbortError.
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 /** A fetch that never answers until its signal aborts, as a slow network would. */
 function hangingClient() {
@@ -46,7 +46,7 @@ describe("AbortSignal", () => {
     const { client, requests } = capturingClient();
     const controller = new AbortController();
     controller.abort();
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
       .customers.findMany({ signal: controller.signal });
     expect(result.ok).toBe(false);
@@ -57,7 +57,7 @@ describe("AbortSignal", () => {
   it("passes the signal to fetch and returns aborted when it fires mid-request", async () => {
     const { client, seen } = hangingClient();
     const controller = new AbortController();
-    const pending = sb
+    const pending = betterSupabase
       .connect(client)
       .customers.findMany({ signal: controller.signal });
     await new Promise((resolve) => {
@@ -71,7 +71,7 @@ describe("AbortSignal", () => {
 
   it("AbortSignal.timeout() works the same way", async () => {
     const { client } = hangingClient();
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
       .customers.findMany({ signal: AbortSignal.timeout(5) });
     expect(!result.ok && result.error.kind).toBe("aborted");
@@ -79,7 +79,7 @@ describe("AbortSignal", () => {
 
   it("an aborted signal on rpc sends no request", async () => {
     const { client, requests } = capturingClient();
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
       .$rpc("customer_stats" as never, {} as never, {
         signal: AbortSignal.abort(),
@@ -90,7 +90,7 @@ describe("AbortSignal", () => {
 
   it("the Postgres executor checks the signal before it queries", async () => {
     const fake = fakeSql([]);
-    const result = await sb
+    const result = await betterSupabase
       .connect(postgresExecutor(fake.sql))
       .customers.findMany({ signal: AbortSignal.abort() });
     expect(!result.ok && result.error.kind).toBe("aborted");

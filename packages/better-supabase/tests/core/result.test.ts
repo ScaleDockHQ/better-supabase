@@ -53,7 +53,7 @@ const conflict = () =>
     body: { code: "23505", message: "duplicate key value" },
   }));
 
-describe("sb.mapError", () => {
+describe("betterSupabase.mapError", () => {
   it("makes .orThrow() throw the mapped error; results keep the DbError", async () => {
     const db = defineSupabase(schema)
       .mapError(toAppError)
@@ -129,7 +129,7 @@ describe("toBetterResult", () => {
     expect(mapped.status === "error" && mapped.error).toBeInstanceOf(AppError);
   });
 
-  it("awaits an AsyncResult and uses the mapper of sb.mapError", async () => {
+  it("awaits an AsyncResult and uses the mapper of betterSupabase.mapError", async () => {
     const db = defineSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);

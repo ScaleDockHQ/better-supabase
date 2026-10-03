@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { problemResponse } from "../../src/core/problem.ts";
-import { type BetterEnv, createHono } from "../../src/hono/index.ts";
+import { type HonoEnv, createHono } from "../../src/hono/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import {
   type Functions,
@@ -87,8 +87,8 @@ describe("RFC 6750 Bearer token challenges", () => {
   });
 
   it("reads the token from the Authorization header with the Bearer scheme (section 2.1)", async () => {
-    const sb = defineSupabase(schema);
-    const bs = createHono(sb, {
+    const betterSupabase = defineSupabase(schema);
+    const bs = createHono(betterSupabase, {
       env: {
         url: PROJECT_URL,
         publishableKey: "sb_publishable_test",
@@ -96,7 +96,7 @@ describe("RFC 6750 Bearer token challenges", () => {
       },
       auth: { jwks: signer.jwks as never },
     });
-    const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+    const app = new Hono<HonoEnv<Models, Functions, unknown>>()
       .onError(bs.onError)
       .use("/api/*", bs.middleware())
       .get("/api/me", (c) => c.json({ ok: true }));

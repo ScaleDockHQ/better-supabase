@@ -72,14 +72,14 @@ export interface NextDebugOptions {
   readonly header?: string;
   /** Warns in development when one render goes over it. */
   readonly budget?: DbBudget;
-  /** Where `next.debugRoute()` is mounted. Defaults to `/api/bs-stats`. */
+  /** Where `bs.debugRoute()` is mounted. Defaults to `/api/bs-stats`. */
   readonly route?: string;
 }
 
-/** Response header with the URL of the request's totals on `next.debugRoute()`. */
+/** Response header with the URL of the request's totals on `bs.debugRoute()`. */
 export const STATS_URL_HEADER = "x-bs-stats";
 
-export interface ProxyOptions<C = unknown, U = unknown> {
+export interface ProxyOptions<C = unknown, P = unknown> {
   /**
    * Another middleware to compose with, such as next-intl's. It runs on the
    * original request, alongside auth; its rewrite, redirect or request
@@ -90,13 +90,13 @@ export interface ProxyOptions<C = unknown, U = unknown> {
   ) => Response | undefined | Promise<Response | undefined>;
   /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
   readonly protect?: (
-    auth: AuthState<C, U>,
+    auth: AuthState<C, P>,
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
   /** Post-processes the final response; return a new one to replace it. */
   readonly after?: (
     response: Response,
-    auth: AuthState<C, U>,
+    auth: AuthState<C, P>,
   ) => Response | undefined | void | Promise<Response | undefined | void>;
   /**
    * Adds `Server-Timing: bs-proxy;dur=..., bs-verify;dur=...` (ms): the whole
@@ -133,27 +133,33 @@ export interface BetterNext<
   F extends AnyFunctions,
   E,
   C = unknown,
-  U = unknown,
-> extends BetterServer<M, F, E, C, U> {
+  P = unknown,
+> extends BetterServer<M, F, E, C, P> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
-  proxy(request: NextRequest, options?: ProxyOptions<C, U>): Promise<Response>;
-  /** Server Components and actions: the caller's context, memoized per request. */
-  server(): Promise<ServerContext<M, F, E, C, U>>;
+  proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
+  /**
+   * The caller's context. Without a request (Server Components, actions) it
+   * reads the incoming headers and is memoized per request.
+   */
+  context(
+    request?: Request,
+    options?: ContextOptions,
+  ): Promise<ServerContext<M, F, E, C, P>>;
   /**
    * The verified caller as serializable data (no token, no clients), memoized
    * per request. Wrap it in a `'use cache: private'` function with Cache
    * Components and pass the promise to `<SessionProvider>`.
    */
-  session(): Promise<AuthSession<C, U>>;
+  session(): Promise<AuthSession<C, P>>;
   /**
    * The context for a session and its token, without reading the request.
    * The token is verified again (memoized, no network call); a token for
    * another user than `session` gives an `invalid` context.
    */
-  serverFor(
-    session: AuthSession<C, U>,
+  contextForSession(
+    session: AuthSession<C, P>,
     options: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, U>>;
+  ): Promise<ServerContext<M, F, E, C, P>>;
   /**
    * First statement of an app-authored `'use cache: private'` function: sets
    * `cacheLife` from the session's expiry (`sessionStale`, capped by
@@ -163,14 +169,14 @@ export interface BetterNext<
    * ```ts
    * async function getCustomers() {
    *   'use cache: private';
-   *   const { db } = await next.cached();
+   *   const { db } = await bs.cached();
    *   return db.customers.findMany().orThrow();
    * }
    * ```
    */
-  cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C, U>>;
+  cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C, P>>;
   /**
-   * Drops every `next.cached()` entry of a user, e.g. after a role change,
+   * Drops every `bs.cached()` entry of a user, e.g. after a role change,
    * and the entries tagged with `tags` (such as PermDock's `snapshotTag(userId)`).
    */
   invalidateSession(
@@ -181,7 +187,7 @@ export interface BetterNext<
    * Counts on the server and returns a serializable seed for
    * `useLiveCount(seed)`, so the badge renders with a number and the client
    * only refetches on changes. Pass `db` inside `'use cache: private'`
-   * (from `next.cached()`); otherwise it uses `next.server()`. A failed
+   * (from `bs.cached()`); otherwise it uses `bs.context()`. A failed
    * count gives `count: null` instead of throwing.
    */
   liveCount<T extends Extract<keyof M, string>>(
@@ -189,22 +195,22 @@ export interface BetterNext<
     db?: CountRunner,
   ): Promise<LiveCountSeed<T>>;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
-  route<P = Record<string, string | string[]>>(
+  route<Params = Record<string, string | string[]>>(
     handler: (
       request: NextRequest,
-      ctx: ServerContext<M, F, E, C, U> & { readonly params: P },
+      ctx: ServerContext<M, F, E, C, P> & { readonly params: Params },
     ) => unknown,
     options?: GuardOptions,
   ): (
     request: NextRequest,
-    segment: { readonly params: Promise<P> },
+    segment: { readonly params: Promise<Params> },
   ) => Promise<Response>;
   /** Server action returning a serializable `ActionResult`. */
   action<S extends StandardSchemaV1 | undefined, T>(
     options: ActionOptions<S>,
     fn: (
       input: ActionParsed<S>,
-      ctx: ServerContext<M, F, E, C, U>,
+      ctx: ServerContext<M, F, E, C, P>,
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /** Tags the current `"use cache"` scope with a table (and row) tag. */
@@ -270,10 +276,10 @@ export type CachedContext<
   F extends AnyFunctions,
   E,
   C = unknown,
-  U = unknown,
-> = ServerContext<M, F, E, C, U> & { readonly session: AuthSession<C, U> };
+  P = unknown,
+> = ServerContext<M, F, E, C, P> & { readonly session: AuthSession<C, P> };
 
-/** The tag `next.cached()` puts on a user's entries. */
+/** The tag `bs.cached()` puts on a user's entries. */
 export function sessionTag(userId: string): string {
   return `bs:session:${userId}`;
 }
@@ -337,7 +343,7 @@ export interface RequireAalOptions {
  * combine it with your sign-in redirect.
  *
  * ```ts
- * next.proxy(request, {
+ * bs.proxy(request, {
  *   protect: requireAal('aal2', { redirect: '/mfa', match: (path) => path.startsWith('/settings') }),
  * });
  * ```
@@ -382,7 +388,7 @@ export function shouldRefresh(request: Request): boolean {
  * actions and cache tags, on top of `createServer`.
  *
  * ```ts
- * export const next = createNext(sb);
+ * export const bs = createNext(betterSupabase);
  * ```
  */
 export function createNext<
@@ -391,16 +397,16 @@ export function createNext<
   F extends AnyFunctions,
   E,
   C = unknown,
-  U = unknown,
+  P = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E, C, U>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: NextOptions = {},
-): BetterNext<M, F, E, C, U> {
-  const base = createServer(sb, options);
+): BetterNext<M, F, E, C, P> {
+  const base = createServer(betterSupabase, options);
   const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
   const expose = options.exposeErrors ?? defaultExpose();
 
-  if (options.cacheTags !== false) sb.cache(nextCache());
+  if (options.cacheTags !== false) betterSupabase.cache(nextCache());
 
   const debug = options.debug;
   const statsHeader = debug?.header ?? "x-bs-db-calls";
@@ -408,7 +414,7 @@ export function createNext<
   const development = process.env["NODE_ENV"] === "development";
   const collector = debug?.enabled
     ? sharedCollector({
-        logger: sb.events.logger,
+        logger: betterSupabase.events.logger,
         warn: development,
         ...(debug.budget ? { budget: debug.budget } : {}),
       })
@@ -423,22 +429,28 @@ export function createNext<
       headers: new Headers(await headers()),
     });
 
-  const server = cache(async (): Promise<ServerContext<M, F, E, C, U>> => {
+  const current = cache(async (): Promise<ServerContext<M, F, E, C, P>> => {
     const request = await incomingRequest();
     return base.context(request, statsFor(request));
   });
 
-  const session = cache(async (): Promise<AuthSession<C, U>> => {
+  const context = (
+    request?: Request,
+    contextOptions?: ContextOptions,
+  ): Promise<ServerContext<M, F, E, C, P>> =>
+    request ? base.context(request, contextOptions) : current();
+
+  const session = cache(async (): Promise<AuthSession<C, P>> => {
     const resolution = await base.resolve(await incomingRequest(), {
       refresh: false,
     });
     return toSession(resolution.auth);
   });
 
-  const serverFor = async (
-    view: AuthSession<C, U>,
+  const contextForSession = async (
+    view: AuthSession<C, P>,
     { token }: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, U>> => {
+  ): Promise<ServerContext<M, F, E, C, P>> => {
     const request = new Request("http://next.local/", {
       headers: token ? { authorization: `Bearer ${token}` } : {},
     });
@@ -453,26 +465,26 @@ export function createNext<
       reason: "token",
       error: dbError(
         "unauthorized",
-        "The token does not belong to the session passed to serverFor()",
+        "The token does not belong to the session passed to contextForSession()",
       ),
     });
   };
 
   const withAccounts = withExtra(base, {
+    context,
     deleteAccount: ((userId, deleteOptions) =>
       base.deleteAccount(userId, deleteOptions).map((result) => {
         invalidate(sessionTag(userId));
         return result;
-      })) satisfies BetterServer<M, F, E, C, U>["deleteAccount"],
+      })) satisfies BetterServer<M, F, E, C, P>["deleteAccount"],
   });
 
-  return extendServer<BetterNext<M, F, E, C, U>>(withAccounts, {
-    server,
+  return extendServer<BetterNext<M, F, E, C, P>>(withAccounts, {
     session,
-    serverFor,
+    contextForSession,
 
     async cached(cachedOptions = {}) {
-      const [view, ctx] = await Promise.all([session(), server()]);
+      const [view, ctx] = await Promise.all([session(), current()]);
       const life = cachedOptions.life;
       const stale = sessionStale(view, life);
       cacheLife({
@@ -496,7 +508,7 @@ export function createNext<
     },
 
     async liveCount(spec, db) {
-      const runner = db ?? (await server()).db;
+      const runner = db ?? (await current()).db;
       const result = await runner.$run(spec);
       return {
         spec,
@@ -629,7 +641,7 @@ export function createNext<
     action(actionOptions, fn) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
       return async (input) => {
-        const ctx = await server();
+        const ctx = await current();
         const denied = guard(
           ctx.auth,
           actionOptions.allow,
@@ -677,7 +689,8 @@ export function createNext<
           : [target];
       const tags = new Set<string>();
       for (const spec of specs) {
-        for (const table of sb.tablesOf(spec)) tags.add(tagFor(table));
+        for (const table of betterSupabase.tablesOf(spec))
+          tags.add(tagFor(table));
         const [id] = spec.args;
         if (
           spec.method === "findById" &&

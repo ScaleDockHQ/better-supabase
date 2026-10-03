@@ -20,11 +20,11 @@ const source = await openPg(dbUrl);
 
 describe.skipIf(!source)("row caps against the local stack", () => {
   const db = source!;
-  const sb = defineSupabase(schema, {
+  const betterSupabase = defineSupabase(schema, {
     maxRows: 1000,
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   });
-  const admin = sb.connect(
+  const admin = betterSupabase.connect(
     createClient(url, secretKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     }),
@@ -51,7 +51,9 @@ describe.skipIf(!source)("row caps against the local stack", () => {
 
   it("marks a read cut short by db-max-rows as truncated", async () => {
     const seen: boolean[] = [];
-    const off = sb.on("query", (event) => seen.push(event.truncated));
+    const off = betterSupabase.on("query", (event) =>
+      seen.push(event.truncated),
+    );
     const capped = await admin.tags
       .findMany({
         select: ["id", "name"],

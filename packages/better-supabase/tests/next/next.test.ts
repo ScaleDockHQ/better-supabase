@@ -100,8 +100,8 @@ describe("shouldRefresh", () => {
 
 describe("createNext", () => {
   const fresh = vi.fn<typeof fetch>();
-  const sb = defineSupabase(schema);
-  const next = createNext(sb, {
+  const betterSupabase = defineSupabase(schema);
+  const bs = createNext(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never, fetch: fresh },
   });
@@ -123,7 +123,7 @@ describe("createNext", () => {
     })
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
-    const response = await next.proxy(page({ cookie }));
+    const response = await bs.proxy(page({ cookie }));
     expect(response.headers.getSetCookie()).toEqual([]);
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(fresh).not.toHaveBeenCalled();
@@ -139,7 +139,7 @@ describe("createNext", () => {
         expires_in: 3600,
       }),
     );
-    const response = await next.proxy(
+    const response = await bs.proxy(
       page({ cookie: cookieFor(stale, "next-1") }),
     );
     expect(fresh).toHaveBeenCalledTimes(1);
@@ -158,7 +158,7 @@ describe("createNext", () => {
     fresh.mockResolvedValue(
       Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
     );
-    const response = await next.proxy(
+    const response = await bs.proxy(
       page({ cookie: cookieFor(stale, "next-dead") }),
       {
         protect: (auth, request) =>
@@ -201,7 +201,7 @@ describe("createNext", () => {
         cookie: cookieFor(await stale(), "compose-1"),
         headers: { "accept-language": "nl" },
       });
-      const response = await next.proxy(request, { before });
+      const response = await bs.proxy(request, { before });
       expect(before).toHaveBeenCalledWith(request);
       expect(response.headers.get("x-middleware-rewrite")).toBe(
         "https://app.test/nl/dashboard",
@@ -229,7 +229,7 @@ describe("createNext", () => {
 
     it("keeps before() redirects and adds cookies to them", async () => {
       await renew();
-      const response = await next.proxy(
+      const response = await bs.proxy(
         page({ cookie: cookieFor(await stale(), "compose-2") }),
         {
           before: (request) =>
@@ -243,7 +243,7 @@ describe("createNext", () => {
     });
 
     it("never refreshes a prefetch, whatever before() does", async () => {
-      const response = await next.proxy(
+      const response = await bs.proxy(
         page({
           cookie: cookieFor(await stale(), "compose-3"),
           headers: { "next-router-prefetch": "1", rsc: "1" },
@@ -269,7 +269,7 @@ describe("createNext", () => {
       })
         .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
         .join("; ");
-      const edited = await next.proxy(page({ cookie }), {
+      const edited = await bs.proxy(page({ cookie }), {
         after: (response, auth) => {
           response.headers.set(
             "x-user",
@@ -283,7 +283,7 @@ describe("createNext", () => {
       expect(edited.headers.get("server-timing")).toMatch(
         /^bs-proxy;dur=\d+\.\d, bs-verify;dur=\d+\.\d$/,
       );
-      const replaced = await next.proxy(page(), {
+      const replaced = await bs.proxy(page(), {
         after: () => new Response("maintenance", { status: 503 }),
       });
       expect(replaced.status).toBe(503);
@@ -318,7 +318,7 @@ describe("createNext", () => {
     });
 
     fresh.mockClear();
-    await next.proxy(
+    await bs.proxy(
       page({
         cookie: cookieFor(
           await signer.sign({ sub: USER, expiresIn: 20 }),
@@ -336,7 +336,7 @@ describe("createNext", () => {
   });
 
   it("guards route handlers and answers with Problem Details", async () => {
-    const handler = next.route<{ id: string }>(async (_request, ctx) => {
+    const handler = bs.route<{ id: string }>(async (_request, ctx) => {
       if (ctx.params.id === "missing")
         throw new DbException(dbError("not_found", "No customer"));
       if (ctx.params.id === "result")
@@ -378,7 +378,7 @@ describe("createNext", () => {
   });
 
   it("unwraps AsyncResults returned without await", async () => {
-    const handler = next.route<{ id: string }>((_request, ctx) =>
+    const handler = bs.route<{ id: string }>((_request, ctx) =>
       ctx.params.id === "gone"
         ? AsyncResult.err(dbError("not_found", "Gone"))
         : AsyncResult.ok({ id: ctx.params.id }),
@@ -396,7 +396,7 @@ describe("createNext", () => {
   });
 
   it("runs actions with validation, FormData and serializable results", async () => {
-    const save = next.action(
+    const save = bs.action(
       {
         input: v.object({
           name: v.pipe(v.string(), v.minLength(2)),
@@ -447,7 +447,7 @@ describe("createNext", () => {
   });
 
   it("reads the session as serializable data without the token", async () => {
-    expect(await next.session()).toEqual({ kind: "anon", reason: "none" });
+    expect(await bs.session()).toEqual({ kind: "anon", reason: "none" });
 
     const token = await signer.sign({
       sub: USER,
@@ -455,7 +455,7 @@ describe("createNext", () => {
       user_role: "admin",
     });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
-    const session = await next.session();
+    const session = await bs.session();
     expect(session).toMatchObject({
       kind: "user",
       user: { id: USER, email: "ada@example.com" },
@@ -465,7 +465,7 @@ describe("createNext", () => {
     expect(structuredClone(session)).toEqual(session);
 
     mocks.headers = new Headers({ authorization: "Bearer not-a-jwt" });
-    expect(await next.session()).toMatchObject({
+    expect(await bs.session()).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized" },
     });
@@ -487,12 +487,12 @@ describe("createNext", () => {
     });
 
     mocks.headers = new Headers({ authorization: `Bearer ${aal2}` });
-    expect(await next.session()).toMatchObject({
+    expect(await bs.session()).toMatchObject({
       aal: "aal2",
       amr: [{ method: "totp" }, { method: "password" }],
     });
 
-    const handler = next.route(() => ({ ok: true }), { aal: "aal2" });
+    const handler = bs.route(() => ({ ok: true }), { aal: "aal2" });
     const call = (token: string) =>
       handler(
         new NextRequest("https://app.test/api/billing", {
@@ -509,7 +509,7 @@ describe("createNext", () => {
     });
     expect((await call(aal2)).status).toBe(200);
 
-    const rotate = next.action({ aal: "aal2" }, () => "rotated");
+    const rotate = bs.action({ aal: "aal2" }, () => "rotated");
     mocks.headers = new Headers({ authorization: `Bearer ${aal1}` });
     expect(await rotate(undefined)).toMatchObject({
       ok: false,
@@ -535,14 +535,14 @@ describe("createNext", () => {
       redirect: "/mfa",
       match: (path) => path.startsWith("/dashboard"),
     });
-    const redirected = await next.proxy(page({ cookie: cookie(aal1) }), {
+    const redirected = await bs.proxy(page({ cookie: cookie(aal1) }), {
       protect,
     });
     expect(redirected.status).toBe(307);
     expect(redirected.headers.get("location")).toBe(
       "https://app.test/mfa?next=%2Fdashboard",
     );
-    const passed = await next.proxy(page({ cookie: cookie(aal2) }), {
+    const passed = await bs.proxy(page({ cookie: cookie(aal2) }), {
       protect,
     });
     expect(passed.headers.get("x-middleware-next")).toBe("1");
@@ -551,7 +551,7 @@ describe("createNext", () => {
   it("never refreshes an expiring cookie session", async () => {
     const token = await signer.sign({ sub: USER });
     mocks.headers = new Headers({ cookie: cookieFor(token, "refresh-1") });
-    expect(await next.session()).toEqual({ kind: "anon", reason: "expired" });
+    expect(await bs.session()).toEqual({ kind: "anon", reason: "expired" });
     expect(fresh).not.toHaveBeenCalled();
   });
 
@@ -575,7 +575,7 @@ describe("createNext", () => {
       );
 
       mocks.headers = new Headers({ "x-bs-request-id": id });
-      const ctx = await debugged.server();
+      const ctx = await debugged.context();
       await Promise.all([ctx.db.customers.findMany(), ctx.db.notes.findMany()]);
       await ctx.db.tags.findMany();
 
@@ -612,9 +612,9 @@ describe("createNext", () => {
   });
 
   it("collects nothing without debug", async () => {
-    const proxied = await next.proxy(page());
+    const proxied = await bs.proxy(page());
     expect(proxied.headers.get("x-bs-request-id")).toBeNull();
-    const reply = await next.debugRoute()(
+    const reply = await bs.debugRoute()(
       new Request("https://app.test/api/bs-stats?id=x"),
     );
     expect(reply.status).toBe(404);
@@ -629,7 +629,7 @@ describe("createNext", () => {
     mocks.updateTag.mockImplementation(() => {
       throw new Error("updateTag can only be called from a Server Action");
     });
-    await sb
+    await betterSupabase
       .connect(executor)
       .customers.update("c1", { name: "Acme" })
       .orThrow();
@@ -638,14 +638,16 @@ describe("createNext", () => {
       [tagFor("customers", "c1"), "max"],
     ]);
 
-    next.cacheTag("customers", "c1");
+    bs.cacheTag("customers", "c1");
     expect(mocks.cacheTag).toHaveBeenCalledWith(
       "bs:customers",
       "bs:customers:c1",
     );
 
-    next.cacheTags(
-      sb.spec.customers.findById("c1", { include: { notes: true } }),
+    bs.cacheTags(
+      betterSupabase.spec.customers.findById("c1", {
+        include: { notes: true },
+      }),
     );
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
       "bs:customers",
@@ -653,11 +655,14 @@ describe("createNext", () => {
       "bs:customers:c1",
     );
 
-    next.cacheTags([sb.spec.tags.count(), sb.spec.notes.count()]);
+    bs.cacheTags([
+      betterSupabase.spec.tags.count(),
+      betterSupabase.spec.notes.count(),
+    ]);
     expect(mocks.cacheTag).toHaveBeenLastCalledWith("bs:tags", "bs:notes");
 
-    next.cacheTags(
-      defineReadSet(sb, "chrome", {}, (s) => ({
+    bs.cacheTags(
+      defineReadSet(betterSupabase, "chrome", {}, (s) => ({
         customers: s.customers.count(),
         notes: s.notes.findMany({ include: { customer: true } }),
       })),
@@ -667,20 +672,25 @@ describe("createNext", () => {
 });
 
 describe("next.liveCount", () => {
-  const sb = defineSupabase(schema);
-  const next = createNext(sb, { env, auth: { jwks: signer.jwks as never } });
-  const spec = sb.spec.notes.count({ where: { body: { contains: "x" } } });
+  const betterSupabase = defineSupabase(schema);
+  const bs = createNext(betterSupabase, {
+    env,
+    auth: { jwks: signer.jwks as never },
+  });
+  const spec = betterSupabase.spec.notes.count({
+    where: { body: { contains: "x" } },
+  });
 
   it("returns a serializable seed from the db passed in", async () => {
     const run = vi.fn(() => AsyncResult.ok(4));
-    const seed = await next.liveCount(spec, { $run: run });
+    const seed = await bs.liveCount(spec, { $run: run });
     expect(seed).toEqual({ spec, count: 4 });
     expect(JSON.parse(JSON.stringify(seed))).toEqual(seed);
     expect(run).toHaveBeenCalledWith(spec);
   });
 
   it("gives count null instead of throwing", async () => {
-    const seed = await next.liveCount(spec, {
+    const seed = await bs.liveCount(spec, {
       $run: () => AsyncResult.err(dbError("forbidden", "no")),
     });
     expect(seed.count).toBeNull();
@@ -701,7 +711,7 @@ describe("read replicas", () => {
         );
       });
     const token = await signer.sign({ sub: USER });
-    const next = createNext(defineSupabase(schema), {
+    const bs = createNext(defineSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks as never },
       cacheTags: false,
@@ -714,10 +724,10 @@ describe("read replicas", () => {
       });
     const segment = { params: Promise.resolve({}) };
     try {
-      const read = next.route((_request, { db }) =>
+      const read = bs.route((_request, { db }) =>
         db.customers.findMany({ select: ["id"] }),
       );
-      const write = next.route((_request, { db }) =>
+      const write = bs.route((_request, { db }) =>
         db.customers.create(
           { name: "Acme", organizationId: "o1" },
           { select: ["id"] },
@@ -735,7 +745,7 @@ describe("read replicas", () => {
 
       mocks.headers = new Headers({ authorization: `Bearer ${token}` });
       mocks.setCookie.mockReset();
-      const action = next.action({}, (_input, { db }) =>
+      const action = bs.action({}, (_input, { db }) =>
         db.customers.create(
           { name: "Acme", organizationId: "o1" },
           { select: ["id"] },

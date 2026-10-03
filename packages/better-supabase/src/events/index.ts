@@ -100,19 +100,22 @@ export interface ForwardOptions extends CloudEventOptions {
  * stops forwarding. Use an outbox (SQL kit) when events must not be lost.
  */
 export function forwardMutations(
-  sb: { readonly events: EventHub; readonly meta: SchemaMeta },
+  betterSupabase: { readonly events: EventHub; readonly meta: SchemaMeta },
   sink: EventSink,
   options: ForwardOptions,
 ): () => void {
-  return sb.events.on("mutation", (notice) => {
+  return betterSupabase.events.on("mutation", (notice) => {
     if (options.filter && !options.filter(notice)) return;
-    const events = toCloudEvents(notice, { ...options, meta: sb.meta });
+    const events = toCloudEvents(notice, {
+      ...options,
+      meta: betterSupabase.meta,
+    });
     if (events.length === 0) return;
     const report = (error: unknown) => {
       (
         options.onError ??
         ((cause) => {
-          sb.events.logger.error("event sink failed", { cause });
+          betterSupabase.events.logger.error("event sink failed", { cause });
         })
       )(error, events);
     };

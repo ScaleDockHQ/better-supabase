@@ -24,7 +24,7 @@ export interface MutationNotice {
   readonly context: RequestContext;
 }
 
-/** A successful RPC registered with `sb.defineRpc(name, { invalidates })`. */
+/** A successful RPC registered with `betterSupabase.defineRpc(name, { invalidates })`. */
 export interface RpcNotice {
   readonly name: string;
   /** App keys of the tables the function changes. */

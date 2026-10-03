@@ -22,8 +22,8 @@ import { createQueries } from "../../src/query/index.ts";
 import { type CustomersStatus, schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const sb = defineSupabase(schema).use(softDelete());
-const q = createQueries(sb, sb.connect(client));
+const betterSupabase = defineSupabase(schema).use(softDelete());
+const q = createQueries(betterSupabase, betterSupabase.connect(client));
 
 describe("query option types", () => {
   it("flows payload types into useQuery and the cache", () => {
@@ -76,7 +76,7 @@ describe("query option types", () => {
       InfiniteData<OffsetPage<{ id: string }>> | undefined
     >();
     const fromSpec = useQuery(
-      q.$spec(sb.spec.customers.findFirst({ select: ["status"] })),
+      q.$spec(betterSupabase.spec.customers.findFirst({ select: ["status"] })),
     );
     expectTypeOf(fromSpec.data).toEqualTypeOf<
       { status: CustomersStatus } | null | undefined

@@ -9,11 +9,11 @@ import { invalidationTargets } from "../../src/ir/tables.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 describe("QuerySpec", () => {
   it("is plain JSON that round-trips", () => {
-    const spec = sb.spec.customers.findMany({
+    const spec = betterSupabase.spec.customers.findMany({
       select: ["id", "name"],
       where: { status: "active" },
       limit: 5,
@@ -25,7 +25,7 @@ describe("QuerySpec", () => {
       args: [{ select: ["id", "name"], where: { status: "active" }, limit: 5 }],
     });
     expect(JSON.parse(JSON.stringify(spec))).toEqual(spec);
-    expect(sb.spec.customers.findMany()).toEqual({
+    expect(betterSupabase.spec.customers.findMany()).toEqual({
       v: 1,
       table: "customers",
       method: "findMany",
@@ -37,8 +37,10 @@ describe("QuerySpec", () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
-    const db = sb.connect(client);
-    const spec = sb.spec.customers.findById("c1", { select: ["id", "name"] });
+    const db = betterSupabase.connect(client);
+    const spec = betterSupabase.spec.customers.findById("c1", {
+      select: ["id", "name"],
+    });
     const viaSpec = await db.$run(
       JSON.parse(JSON.stringify(spec)) as typeof spec,
     );
@@ -53,15 +55,17 @@ describe("QuerySpec", () => {
     const controller = new AbortController();
     controller.abort();
     const { client } = capturingClient();
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
-      .$run(sb.spec.customers.count(), { signal: controller.signal });
+      .$run(betterSupabase.spec.customers.count(), {
+        signal: controller.signal,
+      });
     expect(result.ok).toBe(false);
   });
 
   it("rejects values that are not specs", async () => {
     const { client } = capturingClient();
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const result = await db.$run({
       v: 1,
       table: "customers",
@@ -74,20 +78,20 @@ describe("QuerySpec", () => {
 
 describe("touched tables", () => {
   it("collects includes and relation filters", () => {
-    const spec = sb.spec.customers.findMany({
+    const spec = betterSupabase.spec.customers.findMany({
       select: ["id"],
       include: { notes: { select: ["id"] } },
       where: { organization: { is: { slug: "acme" } } },
     });
-    expect(sb.tablesOf(spec).sort()).toEqual(
+    expect(betterSupabase.tablesOf(spec).sort()).toEqual(
       ["customers", "notes", "organizations"].sort(),
     );
   });
 
   it("ignores the selection of counts", () => {
     expect(
-      sb.tablesOf(
-        sb.spec.customers.count({
+      betterSupabase.tablesOf(
+        betterSupabase.spec.customers.count({
           where: { customerTags: { some: { tagId: "t" } } },
         }),
       ),
@@ -96,8 +100,10 @@ describe("touched tables", () => {
 
   it("falls back to the spec table when the arguments are invalid", () => {
     expect(
-      sb.tablesOf(
-        sb.spec.customers.findMany({ include: { nope: true } } as never),
+      betterSupabase.tablesOf(
+        betterSupabase.spec.customers.findMany({
+          include: { nope: true },
+        } as never),
       ),
     ).toEqual(["customers"]);
   });
@@ -105,11 +111,11 @@ describe("touched tables", () => {
 
 describe("invalidation targets", () => {
   it("follows cascades and set-null foreign keys from the deleted table", () => {
-    expect(invalidationTargets(sb.meta, "tags")).toEqual([
+    expect(invalidationTargets(betterSupabase.meta, "tags")).toEqual([
       "tags",
       "customerTags",
     ]);
-    const fromCustomers = invalidationTargets(sb.meta, "customers");
+    const fromCustomers = invalidationTargets(betterSupabase.meta, "customers");
     expect(fromCustomers[0]).toBe("customers");
     expect(fromCustomers).toContain("notes");
     expect(fromCustomers).toContain("customerTags");
@@ -124,7 +130,7 @@ describe("defineRpc", () => {
   };
 
   it("invalidates the declared tables after a successful call", async () => {
-    const withRpc = sb.defineRpc("archive_customer" as never, {
+    const withRpc = betterSupabase.defineRpc("archive_customer" as never, {
       invalidates: ["customers"],
     });
     const cache = memoryCache();
@@ -137,7 +143,7 @@ describe("defineRpc", () => {
     expect(cache.invalidated).toEqual([
       {
         table: "customers",
-        tables: invalidationTargets(sb.meta, "customers"),
+        tables: invalidationTargets(betterSupabase.meta, "customers"),
         ids: [],
       },
     ]);
@@ -151,7 +157,7 @@ describe("defineRpc", () => {
 
   it("rejects unknown tables", () => {
     expect(() =>
-      sb.defineRpc("archive_customer" as never, {
+      betterSupabase.defineRpc("archive_customer" as never, {
         invalidates: ["nope" as never],
       }),
     ).toThrow('invalidates unknown table "nope"');

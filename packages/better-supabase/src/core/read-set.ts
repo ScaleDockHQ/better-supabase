@@ -112,7 +112,7 @@ function sentinel(name: string): string {
  *
  * ```ts
  * export const appChrome = defineReadSet(
- *   sb,
+ *   betterSupabase,
  *   'app_chrome',
  *   { params: { userId: 'uuid' } },
  *   (s, p) => ({
@@ -134,7 +134,7 @@ export function defineReadSet<
   const P extends ReadSetParamTypes,
   const S extends Readonly<Record<string, QuerySpec>>,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   name: N,
   options: ReadSetOptions<P>,
   build: (specs: Specs<M, E>, params: ReadSetParams<P>) => S,
@@ -161,7 +161,7 @@ export function defineReadSet<
     placeholders[key] = type.endsWith("[]") ? [sentinel(key)] : sentinel(key);
   }
   // SAFETY: the loop above filled a placeholder for every parameter in P.
-  const specs = build(sb.spec, placeholders as ReadSetParams<P>);
+  const specs = build(betterSupabase.spec, placeholders as ReadSetParams<P>);
   const entries = Object.entries(specs);
   if (entries.length === 0 || entries.length > MAX_ENTRIES) {
     throw new TypeError(
@@ -171,7 +171,7 @@ export function defineReadSet<
   for (const [key, spec] of entries) {
     if (!isQuerySpec(spec)) {
       throw new TypeError(
-        `better-supabase: read set "${name}" entry "${key}" is not a spec from sb.spec`,
+        `better-supabase: read set "${name}" entry "${key}" is not a spec from betterSupabase.spec`,
       );
     }
   }
@@ -184,7 +184,7 @@ export function defineReadSet<
     specs,
     // SAFETY: the read set stores the definition without its schema generics.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
-    definition: sb as unknown as ReadSet["definition"],
+    definition: betterSupabase as unknown as ReadSet["definition"],
   };
 }
 

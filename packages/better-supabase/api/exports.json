@@ -93,7 +93,6 @@
       "DbErrorOf",
       "DbHelpers",
       "DbStats",
-      "DefineSupabaseOptions",
       "DeleteArgs",
       "DeleteExt",
       "EnrichDatabase",
@@ -159,6 +158,7 @@
       "Specs",
       "StandardSchemaV1",
       "StoragePath",
+      "SupabaseOptions",
       "TableRepositoryExtension",
       "TableSpecs",
       "UpdateArgs",
@@ -269,14 +269,14 @@
   },
   "./client": {
     "values": [
-      "createBrowser"
+      "createClient"
     ],
     "types": [
       "AuthSnapshot",
       "AuthUser",
-      "BetterBrowser",
-      "BrowserAuth",
-      "BrowserOptions"
+      "BetterClient",
+      "ClientAuth",
+      "ClientOptions"
     ]
   },
   "./react": {
@@ -297,8 +297,8 @@
       "BetterHooks",
       "BetterSupabaseProviderProps",
       "BroadcastOptions",
-      "BrowserLike",
       "ClaimsOf",
+      "ClientLike",
       "EntitlementKey",
       "Impersonator",
       "LiveCount",
@@ -318,11 +318,11 @@
       "queryCache"
     ],
     "types": [
+      "BetterQueries",
       "BetterQueryMeta",
-      "CreateQueriesOptions",
       "InfiniteOptionsOf",
       "MutationOptionsOf",
-      "Queries",
+      "QueriesOptions",
       "QueryHelpers",
       "QueryKeyOf",
       "QueryOptionsOf",
@@ -382,6 +382,7 @@
       "ImpersonationOptions",
       "Impersonator",
       "InvalidReason",
+      "MiddlewareOptions",
       "ProblemDetails",
       "ProblemOptions",
       "ProblemResponseOptions",
@@ -415,9 +416,9 @@
       "sqlCompiler"
     ],
     "types": [
+      "BetterPostgres",
       "PgPool",
       "PgPoolClient",
-      "Postgres",
       "PostgresOptions",
       "PostgresTimeouts",
       "SqlClaims",
@@ -486,6 +487,7 @@
       "EntitlementKey",
       "GuardOptions",
       "Impersonator",
+      "LiveCountSeed",
       "MembershipClaim",
       "NextDebugOptions",
       "NextOptions",
@@ -509,9 +511,9 @@
       "createHono"
     ],
     "types": [
-      "BetterEnv",
       "BetterHono",
       "GuardOptions",
+      "HonoEnv",
       "HonoOptions",
       "MiddlewareOptions",
       "ResourceRouteOptions"
@@ -543,7 +545,7 @@
       "EdgeHandler",
       "EdgeOptions",
       "GuardOptions",
-      "HandlerOptions",
+      "MiddlewareOptions",
       "ResourceMap",
       "ResourceRouteOptions",
       "ResourcesOptions"

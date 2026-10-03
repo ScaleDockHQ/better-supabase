@@ -206,19 +206,19 @@ function pageSchema(row: Json, cursor: boolean): Json {
  * schemes and Problem Details errors.
  *
  * ```ts
- * const doc = createOpenApi(sb, {
+ * const doc = createOpenApi(betterSupabase, {
  *   info: { title: 'CRM API', version: '1.0.0' },
  *   resources: { customers: { list: customerList }, notes: { operations: ['list', 'get'] } },
  * });
  * ```
  */
 export function createOpenApi(
-  sb: { readonly meta: SchemaMeta },
+  betterSupabase: { readonly meta: SchemaMeta },
   options: OpenApiOptions,
 ): OpenApiDocument {
   // SAFETY: buildJsonSchema always returns a $defs object of JSON schemas.
   const defs = buildJsonSchema({
-    meta: sb.meta,
+    meta: betterSupabase.meta,
     config: { json: options.json ?? {} },
   })["$defs"] as Record<string, Json>;
   const schemas: Record<string, Json> = { Problem: PROBLEM_SCHEMA };
@@ -228,7 +228,7 @@ export function createOpenApi(
   const security = options.security ?? ["bearer"];
 
   for (const [key, raw] of Object.entries(options.resources)) {
-    const table: TableMeta | undefined = sb.meta.tables[key];
+    const table: TableMeta | undefined = betterSupabase.meta.tables[key];
     if (!table) throw new TypeError(`createOpenApi: unknown table "${key}"`);
     const resource: ResourceOptions = raw === true ? {} : raw;
     const operations =

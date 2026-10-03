@@ -17,8 +17,8 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("createEdge", () => {
-  const sb = defineSupabase(schema);
-  const bs = createEdge(sb, {
+  const betterSupabase = defineSupabase(schema);
+  const bs = createEdge(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
     cors: { origin: ["https://app.test"] },

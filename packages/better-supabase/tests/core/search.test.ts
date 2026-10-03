@@ -8,14 +8,14 @@ import { IrBuilder } from "../../src/ir/build.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 describe("db.$search", () => {
   it("POSTs to search_<table> and filters and renames the rows", async () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "n1", customerId: "c1" }],
     }));
-    const rows = await sb
+    const rows = await betterSupabase
       .connect(client)
       .$search("notes", {
         vector: [0.1, 0.2],
@@ -61,13 +61,13 @@ describe("db.$search", () => {
 
   it("rejects bad input and executors without function sources", async () => {
     const { client } = capturingClient();
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const empty = await db.$search("notes", { vector: [] });
     expect(empty.error?.kind).toBe("invalid_input");
     const zero = await db.$search("notes", { vector: [1], k: 0 });
     expect(zero.error?.kind).toBe("invalid_input");
 
-    const plain = sb.connect({
+    const plain = betterSupabase.connect({
       name: "custom",
       execute: () => Promise.resolve(ok({ rows: [], count: null })),
     });

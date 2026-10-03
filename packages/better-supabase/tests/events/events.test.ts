@@ -52,10 +52,10 @@ describe("CloudEvents", () => {
   });
 
   it("forwards mutations to a sink", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const sent: CloudEvent[][] = [];
     const stop = forwardMutations(
-      sb,
+      betterSupabase,
       { send: (events) => void sent.push([...events]) },
       { ...fixed, filter: (n) => n.table === "customers" },
     );
@@ -63,7 +63,7 @@ describe("CloudEvents", () => {
       status: 201,
       body: [{ id: "c9", organization_id: "o1", name: "N" }],
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     await db.customers.create({ organizationId: "o1", name: "N" }).orThrow();
     await db.notes.create({
       customerId: "c9",
@@ -80,10 +80,10 @@ describe("CloudEvents", () => {
   });
 
   it("reports sink failures without failing the mutation", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const onError = vi.fn();
     forwardMutations(
-      sb,
+      betterSupabase,
       { send: () => Promise.reject(new Error("down")) },
       { ...fixed, onError },
     );
@@ -91,7 +91,7 @@ describe("CloudEvents", () => {
       status: 201,
       body: [{ id: "c1" }],
     }));
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.create({ organizationId: "o1", name: "N" })
       .orThrow();

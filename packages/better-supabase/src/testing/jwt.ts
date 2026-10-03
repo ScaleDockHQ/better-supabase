@@ -54,7 +54,7 @@ export async function signTestJwt(
 
 /**
  * Accepts `signTestJwt` tokens as users, for API servers tested against the
- * local stack: `createServer(sb, { auth: { resolvers: [localAuth(secret)] } })`.
+ * local stack: `createServer(betterSupabase, { auth: { resolvers: [localAuth(secret)] } })`.
  * Tokens that are not HS256-signed with `secret` fall through. Test-only.
  */
 export function localAuth(secret: string): AuthResolver {

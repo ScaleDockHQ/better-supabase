@@ -1,7 +1,7 @@
 export { BetterSupabase, defineSupabase } from "./core/define.ts";
 export type {
   ConnectOptions,
-  DefineSupabaseOptions,
+  SupabaseOptions,
   RpcDefinition,
 } from "./core/define.ts";
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";

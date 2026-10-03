@@ -4,7 +4,7 @@ export { createPostgres } from "./pool.ts";
 export type {
   PgPool,
   PgPoolClient,
-  Postgres,
+  BetterPostgres,
   PostgresOptions,
   PostgresTimeouts,
   SqlClaims,

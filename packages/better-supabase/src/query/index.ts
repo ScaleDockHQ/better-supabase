@@ -6,10 +6,10 @@ export {
 } from "./queries.ts";
 export type {
   BetterQueryMeta,
-  CreateQueriesOptions,
+  QueriesOptions,
   InfiniteOptionsOf,
   MutationOptionsOf,
-  Queries,
+  BetterQueries,
   QueryHelpers,
   QueryKeyOf,
   QueryOptionsOf,

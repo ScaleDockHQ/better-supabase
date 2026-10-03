@@ -17,7 +17,7 @@ import {
 } from "react";
 
 import type { AuthSession } from "../auth/view.ts";
-import type { AuthSnapshot, BrowserAuth } from "../client/index.ts";
+import type { AuthSnapshot, ClientAuth } from "../client/index.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type {
@@ -41,42 +41,42 @@ import { invalidateTables } from "../query/invalidate.ts";
 import { liveCount, liveQuery } from "../realtime/live.ts";
 import { useSession } from "./session.ts";
 
-/** The parts of `createBrowser()` the provider needs. */
-export interface BrowserLike {
-  readonly sb: LiveSource;
+/** The parts of `createClient()` the provider needs. */
+export interface ClientLike {
+  readonly betterSupabase: LiveSource;
   readonly supabase: SupabaseClient;
-  readonly auth: BrowserAuth;
+  readonly auth: ClientAuth;
   readonly db: object;
   readonly queries: object;
 }
 
 interface ContextValue {
-  readonly browser: BrowserLike;
+  readonly client: ClientLike;
   readonly queryClient: QueryClient | undefined;
 }
 
-const BrowserContext = createContext<ContextValue | null>(null);
+const ClientContext = createContext<ContextValue | null>(null);
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
 
 export interface BetterSupabaseProviderProps {
-  readonly browser: BrowserLike;
+  readonly client: ClientLike;
   /** better-supabase queries are removed when the user signs out or changes. */
   readonly queryClient?: QueryClient;
   readonly children?: ReactNode;
 }
 
-/** Provides the browser client to the hooks. */
+/** Provides the better-supabase client to the hooks. */
 export function BetterSupabaseProvider(
   props: BetterSupabaseProviderProps,
 ): ReactNode {
-  const { browser, queryClient } = props;
+  const { client, queryClient } = props;
   const user = useRef<string | null | undefined>(undefined);
 
   useEffect(
     () =>
-      browser.auth.subscribe(() => {
-        const snapshot = browser.auth.current();
+      client.auth.subscribe(() => {
+        const snapshot = client.auth.current();
         if (snapshot.status === "loading") return;
         const id = snapshot.user?.id ?? null;
         if (user.current !== undefined && user.current !== id) {
@@ -84,64 +84,61 @@ export function BetterSupabaseProvider(
         }
         user.current = id;
       }),
-    [browser, queryClient],
+    [client, queryClient],
   );
 
-  const value = useMemo(
-    () => ({ browser, queryClient }),
-    [browser, queryClient],
-  );
-  return createElement(BrowserContext.Provider, { value }, props.children);
+  const value = useMemo(() => ({ client, queryClient }), [client, queryClient]);
+  return createElement(ClientContext.Provider, { value }, props.children);
 }
 
-function useBrowserContext(): ContextValue {
-  const value = useContext(BrowserContext);
+function useClientContext(): ContextValue {
+  const value = useContext(ClientContext);
   if (!value) {
     throw new Error(
-      "better-supabase: wrap your app in <BetterSupabaseProvider browser={browser}>",
+      "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
     );
   }
   return value;
 }
 
-function useBrowser(): BrowserLike {
-  return useBrowserContext().browser;
+function useClient(): ClientLike {
+  return useClientContext().client;
 }
 
 /** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */
 export function useAuth(): AuthSnapshot {
-  const browser = useBrowser();
+  const client = useClient();
   return useSyncExternalStore(
-    browser.auth.subscribe,
-    browser.auth.current,
+    client.auth.subscribe,
+    client.auth.current,
     () => LOADING,
   );
 }
 
 export function useSupabase(): SupabaseClient {
-  return useBrowser().supabase;
+  return useClient().supabase;
 }
 
-export interface BetterHooks<B extends BrowserLike> {
+export interface BetterHooks<B extends ClientLike> {
   /** Repositories bound to the current session. Re-renders when the user changes. */
   readonly useDb: () => B["db"];
   /** TanStack Query option factories: `useQuery(useQueries().customers.findMany())`. */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => AuthSnapshot;
-  /** `useSession()` typed by the browser's `sb.claims(schema)` and `sb.userMetadata(schema)`. */
+  /** `useSession()` typed by the client's `betterSupabase.claims(schema)` and `betterSupabase.userMetadata(schema)`. */
   readonly useSession: () => AuthSession<ClaimsOf<B>, ProfileOf<B>>;
 }
 
-/** The claims type of a browser's `sb.claims(schema)`, `unknown` without one. */
-export type ClaimsOf<B extends BrowserLike> = B["sb"] extends {
+/** The claims type of a client's `betterSupabase.claims(schema)`, `unknown` without one. */
+export type ClaimsOf<B extends ClientLike> = B["betterSupabase"] extends {
   readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
 }
   ? C
   : unknown;
 
-/** The profile type of a browser's `sb.userMetadata(schema)`, `unknown` without one. */
-export type ProfileOf<B extends BrowserLike> = B["sb"] extends {
+/** The profile type of a client's `betterSupabase.userMetadata(schema)`, `unknown` without one. */
+export type ProfileOf<B extends ClientLike> = B["betterSupabase"] extends {
   readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
 }
   ? P
@@ -151,20 +148,20 @@ export type ProfileOf<B extends BrowserLike> = B["sb"] extends {
  * Hooks typed for your schema.
  *
  * ```ts
- * export const { useDb, useQueries, useAuth } = createHooks<typeof browser>();
+ * export const { useDb, useQueries, useAuth } = createHooks<typeof bs>();
  * ```
  */
-export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
+export function createHooks<B extends ClientLike>(): BetterHooks<B> {
   return {
     useDb() {
-      const browser = useBrowser();
+      const client = useClient();
       useAuth();
-      return browser.db;
+      return client.db;
     },
     useQueries() {
-      const browser = useBrowser();
+      const client = useClient();
       useAuth();
-      return browser.queries;
+      return client.queries;
     },
     useSupabase,
     useAuth,
@@ -197,7 +194,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   handlers?: TopicHandlers<E>,
   options?: BroadcastOptions,
 ): SubscriptionStatus {
-  const { browser, queryClient } = useBrowserContext();
+  const { client, queryClient } = useClientContext();
   const auth = useAuth();
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const latest = useRef({ handlers, options });
@@ -238,7 +235,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
         void queryClient.invalidateQueries({ queryKey });
     };
     const subscription = topic.subscribe(
-      browser.supabase,
+      client.supabase,
       matched,
       { "*": forward },
       {
@@ -255,7 +252,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       setStatus("closed");
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
-  }, [browser, topic, name, userId, auth.status, queryClient]);
+  }, [client, topic, name, userId, auth.status, queryClient]);
 
   return status;
 }
@@ -288,7 +285,7 @@ function claimedTenant(
  * resubscribes when the spec, tenant or user changes.
  *
  * ```ts
- * const spec = sb.spec.customers.findMany({ include: { notes: true } });
+ * const spec = betterSupabase.spec.customers.findMany({ include: { notes: true } });
  * const { data } = useQuery(q.$spec(spec));
  * useLiveQuery(spec);
  * ```
@@ -297,7 +294,7 @@ export function useLiveQuery(
   spec: QuerySpec | null | undefined,
   options: LiveQueryHookOptions = {},
 ): SubscriptionStatus {
-  const { browser, queryClient } = useBrowserContext();
+  const { client, queryClient } = useClientContext();
   const auth = useAuth();
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   if (spec && !queryClient) {
@@ -306,7 +303,8 @@ export function useLiveQuery(
     );
   }
   const key = spec ? JSON.stringify(spec) : null;
-  const tenant = options.tenant ?? claimedTenant(auth, browser.sb.meta);
+  const tenant =
+    options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
   const userId = auth.user?.id ?? null;
   const debounceMs = options.debounceMs;
 
@@ -314,8 +312,8 @@ export function useLiveQuery(
     if (!key || !queryClient || auth.status === "loading") return;
     // SAFETY: key is JSON.stringify of the QuerySpec this hook received.
     const live = liveQuery(
-      browser.sb,
-      browser.supabase,
+      client.betterSupabase,
+      client.supabase,
       JSON.parse(key) as QuerySpec,
       {
         onChange: (tables) => void invalidateTables(queryClient, tables),
@@ -328,7 +326,7 @@ export function useLiveQuery(
       void live.unsubscribe();
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
-  }, [browser, queryClient, key, tenant, userId, auth.status, debounceMs]);
+  }, [client, queryClient, key, tenant, userId, auth.status, debounceMs]);
 
   return status;
 }
@@ -349,18 +347,18 @@ export interface LiveCount {
 /**
  * A count that stays current: refetches only the `count` spec (a HEAD
  * request) after each debounced change to a table it reads, and after the
- * channel rejoins. Takes a spec or a `next.liveCount()` seed; pass `null` to
+ * channel rejoins. Takes a spec or a `bs.liveCount()` seed; pass `null` to
  * pause. Doesn't need a `QueryClient`.
  *
  * ```tsx
- * const { count } = useLiveCount(seed); // seed = await next.liveCount(spec)
+ * const { count } = useLiveCount(seed); // seed = await bs.liveCount(spec)
  * ```
  */
 export function useLiveCount(
   source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options: LiveCountHookOptions = {},
 ): LiveCount {
-  const { browser } = useBrowserContext();
+  const { client } = useClientContext();
   const auth = useAuth();
   const seed = source && "spec" in source ? source : undefined;
   // SAFETY: source is a seed with a spec or a plain spec, and the in check
@@ -374,18 +372,19 @@ export function useLiveCount(
   }>({ key: null, count: undefined, error: undefined });
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const key = spec ? JSON.stringify(spec) : null;
-  const tenant = options.tenant ?? claimedTenant(auth, browser.sb.meta);
+  const tenant =
+    options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
   const userId = auth.user?.id ?? null;
   const debounceMs = options.debounceMs;
   const hasInitial = initial !== undefined;
 
   useEffect(() => {
     if (!key || auth.status === "loading") return;
-    // SAFETY: the browser db runs count specs, and key is JSON.stringify of a count spec.
+    // SAFETY: the client db runs count specs, and key is JSON.stringify of a count spec.
     const live = liveCount(
-      browser.sb,
-      browser.supabase,
-      browser.db as CountRunner,
+      client.betterSupabase,
+      client.supabase,
+      client.db as CountRunner,
       JSON.parse(key) as QuerySpec<string, "count", number>,
       {
         immediate: !hasInitial,
@@ -408,7 +407,7 @@ export function useLiveCount(
       void live.unsubscribe();
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
-  }, [browser, key, tenant, userId, auth.status, debounceMs, hasInitial]);
+  }, [client, key, tenant, userId, auth.status, debounceMs, hasInitial]);
 
   const fresh = state.key === key;
   return {

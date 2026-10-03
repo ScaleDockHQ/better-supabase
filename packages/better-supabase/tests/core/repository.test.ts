@@ -400,16 +400,18 @@ describe("events", () => {
       status: 201,
       body: [{ id: "x" }],
     }));
-    const sb = defineSupabase(camel);
+    const betterSupabase = defineSupabase(camel);
     const seen: string[] = [];
-    const off = sb.on("mutation", (event) => {
+    const off = betterSupabase.on("mutation", (event) => {
       seen.push(`${event.table}:${event.kind}`);
       throw new Error("ignored");
     });
-    sb.on("query", (event) => seen.push(`query:${event.operation}`));
+    betterSupabase.on("query", (event) =>
+      seen.push(`query:${event.operation}`),
+    );
     const original = console.error;
     console.error = () => {};
-    const result = await sb
+    const result = await betterSupabase
       .connect(client)
       .tags.create({ organizationId: "o", name: "n" });
     console.error = original;
@@ -438,10 +440,10 @@ describe("row caps and default order", () => {
     const { client } = capturingClient(() => ({ body: rows }));
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
-    const sb = defineSupabase(camel, { maxRows: 2, logger });
+    const betterSupabase = defineSupabase(camel, { maxRows: 2, logger });
     const truncated: boolean[] = [];
-    sb.on("query", (event) => truncated.push(event.truncated));
-    const db = sb.connect(client);
+    betterSupabase.on("query", (event) => truncated.push(event.truncated));
+    const db = betterSupabase.connect(client);
 
     const all = await db.customers.findMany({ select: ["id"] });
     await db.customers.findMany({ select: ["id"] });

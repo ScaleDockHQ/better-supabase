@@ -12,12 +12,12 @@ import { defineListQuery, type ListQuery } from "../../src/list/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const sb = defineSupabase(schema);
-const db = sb.connect(client);
+const betterSupabase = defineSupabase(schema);
+const db = betterSupabase.connect(client);
 
 describe("list types", () => {
   it("keeps sort and facet keys literal", async () => {
-    const list = defineListQuery(sb, "customers", {
+    const list = defineListQuery(betterSupabase, "customers", {
       search: ["name"],
       facets: { status: "status" },
       sorts: { name: { name: "asc" }, newest: { createdAt: "desc" } },
@@ -34,7 +34,7 @@ describe("list types", () => {
   });
 
   it("returns a cursor page with cursor pagination", async () => {
-    const list = defineListQuery(sb, "customers", {
+    const list = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
       pagination: "cursor",
@@ -48,7 +48,7 @@ describe("list types", () => {
   });
 
   it("types facet counts and relation includes", async () => {
-    const list = defineListQuery(sb, "customers", {
+    const list = defineListQuery(betterSupabase, "customers", {
       facets: { status: "status" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -67,13 +67,13 @@ describe("list types", () => {
   });
 
   it("checks columns", () => {
-    defineListQuery(sb, "customers", {
+    defineListQuery(betterSupabase, "customers", {
       // @ts-expect-error search only takes text columns
       search: ["createdAtNumber"],
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
-    defineListQuery(sb, "customers", {
+    defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       // @ts-expect-error default sort must be one of the sorts
       defaultSort: "other",

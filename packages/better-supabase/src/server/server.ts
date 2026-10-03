@@ -4,7 +4,7 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
-import type { Postgres, SqlClaims } from "../postgres/pool.ts";
+import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
 import { actClaim, type ImpersonationOptions } from "../auth/impersonation.ts";
@@ -35,7 +35,7 @@ export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
   readonly env?: BetterSupabaseEnv;
   /** Enables `ctx.sql` and `actingAs()`. */
-  readonly postgres?: Postgres;
+  readonly postgres?: BetterPostgres;
   readonly auth?: Omit<ResolveAuthOptions, "env">;
   /**
    * Extra headers on the caller's PostgREST requests, readable in Postgres as
@@ -178,7 +178,7 @@ export function withExtra<T extends object, X extends object>(
 
 /**
  * Server-side entry point for APIs, jobs, MCP servers and framework
- * adapters. Holds the secrets; `sb` stays isomorphic.
+ * adapters. Holds the secrets; `betterSupabase` stays isomorphic.
  */
 export function createServer<
   M extends AnyModels,
@@ -188,7 +188,7 @@ export function createServer<
   C = unknown,
   P = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: ServerOptions = {},
 ): BetterServer<M, F, E, C, P> {
   let loaded: BetterSupabaseEnv | undefined;
@@ -263,7 +263,10 @@ export function createServer<
     auth: AuthState,
     context: RequestContext = {},
   ): Db<M, F, E, SupabaseClient> =>
-    sb.connect(supabaseFor(auth), { ...authContext(auth), ...context });
+    betterSupabase.connect(supabaseFor(auth), {
+      ...authContext(auth),
+      ...context,
+    });
 
   const sqlFor = (
     claims: SqlClaims,
@@ -272,10 +275,10 @@ export function createServer<
   ): Db<M, F, E, undefined> => {
     if (!options.postgres) {
       throw new TypeError(
-        "Direct Postgres access needs createServer(sb, { postgres: createPostgres() })",
+        "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
       );
     }
-    return sb.connect(
+    return betterSupabase.connect(
       postgresExecutor(options.postgres.asUser(claims)),
       context,
       stats ? { stats } : {},
@@ -318,7 +321,7 @@ export function createServer<
       get db() {
         if (db) return db;
         const url = replicaUrl();
-        db = sb.connect(client(), context, {
+        db = betterSupabase.connect(client(), context, {
           stats: recorder,
           ...(url && replica
             ? {
@@ -349,10 +352,10 @@ export function createServer<
     request: Request,
     resolveOptions: { readonly refresh?: boolean } = {},
   ): Promise<AuthResolution<C, P>> => {
-    const claims = options.auth?.claims ?? sb.claimsSchema;
-    const userMetadata = sb.userMetadataSchema;
+    const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
+    const userMetadata = betterSupabase.userMetadataSchema;
     const resolved = await resolveAuth(request, {
-      logger: sb.events.logger,
+      logger: betterSupabase.events.logger,
       ...options.auth,
       ...(claims ? { claims } : {}),
       ...(userMetadata ? { userMetadata } : {}),
@@ -362,7 +365,7 @@ export function createServer<
         : { refresh: resolveOptions.refresh }),
       onRefresh: (event) => {
         options.auth?.onRefresh?.(event);
-        sb.events.emit("refresh", event);
+        betterSupabase.events.emit("refresh", event);
       },
     });
     // The claims schema's output is merged into every verified user's claims,
@@ -370,9 +373,9 @@ export function createServer<
     // SAFETY: the resolver ran the claims and userMetadata schemas, so resolved
     // has their output types.
     const resolution = resolved as AuthResolution<C, P>;
-    if (sb.events.has("auth")) {
+    if (betterSupabase.events.has("auth")) {
       const { auth } = resolution;
-      sb.events.emit("auth", {
+      betterSupabase.events.emit("auth", {
         source:
           auth.kind === "user"
             ? auth.source === "cookie"
@@ -421,13 +424,13 @@ export function createServer<
       );
     },
     admin: (context = {}) =>
-      sb.connect(serviceClient(), {
+      betterSupabase.connect(serviceClient(), {
         actor: { id: "service", kind: "service", role: "service_role" },
         claims: { role: "service_role" },
         ...context,
       }),
     deleteAccount: (userId, deleteOptions) =>
-      deleteAccount(sb, serviceClient, userId, deleteOptions),
+      deleteAccount(betterSupabase, serviceClient, userId, deleteOptions),
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
         role: "authenticated",

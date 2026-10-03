@@ -367,11 +367,11 @@ export function databaseChange<
   E,
   T extends TableKey<M>,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   table: T,
   payload: unknown,
 ): DatabaseChange<Row<M, T>> | null {
-  const meta: TableMeta | undefined = sb.meta.tables[table];
+  const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
   if (
     !meta ||
     !isDatabaseWebhook(payload) ||

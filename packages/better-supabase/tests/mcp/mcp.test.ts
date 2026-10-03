@@ -25,13 +25,13 @@ const ENDPOINT = "https://tools.test/mcp";
 const signer = await createTestSigner();
 
 describe("createMcp", () => {
-  const sb = defineSupabase(schema);
-  const list = defineListQuery(sb, "customers", {
+  const betterSupabase = defineSupabase(schema);
+  const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
     sorts: { name: { name: "asc" } },
     defaultSort: "name",
   });
-  const mcp = createMcp(sb, {
+  const mcp = createMcp(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
     name: "crm",
@@ -110,7 +110,7 @@ describe("createMcp", () => {
   });
 
   it("checks the Host header and links the connect docs from the metadata", async () => {
-    const strict = createMcp(sb, {
+    const strict = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
       name: "crm",
@@ -377,7 +377,7 @@ describe("createMcp", () => {
   });
 
   it("challenges with insufficient_scope and publishes scopes without offline_access", async () => {
-    const scoped = createMcp(sb, {
+    const scoped = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
       name: "admin",
@@ -420,7 +420,7 @@ describe("createMcp", () => {
 
   it("authorizes calls and filters lists with per-tool hooks", async () => {
     const seen: { tool: string; meta: unknown; args: unknown }[] = [];
-    const guarded = createMcp(sb, {
+    const guarded = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
       name: "guarded",
@@ -582,8 +582,8 @@ describe("createMcp", () => {
 
 describe("createMcp cursor lists", () => {
   it("describes cursor pagination in the list tool schemas", async () => {
-    const sb = defineSupabase(schema);
-    const mcp = createMcp(sb, {
+    const betterSupabase = defineSupabase(schema);
+    const mcp = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
       name: "crm",

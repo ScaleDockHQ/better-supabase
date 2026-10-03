@@ -12,7 +12,7 @@ import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import {
   BetterSupabaseProvider,
-  type BrowserLike,
+  type ClientLike,
   createHooks,
   useAuth,
   useBroadcast,
@@ -147,7 +147,7 @@ vi.mock("react", async (importOriginal) => {
 function renderHook<P, R>(
   hook: (props: P) => R,
   initial: P,
-  provider: { browser: BrowserLike; queryClient?: QueryClient } | null,
+  provider: { client: ClientLike; queryClient?: QueryClient } | null,
 ) {
   const { state } = runtime;
   state.slots = [];
@@ -222,7 +222,7 @@ const meta: SchemaMeta = {
   ...schema.meta,
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
-const sb = defineSupabase(defineSchema(meta));
+const betterSupabase = defineSupabase(defineSchema(meta));
 const typed = defineSupabase(schema);
 
 type Listener = (message: { event: string; payload: unknown }) => void;
@@ -268,12 +268,12 @@ function fakeRealtime() {
   return { client, channels, emit };
 }
 
-function fakeBrowser(initial: AuthSnapshot, run?: BrowserLike["db"]) {
+function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
   let snapshot = initial;
   const listeners = new Set<() => void>();
   const realtime = fakeRealtime();
   const browser = {
-    sb,
+    betterSupabase,
     supabase: realtime.client,
     auth: {
       current: () => snapshot,
@@ -284,7 +284,7 @@ function fakeBrowser(initial: AuthSnapshot, run?: BrowserLike["db"]) {
     },
     db: run ?? { name: "db" },
     queries: { name: "queries" },
-  } as unknown as BrowserLike;
+  } as unknown as ClientLike;
   const setAuth = (next: AuthSnapshot) => {
     snapshot = next;
     for (const listener of [...listeners]) listener();
@@ -319,7 +319,7 @@ describe("BetterSupabaseProvider", () => {
     const { queryClient } = cachedClient(["bs", "customers"], ["other"]);
     const remove = vi.spyOn(queryClient, "removeQueries");
     const view = renderHook(() => useAuth(), undefined, {
-      browser,
+      client: browser,
       queryClient,
     });
     expect(view.result.status).toBe("loading");
@@ -344,7 +344,7 @@ describe("BetterSupabaseProvider", () => {
 
   it("works without a query client", () => {
     const { browser, setAuth } = fakeBrowser(signedIn(USER));
-    const view = renderHook(() => useAuth(), undefined, { browser });
+    const view = renderHook(() => useAuth(), undefined, { client: browser });
     setAuth(signedIn(OTHER));
     expect(view.result.user?.id).toBe(OTHER);
   });
@@ -369,7 +369,7 @@ describe("createHooks", () => {
         supabase: hooks.useSupabase(),
       }),
       undefined,
-      { browser },
+      { client: browser },
     );
     expect(view.result).toEqual({
       db: browser.db,
@@ -400,7 +400,7 @@ describe("useBroadcast", () => {
     const view = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { invalidate: ["notes"] }),
       undefined,
-      { browser },
+      { client: browser },
     );
     expect(view.error!.message).toMatch(
       /useBroadcast\(\{ invalidate \}\) needs <BetterSupabaseProvider queryClient/,
@@ -421,7 +421,7 @@ describe("useBroadcast", () => {
           { onInvalid, self: true },
         ),
       null as { roomId: string } | null,
-      { browser },
+      { client: browser },
     );
     expect(view.result).toBe("closed");
     view.rerender({ roomId: "r1" });
@@ -464,7 +464,7 @@ describe("useBroadcast", () => {
       (handler: () => void) =>
         useBroadcast(room, { roomId: "r1" }, { created: handler }),
       first as () => void,
-      { browser },
+      { client: browser },
     );
     await flush();
     view.rerender(second);
@@ -489,7 +489,7 @@ describe("useBroadcast", () => {
     const view = renderHook(
       () => useBroadcast(plain, { id: "p1" }),
       undefined,
-      { browser },
+      { client: browser },
     );
     await flush();
     emit("plain:p1", "anything", { a: 1 });
@@ -508,7 +508,7 @@ describe("useBroadcast", () => {
     const byTables = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { invalidate: ["notes"] }),
       undefined,
-      { browser, queryClient: cache.queryClient },
+      { client: browser, queryClient: cache.queryClient },
     );
     await flush();
     emit("room:r1", "created", { title: "x" });
@@ -523,7 +523,7 @@ describe("useBroadcast", () => {
     const byKeys = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { invalidate: keys }),
       undefined,
-      { browser, queryClient: cache.queryClient },
+      { client: browser, queryClient: cache.queryClient },
     );
     await flush();
     emit("room:r1", "created", { title: "x" });
@@ -540,7 +540,7 @@ describe("useBroadcast", () => {
     const view = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, { created }),
       undefined,
-      { browser },
+      { client: browser },
     );
     await flush();
     emit("room:r1", "created", { nope: true });
@@ -555,9 +555,13 @@ describe("useLiveQuery", () => {
 
   it("needs a query client for a spec, not for null", () => {
     const { browser } = fakeBrowser(signedIn(USER));
-    const paused = renderHook(() => useLiveQuery(null), undefined, { browser });
+    const paused = renderHook(() => useLiveQuery(null), undefined, {
+      client: browser,
+    });
     expect(paused.result).toBe("closed");
-    const view = renderHook(() => useLiveQuery(spec), undefined, { browser });
+    const view = renderHook(() => useLiveQuery(spec), undefined, {
+      client: browser,
+    });
     expect(view.error!.message).toMatch(
       /useLiveQuery needs <BetterSupabaseProvider queryClient/,
     );
@@ -569,7 +573,7 @@ describe("useLiveQuery", () => {
     const view = renderHook(
       () => useLiveQuery(spec, { debounceMs: 1 }),
       undefined,
-      { browser, queryClient: cache.queryClient },
+      { client: browser, queryClient: cache.queryClient },
     );
     expect(client.channel).not.toHaveBeenCalled();
 
@@ -600,7 +604,7 @@ describe("useLiveQuery", () => {
     const view = renderHook<string, string>(
       (tenant) => useLiveQuery(spec, { tenant }),
       "org-a",
-      { browser, queryClient },
+      { client: browser, queryClient },
     );
     expect(client.channel.mock.calls[0]![0]).toBe(
       "bs:t:public.customers:org-a",
@@ -619,7 +623,7 @@ describe("useLiveQuery", () => {
     // The effect throws, as React would surface it to an error boundary.
     expect(() =>
       renderHook(() => useLiveQuery(spec), undefined, {
-        browser,
+        client: browser,
         queryClient,
       }),
     ).toThrow(/pass `tenant`/);
@@ -639,7 +643,7 @@ describe("useLiveCount", () => {
     const view = renderHook(
       () => useLiveCount(spec, { debounceMs: 1 }),
       undefined,
-      { browser },
+      { client: browser },
     );
     expect(view.result.count).toBeUndefined();
     await flush();
@@ -662,7 +666,7 @@ describe("useLiveCount", () => {
     const view = renderHook(
       () => useLiveCount({ spec, count: 3 }, { debounceMs: 1 }),
       undefined,
-      { browser },
+      { client: browser },
     );
     await flush();
     expect(view.result.count).toBe(3);
@@ -679,7 +683,7 @@ describe("useLiveCount", () => {
     const initial = renderHook(
       () => useLiveCount(spec, { initial: 2 }),
       undefined,
-      { browser },
+      { client: browser },
     );
     await flush();
     expect(initial.result.count).toBe(2);
@@ -689,7 +693,7 @@ describe("useLiveCount", () => {
     const unseeded = renderHook(
       () => useLiveCount({ spec, count: null }),
       undefined,
-      { browser },
+      { client: browser },
     );
     await flush();
     expect(unseeded.result.count).toBe(5);
@@ -708,7 +712,7 @@ describe("useLiveCount", () => {
       (next: typeof spec | ReturnType<typeof typed.spec.customers.count>) =>
         useLiveCount(next),
       spec as typeof spec | ReturnType<typeof typed.spec.customers.count>,
-      { browser },
+      { client: browser },
     );
     await flush();
     expect(view.result.count).toBe(1);
@@ -725,7 +729,9 @@ describe("useLiveCount", () => {
   it("pauses on null and while auth loads", async () => {
     const run = vi.fn(() => AsyncResult.ok(1));
     const { browser, setAuth } = fakeBrowser(LOADING, { $run: run });
-    const paused = renderHook(() => useLiveCount(null), undefined, { browser });
+    const paused = renderHook(() => useLiveCount(null), undefined, {
+      client: browser,
+    });
     expect(paused.result).toEqual({
       count: undefined,
       status: "closed",
@@ -735,7 +741,7 @@ describe("useLiveCount", () => {
     const view = renderHook(
       () => useLiveCount(spec, { tenant: "t" }),
       undefined,
-      { browser },
+      { client: browser },
     );
     expect(run).not.toHaveBeenCalled();
     setAuth(signedIn(USER));

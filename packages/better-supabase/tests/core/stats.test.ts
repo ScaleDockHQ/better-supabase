@@ -44,10 +44,10 @@ describe("db.$stats()", () => {
   });
 
   it("reports into a request-wide recorder", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const request = new StatsRecorder();
-    const one = sb.connect(executor, {}, { stats: request });
-    const two = sb.connect(executor, {}, { stats: request });
+    const one = betterSupabase.connect(executor, {}, { stats: request });
+    const two = betterSupabase.connect(executor, {}, { stats: request });
     await Promise.all([one.customers.findMany(), two.customers.findMany()]);
     await two.notes.findMany();
     expect(one.$stats()).toMatchObject({ calls: 1, waves: 1 });

@@ -59,20 +59,20 @@ import { type StandardSchemaV1, validate } from "./standard.ts";
 import { recordStats, StatsRecorder } from "./stats.ts";
 import { nowInstant } from "./temporal.ts";
 
-export interface DefineSupabaseOptions {
+export interface SupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
   readonly now?: () => Temporal.Instant;
   /** Extra error mappers, run before plugin mappers. */
   readonly errors?: readonly ErrorMapper[];
   /** Receives errors from event handlers, hooks and cache adapters. Defaults to `console`. */
   readonly logger?: Logger;
-  /** RPCs that change tables, keyed by function name. Prefer `sb.defineRpc()`. */
+  /** RPCs that change tables, keyed by function name. Prefer `betterSupabase.defineRpc()`. */
   readonly rpc?: Readonly<Record<string, RpcDefinition>>;
-  /** Builds the error `.orThrow()` throws. Prefer `sb.mapError()`. */
+  /** Builds the error `.orThrow()` throws. Prefer `betterSupabase.mapError()`. */
   readonly throwAs?: ThrowMapper;
-  /** Validates verified JWT claims on the server. Prefer `sb.claims()`, which also types them. */
+  /** Validates verified JWT claims on the server. Prefer `betterSupabase.claims()`, which also types them. */
   readonly claims?: StandardSchemaV1;
-  /** Parses `user_metadata` into `session.profile`. Prefer `sb.userMetadata()`, which also types it. */
+  /** Parses `user_metadata` into `session.profile`. Prefer `betterSupabase.userMetadata()`, which also types it. */
   readonly userMetadata?: StandardSchemaV1;
   /**
    * PostgREST's `db-max-rows`: the most rows one read returns. An unbounded
@@ -122,12 +122,12 @@ export class BetterSupabase<
   readonly schema: Schema<M, D, F>;
   readonly plugins: readonly AnyPlugin[];
   readonly events: EventHub;
-  readonly options: DefineSupabaseOptions;
+  readonly options: SupabaseOptions;
 
   constructor(
     schema: Schema<M, D, F>,
     plugins: readonly AnyPlugin[] = [],
-    options: DefineSupabaseOptions = {},
+    options: SupabaseOptions = {},
     events: EventHub = new EventHub(options.logger),
   ) {
     this.schema = schema;
@@ -161,7 +161,7 @@ export class BetterSupabase<
    * A token that fails it resolves to `{ kind: 'invalid', reason: 'claims' }`.
    *
    * ```ts
-   * const sb = defineSupabase(schema).claims(z.object({ tenant_id: z.uuid() }));
+   * const betterSupabase = defineSupabase(schema).claims(z.object({ tenant_id: z.uuid() }));
    * ```
    */
   claims<S extends StandardSchemaV1>(
@@ -184,7 +184,7 @@ export class BetterSupabase<
    * the verified claims, never from `profile`.
    *
    * ```ts
-   * const sb = defineSupabase(schema).userMetadata(z.object({ display_name: z.string() }));
+   * const betterSupabase = defineSupabase(schema).userMetadata(z.object({ display_name: z.string() }));
    * ```
    */
   userMetadata<S extends StandardSchemaV1>(
@@ -204,7 +204,7 @@ export class BetterSupabase<
    * Results themselves keep their `DbError`.
    *
    * ```ts
-   * const sb = defineSupabase(schema).mapError((error) => new AppError(error));
+   * const betterSupabase = defineSupabase(schema).mapError((error) => new AppError(error));
    * ```
    */
   mapError(
@@ -223,7 +223,7 @@ export class BetterSupabase<
 
   /**
    * Builds serializable `QuerySpec`s with the same arguments and result types
-   * as the repository: `sb.spec.customers.findMany({ select: ['id'] })`.
+   * as the repository: `betterSupabase.spec.customers.findMany({ select: ['id'] })`.
    */
   get spec(): Specs<M, E> {
     // SAFETY: createSpecs builds one spec builder per table in meta, which is
@@ -265,7 +265,7 @@ export class BetterSupabase<
    * invalidate them after it succeeds.
    *
    * ```ts
-   * sb.defineRpc('archive_customer', { invalidates: ['customers', 'notes'] });
+   * betterSupabase.defineRpc('archive_customer', { invalidates: ['customers', 'notes'] });
    * ```
    */
   defineRpc(
@@ -512,7 +512,7 @@ export class BetterSupabase<
           return err(
             dbError(
               "invalid_request",
-              `db.$many() entry ${invalid} is not a QuerySpec from sb.spec`,
+              `db.$many() entry ${invalid} is not a QuerySpec from betterSupabase.spec`,
             ),
           );
         }
@@ -735,7 +735,10 @@ function runSpec(
 ): AsyncResult<unknown> {
   if (!isQuerySpec(spec)) {
     return AsyncResult.err(
-      dbError("invalid_request", "db.$run() expects a QuerySpec from sb.spec"),
+      dbError(
+        "invalid_request",
+        "db.$run() expects a QuerySpec from betterSupabase.spec",
+      ),
     );
   }
   // SAFETY: isQuerySpec checked the spec, so db[spec.table] is a repository or undefined.
@@ -808,12 +811,12 @@ function rpc(
  * Creates the data-layer definition from the generated `schema`.
  *
  * ```ts
- * export const sb = defineSupabase(schema).use(timestamps()).use(softDelete());
+ * export const betterSupabase = defineSupabase(schema).use(timestamps()).use(softDelete());
  * ```
  */
 export function defineSupabase<M extends AnyModels, D, F extends AnyFunctions>(
   schema: Schema<M, D, F>,
-  options?: DefineSupabaseOptions,
+  options?: SupabaseOptions,
 ): BetterSupabase<M, D, F> {
   return new BetterSupabase(schema, [], options);
 }

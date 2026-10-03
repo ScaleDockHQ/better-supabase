@@ -5,11 +5,11 @@ import { defineSeed, isSeed } from "../../src/testing/seed.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 describe("defineSeed", () => {
   it("renders parents first, with database names and literals", () => {
-    const seed = defineSeed(sb, {
+    const seed = defineSeed(betterSupabase, {
       customers: {
         acme: {
           id: "c1",
@@ -35,7 +35,7 @@ describe("defineSeed", () => {
   });
 
   it("renders arrays, dates, nulls and numbers", () => {
-    const sql = defineSeed(sb, {
+    const sql = defineSeed(betterSupabase, {
       organizations: { one: { id: "o1", name: "One", slug: "one" } },
       customers: {
         one: { organizationId: "o1", name: "x", kvk: null },
@@ -43,7 +43,7 @@ describe("defineSeed", () => {
     }).sql();
     expect(sql).toContain("('o1', 'x', null)");
 
-    const bad = defineSeed(sb, {
+    const bad = defineSeed(betterSupabase, {
       organizations: { bad: { id: "o1", name: "x", nope: 1 } as never },
     });
     expect(() => bad.statements()).toThrow('unknown column "nope"');
@@ -100,7 +100,7 @@ describe("defineSeed", () => {
   });
 
   it("rejects unknown tables at render time", () => {
-    const seed = defineSeed(sb, { nope: {} } as never);
+    const seed = defineSeed(betterSupabase, { nope: {} } as never);
     expect(() => seed.sql()).toThrow('unknown table "nope"');
   });
 });

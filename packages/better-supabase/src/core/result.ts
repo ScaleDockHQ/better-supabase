@@ -1,6 +1,6 @@
 import { type DbError, DbException, dbError, dbErrorOf } from "./errors.ts";
 
-/** Turns a `DbError` into the error `.orThrow()` throws; set with `sb.mapError()`. */
+/** Turns a `DbError` into the error `.orThrow()` throws; set with `betterSupabase.mapError()`. */
 export type ThrowMapper = (error: DbError) => unknown;
 
 const throwMappers = new WeakMap<AsyncResult<unknown>, ThrowMapper>();
@@ -77,7 +77,7 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   /**
    * Resolves with the data, or rejects with a `DbException`. Pass `factory`
    * to throw your own error instead, e.g. an HTTP error for your framework;
-   * without it, the mapper from `sb.mapError()` applies when one is set.
+   * without it, the mapper from `betterSupabase.mapError()` applies when one is set.
    */
   async orThrow(factory?: (error: DbError) => unknown): Promise<T> {
     const result = await this.#promise;
@@ -138,7 +138,7 @@ export interface BetterResultApi<T, E> {
 /**
  * Builds a better-result value with the `Result` namespace you pass, so
  * better-result stays your dependency. Errors go through `mapError`, or, for a
- * result from a `db` of `sb.mapError(fn)`, through `fn` (typed `unknown`).
+ * result from a `db` of `betterSupabase.mapError(fn)`, through `fn` (typed `unknown`).
  * The value is a real `Ok`/`Err`: cast it (`as Result<T, E>`) for its
  * methods in types; the cast itself is not checked against `T`.
  *

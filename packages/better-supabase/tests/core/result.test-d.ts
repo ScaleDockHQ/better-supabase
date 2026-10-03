@@ -40,7 +40,7 @@ describe("toBetterResult", () => {
     ).toEqualTypeOf<BetterResultValue<{ id: string }, AppError>>();
   });
 
-  it("types a mapper carried by sb.mapError as unknown", () => {
+  it("types a mapper carried by betterSupabase.mapError as unknown", () => {
     expectTypeOf(toBetterResult(AsyncResult.ok(1), Br)).toEqualTypeOf<
       Promise<BetterResultValue<number, unknown>>
     >();

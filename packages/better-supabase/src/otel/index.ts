@@ -59,7 +59,7 @@ function systemOf(executor: Executor): string {
  * never recorded; `db.query.summary` is `SELECT customers`.
  *
  * ```ts
- * const sb = defineSupabase(schema).use(otel());
+ * const betterSupabase = defineSupabase(schema).use(otel());
  * ```
  */
 export function otel(options: OtelOptions = {}): Plugin<"otel"> {
@@ -158,16 +158,16 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
 }
 
 /**
- * Spans for auth resolution and session refreshes, from `sb.events`.
+ * Spans for auth resolution and session refreshes, from `betterSupabase.events`.
  * Returns a function that stops listening.
  */
 export function traceAuth(
-  sb: { readonly events: EventHub },
+  betterSupabase: { readonly events: EventHub },
   options: Pick<OtelOptions, "tracer" | "attributes"> = {},
 ): () => void {
   const tracer =
     options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
-  const offAuth = sb.events.on("auth", (event) => {
+  const offAuth = betterSupabase.events.on("auth", (event) => {
     const span = tracer.startSpan("auth.resolve", {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -179,7 +179,7 @@ export function traceAuth(
     if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });
     span.end();
   });
-  const offRefresh = sb.events.on("refresh", (event) => {
+  const offRefresh = betterSupabase.events.on("refresh", (event) => {
     const end = Date.now();
     const span = tracer.startSpan("auth.refresh", {
       kind: SpanKind.CLIENT,

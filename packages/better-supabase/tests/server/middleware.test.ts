@@ -16,7 +16,7 @@ import { capturingClient } from "../fixtures/client.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 const ANON = {
   actor: { id: "anon", kind: "anon", role: "anon" },
   claims: { role: "anon" },
@@ -85,7 +85,7 @@ describe("withBetterSupabase", () => {
       body: [{ id: "c1" }],
     }));
     let seen: { context: RequestContext; client: unknown } | undefined;
-    const handler = withBetterSupabase(sb)(async (_req, ctx) => {
+    const handler = withBetterSupabase(betterSupabase)(async (_req, ctx) => {
       seen = { context: ctx.db.$context, client: ctx.db.$client };
       const rows = await ctx.db.customers
         .findMany({ select: ["id"] })
@@ -114,7 +114,7 @@ describe("withBetterPostgres", () => {
   it("contributes ctx.sql over ctx.postgres", async () => {
     const fake = fakeSql([[/customers/, [{ row: { id: "c1" } }]]]);
     let context: RequestContext | undefined;
-    const handler = withBetterPostgres(sb)(async (_req, ctx) => {
+    const handler = withBetterPostgres(betterSupabase)(async (_req, ctx) => {
       context = ctx.sql.$context;
       const rows = await ctx.sql.customers
         .findMany({ select: ["id"] })

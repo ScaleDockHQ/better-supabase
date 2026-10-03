@@ -23,8 +23,11 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("createOrpc", () => {
-  const sb = defineSupabase(schema);
-  const bs = createOrpc(sb, { env, auth: { jwks: signer.jwks as never } });
+  const betterSupabase = defineSupabase(schema);
+  const bs = createOrpc(betterSupabase, {
+    env,
+    auth: { jwks: signer.jwks as never },
+  });
   const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
 
   const me = authed.handler(({ context }) => ({

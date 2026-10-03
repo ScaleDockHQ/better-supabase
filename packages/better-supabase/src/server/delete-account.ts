@@ -80,7 +80,7 @@ export function deleteAccount<
   E,
   C,
 >(
-  sb: BetterSupabase<M, D, F, E, C>,
+  betterSupabase: BetterSupabase<M, D, F, E, C>,
   service: () => SupabaseClient,
   userId: string,
   options: DeleteAccountOptions = {},
@@ -124,14 +124,19 @@ export function deleteAccount<
     }
 
     const context = options.context ?? {};
-    sb.events.emit("mutation", {
+    betterSupabase.events.emit("mutation", {
       table: "auth.users",
       kind: "delete",
       rows: [{ id: userId }],
       context,
     });
     for (const table of options.cascades ?? [])
-      sb.events.emit("mutation", { table, kind: "delete", rows: [], context });
+      betterSupabase.events.emit("mutation", {
+        table,
+        kind: "delete",
+        rows: [],
+        context,
+      });
     return ok({ userId, removed });
   });
 }

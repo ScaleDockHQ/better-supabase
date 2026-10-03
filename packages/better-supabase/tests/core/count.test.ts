@@ -7,7 +7,7 @@ import { decodeRows } from "../../src/ir/codec.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 describe("_count includes", () => {
   it("renders a count embed and folds it into row._count", async () => {
@@ -20,7 +20,7 @@ describe("_count includes", () => {
         },
       ],
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const rows = await db.customers
       .findMany({
         select: ["id"],
@@ -65,7 +65,7 @@ describe("_count includes", () => {
 
   it("rejects counts over to-one relations", async () => {
     const { client } = capturingClient();
-    const result = await sb.connect(client).customers.findMany({
+    const result = await betterSupabase.connect(client).customers.findMany({
       include: { _count: { organization: true } as never },
     });
     expect(result.error?.message).toContain("needs a to-many relation");

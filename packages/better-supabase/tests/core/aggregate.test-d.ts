@@ -11,8 +11,8 @@ import {
 } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const sb = defineSupabase(camel);
-const db = sb.connect(client);
+const betterSupabase = defineSupabase(camel);
+const db = betterSupabase.connect(client);
 
 describe("aggregate types", () => {
   it("types relation aggregates next to the row", async () => {
@@ -71,7 +71,7 @@ describe("aggregate types", () => {
   });
 
   it("infers spec results", () => {
-    const spec = sb.spec.customers.aggregate({
+    const spec = betterSupabase.spec.customers.aggregate({
       groupBy: ["status"],
       _count: true,
     });

@@ -22,13 +22,13 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly user: UserClaims;
       /**
        * The verified JWT payload, including custom access token hook claims,
-       * typed and validated by `sb.claims(schema)`.
+       * typed and validated by `betterSupabase.claims(schema)`.
        */
       readonly claims: JWTClaims & C;
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
       /**
-       * `user_metadata` parsed by `sb.userMetadata(schema)`, for display.
+       * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`, for display.
        * Absent without a schema or when the metadata fails it. Users
        * write this data with `auth.updateUser()`: never base access on it.
        */

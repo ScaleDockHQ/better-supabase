@@ -114,21 +114,24 @@ const recorder = (ops: Operation[]): Executor => ({
   },
 });
 
-/** The operation `run` sends to the executor, built by `sb` without touching a database. */
+/** The operation `run` sends to the executor, built by `betterSupabase` without touching a database. */
 async function captureOp(
-  sb: AnySupabase,
+  betterSupabase: AnySupabase,
   run: (db: AnyDb) => PromiseLike<unknown>,
 ): Promise<Operation> {
   const ops: Operation[] = [];
-  await run(sb.connect(recorder(ops)));
+  await run(betterSupabase.connect(recorder(ops)));
   const [op] = ops;
   if (!op) throw new Error("the repository call did not reach the executor");
   return op;
 }
 
-function tableKey(sb: AnySupabase, table: string | undefined): string {
-  const key = table ?? Object.keys(sb.meta.tables)[0];
-  if (!key || !(key in sb.meta.tables))
+function tableKey(
+  betterSupabase: AnySupabase,
+  table: string | undefined,
+): string {
+  const key = table ?? Object.keys(betterSupabase.meta.tables)[0];
+  if (!key || !(key in betterSupabase.meta.tables))
     throw new TypeError(`better-supabase: unknown table "${String(key)}"`);
   return key;
 }
@@ -145,7 +148,7 @@ const hasName = (subject: { readonly name?: unknown }): Check => [
 
 export interface TestExecutorOptions {
   /** A definition whose schema matches the executor's database. Install no plugins. */
-  readonly sb: AnySupabase;
+  readonly betterSupabase: AnySupabase;
   /** App key of a table with rows the executor can read. Defaults to the first table. */
   readonly table?: string;
   /** A row to insert and delete again, to check writes. Skips write checks when omitted. */
@@ -158,18 +161,18 @@ export interface TestExecutorOptions {
  * than thrown, and (with `create`) a write round trip.
  *
  * ```ts
- * it('conforms', () => testExecutor(myExecutor, { sb, table: 'tags', create: { name: 'x' } }));
+ * it('conforms', () => testExecutor(myExecutor, { betterSupabase, table: 'tags', create: { name: 'x' } }));
  * ```
  */
 export function testExecutor(
   executor: Executor,
   options: TestExecutorOptions,
 ): Promise<ConformanceReport> {
-  const { sb } = options;
-  const table = tableKey(sb, options.table);
+  const { betterSupabase } = options;
+  const table = tableKey(betterSupabase, options.table);
   const context: ExecuteContext = { errorMappers: [] };
   const read = (): Promise<Operation> =>
-    captureOp(sb, (db) => db[table]!["findMany"]!({ limit: 2 }));
+    captureOp(betterSupabase, (db) => db[table]!["findMany"]!({ limit: 2 }));
   const create = options.create;
   return conform(`Executor "${executor.name}"`, [
     hasName(executor),
@@ -207,7 +210,9 @@ export function testExecutor(
     [
       "counts rows",
       async () => {
-        const op = await captureOp(sb, (db) => db[table]!["count"]!());
+        const op = await captureOp(betterSupabase, (db) =>
+          db[table]!["count"]!(),
+        );
         const result = await executor.execute(op, context);
         expect(
           result.ok,
@@ -290,7 +295,9 @@ export function testExecutor(
       "batch returns one result per operation, in order",
       async () => {
         const rows = await read();
-        const count = await captureOp(sb, (db) => db[table]!["count"]!());
+        const count = await captureOp(betterSupabase, (db) =>
+          db[table]!["count"]!(),
+        );
         // SAFETY: only the table name changes, so the copy is still an Operation.
         const missing = {
           ...rows,
@@ -321,8 +328,10 @@ export function testExecutor(
       async () => {
         // SAFETY: the kit runs against any schema, so it indexes repositories
         // by table name.
-        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
-        const repository = (sb.connect(executor) as unknown as AnyDb)[table]!;
+        const db =
+          // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
+          betterSupabase.connect(executor) as unknown as AnyDb;
+        const repository = db[table]!;
         const created = await repository["create"]!(create);
         expect(created.ok, `create failed: ${JSON.stringify(created.error)}`);
         // SAFETY: the ok check above means create returned the inserted row.
@@ -333,7 +342,7 @@ export function testExecutor(
             `created row has ${key} = ${JSON.stringify(row[key])}`,
           );
         }
-        const [primary] = sb.meta.tables[table]!.primaryKey;
+        const [primary] = betterSupabase.meta.tables[table]!.primaryKey;
         expect(primary, "write checks need a table with a primary key");
         const removed = await repository["delete"]!(row[primary]);
         expect(removed.ok, `delete failed: ${JSON.stringify(removed.error)}`);
@@ -626,7 +635,7 @@ export function testGenerator(
 
 export interface TestPluginOptions {
   /** The definition without this plugin. */
-  readonly sb: AnySupabase;
+  readonly betterSupabase: AnySupabase;
   /** Table to exercise. Defaults to the first table. */
   readonly table?: string;
   /** Context the plugin needs, such as `{ tenant }` for `tenant()`. */
@@ -644,12 +653,12 @@ export function testPlugin(
   plugin: AnyPlugin,
   options: TestPluginOptions,
 ): Promise<ConformanceReport> {
-  const { sb } = options;
-  const table = tableKey(sb, options.table);
+  const { betterSupabase } = options;
+  const table = tableKey(betterSupabase, options.table);
   const context = options.context ?? {};
   const hook = (op: Operation): HookArgs => ({
     table: op.table,
-    schema: sb.meta,
+    schema: betterSupabase.meta,
     context,
     options: {},
     now: () => temporal().Instant.fromEpochMilliseconds(0),
@@ -673,17 +682,17 @@ export function testPlugin(
         // SAFETY: the kit runs against any schema, so it indexes repositories
         // by table name.
         // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
-        const db = sb
+        const db = betterSupabase
           .use(plugin)
           .connect(recorder([]), context) as unknown as AnyDb;
-        for (const key of Object.keys(sb.meta.tables))
+        for (const key of Object.keys(betterSupabase.meta.tables))
           expect(db[key], `db.${key} is missing`);
       },
     ],
     plugin.transformQuery && [
       "transformQuery is pure and deterministic",
       async () => {
-        const op = await captureOp(sb, (db) =>
+        const op = await captureOp(betterSupabase, (db) =>
           db[table]!["findMany"]!({ limit: 1 }),
         );
         const first = plugin.transformQuery!(frozenCopy(op), hook(op));
@@ -700,7 +709,9 @@ export function testPlugin(
       create && [
         "beforeMutation is pure and deterministic",
         async () => {
-          const op = await captureOp(sb, (db) => db[table]!["create"]!(create));
+          const op = await captureOp(betterSupabase, (db) =>
+            db[table]!["create"]!(create),
+          );
           if (op.kind === "select")
             throw new Violation("create did not produce a mutation");
           const first = await plugin.beforeMutation!(frozenCopy(op), hook(op));
@@ -715,7 +726,7 @@ export function testPlugin(
     plugin.wrapExecutor && [
       "wrapExecutor keeps results intact",
       async () => {
-        const op = await captureOp(sb, (db) =>
+        const op = await captureOp(betterSupabase, (db) =>
           db[table]!["findMany"]!({ limit: 1 }),
         );
         const data = { rows: [{ marker: "conformance" }], count: 1 };

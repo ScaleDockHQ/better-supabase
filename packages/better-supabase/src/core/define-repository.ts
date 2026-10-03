@@ -21,10 +21,10 @@ export interface TableRepositoryExtension<
  * repository at call time, with every other plugin's methods.
  *
  * ```ts
- * const customers = defineRepository(sb, 'customers', (base) => ({
+ * const customers = defineRepository(betterSupabase, 'customers', (base) => ({
  *   active: () => base.findMany({ where: { status: 'active' } }),
  * }));
- * export const app = sb.use(customers);
+ * export const app = betterSupabase.use(customers);
  * await app.connect(client).customers.active();
  * ```
  */
@@ -36,11 +36,11 @@ export function defineRepository<
   const Table extends TableKey<M>,
   Methods extends object,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   table: Table,
   build: (base: RepositoryOf<M, Table, E>) => Methods,
 ): Plugin<`repository:${Table}`, TableRepositoryExtension<Table, Methods>> {
-  if (!(table in sb.meta.tables)) {
+  if (!(table in betterSupabase.meta.tables)) {
     throw new TypeError(
       `better-supabase: defineRepository: unknown table "${table}"`,
     );

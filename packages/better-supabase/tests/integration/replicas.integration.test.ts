@@ -37,15 +37,15 @@ const readUrl = url.replace("127.0.0.1", "localhost");
 describe.skipIf(!(await reachable()) || readUrl === url)(
   "read URL against the local stack",
   () => {
-    const sb = defineSupabase(schema);
-    const server = createServer(sb, {
+    const betterSupabase = defineSupabase(schema);
+    const server = createServer(betterSupabase, {
       env: parseEnv({
         SUPABASE_URL: url,
         SUPABASE_PUBLISHABLE_KEY: publishableKey,
         SUPABASE_READ_URL: readUrl,
       }).env!,
     });
-    const admin = sb.connect(
+    const admin = betterSupabase.connect(
       createClient(url, secretKey, { auth: { persistSession: false } }),
     );
     const created: string[] = [];

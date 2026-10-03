@@ -4,7 +4,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { createMcp, defineTool } from "../../src/mcp/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 // Structural stand-ins for permdock's `Permission`, `isPermission`, `mayUse`
 // and `PermDock.can`, so the recipe on the PermDock docs page type-checks
@@ -26,7 +26,7 @@ declare const exportCustomers: Permission;
 
 describe("createMcp with PermDock permissions", () => {
   it("narrows meta with isPermission before can and mayUse", () => {
-    createMcp(sb, {
+    createMcp(betterSupabase, {
       name: "crm",
       version: "1.0.0",
       tools: [
@@ -50,7 +50,7 @@ describe("createMcp with PermDock permissions", () => {
   });
 
   it("rejects passing meta to mayUse without narrowing", () => {
-    createMcp(sb, {
+    createMcp(betterSupabase, {
       name: "crm",
       version: "1.0.0",
       visible: async (ctx, tool) =>

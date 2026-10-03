@@ -10,11 +10,11 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 
-const sb = defineSupabase(schema);
-const db = sb.connect(client);
+const betterSupabase = defineSupabase(schema);
+const db = betterSupabase.connect(client);
 
 const chrome = defineReadSet(
-  sb,
+  betterSupabase,
   "app_chrome",
   { params: { orgId: "uuid", kinds: "text[]", limit: "int4" } },
   (s, p) => {
@@ -53,8 +53,8 @@ describe("db.$many", () => {
   it("returns a tuple for ad-hoc specs", () => {
     expectTypeOf(
       db.$many([
-        sb.spec.tags.count(),
-        sb.spec.customers.findFirst({ select: ["id"] }),
+        betterSupabase.spec.tags.count(),
+        betterSupabase.spec.customers.findFirst({ select: ["id"] }),
       ]),
     ).toEqualTypeOf<AsyncResult<[number, { id: string } | null]>>();
   });

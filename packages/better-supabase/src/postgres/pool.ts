@@ -57,7 +57,7 @@ export interface SqlClaims {
   readonly [claim: string]: unknown;
 }
 
-export interface Postgres {
+export interface BetterPostgres {
   /** Connects as the connection-string role. On Supabase that bypasses RLS. */
   readonly admin: SqlClient;
   /** Runs every query as the given user, with RLS, like PostgREST does. */
@@ -112,7 +112,7 @@ type Session =
  * transaction) runs in its own transaction; claims and role are
  * transaction-local, so nothing leaks back into the pool.
  */
-export function createPostgres(options: PostgresOptions = {}): Postgres {
+export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   const pool = options.pool ?? openPool(options);
   const timeouts: PostgresTimeouts =
     typeof options.statementTimeout === "number"

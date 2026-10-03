@@ -160,7 +160,7 @@ function statement(
  * casing and Insert types; `better-supabase seed` renders them to SQL.
  *
  * ```ts
- * export const seed = defineSeed(sb, {
+ * export const seed = defineSeed(betterSupabase, {
  *   organizations: { acme: { id: ACME, name: 'Acme' } },
  *   customers: { first: { organizationId: ACME, name: 'First customer' } },
  * });
@@ -172,8 +172,11 @@ export function defineSeed<
   F extends AnyFunctions,
   E,
   const S extends SeedFixtures<M>,
->(sb: BetterSupabase<M, D, F, E>, fixtures: S & ExactSeed<M, S>): Seed<S> {
-  const meta = sb.meta;
+>(
+  betterSupabase: BetterSupabase<M, D, F, E>,
+  fixtures: S & ExactSeed<M, S>,
+): Seed<S> {
+  const meta = betterSupabase.meta;
   const statements = (): string[] => {
     const keys = Object.keys(fixtures).filter(
       (key) => fixtures[key] !== undefined,

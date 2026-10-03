@@ -6,7 +6,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { AuthSession } from "../../src/next/index.ts";
 
-import { createBrowser } from "../../src/client/index.ts";
+import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
@@ -14,11 +14,11 @@ import { createHooks, useSession } from "../../src/react/index.ts";
 import { createServer } from "../../src/server/server.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const next = createNext(defineSupabase(schema));
+const bs = createNext(defineSupabase(schema));
 
 describe("next.session", () => {
   it("returns the serializable session union", () => {
-    expectTypeOf(next.session()).resolves.toEqualTypeOf<AuthSession>();
+    expectTypeOf(bs.session()).resolves.toEqualTypeOf<AuthSession>();
     expectTypeOf(useSession).returns.toEqualTypeOf<AuthSession>();
   });
 
@@ -42,11 +42,11 @@ const Claims = v.object({
 });
 type Claims = v.InferOutput<typeof Claims>;
 
-describe("sb.claims(schema)", () => {
-  const sb = defineSupabase(schema).claims(Claims).use(tenant());
+describe("betterSupabase.claims(schema)", () => {
+  const betterSupabase = defineSupabase(schema).claims(Claims).use(tenant());
 
   it("types the claims of every session and auth state", async () => {
-    const typed = createNext(sb);
+    const typed = createNext(betterSupabase);
     const session = await typed.session();
     if (session.kind === "user") {
       expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
@@ -55,13 +55,15 @@ describe("sb.claims(schema)", () => {
       >();
       expectTypeOf(session.claims.sub).toEqualTypeOf<string>();
     }
-    const ctx = await createServer(sb).context(new Request("http://x/"));
+    const ctx = await createServer(betterSupabase).context(
+      new Request("http://x/"),
+    );
     expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
     expectTypeOf(ctx.auth).toExtend<AuthState>();
   });
 
   it("keeps an untyped session for untyped definitions", () => {
-    expectTypeOf(next.session()).resolves.toEqualTypeOf<AuthSession>();
+    expectTypeOf(bs.session()).resolves.toEqualTypeOf<AuthSession>();
   });
 
   it("distinguishes token, claims and actor failures", () => {
@@ -82,7 +84,7 @@ describe("sb.claims(schema)", () => {
   });
 
   it("infers claims in createHooks and takes them in useSession", () => {
-    const browser = createBrowser(sb);
+    const browser = createClient(betterSupabase);
     const hooks = createHooks<typeof browser>();
     expectTypeOf(hooks.useSession).returns.toEqualTypeOf<AuthSession<Claims>>();
     expectTypeOf(useSession<Claims>()).toEqualTypeOf<AuthSession<Claims>>();
@@ -102,19 +104,21 @@ describe("sb.claims(schema)", () => {
 const Profile = v.object({ display_name: v.string() });
 type Profile = v.InferOutput<typeof Profile>;
 
-describe("sb.userMetadata(schema)", () => {
-  const sb = defineSupabase(schema)
+describe("betterSupabase.userMetadata(schema)", () => {
+  const betterSupabase = defineSupabase(schema)
     .claims(Claims)
     .userMetadata(Profile)
     .use(tenant());
 
   it("types the profile next to the claims, possibly undefined", async () => {
-    const session = await createNext(sb).session();
+    const session = await createNext(betterSupabase).session();
     if (session.kind === "user") {
       expectTypeOf(session.profile).toEqualTypeOf<Profile | undefined>();
       expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
     }
-    const ctx = await createServer(sb).context(new Request("http://x/"));
+    const ctx = await createServer(betterSupabase).context(
+      new Request("http://x/"),
+    );
     expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims, Profile>>();
   });
 
@@ -129,7 +133,7 @@ describe("sb.userMetadata(schema)", () => {
   });
 
   it("infers the profile in createHooks", () => {
-    const browser = createBrowser(sb);
+    const browser = createClient(betterSupabase);
     const hooks = createHooks<typeof browser>();
     expectTypeOf(hooks.useSession).returns.toEqualTypeOf<
       AuthSession<Claims, Profile>
@@ -137,7 +141,7 @@ describe("sb.userMetadata(schema)", () => {
   });
 
   it("leaves the profile unknown without a schema", async () => {
-    const session = await next.session();
+    const session = await bs.session();
     if (session.kind === "user") {
       expectTypeOf(session.profile).toEqualTypeOf<unknown>();
     }

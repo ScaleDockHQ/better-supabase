@@ -17,14 +17,14 @@ const USER = "00000000-0000-4000-8000-0000000000aa";
 const base = defineSupabase(schema, { now: () => NOW });
 
 describe("timestamps", () => {
-  const sb = base.use(timestamps());
+  const betterSupabase = base.use(timestamps());
 
   it("stamps inserts and updates without overriding explicit values", async () => {
     const { client, requests } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c" }],
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     await db.customers.create(
       { organizationId: ORG, name: "A", createdAt: "2020-01-01T00:00:00Z" },
       { select: ["id"] },
@@ -47,7 +47,7 @@ describe("timestamps", () => {
       status: 201,
       body: [{ id: "c" }],
     }));
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.upsert(
         { organizationId: ORG, name: "A", kvk: "1" },
@@ -63,11 +63,11 @@ describe("timestamps", () => {
 });
 
 describe("softDelete", () => {
-  const sb = base.use(softDelete());
+  const betterSupabase = base.use(softDelete());
 
   it("hides deleted rows, with opt-outs for the root table", async () => {
     const { client, requests } = capturingClient();
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     await db.customers.findMany({ select: ["id"] });
     await db.customers.findMany({ select: ["id"], withDeleted: true });
     await db.customers.findMany({ select: ["id"], onlyDeleted: true });
@@ -80,7 +80,7 @@ describe("softDelete", () => {
 
   it("scopes includes and relation filters, keeping every() correct", async () => {
     const { client, last } = capturingClient();
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     await db.organizations.findMany({
       select: ["id"],
       where: { customers: { every: { status: "active" } } },
@@ -101,7 +101,7 @@ describe("softDelete", () => {
       status: 204,
       headers: { "content-range": "*/1" },
     }));
-    const result = await sb.connect(client).customers.delete("c");
+    const result = await betterSupabase.connect(client).customers.delete("c");
     expect(result.ok).toBe(true);
     expect(last().method).toBe("PATCH");
     expect(last().body).toEqual({ archived_at: NOW.toString() });
@@ -114,7 +114,7 @@ describe("softDelete", () => {
       status: 204,
       headers: { "content-range": "*/1" },
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     await db.customers.delete("c", { hard: true });
     await db.customers.restore("c");
     expect(requests[0]?.method).toBe("DELETE");
@@ -132,27 +132,27 @@ describe("softDelete", () => {
       status: 204,
       headers: { "content-range": "*/1" },
     }));
-    await sb.connect(client).tags.delete("t");
+    await betterSupabase.connect(client).tags.delete("t");
     expect(last().method).toBe("DELETE");
   });
 });
 
 describe("tenant", () => {
-  const sb = base.use(tenant());
+  const betterSupabase = base.use(tenant());
 
   it("fails closed without a tenant and sends nothing", async () => {
     const { client, requests } = capturingClient();
-    const result = await sb.connect(client).customers.findMany();
+    const result = await betterSupabase.connect(client).customers.findMany();
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
   });
 
   it("scopes reads to the tenant from context or claims", async () => {
     const { client, requests } = capturingClient();
-    await sb
+    await betterSupabase
       .connect(client, { tenant: ORG })
       .customers.findMany({ select: ["id"] });
-    await sb
+    await betterSupabase
       .connect(client, { claims: { tenant_id: ORG } })
       .tags.findMany({ select: ["id"] });
     expect(query(requests[0] ?? (undefined as never))).toEqual([
@@ -169,7 +169,7 @@ describe("tenant", () => {
 
   it("never reads the tenant from user_metadata", async () => {
     const { client, requests } = capturingClient();
-    const result = await sb
+    const result = await betterSupabase
       .connect(client, {
         claims: { sub: ORG, user_metadata: { tenant_id: ORG } },
       })
@@ -183,7 +183,7 @@ describe("tenant", () => {
       status: 201,
       body: [{ id: "t" }],
     }));
-    const db = sb.connect(client, { tenant: ORG });
+    const db = betterSupabase.connect(client, { tenant: ORG });
     await db.tags.create({ name: "vip" } as never, { select: ["id"] });
     expect(last().body).toEqual({ name: "vip", organization_id: ORG });
     const other = await db.tags.create({ organizationId: "other", name: "x" });
@@ -193,7 +193,7 @@ describe("tenant", () => {
 
   it("skips the filter with allTenants", async () => {
     const { client, last } = capturingClient();
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.findMany({ select: ["id"], allTenants: true });
     expect(query(last())).toEqual(["select=id", "order=id.asc"]);
@@ -202,12 +202,14 @@ describe("tenant", () => {
 
 describe("actor", () => {
   it("stamps createdBy and updatedBy from the context actor", async () => {
-    const sb = base.use(actor());
+    const betterSupabase = base.use(actor());
     const { client, requests } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c" }],
     }));
-    const db = sb.connect(client, { actor: { id: USER, kind: "user" } });
+    const db = betterSupabase.connect(client, {
+      actor: { id: USER, kind: "user" },
+    });
     await db.customers.create(
       { organizationId: ORG, name: "A" },
       { select: ["id"] },
@@ -223,12 +225,12 @@ describe("actor", () => {
   });
 
   it("records who soft-deleted a row", async () => {
-    const sb = base.use(actor()).use(softDelete());
+    const betterSupabase = base.use(actor()).use(softDelete());
     const { client, last } = capturingClient(() => ({
       status: 204,
       headers: { "content-range": "*/1" },
     }));
-    await sb
+    await betterSupabase
       .connect(client, { actor: { id: USER, kind: "user" } })
       .customers.delete("c");
     expect(last().body).toEqual({
@@ -239,11 +241,13 @@ describe("actor", () => {
 });
 
 describe("validation", () => {
-  const sb = base.use(validation({ schemas: validators })).use(tenant());
+  const betterSupabase = base
+    .use(validation({ schemas: validators }))
+    .use(tenant());
 
   it("rejects invalid writes before sending them", async () => {
     const { client, requests } = capturingClient();
-    const db = sb.connect(client, { tenant: ORG });
+    const db = betterSupabase.connect(client, { tenant: ORG });
     const result = await db.customers.create({
       name: "A",
       status: "deleted",
@@ -260,7 +264,7 @@ describe("validation", () => {
       status: 201,
       body: [],
     }));
-    const db = sb.connect(client, { tenant: ORG });
+    const db = betterSupabase.connect(client, { tenant: ORG });
     expect(
       (await db.customers.create({ name: "A" } as never, { returning: false }))
         .ok,

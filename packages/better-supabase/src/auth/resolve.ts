@@ -34,9 +34,9 @@ import {
 } from "./session.ts";
 
 /**
- * Who is calling. `C` is the claims type from `sb.claims(schema)`; the
+ * Who is calling. `C` is the claims type from `betterSupabase.claims(schema)`; the
  * verified payload keeps every JWT claim and adds the schema's output. `P`
- * is the `user_metadata` type from `sb.userMetadata(schema)`.
+ * is the `user_metadata` type from `betterSupabase.userMetadata(schema)`.
  */
 export type AuthState<C = unknown, P = unknown> =
   | {
@@ -48,7 +48,7 @@ export type AuthState<C = unknown, P = unknown> =
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
       /**
-       * `user_metadata` parsed by `sb.userMetadata(schema)`; `undefined`
+       * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`; `undefined`
        * without a schema or when the metadata fails it. Users can write this
        * data themselves: use it for display, never for access.
        */
@@ -117,12 +117,12 @@ export interface ResolveAuthOptions {
   /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
   readonly jwks?: SupabaseEnv["jwks"];
   /**
-   * Validates the verified claims (`sb.claims(schema)` sets it). A failure
+   * Validates the verified claims (`betterSupabase.claims(schema)` sets it). A failure
    * resolves to `{ kind: 'invalid', reason: 'claims' }`.
    */
   readonly claims?: StandardSchemaV1;
   /**
-   * Parses `user_metadata` into `profile` (`sb.userMetadata(schema)` sets
+   * Parses `user_metadata` into `profile` (`betterSupabase.userMetadata(schema)` sets
    * it). A failure leaves `profile` undefined and warns once; the session
    * stays valid.
    */
@@ -327,7 +327,7 @@ async function checkUser(
   if (!warnedMetadata.has(schema)) {
     warnedMetadata.add(schema);
     (options.logger ?? consoleLogger).warn(
-      "user_metadata does not match sb.userMetadata(schema); session.profile is undefined",
+      "user_metadata does not match betterSupabase.userMetadata(schema); session.profile is undefined",
       {
         paths: outcome.issues.map(
           (issue) =>

@@ -35,7 +35,7 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 describe.skipIf(!live)("built-in executors conform", () => {
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   afterAll(() => postgres.end());
   const create = (name: string) => ({
@@ -50,7 +50,7 @@ describe.skipIf(!live)("built-in executors conform", () => {
         createClient(url, secretKey, { auth: { persistSession: false } }),
       ),
       {
-        sb,
+        betterSupabase,
         table: "tags",
         create: create("postgrest"),
       },
@@ -58,7 +58,7 @@ describe.skipIf(!live)("built-in executors conform", () => {
 
   it("postgres", () =>
     testExecutor(postgresExecutor(postgres.admin), {
-      sb,
+      betterSupabase,
       table: "tags",
       create: create("postgres"),
     }));

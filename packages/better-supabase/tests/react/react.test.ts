@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthSession } from "../../src/auth/view.ts";
 
-import { createBrowser } from "../../src/client/index.ts";
+import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import {
   BetterSupabaseProvider,
@@ -17,8 +17,10 @@ import {
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
-const browser = createBrowser(sb, { client: capturingClient().client });
+const betterSupabase = defineSupabase(schema);
+const browser = createClient(betterSupabase, {
+  client: capturingClient().client,
+});
 const hooks = createHooks<typeof browser>();
 
 function Status() {
@@ -32,19 +34,23 @@ function Status() {
 }
 
 describe("react", () => {
-  it("provides the browser to hooks, loading on the server", () => {
+  it("provides the client to hooks, loading on the server", () => {
     const html = renderToString(
-      createElement(BetterSupabaseProvider, { browser }, createElement(Status)),
+      createElement(
+        BetterSupabaseProvider,
+        { client: browser },
+        createElement(Status),
+      ),
     );
     expect(html).toBe("<p>loading:anon</p>");
   });
 
   it("renders a live count seed on the server without fetching", () => {
     const { client, requests } = capturingClient();
-    const seeded = createBrowser(sb, { client });
+    const seeded = createClient(betterSupabase, { client });
     function Badge() {
       const { count, status } = useLiveCount({
-        spec: sb.spec.notes.count(),
+        spec: betterSupabase.spec.notes.count(),
         count: 3,
       });
       return createElement("span", null, `${String(count)}:${status}`);
@@ -52,7 +58,7 @@ describe("react", () => {
     const html = renderToString(
       createElement(
         BetterSupabaseProvider,
-        { browser: seeded },
+        { client: seeded },
         createElement(Badge),
       ),
     );

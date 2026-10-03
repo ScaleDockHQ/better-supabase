@@ -278,7 +278,7 @@ export function createRepository(
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
 
   const base = {
-    $table: table.key,
+    $tableName: table.key,
     $meta: table,
 
     findMany(args?: Args) {

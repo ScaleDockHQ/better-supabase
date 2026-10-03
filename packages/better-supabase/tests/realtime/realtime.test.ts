@@ -11,7 +11,7 @@ import {
 } from "../../src/realtime/index.ts";
 import { schema, topics } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 const title: StandardSchemaV1<unknown, { title: string }> = {
   "~standard": {
@@ -179,9 +179,13 @@ describe("defineTopic", () => {
   });
 
   it("generates a row-change trigger with database column names", () => {
-    const sql = defineTopic(topics.customers).triggerSql(sb, "customers", {
-      values: { orgId: "organizationId" },
-    });
+    const sql = defineTopic(topics.customers).triggerSql(
+      betterSupabase,
+      "customers",
+      {
+        values: { orgId: "organizationId" },
+      },
+    );
     expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
       'create or replace function "better_supabase"."bs_broadcast_org_customers_customers"()',
@@ -501,16 +505,16 @@ describe("triggerSql", () => {
   it("rejects unknown tables and unmapped parameters", () => {
     expect(() =>
       // @ts-expect-error unknown table
-      customers.triggerSql(sb, "nope", { values: { orgId: "id" } }),
+      customers.triggerSql(betterSupabase, "nope", { values: { orgId: "id" } }),
     ).toThrow('defineTopic: unknown table "nope"');
     expect(() =>
-      customers.triggerSql(sb, "customers", {
+      customers.triggerSql(betterSupabase, "customers", {
         // @ts-expect-error missing value
         values: {},
       }),
     ).toThrow('defineTopic: no column for {orgId} on "customers"');
     expect(() =>
-      customers.triggerSql(sb, "customers", {
+      customers.triggerSql(betterSupabase, "customers", {
         // @ts-expect-error unknown column
         values: { orgId: "missing" },
       }),
@@ -518,7 +522,7 @@ describe("triggerSql", () => {
   });
 
   it("uses the given events and function schema", () => {
-    const sql = customers.triggerSql(sb, "customers", {
+    const sql = customers.triggerSql(betterSupabase, "customers", {
       values: { orgId: "organizationId" },
       events: ["insert"],
       functionSchema: "private",
@@ -545,18 +549,18 @@ describe("rowChange", () => {
         old_record: { id: "c1", name: "Old" },
       },
     };
-    expect(rowChange(sb, "customers", message)).toEqual({
+    expect(rowChange(betterSupabase, "customers", message)).toEqual({
       operation: "UPDATE",
       table: "customers",
       record: { id: "c1", organizationId: "o1", name: "New" },
       oldRecord: { id: "c1", name: "Old" },
     });
-    expect(rowChange(sb, "notes", message)).toBeNull();
+    expect(rowChange(betterSupabase, "notes", message)).toBeNull();
   });
 
   it("falls back to the event name and keeps null records", () => {
     expect(
-      rowChange(sb, "customers", {
+      rowChange(betterSupabase, "customers", {
         event: "INSERT",
         topic: "org:o1:customers",
         payload: { table: "customers", record: { id: "c1" }, old_record: null },
@@ -568,7 +572,7 @@ describe("rowChange", () => {
       oldRecord: null,
     });
     expect(
-      rowChange(sb, "customers", {
+      rowChange(betterSupabase, "customers", {
         event: "x",
         topic: "t",
         payload: { table: "customers", operation: "DELETE", record: null },
@@ -578,14 +582,18 @@ describe("rowChange", () => {
 
   it("returns null for other schemas, unknown operations, empty payloads and unknown tables", () => {
     const at = (payload: unknown, event = "UPDATE") =>
-      rowChange(sb, "customers", { event, topic: "t", payload });
+      rowChange(betterSupabase, "customers", { event, topic: "t", payload });
     expect(at({ table: "customers", schema: "audit" })).toBeNull();
     expect(at({ table: "customers", operation: "TRUNCATE" })).toBeNull();
     expect(at({ table: "customers" }, "custom")).toBeNull();
     expect(at(null)).toBeNull();
     expect(
       // @ts-expect-error unknown table
-      rowChange(sb, "nope", { event: "UPDATE", topic: "t", payload: {} }),
+      rowChange(betterSupabase, "nope", {
+        event: "UPDATE",
+        topic: "t",
+        payload: {},
+      }),
     ).toBeNull();
   });
 });
