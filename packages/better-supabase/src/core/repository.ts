@@ -27,6 +27,7 @@ import {
   not,
   or,
 } from "../ir/types.ts";
+import { lookupOf } from "../schema/lookup.ts";
 import { decodeCursor, encodeCursor } from "./cursor.ts";
 import {
   type DbError,
@@ -80,13 +81,47 @@ const KNOWN_KEYS = new Set([
   "_max",
 ]);
 
+const NO_OPTIONS: CallOptions = Object.freeze({});
+
 function optionsOf(args: Args | undefined): CallOptions {
-  if (!args) return {};
-  const options: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(args)) {
-    if (!KNOWN_KEYS.has(key)) options[key] = value;
+  if (!args) return NO_OPTIONS;
+  let options: Record<string, unknown> | undefined;
+  for (const key in args) {
+    if (!KNOWN_KEYS.has(key) && Object.hasOwn(args, key))
+      (options ??= {})[key] = args[key];
   }
-  return options;
+  return options ?? NO_OPTIONS;
+}
+
+/** The plugins that implement each per-call hook, found once per plugin list. */
+interface Hooks {
+  readonly transformQuery: readonly AnyPlugin[];
+  readonly beforeMutation: readonly AnyPlugin[];
+  readonly afterMutation: readonly AnyPlugin[];
+}
+
+const hooksByPlugins = new WeakMap<readonly AnyPlugin[], Hooks>();
+
+function hooksOf(plugins: readonly AnyPlugin[]): Hooks {
+  let hooks = hooksByPlugins.get(plugins);
+  if (!hooks) {
+    hooks = {
+      transformQuery: plugins.filter((plugin) => plugin.transformQuery),
+      beforeMutation: plugins.filter((plugin) => plugin.beforeMutation),
+      afterMutation: plugins.filter((plugin) => plugin.afterMutation),
+    };
+    hooksByPlugins.set(plugins, hooks);
+  }
+  return hooks;
+}
+
+function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
 }
 
 function signalOf(args: Args | undefined): AbortSignal | undefined {
@@ -102,9 +137,11 @@ function mutationKind(op: MutationOp): MutationKind {
 /** Runs operations through plugins, the executor and the event hub. */
 export class OperationRunner {
   readonly runtime: Runtime;
+  readonly #hooks: Hooks;
 
   constructor(runtime: Runtime) {
     this.runtime = runtime;
+    this.#hooks = hooksOf(runtime.plugins);
   }
 
   hookArgs(table: TableMeta, options: CallOptions): HookArgs {
@@ -123,27 +160,30 @@ export class OperationRunner {
     signal: AbortSignal | undefined,
   ): Promise<Result<ExecuteResult>> {
     const { runtime } = this;
-    const hook = this.hookArgs(op.table, options);
+    const hooks = this.#hooks;
     let current = op;
-    try {
-      for (const plugin of runtime.plugins) {
-        if (plugin.transformQuery)
-          current = plugin.transformQuery(current, hook);
-      }
-      if (current.kind !== "select") {
-        let mutation: MutationOp = current;
-        for (const plugin of runtime.plugins) {
-          if (plugin.beforeMutation)
-            mutation = await plugin.beforeMutation(mutation, hook);
+    if (hooks.transformQuery.length > 0 || hooks.beforeMutation.length > 0) {
+      const hook = this.hookArgs(op.table, options);
+      try {
+        for (const plugin of hooks.transformQuery)
+          current = plugin.transformQuery!(current, hook);
+        if (current.kind !== "select") {
+          let mutation: MutationOp = current;
+          for (const plugin of hooks.beforeMutation) {
+            const next = plugin.beforeMutation!(mutation, hook);
+            mutation = isThenable(next) ? await next : next;
+          }
+          current = mutation;
         }
-        current = mutation;
+      } catch (cause) {
+        if (cause instanceof DbException)
+          return this.fail(op.table, cause.error);
+        throw cause;
       }
-    } catch (cause) {
-      if (cause instanceof DbException) return this.fail(op.table, cause.error);
-      throw cause;
     }
 
-    const started = performance.now();
+    const timed = runtime.events.has("query");
+    const started = timed ? performance.now() : 0;
     const context = signal
       ? { signal, errorMappers: runtime.errorMappers }
       : { errorMappers: runtime.errorMappers };
@@ -155,7 +195,7 @@ export class OperationRunner {
       try {
         result = ok({
           ...executed.data,
-          rows: decodeRows(selection, executed.data.rows),
+          rows: decodeRows(selection, executed.data.rows, true),
         });
       } catch (cause) {
         if (cause instanceof DbException)
@@ -178,7 +218,7 @@ export class OperationRunner {
         { table: op.table.key, maxRows: runtime.maxRows },
       );
     }
-    if (runtime.events.has("query")) {
+    if (timed) {
       runtime.events.emit("query", {
         table: op.table.key,
         operation: current.kind,
@@ -201,16 +241,19 @@ export class OperationRunner {
     data: ExecuteResult,
   ): Promise<void> {
     const { runtime } = this;
+    const plugins = this.#hooks.afterMutation;
+    const listening = runtime.events.has("mutation");
+    if (plugins.length === 0 && !listening) return;
     const event: MutationEvent = {
       table: op.table,
       kind: mutationKind(op),
       rows: data.rows,
       context: runtime.context,
     };
-    for (const plugin of runtime.plugins) {
-      if (!plugin.afterMutation) continue;
+    for (const plugin of plugins) {
       try {
-        await plugin.afterMutation(event);
+        const pending = plugin.afterMutation!(event);
+        if (isThenable(pending)) await pending;
       } catch (cause) {
         runtime.events.logger.error(
           `plugin "${plugin.name}" afterMutation threw`,
@@ -218,17 +261,20 @@ export class OperationRunner {
         );
       }
     }
-    runtime.events.emit("mutation", {
-      table: op.table.key,
-      kind: event.kind,
-      rows: event.rows,
-      context: event.context,
-    });
+    if (listening) {
+      runtime.events.emit("mutation", {
+        table: op.table.key,
+        kind: event.kind,
+        rows: event.rows,
+        context: event.context,
+      });
+    }
   }
 
   fail<T>(table: TableMeta, error: DbError): Result<T> {
     const withTable = error.table ? error : { ...error, table: table.key };
-    this.runtime.events.emit("error", { table: table.key, error: withTable });
+    if (this.runtime.events.has("error"))
+      this.runtime.events.emit("error", { table: table.key, error: withTable });
     return err(withTable);
   }
 }
@@ -652,12 +698,11 @@ export function createRepository(
       if (!values || values.length !== orderBy.length) {
         return runner.fail(table, dbError("invalid_request", "Invalid cursor"));
       }
+      const { byDb } = lookupOf(table);
       after = keysetCondition(
         orderBy,
         values,
-        (name) =>
-          Object.values(table.columns).find((meta) => meta.db === name)
-            ?.nullable ?? true,
+        (name) => byDb.get(name)?.[1].nullable ?? true,
       );
     }
 
@@ -674,11 +719,14 @@ export function createRepository(
     const rows = result.data.rows.slice(0, size);
     const hasMore = result.data.rows.length > size;
     const last = rows.at(-1);
+    const aliases = new Map(
+      withSort.columns.map((entry) => [entry.column, entry.alias]),
+    );
     const nextCursor =
       hasMore && last
         ? encodeCursor(
             orderBy.map((term) =>
-              encodeValue(last[aliasOf(withSort, term.column)]),
+              encodeValue(last[aliases.get(term.column) ?? term.column]),
             ),
           )
         : null;
@@ -705,14 +753,14 @@ export function createRepository(
     orderBy: readonly OrderTerm[],
   ): { selection: Selection; added: string[] } {
     const columns = [...base.columns];
+    const selected = new Set(columns.map((entry) => entry.column));
+    const { byDb } = lookupOf(table);
     const added: string[] = [];
     for (const term of orderBy) {
-      if (columns.some((entry) => entry.column === term.column)) continue;
-      const alias =
-        Object.entries(table.columns).find(
-          ([, meta]) => meta.db === term.column,
-        )?.[0] ?? term.column;
+      if (selected.has(term.column)) continue;
+      const alias = byDb.get(term.column)?.[0] ?? term.column;
       columns.push({ alias, column: term.column });
+      selected.add(term.column);
       added.push(alias);
     }
     return { selection: { columns, includes: base.includes }, added };
@@ -721,15 +769,11 @@ export function createRepository(
   return base;
 }
 
-function aliasOf(selection: Selection, column: string): string {
-  return (
-    selection.columns.find((entry) => entry.column === column)?.alias ?? column
-  );
-}
-
 function strip(row: Row, keys: readonly string[]): Row {
-  const copy = { ...row };
-  for (const key of keys) delete copy[key];
+  const copy: Row = {};
+  for (const key in row) {
+    if (!keys.includes(key) && Object.hasOwn(row, key)) copy[key] = row[key];
+  }
   return copy;
 }
 
@@ -753,13 +797,24 @@ function byKey(
     const b = String(right);
     return a < b ? -1 : a > b ? 1 : 0;
   };
-  return [...rows].sort((left, right) => {
-    for (const column of columns) {
-      const order = compare(left[column], right[column]);
+  // Keys are read once per row, not once per comparison.
+  const keyed = rows.map((row) => ({
+    row,
+    key: columns.map((column) => {
+      const value = row[column];
+      return typeof value === "object" && value !== null
+        ? String(value)
+        : value;
+    }),
+  }));
+  keyed.sort((left, right) => {
+    for (let index = 0; index < columns.length; index++) {
+      const order = compare(left.key[index], right.key[index]);
       if (order !== 0) return order;
     }
     return 0;
   });
+  return keyed.map((entry) => entry.row);
 }
 
 /**

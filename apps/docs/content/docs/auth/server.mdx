@@ -28,6 +28,11 @@ ctx.sql; // the same repositories over direct Postgres as the caller
 ctx.supabase; // a stateless supabase-js client for storage, functions, …
 ```
 
+Each client is built on first access. For a signed-in user, `ctx.db` runs on
+a bare PostgREST client that carries the user's token, so a request that only
+queries data never builds the Realtime, Storage and Auth clients. Reading
+`ctx.supabase` or `ctx.db.$client` builds the full supabase-js client.
+
 By default `context()` never refreshes; run the proxy for that. For routes
 that browsers call with cookies outside a proxy, `context(request, { refresh: true })`
 refreshes an expiring session; send the new cookies with

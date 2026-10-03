@@ -3,6 +3,7 @@ export type {
   ActualBucket,
   Bucket,
   BucketClient,
+  BucketConnectOptions,
   BucketConfig,
   BucketDrift,
   BucketPolicy,

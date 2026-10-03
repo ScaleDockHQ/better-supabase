@@ -6,7 +6,9 @@ import { temporalText } from "../core/temporal.ts";
 
 /** Wire form of an app value: Temporal values to ISO text, `bigint` to decimal text. */
 export function encodeValue(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
+  if (typeof value !== "object" || value === null) {
+    return typeof value === "bigint" ? value.toString() : value;
+  }
   const text = temporalText(value);
   if (text !== undefined) return text;
   if (Array.isArray(value)) return value.map(encodeValue);
@@ -40,6 +42,17 @@ function decode(codec: Codec, value: unknown): unknown {
 
 /** Whether decoding `selection` changes anything, so plain reads skip the walk. */
 export function needsDecoding(selection: Selection): boolean {
+  let needs = decodes.get(selection);
+  if (needs === undefined) {
+    needs = computeNeedsDecoding(selection);
+    decodes.set(selection, needs);
+  }
+  return needs;
+}
+
+const decodes = new WeakMap<Selection, boolean>();
+
+function computeNeedsDecoding(selection: Selection): boolean {
   return (
     selection.aggregate !== undefined ||
     selection.columns.some((column) => column.codec !== undefined) ||
@@ -68,23 +81,56 @@ function measureOf(measure: Measure, value: unknown): unknown {
   return measure.codec ? decodeScalar(measure.codec, value) : value;
 }
 
+type Folded = Map<string, Record<string, unknown>>;
+
 /** Adds `value` under `row[key][name]`, next to what is already there. */
 function fold(
   row: Record<string, unknown>,
+  folded: Folded,
   key: string,
   name: string,
   value: unknown,
 ): void {
-  // SAFETY: aggregate fields are only written by this function, as objects.
-  const existing = (row[key] ?? {}) as Record<string, unknown>;
-  row[key] = { ...existing, [name]: value };
+  let target = folded.get(key);
+  if (!target) {
+    // SAFETY: aggregate fields are only written by this function, as objects.
+    target = { ...(row[key] as Record<string, unknown> | undefined) };
+    folded.set(key, target);
+    row[key] = target;
+  }
+  target[name] = value;
+}
+
+const droppedKeys = new WeakMap<Selection, ReadonlySet<string>>();
+
+/** Wire keys that decoding folds into `_count`, `_sum` and the rest. */
+function droppedOf(selection: Selection): ReadonlySet<string> {
+  let dropped = droppedKeys.get(selection);
+  if (!dropped) {
+    dropped = new Set([
+      ...(selection.aggregate?.measures.map((measure) => measure.key) ?? []),
+      ...selection.includes
+        .filter(
+          (include) =>
+            include.count !== undefined || include.aggregate !== undefined,
+        )
+        .map((include) => include.alias),
+    ]);
+    droppedKeys.set(selection, dropped);
+  }
+  return dropped;
 }
 
 function decodeRow(
   selection: Selection,
   row: Record<string, unknown>,
 ): Record<string, unknown> {
-  const out = { ...row };
+  const dropped = droppedOf(selection);
+  const out: Record<string, unknown> = {};
+  for (const key in row) {
+    if (!dropped.has(key) && Object.hasOwn(row, key)) out[key] = row[key];
+  }
+  const folded: Folded = new Map();
   for (const column of selection.columns) {
     if (column.codec && column.alias in out)
       out[column.alias] = decode(column.codec, out[column.alias]);
@@ -92,22 +138,25 @@ function decodeRow(
   if (selection.aggregate) {
     if (selection.aggregate.count) out["_count"] = countOf(out["_count"]);
     for (const measure of selection.aggregate.measures) {
-      const value = out[measure.key];
-      delete out[measure.key];
-      fold(out, `_${measure.fn}`, measure.alias, measureOf(measure, value));
+      const value = row[measure.key];
+      fold(
+        out,
+        folded,
+        `_${measure.fn}`,
+        measure.alias,
+        measureOf(measure, value),
+      );
     }
   }
   for (const include of selection.includes) {
-    const value = out[include.alias];
+    const value = row[include.alias];
     if (include.count !== undefined) {
-      if (!(include.alias in out)) continue;
-      delete out[include.alias];
-      fold(out, "_count", include.count, countOf(value));
+      if (!(include.alias in row)) continue;
+      fold(out, folded, "_count", include.count, countOf(value));
       continue;
     }
     if (include.aggregate !== undefined) {
-      if (!(include.alias in out)) continue;
-      delete out[include.alias];
+      if (!(include.alias in row)) continue;
       // PostgREST returns `[{ amount }]` for an aggregate embed; SQL the object.
       // SAFETY: an aggregate embed is an object of measures, or a list holding one.
       const inner = (Array.isArray(value) ? value[0] : value) as
@@ -118,7 +167,13 @@ function decodeRow(
       for (const measure of include.selection.aggregate?.measures ?? []) {
         measures[measure.alias] = measureOf(measure, inner?.[measure.key]);
       }
-      fold(out, `_${include.aggregate.fn}`, include.aggregate.name, measures);
+      fold(
+        out,
+        folded,
+        `_${include.aggregate.fn}`,
+        include.aggregate.name,
+        measures,
+      );
       continue;
     }
     if (Array.isArray(value)) {
@@ -140,8 +195,10 @@ function decodeRow(
 export function decodeRows(
   selection: Selection | undefined,
   rows: readonly Record<string, unknown>[],
+  /** The caller already checked `needsDecoding(selection)`. */
+  checked = false,
 ): Record<string, unknown>[] {
-  if (!selection || !needsDecoding(selection)) {
+  if (!selection || (!checked && !needsDecoding(selection))) {
     // SAFETY: without codecs to apply, the rows are already in their decoded shape.
     return rows as never;
   }

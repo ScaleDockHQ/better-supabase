@@ -10,6 +10,7 @@ import type { RelationMeta, TableMeta } from "../schema/types.ts";
 
 import { invalidRequest } from "../ir/build.ts";
 import { simplifyOrFalse } from "../ir/simplify.ts";
+import { lookupOf } from "../schema/lookup.ts";
 
 export interface SqlQuery {
   readonly text: string;
@@ -55,7 +56,7 @@ function dbColumn(table: TableMeta, app: string): string {
 }
 
 function columnType(table: TableMeta, db: string): string | undefined {
-  return Object.values(table.columns).find((meta) => meta.db === db)?.type;
+  return lookupOf(table).byDb.get(db)?.[1].type;
 }
 
 type ColumnCondition = Extract<Condition, { kind: "column" }>;

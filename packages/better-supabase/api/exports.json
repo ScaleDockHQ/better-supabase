@@ -654,6 +654,7 @@
       "Bucket",
       "BucketClient",
       "BucketConfig",
+      "BucketConnectOptions",
       "BucketDrift",
       "BucketPolicy",
       "ObjectTarget",

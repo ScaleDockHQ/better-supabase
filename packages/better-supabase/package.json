@@ -364,6 +364,7 @@
   "dependencies": {
     "@standard-schema/spec": "catalog:",
     "@supabase/middleware": "catalog:",
+    "@supabase/postgrest-js": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
     "@supabase/server": "catalog:",
     "@supabase/ssr": "catalog:"

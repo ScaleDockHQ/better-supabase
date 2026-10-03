@@ -266,6 +266,23 @@ describe("createServer clients", () => {
     expect(sent(0).headers.get("x-request-id")).toBe("r9");
   });
 
+  it("runs a user's db on PostgREST with the token, key and headers", async () => {
+    const { sent } = stubFetch();
+    const server = createServer(defineSupabase(schema), { env });
+    const ctx = server.contextFor(user("user-token"));
+    await ctx.db.customers.findMany({ limit: 1 });
+    expect(sent(0).url).toMatch(
+      /^https:\/\/abcdefghijklmnopqrst\.supabase\.co\/rest\/v1\/customers\?/,
+    );
+    expect(sent(0).headers.get("authorization")).toBe("Bearer user-token");
+    expect(sent(0).headers.get("apikey")).toBe("sb_publishable_test");
+    const db = server.dbFor(user("user-token"));
+    await db.customers.findMany({ limit: 1 });
+    expect(sent(1).headers.get("authorization")).toBe("Bearer user-token");
+    expect(db.$client).toBe(db.$client);
+    expect(typeof db.$client.storage.from).toBe("function");
+  });
+
   it("needs a secret key for service clients and admin()", () => {
     const server = createServer(defineSupabase(schema), { env });
     expect(() => server.admin()).toThrow(

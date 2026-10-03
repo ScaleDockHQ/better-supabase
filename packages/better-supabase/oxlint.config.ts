@@ -91,6 +91,7 @@ export default defineConfig({
         "src/testing/**",
         "src/next/create.ts",
         "src/server/respond.ts",
+        "src/core/events.ts",
         // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.
         "src/cli/run.ts",
         "src/cli/bin.ts",

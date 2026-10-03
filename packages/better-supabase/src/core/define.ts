@@ -10,7 +10,7 @@ import type { Executor } from "./executor.ts";
 import type { Logger } from "./logger.ts";
 import type { Db } from "./repository-types.ts";
 
-import { IrBuilder } from "../ir/build.ts";
+import { builderFor } from "../ir/build.ts";
 import { batchingExecutor } from "./batch.ts";
 import {
   type CacheAdapter,
@@ -220,6 +220,14 @@ export class BetterSupabase<
 
   #specs: Specs<M, E> | undefined;
   readonly #truncatedTables = new Set<string>();
+  /** A hub without listeners, for decoding read-set results. */
+  #decodeEvents: EventHub | undefined;
+  /** One getter per table, shared by every db this instance connects. */
+  #tables: object | undefined;
+  readonly #errorMappers = new WeakMap<
+    readonly AnyPlugin[],
+    readonly ErrorMapper[]
+  >();
 
   /**
    * Builds serializable `QuerySpec`s with the same arguments and result types
@@ -367,15 +375,10 @@ export class BetterSupabase<
       if (plugin.wrapExecutor) executor = plugin.wrapExecutor(executor);
     }
     executor = recordStats(executor, recorder);
-    const errorMappers = [
-      ...(this.options.errors ?? []),
-      ...plugins.flatMap((plugin) =>
-        plugin.mapError ? [plugin.mapError] : [],
-      ),
-    ];
+    const errorMappers = this.#errorMappersFor(plugins);
     const runner = new OperationRunner({
       meta: this.meta,
-      builder: new IrBuilder(this.meta),
+      builder: builderFor(this.meta),
       executor,
       plugins,
       context,
@@ -386,7 +389,11 @@ export class BetterSupabase<
       truncatedTables: this.#truncatedTables,
     });
 
-    const db: Record<string, unknown> = {
+    // SAFETY: the prototype only adds the table getters; the own properties
+    // below are the $ methods.
+    const db = Object.create(this.#tablePrototype()) as Record<string, unknown>;
+    dbStates.set(db, { runner, plugins, repositories: new Map() });
+    Object.assign(db, {
       $client: client,
       $executor: executor,
       $context: context,
@@ -499,7 +506,7 @@ export class BetterSupabase<
               })
             : result;
         }),
-    };
+    });
 
     const many = (
       specs: readonly unknown[],
@@ -596,26 +603,6 @@ export class BetterSupabase<
         db[name] = mapThrows(db[name] as AnyMethod, throwAs);
       }
     }
-    for (const [key, table] of Object.entries(this.meta.tables)) {
-      let repository: Record<string, unknown> | undefined;
-      Object.defineProperty(db, key, {
-        enumerable: true,
-        get: () => {
-          if (!repository) {
-            repository = this.#repository(runner, key, table, plugins);
-            if (throwAs) {
-              for (const [name, method] of Object.entries(repository)) {
-                if (typeof method === "function" && name !== "extend") {
-                  // SAFETY: the typeof check above narrows method to a function.
-                  repository[name] = mapThrows(method as AnyMethod, throwAs);
-                }
-              }
-            }
-          }
-          return repository;
-        },
-      });
-    }
     return db;
   }
 
@@ -673,13 +660,61 @@ export class BetterSupabase<
         context,
         [],
         new StatsRecorder(),
-        new EventHub(this.events.logger),
+        (this.#decodeEvents ??= new EventHub(this.events.logger)),
       ) as Record<string, unknown>;
       const result = await runSpec(decoder, spec, undefined);
       if (!result.ok) return result;
       out[key] = result.data;
     }
     return ok(out);
+  }
+
+  #errorMappersFor(plugins: readonly AnyPlugin[]): readonly ErrorMapper[] {
+    let mappers = this.#errorMappers.get(plugins);
+    if (!mappers) {
+      mappers = [
+        ...(this.options.errors ?? []),
+        ...plugins.flatMap((plugin) =>
+          plugin.mapError ? [plugin.mapError] : [],
+        ),
+      ];
+      this.#errorMappers.set(plugins, mappers);
+    }
+    return mappers;
+  }
+
+  #tablePrototype(): object {
+    if (this.#tables) return this.#tables;
+    const tables = {};
+    const throwAs = this.options.throwAs;
+    const build = (state: DbState, key: string): Record<string, unknown> => {
+      let repository = state.repositories.get(key);
+      if (repository) return repository;
+      // SAFETY: the prototype only defines getters for keys of meta.tables.
+      const table = this.meta.tables[key]!;
+      repository = this.#repository(state.runner, key, table, state.plugins);
+      if (throwAs) {
+        for (const [name, method] of Object.entries(repository)) {
+          if (typeof method === "function" && name !== "extend") {
+            // SAFETY: the typeof check above narrows method to a function.
+            repository[name] = mapThrows(method as AnyMethod, throwAs);
+          }
+        }
+      }
+      state.repositories.set(key, repository);
+      return repository;
+    };
+    for (const key of Object.keys(this.meta.tables)) {
+      Object.defineProperty(tables, key, {
+        enumerable: true,
+        get(this: object) {
+          const state = dbStates.get(this);
+          return state ? build(state, key) : undefined;
+        },
+      });
+    }
+    this.#tables = tables;
+    return tables;
   }
 
   #repository(
@@ -718,6 +753,15 @@ export class BetterSupabase<
 }
 
 type AnyMethod = (...args: unknown[]) => unknown;
+
+/** What a db's table getters need; the getters live on a shared prototype. */
+interface DbState {
+  readonly runner: OperationRunner;
+  readonly plugins: readonly AnyPlugin[];
+  readonly repositories: Map<string, Record<string, unknown>>;
+}
+
+const dbStates = new WeakMap<object, DbState>();
 
 function mapThrows(method: AnyMethod, throwAs: ThrowMapper): AnyMethod {
   return function (this: unknown, ...args) {

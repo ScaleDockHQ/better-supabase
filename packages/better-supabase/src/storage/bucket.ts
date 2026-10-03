@@ -289,7 +289,20 @@ export interface Bucket<P extends string, Id extends string = string> {
   /** A `[storage.buckets.<id>]` section for `supabase/config.toml`. */
   toml(): string;
   drift(actual: ActualBucket | undefined): readonly BucketDrift[];
-  connect(client: StorageClient): BucketClient<P, Id>;
+  connect(
+    client: StorageClient,
+    options?: BucketConnectOptions,
+  ): BucketClient<P, Id>;
+}
+
+export interface BucketConnectOptions {
+  /**
+   * Reuse a signed URL for the same path, `ttl`, `transform` and `download`
+   * until shortly before it expires (a tenth of the `ttl`, at most a minute).
+   * The cache belongs to this connection; connect once per request so URLs
+   * never cross users.
+   */
+  readonly cacheSignedUrls?: boolean;
 }
 
 const SIZE_UNITS: Readonly<Record<string, number>> = {
@@ -728,7 +741,8 @@ export function defineBucket<
       }
       return issues;
     },
-    connect: (client) => connectBucket(bucket, client, resolve),
+    connect: (client, options) =>
+      connectBucket(bucket, client, resolve, options),
   };
   return bucket;
 }
@@ -766,8 +780,12 @@ function connectBucket<P extends string, Id extends string>(
   bucket: Bucket<P, Id>,
   client: StorageClient,
   resolve: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
+  connectOptions: BucketConnectOptions = {},
 ): BucketClient<P, Id> {
   const api = () => client.storage.from(bucket.id);
+  const signed = connectOptions.cacheSignedUrls
+    ? new Map<string, { readonly url: string; readonly until: number }>()
+    : undefined;
   const run = <T>(
     fn: () => PromiseLike<{ data: T; error: unknown }>,
   ): AsyncResult<NonNullable<T>> =>
@@ -862,14 +880,28 @@ function connectBucket<P extends string, Id extends string>(
   const signedUrl: BucketClient<P, Id>["signedUrl"] = (target, options) =>
     AsyncResult.from(async () => {
       const path = resolve(target);
-      return run(() =>
-        api().createSignedUrl(path, ttlSeconds(options?.ttl), {
+      const ttl = ttlSeconds(options?.ttl);
+      const key = signed
+        ? JSON.stringify([path, ttl, options?.transform, options?.download])
+        : "";
+      const cached = signed?.get(key);
+      if (cached && cached.until > Date.now()) return ok(cached.url);
+      const result = await run(() =>
+        api().createSignedUrl(path, ttl, {
           ...download(options?.download),
           ...(options?.transform
             ? { transform: { ...options.transform } }
             : {}),
         }),
       ).map((data) => data.signedUrl);
+      if (signed && result.ok) {
+        const margin = Math.min(60, ttl / 10);
+        signed.set(key, {
+          url: result.data,
+          until: Date.now() + (ttl - margin) * 1000,
+        });
+      }
+      return result;
     });
 
   return {

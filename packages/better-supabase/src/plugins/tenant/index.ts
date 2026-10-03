@@ -106,13 +106,19 @@ export function tenant<C = unknown>(
   options: TenantOptions<C> = {},
 ): Plugin<"tenant", TenantExtension> {
   const onMissing = options.onMissing ?? "error";
+  /** A context is fixed for a connection, so its tenant is resolved once. */
+  const resolved = new WeakMap<RequestContext, string | undefined>();
 
   const current = (
     table: TableMeta,
     context: RequestContext,
     schema: SchemaMeta,
   ): string | undefined => {
-    const id = resolveTenant(context, options, schema);
+    let id = resolved.get(context);
+    if (id === undefined && !resolved.has(context)) {
+      id = resolveTenant(context, options, schema);
+      resolved.set(context, id);
+    }
     if (id === undefined && onMissing === "error" && tenantColumn(table)) {
       throw new DbException(
         dbError(

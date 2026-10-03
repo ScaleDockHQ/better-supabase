@@ -824,6 +824,26 @@ describe("BucketClient URLs", () => {
     });
   });
 
+  it("reuses a signed URL per connection when asked, until it nears expiry", async () => {
+    vi.useFakeTimers();
+    try {
+      const { client, calls } = fakeStorage();
+      const cached = docs.connect(client, { cacheSignedUrls: true });
+      await cached.signedUrl(A, { ttl: 600 });
+      await cached.signedUrl(A, { ttl: 600 });
+      await cached.signedUrl(A, { ttl: 600, download: true });
+      expect(calls).toHaveLength(2);
+      vi.advanceTimersByTime(541_000);
+      await cached.signedUrl(A, { ttl: 600 });
+      expect(calls).toHaveLength(3);
+      await docs.connect(client).signedUrl(A, { ttl: 600 });
+      await docs.connect(client).signedUrl(A, { ttl: 600 });
+      expect(calls).toHaveLength(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("signs many URLs and fails when one is missing", async () => {
     const { client, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "a", "docs/o1/u1/b.txt": "b" },

@@ -6,9 +6,16 @@ export interface BetterQueryMeta {
   readonly [key: string]: unknown;
 }
 
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
 function queryTables(query: Query): readonly string[] | undefined {
   const tables = query.meta?.["bsTables"];
-  if (Array.isArray(tables)) return tables.filter((t) => typeof t === "string");
+  if (Array.isArray(tables)) {
+    const list: readonly unknown[] = tables;
+    return list.every(isString) ? list : list.filter(isString);
+  }
   const [prefix, table] = query.queryKey;
   return prefix === "bs" && typeof table === "string" ? [table] : undefined;
 }

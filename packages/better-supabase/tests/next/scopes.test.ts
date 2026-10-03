@@ -86,7 +86,13 @@ describe("private-cache scopes", () => {
       if (island % 3 === 0) void ctx.db.customers;
     }
     expect(mocks.verifications).toBe(1);
-    expect(mocks.clients).toBe(4);
+    // A user's ctx.db runs on a bare PostgREST client.
+    expect(mocks.clients).toBe(0);
+    const ctx = await bs.context(
+      new Request("https://app.test/", { headers: bearer }),
+    );
+    expect(ctx.db.$client).toBe(ctx.supabase);
+    expect(mocks.clients).toBe(1);
   });
 
   it("caches per session with a stale time from the token", async () => {

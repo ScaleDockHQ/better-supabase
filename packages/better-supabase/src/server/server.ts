@@ -1,3 +1,4 @@
+import { PostgrestClient } from "@supabase/postgrest-js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
@@ -15,7 +16,10 @@ import {
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
-import { postgrestExecutor } from "../core/postgrest-executor.ts";
+import {
+  type PostgrestClientLike,
+  postgrestExecutor,
+} from "../core/postgrest-executor.ts";
 import { type DbStats, StatsRecorder } from "../core/stats.ts";
 import { type BetterSupabaseEnv, loadEnv } from "../env/index.ts";
 import { postgresExecutor } from "../postgres/executor.ts";
@@ -259,14 +263,54 @@ export function createServer<
     headers: Readonly<Record<string, string>> = {},
   ): SupabaseClient => supabaseAt(env().url, auth, headers);
 
+  /**
+   * The client queries run on. A user's requests need only PostgREST, so they
+   * skip building Realtime, Storage and Auth clients per request; the shared
+   * service and anon clients are built once anyway.
+   */
+  const restAt = (
+    url: string,
+    auth: AuthState,
+    headers: Readonly<Record<string, string>> = {},
+  ): PostgrestClientLike => {
+    if (auth.kind !== "user") return supabaseAt(url, auth, headers);
+    const key = env().publishableKey;
+    return new PostgrestClient(
+      new URL("rest/v1", url.endsWith("/") ? url : `${url}/`).href,
+      {
+        headers: {
+          ...headers,
+          apikey: key,
+          Authorization: `Bearer ${auth.token}`,
+        },
+      },
+    );
+  };
+
+  /** `$client` stays the full Supabase client, built when first read. */
+  const withLazyClient = <T extends object>(
+    db: T,
+    client: () => SupabaseClient,
+  ): T =>
+    Object.defineProperty(db, "$client", {
+      get: client,
+      enumerable: true,
+      configurable: true,
+    });
+
   const dbFor = (
     auth: AuthState,
     context: RequestContext = {},
-  ): Db<M, F, E, SupabaseClient> =>
-    betterSupabase.connect(supabaseFor(auth), {
+  ): Db<M, F, E, SupabaseClient> => {
+    let supabase: SupabaseClient | undefined;
+    const rest = restAt(env().url, auth);
+    // SAFETY: `$client` is redefined below to return the SupabaseClient.
+    const db = betterSupabase.connect(rest, {
       ...authContext(auth),
       ...context,
-    });
+    }) as Db<M, F, E, SupabaseClient>;
+    return withLazyClient(db, () => (supabase ??= supabaseFor(auth)));
+  };
 
   const sqlFor = (
     claims: SqlClaims,
@@ -321,18 +365,22 @@ export function createServer<
       get db() {
         if (db) return db;
         const url = replicaUrl();
-        db = betterSupabase.connect(client(), context, {
+        const rest: PostgrestClientLike =
+          supabase ?? restAt(env().url, auth, headers);
+        const connected = betterSupabase.connect(rest, context, {
           stats: recorder,
           ...(url && replica
             ? {
                 executor: routedExecutor(
-                  postgrestExecutor(client()),
-                  postgrestExecutor(supabaseAt(url, auth, headers)),
+                  postgrestExecutor(rest),
+                  postgrestExecutor(restAt(url, auth, headers)),
                   replica,
                 ),
               }
             : {}),
         });
+        // SAFETY: `$client` is redefined to return the SupabaseClient.
+        db = withLazyClient(connected as Db<M, F, E, SupabaseClient>, client);
         return db;
       },
       get replica() {

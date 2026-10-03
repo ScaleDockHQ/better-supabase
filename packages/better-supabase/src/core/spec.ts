@@ -13,6 +13,7 @@ import type {
   PrimaryKeyValue,
   SchemaMeta,
   TableKey,
+  TableMeta,
   UniqueWhere,
 } from "../schema/types.ts";
 import type {
@@ -22,7 +23,7 @@ import type {
   PageOf,
 } from "./repository-types.ts";
 
-import { IrBuilder } from "../ir/build.ts";
+import { builderFor } from "../ir/build.ts";
 import { touchedTables } from "../ir/tables.ts";
 import { tableMeta } from "../schema/define.ts";
 
@@ -160,8 +161,6 @@ function specOptions(
     : undefined;
 }
 
-const builders = new WeakMap<SchemaMeta, IrBuilder>();
-
 /**
  * App keys of every table a spec reads: its table, included relations and
  * relations used in `where`. Queries keyed by a spec go stale when any of
@@ -169,19 +168,70 @@ const builders = new WeakMap<SchemaMeta, IrBuilder>();
  * spec reports the error.
  */
 export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
-  try {
-    return readTables(meta, spec);
-  } catch {
+  const table = meta.tables[spec.table];
+  const args = specOptions(spec);
+  // Most specs read one table; skip building the query for them (this runs
+  // on every render of a TanStack Query hook).
+  if (
+    table &&
+    args?.["include"] === undefined &&
+    !touchesRelations(table, args?.["where"])
+  )
     return [spec.table];
+  const key = specKey(spec);
+  let byKey = tablesByMeta.get(meta);
+  if (!byKey) {
+    byKey = new Map();
+    tablesByMeta.set(meta, byKey);
+  }
+  const known = key === undefined ? undefined : byKey.get(key);
+  if (known) return [...known];
+  let tables: string[];
+  try {
+    tables = readTables(meta, spec);
+  } catch {
+    tables = [spec.table];
+  }
+  if (key !== undefined) {
+    if (byKey.size >= SPEC_CACHE_SIZE) byKey.clear();
+    byKey.set(key, tables);
+  }
+  return [...tables];
+}
+
+const SPEC_CACHE_SIZE = 500;
+const tablesByMeta = new WeakMap<SchemaMeta, Map<string, readonly string[]>>();
+
+/** A text key for the spec, or `undefined` when its arguments do not serialize. */
+function specKey(spec: QuerySpec): string | undefined {
+  try {
+    return JSON.stringify(
+      [spec.table, spec.method, spec.args],
+      (_key, value: unknown) =>
+        typeof value === "bigint" ? `${value}n` : value,
+    );
+  } catch {
+    return undefined;
   }
 }
 
-function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
-  let builder = builders.get(meta);
-  if (!builder) {
-    builder = new IrBuilder(meta);
-    builders.set(meta, builder);
+function touchesRelations(table: TableMeta, where: unknown): boolean {
+  if (typeof where !== "object" || where === null) return false;
+  if (Array.isArray(where))
+    return where.some((item) => touchesRelations(table, item));
+  for (const [key, value] of Object.entries(where)) {
+    if (key in table.relations) return true;
+    if (
+      (key === "AND" || key === "OR" || key === "NOT") &&
+      touchesRelations(table, value)
+    )
+      return true;
   }
+  return false;
+}
+
+function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
+  const builder = builderFor(meta);
   const table = tableMeta(meta, spec.table);
   const args = specOptions(spec);
   const counts =

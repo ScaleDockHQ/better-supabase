@@ -53,7 +53,26 @@ function visitCondition(
  * plus every table whose foreign key cascades or sets a value on delete,
  * followed through chains of cascades.
  */
-export function invalidationTargets(meta: SchemaMeta, table: string): string[] {
+export function invalidationTargets(
+  meta: SchemaMeta,
+  table: string,
+): readonly string[] {
+  let byTable = targetsByMeta.get(meta);
+  if (!byTable) {
+    byTable = new Map();
+    targetsByMeta.set(meta, byTable);
+  }
+  let targets = byTable.get(table);
+  if (!targets) {
+    targets = Object.freeze(computeTargets(meta, table));
+    byTable.set(table, targets);
+  }
+  return targets;
+}
+
+const targetsByMeta = new WeakMap<SchemaMeta, Map<string, readonly string[]>>();
+
+function computeTargets(meta: SchemaMeta, table: string): string[] {
   const targets = new Set<string>([table]);
   const queue = [table];
   for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
