@@ -1,0 +1,73 @@
+---
+title: From 0.3 to 0.4
+description: What to change when upgrading to better-supabase 0.4, which makes requests, generated types and the CLI cheaper.
+---
+
+Most of 0.4 needs no code changes: requests, type checks and CLI runs do less
+work. The steps below cover the changes that do. The renames to `bs` and
+`betterSupabase` are listed on [Naming](/docs/concepts/naming), and the CLI
+now ships inside `better-supabase`, so drop `@better-supabase/cli` from your
+dev dependencies.
+
+## Regenerate
+
+Run `better-supabase gen` and commit what it writes. The schema metadata moves
+out of `generated.ts` into two new files next to it, which `generated.ts`
+imports:
+
+```txt title="src/lib/supabase"
+generated.ts
+generated.meta.js
+generated.meta.d.ts
+```
+
+TypeScript reads the metadata through the declaration file instead of checking
+a large object literal, so type checks and the editor use less time and
+memory on large schemas. Names in the generated files are now sorted by code
+point instead of the machine's locale, so a few entries can move.
+
+`oxfmt` is an optional peer now. Install it to keep `database.types.ts`
+formatted; without it, `gen` writes the file unformatted and prints a notice.
+
+## Tokens near expiry
+
+Where the session can't be refreshed (Server Components, route handlers,
+prefetches and MCP), a token in its last 60 seconds is now valid until its
+`exp`. Before, it resolved as `{ kind: 'anon', reason: 'expired' }`, so pages
+rendered signed out in the last minute of every token. `leeway` now only
+decides when the proxy refreshes.
+
+A refresh that takes longer than `refreshTimeoutMs` (5000 by default) counts
+as a network failure. Raise it in `auth` if your Auth server is slow to
+answer.
+
+## A custom `BetterPostgres`
+
+If you pass your own `BetterPostgres` to `createServer` instead of the one from
+`createPostgres`, implement `executorFor`. `createServer` calls it for
+`ctx.sql` and `actingAs()`, so apps that don't use Postgres directly no longer
+bundle the SQL compiler:
+
+```ts title="src/lib/postgres.ts"
+import {
+  postgresExecutor,
+  type BetterPostgres,
+} from "better-supabase/postgres";
+
+const postgres: BetterPostgres = {
+  // ...admin, asUser, anon, transaction and end as before
+  executorFor: (claims) => postgresExecutor(postgres.asUser(claims)),
+};
+```
+
+## Smaller changes
+
+- `parseSnapshot` from `better-supabase/cli` returns a promise. Add `await`.
+- `invalidationTargets()` returns a frozen `readonly string[]`. Copy it before
+  you change it.
+- On the server, `ctx.db` runs on a bare PostgREST client. `ctx.supabase` and
+  `ctx.db.$client` still return the full supabase-js client, built when you
+  first read them.
+- `findMany` without `orderBy` orders by the primary key's database names. On
+  a camel-cased table whose key isn't `id`, it used to send the app names,
+  which PostgREST rejected.
