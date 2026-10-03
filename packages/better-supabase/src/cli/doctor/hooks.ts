@@ -15,6 +15,7 @@ import {
 import {
   type DiffEngine,
   diffEngine,
+  httpHooks,
   type PgFunctionHook,
   pgFunctionHooks,
 } from "../supabase-toml.ts";
@@ -393,6 +394,9 @@ interface ClaimsSize {
   readonly truncated: boolean;
 }
 
+/** Auth's issuer shape (`{url}/auth/v1`); doctor has no project URL to put in it. */
+const DOCTOR_ISSUER = "https://doctor.invalid/auth/v1";
+
 async function hookClaimsSize(
   db: LiveDatabase,
   fn: ExtrasHookFunction,
@@ -413,6 +417,10 @@ async function hookClaimsSize(
           'user_metadata', coalesce(u.raw_user_meta_data, '{}'::jsonb),
           'aal', 'aal1', 'session_id', gen_random_uuid(),
           'is_anonymous', coalesce(u.is_anonymous, false),
+          'amr', jsonb_build_array(jsonb_build_object(
+            'method', 'password', 'timestamp', extract(epoch from now())::int8
+          )),
+          'iss', ${literal(DOCTOR_ISSUER)},
           'iat', extract(epoch from now())::int8,
           'exp', extract(epoch from now())::int8 + 3600
         )
@@ -448,6 +456,38 @@ async function hookClaimsSize(
   } finally {
     await db.query("rollback");
   }
+}
+
+const LOCAL_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+  "host.docker.internal",
+]);
+
+/** The `secrets = ...` line of `[auth.hook.<hook>]` reads an `env()` value. */
+function secretsFromEnv(text: string, hook: string): boolean {
+  const start = text.search(
+    new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`, "m"),
+  );
+  if (start < 0) return false;
+  const rest = text.slice(start).split("\n").slice(1);
+  const end = rest.findIndex((line) => /^\s*\[/.test(line));
+  const section = (end < 0 ? rest : rest.slice(0, end)).join("\n");
+  return /^\s*secrets\s*=\s*["']env\(/m.test(section);
+}
+
+/**
+ * What is wrong with one Standard Webhooks secret (`v1,whsec_<base64>`), the
+ * format Auth signs HTTP hook requests with. Never quotes the secret.
+ */
+function secretProblem(secret: string): string | undefined {
+  const match = /^v1,whsec_([A-Za-z0-9+/]+={0,2})$/.exec(secret.trim());
+  if (!match) return "is not in the `v1,whsec_<base64>` format";
+  const bytes = atob(match[1]!).length;
+  return bytes < 24 || bytes > 64
+    ? `decodes to ${bytes} bytes; Standard Webhooks secrets are 24 to 64`
+    : undefined;
 }
 
 export const HOOK_RULES: readonly Rule[] = [
@@ -638,6 +678,68 @@ export const HOOK_RULES: readonly Rule[] = [
         }
       }
       return findings;
+    },
+  },
+  {
+    code: "BS410",
+    severity: "warning",
+    title: "HTTP auth hooks",
+    description:
+      "Auth calls an `http://` or `https://` hook with a request signed by the Standard Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`). Doctor can't read the endpoint's code, so it reports each HTTP hook and checks what it can: the secret's format, that it comes from `env()` rather than the committed file, and that a non-local endpoint uses https. Verify the request in the endpoint with `authHook` from `better-supabase/webhooks`.",
+    check: (context) => {
+      const toml = context.configToml;
+      if (!toml) return [];
+      return httpHooks(toml.document).flatMap(({ hook, uri, secrets }) => {
+        const location = hookLocation(context, hook);
+        const at = location ? { location } : {};
+        const target = `[auth.hook.${hook}]`;
+        const findings: FindingInput[] = [
+          {
+            severity: "info",
+            message: `${target} calls ${uri.origin}${uri.pathname} over HTTP. Doctor can't check its code; verify the signature there with authHook from better-supabase/webhooks.`,
+            target,
+            ...at,
+          },
+        ];
+        if (uri.protocol === "http:" && !LOCAL_HOSTS.has(uri.hostname)) {
+          findings.push({
+            message: `${target} sends claims and its signature to ${uri.host} over plain http. Use https.`,
+            target,
+            ...at,
+          });
+        }
+        const fromEnv = secretsFromEnv(toml.text, hook);
+        if (secrets === undefined || secrets.trim() === "") {
+          findings.push({
+            severity: "error",
+            message: `${target} has no \`secrets\`, so Auth can't sign its requests. Set \`secrets = "env(AUTH_HOOK_SECRET)"\` with a \`v1,whsec_<base64>\` value.`,
+            target,
+            ...at,
+          });
+          return findings;
+        }
+        if (!fromEnv) {
+          findings.push({
+            message: `${target} has its secret written in ${toml.path}, which is committed. Move it to an env file and read it with \`secrets = "env(AUTH_HOOK_SECRET)"\`.`,
+            target,
+            ...at,
+          });
+        }
+        if (fromEnv && secrets.trim().startsWith("env(")) return findings;
+        const problems = secrets.split("|").flatMap((secret, index) => {
+          const problem = secretProblem(secret);
+          return problem ? [`secret ${index + 1} ${problem}`] : [];
+        });
+        if (problems.length > 0) {
+          findings.push({
+            severity: "error",
+            message: `${target}: ${problems.join("; ")}. Auth rejects the config; generate one with \`openssl rand -base64 32\` and prefix it with \`v1,whsec_\`.`,
+            target,
+            ...at,
+          });
+        }
+        return findings;
+      });
     },
   },
 ];

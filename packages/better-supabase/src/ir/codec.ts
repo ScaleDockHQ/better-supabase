@@ -1,5 +1,6 @@
 import type { Measure, Selection } from "./types.ts";
 
+import { DbException, dbError } from "../core/errors.ts";
 import { decodeScalar, decodeValue } from "./wire.ts";
 
 /** Whether decoding `selection` changes anything, so plain reads skip the walk. */
@@ -94,8 +95,21 @@ function decodeRow(
   }
   const folded: Folded = new Map();
   for (const column of selection.columns) {
-    if (column.codec && column.alias in out)
+    if (!column.codec || !(column.alias in out)) continue;
+    try {
       out[column.alias] = decodeValue(column.codec, out[column.alias]);
+    } catch (cause) {
+      if (
+        !(cause instanceof DbException) ||
+        cause.error.kind !== "invalid_value"
+      )
+        throw cause;
+      throw new DbException(
+        dbError("invalid_value", `${column.alias}: ${cause.error.message}`, {
+          column: column.alias,
+        }),
+      );
+    }
   }
   if (selection.aggregate) {
     if (selection.aggregate.count) out["_count"] = countOf(out["_count"]);

@@ -46,8 +46,8 @@ export interface ServerOptions {
   readonly auth?: Omit<ResolveAuthOptions, "env">;
   /**
    * Fetch the JWKS when the server is created, so the first request verifies
-   * its token without waiting for it. Applies when `env.jwksUrl` is set and
-   * `auth.jwks` is not. Defaults to true, except under `NODE_ENV=test`.
+   * its token without waiting for it. Applies when neither `auth.jwks` nor
+   * `env.jwks` (`SUPABASE_JWKS`) holds the keys inline. Defaults to true, except under `NODE_ENV=test`.
    */
   readonly prefetchJwks?: boolean;
   /**

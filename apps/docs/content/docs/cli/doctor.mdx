@@ -716,6 +716,23 @@ other than `v1`, because doctor can't trust what an unknown version says about
 the hook, and an info finding when `claims.scope` resolves to another scope
 than the manifest's root scope (`tenant` stands for PermDock's first scope).
 
+### BS410
+
+**Warning: HTTP auth hooks.** Auth calls an `[auth.hook.<hook>]` with an
+`http://` or `https://` URI by sending a request signed with the Standard
+Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`).
+Doctor can't read the endpoint's code, so it reports each HTTP hook as an info
+finding; verify the request there with `authHook` from
+[`better-supabase/webhooks`](/docs/standards/webhooks). It also reports:
+
+- an error when `secrets` is missing, or when a secret is not
+  `v1,whsec_<base64>` or decodes to fewer than 24 or more than 64 bytes. The
+  message never quotes the secret;
+- a warning when the secret is written in `config.toml` instead of read with
+  `secrets = "env(AUTH_HOOK_SECRET)"`. A value read from `env()` is checked
+  only when `@supabase/config` interpolated it;
+- a warning when a non-local endpoint uses plain `http`.
+
 ## Env files
 
 ### BS501

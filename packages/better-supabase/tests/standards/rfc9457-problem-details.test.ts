@@ -38,6 +38,7 @@ const KINDS: readonly DbErrorKind[] = [
   "not_null",
   "exclusion",
   "invalid_input",
+  "invalid_value",
   "raised",
   "timeout",
   "serialization",

@@ -25,13 +25,21 @@ at the version in `SPEC_PINS.otelSemconv`:
 | Attribute                               | Example                               |
 | --------------------------------------- | ------------------------------------- |
 | `db.system.name`                        | `postgresql`                          |
-| `db.namespace`                          | `public`                              |
+| `db.namespace`                          | `postgres\|public`                    |
 | `db.collection.name`                    | `customers`                           |
 | `db.operation.name`                     | `SELECT`, `INSERT`, `UPSERT`, `COUNT` |
 | `db.query.summary`                      | `SELECT customers`                    |
 | `db.response.returned_rows`             | `20`                                  |
 | `error.type`, `db.response.status_code` | `conflict`, `23505`                   |
 | `better_supabase.executor`              | `postgrest` or `postgres`             |
+| `server.address`, `server.port`         | `abc.supabase.co`, `443`              |
+
+`db.namespace` is `{database}|{schema}`. The database defaults to `postgres`,
+the name every Supabase project uses; set another with
+`otel({ database: "crm" })`. `server.address` and `server.port` come from
+`otel({ server: { address, port } })` and are left out without it.
+`db.response.status_code` is set only for a Postgres SQLSTATE, not for
+PostgREST's own codes such as `PGRST116`.
 
 Filter values, row data and query text are never recorded, so spans carry no
 personal data by default.
@@ -39,7 +47,7 @@ personal data by default.
 ## Metrics
 
 `db.client.operation.duration` is a histogram in seconds with the system,
-table, operation and `error.type`. Turn it off with `otel({ metrics: false })`.
+table, operation, `error.type` and the server attributes when they are set. Turn it off with `otel({ metrics: false })`.
 
 ## Trace context
 

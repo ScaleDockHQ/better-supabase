@@ -180,7 +180,7 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
     publishableKeys: { default: env.publishableKey },
     secretKeys:
       env.secretKeys ?? (env.secretKey ? { default: env.secretKey } : {}),
-    jwks: options.jwks ?? env.jwksUrl,
+    jwks: options.jwks ?? env.jwks ?? env.jwksUrl,
   };
 }
 
@@ -198,7 +198,7 @@ let memoByJwks = new WeakMap<object, Map<string, VerifiedUser>>();
  * and island resolves the same token again; this skips the signature check.
  */
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
-  const jwks = options.jwks;
+  const jwks = options.jwks ?? options.env.jwks;
   if (jwks && typeof jwks === "object" && !(jwks instanceof URL)) {
     let memo = memoByJwks.get(jwks);
     if (!memo) memoByJwks.set(jwks, (memo = new Map<string, VerifiedUser>()));
@@ -436,7 +436,8 @@ function base64url(text: string): string {
  * fetch it as before.
  */
 export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
-  if (options.jwks !== undefined) return Promise.resolve();
+  if (options.jwks !== undefined || options.env.jwks !== undefined)
+    return Promise.resolve();
   return verifyCredentials(
     { token: PREFETCH_TOKEN, apikey: null },
     { auth: ["user"], env: serverEnv(options) },

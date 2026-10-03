@@ -1,5 +1,6 @@
 import type { Codec } from "../schema/types.ts";
 
+import { DbException, dbError } from "../core/errors.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { temporalText } from "../core/temporal.ts";
 
@@ -14,14 +15,25 @@ export function encodeValue(value: unknown): unknown {
   return value;
 }
 
+/** Postgres timestamps can be `infinity`; Temporal has no such value. */
+function finite(value: unknown, type: string): string {
+  const text = String(value);
+  if (text === "infinity" || text === "-infinity") {
+    throw new DbException(
+      dbError("invalid_value", `${text} can't be held by a Temporal.${type}`),
+    );
+  }
+  return text;
+}
+
 /** App form of one wire scalar for a column with `codec`. */
 export function decodeScalar(codec: Codec, value: unknown): unknown {
   if (value === null || value === undefined) return value;
   switch (codec) {
     case "instant":
-      return temporal().Instant.from(String(value));
+      return temporal().Instant.from(finite(value, "Instant"));
     case "plainDateTime":
-      return temporal().PlainDateTime.from(String(value));
+      return temporal().PlainDateTime.from(finite(value, "PlainDateTime"));
     case "bigint":
       // SAFETY: codec columns are selected with a text cast, so they arrive as strings.
       return BigInt(value as string);

@@ -621,6 +621,7 @@
       "EnvOptions",
       "EnvResult",
       "EnvSource",
+      "InlineJwks",
       "PublicEnv"
     ]
   },

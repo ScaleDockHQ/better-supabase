@@ -43,6 +43,7 @@ const name = await db.customers
 | `not_null`        | 422    | `23502`, with `column`                                                                              |
 | `exclusion`       | 409    | `23P01`                                                                                             |
 | `invalid_input`   | 400    | `22*` data exceptions                                                                               |
+| `invalid_value`   | 500    | A stored value the app type can't hold, such as `infinity` in a Temporal timestamp, with `column`   |
 | `raised`          | 400    | `RAISE EXCEPTION` (`P0001`); `hint` carries your app code                                           |
 | `timeout`         | 504    | `57014` statement timeout                                                                           |
 | `serialization`   | 409    | `40001`, safe to retry                                                                              |

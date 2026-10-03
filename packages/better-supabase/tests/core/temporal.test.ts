@@ -63,9 +63,24 @@ describe("temporalText", () => {
     expect(temporalText(value)).toBe(expected);
   });
 
-  it("formats nothing without Temporal", () => {
+  it("formats values from another Temporal copy by their tag", () => {
     const instant = Temporal.Instant.fromEpochMilliseconds(0);
     withoutTemporal();
-    expect(temporalText(instant)).toBeUndefined();
+    expect(temporalText(instant)).toBe("1970-01-01T00:00:00Z");
+    expect(
+      temporalText({
+        [Symbol.toStringTag]: "Temporal.PlainDate",
+        toString: () => "2026-01-02",
+      }),
+    ).toBe("2026-01-02");
+    expect(
+      temporalText({
+        [Symbol.toStringTag]: "Temporal.ZonedDateTime",
+        toInstant: () => instant,
+      }),
+    ).toBe("1970-01-01T00:00:00Z");
+    expect(
+      temporalText({ [Symbol.toStringTag]: "Temporal.ZonedDateTime" }),
+    ).toBeUndefined();
   });
 });

@@ -55,6 +55,21 @@ describe("Standard Schema v1", () => {
     });
   });
 
+  it("turns symbol path keys into strings so the error stays serializable", async () => {
+    const schema = handRolled(() => ({
+      issues: [
+        {
+          message: "Nope",
+          path: [Symbol("meta"), { key: Symbol.for("tag") }, 0],
+        },
+      ],
+    }));
+    const result = await validate(schema, 1);
+    expect(!result.ok && result.error).toMatchObject({
+      issues: [{ message: "Nope", path: ["Symbol(meta)", "Symbol(tag)", 0] }],
+    });
+  });
+
   it("drops an empty path rather than reporting path: []", async () => {
     const schema = handRolled(() => ({
       issues: [{ message: "Nope", path: [] }],

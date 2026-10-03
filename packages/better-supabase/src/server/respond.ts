@@ -4,6 +4,7 @@ import { actorOf, delegationOf } from "../auth/actor.ts";
 import { type Aal, checkAal } from "../auth/mfa.ts";
 import { isAnonymousUser } from "../auth/view.ts";
 import { type DbError, dbError, dbErrorOf, isDbError } from "../core/errors.ts";
+import { jsonResponse } from "../core/json.ts";
 import { problemResponse } from "../core/problem.ts";
 import { toDbError } from "../core/result.ts";
 
@@ -141,7 +142,7 @@ export async function respond(
   if (!settled.ok) return problemResponse(settled.error, options);
   if (settled.data instanceof Response) return settled.data;
   if (settled.data === undefined) return new Response(null, { status: 204 });
-  return Response.json(settled.data, { status: options.status ?? 200 });
+  return jsonResponse(settled.data, { status: options.status ?? 200 });
 }
 
 /** Prefetching the JWKS would add a network call to every test that builds a server. */

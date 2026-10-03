@@ -199,6 +199,37 @@ export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
   });
 }
 
+/** An enabled `[auth.hook.<hook>]` that Auth calls over HTTP. */
+export interface HttpHook {
+  readonly hook: string;
+  readonly uri: URL;
+  /** `secrets` as parsed: after `env()` interpolation when `@supabase/config` read the file. */
+  readonly secrets: string | undefined;
+}
+
+/** The enabled Auth hooks with an `http://` or `https://` URI, by hook name. */
+export function httpHooks(document: TomlTable): HttpHook[] {
+  const hooks = tomlGet(document, ["auth", "hook"]);
+  if (typeof hooks !== "object" || Array.isArray(hooks)) return [];
+  // SAFETY: the check above narrows hooks to a TOML table.
+  return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
+    if (typeof table !== "object" || Array.isArray(table)) return [];
+    // SAFETY: the check above narrows table to a TOML table.
+    const { enabled, uri, secrets } = table as TomlTable;
+    if ((enabled !== true && enabled !== "true") || typeof uri !== "string")
+      return [];
+    if (!/^https?:\/\//i.test(uri.trim()) || !URL.canParse(uri.trim()))
+      return [];
+    return [
+      {
+        hook,
+        uri: new URL(uri.trim()),
+        secrets: typeof secrets === "string" ? secrets : undefined,
+      },
+    ];
+  });
+}
+
 /** The Supabase CLI engine that turns `supabase/schemas` into migrations. */
 export type DiffEngine = "pg-delta" | "migra";
 

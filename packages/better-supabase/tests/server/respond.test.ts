@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 
 import { toSession } from "../../src/auth/view.ts";
-import { guard } from "../../src/server/respond.ts";
+import { guard, respond } from "../../src/server/respond.ts";
 
 function user(claims: Record<string, unknown>): AuthState {
   return {
@@ -42,5 +42,16 @@ describe("guard and anonymous users", () => {
   it("marks the session", () => {
     expect(toSession(anonymous)).toMatchObject({ anonymous: true });
     expect(toSession(user({}))).toMatchObject({ anonymous: false });
+  });
+});
+
+describe("respond", () => {
+  it("writes bigints as decimal strings", async () => {
+    const response = await respond(() => ({
+      id: 9007199254740993n,
+      ids: [1n],
+    }));
+    expect(response.headers.get("content-type")).toBe("application/json");
+    expect(await response.text()).toBe('{"id":"9007199254740993","ids":["1"]}');
   });
 });

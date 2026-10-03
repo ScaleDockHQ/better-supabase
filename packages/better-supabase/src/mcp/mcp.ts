@@ -19,6 +19,7 @@ import type {
 
 import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
+import { jsonReplacer, jsonResponse } from "../core/json.ts";
 import { problemResponse, toProblem } from "../core/problem.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
@@ -524,7 +525,10 @@ function textResult(value: unknown, isError = false): ToolResult {
     content: [
       {
         type: "text",
-        text: typeof value === "string" ? value : JSON.stringify(value ?? null),
+        text:
+          typeof value === "string"
+            ? value
+            : JSON.stringify(value ?? null, jsonReplacer),
       },
     ],
     ...(structured ? { structuredContent: structured } : {}),
@@ -871,7 +875,7 @@ export function createMcp<
       withExtra(ctx, { request, signal: request.signal });
 
     const reply = (result: object): Response =>
-      Response.json({
+      jsonResponse({
         jsonrpc: "2.0",
         id: message.id,
         result: modern

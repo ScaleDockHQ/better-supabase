@@ -263,6 +263,8 @@ export interface AuthHooks {
         readonly site_url: string;
         readonly token_new: string;
         readonly token_hash_new: string;
+        /** Auth adds fields over time (`old_email`, `factor_type`, ...). */
+        readonly [key: string]: unknown;
       };
     };
     output: Record<never, never>;

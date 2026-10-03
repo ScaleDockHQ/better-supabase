@@ -29,9 +29,11 @@ function toIssues(
   issues: readonly StandardSchemaV1.Issue[],
 ): readonly ValidationIssue[] {
   return issues.map((issue) => {
-    const path = issue.path?.map((segment) =>
-      typeof segment === "object" ? segment.key : segment,
-    );
+    const path = issue.path?.map((segment) => {
+      const key = typeof segment === "object" ? segment.key : segment;
+      // DbError stays JSON-serializable, and JSON drops symbols.
+      return typeof key === "symbol" ? String(key) : key;
+    });
     return path && path.length > 0
       ? { message: issue.message, path }
       : { message: issue.message };

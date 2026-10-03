@@ -109,7 +109,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
     expect(span!.name).toBe(span!.attributes["db.query.summary"]);
     expect(span!.attributes).toMatchObject({
       "db.system.name": "postgresql",
-      "db.namespace": "public",
+      "db.namespace": "postgres|public",
       "db.collection.name": "customers",
       "db.operation.name": "SELECT",
       "db.query.summary": "SELECT customers",

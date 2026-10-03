@@ -208,6 +208,11 @@ describe("BS405 --as", () => {
     ]);
     expect(queries).not.toContain("set local role supabase_auth_admin");
     expect(queries.at(-1)).toBe("rollback");
+    const event = queries.find((sql) =>
+      sql.includes("better_supabase.hook_event"),
+    );
+    expect(event).toContain("'amr', jsonb_build_array(");
+    expect(event).toContain("'iss', 'https://doctor.invalid/auth/v1'");
   });
 
   it("checks only the custom access token hook", async () => {
@@ -318,5 +323,111 @@ describe("BS407", () => {
     expect(await runRules(context(withHook([lone])), only("BS407"))).toEqual(
       [],
     );
+  });
+});
+
+describe("BS410 HTTP auth hooks", () => {
+  const httpContext = (toml: string, document = parseToml(toml)) =>
+    context(base, {
+      configToml: {
+        path: "supabase/config.toml",
+        text: toml,
+        document,
+        parser: "smol-toml",
+      },
+    });
+  const secret = `v1,whsec_${btoa("k".repeat(32))}`;
+
+  it("reports an HTTP hook and checks a secret read from env()", async () => {
+    const toml = `[auth.hook.send_email]
+enabled = true
+uri = "https://hooks.example.com/email"
+secrets = "env(SEND_EMAIL_HOOK_SECRET)"
+`;
+    const unresolved = await runRules(httpContext(toml), only("BS410"));
+    expect(unresolved).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining(
+          "calls https://hooks.example.com/email over HTTP",
+        ),
+        location: { file: "supabase/config.toml", line: 1 },
+      },
+    ]);
+    const interpolated = parseToml(
+      toml.replace(
+        "env(SEND_EMAIL_HOOK_SECRET)",
+        `${secret}|v1,whsec_c2hvcnQ=`,
+      ),
+    );
+    const findings = await runRules(
+      httpContext(toml, interpolated),
+      only("BS410"),
+    );
+    expect(findings.map((finding) => finding.severity)).toEqual([
+      "info",
+      "error",
+    ]);
+    expect(findings[1]?.message).toContain(
+      "secret 2 decodes to 5 bytes; Standard Webhooks secrets are 24 to 64",
+    );
+    expect(JSON.stringify(findings)).not.toContain(secret);
+  });
+
+  it("flags a committed secret, a bad format, plain http and a missing secret", async () => {
+    const toml = `[auth.hook.send_sms]
+enabled = true
+uri = "http://sms.example.com/hook"
+secrets = "whsec_nope"
+
+[auth.hook.mfa_verification_attempt]
+enabled = true
+uri = "http://127.0.0.1:3000/mfa"
+
+[auth.hook.password_verification_attempt]
+enabled = false
+uri = "https://off.example.com"
+`;
+    const findings = await runRules(httpContext(toml), only("BS410"));
+    expect(
+      findings.map((finding) => [
+        finding.target,
+        finding.severity,
+        finding.message,
+      ]),
+    ).toEqual([
+      ["[auth.hook.send_sms]", "info", expect.stringContaining("over HTTP")],
+      [
+        "[auth.hook.send_sms]",
+        "warning",
+        expect.stringContaining("plain http"),
+      ],
+      [
+        "[auth.hook.send_sms]",
+        "warning",
+        expect.stringContaining("is committed"),
+      ],
+      [
+        "[auth.hook.send_sms]",
+        "error",
+        expect.stringContaining(
+          "secret 1 is not in the `v1,whsec_<base64>` format",
+        ),
+      ],
+      [
+        "[auth.hook.mfa_verification_attempt]",
+        "info",
+        expect.stringContaining("127.0.0.1"),
+      ],
+      [
+        "[auth.hook.mfa_verification_attempt]",
+        "error",
+        expect.stringContaining("has no `secrets`"),
+      ],
+    ]);
+  });
+
+  it("ignores Postgres function hooks", async () => {
+    expect(await runRules(context(base), only("BS410"))).toEqual([]);
   });
 });

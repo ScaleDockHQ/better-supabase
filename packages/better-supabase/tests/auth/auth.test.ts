@@ -652,6 +652,54 @@ describe("env", () => {
     });
   });
 
+  it("reads inline keys from SUPABASE_JWKS and rejects malformed ones", () => {
+    const base = {
+      SUPABASE_URL: PROJECT_URL,
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+    };
+    const key = { kty: "EC", crv: "P-256", x: "x", y: "y" };
+    for (const value of [
+      JSON.stringify({ keys: [key] }),
+      JSON.stringify([key]),
+    ]) {
+      const result = parseEnv({ ...base, SUPABASE_JWKS: value });
+      expect(result.env?.jwks).toEqual({ keys: [key] });
+      expect(toServerEnv(result.env!).jwks).toEqual({ keys: [key] });
+    }
+    for (const [value, message] of [
+      ["not json", 'must be JSON: {"keys":[...]} or [...]'],
+      ["[]", "must hold at least one JSON Web Key with a kty"],
+      [
+        '{"keys":[{"crv":"P-256"}]}',
+        "must hold at least one JSON Web Key with a kty",
+      ],
+    ]) {
+      expect(parseEnv({ ...base, SUPABASE_JWKS: value }).issues).toEqual([
+        { variables: ["SUPABASE_JWKS"], message },
+      ]);
+    }
+  });
+
+  it("verifies with the inline env keys without fetching the JWKS URL", async () => {
+    const signer = await createTestSigner();
+    const token = await signer.sign({ sub: USER });
+    const inline = parseEnv({
+      SUPABASE_URL: PROJECT_URL,
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+      SUPABASE_JWKS: JSON.stringify(signer.jwks),
+    }).env!;
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { auth } = await resolveAuth(
+      new Request("https://api.test/", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      { env: inline },
+    );
+    expect(auth.kind).toBe("user");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
   it("reads named key maps and rejects malformed ones", () => {
     const base = { SUPABASE_URL: PROJECT_URL };
     const result = parseEnv({

@@ -142,7 +142,7 @@ async function rowConditionedBuckets(
 }
 
 const UNFORMATTED =
-  "oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install it: pnpm add -D oxfmt";
+  'oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install the version @supabase/postgrest-typegen pins: pnpm add -D oxfmt@0.66.0. To use a newer oxfmt, allow it in pnpm-workspace.yaml under peerDependencyRules.allowedVersions, keyed "@supabase/postgrest-typegen>oxfmt".';
 
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
