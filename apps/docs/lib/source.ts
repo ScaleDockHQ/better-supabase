@@ -1,4 +1,4 @@
-import { loader } from "fumadocs-core/source";
+import { llms, loader } from "fumadocs-core/source";
 import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 import { metaSchema, pageSchema } from "fumadocs-core/source/schema";
 import { defineDocs } from "fumadocs-mdx/macro";
@@ -51,6 +51,20 @@ export function getPageImage(page: DocsPage) {
   const segments = [...page.slugs, "image.png"];
   return { segments, url: `${docsRoute}/og/${segments.join("/")}` };
 }
+
+let llmsIndex: Promise<string> | undefined;
+
+/** `llms.txt`, built once per server: the pages only change with a deploy. */
+export function getLLMIndex(): Promise<string> {
+  llmsIndex ??= llms(source).index();
+  return llmsIndex;
+}
+
+/** Response headers for the Markdown routes agents read. */
+export const markdownHeaders = {
+  "Content-Type": "text/markdown; charset=utf-8",
+  "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+};
 
 export async function getLLMText(page: DocsPage) {
   const processed = await page.data.getText("processed");

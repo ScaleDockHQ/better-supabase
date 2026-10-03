@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   },
   description:
     "Strongly typed repositories, auth glue, framework adapters and cache helpers for Supabase.",
+  // The marketing app serves /icon on the same domain.
+  icons: { icon: "/icon" },
 };
 
 export default function Layout({ children }: { children: ReactNode }) {

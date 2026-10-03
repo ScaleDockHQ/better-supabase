@@ -1,5 +1,5 @@
 import { Badge } from "@/components/reui/badge";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/site/link-button";
 import { loadChangelog } from "@/lib/changelogs";
 import { site } from "@/lib/site";
 
@@ -13,13 +13,9 @@ export async function ChangelogReleases() {
         The first release is on its way. Follow the repository to hear when it
         ships.
       </p>
-      <Button
-        variant="outline"
-        nativeButton={false}
-        render={<a href={`${site.github}/releases`} />}
-      >
+      <LinkButton variant="outline" href={`${site.github}/releases`}>
         GitHub releases
-      </Button>
+      </LinkButton>
     </div>
   ) : (
     <ol className="border-border flex flex-col border-l">

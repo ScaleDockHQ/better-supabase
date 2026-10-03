@@ -144,11 +144,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
   carry a disable comment with the reason.
 - Oxlint rules that are off carry a comment with the reason, and the
   finding count when it was measured.
-- TypeScript 7 is the compiler (`tsc` is the native one). `apps/docs` stays
-  on TypeScript 6 because twoslash needs the compiler API
-  (`docs/decisions/0002-deviations.md`); Next.js apps on
-  TypeScript 7 set `typescript.ignoreBuildErrors` and rely on the Turbo
-  `typecheck` task instead.
+- TypeScript 7 is the compiler (`tsc` is the native one) in every workspace
+  except `tests/types/ts-6`. Next.js apps set `typescript.ignoreBuildErrors`
+  and rely on the Turbo `typecheck` task instead.
 - Only erasable syntax (`erasableSyntaxOnly`): no enums, namespaces or
   parameter properties. Packages use `isolatedDeclarations`, so exported
   functions have explicit return types.

@@ -72,6 +72,10 @@ const PageInput = v.object({
   ),
 });
 
+const searchInputSchema = toStandardJsonSchema(SearchInput);
+const searchOutputSchema = toStandardJsonSchema(SearchOutput);
+const pageInputSchema = toStandardJsonSchema(PageInput);
+
 /** `/docs/cli/gen`, `cli/gen`, a full URL or a `.md` route, as the page url. */
 export function docsUrl(input: string): string {
   const path = input
@@ -98,8 +102,8 @@ export function createDocsMcpServer(docs: DocsMcpSource): McpServer {
       title: "Search the docs",
       description:
         "Full-text search over the better-supabase docs. Returns page and heading urls to pass to get_page.",
-      inputSchema: toStandardJsonSchema(SearchInput),
-      outputSchema: toStandardJsonSchema(SearchOutput),
+      inputSchema: searchInputSchema,
+      outputSchema: searchOutputSchema,
       annotations: READ_ONLY,
     },
     async ({ query, limit }) => {
@@ -131,7 +135,7 @@ export function createDocsMcpServer(docs: DocsMcpSource): McpServer {
     {
       title: "Read a docs page",
       description: "One docs page as Markdown, by its url.",
-      inputSchema: toStandardJsonSchema(PageInput),
+      inputSchema: pageInputSchema,
       annotations: READ_ONLY,
     },
     async ({ url }) => {

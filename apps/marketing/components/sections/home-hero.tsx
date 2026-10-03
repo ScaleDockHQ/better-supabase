@@ -3,7 +3,7 @@ import { ArrowRightIcon } from "lucide-react";
 import { CodeBlock } from "@/components/code-block";
 import { Badge } from "@/components/reui/badge";
 import { InstallButton } from "@/components/sections/install-button";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/site/link-button";
 import { site } from "@/lib/site";
 import { heroSnippet } from "@/lib/snippets";
 
@@ -33,22 +33,13 @@ export function HomeHero() {
           for Next.js, Hono, oRPC and Edge Functions.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button
-            size="lg"
-            nativeButton={false}
-            render={<a href={site.getStarted} />}
-          >
+          <LinkButton size="lg" href={site.getStarted}>
             Get started
             <ArrowRightIcon aria-hidden="true" />
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            nativeButton={false}
-            render={<a href={site.github} />}
-          >
+          </LinkButton>
+          <LinkButton variant="outline" size="lg" href={site.github}>
             GitHub
-          </Button>
+          </LinkButton>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <InstallButton command={site.install} />

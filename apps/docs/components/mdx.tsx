@@ -1,7 +1,6 @@
 import type { MDXComponents } from "mdx/types";
 import type { ComponentProps } from "react";
 
-import * as Twoslash from "fumadocs-twoslash/ui";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { TypeTable } from "fumadocs-ui/components/type-table";
@@ -24,7 +23,6 @@ function Table(props: ComponentProps<"table">) {
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
-    ...Twoslash,
     Step,
     Steps,
     Tab,

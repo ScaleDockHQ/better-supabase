@@ -15,13 +15,7 @@
       "framework": "nextjs",
       "installCommand": "pnpm install --frozen-lockfile --filter '{.}...'",
       "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=docs",
-      "ignoreCommand": "npx turbo-ignore@2.11.6 docs --fallback=HEAD^1",
-      "rewrites": [
-        {
-          "source": "/docs/_next/:path*",
-          "destination": "/_next/:path*"
-        }
-      ]
+      "ignoreCommand": "npx turbo-ignore@2.11.6 docs --fallback=HEAD^1"
     },
     "marketing": {
       "root": "apps/marketing",

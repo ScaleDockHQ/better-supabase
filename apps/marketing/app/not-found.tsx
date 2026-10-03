@@ -1,6 +1,4 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/site/link-button";
 import { site } from "@/lib/site";
 
 export default function NotFound() {
@@ -11,16 +9,10 @@ export default function NotFound() {
         That page does not exist. The documentation lives under /docs.
       </p>
       <div className="flex gap-2">
-        <Button nativeButton={false} render={<Link href="/" />}>
-          Home
-        </Button>
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={<a href={site.docs} />}
-        >
+        <LinkButton href="/">Home</LinkButton>
+        <LinkButton variant="outline" href={site.docs}>
           Docs
-        </Button>
+        </LinkButton>
       </div>
     </div>
   );

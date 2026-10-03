@@ -1,5 +1,3 @@
-"use client";
-
 import { Section } from "@/components/sections/section";
 import {
   Accordion,
