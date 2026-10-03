@@ -9,6 +9,7 @@
     "orgs",
     "profiles",
     "jobs",
+    "outbox",
     "entitlements",
     "vector-search"
   ]

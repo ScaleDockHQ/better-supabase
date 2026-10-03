@@ -15,6 +15,19 @@ export type {
   InboxOptions,
   PurgeAuditLogOptions,
 } from "./jobs.ts";
+export { createOutbox, outboxCloudEvent } from "./outbox.ts";
+export type {
+  EmitOptions,
+  HistoryFilter,
+  Outbox,
+  OutboxEvent,
+  OutboxOptions,
+  OutboxRouteOptions,
+  OutboxRouteResult,
+  RegisterOptions,
+  RelayOptions,
+  RelayResult,
+} from "./outbox.ts";
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
 export type {
   ClaimOptions,

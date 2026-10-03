@@ -105,21 +105,6 @@ export function sqlHook(
 }
 
 /**
- * Appends to the outbox when the `outbox` module is installed (`emit_event`
- * is looked up at run time, so the module stays optional).
- */
-export function emitEvent(
-  type: string,
-  tenant: string,
-  subject: string,
-  data: string,
-): string {
-  return `if to_regprocedure('better_supabase.emit_event(text, text, text, jsonb, text)') is not null then
-    perform better_supabase.emit_event(${sqlString(type)}, ${tenant}::text, ${subject}::text, ${data}, null);
-  end if;`;
-}
-
-/**
  * Another row trigger on `target` whose function name matches `pattern` does
  * the kit trigger's job twice. `track_*` warns about it, or drops it with
  * `replace_trigger => true`.

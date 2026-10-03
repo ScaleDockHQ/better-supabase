@@ -1,15 +1,19 @@
-import { mapDbError } from "../core/errors.ts";
+import { type DbError, mapDbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { fromPgError } from "../postgres/executor.ts";
+
+export function asDbError(cause: unknown): DbError {
+  const raw = fromPgError(cause);
+  return raw ? mapDbError(raw) : toDbError(cause);
+}
 
 export function run<T>(fn: () => Promise<T>): AsyncResult<T> {
   return AsyncResult.from(async () => {
     try {
       return ok(await fn());
     } catch (cause) {
-      const raw = fromPgError(cause);
-      return err(raw ? mapDbError(raw) : toDbError(cause));
+      return err(asDbError(cause));
     }
   });
 }
