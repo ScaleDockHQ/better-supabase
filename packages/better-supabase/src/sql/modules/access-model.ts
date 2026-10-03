@@ -38,7 +38,7 @@ export const KIT_PERMISSIONS = {
   },
   audit: { view: "audit.view" },
   "support-sessions": { start: "support.start", view: "support.view" },
-  notifications: { send: "notifications.send" },
+  notifications: { send: "notifications.send", read: "notifications.read" },
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.view" },
 } as const;
 

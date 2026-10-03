@@ -10,6 +10,7 @@
     "profiles",
     "jobs",
     "outbox",
+    "notifications",
     "entitlements",
     "vector-search"
   ]

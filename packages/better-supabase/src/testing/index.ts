@@ -46,3 +46,5 @@ export type {
   TestQueueBackendOptions,
   TestSupportSessionStoreOptions,
 } from "./conformance.ts";
+export { testNotificationChannel } from "./notification-channel.ts";
+export type { TestNotificationChannelOptions } from "./notification-channel.ts";

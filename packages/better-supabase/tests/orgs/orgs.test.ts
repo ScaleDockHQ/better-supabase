@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { KitEvent } from "../../src/core/kit-events.ts";
-import type { OrgsTransport } from "../../src/orgs/index.ts";
+import type { KitTransport } from "../../src/orgs/index.ts";
 
 import { EventHub } from "../../src/core/events.ts";
 import {
@@ -17,7 +17,7 @@ interface Call {
 }
 
 function fake(results: Record<string, unknown>): {
-  transport: OrgsTransport;
+  transport: KitTransport;
   calls: Call[];
 } {
   const calls: Call[] = [];

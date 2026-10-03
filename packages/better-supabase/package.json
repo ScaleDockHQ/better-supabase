@@ -127,6 +127,11 @@
       "types": "./dist/orgs/index.d.ts",
       "default": "./dist/orgs/index.js"
     },
+    "./notifications": {
+      "@better-supabase/source": "./src/notifications/index.ts",
+      "types": "./dist/notifications/index.d.ts",
+      "default": "./dist/notifications/index.js"
+    },
     "./env": {
       "@better-supabase/source": "./src/env/index.ts",
       "types": "./dist/env/index.d.ts",
@@ -285,6 +290,10 @@
       "./orgs": {
         "types": "./dist/orgs/index.d.ts",
         "default": "./dist/orgs/index.js"
+      },
+      "./notifications": {
+        "types": "./dist/notifications/index.d.ts",
+        "default": "./dist/notifications/index.js"
       },
       "./env": {
         "types": "./dist/env/index.d.ts",

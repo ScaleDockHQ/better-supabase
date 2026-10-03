@@ -15,6 +15,6 @@ export {
 export {
   rpcTransport,
   sqlTransport,
-  type OrgsTransport,
+  type KitTransport,
   type RpcClient,
-} from "./transport.ts";
+} from "../core/kit-transport.ts";

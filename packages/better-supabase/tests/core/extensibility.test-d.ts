@@ -18,6 +18,7 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 import type { QueueBackend } from "../../src/jobs/index.ts";
+import type { NotificationChannel } from "../../src/notifications/index.ts";
 import type { SupportSessionStore } from "../../src/server/index.ts";
 
 import { jsonSchema } from "../../src/config/index.ts";
@@ -58,6 +59,7 @@ describe("extension interfaces", () => {
     expectTypeOf<QueueBackend["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(consoleLogger).toExtend<Logger>();
     expectTypeOf(silentLogger).toExtend<Logger>();
     expectTypeOf(zod()).toExtend<Generator>();

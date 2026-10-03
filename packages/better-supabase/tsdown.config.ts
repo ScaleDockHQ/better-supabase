@@ -20,6 +20,7 @@ const entries = [
   "mcp/index",
   "jobs/index",
   "orgs/index",
+  "notifications/index",
   "env/index",
   "list/index",
   "storage/index",

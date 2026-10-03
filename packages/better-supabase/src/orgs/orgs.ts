@@ -1,4 +1,4 @@
-import type { ErrorMapper, RawDbError } from "../core/errors.ts";
+import type { ErrorMapper } from "../core/errors.ts";
 import type { EventHub } from "../core/events.ts";
 import type {
   InvitationEventData,
@@ -6,11 +6,12 @@ import type {
   KitEventType,
   OrgEventData,
 } from "../core/kit-events.ts";
+import type { KitTransport } from "../core/kit-transport.ts";
 import type { RequestContext } from "../core/plugin.ts";
-import type { OrgsTransport } from "./transport.ts";
 
 import { dbError, mapDbError } from "../core/errors.ts";
 import { emitKitEvent } from "../core/kit-events.ts";
+import { rawError } from "../core/kit-transport.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
 
@@ -87,7 +88,7 @@ export interface SwitchResult {
 
 export interface OrgsOptions {
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
-  readonly transport: OrgsTransport;
+  readonly transport: KitTransport;
   /**
    * `kits.<module>.schema`. One schema for both modules, or one per
    * module. Defaults to `better_supabase`.
@@ -174,21 +175,6 @@ const text = (value: unknown): string =>
 
 const optionalText = (value: unknown): string | null =>
   value === null || value === undefined ? null : text(value);
-
-function rawError(cause: unknown): RawDbError | undefined {
-  if (!isRecord(cause)) return undefined;
-  const field = (key: string): string | undefined => {
-    const value = cause[key];
-    return typeof value === "string" ? value : undefined;
-  };
-  if (field("code") === undefined) return undefined;
-  const raw: Record<string, string> = {};
-  for (const key of ["message", "code", "details", "hint", "constraint"]) {
-    const value = field(key);
-    if (value !== undefined) raw[key] = value;
-  }
-  return raw;
-}
 
 function invitationFrom(row: Record<string, unknown>): Invitation {
   const invitedBy = optionalText(row["invited_by"]);

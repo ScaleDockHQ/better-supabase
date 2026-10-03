@@ -18,6 +18,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`Logger`](#logger)                           | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                    |
 | [`QueueBackend`](#queuebackend)               | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`       | `createJobs(backend, queues)`                           |
 | [`SupportSessionStore`](#supportsessionstore) | `sqlSupportStore(postgres)`                               | `createServer(betterSupabase, { support: { store } })`  |
+| [`NotificationChannel`](#notificationchannel) | none (bring your email or push provider)                  | `createNotifications({ channels })`                     |
 | `EnvSource`                                   | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                      |
 | [`Plugin`](/docs/extending/plugins)           | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                            |
 
@@ -117,6 +118,15 @@ admin, `end(sessionId, endedBy)` returns `true` once and `false` after, and
 `list(filter)` returns sessions newest first. `claims(targetUserId)` is
 optional and returns the claims the target would get. `start` should refuse
 an admin without permission with an error whose `code` is `42501`.
+
+## NotificationChannel
+
+Sends one [notification](/docs/kits/notifications) delivery on a channel
+other than in-app. It has `apiVersion: 1`, a `name` that matches the
+delivery's channel and `send(message)`, which gets the recipient's id and
+email, the notification and its rendered text. Return `{ provider,
+providerMessageId }` to store the provider's id, `{ status: 'skipped' }` when
+there is nothing to send, and throw to retry later.
 
 ## AuthResolver
 

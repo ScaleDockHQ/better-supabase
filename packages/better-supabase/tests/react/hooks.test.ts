@@ -20,6 +20,7 @@ import {
   useLiveQuery,
   useSupabase,
 } from "../../src/react/hooks.ts";
+import { useNotifications } from "../../src/react/notifications.ts";
 import { useSession } from "../../src/react/session.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -108,6 +109,14 @@ vi.mock("react", async (importOriginal) => {
       const cell = slot();
       if (changed(cell.deps, deps)) {
         cell.value = factory();
+        cell.deps = deps;
+      }
+      return cell.value;
+    },
+    useCallback: (fn: unknown, deps: readonly unknown[]) => {
+      const cell = slot();
+      if (changed(cell.deps, deps)) {
+        cell.value = fn;
         cell.deps = deps;
       }
       return cell.value;
@@ -747,6 +756,96 @@ describe("useLiveCount", () => {
     setAuth(signedIn(USER));
     await flush();
     expect(view.result.count).toBe(1);
+    view.unmount();
+  });
+});
+
+describe("useNotifications", () => {
+  const topic = `notifications:${USER}`;
+
+  it("loads, merges sources, counts unread and reloads on broadcasts and rejoins", async () => {
+    const { browser, emit, channels, client } = fakeBrowser(signedIn(USER));
+    const load = vi.fn(async () => [
+      { id: "a", readAt: null },
+      { id: "b", readAt: "2026-01-01T00:00:00Z" },
+    ]);
+    const running = vi.fn(async () => [{ id: "job", readAt: null }]);
+    const onMessage = vi.fn();
+    const view = renderHook(
+      () => useNotifications({ topic, load, sources: [running], onMessage }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual([
+      "a",
+      "b",
+      "job",
+    ]);
+    expect(view.result.count).toBe(2);
+    expect(view.result.status).toBe("subscribed");
+    expect(client.channel.mock.calls[0]).toEqual([
+      topic,
+      { config: { private: true } },
+    ]);
+
+    emit(topic, "notification_created", { id: "x" });
+    await flush();
+    expect(onMessage).toHaveBeenCalledWith("notification_created", { id: "x" });
+    expect(load).toHaveBeenCalledTimes(2);
+
+    channels.get(topic)!.status!("SUBSCRIBED");
+    await flush();
+    expect(load).toHaveBeenCalledTimes(3);
+    channels.get(topic)!.status!("CHANNEL_ERROR");
+    expect(view.result.status).toBe("error");
+
+    view.unmount();
+    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads once without a topic, sorts, counts its own way and keeps the error", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    let fail = false;
+    const load = vi.fn(async () => {
+      if (fail) throw new Error("offline");
+      return [{ at: 1 }, { at: 3 }, { at: 2 }];
+    });
+    const view = renderHook(
+      () =>
+        useNotifications({
+          topic: null,
+          load,
+          sort: (a, b) => b.at - a.at,
+          count: (items) => items.length * 10,
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.items).toEqual([{ at: 3 }, { at: 2 }, { at: 1 }]);
+    expect(view.result.count).toBe(30);
+    expect(client.channel).not.toHaveBeenCalled();
+
+    fail = true;
+    await view.result.refresh();
+    expect((view.result.error as Error).message).toBe("offline");
+    expect(view.result.items).toHaveLength(3);
+    view.unmount();
+  });
+
+  it("waits for a signed-in user", async () => {
+    const { browser } = fakeBrowser(SIGNED_OUT);
+    const load = vi.fn(async () => []);
+    const view = renderHook(
+      () => useNotifications({ topic, load }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(load).not.toHaveBeenCalled();
+    expect(view.result).toMatchObject({ items: undefined, count: 0 });
     view.unmount();
   });
 });

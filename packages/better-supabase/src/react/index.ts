@@ -20,6 +20,12 @@ export type {
   LiveQueryHookOptions,
   ProfileOf,
 } from "./hooks.ts";
+export { useNotifications } from "./notifications.ts";
+export type {
+  NotificationSource,
+  NotificationsState,
+  UseNotificationsOptions,
+} from "./notifications.ts";
 export { SessionProvider, useSession, useSupportSession } from "./session.ts";
 export type { SessionProviderProps } from "./session.ts";
 export type { AuthSession, SupportView } from "../auth/view.ts";

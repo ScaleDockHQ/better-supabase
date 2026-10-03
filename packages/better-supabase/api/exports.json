@@ -296,6 +296,7 @@
       "useBroadcast",
       "useLiveCount",
       "useLiveQuery",
+      "useNotifications",
       "useSession",
       "useSupabase",
       "useSupportSession"
@@ -314,9 +315,12 @@
       "LiveCountSeed",
       "LiveQueryHookOptions",
       "MembershipClaim",
+      "NotificationSource",
+      "NotificationsState",
       "ProfileOf",
       "SessionProviderProps",
-      "SupportView"
+      "SupportView",
+      "UseNotificationsOptions"
     ]
   },
   "./query": {
@@ -688,13 +692,40 @@
       "InvitationSent",
       "InvitationStatus",
       "InviteRequest",
+      "KitTransport",
       "OrgAttributes",
       "Orgs",
       "OrgsOptions",
-      "OrgsTransport",
       "RpcClient",
       "SlugProblem",
       "SwitchResult"
+    ]
+  },
+  "./notifications": {
+    "values": [
+      "createNotifications",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "DeliverOptions",
+      "DeliverResult",
+      "KitTransport",
+      "ListOptions",
+      "NotificationChannel",
+      "NotificationCounts",
+      "NotificationItem",
+      "NotificationKinds",
+      "NotificationMessage",
+      "Notifications",
+      "NotificationSendResult",
+      "NotificationsOptions",
+      "NotificationSubject",
+      "Rendered",
+      "RenderedText",
+      "RpcClient",
+      "SendInput",
+      "SubscriptionLevel"
     ]
   },
   "./env": {
@@ -1041,6 +1072,7 @@
       "testEventSink",
       "testExecutor",
       "testGenerator",
+      "testNotificationChannel",
       "testPlugin",
       "testQueueBackend",
       "testSupportSessionStore"
@@ -1066,6 +1098,7 @@
       "TestExecutorOptions",
       "TestGeneratorOptions",
       "TestJwtClaims",
+      "TestNotificationChannelOptions",
       "TestPluginOptions",
       "TestQueueBackendOptions",
       "TestSigner",

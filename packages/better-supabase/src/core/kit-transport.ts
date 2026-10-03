@@ -1,13 +1,14 @@
 import type { SqlClient } from "../postgres/executor.ts";
+import type { RawDbError } from "./errors.ts";
 
-import { sqlIdent } from "../core/template.ts";
+import { sqlIdent } from "./template.ts";
 
 /**
  * Calls a kit function as the current user and resolves with its result.
  * Rejects with the raw database error (a `pg` error or a PostgREST error
  * object), which the kit maps to a `DbError`.
  */
-export interface OrgsTransport {
+export interface KitTransport {
   call(
     schema: string,
     fn: string,
@@ -19,14 +20,14 @@ export interface OrgsTransport {
  * Calls the functions over Postgres, as the user `client` runs as:
  * `sqlTransport(postgres.asUser(ctx.auth.claims))`. Works for any schema.
  */
-export function sqlTransport(client: SqlClient): OrgsTransport {
+export function sqlTransport(client: SqlClient): KitTransport {
   return {
     async call(schema, fn, args) {
       const entries = Object.entries(args).filter(
         ([, value]) => value !== undefined,
       );
       const params = entries.map(([, value]) =>
-        value !== null && typeof value === "object"
+        value !== null && typeof value === "object" && !Array.isArray(value)
           ? JSON.stringify(value)
           : value,
       );
@@ -57,9 +58,9 @@ export interface RpcClient {
 /**
  * Calls the functions over the Data API with the user's session. The kit
  * schema must be exposed (`[api] schemas` in `config.toml`), or the modules
- * installed in `public` (`kits.organizations.schema`).
+ * installed in `public` (`kits.<module>.schema`).
  */
-export function rpcTransport(client: RpcClient): OrgsTransport {
+export function rpcTransport(client: RpcClient): KitTransport {
   return {
     async call(schema, fn, args) {
       const defined = Object.fromEntries(
@@ -76,4 +77,23 @@ export function rpcTransport(client: RpcClient): OrgsTransport {
       return data;
     },
   };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The Postgres or PostgREST error a transport rejected with, if it is one. */
+export function rawError(cause: unknown): RawDbError | undefined {
+  if (!isRecord(cause)) return undefined;
+  const field = (key: string): string | undefined => {
+    const value = cause[key];
+    return typeof value === "string" ? value : undefined;
+  };
+  if (field("code") === undefined) return undefined;
+  const raw: Record<string, string> = {};
+  for (const key of ["message", "code", "details", "hint", "constraint"]) {
+    const value = field(key);
+    if (value !== undefined) raw[key] = value;
+  }
+  return raw;
 }

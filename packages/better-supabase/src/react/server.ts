@@ -7,6 +7,10 @@ import type {
   LiveCount,
   LiveCountHookOptions,
 } from "./index.ts";
+import type {
+  NotificationsState,
+  UseNotificationsOptions,
+} from "./notifications.ts";
 
 export {
   BetterSupabaseProvider,
@@ -29,6 +33,11 @@ export type {
   LiveQueryHookOptions,
   ProfileOf,
 } from "./index.ts";
+export type {
+  NotificationSource,
+  NotificationsState,
+  UseNotificationsOptions,
+} from "./notifications.ts";
 export type { SessionProviderProps } from "./session.ts";
 export type { AuthSession, SupportView } from "../auth/view.ts";
 export { supportOf } from "../auth/view.ts";
@@ -58,6 +67,11 @@ export const useLiveCount: (
   source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options?: LiveCountHookOptions,
 ) => LiveCount = clientOnly("useLiveCount");
+
+/** The `react-server` build of `useNotifications`: call `notifications.list()` instead. */
+export const useNotifications: <T>(
+  options: UseNotificationsOptions<T>,
+) => NotificationsState<T> = clientOnly("useNotifications");
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates
