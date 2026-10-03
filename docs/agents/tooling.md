@@ -56,6 +56,12 @@
   so pass values in as inputs.
 - `verify.yml` is a reusable workflow with a `fail-fast: false` matrix. Add a
   check there as a new matrix entry, not as a new workflow.
+- A new `verify` step is a Turbo task: a workspace script, or a root script
+  registered as `//#<name>` in `turbo.json`, with `inputs` that list every
+  file it reads (`$TURBO_ROOT$/...` for files outside the workspace). Add it
+  to the `turbo run` in the root `verify` script and to `verify.yml`. A step
+  that times itself (`typecheck:perf`) runs in its own `turbo run`, after
+  the parallel one.
 - Turbo fails `lint` when code reads an env var that no `turbo.json` declares
   (`turbo/no-undeclared-env-vars`). Declare it in `globalEnv` or the task's `env`.
   Keep the top-level `global*` keys: the rule does not read a `global` block.

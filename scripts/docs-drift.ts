@@ -2,7 +2,7 @@
 // doctor page, every subpath is in the README table and on a docs page, and
 // every `meta.json` lists exactly the pages in its folder. The CLI commands
 // and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, which
-// `pnpm docs:drift` runs after this. Run with `node scripts/docs-drift.ts`.
+// runs with the package's unit tests. Run with `node scripts/docs-drift.ts`.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { cwd, exit } from "node:process";

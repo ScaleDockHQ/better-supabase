@@ -1,3 +1,4 @@
+import { env } from "node:process";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -48,7 +49,8 @@ export default defineConfig({
           functions: 98,
           branches: 88,
         },
-        autoUpdate: (next: number) => Math.floor(next),
+        // CI never rewrites this file: it is an input of the cached test task.
+        autoUpdate: env.CI ? false : (next: number) => Math.floor(next),
       },
     },
   },

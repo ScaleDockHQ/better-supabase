@@ -45,32 +45,27 @@ jobs:
           - task: lint
             run: pnpm exec turbo run lint lint:root --log-file $AFFECTED
           - task: prose
-            run: pnpm run check:prose
+            run: pnpm exec turbo run check:prose docs:drift
           - task: knip
-            run: pnpm run knip
+            run: pnpm exec turbo run knip
           - task: boundaries
             run: pnpm run boundaries
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
-            run: pnpm exec turbo run typecheck --concurrency=1 --log-file $AFFECTED && pnpm run typecheck:tooling
+            run: pnpm exec turbo run typecheck typecheck:tooling --concurrency=1 --log-file $AFFECTED
           - task: test
             run: pnpm exec turbo run test --concurrency=1 --log-file $AFFECTED
           - task: audit
             run: pnpm run audit:high
           - task: typecheck matrix
-            run: pnpm exec turbo run build --filter=better-supabase... && pnpm run typecheck:matrix
+            run: pnpm exec turbo run typecheck:matrix
+          # The size baselines run in the test task (`@better-supabase/bundle`).
           - task: type performance
-            run: pnpm exec turbo run build --filter=better-supabase... && pnpm run typecheck:perf
-          - task: size
-            run: pnpm exec turbo run build --filter=better-supabase... && pnpm run size
+            run: pnpm exec turbo run typecheck:perf
           - task: publish checks
             run: pnpm run check:publish
           - task: generated code drift
-            run: |
-              pnpm exec turbo run build --filter=better-supabase...
-              for project in apps/examples/* tests/validation-*; do
-                pnpm exec better-supabase gen --check --cwd "$project"
-              done
+            run: pnpm exec turbo run gen:check
           - task: doctor
             run: |
               pnpm exec turbo run build --filter=better-supabase...
