@@ -1044,6 +1044,95 @@ uri = "https://example.com/hook"
       );
     });
 
+    describe("PermDock's hook under pg-delta (BS404)", () => {
+      const PGDELTA = toml(
+        `${HOOK_TOML}\n[experimental.pgdelta]\nenabled = true\n`,
+      );
+      const ungranted = withHook([hookFn({ execute: [], schemaUsage: [] })]);
+      const hookFile = {
+        path: "supabase/schemas/040_hook.sql",
+        text: "-- permdock:hook v1 schema=rbac\ncreate or replace function rbac.custom_access_token_hook(event jsonb)",
+      };
+      const grantedHookFile = {
+        ...hookFile,
+        text: `${hookFile.text} returns jsonb language plpgsql as $$ begin return event; end $$;\ngrant usage on schema rbac to supabase_auth_admin;\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;`,
+      };
+      const grantsMigration = {
+        path: "supabase/migrations/20261001000001_permdock_hook_grants.sql",
+        text: "-- permdock:grants v1 schema=rbac\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
+      };
+      const message = async (
+        sqlFiles: DoctorContext["sqlFiles"],
+        configToml?: SupabaseToml,
+      ) =>
+        (
+          await runRules(
+            hookContext(ungranted, {
+              sqlFiles,
+              ...(configToml ? { configToml } : {}),
+            }),
+            only("BS404"),
+          )
+        )[0]?.message;
+
+      it("asks PermDock to keep the grants in the hook's schema file", async () => {
+        const text = await message([hookFile], PGDELTA);
+        expect(text).toContain(
+          "`permdock supabase hook generate --out supabase/schemas/040_hook.sql`",
+        );
+        expect(text).toContain("without `--grants-out`");
+        expect(text).toContain("`supabase db schema declarative sync`");
+        expect(text).not.toContain("supabase/migrations/<timestamp>");
+        expect(await message([hookFile])).toContain(
+          "--grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql",
+        );
+      });
+
+      it("accepts grants in the schema file that defines the hook", async () => {
+        expect(await message([grantedHookFile], PGDELTA)).toContain(
+          `${hookFile.path} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`,
+        );
+        // `supabase db diff` drops grants, so the legacy engine doesn't count them.
+        expect(await message([grantedHookFile])).toContain(
+          "permdock supabase hook generate --grants-out",
+        );
+      });
+
+      it("names declarative sync for an existing grants migration", async () => {
+        expect(await message([hookFile, grantsMigration], PGDELTA)).toContain(
+          `${grantsMigration.path} grants it, so the database is behind: run \`supabase db schema declarative sync\``,
+        );
+        expect(await message([hookFile, grantsMigration])).toContain(
+          `${grantsMigration.path} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`,
+        );
+      });
+
+      it("prints the same fixes in --fix-grants", () => {
+        const block = (sqlFiles: DoctorContext["sqlFiles"]) =>
+          hookGrantBlock(
+            hookGrantProblems(
+              hookContext(ungranted, { sqlFiles, configToml: PGDELTA }),
+            ),
+            "pg-delta",
+          );
+        expect(block([hookFile])).toContain(
+          "is PermDock's hook: permdock supabase hook generate --out supabase/schemas/040_hook.sql (without --grants-out), then supabase db schema declarative sync",
+        );
+        expect(block([grantedHookFile])).toContain(
+          `: ${hookFile.path} grants it; run \`supabase db schema declarative sync\`, then \`supabase migration up\`.`,
+        );
+        expect(
+          hookGrantBlock(
+            hookGrantProblems(
+              hookContext(ungranted, { sqlFiles: [hookFile, grantsMigration] }),
+            ),
+          ),
+        ).toContain(
+          `: ${grantsMigration.path} grants it; run \`supabase migration up\`.`,
+        );
+      });
+    });
+
     it("points BS404 at the schema file under pg-delta", async () => {
       const ungranted = withHook([
         hookFn({ execute: ["anon"], schemaUsage: [] }),

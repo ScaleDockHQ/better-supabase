@@ -568,11 +568,20 @@ supabase db diff -f auth_hook
 better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook.sql
 ```
 
-When the function is PermDock's generated hook, the finding points to
-`permdock supabase hook generate --grants-out <file>` instead, which writes
-the grants migration with a `-- permdock:grants v1` marker. When a migration
-with that marker already grants the function, the database is behind the
-migrations, and the finding says to run `supabase migration up`.
+When the function is PermDock's generated hook, the finding lets PermDock
+write the grants instead. On migra it points to
+`permdock supabase hook generate --grants-out <file>`, which writes the grants
+migration with a `-- permdock:grants v1` marker. With pg-delta it points to
+`permdock supabase hook generate --out <schema file>` without `--grants-out`,
+so the grants stay in the schema file that defines the hook, then to
+`supabase db schema declarative sync`.
+
+When a file already grants the function, the database is behind, and the
+finding names that file. On migra only a `-- permdock:grants v1` migration
+counts, and the finding says to run `supabase migration up`. With pg-delta
+the declarative schema file that defines the hook counts too, and the finding
+says to run `supabase db schema declarative sync`, then
+`supabase migration up`.
 
 Doctor reads the declarative schemas, then the migrations newest first, and
 points findings at the first file that declares the object. With pg-delta it
