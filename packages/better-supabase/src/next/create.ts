@@ -2,7 +2,6 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { cacheLife, cacheTag, revalidateTag, updateTag } from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
-import { unstable_rethrow } from "next/navigation.js";
 import { after, type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 
@@ -627,7 +626,7 @@ export function createNext<
           );
         } catch (cause) {
           // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
-          unstable_rethrow(cause);
+          rethrowNextControlFlow(cause);
           response = problemResponse(
             dbError(
               "unexpected",
@@ -739,4 +738,35 @@ export function createNext<
       cacheTag(...tags);
     },
   });
+}
+
+const NEXT_DIGESTS: ReadonlySet<string> = new Set([
+  "NEXT_REDIRECT",
+  "NEXT_HTTP_ERROR_FALLBACK",
+  "DYNAMIC_SERVER_USAGE",
+  "BAILOUT_TO_CLIENT_SIDE_RENDERING",
+  "HANGING_PROMISE_REJECTION",
+  "NEXT_PRERENDER_INTERRUPTED",
+]);
+const REACT_POSTPONE = Symbol.for("react.postpone");
+
+/**
+ * `unstable_rethrow` without `next/navigation`: that entry loads the client
+ * router context, which Turbopack can't resolve inside route handlers. The
+ * digests are the ones Next 16 checks.
+ */
+function rethrowNextControlFlow(error: unknown): void {
+  if (typeof error !== "object" || error === null) return;
+  const digest = "digest" in error ? error.digest : undefined;
+  if (
+    (typeof digest === "string" &&
+      NEXT_DIGESTS.has(digest.split(";", 1)[0] ?? "")) ||
+    ("$$typeof" in error && error.$$typeof === REACT_POSTPONE) ||
+    (error instanceof Error &&
+      error.message.includes("needs to bail out of prerendering"))
+  ) {
+    // oxlint-disable-next-line typescript/only-throw-error -- React's postpone signal is not an Error, and Next needs the original value.
+    throw error;
+  }
+  if ("cause" in error) rethrowNextControlFlow(error.cause);
 }

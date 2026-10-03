@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation.js";
+import { notFound, redirect } from "next/navigation.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -349,6 +349,14 @@ describe("createNext", () => {
         return { ok: false, data: null, error: dbError("conflict", "Taken") };
       if (ctx.params.id === "crash") throw new Error("secret detail");
       if (ctx.params.id === "redirect") redirect("/login");
+      if (ctx.params.id === "gone") notFound();
+      if (ctx.params.id === "wrapped") {
+        try {
+          redirect("/login");
+        } catch (cause) {
+          throw new Error("wrapped", { cause });
+        }
+      }
       return {
         id: ctx.params.id,
         user: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
@@ -388,6 +396,12 @@ describe("createNext", () => {
     expect(crash.headers.get("content-type")).toBe("application/problem+json");
     expect(JSON.stringify(await crash.json())).not.toContain("secret detail");
     await expect(call("redirect", token)).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_REDIRECT"),
+    });
+    await expect(call("gone", token)).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_HTTP_ERROR_FALLBACK;404"),
+    });
+    await expect(call("wrapped", token)).rejects.toMatchObject({
       digest: expect.stringContaining("NEXT_REDIRECT"),
     });
   });
