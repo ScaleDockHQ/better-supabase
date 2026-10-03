@@ -11,9 +11,10 @@ import {
   type KitNames,
 } from "./context.ts";
 import { ACCESS } from "./modules/access.ts";
+import { AUDIT } from "./modules/audit.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { TENANT } from "./modules/tenant.ts";
-import { SCHEMA } from "./shared.ts";
+import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
 
 export {
   isKitIdType,
@@ -113,45 +114,6 @@ const requiresOf = (module: SqlModule, layout: KitLayout): readonly string[] =>
   (layout.permdock && module.permdockRequires
     ? module.permdockRequires
     : module.requires);
-
-/**
- * Another row trigger on `target` whose function name matches `pattern` does
- * the kit trigger's job twice. `track_*` warns about it, or drops it with
- * `replace_trigger => true`.
- */
-const EQUIVALENT_TRIGGERS = `
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  kit_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.kit_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, kit_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;`;
 
 const UPDATED_AT: SqlModule = {
   name: "updated-at",
@@ -263,180 +225,6 @@ begin
   );
 end;
 $$;`,
-};
-
-const auditSql = (tenantColumn = "organization_id"): string => `${SCHEMA}
-
-create table if not exists better_supabase.audited_tables (
-  target regclass primary key,
-  ignore text[] not null default '{}'
-);
--- The primary key columns, read when the table is registered; composite keys are joined with ','.
-alter table better_supabase.audited_tables add column if not exists key_columns text[] not null default '{id}';
-
-create table if not exists better_supabase.audit_log (
-  id bigint generated always as identity primary key,
-  table_name text not null,
-  record_id text,
-  op text not null check (op in ('insert', 'update', 'delete')),
-  old_record jsonb,
-  new_record jsonb,
-  changed text[],
-  actor_id uuid,
-  actor_role text,
-  org_id uuid,
-  at timestamptz not null default now()
-);
--- Set when an admin acted as the user (the act claim).
-alter table better_supabase.audit_log add column if not exists impersonated_by uuid;
-alter table better_supabase.audit_log add column if not exists impersonation_reason text;
-create index if not exists audit_log_record_idx on better_supabase.audit_log (table_name, record_id, at desc);
-create index if not exists audit_log_org_idx on better_supabase.audit_log (org_id, at desc);
-
-alter table better_supabase.audited_tables enable row level security;
-alter table better_supabase.audit_log enable row level security;
-revoke all on better_supabase.audited_tables, better_supabase.audit_log from anon, authenticated;
-grant select on better_supabase.audit_log to service_role;
-
-create or replace function better_supabase.audit_trigger()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  ignored text[];
-  keys text[];
-  old_row jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
-  new_row jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
-  row_data jsonb := coalesce(new_row, old_row);
-  changed_columns text[];
-begin
-  select a.ignore, a.key_columns into ignored, keys
-  from better_supabase.audited_tables a
-  where a.target = tg_relid::regclass;
-  ignored := coalesce(ignored, '{}');
-  keys := coalesce(keys, '{id}');
-  old_row := old_row - ignored;
-  new_row := new_row - ignored;
-  if tg_op = 'UPDATE' then
-    select array_agg(key order by key) into changed_columns
-    from jsonb_each(new_row) n
-    where n.value is distinct from old_row -> n.key;
-    if changed_columns is null then
-      return null;
-    end if;
-  end if;
-  insert into better_supabase.audit_log
-    (table_name, record_id, op, old_record, new_record, changed, actor_id, actor_role, org_id,
-     impersonated_by, impersonation_reason)
-  values (
-    tg_table_schema || '.' || tg_table_name,
-    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(keys) with ordinality k(name, ord)),
-    lower(tg_op),
-    old_row,
-    new_row,
-    changed_columns,
-    auth.uid(),
-    coalesce(auth.jwt() ->> 'role', current_user),
-    case
-      when row_data ->> ${sqlString(tenantColumn)} ~ '^[0-9a-f-]{36}$'
-        then (row_data ->> ${sqlString(tenantColumn)})::uuid
-    end,
-    case
-      when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$'
-        then (auth.jwt() -> 'act' ->> 'sub')::uuid
-    end,
-    auth.jwt() -> 'act' ->> 'reason'
-  );
-  return null;
-end;
-$$;
-
-${EQUIVALENT_TRIGGERS}
-
-drop function if exists better_supabase.audit(regclass, text[]);
-
--- select better_supabase.audit('public.customers', ignore => '{updated_at}');
--- replace_trigger => true drops another audit trigger on the table.
-create or replace function better_supabase.audit(
-  target regclass,
-  ignore text[] default '{}',
-  replace_trigger boolean default false
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  keys text[];
-begin
-  perform better_supabase.replace_equivalent_triggers(
-    target, 'bs_audit', 'audit', replace_trigger
-  );
-  select array_agg(c.attname::text order by k.ord) into keys
-  from pg_catalog.pg_index i
-  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
-  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
-  where i.indrelid = audit.target and i.indisprimary;
-  insert into better_supabase.audited_tables as a (target, ignore, key_columns)
-  values (audit.target, audit.ignore, coalesce(keys, '{id}'))
-  on conflict on constraint audited_tables_pkey do update
-    set ignore = excluded.ignore, key_columns = excluded.key_columns;
-  execute format('drop trigger if exists bs_audit on %s', target);
-  execute format(
-    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_trigger()',
-    target
-  );
-end;
-$$;
-
-create or replace function better_supabase.unaudit(target regclass)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-begin
-  execute format('drop trigger if exists bs_audit on %s', target);
-  delete from better_supabase.audited_tables a where a.target = unaudit.target;
-end;
-$$;
-
--- Deletes up to batch entries older than older_than and returns how many.
--- Ids grow with time, so the primary key finds the oldest rows first.
--- Nightly with pg_cron: select cron.schedule('purge-audit-log', '15 3 * * *', 'select better_supabase.purge_audit_log()');
-create or replace function better_supabase.purge_audit_log(
-  older_than interval default '1 year',
-  batch integer default 10000
-)
-returns integer
-language sql
-set search_path = ''
-as $$
-  with purged as (
-    delete from better_supabase.audit_log
-    where id in (
-      select l.id from better_supabase.audit_log l
-      where l.at < now() - older_than
-      order by l.id
-      limit batch
-    )
-    returning 1
-  )
-  select count(*)::integer from purged
-$$;
-revoke execute on function better_supabase.purge_audit_log(interval, integer) from public, anon, authenticated;
-grant execute on function better_supabase.purge_audit_log(interval, integer) to service_role;`;
-
-const AUDIT: SqlModule = {
-  name: "audit",
-  title: "Audit log",
-  description:
-    "Records inserts, updates and deletes with the actor and changed columns, for tables you register.",
-  requires: [],
-  target: "schema",
-  sql: auditSql(),
-  render: (_claims, layout) => auditSql(layout.tenantColumn),
 };
 
 const MFA: SqlModule = {
@@ -1527,7 +1315,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
     [
       UPDATED_AT,
       ACTOR,
-      AUDIT,
+      built(AUDIT),
       built(TENANT),
       INVITATIONS,
       RESERVED_SLUGS,

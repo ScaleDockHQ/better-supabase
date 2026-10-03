@@ -4,6 +4,7 @@ export {
   createInbox,
   entitlementMembers,
   ENTITLEMENTS_UPDATED,
+  purgeAuditLog,
 } from "./jobs.ts";
 export type {
   Idempotency,
@@ -12,6 +13,7 @@ export type {
   Inbox,
   InboxMessage,
   InboxOptions,
+  PurgeAuditLogOptions,
 } from "./jobs.ts";
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
 export type {

@@ -15,6 +15,7 @@ import {
   entitlementMembers,
   sqlQueueBackend,
 } from "../../src/jobs/index.ts";
+import { purgeAuditLog } from "../../src/jobs/jobs.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -1266,13 +1267,199 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       `select r.role, has_function_privilege(r.role, f.fn, 'execute') as allowed
        from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
             unnest(array[
-              'better_supabase.purge_audit_log(interval, integer)',
+              'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
+              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid)',
               'better_supabase.purge_webhooks(interval, boolean, integer)',
               'better_supabase.purge_job_archive(text, interval, integer)'
             ]) as f(fn)`,
     );
     for (const row of executable.rows)
       expect(row.allowed).toBe(row.role === "service_role");
+  });
+
+  it("redacts columns, names events and records idempotent semantic events", async () => {
+    const name = `public.bs_audit_${RUN}`;
+    await pool.query(`
+      create table ${name} (id int primary key, organization_id uuid, api_key text, note text);
+      select better_supabase.audit('${name}', redact => '{api_key}', event_prefix => 'secret',
+        category => 'security', target_type => 'secret');
+      insert into ${name} values (1, '${ACME}', 'sk_live', 'a');
+      update ${name} set api_key = 'sk_new' where id = 1;
+    `);
+    try {
+      const { rows } = await pool.query<{
+        event_type: string;
+        category: string;
+        target_type: string;
+        new_record: { api_key: string };
+        changed: string[] | null;
+        org_id: string;
+      }>(
+        `select event_type, category, target_type, new_record, changed, org_id
+         from better_supabase.audit_log where table_name = $1 order by id`,
+        [name],
+      );
+      expect(rows.map((row) => row.event_type)).toEqual([
+        "secret.created",
+        "secret.updated",
+      ]);
+      expect(rows[1]).toMatchObject({
+        category: "security",
+        target_type: "secret",
+        new_record: { api_key: "[redacted]" },
+        changed: ["api_key"],
+        org_id: ACME,
+      });
+
+      const event = (key: string) =>
+        pool.query<{ id: string }>(
+          `select better_supabase.audit_event('invoice.sent', category => 'billing',
+             tenant => $1, metadata => '{"invoice": 7}', idempotency_key => $2) as id`,
+          [ACME, key],
+        );
+      const first = (await event(`k_${RUN}`)).rows[0]!.id;
+      expect((await event(`k_${RUN}`)).rows[0]!.id).toBe(first);
+      const stored = await pool.query(
+        `select op, event_type, category, outcome, source, metadata
+         from better_supabase.audit_log where id = $1::bigint`,
+        [first],
+      );
+      expect(stored.rows[0]).toEqual({
+        op: "event",
+        event_type: "invoice.sent",
+        category: "billing",
+        outcome: "success",
+        source: "app",
+        metadata: { invoice: 7 },
+      });
+      await pool.query(
+        "delete from better_supabase.audit_log where id = $1::bigint",
+        [first],
+      );
+    } finally {
+      await pool.query(`select better_supabase.unaudit('${name}')`);
+      await pool.query(`drop table if exists ${name}`);
+      await pool.query(
+        "delete from better_supabase.audit_log where table_name = $1",
+        [name],
+      );
+    }
+  });
+
+  it("guards, scopes, splits and retains audit entries by option", async () => {
+    const name = `public.bs_audit_opt_${RUN}`;
+    const other = "00000000-0000-4000-8000-0000000000aa";
+    const hook = "public.audit_retention";
+    await pool.query(
+      moduleBody("audit", {
+        kits: {
+          audit: {
+            options: {
+              appendOnly: true,
+              readPolicy: true,
+              impersonators: "hide",
+              restricted: true,
+            },
+          },
+        },
+      })!,
+    );
+    try {
+      await pool.query(`
+        create table ${name} (id int primary key, organization_id uuid, note text);
+        select better_supabase.audit('${name}');
+        insert into ${name} values (1, '${ACME}', 'a');
+      `);
+      const entry = await pool.query<{ id: string; new_record: unknown }>(
+        "select id, new_record from better_supabase.audit_log where table_name = $1",
+        [name],
+      );
+      expect(entry.rows[0]!.new_record).toBeNull();
+      const details = await pool.query<{ new_record: { note: string } }>(
+        "select new_record from better_supabase.audit_log_restricted where entry_id = $1",
+        [entry.rows[0]!.id],
+      );
+      expect(details.rows[0]!.new_record.note).toBe("a");
+
+      await expect(
+        pool.query(
+          "update better_supabase.audit_log set op = 'x' where table_name = $1",
+          [name],
+        ),
+      ).rejects.toThrow(/append-only/);
+      await expect(
+        pool.query(
+          "delete from better_supabase.audit_log where table_name = $1",
+          [name],
+        ),
+      ).rejects.toThrow(/append-only/);
+
+      const privileges = await pool.query<{ column: string; allowed: boolean }>(
+        `select c as column, has_column_privilege('authenticated', 'better_supabase.audit_log', c, 'select') as allowed
+         from unnest(array['actor_id', 'impersonated_by']) c`,
+      );
+      expect(privileges.rows).toEqual([
+        { column: "actor_id", allowed: true },
+        { column: "impersonated_by", allowed: false },
+      ]);
+      const policy = await pool.query(
+        "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_log' and policyname = 'bs_audit_read'",
+      );
+      expect(policy.rowCount).toBe(1);
+
+      await pool.query(
+        `insert into better_supabase.audit_log (table_name, op, org_id, at)
+         values ($1, 'insert', $2, now() - interval '40 days'),
+                ($1, 'insert', $3, now() - interval '40 days')`,
+        [`${name}_old`, ACME, other],
+      );
+      await pool.query(`
+        create function ${hook}(tenant uuid) returns interval language sql stable as $$
+          select case when tenant = '${ACME}' then interval '30 days' end
+        $$;
+      `);
+      const purged = await pool.query<{ n: number }>(
+        "select better_supabase.purge_audit_log('10 years') as n",
+      );
+      expect(purged.rows[0]!.n).toBe(1);
+      const left = await pool.query<{ org_id: string }>(
+        "select org_id from better_supabase.audit_log where table_name = $1",
+        [`${name}_old`],
+      );
+      expect(left.rows).toEqual([{ org_id: other }]);
+
+      await pool.query(`drop function ${hook}(uuid)`);
+      await pool.query(
+        `insert into better_supabase.audit_log (table_name, op, at)
+         values ($1, 'insert', now() - interval '40 days')`,
+        [`${name}_old`],
+      );
+      const retained = await purgeAuditLog(postgres.admin, {
+        olderThan: "10 years",
+        retention: (tenant) => (tenant === ACME ? undefined : 30),
+      });
+      expect(retained.data).toBe(2);
+      const none = await pool.query(
+        "select 1 from better_supabase.audit_log where table_name = $1",
+        [`${name}_old`],
+      );
+      expect(none.rowCount).toBe(0);
+    } finally {
+      await pool.query(`drop function if exists ${hook}(uuid)`);
+      await pool.query(`select better_supabase.unaudit('${name}')`);
+      await pool.query(`drop table if exists ${name}`);
+      await pool.query(SQL_MODULES["audit"]!.sql);
+      await pool.query(
+        "delete from better_supabase.audit_log where table_name like $1",
+        [`${name}%`],
+      );
+      await pool.query(
+        "drop policy if exists bs_audit_read on better_supabase.audit_log",
+      );
+      await pool.query(
+        "revoke all on better_supabase.audit_log from authenticated",
+      );
+    }
   });
 
   it("pgTAP helpers authenticate as a user under RLS", async () => {

@@ -457,7 +457,10 @@ describe("generated and kit files (BS303, BS304)", () => {
     );
 
     await write(files[0]!.path, files[0]!.contents);
-    await write(files[1]!.path, "-- changed\n");
+    await write(
+      files[1]!.path,
+      files[1]!.contents.replace("create schema", "-- changed\ncreate schema"),
+    );
     expect(await run("BS304", ctx)).toEqual([
       expect.objectContaining({
         target: files[1]!.path,

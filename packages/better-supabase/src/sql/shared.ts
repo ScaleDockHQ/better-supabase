@@ -111,3 +111,42 @@ export function emitEvent(
     perform better_supabase.emit_event(${sqlString(type)}, ${tenant}::text, ${subject}::text, ${data}, null);
   end if;`;
 }
+
+/**
+ * Another row trigger on `target` whose function name matches `pattern` does
+ * the kit trigger's job twice. `track_*` warns about it, or drops it with
+ * `replace_trigger => true`.
+ */
+export const EQUIVALENT_TRIGGERS = `
+create or replace function better_supabase.replace_equivalent_triggers(
+  target regclass,
+  kit_trigger text,
+  pattern text,
+  replace_trigger boolean
+)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found record;
+begin
+  for found in
+    select t.tgname as name, p.proname as fn
+    from pg_catalog.pg_trigger t
+    join pg_catalog.pg_proc p on p.oid = t.tgfoid
+    where t.tgrelid = replace_equivalent_triggers.target
+      and not t.tgisinternal
+      and t.tgname <> replace_equivalent_triggers.kit_trigger
+      and p.proname ~* replace_equivalent_triggers.pattern
+  loop
+    if replace_trigger then
+      execute format('drop trigger %I on %s', found.name, target);
+    else
+      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
+        target, found.name, found.fn, kit_trigger;
+    end if;
+  end loop;
+end;
+$$;
+revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;`;

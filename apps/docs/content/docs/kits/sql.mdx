@@ -151,6 +151,57 @@ An unknown table, column or module, or a mode a module doesn't support, stops
 module version and mode (`-- @bs-kit tenant@2 adopt`), and schema files record
 them in `better_supabase.kit_modules`.
 
+## Audit log
+
+`audit(table)` records every insert, update and delete of a table. The other
+parameters name and filter what it writes:
+
+```sql
+select better_supabase.audit(
+  'public.customers',
+  ignore => '{updated_at}',
+  redact => '{tax_id}',
+  category => 'billing',
+  event_prefix => 'customer',
+  target_type => 'customer'
+);
+```
+
+`redact` columns are stored as `[redacted]` in the old and new records. The
+event type is `<event_prefix>.created`, `.updated` or `.deleted` (the table
+name without a prefix), and `tenant_column` overrides the tenant column for
+this table. Events that are not row changes, like a sign-in or an export, go
+through `audit_event`. It returns the entry id, and a repeated
+`idempotency_key` returns the first entry instead of writing a second:
+
+```sql
+select better_supabase.audit_event(
+  event_type => 'invoice.exported',
+  category => 'billing',
+  tenant => '6d1f...',
+  metadata => '{"format":"csv"}',
+  idempotency_key => 'export-42'
+);
+```
+
+The module options (`kits.audit.options`):
+
+| Option          | Default            | What it does                                                                                                                                  |
+| --------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`  | `plugins.tenant`   | the tenant column of audited tables                                                                                                           |
+| `appendOnly`    | `false`            | a trigger rejects updates and deletes; only the purge functions delete                                                                        |
+| `readPolicy`    | `false`            | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
+| `impersonators` | `show`             | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
+| `restricted`    | `false`            | old and new records, IP address, user agent and metadata go to a separate `audit_log_restricted` table that only `service_role` reads         |
+| `eventRoles`    | `['service_role']` | the roles that can call `audit_event`                                                                                                         |
+| `eventCategory` | `system`           | the category of an `audit_event` call without one                                                                                             |
+| `eventSource`   | `app`              | the source of an `audit_event` call without one                                                                                               |
+
+An app with its own audit table adopts it: map `kits.audit.tables.log` and
+`columns.log` to your names, and `null` the columns you don't have (the row
+snapshots, for example). The module then writes into your table and never
+creates it.
+
 ## Retention
 
 The audit log, the webhook inbox and the job archives only grow. Each module
@@ -161,7 +212,7 @@ key index without a full scan. Only `service_role` can call them.
 
 | Function                                           | Deletes                                                                            |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`                                        |
+| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`, or than the tenant's own interval     |
 | `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones                  |
 | `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
 | `purge_idempotency_keys()`                         | expired idempotency keys                                                           |
@@ -175,6 +226,22 @@ select cron.schedule('purge-audit-log', '15 3 * * *', $$select better_supabase.p
 select cron.schedule('purge-webhooks', '30 3 * * *', $$select better_supabase.purge_webhooks()$$);
 select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
 select cron.schedule('purge-idempotency-keys', '0 4 * * *', $$select better_supabase.purge_idempotency_keys()$$);
+```
+
+Tenants can keep entries for different periods, a plan's retention for
+example. Write an `audit_retention(tenant)` function that returns an interval
+(or null for the default) in the schema `kits.audit.hooks` points at, and
+`purge_audit_log` uses it for every entry. To decide in TypeScript instead,
+call `purgeAuditLog` from `better-supabase/jobs` in a scheduled job:
+
+```ts
+import { purgeAuditLog } from "better-supabase/jobs";
+
+await purgeAuditLog(postgres.admin, {
+  olderThan: "1 year",
+  retention: async (tenant) =>
+    tenant ? await plans.auditDays(tenant) : undefined,
+});
 ```
 
 When a table holds more old rows than one batch, the next run picks up the

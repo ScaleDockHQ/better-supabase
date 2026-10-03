@@ -597,6 +597,7 @@
       "ENTITLEMENTS_UPDATED",
       "nextCronRun",
       "pgmqPublicBackend",
+      "purgeAuditLog",
       "sqlQueueBackend"
     ],
     "types": [
@@ -618,6 +619,7 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "PurgeAuditLogOptions",
       "QueueBackend",
       "QueueMessageBody",
       "QueueMessageRow",

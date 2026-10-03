@@ -127,6 +127,8 @@ export interface KitContext {
    * then perform ...; end if;`.
    */
   hook(name: string, args: readonly (readonly [string, string])[]): string;
+  /** The app function a hook calls, quoted, for hooks that return a value. */
+  hookTarget(name: string): string;
   /**
    * PL/pgSQL that writes the event to the outbox (`emit_event`) when the
    * `outbox` module is installed and `kits.<name>.events` isn't false;
@@ -284,6 +286,16 @@ export function createKitContext(
     return value;
   }
   const schema = sqlIdent(config.schema);
+  const hookTarget = (name: string): string => {
+    if (!names.hooks?.includes(name)) {
+      throw new TypeError(`Module "${module}" declares no hook "${name}"`);
+    }
+    const parts = splitTable(
+      config.hooks.functions[name] ?? name,
+      config.hooks.schema,
+    );
+    return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
+  };
   const installed = new Set(source.installed ?? [module]);
 
   return {
@@ -340,19 +352,13 @@ export function createKitContext(
       return value;
     },
     hook(name, args) {
-      if (!names.hooks?.includes(name)) {
-        throw new TypeError(`Module "${module}" declares no hook "${name}"`);
-      }
-      const parts = splitTable(
-        config.hooks.functions[name] ?? name,
-        config.hooks.schema,
-      );
-      const target = `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
+      const target = hookTarget(name);
       const types = args.map(([type]) => type).join(", ");
       return `if to_regprocedure(${sqlString(`${target}(${types})`)}) is not null then
     perform ${target}(${args.map(([, value]) => value).join(", ")});
   end if;`;
     },
+    hookTarget,
     emit(event) {
       if (!config.events || !installed.has("outbox")) return "";
       const outbox = sqlIdent(resolveKitModule(kits["outbox"]).schema);
