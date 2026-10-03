@@ -96,6 +96,11 @@ backlogs too large to clear in the upgrade.
 - Dependabot targets `main` until a `develop` branch exists.
 - `actionlint` is not installed; the workflows are checked by parsing them,
   and zizmor runs on workflow changes (`security.yml`).
+- `pnpm audit` ignores GHSA-vfj7-8cjw-p6xm (`auditConfig` in
+  `pnpm-workspace.yaml`). The `braces` advisory has no patched release, and
+  `braces` arrives only through `shadcn` in `apps/marketing`, which is dev
+  tooling that never ships. It ends when a fixed `braces` ships or `shadcn`
+  drops `micromatch`.
 
 ### Agent files
 
