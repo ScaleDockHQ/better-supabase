@@ -147,6 +147,12 @@ describe("connect", () => {
     expect(db.describe).toBe("postgresql://localhost/app");
   });
 
+  it("loads pg itself by default", async () => {
+    await expect(
+      connect("postgresql://postgres:secret@127.0.0.1:1/postgres"),
+    ).rejects.toThrow(/^Could not connect to postgresql:\/\/postgres:\*\*\*@/);
+  });
+
   it("asks to install pg when the module cannot be loaded", async () => {
     await expect(
       connect(URL, () => Promise.reject(new Error("Cannot find module 'pg'"))),

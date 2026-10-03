@@ -1,35 +1,41 @@
 {
-  "default": {
-    "tables": 150,
-    "queried": 40,
-    "composite": false,
-    "measurement": {
-      "ts6": {
-        "types": 11860,
-        "instantiations": 33831,
-        "checkTime": 0.18
-      },
-      "ts7": {
-        "types": 15987,
-        "instantiations": 33847,
-        "checkTime": 0.024
-      }
-    }
+  "calibration": {
+    "ts6": 0.13,
+    "ts7": 0.024
   },
-  "centrakit": {
-    "tables": 250,
-    "queried": 40,
-    "composite": true,
-    "measurement": {
-      "ts6": {
-        "types": 15657,
-        "instantiations": 37854,
-        "checkTime": 0.23
-      },
-      "ts7": {
-        "types": 21824,
-        "instantiations": 37867,
-        "checkTime": 0.045
+  "profiles": {
+    "default": {
+      "tables": 150,
+      "queried": 40,
+      "composite": false,
+      "measurement": {
+        "ts6": {
+          "types": 11860,
+          "instantiations": 33831,
+          "checkTime": 0.19
+        },
+        "ts7": {
+          "types": 15987,
+          "instantiations": 33847,
+          "checkTime": 0.023
+        }
+      }
+    },
+    "centrakit": {
+      "tables": 250,
+      "queried": 40,
+      "composite": true,
+      "measurement": {
+        "ts6": {
+          "types": 15657,
+          "instantiations": 37854,
+          "checkTime": 0.23
+        },
+        "ts7": {
+          "types": 21824,
+          "instantiations": 37867,
+          "checkTime": 0.037
+        }
       }
     }
   }

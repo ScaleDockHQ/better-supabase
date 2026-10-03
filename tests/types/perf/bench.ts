@@ -36,14 +36,22 @@ interface BaselineEntry extends Profile {
   readonly measurement: Readonly<Record<Compiler, Measurement>>;
 }
 
-type Baseline = Readonly<Record<string, BaselineEntry>>;
+interface Baseline {
+  /** Check time of the calibration program on the machine that wrote the baseline. */
+  readonly calibration: Readonly<Record<Compiler, number>>;
+  readonly profiles: Readonly<Record<string, BaselineEntry>>;
+}
 
 const PROFILES = {
   default: { tables: 150, queried: 40, composite: false },
   centrakit: { tables: 250, queried: 40, composite: true },
 } satisfies Readonly<Record<string, Profile>>;
 const TOLERANCE = 0.1;
-/** Check time fails only past twice the baseline and at least half a second more. */
+/**
+ * Check time fails only past twice the baseline and at least half a second
+ * more, after scaling the baseline by how much slower this machine checks the
+ * calibration program.
+ */
 const TIME_FACTOR = 2;
 const TIME_SLACK = 0.5;
 
@@ -243,6 +251,48 @@ function consumer(profile: Profile): string {
   return lines.join("\n");
 }
 
+/** Plain TypeScript with no better-supabase types, so its check time tracks the machine only. */
+function calibrationProgram(): string {
+  const lines = [
+    "type Deep<T> = { readonly [K in keyof T]: T[K] extends object ? Deep<T[K]> : T[K] };",
+    "type Pick2<T, K extends keyof T> = { [P in K]: T[P] };",
+  ];
+  for (let i = 0; i < 400; i++) {
+    const fields = Array.from(
+      { length: 20 },
+      (_, f) =>
+        `f${String(f)}: ${f % 2 ? "string" : `{ n: number; s: string[] }`};`,
+    ).join(" ");
+    lines.push(
+      `interface I${String(i)} { ${fields} }`,
+      `export const v${String(i)}: Pick2<Deep<I${String(i)}>, "f0" | "f1" | "f2"> = { f0: { n: 1, s: [] }, f1: "", f2: { n: 2, s: ["a"] } };`,
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function calibrate() {
+  rmSync(work, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  writeFileSync(join(work, "calibration.ts"), calibrationProgram());
+  writeFileSync(
+    join(work, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        noEmit: true,
+        lib: ["ES2024"],
+      },
+      files: ["calibration.ts"],
+    }),
+  );
+  return {
+    ts6: measure(compilers.ts6).checkTime,
+    ts7: measure(compilers.ts7).checkTime,
+  } satisfies Readonly<Record<Compiler, number>>;
+}
+
 function measure(tsc: string): Measurement {
   const result = spawnSync(
     process.execPath,
@@ -325,6 +375,10 @@ const update = process.env["BENCH_UPDATE"] === "1";
 // SAFETY: this script writes the baseline file in the Baseline shape.
 const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
 const next: Record<string, BaselineEntry> = {};
+const calibration = calibrate();
+console.log(
+  `calibration: ts6 ${calibration.ts6.toFixed(2)}s, ts7 ${calibration.ts7.toFixed(2)}s`,
+);
 
 const describe = (measurement: Measurement): string =>
   `${String(measurement.instantiations)} instantiations, ${String(measurement.types)} types, check ${measurement.checkTime.toFixed(2)}s`;
@@ -339,7 +393,7 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     console.log(`  ${compiler}: ${describe(current.measurement[compiler])}`);
   }
   if (update) continue;
-  const previous = baseline[profileName];
+  const previous = baseline.profiles[profileName];
   if (!previous) {
     console.error(
       `${profileName} has no baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
@@ -357,13 +411,15 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
       );
       process.exitCode = 1;
     }
-    const limit = Math.max(
-      before.checkTime * TIME_FACTOR,
-      before.checkTime + TIME_SLACK,
+    const speed = Math.max(
+      1,
+      calibration[compiler] / baseline.calibration[compiler],
     );
+    const expected = before.checkTime * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
     if (now.checkTime > limit) {
       console.error(
-        `${profileName} (${compiler}): check time grew from ${before.checkTime.toFixed(2)}s to ${now.checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+        `${profileName} (${compiler}): check time grew from ${expected.toFixed(2)}s to ${now.checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s, baseline ${before.checkTime.toFixed(2)}s on a machine ${speed.toFixed(1)}x faster).`,
       );
       process.exitCode = 1;
     }
@@ -371,6 +427,9 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
 }
 
 if (update) {
-  writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
+  writeFileSync(
+    baselinePath,
+    `${JSON.stringify({ calibration, profiles: next }, null, 2)}\n`,
+  );
   console.log("baseline updated");
 }

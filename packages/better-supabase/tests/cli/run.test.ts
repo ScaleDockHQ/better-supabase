@@ -143,6 +143,9 @@ describe("run", () => {
     expect((await run(["skills", "remove", "--cwd", dir])).stderr).toMatch(
       /^Unknown skills action "remove"/,
     );
+    const skills = await run(["skills", "list", "--cwd", dir]);
+    expect(skills.code).toBe(0);
+    expect(skills.stdout).toMatch(/^better-supabase\n {2}\S/m);
     expect(
       await run(["init", "--casing", "pascal", "--cwd", dir]),
     ).toMatchObject({
