@@ -86,7 +86,7 @@ OPTIONS
 `;
 
 exports[`help > documents init 1`] = `
-"Writes better-supabase.config.ts, src/lib/supabase.ts and glue for the frameworks in package.json (better-supabase init v0.3.0)
+"Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json (better-supabase init v0.3.0)
 
 USAGE better-supabase init [OPTIONS] 
 
@@ -238,17 +238,17 @@ OPTIONS
 
 COMMANDS
 
-        init    Writes better-supabase.config.ts, src/lib/supabase.ts and glue for the frameworks in package.json     
-         add    Adds glue for an integration to an existing project                                                   
-         env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines  
-        keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
-      skills    Installs the Agent Skills that ship with this version of better-supabase                              
-         gen    Writes database.types.ts and generated.ts from the database                                           
-  introspect    Saves the database schema as a snapshot for offline gen                                               
-     openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                 
-        seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                               
-      doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict
-         sql    Lists, adds, syncs and prints SQL kit modules                                                         
+        init    Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
+         add    Adds glue for an integration to an existing project                                                    
+         env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines   
+        keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones 
+      skills    Installs the Agent Skills that ship with this version of better-supabase                               
+         gen    Writes database.types.ts and generated.ts from the database                                            
+  introspect    Saves the database schema as a snapshot for offline gen                                                
+     openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                  
+        seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                
+      doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict 
+         sql    Lists, adds, syncs and prints SQL kit modules                                                          
 
 Use better-supabase <command> --help for more information about a command."
 `;

@@ -14,7 +14,7 @@ import {
   baseFiles,
   INTEGRATIONS,
   isIntegration,
-  libDir,
+  libEntry,
   needsLib,
   resolveIntegrations,
   suggestedIntegrations,
@@ -275,7 +275,7 @@ export async function runAdd(
   const force = await overwrite(config.root, files, args, prompts);
   if (force === undefined) return CANCELLED;
   const lines = await writeFiles(config.root, files, args, force);
-  const lib = posix.join(libDir(templateContext), "supabase.ts");
+  const lib = libEntry(templateContext);
   if (
     !existsSync(resolve(config.root, lib)) &&
     integrations.some((name) => needsLib([name]))
@@ -303,7 +303,7 @@ export const initCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "init",
     description:
-      "Writes better-supabase.config.ts, src/lib/supabase.ts and glue for the frameworks in package.json",
+      "Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json",
   },
   args: INIT_ARGS,
   lists: ["with"],
