@@ -93,12 +93,12 @@ function env(names: readonly string[]): string | undefined {
 /**
  * Checks row-level security between two tenants against a running stack: for
  * each table, a user of one tenant must not select, insert, update or delete
- * the other tenant's rows. Runs without `sb`'s plugins, so the `tenant()`
+ * the other tenant's rows. Runs without `betterSupabase`'s plugins, so the `tenant()`
  * plugin can't hide a missing policy. Throws a `ConformanceError` naming each
  * table and command that leaks; removes every row it created.
  *
  * ```ts
- * await expectTenantIsolation(sb, {
+ * await expectTenantIsolation(betterSupabase, {
  *   tenants: [
  *     { id: ACME, claims: { sub: alice, tenant_id: ACME } },
  *     { id: GLOBEX, claims: { sub: bob, tenant_id: GLOBEX } },
@@ -118,11 +118,11 @@ export async function expectTenantIsolation<
   F extends AnyFunctions,
   E,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   options: TenantIsolationOptions<M>,
 ): Promise<ConformanceReport> {
   const stack = options.stack ?? {};
-  const bare = new BetterSupabase(sb.schema);
+  const bare = new BetterSupabase(betterSupabase.schema);
   const url = stack.url ?? env(ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
   const secretKey = stack.secretKey ?? env(ENV_VARIABLES.secretKey);
   if (!secretKey) {

@@ -36,16 +36,20 @@ and `['service']` for machine callers. Rejected callers get a 401 with a
 
 `scopes` limits what a delegated token may do: a token from the Supabase
 OAuth server (`client_id` and `scope`) or one exchanged for an agent (an
-RFC 8693 `act` chain). The guard options of `next.route`, `next.action`,
+RFC 8693 `act` chain). The guard options of `bs.route`, `bs.action`,
 `bs.handler` (edge) and `bs.middleware` (Hono, oRPC) take it, next to
 `allow`:
 
 ```ts
-export const GET = next.route(
+export const GET = bs.route(
   (request, { db }) => db.customers.findMany({ limit: 20 }),
   { scopes: ["customers:read"] },
 );
 ```
+
+With `.claims(schema)` on the definition, `auth.claims` is typed in every
+adapter (`c.var.auth`, `context.auth`, the edge handler's `auth`, MCP's
+`ctx.auth`). Read roles from it; don't parse the claims again.
 
 A token without the scope gets a 403 with an `insufficient_scope`
 challenge. The user's own session holds no `client_id` or `act`, so `scopes`
@@ -53,13 +57,13 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 
 ## Adapters
 
-| Where          | Setup                                               | Handler                                                                                      |
-| -------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Next.js        | `createNext(sb)` in `lib/supabase.server.ts`        | `next.route((req, { db }) => ...)`, `next.action({ input: schema }, (input, { db }) => ...)` |
-| Hono           | `createHono(sb)`, `.use('/api/*', bs.middleware())` | `c.var.db`; `bs.resource('customers', {...})` for REST                                       |
-| oRPC           | `createOrpc(sb)`, `base.use(bs.middleware())`       | `bs.unwrap(context.db.customers.findMany(...))`                                              |
-| Edge Functions | `createEdge(sb, { cors: true })`                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                               |
-| MCP            | `createMcp(sb, { name, version, resources })`       | `.tool({ name, input, run: (args, { db }) => ... })`                                         |
+| Where          | Setup                                                           | Handler                                                                                  |
+| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`        | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
+| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())` | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
+| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`       | `bs.unwrap(context.db.customers.findMany(...))`                                          |
+| Edge Functions | `createEdge(betterSupabase, { cors: true })`                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
+| MCP            | `createMcp(betterSupabase, { name, version, resources })`       | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
 
 Don't build error JSON by hand; errors become Problem Details.
 
@@ -67,7 +71,7 @@ Don't build error JSON by hand; errors become Problem Details.
 
 `defineResource` / `bs.resource(table, { operations, list, input })` gives you
 list, get, create, update and delete, with validation and paging (`{ items, page }`).
-`createOpenApi(sb, { resources })` describes the same routes, and
+`createOpenApi(betterSupabase, { resources })` describes the same routes, and
 `better-supabase openapi emit --check` keeps `openapi.json` in sync.
 
 Pass `pagination: "cursor"` to a resource, `defineListQuery` or an MCP table

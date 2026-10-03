@@ -46,7 +46,7 @@ through RLS:
 ```ts title="supabase/functions/mcp/tools/customers.ts"
 import type { McpServer } from "npm:@modelcontextprotocol/server@2.0.0";
 
-import { sb } from "../../_shared/supabase.ts";
+import { betterSupabase } from "../../_shared/supabase.ts";
 import { errorResult, jsonResult } from "./result.ts";
 import type { ToolContext } from "./types.ts";
 
@@ -54,7 +54,7 @@ export function registerCustomersTool(
   server: McpServer,
   { supabase, jwtClaims }: ToolContext,
 ): void {
-  const db = sb.connect(supabase, { claims: jwtClaims });
+  const db = betterSupabase.connect(supabase, { claims: jwtClaims });
   server.registerTool(
     "list_customers",
     {
@@ -77,7 +77,7 @@ export function registerCustomersTool(
 Register it in `tools/index.ts` next to `registerWhoamiTool`. Repository
 methods return a `Result` instead of throwing, so the tool turns a
 `DbError` into an MCP error result the model can read. `_shared/supabase.ts`
-exports `sb = defineSupabase(schema)` from the client
+exports `betterSupabase = defineSupabase(schema)` from the client
 [`better-supabase gen`](/docs/cli/gen) writes.
 
 ## Replacing the tools with createMcp
@@ -91,15 +91,15 @@ also generates tools from your tables. To switch, keep the block's
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from "better-supabase/mcp";
 
-import { sb } from "../_shared/supabase.ts";
+import { betterSupabase } from "../_shared/supabase.ts";
 
-const mcp = createMcp(sb, {
+const bs = createMcp(betterSupabase, {
   name: Deno.env.get("MCP_SERVER_NAME") ?? "app",
   version: "1.0.0",
   resources: { customers: { select: ["id", "name", "status"] } },
 });
 
-Deno.serve(mcp.fetch);
+Deno.serve(bs.fetch);
 ```
 
 The headless app's consent page, connected-agents page and `tasks` table keep

@@ -5,7 +5,7 @@ description: Query and write Supabase data with better-supabase's typed reposito
 
 # better-supabase
 
-The data layer is `sb = defineSupabase(schema)` in `src/lib/supabase.ts`.
+The data layer is `betterSupabase = defineSupabase(schema)` in `src/lib/supabase/index.ts`.
 `schema` comes from the generated module (`config.output`, usually
 `src/lib/supabase/generated.ts`). Never edit generated files.
 
@@ -73,12 +73,14 @@ Done when `gen --check`, `doctor` and the typecheck pass.
 
 ## Where `db` comes from
 
-- Next.js: `const { db } = await next.server()`, `next.route(...)`, `next.action(...)`
-- Next.js Cache Components: keep layouts synchronous; read `next.session()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
+Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runtime instance `bs` (`lib/supabase/server.ts`, `lib/supabase/client.ts`, or the Hono, oRPC or Edge Function entry).
+
+- Next.js: `const { db } = await bs.context()`, `bs.route(...)`, `bs.action(...)`
+- Next.js Cache Components: keep layouts synchronous; read `bs.session()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
 - Hono: `c.var.db` after `bs.middleware()`
 - oRPC: `context.db` after `bs.middleware()`
 - Edge Functions: `bs.handler((request, { db }) => ...)`
-- Browser: `browser.db`, or the hooks from `createHooks<typeof browser>()`
+- Browser: `bs.db`, or the hooks from `createHooks<typeof bs>()`
 
 For who the caller is (sessions, claims, OAuth clients, agents, scopes), use
 the `better-supabase-auth` skill.
@@ -98,11 +100,11 @@ const customers = result.data;
 ```
 
 - Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted.
-- Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, `$sql`) use database names.
+- Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, and `queryRaw` on the `better-supabase/postgres` clients) use database names.
 - Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.
 - Page lists with a cursor: `paginate({ after: null, size: 25, orderBy })`, then pass `nextCursor` back as `after` with the same `orderBy` and `where`. Use `page` numbers only when users jump to a page and need a total.
 - Handlers may return a `Result` directly. Adapters turn errors into RFC 9457 Problem Details with the right status.
-- Server-only admin access: `server.admin()`. Only use it for trusted jobs, never for a user's request.
+- Server-only admin access: `bs.admin()`. Only use it for trusted jobs, never for a user's request.
 - PostgREST has no multi-request transactions. Put multi-step writes in a database function (`db.$rpc()`) or use `postgres.transaction()` on the server.
 
 ## Time values

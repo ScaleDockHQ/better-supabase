@@ -25,7 +25,7 @@ const env = {
 const signer = await createTestSigner();
 const sub = "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10";
 const client = "5f0e4d3c-2b1a-4098-8776-655443322110";
-const next = createNext(defineSupabase(schema), {
+const bs = createNext(defineSupabase(schema), {
   env,
   auth: { jwks: signer.jwks as never },
   cacheTags: false,
@@ -33,7 +33,7 @@ const next = createNext(defineSupabase(schema), {
 const segment = { params: Promise.resolve({ id: "c1" }) };
 
 function call(
-  handler: ReturnType<typeof next.route<{ id: string }>>,
+  handler: ReturnType<typeof bs.route<{ id: string }>>,
   token?: string,
 ): Promise<Response> {
   return handler(
@@ -49,7 +49,7 @@ afterEach(() => {
 });
 
 describe("next.route for bearer callers", () => {
-  const read = next.route<{ id: string }>(
+  const read = bs.route<{ id: string }>(
     (_request, { db, params }) =>
       db.customers.findById(params.id, { select: ["id"] }),
     { scopes: ["customers:read"] },

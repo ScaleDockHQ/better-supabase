@@ -12,10 +12,10 @@ import { createPostgres, postgresExecutor } from "better-supabase/postgres";
 
 const postgres = createPostgres(); // SUPABASE_DB_URL or DATABASE_URL
 
-const asUser = sb.connect(
+const asUser = betterSupabase.connect(
   postgresExecutor(postgres.asUser({ sub: userId, tenant_id: orgId })),
 );
-const asAdmin = sb.connect(postgresExecutor(postgres.admin));
+const asAdmin = betterSupabase.connect(postgresExecutor(postgres.admin));
 ```
 
 Results match PostgREST exactly: same row shapes, nested includes, relation
@@ -82,7 +82,7 @@ serverless app.
 ```ts
 await postgres.transaction(
   async (tx) => {
-    const db = sb.connect(postgresExecutor(tx), { claims });
+    const db = betterSupabase.connect(postgresExecutor(tx), { claims });
     const invoice = await db.invoices.create(data).orThrow();
     await db.invoiceLines.createMany(lines(invoice.id)).orThrow();
   },

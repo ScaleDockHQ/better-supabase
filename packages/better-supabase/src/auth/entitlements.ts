@@ -24,7 +24,7 @@ export interface MembershipClaim {
 
 /**
  * Entitlement keys of the `features` claim: the literal union when
- * `sb.claims(schema)` declares one (`z.enum([...])`), otherwise `string`.
+ * `betterSupabase.claims(schema)` declares one (`z.enum([...])`), otherwise `string`.
  */
 export type EntitlementKey<C> = C extends {
   readonly features?: infer F;

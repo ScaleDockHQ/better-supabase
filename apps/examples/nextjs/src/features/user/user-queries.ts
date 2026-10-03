@@ -4,7 +4,7 @@ import { cacheLife } from "next/cache";
 
 import type { Claims, Profile } from "@/lib/claims";
 
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 /**
  * The verified session, cached per browser session. The proxy refreshes the
@@ -13,7 +13,7 @@ import { next } from "@/lib/supabase.server";
  */
 export async function getSession(): Promise<AuthSession<Claims, Profile>> {
   "use cache: private";
-  const session = await next.session();
+  const session = await bs.session();
   // Five minutes joins the App Shell; never past the token's expiry.
   cacheLife({ stale: sessionStale(session) });
   return session;

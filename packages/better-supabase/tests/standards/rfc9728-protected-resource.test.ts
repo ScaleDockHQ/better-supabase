@@ -7,7 +7,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
@@ -15,7 +15,7 @@ const env = {
 };
 
 const server = (scopes?: string[]) =>
-  createMcp(sb, {
+  createMcp(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
     name: "crm",

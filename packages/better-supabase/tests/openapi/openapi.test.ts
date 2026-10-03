@@ -5,15 +5,15 @@ import { defineListQuery } from "../../src/list/index.ts";
 import { createOpenApi } from "../../src/openapi/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
-const customerList = defineListQuery(sb, "customers", {
+const betterSupabase = defineSupabase(schema);
+const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
   facets: { status: "status" },
   sorts: { name: { name: "asc" } },
   defaultSort: "name",
 });
 
-const doc = createOpenApi(sb, {
+const doc = createOpenApi(betterSupabase, {
   info: { title: "CRM", version: "1.0.0" },
   basePath: "/api",
   resources: {
@@ -130,13 +130,13 @@ describe("createOpenApi", () => {
 
   it("rejects unknown tables and oauth2 without a URL", () => {
     expect(() =>
-      createOpenApi(sb, {
+      createOpenApi(betterSupabase, {
         info: { title: "x", version: "1" },
         resources: { nope: true },
       }),
     ).toThrow('unknown table "nope"');
     expect(() =>
-      createOpenApi(sb, {
+      createOpenApi(betterSupabase, {
         info: { title: "x", version: "1" },
         resources: {},
         security: ["oauth2"],
@@ -145,12 +145,12 @@ describe("createOpenApi", () => {
   });
 
   it("documents cursor pages for cursor resources and lists", () => {
-    const cursorList = defineListQuery(sb, "customers", {
+    const cursorList = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
       pagination: "cursor",
     });
-    const cursorDoc = createOpenApi(sb, {
+    const cursorDoc = createOpenApi(betterSupabase, {
       info: { title: "CRM", version: "1.0.0" },
       resources: {
         customers: { list: cursorList },

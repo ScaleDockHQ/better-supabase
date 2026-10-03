@@ -993,9 +993,9 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   });
 
   it("asUser runs PostgREST and SQL as the same user", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const alice = await asUser(
-      sb,
+      betterSupabase,
       { sub: crypto.randomUUID(), tenant_id: ACME },
       { url, publishableKey, postgres },
     );
@@ -1004,7 +1004,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     expect(rest).toBe(sql);
     expect(rest).toBeGreaterThan(0);
     const stranger = await asUser(
-      sb,
+      betterSupabase,
       { sub: crypto.randomUUID() },
       { url, publishableKey },
     );
@@ -1012,9 +1012,9 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   });
 
   it("read sets run as one GET and one transaction, under RLS", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const chrome = defineReadSet(
-      sb,
+      betterSupabase,
       `kit_${RUN}`,
       { params: { orgId: "uuid", kinds: "public.note_kind[]" } },
       (s, p) => ({
@@ -1047,7 +1047,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
 
     try {
       const alice = await asUser(
-        sb,
+        betterSupabase,
         { sub: crypto.randomUUID(), tenant_id: ACME },
         { url, publishableKey, postgres },
       );
@@ -1083,7 +1083,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       expect(rest.data!.busiest?._count.notes).toEqual(expect.any(Number));
 
       const stranger = await asUser(
-        sb,
+        betterSupabase,
         { sub: crypto.randomUUID() },
         { url, publishableKey, postgres },
       );
@@ -1100,15 +1100,18 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   });
 
   it("db.$many batches ad-hoc specs in one SQL transaction", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const alice = await asUser(
-      sb,
+      betterSupabase,
       { sub: crypto.randomUUID(), tenant_id: ACME },
       { url, publishableKey, postgres },
     );
     const specs = [
-      sb.spec.customers.count(),
-      sb.spec.notes.findMany({ select: ["id"], orderBy: { id: "asc" } }),
+      betterSupabase.spec.customers.count(),
+      betterSupabase.spec.notes.findMany({
+        select: ["id"],
+        orderBy: { id: "asc" },
+      }),
     ] as const;
     const rest = await alice.db.$many(specs).orThrow();
     const sql = await alice.sql!.$many(specs).orThrow();
@@ -1141,7 +1144,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       relations: {},
       flags: {},
     });
-    const sb = defineSupabase(
+    const betterSupabase = defineSupabase(
       defineSchema<AnyModels>({
         version: 1,
         casing: "camel",
@@ -1182,7 +1185,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       await pool.query(kit!.contents);
       await pool.query(`notify pgrst, 'reload schema'`);
       const alice = await asUser(
-        sb,
+        betterSupabase,
         { sub: crypto.randomUUID(), tenant_id: mine },
         { url, publishableKey, postgres },
       );

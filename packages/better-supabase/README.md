@@ -23,7 +23,7 @@ Or start with `npx better-supabase init`, which detects your frameworks and prin
 
 ```bash
 supabase start
-pnpm better-supabase init   # config, src/lib/supabase.ts and framework glue
+pnpm better-supabase init   # config, src/lib/supabase/index.ts and framework glue
 pnpm better-supabase gen    # database.types.ts and generated.ts
 ```
 
@@ -33,9 +33,9 @@ import { defineSupabase } from "better-supabase";
 
 import { schema } from "./lib/supabase/generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
-const db = sb.connect(createClient(url, publishableKey));
+const db = betterSupabase.connect(createClient(url, publishableKey));
 
 const result = await db.customers.findMany({
   select: ["id", "name"],

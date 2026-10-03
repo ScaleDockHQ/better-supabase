@@ -47,7 +47,7 @@ import { type DbError, DbException } from "../core/errors.ts";
 import { invalidationTargets } from "../ir/tables.ts";
 import { type BetterQueryMeta, invalidateTables } from "./invalidate.ts";
 
-/** Query errors stay `DbException`s, even for an `sb` with `mapError()`. */
+/** Query errors stay `DbException`s, even for an `betterSupabase` with `mapError()`. */
 const asException = (error: DbError) => new DbException(error);
 
 export { invalidateTables };
@@ -157,7 +157,7 @@ type RpcArgsOf<F extends AnyFunctions, N extends keyof F> = F[N]["Args"];
 
 export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
   /** Prefix of every better-supabase key. */
-  readonly key: readonly ["bs"];
+  readonly $key: readonly ["bs"];
   /** Query options for a `QuerySpec`, for example one sent from a Server Component. */
   $spec<S extends QuerySpec<TableKey<M>>>(
     spec: S | SkipToken,
@@ -173,13 +173,13 @@ export interface QueryHelpers<M extends AnyModels, F extends AnyFunctions> {
     args?: RpcArgsOf<F, N> | SkipToken,
     options?: { readonly tables?: readonly TableKey<M>[] },
   ): QueryOptionsOf<F[N]["Returns"]>;
-  /** Mutation options for a database function; invalidates what `sb.defineRpc` declared. */
+  /** Mutation options for a database function; invalidates what `betterSupabase.defineRpc` declared. */
   $rpcMutation<N extends Extract<keyof F, string>>(
     name: N,
   ): MutationOptionsOf<RpcArgsOf<F, N>, F[N]["Returns"]>;
 }
 
-export type Queries<
+export type BetterQueries<
   M extends AnyModels,
   E,
   F extends AnyFunctions = AnyFunctions,
@@ -187,7 +187,7 @@ export type Queries<
   readonly [T in TableKey<M>]: TableQueries<M, T, E>;
 } & QueryHelpers<M, F>;
 
-export interface CreateQueriesOptions {
+export interface QueriesOptions {
   /**
    * `staleTime` for every query option. Set it above zero when rendering on
    * the server so hydrated data isn't refetched on mount.
@@ -225,7 +225,7 @@ function withoutSignal(value: unknown): unknown {
 }
 
 interface Runtime {
-  readonly sb: BetterSupabase;
+  readonly betterSupabase: BetterSupabase;
   readonly db: () => AnyDb;
   readonly staleTime: number | undefined;
 }
@@ -249,7 +249,7 @@ function specQuery(
     queryKey: key ?? ["bs", spec.table, spec.method, ...spec.args],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       runtime.db().$run(spec, { signal }).orThrow(asException),
-    meta: { bsTables: runtime.sb.tablesOf(spec) },
+    meta: { bsTables: runtime.betterSupabase.tablesOf(spec) },
     ...stale,
   };
 }
@@ -266,7 +266,7 @@ function tableQueries(
   const key = ["bs", table] as const;
   // SAFETY: spec is generic over the schema; entries are looked up by table name.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `spec` is generic over the schema; entries are looked up by table name.
-  const tables = runtime.sb.spec as unknown as SpecTables;
+  const tables = runtime.betterSupabase.spec as unknown as SpecTables;
   const specs = tables[table]!;
   const stale =
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
@@ -339,7 +339,7 @@ function tableQueries(
         getNextPageParam: (last: { nextCursor: string | null }) =>
           last.nextCursor ?? undefined,
         meta: {
-          bsTables: runtime.sb.tablesOf(
+          bsTables: runtime.betterSupabase.tablesOf(
             specs["paginate"]!({ ...base, after: null }),
           ),
         },
@@ -365,7 +365,9 @@ function tableQueries(
         initialPageParam: base.page ?? 1,
         getNextPageParam: (last: OffsetPage<unknown>) =>
           last.page.hasMore ? last.page.number + 1 : undefined,
-        meta: { bsTables: runtime.sb.tablesOf(specs["paginate"]!(base)) },
+        meta: {
+          bsTables: runtime.betterSupabase.tablesOf(specs["paginate"]!(base)),
+        },
         ...stale,
       };
     },
@@ -384,7 +386,7 @@ function tableQueries(
       mutation(
         "delete",
         (id) => call("delete", id, args),
-        invalidationTargets(runtime.sb.meta, table),
+        invalidationTargets(runtime.betterSupabase.meta, table),
       ),
   };
 }
@@ -397,7 +399,7 @@ function tableQueries(
  * changed table.
  *
  * ```ts
- * const q = createQueries(sb, () => browser.db);
+ * const q = createQueries(betterSupabase, () => bs.db);
  * const { data } = useQuery(q.customers.findMany({ select: ['id', 'name'] }));
  * ```
  */
@@ -407,15 +409,15 @@ export function createQueries<
   F extends AnyFunctions,
   E,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   db: Db<M, F, E, unknown> | (() => Db<M, F, E, unknown>),
-  options: CreateQueriesOptions = {},
-): Queries<M, E, F> {
-  // SAFETY: the runtime erases schema generics and Queries<M, E, F> restores them.
+  options: QueriesOptions = {},
+): BetterQueries<M, E, F> {
+  // SAFETY: the runtime erases schema generics and BetterQueries<M, E, F> restores them.
   const runtime: Runtime = {
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
-    sb: sb as unknown as Runtime["sb"],
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `Queries<M, E, F>` restores them.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `BetterQueries<M, E, F>` restores them.
+    betterSupabase: betterSupabase as unknown as Runtime["betterSupabase"],
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `BetterQueries<M, E, F>` restores them.
     db: (typeof db === "function" ? db : () => db) as unknown as () => AnyDb,
     staleTime: options.staleTime,
   };
@@ -424,7 +426,7 @@ export function createQueries<
   // SAFETY: specQuery returns query options that prefetchQuery accepts; the
   // generics differ only by the erased schema.
   const queries: Record<string, unknown> = {
-    key: ["bs"],
+    $key: ["bs"],
     $spec: (spec: QuerySpec | SkipToken) => specQuery(runtime, spec),
     $prefetch: (client: QueryClient, spec: QuerySpec) =>
       // oxlint-disable-next-line typescript/no-deprecated -- `query()` needs @tanstack/query-core 5.104; the peer range is ^5.
@@ -460,13 +462,13 @@ export function createQueries<
       ) =>
         invalidateTables(
           context.client,
-          (sb.options.rpc?.[name]?.invalidates ?? []).flatMap((table) =>
-            invalidationTargets(sb.meta, table),
+          (betterSupabase.options.rpc?.[name]?.invalidates ?? []).flatMap(
+            (table) => invalidationTargets(betterSupabase.meta, table),
           ),
         ),
     }),
   };
-  for (const table of Object.keys(sb.meta.tables)) {
+  for (const table of Object.keys(betterSupabase.meta.tables)) {
     let built: Record<string, unknown> | undefined;
     Object.defineProperty(queries, table, {
       enumerable: true,
@@ -477,8 +479,8 @@ export function createQueries<
     });
   }
   // SAFETY: queries has one entry per table and procedure, which is the shape
-  // of Queries<M, E, F>.
-  return queries as Queries<M, E, F>;
+  // of BetterQueries<M, E, F>.
+  return queries as BetterQueries<M, E, F>;
 }
 
 /** Invalidates every query that read a table in the target. */
@@ -489,12 +491,12 @@ export function queryCache(client: QueryClient): CacheAdapter {
   };
 }
 
-/** Invalidates affected queries for every mutation and declared RPC `sb` performs in this runtime. */
+/** Invalidates affected queries for every mutation and declared RPC `betterSupabase` performs in this runtime. */
 export function invalidateOnMutation<
   M extends AnyModels,
   D,
   F extends AnyFunctions,
   E,
->(sb: BetterSupabase<M, D, F, E>, client: QueryClient): () => void {
-  return sb.cache(queryCache(client));
+>(betterSupabase: BetterSupabase<M, D, F, E>, client: QueryClient): () => void {
+  return betterSupabase.cache(queryCache(client));
 }

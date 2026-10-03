@@ -28,7 +28,7 @@ const config: KnipConfig = {
   ignoreBinaries: ["vercel"],
   ignoreIssues: {
     // `better-supabase init` writes these; gen --check fails on hand edits.
-    "apps/examples/*/src/lib/{supabase,hooks}.ts": ["exports", "types"],
+    "apps/examples/*/src/lib/{supabase/index,hooks}.ts": ["exports", "types"],
     // Fumadocs looks up `useMDXComponents` by name.
     "apps/docs/components/mdx.tsx": ["exports", "duplicates"],
     // Oxlint JS plugins load the default export; the named one is for imports.

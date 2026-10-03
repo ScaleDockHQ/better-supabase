@@ -22,7 +22,7 @@ const tenants = [
   { id: ACME, name: "acme", claims: { sub: USER, tenant_id: ACME } },
   { id: GLOBEX, claims: { sub: USER, tenant_id: GLOBEX } },
 ] as const;
-const sb = defineSupabase(schema).use(tenant());
+const betterSupabase = defineSupabase(schema).use(tenant());
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({
     organizationId: owner.id,
@@ -205,7 +205,7 @@ afterEach(() => {
 describe("expectTenantIsolation", () => {
   it("passes when every command is scoped, and removes every row it seeded", async () => {
     const seed = vi.fn(async () => undefined);
-    const report = await expectTenantIsolation(sb, {
+    const report = await expectTenantIsolation(betterSupabase, {
       stack,
       tenants,
       tables: { tags },
@@ -245,7 +245,11 @@ describe("expectTenantIsolation", () => {
     vi.stubGlobal("fetch", api.fetch);
     expect(
       await failures(
-        expectTenantIsolation(sb, { stack, tenants, tables: { tags } }),
+        expectTenantIsolation(betterSupabase, {
+          stack,
+          tenants,
+          tables: { tags },
+        }),
       ),
     ).toEqual([
       `tags: acme can't select ${GLOBEX}'s rows: select returned ${GLOBEX}'s row`,
@@ -264,7 +268,11 @@ describe("expectTenantIsolation", () => {
     api = fakePostgrest({ hideOwn: true });
     vi.stubGlobal("fetch", api.fetch);
     const failed = await failures(
-      expectTenantIsolation(sb, { stack, tenants, tables: { tags } }),
+      expectTenantIsolation(betterSupabase, {
+        stack,
+        tenants,
+        tables: { tags },
+      }),
     );
     expect(failed).toEqual([
       "tags: acme reads its own row: acme can't read its own row, so the other checks prove nothing; check its claims and memberships",
@@ -282,7 +290,11 @@ describe("expectTenantIsolation", () => {
     });
     vi.stubGlobal("fetch", api.fetch);
     const failed = await failures(
-      expectTenantIsolation(sb, { stack, tenants, tables: { tags } }),
+      expectTenantIsolation(betterSupabase, {
+        stack,
+        tenants,
+        tables: { tags },
+      }),
     );
     expect(failed).toHaveLength(2);
     expect(failed[0]).toMatch(
@@ -292,7 +304,7 @@ describe("expectTenantIsolation", () => {
 
   it("requires an update that changes the row", async () => {
     const failed = await failures(
-      expectTenantIsolation(sb, {
+      expectTenantIsolation(betterSupabase, {
         stack,
         tenants,
         tables: { tags: { ...tags, update: { color: "gray" } } },
@@ -325,7 +337,7 @@ describe("expectTenantIsolation", () => {
       'expectTenantIsolation: "tags" is not a table with a primary key',
     );
     await expect(
-      expectTenantIsolation(sb, {
+      expectTenantIsolation(betterSupabase, {
         stack,
         tenants,
         tables: { nope: tags } as never,
@@ -348,7 +360,11 @@ describe("expectTenantIsolation", () => {
       }),
     );
     await expect(
-      expectTenantIsolation(sb, { stack, tenants, tables: { tags } }),
+      expectTenantIsolation(betterSupabase, {
+        stack,
+        tenants,
+        tables: { tags },
+      }),
     ).rejects.toThrow("duplicate key");
     expect(api.tables.get("tags")).toEqual([]);
   });
@@ -366,7 +382,7 @@ describe("expectTenantIsolation", () => {
       update: { label: "moved" },
     };
     const failed = await failures(
-      expectTenantIsolation(sb, {
+      expectTenantIsolation(betterSupabase, {
         stack,
         tenants,
         tables: { tags, locations },
@@ -397,7 +413,7 @@ describe("expectTenantIsolation", () => {
     ])
       vi.stubEnv(`${prefix}SUPABASE_URL`, "");
     const { url: _url, ...withoutUrl } = stack;
-    await expectTenantIsolation(sb, {
+    await expectTenantIsolation(betterSupabase, {
       stack: withoutUrl,
       tenants,
       tables: { tags },
@@ -412,7 +428,7 @@ describe("expectTenantIsolation", () => {
     vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_unit");
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
     await expect(
-      expectTenantIsolation(sb, {
+      expectTenantIsolation(betterSupabase, {
         stack: { alg: "HS256" },
         tenants,
         tables: { tags },
@@ -421,7 +437,7 @@ describe("expectTenantIsolation", () => {
       "expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.",
     );
     vi.stubEnv("SUPABASE_SECRET_KEY", SECRET);
-    const report = await expectTenantIsolation(sb, {
+    const report = await expectTenantIsolation(betterSupabase, {
       stack: { alg: "HS256" },
       tenants,
       tables: { tags },

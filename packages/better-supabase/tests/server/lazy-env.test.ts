@@ -17,13 +17,13 @@ describe("env loading", () => {
   it("waits for the first use, so builds without runtime env can import server modules", () => {
     for (const name of Object.values(ENV_VARIABLES).flat())
       vi.stubEnv(name, "");
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const servers = [
-      createServer(sb),
-      createEdge(sb),
-      createHono(sb),
-      createOrpc(sb),
-      createMcp(sb, { name: "test", version: "1.0.0" }),
+      createServer(betterSupabase),
+      createEdge(betterSupabase),
+      createHono(betterSupabase),
+      createOrpc(betterSupabase),
+      createMcp(betterSupabase, { name: "test", version: "1.0.0" }),
     ];
     for (const server of servers) {
       expect(typeof server.context).toBe("function");

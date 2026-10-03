@@ -1,6 +1,6 @@
 import { createHooks } from "better-supabase/react";
 
-import type { browser } from "./supabase.browser";
+import type { bs } from "./supabase/client";
 
 export const { useDb, useQueries, useAuth, useSupabase } =
-  createHooks<typeof browser>();
+  createHooks<typeof bs>();

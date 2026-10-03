@@ -40,7 +40,7 @@ type SupabaseClaimsSchema<Extra = unknown> = StandardSchemaV1<
 };
 declare function supabaseClaims(): SupabaseClaimsSchema;
 
-const sb = defineSupabase(schema).claims(
+const betterSupabase = defineSupabase(schema).claims(
   supabaseClaims().extend(
     v.object({
       datetime_preferences: v.optional(
@@ -58,11 +58,14 @@ const sb = defineSupabase(schema).claims(
   ),
 );
 type Claims =
-  NonNullable<typeof sb.claimsSchema> extends StandardSchemaV1<unknown, infer C>
+  NonNullable<typeof betterSupabase.claimsSchema> extends StandardSchemaV1<
+    unknown,
+    infer C
+  >
     ? C
     : never;
 
-describe("sb.claims(supabaseClaims().extend(app))", () => {
+describe("betterSupabase.claims(supabaseClaims().extend(app))", () => {
   it("types PermDock's claims and the app's", () => {
     expectTypeOf<Claims["memberships"]>().toEqualTypeOf<
       readonly SupabaseMembershipClaim[] | undefined

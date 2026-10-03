@@ -63,7 +63,7 @@ function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
 /**
  * Measures every document and RSC navigation response during `during` and
  * fails when one render makes more database calls or waves than allowed.
- * Needs `createNext(sb, { debug })` and `next.debugRoute()` in the app.
+ * Needs `createNext(betterSupabase, { debug })` and `bs.debugRoute()` in the app.
  */
 export async function expectDbBudget(
   page: BudgetPage,
@@ -86,7 +86,7 @@ export async function expectDbBudget(
   }
   if (seen.length === 0) {
     throw new Error(
-      "expectDbBudget: no response carried x-bs-request-id. Enable createNext(sb, { debug: { enabled: true } }) and run the proxy.",
+      "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
     );
   }
   await Promise.all(
@@ -100,7 +100,7 @@ export async function expectDbBudget(
     const reply = await page.request.get(url);
     if (!reply.ok()) {
       throw new Error(
-        `expectDbBudget: ${url} answered ${reply.status()}. Mount next.debugRoute() at that path.`,
+        `expectDbBudget: ${url} answered ${reply.status()}. Mount bs.debugRoute() at that path.`,
       );
     }
     // SAFETY: the stats endpoint always responds with a DbStats object.

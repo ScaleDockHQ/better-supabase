@@ -13,7 +13,7 @@ export type {
   BetterHooks,
   BetterSupabaseProviderProps,
   BroadcastOptions,
-  BrowserLike,
+  ClientLike,
   ClaimsOf,
   LiveCount,
   LiveCountHookOptions,

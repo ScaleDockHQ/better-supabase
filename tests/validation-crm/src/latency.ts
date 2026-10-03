@@ -3,14 +3,14 @@ import { defineListQuery } from "better-supabase/list";
 
 import { schema } from "./generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
 /**
  * The customers overview: the page, the per-status counts and each
  * row's contact count and latest update of a location, in two requests
  * that run in parallel. The original service ran up to six sequential queries.
  */
-export const customerOverview = defineListQuery(sb, "customers", {
+export const customerOverview = defineListQuery(betterSupabase, "customers", {
   search: ["companyName", "sortName", "billingEmail"],
   facets: { status: "status", business: "isBusiness" },
   sorts: {
@@ -28,7 +28,7 @@ export const customerOverview = defineListQuery(sb, "customers", {
  * `public.rs_app_chrome(p jsonb)`, and `db.$many` calls it with one GET.
  */
 export const appChrome = defineReadSet(
-  sb,
+  betterSupabase,
   "app_chrome",
   { params: { userId: "uuid" } },
   (s, p) => ({

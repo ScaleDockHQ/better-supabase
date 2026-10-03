@@ -204,11 +204,11 @@ export function defineResource<
   E,
   T extends TableKey<M>,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   table: T,
   options: ResourceRouteOptions<M, T> = {},
 ): ResourceHandler {
-  const meta = sb.meta.tables[table];
+  const meta = betterSupabase.meta.tables[table];
   if (!meta) throw new TypeError(`Unknown table "${table}"`);
   if (options.list && options.list.table !== table) {
     throw new TypeError(

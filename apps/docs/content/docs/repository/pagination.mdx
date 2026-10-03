@@ -62,9 +62,9 @@ projects, `[api] max_rows` in `config.toml`) and drops the rest without an
 error. A `findMany` without `limit` can therefore look complete when it isn't.
 
 ```ts
-export const sb = defineSupabase(schema, { maxRows: 1000 });
+export const betterSupabase = defineSupabase(schema, { maxRows: 1000 });
 
-sb.on("query", ({ table, truncated }) => {
+betterSupabase.on("query", ({ table, truncated }) => {
   if (truncated) metrics.increment(`db.${table}.truncated`);
 });
 ```

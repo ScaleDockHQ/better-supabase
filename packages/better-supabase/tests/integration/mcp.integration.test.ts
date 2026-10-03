@@ -39,8 +39,8 @@ interface ToolResult {
 }
 
 describe.skipIf(!live)("MCP tools against the local stack", () => {
-  const sb = defineSupabase(schema);
-  const mcp = createMcp(sb, {
+  const betterSupabase = defineSupabase(schema);
+  const mcp = createMcp(betterSupabase, {
     env: parseEnv({
       SUPABASE_URL: url,
       SUPABASE_PUBLISHABLE_KEY: publishableKey,
@@ -49,7 +49,7 @@ describe.skipIf(!live)("MCP tools against the local stack", () => {
     version: "1.0.0",
     resources: { customers: { select: ["id", "name", "organizationId"] } },
   });
-  const admin = sb.connect(
+  const admin = betterSupabase.connect(
     createClient(url, secretKey, { auth: { persistSession: false } }),
   );
   const created: string[] = [];

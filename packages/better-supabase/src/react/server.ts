@@ -1,5 +1,5 @@
 import type { AuthSession } from "../auth/view.ts";
-import type { BetterHooks, BrowserLike } from "./index.ts";
+import type { BetterHooks, ClientLike } from "./index.ts";
 
 export {
   BetterSupabaseProvider,
@@ -15,7 +15,7 @@ export type {
   BetterHooks,
   BetterSupabaseProviderProps,
   BroadcastOptions,
-  BrowserLike,
+  ClientLike,
   ClaimsOf,
   LiveQueryHookOptions,
   ProfileOf,
@@ -26,12 +26,12 @@ export type { AuthSession } from "../auth/view.ts";
 function clientOnly(name: string): () => never {
   return () => {
     throw new Error(
-      `better-supabase: ${name}() runs in Client Components only. In Server Components use \`next.server()\` or \`db.$run(spec)\`.`,
+      `better-supabase: ${name}() runs in Client Components only. In Server Components use \`bs.context()\` or \`db.$run(spec)\`.`,
     );
   };
 }
 
-/** The `react-server` build of `useSession`: await `next.session()` instead. */
+/** The `react-server` build of `useSession`: await `bs.session()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
 
@@ -39,7 +39,7 @@ export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
  * The `react-server` build of `createHooks`: importing a module that creates
  * hooks is safe on the server, calling a hook there throws.
  */
-export function createHooks<B extends BrowserLike>(): BetterHooks<B> {
+export function createHooks<B extends ClientLike>(): BetterHooks<B> {
   return {
     useDb: clientOnly("useDb"),
     useQueries: clientOnly("useQueries"),

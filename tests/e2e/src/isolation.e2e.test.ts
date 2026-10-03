@@ -1,7 +1,7 @@
 import { expectTenantIsolation } from "better-supabase/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { sb } from "@better-supabase/example-nextjs/supabase";
+import { betterSupabase } from "@better-supabase/example-nextjs/supabase";
 
 import {
   ACME,
@@ -33,7 +33,7 @@ describe.skipIf(!live)("Next.js example tenant isolation", () => {
       id,
       claims: { sub: userOf({ id }), app_metadata: { tenant_id: id } },
     });
-    const report = await expectTenantIsolation(sb, {
+    const report = await expectTenantIsolation(betterSupabase, {
       stack,
       tenants: [member(ACME), member(OTHER)],
       tables: {

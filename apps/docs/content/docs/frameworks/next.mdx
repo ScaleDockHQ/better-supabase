@@ -3,22 +3,22 @@ title: Next.js
 description: Proxy, Server Components, route handlers, server actions and cache tags.
 ---
 
-```ts title="src/lib/supabase.server.ts"
+```ts title="src/lib/supabase/server.ts"
 import { createNext } from "better-supabase/next";
-import { sb } from "./supabase";
+import { betterSupabase } from "./index";
 
-export const next = createNext(sb);
+export const bs = createNext(betterSupabase);
 ```
 
-`createNext(sb)` is [`createServer`](/docs/auth/server) plus the Next.js
-pieces below, so `next.admin()` and `next.actingAs()` work too.
+`createNext(betterSupabase)` is [`createServer`](/docs/auth/server) plus the Next.js
+pieces below, so `bs.admin()` and `bs.actingAs()` work too.
 
 ## Proxy
 
 ```ts title="src/proxy.ts"
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
-export const proxy = (request) => next.proxy(request);
+export const proxy = (request) => bs.proxy(request);
 
 export const config = {
   matcher: [
@@ -38,7 +38,7 @@ response you return:
 
 ```ts
 export const proxy = (request: NextRequest) =>
-  next.proxy(request, {
+  bs.proxy(request, {
     protect: (auth, req) =>
       auth.kind !== "user" && req.nextUrl.pathname.startsWith("/app")
         ? NextResponse.redirect(new URL("/login", req.url))
@@ -55,7 +55,7 @@ durations.
 
 ```tsx
 export default async function Customers() {
-  const { db } = await next.server();
+  const { db } = await bs.context();
   const customers = await db.customers
     .findMany({ select: ["id", "name"] })
     .orThrow();
@@ -63,11 +63,11 @@ export default async function Customers() {
 }
 ```
 
-`next.server()` is memoized per request with React `cache()`, so layouts and
+`bs.context()` is memoized per request with React `cache()`, so layouts and
 pages share one context. It verifies the token locally and builds a
 stateless client; no auth call happens during rendering.
 
-`next.liveCount(spec)` counts on the server and returns a serializable
+`bs.liveCount(spec)` counts on the server and returns a serializable
 `{ spec, count }` seed for `useLiveCount`, so a badge renders with its
 number and then stays current over Realtime. See
 [live queries](/docs/frontend/live-queries#counts).
@@ -75,16 +75,16 @@ number and then stays current over Realtime. See
 ## Session
 
 ```ts
-const session = await next.session();
+const session = await bs.session();
 if (session.kind === "user") session.claims.user_role;
 ```
 
-`next.session()` is the same verification without the clients: an
+`bs.session()` is the same verification without the clients: an
 `AuthSession` of `user` (with `user`, `claims` and `expiresAt`), `service`,
 `anon` or `invalid`. It never includes the token, so it is safe to return
 from `'use cache: private'` and to pass to Client Components through
 [`SessionProvider`](/docs/frontend/react#server-session). `toSession(auth)`
-converts any `AuthState` the same way, for example inside `next.action()`.
+converts any `AuthState` the same way, for example inside `bs.action()`.
 
 With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
 for instant navigations and role-aware menus.
@@ -92,7 +92,7 @@ for instant navigations and role-aware menus.
 ## Route handlers
 
 ```ts title="src/app/api/customers/[id]/route.ts"
-export const GET = next.route<{ id: string }>((request, { db, params }) =>
+export const GET = bs.route<{ id: string }>((request, { db, params }) =>
   db.customers.findById(params.id, { select: ["id", "name"] }),
 );
 ```
@@ -129,7 +129,7 @@ of objects each with a non-empty `sub` resolves to
 session is not limited, since it holds no `client_id` or `act`:
 
 ```ts title="src/app/api/customers/[id]/route.ts"
-export const GET = next.route<{ id: string }>(
+export const GET = bs.route<{ id: string }>(
   (request, { db, params }) =>
     db.customers.findById(params.id, { select: ["id", "name"] }),
   { scopes: ["customers:read"] },
@@ -146,7 +146,7 @@ Bearer callers get [Problem Details](/docs/auth/problems) for every refusal:
 | A row RLS hides from the user                            | 404    | none                                                                                            |
 
 RLS still decides the rows: the token's `sub` is the user, so a client sees
-at most what the user sees. `scopes` is accepted by `next.action`, the edge,
+at most what the user sees. `scopes` is accepted by `bs.action`, the edge,
 Hono and oRPC guards too.
 
 ## Server actions
@@ -154,7 +154,7 @@ Hono and oRPC guards too.
 ```ts title="src/app/customers/actions.ts"
 "use server";
 
-export const createCustomer = next.action(
+export const createCustomer = bs.action(
   { input: customerInput }, // any Standard Schema: zod, valibot, arktype
   (input, { db }) => db.customers.create(input, { select: ["id"] }),
 );
@@ -174,8 +174,8 @@ elsewhere. Tag your cached reads to match:
 ```ts
 async function publicPlans() {
   "use cache";
-  next.cacheTag("plans");
-  return next
+  bs.cacheTag("plans");
+  return bs
     .admin()
     .plans.findMany({ where: { public: true } })
     .orThrow();
@@ -184,12 +184,12 @@ async function publicPlans() {
 
 <Callout title="Caching user data">
   `"use cache"` functions cannot read cookies or headers. Cache public or
-  service-level reads there. Per-user reads stay on `next.server()`, which is
+  service-level reads there. Per-user reads stay on `bs.context()`, which is
   already deduplicated per request; with Cache Components, wrap them in `"use
   cache: private"`
   ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).
 </Callout>
 
-Turn invalidation off with `createNext(sb, { cacheTags: false })`. The
+Turn invalidation off with `createNext(betterSupabase, { cacheTags: false })`. The
 invalidation is the `nextCache()` [cache adapter](/docs/extending/interfaces#cacheadapter);
-attach others with `sb.cache(adapter)`.
+attach others with `betterSupabase.cache(adapter)`.

@@ -32,7 +32,7 @@ the other.
 - Name the same tenant claim on both sides. A non-default `claims.tenant` in
   `better-supabase.config.ts` must also be PermDock's `rls.tenantClaim` and
   go to `subjectFromSupabase` or `subjectFromSupabaseSession` as `{ tenant }`.
-- Validate claims with PermDock's schema: `sb.claims(supabaseClaims().extend(appClaims))`.
+- Validate claims with PermDock's schema: `betterSupabase.claims(supabaseClaims().extend(appClaims))`.
 - The helpers live in PermDock's `rls.schema`, which must equal the `schema`
   option of buckets and topics in `permdock` mode.
 - The `permdock` policy mode checks role and scope only. Use it only for
@@ -46,8 +46,8 @@ the other.
   `visible` with `mayUse` and `authorize` with `can`. `can` decides without
   a row, so check row-conditioned permissions inside `run` or rely on RLS.
 - In Next.js, cache the permission snapshot with
-  `next.cached({ tags: [snapshotTag(userId)], life: cacheLifeFor(snapshot) })`
-  and drop it with `next.invalidateSession(userId, { tags: [snapshotTag(userId)] })`
+  `bs.cached({ tags: [snapshotTag(userId)], life: cacheLifeFor(snapshot) })`
+  and drop it with `bs.invalidateSession(userId, { tags: [snapshotTag(userId)] })`
   when a role or plan changes.
 - Doctor BS405 measures `memberships` plus `attrs` against PermDock's 1 KB
   budget and the whole token against 2 KB; run `doctor --as <user id>`.

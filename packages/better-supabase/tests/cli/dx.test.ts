@@ -60,16 +60,16 @@ describe("init and add", () => {
   it("detects the framework, writes glue and keeps existing files", async () => {
     await project(
       { next: "16.0.0", "@tanstack/react-query": "5.0.0", pg: "8" },
-      { "src/.keep": "" },
+      { "src/lib/supabase/generated.ts": "// generated\n" },
     );
     const init = await run(["init", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(init.stdout).toContain("Found next, tanstack-query.");
     for (const path of [
       "better-supabase.config.ts",
-      "src/lib/supabase.ts",
-      "src/lib/supabase.browser.ts",
-      "src/lib/supabase.server.ts",
+      "src/lib/supabase/index.ts",
+      "src/lib/supabase/client.ts",
+      "src/lib/supabase/server.ts",
       "src/proxy.ts",
       "src/app/providers.tsx",
       "src/lib/hooks.ts",
@@ -79,16 +79,19 @@ describe("init and add", () => {
         exists: true,
       });
     }
-    expect(await readFile(join(dir, "src/lib/supabase.ts"), "utf8")).toContain(
-      "from './supabase/generated'",
-    );
     expect(
-      await readFile(join(dir, "src/lib/supabase.browser.ts"), "utf8"),
+      await readFile(join(dir, "src/lib/supabase/index.ts"), "utf8"),
+    ).toContain("from './generated'");
+    expect(
+      await readFile(join(dir, "src/lib/supabase/client.ts"), "utf8"),
     ).toContain("process.env.NEXT_PUBLIC_SUPABASE_URL!");
     expect(init.stdout).toContain(
       "pnpm add better-supabase @supabase/supabase-js @supabase/ssr",
     );
     expect(init.stdout).not.toContain("pnpm add -D pg");
+    expect(
+      await readFile(join(dir, "src/lib/supabase/generated.ts"), "utf8"),
+    ).toBe("// generated\n");
 
     await writeFile(join(dir, "src/proxy.ts"), "// mine\n");
     await rm(join(dir, "better-supabase.config.ts"));
@@ -121,7 +124,10 @@ describe("init and add", () => {
     expect(
       existsSync(join(dir, "supabase/functions/_shared/supabase.ts")),
     ).toBe(true);
-    expect(existsSync(join(dir, "lib/supabase.ts"))).toBe(false);
+    expect(existsSync(join(dir, "supabase/functions/mcp/server.ts"))).toBe(
+      true,
+    );
+    expect(existsSync(join(dir, "lib/supabase/index.ts"))).toBe(false);
   });
 
   it("prints command help", async () => {
@@ -171,6 +177,10 @@ describe("templates", () => {
           path: "deno.d.ts",
           contents:
             "declare const Deno: { serve(handler: (request: Request) => Response | Promise<Response>): unknown };\n",
+        },
+        {
+          path: "server-only.d.ts",
+          contents: "declare module 'server-only';\n",
         },
         {
           path: "tsconfig.json",
@@ -334,9 +344,9 @@ describe("read sets", () => {
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};
 import { schema } from ${JSON.stringify(join(packageRoot, "tests/fixtures/generated-camel.ts"))};
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
-export const chrome = defineReadSet(sb, 'chrome', { params: { orgId: 'uuid' } }, (s, p) => ({
+export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { orgId: 'uuid' } }, (s, p) => ({
   customers: s.customers.count({ where: { organizationId: p.orgId, status: 'active' } }),
 }));
 `;

@@ -39,7 +39,7 @@ and prints the install command. ESM only. Node 24 or later for the CLI; the runt
 
 ```bash
 supabase start
-pnpm better-supabase init   # config, src/lib/supabase.ts and framework glue
+pnpm better-supabase init   # config, src/lib/supabase/index.ts and framework glue
 pnpm better-supabase env    # URL and keys into .env.local
 pnpm better-supabase gen    # database.types.ts and generated.ts
 ```
@@ -52,9 +52,9 @@ import { defineSupabase } from "better-supabase";
 
 import { schema } from "./lib/supabase/generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
-const db = sb.connect(createClient(url, publishableKey));
+const db = betterSupabase.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
   .findMany({
@@ -71,15 +71,15 @@ const customers = await db.customers
 ### Next.js
 
 ```tsx
-// src/lib/supabase.server.ts
-export const next = createNext(sb);
+// src/lib/supabase/server.ts
+export const bs = createNext(betterSupabase);
 
 // src/proxy.ts
-export const proxy = (request: NextRequest) => next.proxy(request);
+export const proxy = (request: NextRequest) => bs.proxy(request);
 
 // app/customers/page.tsx
 export default async function Customers() {
-  const { db } = await next.server();
+  const { db } = await bs.context();
   const customers = await db.customers
     .findMany({ select: ["id", "name"] })
     .orThrow();
@@ -90,27 +90,27 @@ export default async function Customers() {
 ### Hono
 
 ```ts
-const bs = createHono(sb);
+const bs = createHono(betterSupabase);
 
-const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+const app = new Hono<HonoEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
   .use("/api/*", bs.middleware())
   .get(
     "/api/customers",
-    bs.handle((c, { db }) => db.customers.findMany({ limit: 20 })),
+    bs.handler((c, { db }) => db.customers.findMany({ limit: 20 })),
   );
 ```
 
 ### MCP
 
 ```ts
-const mcp = createMcp(sb, {
+const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   resources: { customers: { select: ["id", "name", "status"] } },
 });
 
-Deno.serve(mcp.fetch);
+Deno.serve(bs.fetch);
 ```
 
 ## Works with

@@ -93,7 +93,7 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
    functions (`defineSchema`) that carry the types.
 3. Rows keep the configured casing everywhere: `casing: 'snake'` returns
    database names, `casing: 'camel'` renames inside the PostgREST query. The raw
-   escape hatches (`$client`, `$sql`) always use database names.
+   escape hatches (`$client`, `queryRaw`) always use database names.
 4. Repository methods never throw for database errors. They return a `Result`
    whose errors are plain, serializable `DbError` objects. `.orThrow()` is the
    only way to turn one into an exception.

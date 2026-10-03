@@ -134,7 +134,7 @@ export interface Repository<
   T extends TableKey<M>,
   E = unknown,
 > {
-  readonly $table: T;
+  readonly $tableName: T;
   readonly $meta: TableMeta;
 
   findMany<const A extends FindManyArgs<M, T> & FindExt<E, M, T>>(
@@ -279,7 +279,7 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   $table<T extends TableKey<M>>(name: T): RepositoryOf<M, T, E>;
   /** Calls, waves, tables and time for everything run through this `db`. */
   $stats(): DbStats;
-  /** Runs a `QuerySpec` built with `sb.spec`. */
+  /** Runs a `QuerySpec` built with `betterSupabase.spec`. */
   $run<S extends QuerySpec<TableKey<M>>>(
     spec: S,
     options?: { readonly signal?: AbortSignal },

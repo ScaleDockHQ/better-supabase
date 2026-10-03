@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { mcp } from "@better-supabase/example-mcp/server";
+import { bs } from "@better-supabase/example-mcp/server";
 
 import {
   ACME,
@@ -48,7 +48,7 @@ describe.skipIf(!(await reachable()))("mcp example", () => {
   });
 
   const rpc = async (user: TestUser, method: string, params: JsonValue) => {
-    const response = await mcp.fetch(
+    const response = await bs.fetch(
       new Request("http://127.0.0.1/mcp", {
         method: "POST",
         headers: {

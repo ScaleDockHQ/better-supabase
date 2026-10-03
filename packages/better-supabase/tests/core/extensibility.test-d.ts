@@ -72,12 +72,12 @@ describe("extension interfaces", () => {
 });
 
 describe("defineRepository", () => {
-  const sb = defineSupabase(schema).use(softDelete()).use(tenant());
-  const tags = defineRepository(sb, "tags", (base) => ({
+  const betterSupabase = defineSupabase(schema).use(softDelete()).use(tenant());
+  const tags = defineRepository(betterSupabase, "tags", (base) => ({
     named: (name: string) =>
       base.findFirst({ where: { name }, select: ["id", "name"] }),
   }));
-  const db = sb.use(tags).connect(client);
+  const db = betterSupabase.use(tags).connect(client);
 
   it("types methods on the target table only", () => {
     expectTypeOf(db.tags.named).parameters.toEqualTypeOf<[name: string]>();
@@ -88,7 +88,7 @@ describe("defineRepository", () => {
   });
 
   it("keeps plugin extensions on the base repository", () => {
-    defineRepository(sb, "customers", (base) => {
+    defineRepository(betterSupabase, "customers", (base) => {
       expectTypeOf(base).toHaveProperty("restore");
       return {};
     });
@@ -96,6 +96,6 @@ describe("defineRepository", () => {
 
   it("accepts only known tables", () => {
     // @ts-expect-error unknown table
-    defineRepository(sb, "nope", () => ({}));
+    defineRepository(betterSupabase, "nope", () => ({}));
   });
 });

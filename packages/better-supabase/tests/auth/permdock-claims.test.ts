@@ -72,7 +72,7 @@ function supabaseClaims<Extra = unknown>(
   };
 }
 
-const sb = defineSupabase(schema).claims(
+const betterSupabase = defineSupabase(schema).claims(
   supabaseClaims().extend(
     v.object({
       datetime_preferences: v.optional(
@@ -89,7 +89,7 @@ const sb = defineSupabase(schema).claims(
     }),
   ),
 );
-const server = createServer(sb, {
+const server = createServer(betterSupabase, {
   env,
   auth: { jwks: signer.jwks as never },
 });
@@ -106,7 +106,7 @@ const sessionFor = async (token: Record<string, unknown>) => {
   ).auth;
 };
 
-describe("PermDock claims through sb.claims()", () => {
+describe("PermDock claims through betterSupabase.claims()", () => {
   it("keeps PermDock's claims and adds the app's", async () => {
     const session = await sessionFor(claims.full);
     expect(session.kind).toBe("user");

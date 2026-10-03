@@ -49,15 +49,21 @@ function setup(
     storage: storage.client.storage,
     auth: { admin: { deleteUser } },
   } as unknown as SupabaseClient;
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
   const notices: MutationNotice[] = [];
-  sb.on("mutation", (notice) => notices.push(notice));
-  return { sb, storage, deleteUser, notices, service: () => client };
+  betterSupabase.on("mutation", (notice) => notices.push(notice));
+  return {
+    betterSupabase,
+    storage,
+    deleteUser,
+    notices,
+    service: () => client,
+  };
 }
 
 describe("deleteAccount", () => {
   it("removes the user's objects, deletes the user and announces it", async () => {
-    const { sb, storage, deleteUser, notices, service } = setup({
+    const { betterSupabase, storage, deleteUser, notices, service } = setup({
       files: {
         [`documents/${USER}/a.txt`]: "a",
         [`documents/${USER}/b.txt`]: "b",
@@ -70,7 +76,7 @@ describe("deleteAccount", () => {
       },
     });
     const context = { actor: { id: "admin", kind: "user" as const } };
-    const result = await deleteAccount(sb, service, USER, {
+    const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents, shared, logos, avatars],
       cascades: ["customers", "notes"],
       context,
@@ -106,8 +112,8 @@ describe("deleteAccount", () => {
     const files: Record<string, string> = {};
     for (let index = 0; index < 1001; index += 1)
       files[`documents/${USER}/${String(index).padStart(4, "0")}.txt`] = "x";
-    const { sb, storage, service } = setup({ files });
-    const result = await deleteAccount(sb, service, USER, {
+    const { betterSupabase, storage, service } = setup({ files });
+    const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
     });
     expect(result.ok && result.data.removed).toEqual({ documents: 1001 });
@@ -119,8 +125,8 @@ describe("deleteAccount", () => {
   });
 
   it("works without buckets and uses an empty context", async () => {
-    const { sb, deleteUser, notices, service } = setup();
-    expect(await deleteAccount(sb, service, USER)).toEqual({
+    const { betterSupabase, deleteUser, notices, service } = setup();
+    expect(await deleteAccount(betterSupabase, service, USER)).toEqual({
       ok: true,
       data: { userId: USER, removed: {} },
       error: null,
@@ -131,10 +137,10 @@ describe("deleteAccount", () => {
   });
 
   it("stops before deleting the user when listing fails", async () => {
-    const { sb, deleteUser, notices, service } = setup({
+    const { betterSupabase, deleteUser, notices, service } = setup({
       fail: { list: storageError("denied", { statusCode: "403" }) },
     });
-    const result = await deleteAccount(sb, service, USER, {
+    const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
     });
     expect(result).toMatchObject({
@@ -146,11 +152,11 @@ describe("deleteAccount", () => {
   });
 
   it("stops before deleting the user when removing fails", async () => {
-    const { sb, deleteUser, service } = setup({
+    const { betterSupabase, deleteUser, service } = setup({
       files: { [`documents/${USER}/a.txt`]: "a" },
       fail: { remove: storageError("boom", { statusCode: "500" }) },
     });
-    const result = await deleteAccount(sb, service, USER, {
+    const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
     });
     expect(result).toMatchObject({ ok: false, error: { kind: "network" } });
@@ -158,23 +164,23 @@ describe("deleteAccount", () => {
   });
 
   it("passes the signal to listing and aborts before work", async () => {
-    const { sb, storage, deleteUser, service } = setup({
+    const { betterSupabase, storage, deleteUser, service } = setup({
       files: { [`documents/${USER}/a.txt`]: "a" },
     });
     const controller = new AbortController();
-    const ok = await deleteAccount(sb, service, USER, {
+    const ok = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
       signal: controller.signal,
     });
     expect(ok.ok).toBe(true);
     expect(storage.calls[0]?.method).toBe("list");
 
-    const aborted = await deleteAccount(sb, service, USER, {
+    const aborted = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
       signal: AbortSignal.abort(),
     });
     expect(!aborted.ok && aborted.error.kind).toBe("aborted");
-    const noBuckets = await deleteAccount(sb, service, USER, {
+    const noBuckets = await deleteAccount(betterSupabase, service, USER, {
       signal: AbortSignal.abort(),
     });
     expect(!noBuckets.ok && noBuckets.error.kind).toBe("aborted");
@@ -191,10 +197,10 @@ describe("deleteAccount", () => {
     [{ name: "AuthRetryableFetchError", message: "fetch failed" }, "network"],
     [{ status: 422, message: "odd" }, "unexpected"],
   ] as const)("maps the Auth error %j to %s", async (error, kind) => {
-    const { sb, notices, service } = setup({
+    const { betterSupabase, notices, service } = setup({
       deleteUser: async () => ({ error }),
     });
-    const result = await deleteAccount(sb, service, USER);
+    const result = await deleteAccount(betterSupabase, service, USER);
     expect(result).toMatchObject({
       ok: false,
       error: { kind, table: "auth.users", message: error.message },
@@ -203,7 +209,7 @@ describe("deleteAccount", () => {
   });
 
   it("names BS406 for a foreign key that blocks the delete", async () => {
-    const { sb, service } = setup({
+    const { betterSupabase, service } = setup({
       deleteUser: async () => ({
         error: {
           status: 500,
@@ -212,7 +218,7 @@ describe("deleteAccount", () => {
         },
       }),
     });
-    const result = await deleteAccount(sb, service, USER);
+    const result = await deleteAccount(betterSupabase, service, USER);
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "conflict", code: "unexpected_failure" },
@@ -224,13 +230,17 @@ describe("deleteAccount", () => {
     const thrown = setup({
       deleteUser: () => Promise.reject(new Error("socket hang up")),
     });
-    expect(await deleteAccount(thrown.sb, thrown.service, USER)).toMatchObject({
+    expect(
+      await deleteAccount(thrown.betterSupabase, thrown.service, USER),
+    ).toMatchObject({
       ok: false,
       error: { kind: "unexpected", message: "socket hang up" },
     });
 
     const odd = setup({ deleteUser: () => Promise.reject("nope") });
-    expect(await deleteAccount(odd.sb, odd.service, USER)).toMatchObject({
+    expect(
+      await deleteAccount(odd.betterSupabase, odd.service, USER),
+    ).toMatchObject({
       ok: false,
       error: { kind: "unexpected", message: "Auth request failed" },
     });
@@ -240,7 +250,11 @@ describe("deleteAccount", () => {
       deleteUser: async () => ({ error: original }),
     });
     expect(
-      await deleteAccount(passthrough.sb, passthrough.service, USER),
+      await deleteAccount(
+        passthrough.betterSupabase,
+        passthrough.service,
+        USER,
+      ),
     ).toEqual({ ok: false, data: null, error: original });
   });
 });

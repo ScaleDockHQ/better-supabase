@@ -1,11 +1,17 @@
-import { readFile } from "node:fs/promises";
+import { glob, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { GLOBAL_ARGS } from "../../src/cli/command.ts";
 import { commandNames, help } from "../../src/cli/run.ts";
+import {
+  INTEGRATIONS,
+  type TemplateContext,
+  TEMPLATES,
+} from "../../src/cli/templates.ts";
 
-const docs = join(import.meta.dirname, "../../../../apps/docs/content/docs");
+const repo = join(import.meta.dirname, "../../../..");
+const docs = join(repo, "apps/docs/content/docs");
 
 /** The page that documents each command's flags. */
 const PAGES: Readonly<Record<string, string>> = {
@@ -69,3 +75,110 @@ describe("CLI docs", () => {
     ]);
   });
 });
+
+/** Where the docs, skills, examples and READMEs teach the names. */
+const SOURCES = [
+  "apps/docs/content/docs",
+  "packages/better-supabase/skills",
+  "apps/examples",
+  "apps/marketing/lib",
+  "README.md",
+  "packages/better-supabase/README.md",
+];
+/** Pages that quote the old names on purpose. */
+const HISTORY = new Set([
+  "apps/docs/content/docs/concepts/naming.mdx",
+  "apps/docs/content/docs/migration/0.1-to-0.2.mdx",
+]);
+
+async function sources(): Promise<{ path: string; text: string }[]> {
+  const paths: string[] = [];
+  for await (const path of glob(
+    SOURCES.map((source) =>
+      /\.\w+$/.test(source) ? source : `${source}/**/*.{md,mdx,ts,tsx}`,
+    ),
+    {
+      cwd: repo,
+      exclude: (name) => name === "node_modules" || name === ".next",
+    },
+  )) {
+    if (!/(?:generated|database\.types)\.ts$/.test(path)) paths.push(path);
+  }
+  const read = paths
+    .filter((path) => !HISTORY.has(path))
+    .map(async (path) => ({
+      path,
+      text: await readFile(join(repo, path), "utf8"),
+    }));
+  return Promise.all(read);
+}
+
+const templateContext: TemplateContext = {
+  srcDir: "src",
+  generated: "src/lib/supabase/generated.ts",
+  tsExtensions: false,
+  frameworks: ["next"],
+  version: "0.0.0",
+};
+
+const LEGACY_INSTANCE =
+  /\b(?:const|let)\s+(sb|next|browser|server|mcp)\s*=\s*(?:defineSupabase|create[A-Z]\w*)\(/;
+const LEGACY_PATH = /supabase\.(?:browser|server|client)(?:\.tsx?)?["'`]/;
+
+describe("naming", () => {
+  it("names the definition betterSupabase and every instance bs", async () => {
+    const files = [
+      ...(await sources()),
+      ...INTEGRATIONS.flatMap((name) =>
+        TEMPLATES[name].files(templateContext).map((file) => ({
+          path: `template ${name}: ${file.path}`,
+          text: file.contents,
+        })),
+      ),
+    ];
+    const offenders = files.flatMap(({ path, text }) => {
+      const found = [LEGACY_INSTANCE, LEGACY_PATH]
+        .map((pattern) => pattern.exec(text)?.[0])
+        .filter((match) => match !== undefined);
+      return found.map((match) => `${path}: ${match}`);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("returns a Better type from every adapter factory", async () => {
+    const api: Record<string, { values?: string[]; types?: string[] }> =
+      JSON.parse(
+        await readFile(
+          join(import.meta.dirname, "../../api/exports.json"),
+          "utf8",
+        ),
+      );
+    const missing = Object.entries(api).flatMap(([subpath, names]) =>
+      (names.values ?? [])
+        .filter((name) => FACTORIES.has(name))
+        .filter(
+          (name) => !names.types?.includes(name.replace(/^create/, "Better")),
+        )
+        .map((name) => `${subpath}: ${name}`),
+    );
+    expect(missing).toEqual([]);
+    expect(
+      Object.values(api)
+        .flatMap((names) => names.values ?? [])
+        .filter((name) => FACTORIES.has(name)).length,
+    ).toBe(FACTORIES.size);
+  });
+});
+
+/** The factories whose result apps name `bs` (or that the adapters build on). */
+const FACTORIES = new Set([
+  "createClient",
+  "createServer",
+  "createNext",
+  "createHono",
+  "createOrpc",
+  "createEdge",
+  "createMcp",
+  "createPostgres",
+  "createQueries",
+]);

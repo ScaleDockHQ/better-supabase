@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
-import type { Postgres } from "../postgres/pool.ts";
+import type { BetterPostgres } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
 import { ENV_VARIABLES } from "../env/index.ts";
@@ -40,7 +40,7 @@ export interface LocalStack {
   /** Service-role key for `expectTenantIsolation`; defaults to `$SUPABASE_SECRET_KEY`. */
   readonly secretKey?: string;
   /** Enables `sql`: the same user over direct Postgres. */
-  readonly postgres?: Postgres;
+  readonly postgres?: BetterPostgres;
 }
 
 export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
@@ -106,12 +106,12 @@ async function signFor(
  * still uses the shared JWT secret.
  *
  * ```ts
- * const alice = await asUser(sb, { sub: aliceId, tenant_id: acme });
+ * const alice = await asUser(betterSupabase, { sub: aliceId, tenant_id: acme });
  * expect(await alice.db.customers.count().orThrow()).toBe(3);
  * ```
  */
 export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
   claims: TestJwtClaims,
   stack: LocalStack = {},
 ): Promise<TestUser<M, F, E>> {
@@ -143,9 +143,12 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
     token,
     claims: full,
     supabase,
-    db: sb.connect(supabase, context),
+    db: betterSupabase.connect(supabase, context),
     sql: stack.postgres
-      ? sb.connect(postgresExecutor(stack.postgres.asUser(full)), context)
+      ? betterSupabase.connect(
+          postgresExecutor(stack.postgres.asUser(full)),
+          context,
+        )
       : undefined,
   };
 }

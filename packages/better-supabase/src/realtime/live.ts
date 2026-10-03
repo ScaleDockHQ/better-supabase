@@ -9,7 +9,7 @@ import type { QuerySpec } from "../core/spec.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { RealtimeClient, SubscriptionStatus } from "./index.ts";
 
-/** What `liveQuery` needs from `sb`: metadata and the tables a spec reads. */
+/** What `liveQuery` needs from `betterSupabase`: metadata and the tables a spec reads. */
 export interface LiveSource {
   readonly meta: SchemaMeta;
   tablesOf(spec: QuerySpec): string[];
@@ -36,7 +36,7 @@ export interface LiveSubscription extends Disposable, AsyncDisposable {
 
 /**
  * A count from the server plus the spec to keep it live on the client:
- * `next.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count`
+ * `bs.liveCount(spec)` makes one, `useLiveCount(seed)` reads it. `count`
  * is `null` when the server read failed; the client then fetches it.
  */
 export interface LiveCountSeed<T extends string = string> {
@@ -144,11 +144,11 @@ function join(
  * table, so any number of them can run at once.
  *
  * ```ts
- * using live = liveQuery(sb, supabase, spec, { onChange: () => refetch() });
+ * using live = liveQuery(betterSupabase, supabase, spec, { onChange: () => refetch() });
  * ```
  */
 export function liveQuery(
-  sb: LiveSource,
+  betterSupabase: LiveSource,
   client: RealtimeClient,
   spec: QuerySpec | readonly string[],
   options: LiveQueryOptions,
@@ -157,9 +157,13 @@ export function liveQuery(
   // picked the list.
   const touched = Array.isArray(spec)
     ? (spec as readonly string[])
-    : sb.tablesOf(spec as QuerySpec);
-  const tables = touched.filter((table) => sb.meta.realtime?.[table]);
-  const unwatched = touched.filter((table) => !sb.meta.realtime?.[table]);
+    : betterSupabase.tablesOf(spec as QuerySpec);
+  const tables = touched.filter(
+    (table) => betterSupabase.meta.realtime?.[table],
+  );
+  const unwatched = touched.filter(
+    (table) => !betterSupabase.meta.realtime?.[table],
+  );
   const debounceMs = options.debounceMs ?? 100;
   const changed = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -174,7 +178,7 @@ export function liveQuery(
   };
 
   const memberships = tables.map((table) =>
-    join(client, liveTopic(sb.meta, table, options.tenant), () => {
+    join(client, liveTopic(betterSupabase.meta, table, options.tenant), () => {
       changed.add(table);
       if (timer !== undefined) clearTimeout(timer);
       timer = setTimeout(flush, debounceMs);
@@ -212,7 +216,7 @@ export function liveQuery(
   };
 }
 
-/** What `liveCount` runs the spec with: a `db` from `sb.connect()` or `createBrowser()`. */
+/** What `liveCount` runs the spec with: a `db` from `betterSupabase.connect()` or `createClient()`. */
 export interface CountRunner {
   $run(spec: QuerySpec): PromiseLike<Result<unknown>>;
 }
@@ -231,13 +235,13 @@ export interface LiveCountOptions extends Omit<LiveQueryOptions, "onChange"> {
  * Responses that arrive out of order are dropped.
  *
  * ```ts
- * using live = liveCount(sb, supabase, db, sb.spec.notes.count(), {
+ * using live = liveCount(betterSupabase, supabase, db, betterSupabase.spec.notes.count(), {
  *   onCount: (count) => render(count),
  * });
  * ```
  */
 export function liveCount(
-  sb: LiveSource,
+  betterSupabase: LiveSource,
   client: RealtimeClient,
   db: CountRunner,
   spec: QuerySpec<string, "count", number>,
@@ -255,7 +259,7 @@ export function liveCount(
       } else options.onError?.(result.error);
     });
   };
-  const live = liveQuery(sb, client, spec, {
+  const live = liveQuery(betterSupabase, client, spec, {
     onChange: refetch,
     ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
     ...(options.debounceMs === undefined

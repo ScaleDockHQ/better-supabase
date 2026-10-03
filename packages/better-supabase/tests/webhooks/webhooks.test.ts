@@ -179,7 +179,7 @@ describe("authHook", () => {
 });
 
 describe("databaseChange", () => {
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
 
   it("maps database webhook payloads to app casing", () => {
     const payload = {
@@ -189,7 +189,7 @@ describe("databaseChange", () => {
       record: { id: "c1", organization_id: "o1" },
       old_record: { id: "c1", organization_id: "o0" },
     };
-    const change = databaseChange(sb, "customers", payload);
+    const change = databaseChange(betterSupabase, "customers", payload);
     expect(change).toEqual({
       type: "UPDATE",
       table: "customers",
@@ -197,7 +197,9 @@ describe("databaseChange", () => {
       oldRecord: { id: "c1", organizationId: "o0" },
     });
     expect(change?.record?.organizationId).toBe("o1");
-    expect(databaseChange(sb, "notes", payload)).toBeNull();
-    expect(databaseChange(sb, "customers", { hello: "world" })).toBeNull();
+    expect(databaseChange(betterSupabase, "notes", payload)).toBeNull();
+    expect(
+      databaseChange(betterSupabase, "customers", { hello: "world" }),
+    ).toBeNull();
   });
 });

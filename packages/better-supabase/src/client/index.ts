@@ -1,6 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import {
-  createClient,
+  createClient as createSupabaseClient,
   type Session,
   type SupabaseClient,
 } from "@supabase/supabase-js";
@@ -12,9 +12,9 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
 import { decodeJwtPayload } from "../core/base64.ts";
 import { EnvValidationError, parseEnv, type PublicEnv } from "../env/index.ts";
-import { createQueries, type Queries } from "../query/index.ts";
+import { createQueries, type BetterQueries } from "../query/index.ts";
 
-export interface BrowserOptions {
+export interface ClientOptions {
   /** URL and publishable key. Not needed when `client` is given. */
   readonly env?: PublicEnv;
   /** Bring your own supabase-js client (React Native, custom storage). */
@@ -46,27 +46,27 @@ export type AuthSnapshot =
       readonly claims: Readonly<Record<string, unknown>>;
     };
 
-export interface BrowserAuth {
+export interface ClientAuth {
   readonly current: () => AuthSnapshot;
   /** `useSyncExternalStore`-compatible. */
   readonly subscribe: (listener: () => void) => () => void;
 }
 
-export interface BetterBrowser<
+export interface BetterClient<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
   C = unknown,
   P = unknown,
 > {
-  /** The definition the browser was created from (schema metadata, specs, live queries). */
-  readonly sb: BetterSupabase<M, unknown, F, E, C, P>;
+  /** The definition the client was created from (schema metadata, specs, live queries). */
+  readonly betterSupabase: BetterSupabase<M, unknown, F, E, C, P>;
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
   readonly db: Db<M, F, E, SupabaseClient>;
   /** TanStack Query option factories over `db`. */
-  readonly queries: Queries<M, E, F>;
-  readonly auth: BrowserAuth;
+  readonly queries: BetterQueries<M, E, F>;
+  readonly auth: ClientAuth;
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
@@ -108,11 +108,11 @@ function contextOf(snapshot: AuthSnapshot): RequestContext {
   return { actor, claims: snapshot.claims };
 }
 
-function clientFor(options: BrowserOptions): SupabaseClient {
+function clientFor(options: ClientOptions): SupabaseClient {
   if (options.client) return options.client;
   if (!options.env)
     throw new TypeError(
-      "createBrowser needs `env` ({ url, publishableKey }) or `client`",
+      "createClient needs `env` ({ url, publishableKey }) or `client`",
     );
   const checked = parseEnv({
     SUPABASE_URL: options.env.url,
@@ -121,7 +121,7 @@ function clientFor(options: BrowserOptions): SupabaseClient {
   if (!checked.ok) throw new EnvValidationError(checked.issues);
   if (options.storage === "local")
     // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
-    return createClient(checked.env.url, checked.env.publishableKey);
+    return createSupabaseClient(checked.env.url, checked.env.publishableKey);
   // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
   return createBrowserClient(checked.env.url, checked.env.publishableKey);
 }
@@ -131,10 +131,10 @@ function clientFor(options: BrowserOptions): SupabaseClient {
  * session, TanStack Query options and an auth store for UI state.
  *
  * ```ts
- * export const browser = createBrowser(sb, { env: { url, publishableKey } });
+ * export const bs = createClient(betterSupabase, { env: { url, publishableKey } });
  * ```
  */
-export function createBrowser<
+export function createClient<
   M extends AnyModels,
   D,
   F extends AnyFunctions,
@@ -142,9 +142,9 @@ export function createBrowser<
   C = unknown,
   P = unknown,
 >(
-  sb: BetterSupabase<M, D, F, E, C, P>,
-  options: BrowserOptions = {},
-): BetterBrowser<M, F, E, C, P> {
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  options: ClientOptions = {},
+): BetterClient<M, F, E, C, P> {
   const supabase = clientFor(options);
   let snapshot: AuthSnapshot = LOADING;
   let db: Db<M, F, E, SupabaseClient> | undefined;
@@ -164,14 +164,14 @@ export function createBrowser<
     for (const listener of listeners) listener();
   });
 
-  const browser: BetterBrowser<M, F, E, C, P> = {
-    sb: sb,
+  const client: BetterClient<M, F, E, C, P> = {
+    betterSupabase,
     supabase,
     get db() {
-      db ??= sb.connect(supabase, contextOf(snapshot));
+      db ??= betterSupabase.connect(supabase, contextOf(snapshot));
       return db;
     },
-    queries: createQueries(sb, () => browser.db),
+    queries: createQueries(betterSupabase, () => client.db),
     auth: {
       current: () => snapshot,
       subscribe: (listener) => {
@@ -182,5 +182,5 @@ export function createBrowser<
       },
     },
   };
-  return browser;
+  return client;
 }

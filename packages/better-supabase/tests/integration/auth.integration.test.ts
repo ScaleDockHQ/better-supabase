@@ -14,7 +14,7 @@ import {
   type CookieRecord,
   writeSession,
 } from "../../src/auth/session.ts";
-import { createBrowser } from "../../src/client/index.ts";
+import { createClient as createBetterClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
@@ -169,8 +169,8 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("binds repositories to the caller through createServer", async () => {
-    const sb = defineSupabase(schema).use(tenant());
-    const server = createServer(sb, { env, postgres });
+    const betterSupabase = defineSupabase(schema).use(tenant());
+    const server = createServer(betterSupabase, { env, postgres });
     const cookies = await signInCookies();
     const ctx = await server.context(toRequest(cookies));
     expect(ctx.auth.kind).toBe("user");
@@ -196,8 +196,8 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("records the impersonating admin in the audit log", async () => {
-    const sb = defineSupabase(schema).use(tenant());
-    const server = createServer(sb, { env, postgres });
+    const betterSupabase = defineSupabase(schema).use(tenant());
+    const server = createServer(betterSupabase, { env, postgres });
     const admin = crypto.randomUUID();
     await postgres.admin.queryRaw(SQL_MODULES["audit"]!.sql);
     await postgres.admin.queryRaw(
@@ -250,8 +250,8 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("follows the session in the browser client", async () => {
-    const sb = defineSupabase(schema).use(tenant());
-    const browser = createBrowser(sb, {
+    const betterSupabase = defineSupabase(schema).use(tenant());
+    const browser = createBetterClient(betterSupabase, {
       client: createClient(url, publishableKey, {
         auth: { persistSession: false },
       }),
@@ -286,7 +286,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("plugs into @supabase/server pipelines as ctx.db and ctx.sql", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const { data: signIn } = await createClient(url, publishableKey, {
       auth: { persistSession: false },
     }).auth.signInWithPassword({ email, password });
@@ -299,9 +299,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const handler = pipeline(
       [
         withSupabase({ auth: "user", env: serverEnv }),
-        withBetterSupabase(sb)(),
+        withBetterSupabase(betterSupabase)(),
         withPostgresClient({ connectionString: dbUrl }),
-        withBetterPostgres(sb)(),
+        withBetterPostgres(betterSupabase)(),
       ],
       async (_req, ctx) => {
         const rest = await ctx.db.customers.count().orThrow();

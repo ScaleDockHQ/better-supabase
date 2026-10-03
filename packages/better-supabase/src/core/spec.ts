@@ -50,7 +50,7 @@ const READ_METHODS: readonly ReadMethod[] = [
 declare const resultType: unique symbol;
 
 /**
- * A read, described as plain JSON: build it with `sb.spec`, run it with
+ * A read, described as plain JSON: build it with `betterSupabase.spec`, run it with
  * `db.$run(spec)`, send it from a Server Component to the client, or hand it
  * to `/query` and `/next`. Args never carry a `signal`.
  */

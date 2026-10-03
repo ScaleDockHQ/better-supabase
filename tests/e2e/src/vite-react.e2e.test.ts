@@ -1,13 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { QueryClient } from "@tanstack/react-query";
-import { createBrowser } from "better-supabase/client";
+import { createClient as createBetterClient } from "better-supabase/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   createCustomer,
   customerList,
 } from "@better-supabase/example-vite-react/queries";
-import { sb } from "@better-supabase/example-vite-react/supabase";
+import { betterSupabase } from "@better-supabase/example-vite-react/supabase";
 
 import {
   ACME,
@@ -31,22 +31,22 @@ describe.skipIf(!(await reachable()))("vite-react example", () => {
   });
 
   it("signs in, creates through a mutation and refetches the list", async () => {
-    const browser = createBrowser(sb, {
+    const bs = createBetterClient(betterSupabase, {
       client: createClient(stack.url, stack.publishableKey, {
         auth: { persistSession: false },
       }),
     });
-    await browser.supabase.auth.signInWithPassword({
+    await bs.supabase.auth.signInWithPassword({
       email: acme.email,
       password: acme.password,
     });
     await vi.waitFor(() => {
-      expect(browser.auth.current().status).toBe("signed-in");
+      expect(bs.auth.current().status).toBe("signed-in");
     });
 
     const queryClient = new QueryClient();
     const name = `Vite e2e ${crypto.randomUUID()}`;
-    const mutation = createCustomer(browser.queries);
+    const mutation = createCustomer(bs.queries);
     const created = await mutation.mutationFn({ name, organizationId: ACME });
     rows.track(created.id);
     await mutation.onSuccess(
@@ -56,8 +56,8 @@ describe.skipIf(!(await reachable()))("vite-react example", () => {
       { client: queryClient },
     );
 
-    const list = await queryClient.query(customerList(browser.queries, name));
+    const list = await queryClient.query(customerList(bs.queries, name));
     expect(list).toEqual([{ id: created.id, name, status: "lead" }]);
-    await browser.supabase.auth.signOut();
+    await bs.supabase.auth.signOut();
   });
 });

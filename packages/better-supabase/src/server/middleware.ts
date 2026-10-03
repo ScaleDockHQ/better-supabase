@@ -61,7 +61,7 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
  * `ctx.supabase` (the caller-scoped client from `withSupabase`).
  *
  * ```ts
- * pipeline([withSupabase({ auth: 'user' }), withBetterSupabase(sb)()], (req, ctx) => ...)
+ * pipeline([withSupabase({ auth: 'user' }), withBetterSupabase(betterSupabase)()], (req, ctx) => ...)
  * ```
  */
 export function withBetterSupabase<
@@ -70,7 +70,7 @@ export function withBetterSupabase<
   F extends AnyFunctions,
   E,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
 ): Middleware<
   "db",
   void,
@@ -86,7 +86,7 @@ export function withBetterSupabase<
         ctx: SupabaseAuthContext & { readonly supabase: SupabaseClient },
       ) =>
         Promise.resolve({
-          db: sb.connect(ctx.supabase, contextFromSupabase(ctx)),
+          db: betterSupabase.connect(ctx.supabase, contextFromSupabase(ctx)),
         }),
   });
 }
@@ -101,7 +101,7 @@ export function withBetterPostgres<
   F extends AnyFunctions,
   E,
 >(
-  sb: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E>,
 ): Middleware<
   "sql",
   void,
@@ -117,7 +117,7 @@ export function withBetterPostgres<
         ctx: SupabaseAuthContext & { readonly postgres: PostgresApi },
       ) =>
         Promise.resolve({
-          sql: sb.connect(
+          sql: betterSupabase.connect(
             postgresExecutor(ctx.postgres),
             contextFromSupabase(ctx),
           ),

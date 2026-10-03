@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import { type BetterEnv, createHono } from "../../src/hono/index.ts";
+import { type HonoEnv, createHono } from "../../src/hono/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import {
   type Functions,
@@ -22,13 +22,13 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("createHono", () => {
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
   const refresh = vi.fn<typeof fetch>();
-  const bs = createHono(sb, {
+  const bs = createHono(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never, fetch: refresh },
   });
-  type Env = BetterEnv<Models, Functions, unknown>;
+  type Env = HonoEnv<Models, Functions, unknown>;
 
   const app = new Hono<Env>()
     .onError(bs.onError)
@@ -37,17 +37,17 @@ describe("createHono", () => {
     .get("/public/who", (c) => c.json({ kind: c.var.auth.kind }))
     .get(
       "/api/me",
-      bs.handle((_c, ctx) =>
+      bs.handler((_c, ctx) =>
         ok({ id: ctx.auth.kind === "user" ? ctx.auth.user.id : null }),
       ),
     )
     .get(
       "/api/conflict",
-      bs.handle(() => err(dbError("conflict", "Taken"))),
+      bs.handler(() => err(dbError("conflict", "Taken"))),
     )
     .get(
       "/api/empty",
-      bs.handle(() => undefined),
+      bs.handler(() => undefined),
     )
     .get("/api/thrown", () => {
       throw new DbException(dbError("not_found", "Gone"));

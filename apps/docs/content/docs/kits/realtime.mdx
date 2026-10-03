@@ -98,7 +98,7 @@ for any topic policy that calls a helper for one.
 `realtime.broadcast_changes`. Placeholders map to columns by their app names:
 
 ```ts
-customersTopic.triggerSql(sb, "customers", {
+customersTopic.triggerSql(betterSupabase, "customers", {
   values: { orgId: "organizationId" },
 });
 ```
@@ -111,7 +111,7 @@ On the client, `rowChange` turns a message into an app-cased change, or `null`
 for other tables:
 
 ```ts
-const change = rowChange(sb, "customers", message);
+const change = rowChange(betterSupabase, "customers", message);
 // { operation: 'UPDATE', table: 'customers', record: Customer | null, oldRecord: Partial<Customer> | null }
 ```
 

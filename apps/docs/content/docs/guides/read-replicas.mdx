@@ -14,8 +14,8 @@ SUPABASE_READ_URL=https://abc-rr-eu-west-1-xyz.supabase.co
 
 Or pass it in code, where `readUrl: false` turns an env value off:
 
-```ts title="lib/supabase.server.ts"
-export const next = createNext(sb, {
+```ts title="lib/supabase/server.ts"
+export const bs = createNext(betterSupabase, {
   readUrl: process.env.REPLICA_URL,
   replicas: { pinMs: 5000 },
 });
@@ -44,7 +44,7 @@ sets an `HttpOnly` cookie `bs-primary-until` that holds a timestamp
 `replicas.pinMs` (5 s by default) ahead. Every request with that cookie reads
 from the primary until then, so the page you redirect to shows the new data.
 
-Writes through `db.$client` or `db.$sql` bypass the router. Pin by hand after
+Writes through `db.$client` or `ctx.sql` bypass the router. Pin by hand after
 them:
 
 ```ts
@@ -56,9 +56,9 @@ ctx.replica?.pin();
 
 ## Other adapters
 
-`server.context(request)` reads the cookie for every adapter, so Hono, oRPC
-and edge functions honor a pin set by Next.js. Only `next.action` and
-`next.route` set it. Elsewhere, set it yourself when `ctx.replica?.wrote` is
+`bs.context(request)` reads the cookie for every adapter, so Hono, oRPC
+and edge functions honor a pin set by Next.js. Only `bs.action` and
+`bs.route` set it. Elsewhere, set it yourself when `ctx.replica?.wrote` is
 true:
 
 ```ts

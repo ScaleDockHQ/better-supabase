@@ -80,12 +80,12 @@ describe("local ES256 signing", () => {
 });
 
 describe("asUser", () => {
-  const sb = defineSupabase(schema);
+  const betterSupabase = defineSupabase(schema);
 
   it("signs ES256 by default", async () => {
     const key = await signingKey();
     const user = await asUser(
-      sb,
+      betterSupabase,
       { sub: USER },
       { publishableKey: "sb_publishable_test", signingKey: key },
     );
@@ -96,7 +96,7 @@ describe("asUser", () => {
   it("refuses HS256 for a hosted project", async () => {
     await expect(
       asUser(
-        sb,
+        betterSupabase,
         { sub: USER },
         {
           url: "https://abcdefghijklmnopqrst.supabase.co",

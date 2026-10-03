@@ -85,18 +85,26 @@ export interface ToolContext<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> extends ServerContext<M, F, E> {
+  C = unknown,
+  P = unknown,
+> extends ServerContext<M, F, E, C, P> {
   readonly request: Request;
   readonly signal: AbortSignal;
 }
 
-export interface McpTool<M extends AnyModels, F extends AnyFunctions, E> {
+export interface McpTool<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> {
   readonly info: ToolInfo;
   /** Validates arguments; its output is what `run` receives. */
   readonly input?: StandardSchemaV1;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
-  run(args: never, ctx: ToolContext<M, F, E>): unknown;
+  run(args: never, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
 /** What the `authorize` and `visible` hooks see of a tool. */
@@ -121,6 +129,8 @@ export interface ToolDefinition<
   F extends AnyFunctions,
   E,
   I,
+  C = unknown,
+  P = unknown,
 > {
   readonly name: string;
   readonly title?: string;
@@ -135,14 +145,20 @@ export interface ToolDefinition<
   readonly annotations?: ToolAnnotations;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
-  run(args: I, ctx: ToolContext<M, F, E>): unknown;
+  run(args: I, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
 export type ToolResources<M extends AnyModels> = {
   readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
 };
 
-export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
+export interface McpOptions<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+>
   extends ServerOptions, GuardOptions {
   readonly name: string;
   readonly version: string;
@@ -151,7 +167,7 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
   readonly instructions?: string;
   /** Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`, `_delete`. */
   readonly resources?: ToolResources<M>;
-  readonly tools?: readonly McpTool<M, F, E>[];
+  readonly tools?: readonly McpTool<M, F, E, C, P>[];
   /**
    * Canonical URL of this MCP server (RFC 9728 `resource`). Defaults to the
    * request URL without query.
@@ -185,7 +201,7 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
    * `scopes` is a 403 `insufficient_scope` challenge naming them.
    */
   readonly authorize?: (
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
     tool: ToolRef,
     args: unknown,
   ) => ToolDecision | Promise<ToolDecision>;
@@ -194,7 +210,7 @@ export interface McpOptions<M extends AnyModels, F extends AnyFunctions, E>
    * like an unknown one. Lists are cached per token (`cacheScope: 'private'`).
    */
   readonly visible?: (
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
     tool: ToolRef,
   ) => boolean | Promise<boolean>;
 }
@@ -203,23 +219,25 @@ export interface BetterMcp<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> extends BetterServer<M, F, E> {
+  C = unknown,
+  P = unknown,
+> extends BetterServer<M, F, E, C, P> {
   /** Everything in one handler: the MCP endpoint and `/.well-known/oauth-protected-resource`. */
   readonly fetch: (request: Request) => Promise<Response>;
   /** The Streamable HTTP endpoint (POST JSON-RPC). */
-  readonly handler: (request: Request) => Promise<Response>;
+  readonly endpoint: (request: Request) => Promise<Response>;
   /** RFC 9728 protected resource metadata. */
   metadata(request: Request): Response;
   readonly tools: readonly ToolInfo[];
   /** Adds a tool typed against this app's repositories. */
   tool<I = Record<string, unknown>>(
-    definition: ToolDefinition<M, F, E, I>,
+    definition: ToolDefinition<M, F, E, I, C, P>,
   ): this;
   /** Calls a tool directly, e.g. from tests or another transport. */
   call(
     name: string,
     args: unknown,
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
   ): Promise<ToolResult>;
 }
 
@@ -235,7 +253,9 @@ export function defineTool<
   F extends AnyFunctions,
   E,
   I = Record<string, unknown>,
->(definition: ToolDefinition<M, F, E, I>): McpTool<M, F, E> {
+  C = unknown,
+  P = unknown,
+>(definition: ToolDefinition<M, F, E, I, C, P>): McpTool<M, F, E, C, P> {
   if (!/^[A-Za-z0-9_.-]{1,64}$/.test(definition.name)) {
     throw new TypeError(
       `Invalid tool name "${definition.name}": use 1-64 letters, digits, "_", "-" or "."`,
@@ -503,15 +523,22 @@ function canonical(request: Request): string {
  * through RLS. Answers 401 with RFC 9728 metadata so clients can sign in with
  * Supabase Auth's OAuth server.
  */
-export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
-  options: McpOptions<M, F, E>,
-): BetterMcp<M, F, E> {
-  const server = createServer(sb, options);
+export function createMcp<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  options: McpOptions<M, F, E, C, P>,
+): BetterMcp<M, F, E, C, P> {
+  const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   // SAFETY: buildJsonSchema always writes a $defs map of JSON Schemas.
   const defs = buildJsonSchema({
-    meta: sb.meta,
+    meta: betterSupabase.meta,
     config: { json: options.json ?? {} },
   })["$defs"] as Record<string, Json>;
 
@@ -522,7 +549,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   }
   type Invocation = ToolResult | Refusal;
   interface Entry extends ToolRef {
-    call(args: unknown, ctx: ToolContext<M, F, E>): Promise<Invocation>;
+    call(args: unknown, ctx: ToolContext<M, F, E, C, P>): Promise<Invocation>;
   }
   const registry = new Map<string, Entry>();
   const register = (entry: Entry): void => {
@@ -536,7 +563,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   const refused = async (
     tool: ToolRef,
     args: unknown,
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
   ): Promise<Refusal | undefined> => {
     if (!options.authorize) return undefined;
     const decision = await options.authorize(ctx, tool, args);
@@ -548,7 +575,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   };
   const isVisible = async (
     tool: ToolRef,
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
   ): Promise<boolean> => !options.visible || options.visible(ctx, tool);
 
   for (const [table, raw] of Object.entries(options.resources ?? {})) {
@@ -556,7 +583,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     // SAFETY: options.resources is keyed by table names of M, and
     // Object.entries widens the keys.
     const resource = defineResource(
-      sb,
+      betterSupabase,
       table as TableKey<M>,
       raw === true ? {} : (raw as ResourceRouteOptions<M, TableKey<M>>),
     );
@@ -585,7 +612,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     }
   }
 
-  const addTool = (tool: McpTool<M, F, E>): void => {
+  const addTool = (tool: McpTool<M, F, E, C, P>): void => {
     const ref: ToolRef = { info: tool.info, meta: tool.meta };
     register({
       ...ref,
@@ -610,7 +637,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   const listTools = (): ToolInfo[] =>
     [...registry.values()].map((entry) => entry.info);
   const visibleTools = async (
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
   ): Promise<ToolInfo[]> => {
     const entries = [...registry.values()];
     const shown = await Promise.all(
@@ -637,7 +664,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
   const invoke = async (
     name: string,
     args: unknown,
-    ctx: ToolContext<M, F, E>,
+    ctx: ToolContext<M, F, E, C, P>,
     checkVisible = true,
   ): Promise<Invocation> => {
     const entry = registry.get(name);
@@ -656,7 +683,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     }
   };
   const isRefusal = (value: Invocation): value is Refusal => "refusal" in value;
-  const call: BetterMcp<M, F, E>["call"] = async (name, args, ctx) => {
+  const call: BetterMcp<M, F, E, C, P>["call"] = async (name, args, ctx) => {
     const outcome = await invoke(name, args, ctx);
     return isRefusal(outcome)
       ? failure(dbError("forbidden", outcome.refusal))
@@ -754,7 +781,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
     return undefined;
   };
 
-  const handler = async (request: Request): Promise<Response> => {
+  const endpoint = async (request: Request): Promise<Response> => {
     const origin = request.headers.get("origin");
     if (
       origin &&
@@ -805,7 +832,7 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       if (invalid) return invalid;
     }
     if (message.id === undefined) return new Response(null, { status: 202 });
-    const toolContext = (): ToolContext<M, F, E> =>
+    const toolContext = (): ToolContext<M, F, E, C, P> =>
       withExtra(ctx, { request, signal: request.signal });
 
     const reply = (result: object): Response =>
@@ -908,34 +935,37 @@ export function createMcp<M extends AnyModels, D, F extends AnyFunctions, E>(
       { headers: { "access-control-allow-origin": "*" } },
     );
 
-  const mcp: BetterMcp<M, F, E> = extendServer<BetterMcp<M, F, E>>(server, {
-    get tools() {
-      return listTools();
+  const mcp: BetterMcp<M, F, E, C, P> = extendServer<BetterMcp<M, F, E, C, P>>(
+    server,
+    {
+      get tools() {
+        return listTools();
+      },
+      tool(definition) {
+        addTool(defineTool(definition));
+        return mcp;
+      },
+      call,
+      endpoint,
+      metadata,
+      fetch(request) {
+        const { pathname } = new URL(request.url);
+        if (pathname.startsWith(WELL_KNOWN)) {
+          return Promise.resolve(
+            request.method === "OPTIONS"
+              ? new Response(null, {
+                  status: 204,
+                  headers: {
+                    "access-control-allow-origin": "*",
+                    "access-control-allow-methods": "GET",
+                  },
+                })
+              : metadata(request),
+          );
+        }
+        return endpoint(request);
+      },
     },
-    tool(definition) {
-      addTool(defineTool(definition));
-      return mcp;
-    },
-    call,
-    handler,
-    metadata,
-    fetch(request) {
-      const { pathname } = new URL(request.url);
-      if (pathname.startsWith(WELL_KNOWN)) {
-        return Promise.resolve(
-          request.method === "OPTIONS"
-            ? new Response(null, {
-                status: 204,
-                headers: {
-                  "access-control-allow-origin": "*",
-                  "access-control-allow-methods": "GET",
-                },
-              })
-            : metadata(request),
-        );
-      }
-      return handler(request);
-    },
-  });
+  );
   return mcp;
 }

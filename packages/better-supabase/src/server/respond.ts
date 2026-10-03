@@ -24,6 +24,15 @@ export interface GuardOptions {
   readonly scopes?: readonly string[];
 }
 
+/** Guard options for middleware and fetch handlers that resolve the caller themselves. */
+export interface MiddlewareOptions extends GuardOptions {
+  /**
+   * Refresh an expired cookie session and send the new cookies. Only for
+   * routes browsers call with cookies; bearer tokens never refresh.
+   */
+  readonly refresh?: boolean;
+}
+
 /** The scopes a delegated user token lacks; empty for the user's own session. */
 function missingScopes(
   auth: Extract<AuthState, { kind: "user" }>,

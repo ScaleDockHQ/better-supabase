@@ -1,5 +1,5 @@
 import "server-only";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 /**
  * The latest embedded note and the notes nearest to it. `db.$search` calls
@@ -10,7 +10,7 @@ import { next } from "@/lib/supabase.server";
  */
 export async function getSimilarNotes() {
   "use cache: private";
-  const { db } = await next.cached();
+  const { db } = await bs.cached();
   const source = await db.notes
     .findFirst({
       select: ["id", "body", "embedding"],

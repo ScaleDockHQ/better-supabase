@@ -11,7 +11,10 @@ adds `ctx.db` there too, without a separate integration:
 import { withSupabase } from "@supabase/server";
 import { withBetterSupabase } from "better-supabase/server";
 
-const middleware = [withSupabase({ auth: "user" }), withBetterSupabase(sb)()];
+const middleware = [
+  withSupabase({ auth: "user" }),
+  withBetterSupabase(betterSupabase)(),
+];
 ```
 
 Pass `middleware` to the adapter you use (`@supabase/server/adapters/h3`,
@@ -20,9 +23,9 @@ signature.
 
 The pieces are also available without an adapter:
 
-- `createServer(sb).context(request)` gives the caller's `db`, `auth` and
+- `createServer(betterSupabase).context(request)` gives the caller's `db`, `auth` and
   `supabase` in any framework.
 - `problemResponse(error)` sends a `DbError` as Problem Details.
-- `defineResource(sb, table)` from `better-supabase/server` serves the REST
+- `defineResource(betterSupabase, table)` from `better-supabase/server` serves the REST
   resource routes from any router: call
   `resource.handle(request, ctx.db, id)`.

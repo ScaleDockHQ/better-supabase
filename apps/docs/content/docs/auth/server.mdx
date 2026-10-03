@@ -3,16 +3,16 @@ title: createServer
 description: Repositories bound to the caller, plus explicit admin and acting-as identities.
 ---
 
-`sb` from `defineSupabase` is isomorphic and holds no secrets.
-`createServer(sb)` is its server half: it loads the env, resolves callers and
+`betterSupabase` from `defineSupabase` is isomorphic and holds no secrets.
+`createServer(betterSupabase)` is its server half: it loads the env, resolves callers and
 hands out repositories bound to an identity.
 
-```ts title="src/lib/supabase.server.ts"
+```ts title="src/lib/supabase/server.ts"
 import { createServer } from "better-supabase/server";
 import { createPostgres } from "better-supabase/postgres";
-import { sb } from "./supabase";
+import { betterSupabase } from "./index";
 
-export const server = createServer(sb, {
+export const bs = createServer(betterSupabase, {
   postgres: createPostgres(), // optional: enables ctx.sql and actingAs()
 });
 ```
@@ -20,7 +20,7 @@ export const server = createServer(sb, {
 ## Per request
 
 ```ts
-const ctx = await server.context(request);
+const ctx = await bs.context(request);
 
 ctx.auth; // the resolved AuthState
 ctx.db; // repositories over PostgREST as the caller (RLS applies)
@@ -39,10 +39,10 @@ token, so it makes no auth calls and keeps no state between requests.
 
 ```ts
 // Service role: bypasses RLS. The actor is `service`, so audit columns say so.
-await server.admin().customers.count();
+await bs.admin().customers.count();
 
 // A user, with RLS, without their token: jobs, webhooks, support tooling.
-await server.actingAs(userId, { tenant_id: orgId }).customers.findMany();
+await bs.actingAs(userId, { tenant_id: orgId }).customers.findMany();
 ```
 
 `actingAs` runs over direct Postgres with the user's claims set for the
@@ -60,7 +60,7 @@ have, for example one resolved in a proxy.
 tracing, rate limits or log fields:
 
 ```ts
-export const server = createServer(sb, {
+export const bs = createServer(betterSupabase, {
   headers: (request) => ({
     "x-channel": "web",
     "x-request-id": request.headers.get("x-request-id") ?? crypto.randomUUID(),
@@ -75,7 +75,7 @@ of key names to accept only some of the keys in `SUPABASE_SECRET_KEYS`:
 
 ```ts
 // SUPABASE_SECRET_KEYS={"default":"sb_secret_…","cron":"sb_secret_…"}
-export const server = createServer(sb, { auth: { secret: ["cron"] } });
+export const bs = createServer(betterSupabase, { auth: { secret: ["cron"] } });
 // ctx.auth is { kind: 'service', keyName: 'cron' }; guard with allow: ['service']
 ```
 

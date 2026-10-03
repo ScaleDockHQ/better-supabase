@@ -22,6 +22,7 @@ export type {
 } from "./create.ts";
 export { REQUEST_ID_HEADER, type DbBudget } from "./collector.ts";
 export type { DbStats } from "../core/stats.ts";
+export type { LiveCountSeed } from "../realtime/live.ts";
 export type { AuthKind, GuardOptions } from "../server/respond.ts";
 export type { AuthSession } from "../auth/view.ts";
 export type { Aal, AmrEntry } from "../auth/mfa.ts";

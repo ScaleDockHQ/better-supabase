@@ -40,15 +40,18 @@ describe.skipIf(!live)("Postgres executor", async () => {
   afterAll(() => postgres.end());
 
   const claims = { sub: USER, role: "authenticated", tenant_id: ACME };
-  const sb = defineSupabase(schema).use(softDelete()).use(tenant());
-  const rest = sb.connect(
+  const betterSupabase = defineSupabase(schema).use(softDelete()).use(tenant());
+  const rest = betterSupabase.connect(
     createClient(url, publishableKey, {
       accessToken: () => signLocalJwt(claims),
     }),
     { claims },
   );
-  const sql = sb.connect(postgresExecutor(postgres.asUser(claims)), { claims });
-  const customerList = defineListQuery(sb, "customers", {
+  const sql = betterSupabase.connect(
+    postgresExecutor(postgres.asUser(claims)),
+    { claims },
+  );
+  const customerList = defineListQuery(betterSupabase, "customers", {
     search: ["name", "kvk"],
     facets: { status: "status", kvk: "kvk" },
     sorts: { name: [{ name: "asc" }, { id: "asc" }] },
@@ -309,7 +312,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
   }
 
   it("hides other tenants through RLS", async () => {
-    const other = sb.connect(
+    const other = betterSupabase.connect(
       postgresExecutor(
         postgres.asUser({
           sub: USER,
@@ -377,7 +380,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     await expect(
       postgres.transaction(
         async (tx) => {
-          const db = sb.connect(postgresExecutor(tx), { claims });
+          const db = betterSupabase.connect(postgresExecutor(tx), { claims });
           expect(
             await db.tags
               .createMany(rows as never, { returning: false })
@@ -402,7 +405,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     await expect(
       postgres.transaction(
         async (tx) => {
-          const db = sb.connect(postgresExecutor(tx), { claims });
+          const db = betterSupabase.connect(postgresExecutor(tx), { claims });
           await db.tags
             .create({ name: "tx-tag" } as never, { returning: false })
             .orThrow();

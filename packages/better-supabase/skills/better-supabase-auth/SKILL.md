@@ -7,13 +7,13 @@ description: Read and check the caller in better-supabase apps, including sessio
 
 Every adapter resolves the caller once. It verifies the access token locally
 against the project's JWKS, so a valid token costs no network call, and only
-the Next.js proxy (`next.proxy`) refreshes sessions. Don't call
+the Next.js proxy (`bs.proxy`) refreshes sessions. Don't call
 `supabase.auth.getUser()` per request, and don't read cookies yourself.
 
 ## Workflow: read the caller
 
 1. Take `auth` from the handler context (`ctx.auth`, `c.var.auth`,
-   `context.auth`), or a token-free `AuthSession` from `await next.session()`
+   `context.auth`), or a token-free `AuthSession` from `await bs.session()`
    or `toSession(ctx.auth)`.
 2. Branch on `kind` with an exhaustive `switch` that ends in a `never` check:
 
@@ -43,11 +43,11 @@ path treats `invalid` as `anon`.
 ## Workflow: type the claims
 
 1. Describe the claims your access token hook adds with any Standard Schema
-   and pass it to `sb.claims(schema)`. Use a loose object (`v.looseObject`,
+   and pass it to `betterSupabase.claims(schema)`. Use a loose object (`v.looseObject`,
    `z.looseObject`) so claims the schema doesn't list stay on the session.
    Make anything the hook doesn't always set optional or give it a default.
 2. For display data users edit themselves (name, avatar), use
-   `sb.userMetadata(schema)` and read `session.profile`.
+   `betterSupabase.userMetadata(schema)` and read `session.profile`.
 3. Read roles, memberships, the tenant and entitlements from the verified
    claims only. Never from `user_metadata`, `session.profile`, a URL or a
    request body.
@@ -68,7 +68,7 @@ names who acts for the user:
 | `act: { sub: "agent", act: { sub: "mcp-42" } }` | `{ id: "agent", chain, ... }`        | `{ scopes, chain }`  |
 
 - Limit what delegated tokens may do with the `scopes` guard option on
-  `next.route`, `next.action`, `bs.handler` and `bs.middleware`. A missing
+  `bs.route`, `bs.action`, `bs.handler` and `bs.middleware`. A missing
   scope answers 403 with an `insufficient_scope` challenge. The user's own
   token is never limited by scopes.
 - In MCP servers, refuse calls in `authorize` by reading
@@ -109,16 +109,16 @@ membership lasts until the next refresh. When that window matters:
 - After a change the user made themselves (joining an organization), call
   `supabase.auth.refreshSession()` in the browser.
 - In Next.js, drop the user's cached views with
-  `next.invalidateSession(userId, { tags })`.
+  `bs.invalidateSession(userId, { tags })`.
 
 ## Next.js caching
 
-- Per-user data goes through `next.cached()` inside your own
+- Per-user data goes through `bs.cached()` inside your own
   `'use cache: private'` function. It tags the entry `bs:session:<user id>`
   and caps its lifetime at the token's.
-- `next.cached({ tags, life: { stale } })` adds tags and caps the stale time
+- `bs.cached({ tags, life: { stale } })` adds tags and caps the stale time
   further, for example for a PermDock snapshot.
-- Keep layouts synchronous: pass the `next.session()` promise to
+- Keep layouts synchronous: pass the `bs.session()` promise to
   `<SessionProvider>` and read it with `useSession()`.
 
 ## PermDock
@@ -132,7 +132,7 @@ claims, tenant or entitlements.
 
 - Don't refresh sessions outside the proxy, and don't verify tokens by
   calling the Auth server.
-- Don't use `server.admin()` or the service role for a user's request.
+- Don't use `bs.admin()` or the service role for a user's request.
 - Don't downgrade an `invalid` caller to `anon`.
 - Don't build 401 or 403 JSON by hand; return the `DbError` or use `allow`
   and `scopes`.

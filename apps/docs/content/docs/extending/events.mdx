@@ -1,17 +1,17 @@
 ---
 title: Events
-description: Observe queries, mutations, errors, auth and refreshes with sb.on.
+description: Observe queries, mutations, errors, auth and refreshes with betterSupabase.on.
 ---
 
 ```ts
-const off = sb.on("mutation", ({ table, kind, rows, context }) => {
+const off = betterSupabase.on("mutation", ({ table, kind, rows, context }) => {
   metrics.increment(`db.${table}.${kind}`, rows.length);
 });
 
 off();
 ```
 
-`sb.on` returns a function that unsubscribes. Handlers are observers: they
+`betterSupabase.on` returns a function that unsubscribes. Handlers are observers: they
 can't change a result, and an error they throw goes to the
 [`Logger`](/docs/extending/interfaces#logger) instead of the caller.
 
@@ -28,5 +28,5 @@ primary key, so row-level cache tags and `row.deleted` CloudEvents work for
 deletes too.
 
 Listeners are per runtime: register them once, next to `defineSupabase`, not
-per request. Cache invalidation (`sb.cache`), CloudEvents
+per request. Cache invalidation (`betterSupabase.cache`), CloudEvents
 (`forwardMutations`) and OpenTelemetry metrics are built on these events.

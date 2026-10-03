@@ -1,11 +1,11 @@
 import "server-only";
 import { logos } from "@/lib/buckets";
 import { customerList } from "@/lib/lists";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 /**
  * The first page of the caller's customers plus the count per status.
- * `next.cached()` queries with the user's token, so RLS decides the rows;
+ * `bs.cached()` queries with the user's token, so RLS decides the rows;
  * the private cache keeps them in this browser only, for as long as the
  * session view may be reused. The page doesn't read `searchParams`, so it
  * stays in the instant App Shell; filtered pages go through
@@ -13,7 +13,7 @@ import { next } from "@/lib/supabase.server";
  */
 export async function getCustomers() {
   "use cache: private";
-  const { db, supabase } = await next.cached();
+  const { db, supabase } = await bs.cached();
   const page = await customerList
     .run(db, customerList.defaults, {
       select: ["id", "name", "status", "logoPath"],

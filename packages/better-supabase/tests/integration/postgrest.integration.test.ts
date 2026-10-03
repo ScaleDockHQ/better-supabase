@@ -40,8 +40,8 @@ async function reachable(): Promise<boolean> {
 }
 
 const live = await reachable();
-const sb = defineSupabase(schema);
-const admin = sb.connect(
+const betterSupabase = defineSupabase(schema);
+const admin = betterSupabase.connect(
   createClient(url, secretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   }),
@@ -52,7 +52,7 @@ async function asOrgMember(orgId: string) {
     sub: "00000000-0000-4000-8000-0000000000ff",
     tenant_id: orgId,
   });
-  return sb.connect(
+  return betterSupabase.connect(
     createClient(url, publishableKey, {
       accessToken: async () => token,
     }),
@@ -291,7 +291,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       sub: "00000000-0000-4000-8000-0000000000ff",
       tenant_id: ACME,
     });
-    const user = sb
+    const user = betterSupabase
       .use(timestamps())
       .use(softDelete())
       .use(tenant())
@@ -352,7 +352,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
   });
 
   it("lists with facet counts in two calls and one wave under RLS", async () => {
-    const list = defineListQuery(sb, "customers", {
+    const list = defineListQuery(betterSupabase, "customers", {
       facets: { status: "status" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -379,9 +379,12 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const acme = await asOrgMember(ACME);
     const globex = await asOrgMember(GLOBEX);
     const specs = [
-      sb.spec.customers.findMany({ select: ["id"], orderBy: { name: "asc" } }),
-      sb.spec.notes.count(),
-      sb.spec.customers.exists({ where: { id: INITECH } }),
+      betterSupabase.spec.customers.findMany({
+        select: ["id"],
+        orderBy: { name: "asc" },
+      }),
+      betterSupabase.spec.notes.count(),
+      betterSupabase.spec.customers.exists({ where: { id: INITECH } }),
     ] as const;
     const [customers, notes, initech] = await acme.$many(specs).orThrow();
     expect(customers.map((row) => row.id).sort()).toEqual(

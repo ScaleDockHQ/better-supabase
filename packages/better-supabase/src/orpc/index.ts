@@ -20,12 +20,12 @@ import { type ProblemDetails, toProblem } from "../core/problem.ts";
 import {
   defaultExpose,
   guard,
-  type GuardOptions,
+  type MiddlewareOptions,
   settle,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
-export type { GuardOptions } from "../server/respond.ts";
+export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 
 /** Initial context: pass `{ context: { request } }` to the oRPC handler. */
 export interface OrpcRequestContext {
@@ -33,10 +33,16 @@ export interface OrpcRequestContext {
 }
 
 /** What `middleware()` adds to `context`. */
-export interface OrpcContext<M extends AnyModels, F extends AnyFunctions, E> {
-  readonly bs: ServerContext<M, F, E>;
-  readonly db: ServerContext<M, F, E>["db"];
-  readonly auth: AuthState;
+export interface OrpcContext<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> {
+  readonly bs: ServerContext<M, F, E, C, P>;
+  readonly db: ServerContext<M, F, E, C, P>["db"];
+  readonly auth: AuthState<C, P>;
 }
 
 export interface OrpcOptions extends ServerOptions {
@@ -44,18 +50,15 @@ export interface OrpcOptions extends ServerOptions {
   readonly exposeErrors?: boolean;
 }
 
-export interface MiddlewareOptions extends GuardOptions {
-  /** Refresh an expired cookie session. Pair with `ctx.bs.resolution.apply` in the handler adapter. */
-  readonly refresh?: boolean;
-}
-
 export type OrpcMiddleware<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
+  C = unknown,
+  P = unknown,
 > = DecoratedMiddleware<
   OrpcRequestContext,
-  OrpcContext<M, F, E>,
+  OrpcContext<M, F, E, C, P>,
   unknown,
   unknown,
   Record<never, never>
@@ -65,18 +68,21 @@ export interface BetterOrpc<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> extends BetterServer<M, F, E> {
+  C = unknown,
+  P = unknown,
+> extends BetterServer<M, F, E, C, P> {
   /**
    * Resolves the caller, enforces `allow` and adds `context.db`, `context.auth`
    * and `context.bs`. Thrown `DbException`s, and errors caused by a
-   * `DbError`, become `ORPCError`s.
+   * `DbError`, become `ORPCError`s. With `refresh`, pair it with
+   * `ctx.bs.resolution.apply` in the handler adapter.
    */
-  middleware(options?: MiddlewareOptions): OrpcMiddleware<M, F, E>;
+  middleware(options?: MiddlewareOptions): OrpcMiddleware<M, F, E, C, P>;
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
   unwrap<T>(value: Result<T> | PromiseLike<Result<T>>): Promise<T>;
   /** Plain values pass through; thrown `DbException`s become `ORPCError`s. */
   unwrap<T>(value: T | PromiseLike<T>): Promise<T>;
-  toORPCError(error: DbError): ORPCError<string, ProblemDetails>;
+  toOrpcError(error: DbError): ORPCError<string, ProblemDetails>;
 }
 
 const CODES = new Map<number, string>(
@@ -95,14 +101,21 @@ export function orpcCode(error: DbError): string {
 }
 
 /** oRPC integration: middleware adding the caller's repositories to `context`. */
-export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
+export function createOrpc<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: OrpcOptions = {},
-): BetterOrpc<M, F, E> {
-  const server = createServer(sb, options);
+): BetterOrpc<M, F, E, C, P> {
+  const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
-  const toORPCError = (error: DbError): ORPCError<string, ProblemDetails> => {
+  const toOrpcError = (error: DbError): ORPCError<string, ProblemDetails> => {
     const problem = toProblem(error, { expose });
     return new ORPCError(orpcCode(error), {
       message: problem.detail ?? problem.title,
@@ -110,8 +123,8 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
     });
   };
 
-  return extendServer<BetterOrpc<M, F, E>>(server, {
-    toORPCError,
+  return extendServer<BetterOrpc<M, F, E, C, P>>(server, {
+    toOrpcError,
 
     middleware(middlewareOptions = {}) {
       return os
@@ -126,14 +139,14 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
             middlewareOptions.aal,
             middlewareOptions.scopes,
           );
-          if (denied) throw toORPCError(denied);
+          if (denied) throw toOrpcError(denied);
           try {
             return await next({
               context: { bs: ctx, db: ctx.db, auth: ctx.auth },
             });
           } catch (cause) {
             const thrown = dbErrorOf(cause);
-            if (thrown) throw toORPCError(thrown);
+            if (thrown) throw toOrpcError(thrown);
             throw cause;
           }
         });
@@ -141,7 +154,7 @@ export function createOrpc<M extends AnyModels, D, F extends AnyFunctions, E>(
 
     async unwrap(value: unknown): Promise<never> {
       const settled = await settle(() => value);
-      if (!settled.ok) throw toORPCError(settled.error);
+      if (!settled.ok) throw toOrpcError(settled.error);
       // SAFETY: unwrap returns the settled data, and callers type it through
       // the procedure output.
       return settled.data as never;

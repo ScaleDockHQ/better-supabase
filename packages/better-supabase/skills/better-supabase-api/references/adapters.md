@@ -1,41 +1,41 @@
 # Adapter setup
 
-Each adapter wraps the same `sb` from `src/lib/supabase.ts`:
+Each adapter wraps the same `betterSupabase` from `src/lib/supabase/index.ts`:
 
-```ts title="src/lib/supabase.ts"
+```ts title="src/lib/supabase/index.ts"
 import { defineSupabase } from "better-supabase";
 
-import { schema } from "./supabase/generated";
+import { schema } from "./generated";
 
-export type { Functions, Models } from "./supabase/generated";
+export type { Functions, Models } from "./generated";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 ```
 
 ## Next.js
 
-```ts title="src/lib/supabase.server.ts"
+```ts title="src/lib/supabase/server.ts"
 import { createNext } from "better-supabase/next";
 
-import { sb } from "./supabase";
+import { betterSupabase } from "./index";
 
-export const next = createNext(sb);
+export const bs = createNext(betterSupabase);
 ```
 
 ```ts title="src/proxy.ts"
 import type { NextRequest } from "next/server";
 
-import { next } from "./lib/supabase.server";
+import { bs } from "./lib/supabase/server";
 
-export const proxy = (request: NextRequest) => next.proxy(request);
+export const proxy = (request: NextRequest) => bs.proxy(request);
 ```
 
 The proxy is the only place that refreshes sessions. Server Components,
 route handlers and actions read the verified token:
 
 ```ts
-const { db } = await next.server();
-export const GET = next.route(
+const { db } = await bs.context();
+export const GET = bs.route(
   (request, { db }) => db.customers.findMany({ limit: 20 }),
   { scopes: ["customers:read"] }, // only limits OAuth clients and agents
 );
@@ -44,14 +44,14 @@ export const GET = next.route(
 ## Hono
 
 ```ts title="src/server.ts"
-import { type BetterEnv, createHono } from "better-supabase/hono";
+import { type HonoEnv, createHono } from "better-supabase/hono";
 import { Hono } from "hono";
 
-import { type Functions, type Models, sb } from "./lib/supabase";
+import { type Functions, type Models, betterSupabase } from "./lib/supabase";
 
-const bs = createHono(sb);
+const bs = createHono(betterSupabase);
 
-const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+const app = new Hono<HonoEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
   .use("/api/*", bs.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }))
@@ -69,9 +69,9 @@ export default app;
 import { os } from "@orpc/server";
 import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
 
-import { sb } from "./lib/supabase";
+import { betterSupabase } from "./lib/supabase";
 
-export const bs = createOrpc(sb);
+export const bs = createOrpc(betterSupabase);
 const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
 
 export const router = {
@@ -86,9 +86,9 @@ export const router = {
 ```ts title="supabase/functions/api/index.ts"
 import { createEdge } from "better-supabase/edge";
 
-import { sb } from "../_shared/supabase.ts";
+import { betterSupabase } from "../_shared/supabase.ts";
 
-const bs = createEdge(sb, { cors: true });
+const bs = createEdge(betterSupabase, { cors: true });
 
 Deno.serve(
   bs.resources({ customers: { select: ["id", "name"] } }, { basePath: "/api" }),
@@ -101,9 +101,9 @@ Deno.serve(
 import { createMcp } from "better-supabase/mcp";
 import { toSession } from "better-supabase/server";
 
-import { sb } from "../_shared/supabase.ts";
+import { betterSupabase } from "../_shared/supabase.ts";
 
-const mcp = createMcp(sb, {
+const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "0.1.0",
   scopes: ["openid", "crm.read"],
@@ -123,7 +123,7 @@ const mcp = createMcp(sb, {
   },
 });
 
-Deno.serve(mcp.fetch);
+Deno.serve(bs.fetch);
 ```
 
 Tools run as the calling user, so RLS applies to every tool call. `scopes`

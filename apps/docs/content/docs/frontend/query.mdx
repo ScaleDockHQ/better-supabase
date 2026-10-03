@@ -3,12 +3,12 @@ title: TanStack Query
 description: Typed query and mutation options for every table.
 ---
 
-`createQueries(sb, db)` gives every table option factories for TanStack
+`createQueries(betterSupabase, db)` gives every table option factories for TanStack
 Query. The payload type of your `select`/`include` flows into `useQuery`,
 `useSuspenseQuery` and `queryClient.getQueryData`.
 
 ```ts
-const q = browser.queries; // or createQueries(sb, () => db)
+const q = bs.queries; // or createQueries(betterSupabase, () => db)
 
 useQuery(
   q.customers.findMany({ select: ["id", "name"], where: { status: "active" } }),
@@ -48,14 +48,17 @@ update.mutate({ id, patch: { status: "active" } });
 
 Mutation options invalidate every query that read a changed table on
 success, including tables changed by cascading deletes. If you pass your own
-`onSuccess`, it replaces that behavior; call `invalidateOnMutation(sb,
+`onSuccess`, it replaces that behavior; call `invalidateOnMutation(betterSupabase,
 queryClient)` once instead to invalidate after every write the client makes.
 It attaches the `queryCache(client)` [cache adapter](/docs/extending/interfaces#cacheadapter).
 
 ## Specs and RPCs
 
 ```ts
-const spec = sb.spec.customers.findMany({ select: ["id", "name"], limit: 20 });
+const spec = betterSupabase.spec.customers.findMany({
+  select: ["id", "name"],
+  limit: 20,
+});
 useQuery(q.$spec(spec));
 
 useQuery(
@@ -66,7 +69,7 @@ const archive = useMutation(q.$rpcMutation("archive_customer"));
 
 `tables` lists what the function reads, so writes to those tables refetch
 it. `$rpcMutation` invalidates the tables declared with
-`sb.defineRpc(name, { invalidates })`.
+`betterSupabase.defineRpc(name, { invalidates })`.
 
 ## Errors
 
@@ -88,8 +91,8 @@ declare module "@tanstack/react-query" {
 The same factories work on the server with the request-scoped `db`:
 
 ```tsx
-const { db } = await next.server();
-const q = createQueries(sb, db);
+const { db } = await bs.context();
+const q = createQueries(betterSupabase, db);
 await queryClient.prefetchQuery(
   q.customers.findMany({ select: ["id", "name"] }),
 );

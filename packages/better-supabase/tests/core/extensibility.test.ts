@@ -34,12 +34,12 @@ function recordingLogger(): Logger & { readonly messages: string[] } {
   return { messages, debug: record, info: record, warn: record, error: record };
 }
 
-describe("sb.cache", () => {
+describe("betterSupabase.cache", () => {
   it("invalidates the table, cascaded tables, row keys and tenant after mutations", async () => {
-    const sb = defineSupabase(schema).use(tenant());
+    const betterSupabase = defineSupabase(schema).use(tenant());
     const cache = memoryCache();
-    const detach = sb.cache(cache);
-    const db = sb.connect(echo(), { tenant: ACME });
+    const detach = betterSupabase.cache(cache);
+    const db = betterSupabase.connect(echo(), { tenant: ACME });
 
     await db.tags
       .create({ id: "t1", name: "a", organizationId: ACME })
@@ -65,19 +65,19 @@ describe("sb.cache", () => {
 
   it("logs adapter failures without failing the mutation", async () => {
     const logger = recordingLogger();
-    const sb = defineSupabase(schema, { logger });
-    sb.cache({
+    const betterSupabase = defineSupabase(schema, { logger });
+    betterSupabase.cache({
       name: "sync",
       invalidate: () => {
         throw new Error("down");
       },
     });
-    sb.cache({
+    betterSupabase.cache({
       name: "async",
       invalidate: () => Promise.reject(new Error("down")),
     });
 
-    const created = await sb
+    const created = await betterSupabase
       .connect(echo())
       .tags.create({ id: "t1", name: "a", organizationId: ACME });
     await Promise.resolve();
@@ -92,7 +92,7 @@ describe("sb.cache", () => {
 describe("logger", () => {
   it("receives event handler and afterMutation failures", async () => {
     const logger = recordingLogger();
-    const sb = defineSupabase(schema, { logger }).use(
+    const betterSupabase = defineSupabase(schema, { logger }).use(
       definePlugin({
         name: "noisy",
         afterMutation: () => {
@@ -100,10 +100,10 @@ describe("logger", () => {
         },
       }),
     );
-    sb.on("query", () => {
+    betterSupabase.on("query", () => {
       throw new Error("handler");
     });
-    const result = await sb
+    const result = await betterSupabase
       .connect(echo())
       .tags.create({ id: "t1", name: "a", organizationId: ACME });
     expect(result.ok).toBe(true);

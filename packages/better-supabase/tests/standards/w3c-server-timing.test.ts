@@ -36,7 +36,7 @@ function metrics(header: string): Map<string, number> {
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
-const next = createNext(defineSupabase(schema), {
+const bs = createNext(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
@@ -57,7 +57,7 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
   });
 
   it("next.proxy({ serverTiming: true }) emits bs-proxy and bs-verify with non-negative durations", async () => {
-    const response = await next.proxy(page(), { serverTiming: true });
+    const response = await bs.proxy(page(), { serverTiming: true });
     const header = response.headers.get("server-timing")!;
     expect(header).toMatch(HEADER);
     const values = metrics(header);
@@ -69,7 +69,7 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
   });
 
   it("appends to metrics the app already set, so both stay in one valid header", async () => {
-    const response = await next.proxy(page(), {
+    const response = await bs.proxy(page(), {
       serverTiming: true,
       after: (res) => {
         res.headers.set("server-timing", 'app;dur=3;desc="render"');
@@ -85,6 +85,6 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
   });
 
   it("adds no header unless asked", async () => {
-    expect((await next.proxy(page())).headers.has("server-timing")).toBe(false);
+    expect((await bs.proxy(page())).headers.has("server-timing")).toBe(false);
   });
 });

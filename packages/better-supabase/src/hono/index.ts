@@ -20,20 +20,26 @@ import {
 import {
   defaultExpose,
   guard,
-  type GuardOptions,
+  type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
-export type { GuardOptions } from "../server/respond.ts";
+export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
 
 /** Hono `Env` with the request's better-supabase context in `c.var`. */
-export interface BetterEnv<M extends AnyModels, F extends AnyFunctions, E> {
+export interface HonoEnv<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> {
   Variables: {
-    readonly bs: ServerContext<M, F, E>;
-    readonly db: ServerContext<M, F, E>["db"];
-    readonly auth: AuthState;
+    readonly bs: ServerContext<M, F, E, C, P>;
+    readonly db: ServerContext<M, F, E, C, P>["db"];
+    readonly auth: AuthState<C, P>;
   };
 }
 
@@ -42,33 +48,27 @@ export interface HonoOptions extends ServerOptions {
   readonly exposeErrors?: boolean;
 }
 
-export interface MiddlewareOptions extends GuardOptions {
-  /**
-   * Refresh an expired cookie session and send the new cookies. Only for
-   * routes browsers call with cookies; bearer tokens never refresh.
-   */
-  readonly refresh?: boolean;
-}
-
 export interface BetterHono<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> extends BetterServer<M, F, E> {
+  C = unknown,
+  P = unknown,
+> extends BetterServer<M, F, E, C, P> {
   /** Resolves the caller, enforces `allow` and sets `c.var.bs`, `c.var.db`, `c.var.auth`. */
   middleware(
     options?: MiddlewareOptions,
-  ): MiddlewareHandler<BetterEnv<M, F, E>>;
+  ): MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
   /** Wraps a handler: `Result`s become JSON or Problem Details, `undefined` becomes 204. */
-  handle(
-    handler: (
-      c: Context<BetterEnv<M, F, E>>,
-      ctx: ServerContext<M, F, E>,
+  handler(
+    fn: (
+      c: Context<HonoEnv<M, F, E, C, P>>,
+      ctx: ServerContext<M, F, E, C, P>,
     ) => unknown,
     options?: { readonly status?: number },
-  ): (c: Context<BetterEnv<M, F, E>>) => Promise<Response>;
+  ): (c: Context<HonoEnv<M, F, E, C, P>>) => Promise<Response>;
   /** `app.onError(bs.onError)`: `DbException`s (and errors caused by a `DbError`) become Problem Details, others a 500. */
-  readonly onError: ErrorHandler<BetterEnv<M, F, E>>;
+  readonly onError: ErrorHandler<HonoEnv<M, F, E, C, P>>;
   /**
    * REST routes for a table matching `createOpenApi`. Mount with
    * `app.route('/customers', bs.resource('customers'))` behind `middleware()`.
@@ -76,14 +76,14 @@ export interface BetterHono<
   resource<T extends TableKey<M>>(
     table: T,
     options?: ResourceRouteOptions<M, T>,
-  ): Hono<BetterEnv<M, F, E>>;
+  ): Hono<HonoEnv<M, F, E, C, P>>;
 }
 
-function contextOf<M extends AnyModels, F extends AnyFunctions, E>(
-  c: Context<BetterEnv<M, F, E>>,
-): ServerContext<M, F, E> {
+function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
+  c: Context<HonoEnv<M, F, E, C, P>>,
+): ServerContext<M, F, E, C, P> {
   // SAFETY: the middleware stores the ServerContext for this app's generics under "bs".
-  const ctx = c.get("bs") as ServerContext<M, F, E> | undefined;
+  const ctx = c.get("bs") as ServerContext<M, F, E, C, P> | undefined;
   if (!ctx) {
     throw new TypeError(
       "better-supabase: no context on this request; add app.use(bs.middleware()) first",
@@ -93,14 +93,21 @@ function contextOf<M extends AnyModels, F extends AnyFunctions, E>(
 }
 
 /** Hono integration: a server plus middleware, handlers and REST resources. */
-export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
+export function createHono<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: HonoOptions = {},
-): BetterHono<M, F, E> {
-  const server = createServer(sb, options);
+): BetterHono<M, F, E, C, P> {
+  const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
-  const onError: ErrorHandler<BetterEnv<M, F, E>> = (cause, c) => {
+  const onError: ErrorHandler<HonoEnv<M, F, E, C, P>> = (cause, c) => {
     const instance = new URL(c.req.url).pathname;
     const thrown = dbErrorOf(cause);
     if (thrown) return problemResponse(thrown, { instance, expose });
@@ -112,7 +119,7 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
     return problemResponse(error, { instance, expose });
   };
 
-  return extendServer<BetterHono<M, F, E>>(server, {
+  return extendServer<BetterHono<M, F, E, C, P>>(server, {
     onError,
 
     middleware(middlewareOptions = {}) {
@@ -143,23 +150,23 @@ export function createHono<M extends AnyModels, D, F extends AnyFunctions, E>(
       };
     },
 
-    handle(handler, handleOptions = {}) {
+    handler(fn, handlerOptions = {}) {
       return (c) => {
         const ctx = contextOf(c);
-        return respond(() => handler(c, ctx), {
+        return respond(() => fn(c, ctx), {
           instance: new URL(c.req.url).pathname,
           expose,
-          ...handleOptions,
+          ...handlerOptions,
         });
       };
     },
 
     resource(table, resourceOptions) {
-      const resource = defineResource(sb, table, resourceOptions);
-      const app = new Hono<BetterEnv<M, F, E>>();
+      const resource = defineResource(betterSupabase, table, resourceOptions);
+      const app = new Hono<HonoEnv<M, F, E, C, P>>();
       const serve =
         (item: boolean) =>
-        (c: Context<BetterEnv<M, F, E>>): Promise<Response> =>
+        (c: Context<HonoEnv<M, F, E, C, P>>): Promise<Response> =>
           resource.handle(
             c.req.raw,
             contextOf(c).db,

@@ -18,7 +18,7 @@ import {
   silentLogger,
   toBetterResult,
 } from "better-supabase";
-import { createBrowser } from "better-supabase/client";
+import { createClient } from "better-supabase/client";
 import { defineConfig, zod } from "better-supabase/config";
 import { createEdge } from "better-supabase/edge";
 import { parseEnv } from "better-supabase/env";
@@ -88,9 +88,9 @@ const customers = defineRepository(base, "customers", (repo) => ({
   active: () =>
     repo.findMany({ where: { status: "active" }, select: ["id", "name"] }),
 }));
-export const sb = base.use(customers);
+export const betterSupabase = base.use(customers);
 
-const db = sb.connect(client, { tenant: "org" });
+const db = betterSupabase.connect(client, { tenant: "org" });
 
 export async function reads(): Promise<void> {
   const rows = await db.customers
@@ -139,18 +139,18 @@ export function jobAge(job: Job, now: Temporal.Instant): Temporal.Duration {
 
 export function integrations(): unknown[] {
   const env = parseEnv({});
-  const server = createServer(sb);
+  const server = createServer(betterSupabase);
   const cache: CacheAdapter = memoryCache();
-  sb.cache(cache);
-  sb.cache(nextCache());
-  sb.cache(queryCache(new QueryClient()));
-  forwardMutations(sb, httpSink("https://example.com/events"), {
+  betterSupabase.cache(cache);
+  betterSupabase.cache(nextCache());
+  betterSupabase.cache(queryCache(new QueryClient()));
+  forwardMutations(betterSupabase, httpSink("https://example.com/events"), {
     source: "/crm",
   });
   const executor: Executor = postgresExecutor(
     createPostgres({ connectionString: "postgres://x" }).admin,
   );
-  const list = defineListQuery(sb, "customers", {
+  const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
     facets: { status: "status" },
     sorts: { name: [{ name: "asc" }] },
@@ -161,22 +161,22 @@ export function integrations(): unknown[] {
     path: "{orgId}/{customerId}/logo.webp",
   });
   const topic = defineTopic("org:{orgId}:customers");
-  const seed = defineSeed(sb, {
+  const seed = defineSeed(betterSupabase, {
     tags: { urgent: { organizationId: "org", name: "Urgent" } },
   });
   return [
     env,
     server,
-    createNext(sb),
-    createHono(sb),
-    createOrpc(sb),
-    createEdge(sb),
-    createBrowser(sb),
+    createNext(betterSupabase),
+    createHono(betterSupabase),
+    createOrpc(betterSupabase),
+    createEdge(betterSupabase),
+    createClient(betterSupabase),
     createHooks<
-      ReturnType<typeof createBrowser<Models, Database, Functions, unknown>>
+      ReturnType<typeof createClient<Models, Database, Functions, unknown>>
     >(),
-    createQueries(sb, db),
-    createOpenApi(sb, {
+    createQueries(betterSupabase, db),
+    createOpenApi(betterSupabase, {
       info: { title: "CRM", version: "1" },
       resources: { customers: true },
     }),
@@ -193,8 +193,8 @@ export function integrations(): unknown[] {
     topic,
     seed.sql(),
     verifyWebhook,
-    testExecutor(executor, { sb }),
-    expectTenantIsolation(sb, {
+    testExecutor(executor, { betterSupabase }),
+    expectTenantIsolation(betterSupabase, {
       tenants: [
         { id: "a", claims: { sub: "u1", tenant_id: "a" } },
         { id: "b", claims: { sub: "u2", tenant_id: "b" } },
@@ -206,22 +206,26 @@ export function integrations(): unknown[] {
         },
       },
     }),
-    sb.mapError((error) => new Error(error.message, { cause: error })),
+    betterSupabase.mapError(
+      (error) => new Error(error.message, { cause: error }),
+    ),
     requireAal("aal2", { redirect: "/mfa" }),
-    createNext(sb).route(() => Promise.resolve(ok(null)), { aal: "aal2" }),
-    createNext(sb)
+    createNext(betterSupabase).route(() => Promise.resolve(ok(null)), {
+      aal: "aal2",
+    }),
+    createNext(betterSupabase)
       .session()
       .then((session) =>
         session.kind === "user" ? (session.aal satisfies Aal) : undefined,
       ),
     checkAal,
-    createNext(sb)
+    createNext(betterSupabase)
       .session()
       .then((session) => hasEntitlement(session, "org", "exports")),
     server
       .deleteAccount("u1", { buckets: [logos], cascades: ["customers"] })
       .map(({ removed }) => removed["customer-logos"]),
-    createServer(sb, { readUrl: false, replicas: { pinMs: 1000 } })
+    createServer(betterSupabase, { readUrl: false, replicas: { pinMs: 1000 } })
       .context(new Request("https://app.test/"))
       .then((ctx) => {
         ctx.replica?.pin();
@@ -232,7 +236,7 @@ export function integrations(): unknown[] {
       .actingAs("u1", { tenant_id: "a" }, { actor: "admin", reason: "support" })
       .customers.count(),
     impersonatorOf({ act: { sub: "admin" } })?.id satisfies string | undefined,
-    createNext(sb)
+    createNext(betterSupabase)
       .session()
       .then((session) =>
         session.kind === "user" ? session.impersonator?.reason : undefined,
@@ -241,9 +245,9 @@ export function integrations(): unknown[] {
       error.kind === "rate_limited"
         ? (error.retryAfter satisfies number | undefined)
         : undefined,
-    createNext(sb).liveCount(sb.spec.customers.count()) satisfies Promise<
-      LiveCountSeed<"customers">
-    >,
+    createNext(betterSupabase).liveCount(
+      betterSupabase.spec.customers.count(),
+    ) satisfies Promise<LiveCountSeed<"customers">>,
     liveCount,
     useLiveCount,
     server

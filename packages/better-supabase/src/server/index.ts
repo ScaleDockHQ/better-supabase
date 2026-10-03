@@ -72,6 +72,7 @@ export { guard, isResult, respond, settle } from "./respond.ts";
 export type {
   AuthKind,
   GuardOptions,
+  MiddlewareOptions,
   RespondOptions,
   Settled,
 } from "./respond.ts";

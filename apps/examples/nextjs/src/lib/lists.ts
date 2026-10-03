@@ -1,12 +1,12 @@
 import { defineListQuery } from "better-supabase/list";
 
-import { sb } from "./supabase";
+import { betterSupabase } from "./supabase";
 
 /**
  * `/customers?q=&status=&sort=&page=`. With `facetCounts`, the page and the
  * per-status counts are two requests in one wave.
  */
-export const customerList = defineListQuery(sb, "customers", {
+export const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
   facets: { status: "status" },
   sorts: {

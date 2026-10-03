@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { AuthEvent, RefreshEvent } from "../../src/core/events.ts";
-import type { Postgres, SqlClaims } from "../../src/postgres/pool.ts";
+import type { BetterPostgres, SqlClaims } from "../../src/postgres/pool.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -67,11 +67,11 @@ describe("createServer headers", () => {
 });
 
 describe("createServer claims", () => {
-  it("validates claims with the schema from sb.claims()", async () => {
-    const sb = defineSupabase(schema).claims(
+  it("validates claims with the schema from betterSupabase.claims()", async () => {
+    const betterSupabase = defineSupabase(schema).claims(
       v.object({ tenant_id: v.pipe(v.string(), v.minLength(1)) }),
     );
-    const server = createServer(sb, {
+    const server = createServer(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
@@ -93,7 +93,7 @@ describe("createServer claims", () => {
   });
 
   it("keeps PermDock claims a loose schema does not list", async () => {
-    const sb = defineSupabase(schema).claims(
+    const betterSupabase = defineSupabase(schema).claims(
       v.looseObject({
         tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
         memberships: v.optional(
@@ -108,7 +108,7 @@ describe("createServer claims", () => {
         ),
       }),
     );
-    const server = createServer(sb, {
+    const server = createServer(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
@@ -146,17 +146,17 @@ describe("createServer claims", () => {
 });
 
 describe("createServer userMetadata", () => {
-  it("parses the profile with sb.userMetadata() and warns through the sb logger", async () => {
+  it("parses the profile with betterSupabase.userMetadata() and warns through the betterSupabase logger", async () => {
     const logger = {
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     };
-    const sb = defineSupabase(schema, { logger }).userMetadata(
+    const betterSupabase = defineSupabase(schema, { logger }).userMetadata(
       v.object({ display_name: v.string() }),
     );
-    const server = createServer(sb, {
+    const server = createServer(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
@@ -212,7 +212,7 @@ function fakePostgres() {
       claims.push(value);
       return fake.sql;
     },
-  } as unknown as Postgres;
+  } as unknown as BetterPostgres;
   return { postgres, claims, fake };
 }
 
@@ -343,7 +343,7 @@ describe("createServer actingAs", () => {
   it("needs postgres", () => {
     const server = createServer(defineSupabase(schema), { env });
     expect(() => server.actingAs(USER)).toThrow(
-      "Direct Postgres access needs createServer(sb, { postgres: createPostgres() })",
+      "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
     );
   });
 
@@ -380,10 +380,10 @@ describe("createServer actingAs", () => {
 
 describe("createServer events", () => {
   it("emits an auth event per resolution with its source", async () => {
-    const sb = defineSupabase(schema);
+    const betterSupabase = defineSupabase(schema);
     const events: AuthEvent[] = [];
-    sb.on("auth", (event) => events.push(event));
-    const server = createServer(sb, {
+    betterSupabase.on("auth", (event) => events.push(event));
+    const server = createServer(betterSupabase, {
       env: secretEnv,
       auth: { jwks: signer.jwks as never, secret: true },
     });
@@ -415,12 +415,12 @@ describe("createServer events", () => {
     ]);
   });
 
-  it("reports refreshes to the auth option and the sb event bus", async () => {
-    const sb = defineSupabase(schema);
+  it("reports refreshes to the auth option and the betterSupabase event bus", async () => {
+    const betterSupabase = defineSupabase(schema);
     const events: RefreshEvent[] = [];
-    sb.on("refresh", (event) => events.push(event));
+    betterSupabase.on("refresh", (event) => events.push(event));
     const onRefresh = vi.fn();
-    const server = createServer(sb, {
+    const server = createServer(betterSupabase, {
       env,
       auth: {
         jwks: signer.jwks as never,

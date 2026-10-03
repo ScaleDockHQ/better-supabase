@@ -33,7 +33,7 @@ describe("public env per framework", () => {
     [[], "process.env.SUPABASE_URL!"],
   ] as const)("%j reads %s", (frameworks, url) => {
     const files = TEMPLATES.client.files(context({ frameworks }));
-    expect(contents(files, "src/lib/supabase.browser.ts")).toContain(
+    expect(contents(files, "src/lib/supabase/client.ts")).toContain(
       `url: ${url},`,
     );
   });
@@ -42,13 +42,22 @@ describe("public env per framework", () => {
 describe("import paths", () => {
   it("drops .ts unless the project keeps it, and adds ./ for siblings", () => {
     const [config, lib] = baseFiles(
-      context({ generated: "src/lib/generated.ts" }),
+      context({ generated: "src/lib/supabase/generated.ts" }),
       "camel",
     );
     expect(config!.contents).toContain("casing: 'camel'");
-    expect(lib!.contents).toContain("from './generated';");
+    expect(lib).toMatchObject({
+      path: "src/lib/supabase/index.ts",
+      contents: expect.stringContaining("from './generated';"),
+    });
+    expect(lib!.contents).toContain(
+      "export const betterSupabase = defineSupabase(schema);",
+    );
     const [, kept] = baseFiles(
-      context({ generated: "src/lib/generated.ts", tsExtensions: true }),
+      context({
+        generated: "src/lib/supabase/generated.ts",
+        tsExtensions: true,
+      }),
       "snake",
     );
     expect(kept!.contents).toContain("from './generated.ts';");
@@ -70,8 +79,12 @@ describe("import paths", () => {
     ).toMatchObject({
       imports: { "better-supabase": "npm:better-supabase@^1.2.3" },
     });
+    expect(contents(files, "supabase/functions/api/index.ts")).toContain(
+      "import { bs } from './server.ts';",
+    );
     expect(TEMPLATES.mcp.files(context()).map((file) => file.path)).toEqual([
       "supabase/functions/_shared/supabase.ts",
+      "supabase/functions/mcp/server.ts",
       "supabase/functions/mcp/index.ts",
       "supabase/functions/mcp/deno.json",
     ]);
@@ -93,17 +106,40 @@ describe("import paths", () => {
   it("imports the lib from the server templates", () => {
     expect(
       contents(TEMPLATES.hono.files(context()), "src/server.ts"),
-    ).toContain("sb } from './lib/supabase';");
+    ).toContain(
+      "betterSupabase, type Functions, type Models } from './lib/supabase';",
+    );
     expect(
       contents(TEMPLATES.orpc.files(context()), "src/router.ts"),
-    ).toContain("import { sb } from './lib/supabase';");
+    ).toContain("import { betterSupabase } from './lib/supabase';");
     const next = TEMPLATES.next.files(context());
-    expect(contents(next, "src/lib/supabase.server.ts")).toContain(
-      "import { sb } from './supabase';",
+    expect(contents(next, "src/lib/supabase/server.ts")).toMatch(
+      /^import 'server-only';[\s\S]*import \{ betterSupabase \} from '\.\/index';[\s\S]*export const bs = createNext\(betterSupabase\);/,
     );
     expect(contents(next, "src/proxy.ts")).toContain(
-      "import { next } from './lib/supabase.server';",
+      "import { bs } from './lib/supabase/server';",
     );
+    const kept = TEMPLATES.next.files(context({ tsExtensions: true }));
+    expect(contents(kept, "src/lib/supabase/server.ts")).toContain(
+      "from './index.ts';",
+    );
+    expect(contents(kept, "src/proxy.ts")).toContain(
+      "from './lib/supabase/server.ts';",
+    );
+  });
+
+  it("names every runtime instance bs", () => {
+    const files = INTEGRATIONS.flatMap((name) =>
+      TEMPLATES[name].files(context()),
+    );
+    for (const file of files.filter((f) => !f.path.endsWith(".json")))
+      expect({
+        path: file.path,
+        legacy:
+          /\b(sb|next|browser|mcp)\s*=\s*(defineSupabase|create\w+)\(/.test(
+            file.contents,
+          ),
+      }).toEqual({ path: file.path, legacy: false });
   });
 });
 

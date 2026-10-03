@@ -51,9 +51,9 @@ function scripted(answer: Answer = () => rowsOf([])) {
 
 function connect(answer?: Answer, plugins: AnyPlugin[] = []) {
   const fake = scripted(answer);
-  let sb = defineSupabase(schema);
-  for (const plugin of plugins) sb = sb.use(plugin);
-  return { db: sb.connect(fake.executor), ...fake };
+  let betterSupabase = defineSupabase(schema);
+  for (const plugin of plugins) betterSupabase = betterSupabase.use(plugin);
+  return { db: betterSupabase.connect(fake.executor), ...fake };
 }
 
 const col = (
@@ -966,10 +966,10 @@ describe("plugins and options", () => {
       },
     };
     const fake = scripted(() => rowsOf([{ id: "c1" }]));
-    const sb = defineSupabase(schema).use(plugin);
+    const betterSupabase = defineSupabase(schema).use(plugin);
     const kinds: string[] = [];
-    sb.on("mutation", (event) => kinds.push(event.kind));
-    await sb
+    betterSupabase.on("mutation", (event) => kinds.push(event.kind));
+    await betterSupabase
       .connect(fake.executor)
       .customers.upsert({ organizationId: "o", name: "A" }, {
         select: ["id"],

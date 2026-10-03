@@ -129,7 +129,7 @@ export function isDbError(value: unknown): value is DbError {
 
 /**
  * The `DbError` in a `DbError`, a `DbException`, or an error whose `cause`
- * is a `DbError` (what `sb.mapError()` mappers should set).
+ * is a `DbError` (what `betterSupabase.mapError()` mappers should set).
  */
 export function dbErrorOf(value: unknown): DbError | undefined {
   if (value instanceof DbException) return value.error;

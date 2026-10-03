@@ -60,8 +60,8 @@ const OTHER = "22222222-2222-4222-8222-222222222222";
 const signer = await createTestSigner();
 
 describe("private-cache scopes", () => {
-  const sb = defineSupabase(schema);
-  const next = createNext(sb, {
+  const betterSupabase = defineSupabase(schema);
+  const bs = createNext(betterSupabase, {
     env,
     cacheTags: false,
     auth: { jwks: signer.jwks as never },
@@ -79,7 +79,7 @@ describe("private-cache scopes", () => {
     const bearer = { authorization: `Bearer ${token}` };
     // Twelve islands, each its own scope: four read data, eight only the session.
     for (let island = 0; island < 12; island++) {
-      const ctx = await next.context(
+      const ctx = await bs.context(
         new Request("https://app.test/", { headers: bearer }),
       );
       expect(ctx.auth.kind).toBe("user");
@@ -93,7 +93,7 @@ describe("private-cache scopes", () => {
     const exp = Math.floor(Date.now() / 1000) + 120;
     const token = await signer.sign({ sub: USER, expiresIn: 120 });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
-    const ctx = await next.cached({ life: { expire: 3600 } });
+    const ctx = await bs.cached({ life: { expire: 3600 } });
     expect(ctx.session).toMatchObject({ kind: "user", user: { id: USER } });
     expect(ctx.auth.kind).toBe("user");
     const [life] = mocks.cacheLife.mock.calls[0]! as [
@@ -106,7 +106,7 @@ describe("private-cache scopes", () => {
     expect(life.stale).toBeLessThanOrEqual(120);
     expect(mocks.cacheTag).toHaveBeenCalledWith(sessionTag(USER));
 
-    next.invalidateSession(USER);
+    bs.invalidateSession(USER);
     expect(mocks.updateTag).toHaveBeenCalledWith(`bs:session:${USER}`);
   });
 
@@ -114,23 +114,23 @@ describe("private-cache scopes", () => {
     const token = await signer.sign({ sub: USER, expiresIn: 3600 });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
     const tags = [`permdock:${USER}`, "org:acme"];
-    await next.cached({ tags, life: { stale: 45 } });
+    await bs.cached({ tags, life: { stale: 45 } });
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 45 });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(sessionTag(USER), ...tags);
 
     // A ceiling above the session's stale time leaves it alone.
-    await next.cached({ life: { stale: 900 } });
+    await bs.cached({ life: { stale: 900 } });
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 300 });
 
     mocks.headers = new Headers();
-    await next.cached({ tags: ["public:pricing"] });
+    await bs.cached({ tags: ["public:pricing"] });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith("public:pricing");
     mocks.cacheTag.mockReset();
-    await next.cached();
+    await bs.cached();
     expect(mocks.cacheTag).not.toHaveBeenCalled();
 
     mocks.updateTag.mockReset();
-    next.invalidateSession(USER, { tags: [`permdock:${USER}`] });
+    bs.invalidateSession(USER, { tags: [`permdock:${USER}`] });
     expect(mocks.updateTag.mock.calls).toEqual([
       [sessionTag(USER)],
       [`permdock:${USER}`],
@@ -145,17 +145,17 @@ describe("private-cache scopes", () => {
       claims: { sub: USER },
       expiresAt: null,
     } as never;
-    const ctx = await next.serverFor(session, { token });
+    const ctx = await bs.contextForSession(session, { token });
     expect(ctx.auth).toMatchObject({ kind: "user", user: { id: USER } });
 
-    const foreign = await next.serverFor(session, {
+    const foreign = await bs.contextForSession(session, {
       token: await signer.sign({ sub: OTHER }),
     });
     expect(foreign.auth).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized" },
     });
-    const anon = await next.serverFor(
+    const anon = await bs.contextForSession(
       { kind: "anon", reason: "none" },
       {
         token: null,
@@ -172,7 +172,7 @@ describe("private-cache scopes", () => {
         calls.push(`${init?.method ?? "GET"} ${String(input)}`);
         return Promise.resolve(Response.json({}));
       });
-    const admin = createNext(sb, {
+    const admin = createNext(betterSupabase, {
       env: { ...env, secretKey: "sb_secret_test" },
       cacheTags: false,
     });
@@ -189,7 +189,7 @@ describe("private-cache scopes", () => {
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
 
       mocks.updateTag.mockReset();
-      expect(await next.deleteAccount(USER)).toMatchObject({
+      expect(await bs.deleteAccount(USER)).toMatchObject({
         ok: false,
         error: { kind: "unexpected" },
       });

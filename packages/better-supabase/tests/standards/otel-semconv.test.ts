@@ -95,11 +95,11 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("a successful operation is a CLIENT span named by db.query.summary with only registered attributes", async () => {
     const { tracer, meter, spans } = recorder();
-    const sb = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({
       body: [{ id: "c1" }, { id: "c2" }],
     }));
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.findMany({ where: { name: "secret" }, select: ["id"] })
       .orThrow();
@@ -123,9 +123,9 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("never records db.query.text or filter values (opt-in attributes stay off)", async () => {
     const { tracer, meter, spans } = recorder();
-    const sb = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({ body: [] }));
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.findMany({ where: { name: "secret value" } });
     expect(JSON.stringify(spans)).not.toContain("secret value");
@@ -134,7 +134,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("a failed operation sets error.type, db.response.status_code and status ERROR", async () => {
     const { tracer, meter, spans, metrics } = recorder();
-    const sb = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({
       status: 409,
       body: {
@@ -144,7 +144,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
         hint: null,
       },
     }));
-    await sb
+    await betterSupabase
       .connect(client)
       .customers.create({ name: "Acme", organizationId: "o1" });
     expect(spans[0]!.attributes).toMatchObject({
@@ -158,9 +158,9 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("records db.client.operation.duration in seconds with the low-cardinality attributes", async () => {
     const { tracer, meter, histograms, metrics } = recorder();
-    const sb = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({ body: [] }));
-    await sb.connect(client).customers.findMany();
+    await betterSupabase.connect(client).customers.findMany();
     expect(histograms).toEqual([
       { name: "db.client.operation.duration", unit: "s" },
     ]);

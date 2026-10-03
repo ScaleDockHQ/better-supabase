@@ -2,7 +2,7 @@ import { defineReadSet } from "better-supabase";
 
 // `better-supabase gen` imports this file with Node, so relative imports keep
 // their `.ts` extension.
-import { sb } from "./supabase.ts";
+import { betterSupabase } from "./supabase/index.ts";
 
 /**
  * The dashboard's numbers as one round trip: `gen` compiles this into
@@ -10,7 +10,7 @@ import { sb } from "./supabase.ts";
  * single GET. RLS scopes every entry to the caller's organization.
  */
 export const workspaceSummary = defineReadSet(
-  sb,
+  betterSupabase,
   "workspace_summary",
   { params: { userId: "uuid" } },
   (s, p) => ({

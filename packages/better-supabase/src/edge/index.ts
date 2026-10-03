@@ -16,12 +16,12 @@ import {
 import {
   defaultExpose,
   guard,
-  type GuardOptions,
+  type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
-export type { GuardOptions } from "../server/respond.ts";
+export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
 
 export interface CorsOptions {
@@ -40,18 +40,13 @@ export interface EdgeOptions extends ServerOptions {
   readonly exposeErrors?: boolean;
 }
 
-export interface HandlerOptions extends GuardOptions {
-  /** Refresh an expired cookie session and send the new cookies. */
-  readonly refresh?: boolean;
-}
-
 export type EdgeHandler = (request: Request) => Promise<Response>;
 
 export type ResourceMap<M extends AnyModels> = {
   readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
 };
 
-export interface ResourcesOptions extends HandlerOptions {
+export interface ResourcesOptions extends MiddlewareOptions {
   /** Path before the resources, e.g. `/api` (Supabase: `/<function-name>`). */
   readonly basePath?: string;
 }
@@ -60,14 +55,16 @@ export interface BetterEdge<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
-> extends BetterServer<M, F, E> {
+  C = unknown,
+  P = unknown,
+> extends BetterServer<M, F, E, C, P> {
   /**
    * A fetch handler (`Deno.serve`, Workers `fetch`) running as the caller.
    * `Result`s become JSON or Problem Details; `undefined` becomes 204.
    */
   handler(
-    fn: (request: Request, ctx: ServerContext<M, F, E>) => unknown,
-    options?: HandlerOptions,
+    fn: (request: Request, ctx: ServerContext<M, F, E, C, P>) => unknown,
+    options?: MiddlewareOptions,
   ): EdgeHandler;
   /** REST resources matching `createOpenApi`, e.g. `Deno.serve(bs.resources({ customers: true }))`. */
   resources(map: ResourceMap<M>, options?: ResourcesOptions): EdgeHandler;
@@ -126,11 +123,18 @@ function withHeaders(
 }
 
 /** Fetch-handler integration for Supabase Edge Functions, Deno, Bun and Workers. */
-export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
-  sb: BetterSupabase<M, D, F, E>,
+export function createEdge<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: EdgeOptions = {},
-): BetterEdge<M, F, E> {
-  const server = createServer(sb, options);
+): BetterEdge<M, F, E, C, P> {
+  const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const cors: CorsOptions | undefined =
     options.cors === true
@@ -140,8 +144,11 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
         : options.cors;
 
   const serve = (
-    run: (request: Request, ctx: ServerContext<M, F, E>) => Promise<Response>,
-    handlerOptions: HandlerOptions,
+    run: (
+      request: Request,
+      ctx: ServerContext<M, F, E, C, P>,
+    ) => Promise<Response>,
+    handlerOptions: MiddlewareOptions,
   ): EdgeHandler => {
     return async (request) => {
       const extra = cors ? corsHeaders(request, cors) : undefined;
@@ -179,7 +186,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
     };
   };
 
-  return extendServer<BetterEdge<M, F, E>>(server, {
+  return extendServer<BetterEdge<M, F, E, C, P>>(server, {
     handler(fn, handlerOptions = {}) {
       return serve(
         (request, ctx) =>
@@ -201,7 +208,7 @@ export function createEdge<M extends AnyModels, D, F extends AnyFunctions, E>(
         handlers.set(
           table,
           defineResource(
-            sb,
+            betterSupabase,
             table as TableKey<M>,
             resource === true
               ? {}

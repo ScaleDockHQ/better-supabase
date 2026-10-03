@@ -16,7 +16,7 @@ import { defineReadSet } from "../../src/core/read-set.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 const timeout = dbError("timeout", "slow");
 
 interface Fake extends Executor {
@@ -75,14 +75,14 @@ const numberSchema: StandardSchemaV1<unknown, number> = {
 describe("use", () => {
   it("rejects a plugin for another API version", () => {
     const plugin = { apiVersion: 2, name: "future" } as unknown as AnyPlugin;
-    expect(() => sb.use(plugin)).toThrow(
+    expect(() => betterSupabase.use(plugin)).toThrow(
       'better-supabase: plugin "future" targets plugin API v2; this version supports v1',
     );
   });
 
   it("rejects a plugin installed twice", () => {
     const plugin: AnyPlugin = { apiVersion: 1, name: "twice" };
-    expect(() => sb.use(plugin).use(plugin)).toThrow(
+    expect(() => betterSupabase.use(plugin).use(plugin)).toThrow(
       'better-supabase: plugin "twice" is already installed',
     );
   });
@@ -93,7 +93,7 @@ describe("use", () => {
       name: "clash",
       repository: () => ({ findMany: () => 1 }),
     };
-    const db = sb.use(plugin).connect(fake());
+    const db = betterSupabase.use(plugin).connect(fake());
     expect(() => db.customers).toThrow(
       'better-supabase: plugin "clash" redefines "customers.findMany"',
     );
@@ -138,12 +138,12 @@ describe("connect", () => {
         return op;
       },
     };
-    await sb.use(plugin).connect(fake()).tags.count();
+    await betterSupabase.use(plugin).connect(fake()).tags.count();
     expect(seen).toEqual([now]);
   });
 
   it("rejects an unknown table in $table", () => {
-    const db = sb.connect(fake());
+    const db = betterSupabase.connect(fake());
     expect(db.$table("tags")).toBe(db.tags);
     expect(() => db.$table("nope" as never)).toThrow(
       /^better-supabase: unknown table "nope"\. Known: contacts, customerTags, customers/,
@@ -151,7 +151,9 @@ describe("connect", () => {
   });
 
   it("extends a repository with methods built on it", async () => {
-    const db = sb.connect(fake({ answer: () => ok({ rows: [], count: 9 }) }));
+    const db = betterSupabase.connect(
+      fake({ answer: () => ok({ rows: [], count: 9 }) }),
+    );
     const extended = db.tags.extend((base) => ({
       total: () => base.count(),
     }));
@@ -165,7 +167,7 @@ describe("connect", () => {
       name: "plain",
       repository: () => ({ label: () => "tags" }),
     };
-    const db = sb
+    const db = betterSupabase
       .use(plugin)
       .mapError(() => new Error("mapped"))
       .connect(fake()) as unknown as { tags: { label: () => string } };
@@ -175,11 +177,13 @@ describe("connect", () => {
 
 describe("$run", () => {
   it("rejects a value that is not a spec", async () => {
-    expect(await sb.connect(fake()).$run({ v: 1 } as never)).toEqual(
+    expect(
+      await betterSupabase.connect(fake()).$run({ v: 1 } as never),
+    ).toEqual(
       err(
         dbError(
           "invalid_request",
-          "db.$run() expects a QuerySpec from sb.spec",
+          "db.$run() expects a QuerySpec from betterSupabase.spec",
         ),
       ),
     );
@@ -187,29 +191,29 @@ describe("$run", () => {
 
   it("rejects a spec for an unknown table", async () => {
     const spec = { v: 1, table: "nope", method: "findMany", args: [] };
-    expect(await sb.connect(fake()).$run(spec as never)).toEqual(
+    expect(await betterSupabase.connect(fake()).$run(spec as never)).toEqual(
       err(dbError("invalid_request", 'Unknown table "nope" in QuerySpec')),
     );
   });
 
   it("rejects a read-set spec that still holds placeholders", async () => {
     const set = defineReadSet(
-      sb,
+      betterSupabase,
       "by_org",
       { params: { orgId: "uuid" } },
       (s, p) => ({
         tags: s.tags.count({ where: { organizationId: p.orgId } }),
       }),
     );
-    const result = await sb.connect(fake()).$run(set.specs.tags);
+    const result = await betterSupabase.connect(fake()).$run(set.specs.tags);
     expect(result.error?.message).toBe(
       "This spec comes from a read set and still holds placeholders; run it with db.$many(readSet, params)",
     );
   });
 
   it.each([
-    ["findById", sb.spec.tags.findById("t1")],
-    ["findMany", sb.spec.tags.findMany({ select: ["id"] })],
+    ["findById", betterSupabase.spec.tags.findById("t1")],
+    ["findMany", betterSupabase.spec.tags.findMany({ select: ["id"] })],
   ] as const)(
     "passes the signal into the options of %s",
     async (_name, spec) => {
@@ -217,7 +221,9 @@ describe("$run", () => {
         answer: () => ok({ rows: [{ id: "t1" }], count: null }),
       });
       const controller = new AbortController();
-      await sb.connect(executor).$run(spec, { signal: controller.signal });
+      await betterSupabase
+        .connect(executor)
+        .$run(spec, { signal: controller.signal });
       expect(executor.contexts[0]?.signal).toBe(controller.signal);
     },
   );
@@ -225,7 +231,7 @@ describe("$run", () => {
 
 describe("$many", () => {
   it("rejects a value that is neither a list nor a read set", async () => {
-    expect(await sb.connect(fake()).$many("tags" as never)).toEqual(
+    expect(await betterSupabase.connect(fake()).$many("tags" as never)).toEqual(
       err(
         dbError(
           "invalid_request",
@@ -237,12 +243,14 @@ describe("$many", () => {
 
   it("names the first entry that is not a spec", async () => {
     expect(
-      await sb.connect(fake()).$many([sb.spec.tags.count(), {} as never]),
+      await betterSupabase
+        .connect(fake())
+        .$many([betterSupabase.spec.tags.count(), {} as never]),
     ).toEqual(
       err(
         dbError(
           "invalid_request",
-          "db.$many() entry 1 is not a QuerySpec from sb.spec",
+          "db.$many() entry 1 is not a QuerySpec from betterSupabase.spec",
         ),
       ),
     );
@@ -253,9 +261,12 @@ describe("$many", () => {
       answer: (op) =>
         op.table.key === "notes" ? err(timeout) : ok({ rows: [], count: 1 }),
     });
-    const result = await sb
+    const result = await betterSupabase
       .connect(executor)
-      .$many([sb.spec.tags.count(), sb.spec.notes.count()]);
+      .$many([
+        betterSupabase.spec.tags.count(),
+        betterSupabase.spec.notes.count(),
+      ]);
     expect(result.error).toEqual({ ...timeout, table: "notes" });
   });
 
@@ -269,10 +280,10 @@ describe("$many", () => {
         return op;
       },
     };
-    const result = await sb
+    const result = await betterSupabase
       .use(plugin)
       .connect(fake())
-      .$many([sb.spec.tags.count()]);
+      .$many([betterSupabase.spec.tags.count()]);
     expect(result).toEqual(ok([0]));
     expect(seen).toEqual(["tags"]);
   });
@@ -280,7 +291,7 @@ describe("$many", () => {
 
 describe("$many with a read set", () => {
   const set = defineReadSet(
-    sb,
+    betterSupabase,
     "chrome",
     { params: { orgId: "uuid" } },
     (s, p) => ({
@@ -303,7 +314,7 @@ describe("$many with a read set", () => {
     });
     const controller = new AbortController();
     expect(
-      await sb
+      await betterSupabase
         .connect(executor)
         .$many(set, params, { signal: controller.signal }),
     ).toEqual(ok({ tags: [{ id: "t1" }], tag: { id: "t1" } }));
@@ -323,7 +334,9 @@ describe("$many with a read set", () => {
 
   it("passes a failed call through", async () => {
     const executor = fake({ rpc: () => err(timeout) });
-    expect(await sb.connect(executor).$many(set, params)).toEqual(err(timeout));
+    expect(await betterSupabase.connect(executor).$many(set, params)).toEqual(
+      err(timeout),
+    );
   });
 
   it.each<[string, unknown, string]>([
@@ -339,7 +352,7 @@ describe("$many with a read set", () => {
     ],
   ])("reports %s as unexpected", async (_name, payload, message) => {
     const executor = fake({ rpc: () => ok(payload) });
-    expect(await sb.connect(executor).$many(set, params)).toEqual(
+    expect(await betterSupabase.connect(executor).$many(set, params)).toEqual(
       err(dbError("unexpected", message)),
     );
   });
@@ -348,13 +361,13 @@ describe("$many with a read set", () => {
     const executor = fake({
       rpc: () => ok({ tags: { rows: null }, tag: { rows: [] } }),
     });
-    const result = await sb.connect(executor).$many(set, params);
+    const result = await betterSupabase.connect(executor).$many(set, params);
     expect(result.error).toMatchObject({ kind: "not_found", table: "tags" });
   });
 
   it("runs the bound specs when the executor has no rpc", async () => {
     const executor = fake({ answer: () => err(timeout) });
-    const result = await sb.connect(executor).$many(set, params);
+    const result = await betterSupabase.connect(executor).$many(set, params);
     expect(result.error).toEqual({ ...timeout, table: "tags" });
     expect(executor.ops.map((op) => op.table.key)).toEqual(["tags", "tags"]);
   });
@@ -365,7 +378,7 @@ describe("$search", () => {
 
   it("rejects an unknown table", async () => {
     expect(
-      await sb
+      await betterSupabase
         .connect(fake({ functionSources: true }))
         .$search("nope" as never, { vector }),
     ).toEqual(
@@ -374,7 +387,9 @@ describe("$search", () => {
   });
 
   it("rejects an executor without function sources", async () => {
-    expect(await sb.connect(fake()).$search("notes", { vector })).toEqual(
+    expect(
+      await betterSupabase.connect(fake()).$search("notes", { vector }),
+    ).toEqual(
       err(
         dbError(
           "invalid_request",
@@ -392,8 +407,11 @@ describe("$search", () => {
     ["a zero k", { vector, k: 0 }],
   ])("rejects %s", async (_name, args) => {
     expect(
-      (await sb.connect(fake({ functionSources: true })).$search("notes", args))
-        .error,
+      (
+        await betterSupabase
+          .connect(fake({ functionSources: true }))
+          .$search("notes", args)
+      ).error,
     ).toEqual(
       dbError(
         "invalid_input",
@@ -411,7 +429,7 @@ describe("$search", () => {
       answer: () => ok({ rows: [{ id: "1" }], count: null }),
     });
     expect(
-      await sb.connect(executor).$search("notes", {
+      await betterSupabase.connect(executor).$search("notes", {
         vector: "[1,2]",
         k: 3,
         select: ["id"],
@@ -437,7 +455,8 @@ describe("$search", () => {
         answer: () => err(dbError("unexpected", "missing", { code })),
       });
       expect(
-        (await sb.connect(executor).$search("notes", { vector })).error?.hint,
+        (await betterSupabase.connect(executor).$search("notes", { vector }))
+          .error?.hint,
       ).toBe(
         'Add "public.notes" to vectorSearch in better-supabase.config.ts and run `better-supabase sql sync`.',
       );
@@ -449,16 +468,18 @@ describe("$search", () => {
       functionSources: true,
       answer: () => err(timeout),
     });
-    expect(await sb.connect(executor).$search("notes", { vector })).toEqual(
-      err({ ...timeout, table: "notes" }),
-    );
+    expect(
+      await betterSupabase.connect(executor).$search("notes", { vector }),
+    ).toEqual(err({ ...timeout, table: "notes" }));
   });
 });
 
 describe("$rpc", () => {
   it("fails on an executor without rpc", async () => {
     expect(
-      await sb.connect(fake()).$rpc("search_notes" as never, {} as never),
+      await betterSupabase
+        .connect(fake())
+        .$rpc("search_notes" as never, {} as never),
     ).toEqual(
       err(dbError("invalid_request", 'Executor "fake" does not support rpc()')),
     );
@@ -467,7 +488,7 @@ describe("$rpc", () => {
   it("calls the function with the schema and signal", async () => {
     const executor = fake({ rpc: () => ok(3) });
     const controller = new AbortController();
-    const result = await sb
+    const result = await betterSupabase
       .connect(executor)
       .$rpc("search_notes" as never, { q: 1 } as never, {
         schema: "api",
@@ -485,7 +506,7 @@ describe("$rpc", () => {
 
   it("defaults to the public schema and empty arguments", async () => {
     const executor = fake({ rpc: () => ok(null) });
-    await sb
+    await betterSupabase
       .connect(executor)
       .$rpc("search_notes" as never, undefined as never);
     expect(executor.calls[0]).toMatchObject({
@@ -508,7 +529,7 @@ describe("$rpc", () => {
   ])("validates %s with returns", async (_name, value, expected) => {
     const executor = fake({ rpc: () => ok(value) });
     expect(
-      await sb
+      await betterSupabase
         .connect(executor)
         .$rpc(
           "search_notes" as never,
@@ -521,7 +542,7 @@ describe("$rpc", () => {
   it("skips validation when the call fails", async () => {
     const executor = fake({ rpc: () => err(timeout) });
     expect(
-      await sb
+      await betterSupabase
         .connect(executor)
         .$rpc(
           "search_notes" as never,

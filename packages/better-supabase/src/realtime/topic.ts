@@ -181,7 +181,7 @@ export interface Topic<P extends string, E extends EventSchemas> {
     X,
     T extends TableKey<M>,
   >(
-    sb: BetterSupabase<M, D, F, X>,
+    betterSupabase: BetterSupabase<M, D, F, X>,
     table: T,
     options: TriggerOptions<M, T, P>,
   ): string;
@@ -372,8 +372,8 @@ export function defineTopic<
       }
       return `${lines.join("\n")}\n`;
     },
-    triggerSql(sb, table, trigger) {
-      const meta: TableMeta | undefined = sb.meta.tables[table];
+    triggerSql(betterSupabase, table, trigger) {
+      const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
       if (!meta) throw new TypeError(`defineTopic: unknown table "${table}"`);
       // SAFETY: trigger values name table columns by topic parameter, and
       // templates hold strings.
@@ -546,11 +546,11 @@ export function rowChange<
   X,
   T extends TableKey<M>,
 >(
-  sb: BetterSupabase<M, D, F, X>,
+  betterSupabase: BetterSupabase<M, D, F, X>,
   table: T,
   message: TopicMessage,
 ): RowChange<Row<M, T>> | null {
-  const meta: TableMeta | undefined = sb.meta.tables[table];
+  const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
   // SAFETY: the broadcast trigger sends this payload shape, and every field is checked below.
   const payload = message.payload as {
     table?: string;

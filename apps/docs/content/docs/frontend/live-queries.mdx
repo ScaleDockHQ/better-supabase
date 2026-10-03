@@ -34,13 +34,13 @@ one topic.
 ## React
 
 ```tsx
-const spec = sb.spec.customers.findMany({
+const spec = betterSupabase.spec.customers.findMany({
   include: { notes: true },
   limit: 50,
 });
 
 function Customers() {
-  const { data } = useQuery(browser.queries.$spec(spec));
+  const { data } = useQuery(bs.queries.$spec(spec));
   useLiveQuery(spec); // refetches on changes to customers or notes
   return <List rows={data} />;
 }
@@ -58,7 +58,9 @@ runs a `count` spec, which is a HEAD request with no rows, and reruns only
 that after each debounced change. It needs no `QueryClient`:
 
 ```tsx
-const unread = sb.spec.notifications.count({ where: { readAt: null } });
+const unread = betterSupabase.spec.notifications.count({
+  where: { readAt: null },
+});
 
 function UnreadBadge() {
   const { count, status, error } = useLiveCount(unread);
@@ -71,15 +73,15 @@ seed. The client then skips its first request:
 
 ```tsx
 // Server Component, inside <Suspense>
-const seed = await next.liveCount(unread); // { spec, count }
+const seed = await bs.liveCount(unread); // { spec, count }
 return <UnreadSummary seed={seed} />;
 
 // Client Component
 const { count } = useLiveCount(seed);
 ```
 
-`next.liveCount` uses `next.server()`; inside `'use cache: private'`,
-pass the `db` from `next.cached()` as the second argument. A failed count
+`bs.liveCount` uses `bs.context()`; inside `'use cache: private'`,
+pass the `db` from `bs.cached()` as the second argument. A failed count
 gives `count: null`, and the client fetches it instead. Don't seed from a
 cache entry that can outlive changes made by other users: changes made
 before the client joins the channel aren't broadcast to it.
@@ -94,7 +96,7 @@ header badge counts in the browser, and the inbox page seeds its count.
 ```ts
 import { liveQuery } from 'better-supabase/realtime';
 
-const live = liveQuery(sb, supabase, spec, {
+const live = liveQuery(betterSupabase, supabase, spec, {
   tenant: orgId,
   onChange: (tables) => queryClient.invalidateQueries(...),
 });
@@ -111,7 +113,7 @@ Channels are shared: ten live queries on `customers` open one channel.
 ```ts
 import { liveCount } from "better-supabase/realtime";
 
-using live = liveCount(sb, supabase, db, unread, {
+using live = liveCount(betterSupabase, supabase, db, unread, {
   tenant: orgId,
   onCount: (count) => render(count),
   onError: (error) => report(error), // the previous count stays valid

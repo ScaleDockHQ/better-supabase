@@ -14,7 +14,7 @@ export interface ReplicaState {
   readonly pinned: boolean;
   /** This context wrote through its repositories (or called `pin()`). */
   readonly wrote: boolean;
-  /** Sends later reads to the primary, e.g. after a write through `$client` or `$sql`. */
+  /** Sends later reads to the primary, e.g. after a write through `$client` or `ctx.sql`. */
   pin(): void;
 }
 

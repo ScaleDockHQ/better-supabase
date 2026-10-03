@@ -19,7 +19,7 @@ import {
 } from "../../src/core/problem.ts";
 import { err } from "../../src/core/result.ts";
 import { createEdge } from "../../src/edge/index.ts";
-import { type BetterEnv, createHono } from "../../src/hono/index.ts";
+import { type HonoEnv, createHono } from "../../src/hono/index.ts";
 import { PROBLEM_SCHEMA } from "../../src/openapi/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import {
@@ -69,7 +69,7 @@ const env = {
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
 const signer = await createTestSigner();
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 describe("RFC 9457 Problem Details", () => {
   it.each(KINDS)(
@@ -135,15 +135,21 @@ describe("RFC 9457 Problem Details", () => {
   });
 
   it("the Hono and edge adapters answer errors with Problem Details", async () => {
-    const hono = createHono(sb, { env, auth: { jwks: signer.jwks as never } });
-    const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+    const hono = createHono(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+    });
+    const app = new Hono<HonoEnv<Models, Functions, unknown>>()
       .onError(hono.onError)
       .use("/api/*", hono.middleware())
       .get(
         "/api/x",
-        hono.handle(() => err(dbError("conflict", "Taken"))),
+        hono.handler(() => err(dbError("conflict", "Taken"))),
       );
-    const edge = createEdge(sb, { env, auth: { jwks: signer.jwks as never } });
+    const edge = createEdge(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+    });
     const serve = edge.handler(() => err(dbError("stale", "Changed")));
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",

@@ -5,8 +5,8 @@ import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
-const list = defineListQuery(sb, "customers", {
+const betterSupabase = defineSupabase(schema);
+const list = defineListQuery(betterSupabase, "customers", {
   search: ["name", "kvk"],
   facets: { status: "status", kvk: "kvk" },
   sorts: {
@@ -86,7 +86,7 @@ describe("defineListQuery", () => {
         ? { "content-range": "0-0/1" }
         : {},
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const query = list.parse({
       q: "o,(x)",
       facets: { status: ["active"], kvk: [UNSET, "1001"] },
@@ -113,7 +113,7 @@ describe("defineListQuery", () => {
   });
 
   it("counts facet values next to the page in one wave", async () => {
-    const faceted = defineListQuery(sb, "customers", {
+    const faceted = defineListQuery(betterSupabase, "customers", {
       search: ["name"],
       facets: { status: "status", kvk: "kvk" },
       sorts: { name: { name: "asc" } },
@@ -133,7 +133,7 @@ describe("defineListQuery", () => {
           }
         : { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } },
     );
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const query = faceted.parse({
       q: "acme",
       facets: { status: ["active"] },
@@ -159,7 +159,7 @@ describe("defineListQuery", () => {
   });
 
   it("fails the run when the facet counts fail", async () => {
-    const faceted = defineListQuery(sb, "customers", {
+    const faceted = defineListQuery(betterSupabase, "customers", {
       facets: { status: "status" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -176,7 +176,10 @@ describe("defineListQuery", () => {
           }
         : { body: [] },
     );
-    const result = await faceted.run(sb.connect(client), faceted.defaults);
+    const result = await faceted.run(
+      betterSupabase.connect(client),
+      faceted.defaults,
+    );
     expect(result.ok).toBe(false);
   });
 
@@ -239,13 +242,13 @@ describe("defineListQuery", () => {
 
   it("rejects broken definitions", () => {
     expect(() =>
-      defineListQuery(sb, "customers", {
+      defineListQuery(betterSupabase, "customers", {
         sorts: { name: { name: "asc" } },
         defaultSort: "nope" as "name",
       }),
     ).toThrow(/defaultSort/);
     expect(() =>
-      defineListQuery(sb, "customers", {
+      defineListQuery(betterSupabase, "customers", {
         facets: { page: "status" },
         sorts: { name: { name: "asc" } },
         defaultSort: "name",
@@ -253,13 +256,13 @@ describe("defineListQuery", () => {
     ).toThrow(/reserved/);
     expect(() =>
       // @ts-expect-error unknown table
-      defineListQuery(sb, "nope", {
+      defineListQuery(betterSupabase, "nope", {
         sorts: { name: { name: "asc" } },
         defaultSort: "name",
       }),
     ).toThrow('defineListQuery: unknown table "nope"');
     expect(() =>
-      defineListQuery(sb, "customers", {
+      defineListQuery(betterSupabase, "customers", {
         // @ts-expect-error unknown column
         facets: { color: "color" },
         sorts: { name: { name: "asc" } },
@@ -340,7 +343,7 @@ describe("defineListQuery", () => {
     });
     expect(list.args(list.defaults)).not.toHaveProperty("where");
 
-    const fts = defineListQuery(sb, "customers", {
+    const fts = defineListQuery(betterSupabase, "customers", {
       search: { fts: "name", config: "dutch" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -355,7 +358,7 @@ describe("defineListQuery", () => {
       name: "q",
       description: "Full-text search (web search syntax).",
     });
-    const plain = defineListQuery(sb, "customers", {
+    const plain = defineListQuery(betterSupabase, "customers", {
       search: { fts: "name" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -364,7 +367,7 @@ describe("defineListQuery", () => {
       where: { name: { search: "road" } },
     });
 
-    const none = defineListQuery(sb, "customers", {
+    const none = defineListQuery(betterSupabase, "customers", {
       search: [],
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -372,7 +375,7 @@ describe("defineListQuery", () => {
     expect(none.args(none.parse({ q: "road" }).value!)).not.toHaveProperty(
       "where",
     );
-    const unsearchable = defineListQuery(sb, "customers", {
+    const unsearchable = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
@@ -420,7 +423,7 @@ describe("defineListQuery", () => {
   });
 
   it("adds empty facet counts when there are no facets", async () => {
-    const counted = defineListQuery(sb, "customers", {
+    const counted = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
       facetCounts: true,
@@ -430,7 +433,7 @@ describe("defineListQuery", () => {
       headers: { "content-range": "0-0/1" },
     }));
     const page = await counted
-      .run(sb.connect(client), counted.defaults)
+      .run(betterSupabase.connect(client), counted.defaults)
       .orThrow();
     expect(page.facetCounts).toEqual({});
     expect(page.items).toEqual([{ id: "c1" }]);
@@ -438,7 +441,7 @@ describe("defineListQuery", () => {
   });
 
   it("counts empty values and rows without _count, filtering by other facets", async () => {
-    const faceted = defineListQuery(sb, "customers", {
+    const faceted = defineListQuery(betterSupabase, "customers", {
       facets: { status: "status", kvk: "kvk" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
@@ -456,7 +459,9 @@ describe("defineListQuery", () => {
         : { body: [], headers: { "content-range": "*/0" } },
     );
     const query = faceted.parse({ facets: { kvk: [UNSET] } }).value!;
-    const page = await faceted.run(sb.connect(client), query).orThrow();
+    const page = await faceted
+      .run(betterSupabase.connect(client), query)
+      .orThrow();
     expect(page.facetCounts).toEqual({
       status: { lead: 2, active: 0, archived: 0 },
       kvk: { [UNSET]: 2, "9": 7 },
@@ -464,7 +469,7 @@ describe("defineListQuery", () => {
   });
 
   it("pages by cursor when pagination is cursor", async () => {
-    const cursorList = defineListQuery(sb, "customers", {
+    const cursorList = defineListQuery(betterSupabase, "customers", {
       sorts: { name: [{ name: "asc" }, { id: "asc" }] },
       defaultSort: "name",
       pagination: "cursor",
@@ -495,7 +500,7 @@ describe("defineListQuery", () => {
         { id: "c2", name: "Beta" },
       ],
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const page = await cursorList
       .run(db, first, { select: ["id", "name"] })
       .orThrow();

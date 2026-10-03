@@ -14,7 +14,7 @@ import {
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 function isInvalid(
   client: QueryClient,
@@ -29,7 +29,7 @@ describe("createQueries", () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
-    const q = createQueries(sb, sb.connect(client));
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
     const options = q.customers.findMany({
       select: ["id", "name"],
       where: { status: "active" },
@@ -47,7 +47,7 @@ describe("createQueries", () => {
     ]);
     expect(options.meta.bsTables).toEqual(["customers", "notes"]);
     expect(q.customers.key).toEqual(["bs", "customers"]);
-    expect(q.key).toEqual(["bs"]);
+    expect(q.$key).toEqual(["bs"]);
 
     const queryClient = new QueryClient();
     expect(await queryClient.query(options)).toEqual([
@@ -61,14 +61,17 @@ describe("createQueries", () => {
       status: 403,
       body: { code: "42501", message: "denied" },
     }));
-    const q = createQueries(sb, sb.connect(client));
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
     await expect(
       new QueryClient().query(q.customers.count()),
     ).rejects.toBeInstanceOf(DbException);
   });
 
   it("passes skipToken through as the queryFn", () => {
-    const q = createQueries(sb, sb.connect(capturingClient().client));
+    const q = createQueries(
+      betterSupabase,
+      betterSupabase.connect(capturingClient().client),
+    );
     expect(q.customers.findById(skipToken).queryFn).toBe(skipToken);
     expect(q.customers.findMany(skipToken).queryKey).toEqual([
       "bs",
@@ -79,9 +82,13 @@ describe("createQueries", () => {
   });
 
   it("applies the configured staleTime", () => {
-    const q = createQueries(sb, sb.connect(capturingClient().client), {
-      staleTime: 30_000,
-    });
+    const q = createQueries(
+      betterSupabase,
+      betterSupabase.connect(capturingClient().client),
+      {
+        staleTime: 30_000,
+      },
+    );
     expect(q.customers.count().staleTime).toBe(30_000);
     expect(q.customers.infinite({ size: 5 }).staleTime).toBe(30_000);
   });
@@ -93,7 +100,7 @@ describe("createQueries", () => {
         { id: "b", name: "B" },
       ],
     }));
-    const q = createQueries(sb, sb.connect(client));
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
     const options = q.customers.infinite({
       select: ["id", "name"],
       size: 1,
@@ -114,7 +121,7 @@ describe("createQueries", () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ id: "a" }, { id: "b" }, { id: "c" }],
     }));
-    const q = createQueries(sb, sb.connect(client));
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
     const options = q.customers.infinitePages({
       select: ["id"],
       size: 2,
@@ -128,8 +135,8 @@ describe("createQueries", () => {
 
   it("turns specs into query options and prefetches them", async () => {
     const { client } = capturingClient(() => ({ body: [{ id: "c1" }] }));
-    const q = createQueries(sb, sb.connect(client));
-    const spec = sb.spec.customers.findMany({ select: ["id"] });
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
+    const spec = betterSupabase.spec.customers.findMany({ select: ["id"] });
     const shipped = JSON.parse(JSON.stringify(spec)) as typeof spec;
     expect(q.$spec(shipped).queryKey).toEqual(
       q.customers.findMany({ select: ["id"] }).queryKey,
@@ -145,8 +152,8 @@ describe("createQueries", () => {
     const { client } = capturingClient(() => ({
       body: [{ id: "c1", name: "New" }],
     }));
-    const db = sb.connect(client);
-    const q = createQueries(sb, () => db);
+    const db = betterSupabase.connect(client);
+    const q = createQueries(betterSupabase, () => db);
     const queryClient = new QueryClient();
     const withNotes = q.notes.findMany({ include: { customer: true } });
     const orgs = q.organizations.findMany();
@@ -174,7 +181,7 @@ describe("createQueries", () => {
     expect(isInvalid(queryClient, ["bs", "customers", "custom"])).toBe(true);
     expect(isInvalid(queryClient, orgs.queryKey)).toBe(false);
 
-    const stop = invalidateOnMutation(sb, queryClient);
+    const stop = invalidateOnMutation(betterSupabase, queryClient);
     queryClient.setQueryData(["bs", "customerTags", "x"], 1);
     await db.tags.delete("t1").orThrow();
     await new Promise((resolve) => {
@@ -201,7 +208,7 @@ describe("createQueries", () => {
         return Promise.resolve(ok(42));
       },
     };
-    const withRpc = sb.defineRpc("archive_customer" as never, {
+    const withRpc = betterSupabase.defineRpc("archive_customer" as never, {
       invalidates: ["customers"],
     });
     const q = createQueries(withRpc, withRpc.connect(executor));

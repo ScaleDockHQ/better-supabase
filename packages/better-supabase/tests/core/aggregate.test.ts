@@ -11,7 +11,7 @@ import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 
 const ledgerMeta: SchemaMeta = {
   version: 1,
@@ -86,7 +86,7 @@ describe("relation aggregates", () => {
         { id: "c2", _max_notes: [{ id: null, createdAt: null }] },
       ],
     }));
-    const rows = await sb
+    const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
         select: ["id"],
@@ -126,7 +126,7 @@ describe("relation aggregates", () => {
 
   it("rejects sums of text columns and to-one relations", async () => {
     const { client, requests } = capturingClient();
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const text = await db.customers.findMany({
       include: { _sum: { notes: { body: true } } },
     });
@@ -147,7 +147,7 @@ describe("db.x.aggregate()", () => {
         { status: "lead", _count: 1, _min_createdAt: "2026-02-01T00:00:00Z" },
       ],
     }));
-    const groups = await sb
+    const groups = await betterSupabase
       .connect(client)
       .customers.aggregate({
         where: { archivedAt: null },
@@ -182,7 +182,7 @@ describe("db.x.aggregate()", () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ _count: 4 }],
     }));
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     expect(await db.notes.aggregate({ _count: true }).orThrow()).toEqual({
       _count: 4,
     });
@@ -251,7 +251,7 @@ describe("db.x.aggregate()", () => {
 
   it("rejects sorting by a column outside groupBy and empty aggregates", async () => {
     const { client, requests } = capturingClient();
-    const db = sb.connect(client);
+    const db = betterSupabase.connect(client);
     const sorted = await db.customers.aggregate({
       groupBy: ["status"],
       _count: true,
@@ -265,14 +265,14 @@ describe("db.x.aggregate()", () => {
 
   it("runs as a spec", async () => {
     const { client } = capturingClient(() => ({ body: [{ _count: 3 }] }));
-    const spec = sb.spec.notes.aggregate({ _count: true });
+    const spec = betterSupabase.spec.notes.aggregate({ _count: true });
     expect(spec).toEqual({
       v: 1,
       table: "notes",
       method: "aggregate",
       args: [{ _count: true }],
     });
-    expect(await sb.connect(client).$run(spec).orThrow()).toEqual({
+    expect(await betterSupabase.connect(client).$run(spec).orThrow()).toEqual({
       _count: 3,
     });
   });

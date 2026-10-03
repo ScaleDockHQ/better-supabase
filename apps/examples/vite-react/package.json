@@ -6,7 +6,7 @@
   "type": "module",
   "exports": {
     "./queries": "./src/queries.ts",
-    "./supabase": "./src/lib/supabase.ts"
+    "./supabase": "./src/lib/supabase/index.ts"
   },
   "scripts": {
     "build": "vite build",

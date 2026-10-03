@@ -14,7 +14,7 @@ schema, and has end-to-end tests in `tests/e2e` that sign in real users.
 | `orpc-api`   | An oRPC router with valibot inputs and `bs.unwrap`                            |
 | `edge`       | An Edge Function with `createEdge` and `bs.resources`                         |
 | `mcp`        | An MCP server as an Edge Function, exposing tables as tools                   |
-| `vite-react` | An SPA with `createBrowser`, TanStack Query and sign-in                       |
+| `vite-react` | An SPA with `createClient`, TanStack Query and sign-in                        |
 
 ## Run them
 
@@ -44,7 +44,7 @@ from two production apps on better-supabase:
   - The app-chrome badges (unread notifications, open tasks, pending
     approvals) are one read set: 1 call.
   - The customer portal is scoped by `tenant({ claim: 'customer_id' })` on
-    claims validated by `sb.claims()`: 2 calls in 1 wave.
+    claims validated by `betterSupabase.claims()`: 2 calls in 1 wave.
 - **An app Supabase package**: env validation, request headers, a
   user-auth guard, a cron guard with a named secret key, avatar storage and
   the browser client. Its request-context tests run against the local stack.

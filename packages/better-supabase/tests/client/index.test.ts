@@ -2,13 +2,13 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createBrowser } from "../../src/client/index.ts";
+import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { EnvValidationError } from "../../src/env/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 const URL_BASE = "https://abcdefghijklmnopqrst.supabase.co";
 const ANON = {
   actor: { id: "anon", kind: "anon", role: "anon" },
@@ -41,10 +41,10 @@ function setup() {
   let emit: Listener = () => undefined;
   vi.spyOn(client.auth, "onAuthStateChange").mockImplementation((callback) => {
     emit = (event, value) => void callback(event, value);
-    // SAFETY: createBrowser ignores the subscription it gets back.
+    // SAFETY: createClient ignores the subscription it gets back.
     return { data: { subscription: {} } } as never;
   });
-  const browser = createBrowser(sb, { client });
+  const browser = createClient(betterSupabase, { client });
   return {
     browser,
     client,
@@ -55,11 +55,11 @@ function setup() {
   };
 }
 
-describe("createBrowser", () => {
+describe("createClient", () => {
   it("uses the given client and starts loading as anon", () => {
     const { browser, client } = setup();
     expect(browser.supabase).toBe(client);
-    expect(browser.sb).toBe(sb);
+    expect(browser.betterSupabase).toBe(betterSupabase);
     expect(browser.auth.current()).toEqual({
       status: "loading",
       user: null,
@@ -189,20 +189,22 @@ describe("createBrowser", () => {
 
   it("creates a client from env, with cookies or localStorage", () => {
     const env = { url: URL_BASE, publishableKey: "sb_publishable_test" };
-    const local = createBrowser(sb, { env, storage: "local" });
+    const local = createClient(betterSupabase, { env, storage: "local" });
     expect(local.supabase.storage).toBeDefined();
     expect(local.auth.current().status).toBe("loading");
-    const cookies = createBrowser(sb, { env });
+    const cookies = createClient(betterSupabase, { env });
     expect(cookies.supabase).not.toBe(local.supabase);
     expect(cookies.db.$context).toEqual(ANON);
   });
 
   it("needs env or a client, and a valid env", () => {
-    expect(() => createBrowser(sb)).toThrow(
-      "createBrowser needs `env` ({ url, publishableKey }) or `client`",
+    expect(() => createClient(betterSupabase)).toThrow(
+      "createClient needs `env` ({ url, publishableKey }) or `client`",
     );
     expect(() =>
-      createBrowser(sb, { env: { url: "not a url", publishableKey: "" } }),
+      createClient(betterSupabase, {
+        env: { url: "not a url", publishableKey: "" },
+      }),
     ).toThrow(EnvValidationError);
   });
 });

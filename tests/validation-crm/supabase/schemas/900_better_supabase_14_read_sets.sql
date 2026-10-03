@@ -1,4 +1,4 @@
--- better-supabase SQL kit: read-sets (0.0.0)
+-- better-supabase SQL kit: read-sets (0.3.0)
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 

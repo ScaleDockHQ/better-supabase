@@ -54,11 +54,11 @@ Define fixtures once, in app casing, checked against your Insert types:
 
 ```ts title="supabase/seed.ts"
 import { defineSeed } from "better-supabase/testing";
-import { sb } from "../src/lib/supabase.ts";
+import { betterSupabase } from "../src/lib/supabase/index.ts";
 
 export const ACME = "00000000-0000-4000-8000-000000000001";
 
-export const seed = defineSeed(sb, {
+export const seed = defineSeed(betterSupabase, {
   organizations: { acme: { id: ACME, name: "Acme", slug: "acme" } },
   customers: {
     first: {

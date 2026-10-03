@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { requiredPermission } from "./features/navigation/nav-items";
 import { can } from "./features/user/user-permissions";
-import { next } from "./lib/supabase.server";
+import { bs } from "./lib/supabase/server";
 
 /**
  * Optimistic redirects from the (locally verified) token. Pages, actions and
@@ -24,7 +24,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
 };
 
 export const proxy = (request: NextRequest) =>
-  next.proxy(request, {
+  bs.proxy(request, {
     protect,
     after: (response, auth) => {
       // Shared caches must never store a signed-in response.

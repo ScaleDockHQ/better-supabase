@@ -52,7 +52,7 @@ const title: StandardSchemaV1<unknown, { title: string }> = {
   },
 };
 
-const sb = defineSupabase(schema);
+const betterSupabase = defineSupabase(schema);
 const customers = defineTopic("org:{orgId}:customers");
 const notifications = defineTopic("org:{orgId}:notifications:{userId}", {
   events: { created: title },
@@ -89,7 +89,7 @@ describe.skipIf(!live)("Realtime kit", async () => {
     await pool.query(customers.sql());
     await pool.query(notifications.sql());
     await pool.query(
-      customers.triggerSql(sb, "customers", {
+      customers.triggerSql(betterSupabase, "customers", {
         values: { orgId: "organizationId" },
       }),
     );
@@ -107,7 +107,7 @@ describe.skipIf(!live)("Realtime kit", async () => {
     let retry: ReturnType<typeof setInterval> | undefined;
     let attempt = 0;
     const insert = () =>
-      sb
+      betterSupabase
         .connect(acme, { claims: { tenant_id: ACME } })
         .customers.create({
           organizationId: ACME,
@@ -135,7 +135,7 @@ describe.skipIf(!live)("Realtime kit", async () => {
       clearInterval(retry);
     });
     const received = await got;
-    const change = rowChange(sb, "customers", received);
+    const change = rowChange(betterSupabase, "customers", received);
     expect(change).toMatchObject({
       operation: "INSERT",
       table: "customers",
@@ -145,7 +145,7 @@ describe.skipIf(!live)("Realtime kit", async () => {
         kvk: expect.stringMatching(new RegExp(`^${kvk}-\\d+$`)),
       },
     });
-    expect(rowChange(sb, "notes", received)).toBeNull();
+    expect(rowChange(betterSupabase, "notes", received)).toBeNull();
   }, 20_000);
 
   it("refuses private topics of another tenant", async () => {

@@ -33,7 +33,7 @@ type StringPaths<T, Depth extends readonly unknown[]> = T extends object
       }[keyof T & string]
   : never;
 
-/** `C` is the claims type (`sb.claims(schema)`'s output); it types `claim`. */
+/** `C` is the claims type (`betterSupabase.claims(schema)`'s output); it types `claim`. */
 export interface TenantOptions<C = unknown> {
   /**
    * JWT claim path(s) holding the tenant id when `context.tenant` is not set.

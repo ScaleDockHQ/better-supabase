@@ -271,7 +271,7 @@ function toInt(raw: unknown): number | undefined {
  * OpenAPI parameters and a JSON Schema derived from the same definition.
  *
  * ```ts
- * export const customerList = defineListQuery(sb, 'customers', {
+ * export const customerList = defineListQuery(betterSupabase, 'customers', {
  *   search: ['name', 'kvk'],
  *   facets: { status: 'status' },
  *   sorts: { name: { name: 'asc' }, newest: [{ createdAt: 'desc' }, { id: 'asc' }] },
@@ -290,11 +290,11 @@ export function defineListQuery<
   const C extends boolean = false,
   const P extends ListPagination = "offset",
 >(
-  sb: BetterSupabase<M, D, Fn, E>,
+  betterSupabase: BetterSupabase<M, D, Fn, E>,
   table: T,
   config: ListQueryConfig<M, T, S, F, C, P>,
 ): ListDefinition<M, T, E, S, F, C, P> {
-  const meta: TableMeta | undefined = sb.meta.tables[table];
+  const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
   if (!meta) throw new TypeError(`defineListQuery: unknown table "${table}"`);
   const pageSize = config.pageSize ?? 50;
   const maxPageSize = config.maxPageSize ?? 200;

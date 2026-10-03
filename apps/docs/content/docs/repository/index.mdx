@@ -4,8 +4,8 @@ description: A typed repository per table, compiled to one PostgREST request.
 ---
 
 ```ts
-const sb = defineSupabase(schema);
-const db = sb.connect(supabase); // any SupabaseClient, or an Executor
+const betterSupabase = defineSupabase(schema);
+const db = betterSupabase.connect(supabase); // any SupabaseClient, or an Executor
 ```
 
 `db.<table>` is created lazily for every table and view in the schema. Views
@@ -53,7 +53,7 @@ Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`
   `db.$many(readSet, params)` runs a [read set](/docs/repository/read-sets)
   as one request.
 - `db.$stats()` returns `{ calls, waves, tables, ms }` for everything this
-  `db` (and its `$with` copies) ran. `sb.connect(client, context, { stats })`
+  `db` (and its `$with` copies) ran. `betterSupabase.connect(client, context, { stats })`
   also reports into a shared `StatsRecorder`. See
   [Budget](/docs/frameworks/next-cache-components#budget).
 - `explainPostgrest(op)` shows the compiled request for debugging.
