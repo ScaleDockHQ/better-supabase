@@ -13,6 +13,7 @@ export default defineConfig({
     ...ignorePatterns,
     "**/*.generated.ts",
     "**/generated.ts",
+    "**/generated.meta.*",
     "**/generated-*.ts",
     "**/database.types.ts",
   ],

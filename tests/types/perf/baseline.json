@@ -4,8 +4,16 @@
     "queried": 40,
     "composite": false,
     "measurement": {
-      "types": 19881,
-      "instantiations": 49939
+      "ts6": {
+        "types": 11860,
+        "instantiations": 33831,
+        "checkTime": 0.18
+      },
+      "ts7": {
+        "types": 15987,
+        "instantiations": 33847,
+        "checkTime": 0.024
+      }
     }
   },
   "centrakit": {
@@ -13,8 +21,16 @@
     "queried": 40,
     "composite": true,
     "measurement": {
-      "types": 26663,
-      "instantiations": 53217
+      "ts6": {
+        "types": 15657,
+        "instantiations": 37854,
+        "checkTime": 0.23
+      },
+      "ts7": {
+        "types": 21824,
+        "instantiations": 37867,
+        "checkTime": 0.045
+      }
     }
   }
 }

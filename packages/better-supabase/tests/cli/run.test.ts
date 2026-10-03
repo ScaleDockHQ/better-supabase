@@ -308,7 +308,7 @@ describe("run", () => {
     expect(stderr).toHaveLength(1);
     expect(stderr[0]).toContain("500");
     expect(stdout).toEqual([
-      "Generated 0 tables:\n  src/lib/supabase/database.types.ts\n  src/lib/supabase/generated.ts\n",
+      "Generated 0 tables:\n  src/lib/supabase/database.types.ts\n  src/lib/supabase/generated.ts\n  src/lib/supabase/generated.meta.js\n  src/lib/supabase/generated.meta.d.ts\n",
     ]);
     expect(
       api.calls.filter((call) => call.body?.includes("t_enums")).length,

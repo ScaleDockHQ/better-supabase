@@ -12,6 +12,7 @@ export default defineConfig({
   ignorePatterns: [
     ...ignorePatterns,
     "**/generated.ts",
+    "**/generated.meta.*",
     "**/database.types.ts",
   ],
 });

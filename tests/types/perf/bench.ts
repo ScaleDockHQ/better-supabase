@@ -15,7 +15,11 @@ import { dirname, join } from "node:path";
 interface Measurement {
   readonly types: number;
   readonly instantiations: number;
+  /** Seconds; machine-dependent, so gated loosely. */
+  readonly checkTime: number;
 }
+
+type Compiler = "ts6" | "ts7";
 
 interface Profile {
   readonly tables: number;
@@ -29,7 +33,7 @@ interface Profile {
 }
 
 interface BaselineEntry extends Profile {
-  readonly measurement: Measurement;
+  readonly measurement: Readonly<Record<Compiler, Measurement>>;
 }
 
 type Baseline = Readonly<Record<string, BaselineEntry>>;
@@ -39,15 +43,19 @@ const PROFILES = {
   centrakit: { tables: 250, queried: 40, composite: true },
 } satisfies Readonly<Record<string, Profile>>;
 const TOLERANCE = 0.1;
+/** Check time fails only past twice the baseline and at least half a second more. */
+const TIME_FACTOR = 2;
+const TIME_SLACK = 0.5;
 
 const here = import.meta.dirname;
 const work = join(here, "tmp");
 const require = createRequire(import.meta.url);
-const tsc = join(
-  dirname(require.resolve("typescript/package.json")),
-  "bin",
-  "tsc",
-);
+const tscFrom = (resolve: (id: string) => string): string =>
+  join(dirname(resolve("typescript/package.json")), "bin", "tsc");
+const compilers = {
+  ts6: tscFrom(require.resolve),
+  ts7: tscFrom(createRequire(join(here, "../ts-7/package.json")).resolve),
+} satisfies Readonly<Record<Compiler, string>>;
 const cli = join(
   dirname(require.resolve("better-supabase/package.json")),
   "bin",
@@ -220,23 +228,22 @@ function consumer(profile: Profile): string {
     "import { schema } from './generated.ts';",
     "declare const client: SupabaseClient;",
     "const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);",
-    "export async function run(): Promise<unknown[]> {",
-    "  return [",
+    "export async function run(): Promise<void> {",
   ];
   for (let i = 1; i <= profile.queried; i++) {
     const key = name(i);
     const child = name(i + 1);
     lines.push(
-      `    await db.${key}.findMany({ select: ['id', 'name', 'createdAt'], where: { active: true, quantity: { gt: 1 } }, orderBy: { createdAt: 'desc' }, include: { parent: { select: ['id', 'name'] }, ${child}: { select: ['id'] } } }).orThrow(),`,
-      `    await db.${key}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow(),`,
-      `    await db.${key}.update('id', { name: 'x' }).orThrow(),`,
+      `  await db.${key}.findMany({ select: ['id', 'name', 'createdAt'], where: { active: true, quantity: { gt: 1 } }, orderBy: { createdAt: 'desc' }, include: { parent: { select: ['id', 'name'] }, ${child}: { select: ['id'] } } }).orThrow();`,
+      `  await db.${key}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow();`,
+      `  await db.${key}.update('id', { name: 'x' }).orThrow();`,
     );
   }
-  lines.push("  ];", "}", "");
+  lines.push("}", "");
   return lines.join("\n");
 }
 
-function measure(): Measurement & { checkTime: string } {
+function measure(tsc: string): Measurement {
   const result = spawnSync(
     process.execPath,
     [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
@@ -256,14 +263,16 @@ function measure(): Measurement & { checkTime: string } {
   return {
     types: Number(read("Types")),
     instantiations: Number(read("Instantiations")),
-    checkTime: read("Check time"),
+    checkTime: Number(read("Check time").replace(/s$/, "")),
   };
 }
 
-function run(profile: Profile): Measurement & {
-  checkTime: string;
-  genTime: string;
-} {
+interface Run {
+  readonly measurement: Readonly<Record<Compiler, Measurement>>;
+  readonly genTime: string;
+}
+
+function run(profile: Profile): Run {
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
   writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot(profile)));
@@ -305,7 +314,10 @@ function run(profile: Profile): Measurement & {
     stdio: "pipe",
   });
   const genTime = `${((performance.now() - started) / 1000).toFixed(2)}s`;
-  return { ...measure(), genTime };
+  return {
+    measurement: { ts6: measure(compilers.ts6), ts7: measure(compilers.ts7) },
+    genTime,
+  };
 }
 
 const baselinePath = join(here, "baseline.json");
@@ -314,17 +326,18 @@ const update = process.env["BENCH_UPDATE"] === "1";
 const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
 const next: Record<string, BaselineEntry> = {};
 
+const describe = (measurement: Measurement): string =>
+  `${String(measurement.instantiations)} instantiations, ${String(measurement.types)} types, check ${measurement.checkTime.toFixed(2)}s`;
+
 for (const [profileName, profile] of Object.entries(PROFILES)) {
   const current = run(profile);
-  const summary = `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried: ${String(current.instantiations)} instantiations, ${String(current.types)} types, gen ${current.genTime}, check ${current.checkTime}`;
-  next[profileName] = {
-    ...profile,
-    measurement: {
-      types: current.types,
-      instantiations: current.instantiations,
-    },
-  };
-  console.log(summary);
+  next[profileName] = { ...profile, measurement: current.measurement };
+  console.log(
+    `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen ${current.genTime}`,
+  );
+  for (const compiler of ["ts6", "ts7"] as const) {
+    console.log(`  ${compiler}: ${describe(current.measurement[compiler])}`);
+  }
   if (update) continue;
   const previous = baseline[profileName];
   if (!previous) {
@@ -334,13 +347,26 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     process.exitCode = 1;
     continue;
   }
-  for (const metric of ["instantiations", "types"] as const) {
-    if (current[metric] <= previous.measurement[metric] * (1 + TOLERANCE))
-      continue;
-    console.error(
-      `${profileName}: ${metric} grew from ${String(previous.measurement[metric])} to ${String(current[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
+  for (const compiler of ["ts6", "ts7"] as const) {
+    const now = current.measurement[compiler];
+    const before = previous.measurement[compiler];
+    for (const metric of ["instantiations", "types"] as const) {
+      if (now[metric] <= before[metric] * (1 + TOLERANCE)) continue;
+      console.error(
+        `${profileName} (${compiler}): ${metric} grew from ${String(before[metric])} to ${String(now[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
+      );
+      process.exitCode = 1;
+    }
+    const limit = Math.max(
+      before.checkTime * TIME_FACTOR,
+      before.checkTime + TIME_SLACK,
     );
-    process.exitCode = 1;
+    if (now.checkTime > limit) {
+      console.error(
+        `${profileName} (${compiler}): check time grew from ${before.checkTime.toFixed(2)}s to ${now.checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+      );
+      process.exitCode = 1;
+    }
   }
 }
 

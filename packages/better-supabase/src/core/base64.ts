@@ -1,5 +1,5 @@
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+const encoder = /* @__PURE__ */ new TextEncoder();
+const decoder = /* @__PURE__ */ new TextDecoder();
 
 /** Standard base64 (RFC 4648 section 4) of `input`, with padding. */
 export function toBase64(input: Uint8Array | string): string {

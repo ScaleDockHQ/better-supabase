@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { defineSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { fakePgPool } from "../fixtures/fake-pg-pool.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 function recordingPool(
   answer: (text: string, values: readonly unknown[]) => unknown[] = () => [],
@@ -84,6 +86,15 @@ describe("createPostgres", () => {
     const plain = createPostgres({ pool: defaults.pool });
     await plain.admin.queryRaw("select 1");
     expect(defaults.log).toEqual(["begin", "select 1", "commit"]);
+  });
+
+  it("builds a SQL executor that runs as the user", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    const executor = pg.executorFor({ sub: "u1" });
+    expect(executor.name).toBe("postgres");
+    await defineSupabase(schema).connect(executor).customers.findMany();
+    expect(fake.log[1]).toBe(USER_SQL);
   });
 
   it("runs asUser queries as authenticated with the claims set locally", async () => {

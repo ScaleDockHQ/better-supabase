@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
@@ -18,7 +18,7 @@ import { defineCliCommand } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
 import { configuredPermdockKeys } from "../doctor/permdock.ts";
-import { emitModule } from "../gen/emit.ts";
+import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
 import { generateDatabaseTypes } from "../introspect/typegen.ts";
 import {
@@ -59,16 +59,21 @@ export async function renderFiles(
     schemas: config.schemas,
     postgrestVersion: config.postgrestVersion,
   });
+  const metaFiles = metaPaths(config.output);
   const main = emitModule(model, {
     databaseTypesImport: importPath(
       output,
       resolve(config.root, config.databaseTypesOutput),
     ),
     importPathFor: (from) => importPath(output, resolve(config.root, from)),
+    metaImport: `./${basename(metaFiles.js)}`,
   });
+  const meta = emitMeta(model, { types: `./${basename(metaFiles.dts)}` });
   const files: GeneratedFile[] = [
     { path: config.databaseTypesOutput, contents: databaseTypes },
     { path: config.output, contents: main },
+    { path: metaFiles.js, contents: meta.js },
+    { path: metaFiles.dts, contents: meta.dts },
   ];
   for (const generator of config.generators) {
     const extra = await generator.generate({

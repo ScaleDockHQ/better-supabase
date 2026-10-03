@@ -15,7 +15,7 @@ export interface TestJwtClaims {
   readonly [claim: string]: unknown;
 }
 
-const encoder = new TextEncoder();
+const encoder = /* @__PURE__ */ new TextEncoder();
 
 /**
  * Signs an HS256 access token the local Supabase stack accepts. Test-only:

@@ -160,7 +160,19 @@ describe("templates", () => {
         join(packageRoot, "tests/fixtures/generated-camel.ts"),
         "utf8",
       )
-    ).replaceAll('"../../src/index.ts"', '"better-supabase"');
+    )
+      .replaceAll('"../../src/index.ts"', '"better-supabase"')
+      .replace("./generated-camel.meta.js", "./generated.meta.js");
+    const metaFiles = await Promise.all(
+      ["generated-camel.meta.js", "generated-camel.meta.d.ts"].map(
+        async (name) => ({
+          path: `src/lib/supabase/${name.replace("generated-camel", "generated")}`,
+          contents: (
+            await readFile(join(packageRoot, "tests/fixtures", name), "utf8")
+          ).replaceAll('"../../src/index.ts"', '"better-supabase"'),
+        }),
+      ),
+    );
     const databaseTypes = await readFile(
       join(packageRoot, "tests/fixtures/database.types.ts"),
       "utf8",
@@ -169,6 +181,7 @@ describe("templates", () => {
       for (const file of [
         ...files,
         { path: context.generated, contents: generated },
+        ...metaFiles,
         {
           path: context.generated.replace(/[^/]+$/, "database.types.ts"),
           contents: databaseTypes,

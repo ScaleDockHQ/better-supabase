@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import { emitModule } from "../../../src/cli/gen/emit.ts";
+import { emitMeta, emitModule, metaPaths } from "../../../src/cli/gen/emit.ts";
 import { buildModel } from "../../../src/cli/gen/model.ts";
 import { generateDatabaseTypes } from "../../../src/cli/introspect/typegen.ts";
 import { importPath } from "../../../src/cli/io.ts";
@@ -67,16 +67,26 @@ export async function renderFixtures(): Promise<
     { file: "./generated-camel.ts", casing: "camel" as const },
   ];
   const root = here("../..");
-  const files = variants.map(({ file, casing }) => {
+  const files = variants.flatMap(({ file, casing }) => {
     const config = resolveConfig({ ...fixtureConfig, casing }, root);
     const model = buildModel(snapshot, config);
-    return {
-      path: here(file),
-      contents: emitModule(model, {
-        runtimeImport: "../../src/index.ts",
-        importPathFor: (from) => from,
-      }),
-    };
+    const paths = metaPaths(file);
+    const meta = emitMeta(model, {
+      runtimeImport: "../../src/index.ts",
+      types: paths.dts,
+    });
+    return [
+      {
+        path: here(file),
+        contents: emitModule(model, {
+          runtimeImport: "../../src/index.ts",
+          importPathFor: (from) => from,
+          metaImport: paths.js,
+        }),
+      },
+      { path: here(paths.js), contents: meta.js },
+      { path: here(paths.dts), contents: meta.dts },
+    ];
   });
   files.unshift({
     path: here("./database.types.ts"),

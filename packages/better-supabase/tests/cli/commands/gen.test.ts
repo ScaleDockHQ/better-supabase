@@ -65,10 +65,12 @@ describe("gen", () => {
     expect(files.map((file) => file.path)).toEqual([
       "src/db/database.types.ts",
       "src/db/generated.ts",
+      "src/db/generated.meta.js",
+      "src/db/generated.meta.d.ts",
       "src/db/tables.ts",
     ]);
     expect(seen).toEqual(["./generated.ts", join(root, "src/db/generated.ts")]);
-    expect(files[2]!.contents).toContain("customers\n");
+    expect(files[4]!.contents).toContain("customers\n");
   });
 
   it("writes the read-sets module after the generated one and checks it for drift", async () => {
@@ -82,7 +84,7 @@ describe("gen", () => {
     expect(first.code).toBe(0);
     expect(first.output).toMatch(
       new RegExp(
-        `^Generated \\d+ tables:\\n  src/db/database.types.ts\\n  src/db/generated.ts\\n  ${READ_SET_FILE}$`,
+        `^Generated \\d+ tables:\\n  src/db/database.types.ts\\n  src/db/generated.ts\\n  src/db/generated.meta.js\\n  src/db/generated.meta.d.ts\\n  ${READ_SET_FILE}$`,
       ),
     );
     const sql = await readFile(join(root, READ_SET_FILE), "utf8");
@@ -93,7 +95,7 @@ describe("gen", () => {
     expect(await gen(true)).toEqual({
       code: 0,
       data: { stale: [], upToDate: true },
-      output: "Generated files are up to date (3).",
+      output: "Generated files are up to date (5).",
     });
     expect((await gen(false)).output).toMatch(/^No changes \(\d+ tables\)\.$/);
 
@@ -119,7 +121,7 @@ describe("gen", () => {
       snapshot,
     });
     expect(result.error).toBe(
-      "Generated files are out of date:\n  src/db/database.types.ts\n  src/db/generated.ts\nRun `better-supabase gen`.",
+      "Generated files are out of date:\n  src/db/database.types.ts\n  src/db/generated.ts\n  src/db/generated.meta.js\n  src/db/generated.meta.d.ts\nRun `better-supabase gen`.",
     );
   });
 });

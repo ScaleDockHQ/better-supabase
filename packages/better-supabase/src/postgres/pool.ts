@@ -1,6 +1,8 @@
 import { Pool } from "pg";
 
-import type { SqlClient } from "./executor.ts";
+import type { Executor } from "../core/executor.ts";
+
+import { postgresExecutor, type SqlClient } from "./executor.ts";
 
 /** The part of a `pg` pool client `createPostgres` uses. */
 export interface PgPoolClient {
@@ -64,6 +66,12 @@ export interface BetterPostgres {
   asUser(claims: SqlClaims): SqlClient;
   /** Runs every query as `anon`. */
   readonly anon: SqlClient;
+  /**
+   * Repositories' executor as the given user (`postgresExecutor(asUser(claims))`).
+   * `createServer` calls it for `ctx.sql`, so only apps that pass `postgres`
+   * bundle the SQL compiler.
+   */
+  executorFor(claims: SqlClaims): Executor;
   /** Runs `fn` in one transaction. Pass claims to run it as a user. */
   transaction<T>(
     fn: (client: SqlClient) => Promise<T>,
@@ -195,6 +203,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     admin: clientFor(undefined),
     anon: clientFor({ claims: { role: "anon" }, role: "anon" }),
     asUser: (claims) => clientFor(sessionFor(claims)),
+    executorFor: (claims) => postgresExecutor(clientFor(sessionFor(claims))),
     transaction: (fn, txOptions) =>
       transaction(
         txOptions?.claims ? sessionFor(txOptions.claims) : undefined,

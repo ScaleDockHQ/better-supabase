@@ -15,6 +15,7 @@
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
     "oxlint": "catalog:",
+    "rolldown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

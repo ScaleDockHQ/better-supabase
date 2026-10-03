@@ -92,6 +92,7 @@ catalog:
   publint: 0.3.24
   react: 19.3.0
   react-dom: 19.3.0
+  rolldown: 1.2.12
   server-only: 0.0.1
   shadcn: 4.21.1
   shiki: 4.5.0
