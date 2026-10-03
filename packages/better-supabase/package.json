@@ -420,6 +420,7 @@
     "@tanstack/query-core": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
+    "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
     "react": "catalog:peers",
     "temporal-polyfill": "catalog:peers"
@@ -441,6 +442,9 @@
       "optional": true
     },
     "next": {
+      "optional": true
+    },
+    "oxfmt": {
       "optional": true
     },
     "pg": {

@@ -149,7 +149,7 @@ describe("shipped JSON Schemas", () => {
     const schema = (await load("snapshot-v2.json")) as {
       $defs: { generator: unknown };
     };
-    expect(schema.$defs.generator).toEqual(generatorJsonSchema());
+    expect(schema.$defs.generator).toEqual(await generatorJsonSchema());
   });
 
   it("match the snapshot the examples and type tests generate from", async () => {

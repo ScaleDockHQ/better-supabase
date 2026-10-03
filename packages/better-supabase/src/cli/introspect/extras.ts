@@ -23,7 +23,7 @@ const literalArray = (values: readonly string[]): string =>
   `array[${values.map((value) => `'${value.replaceAll("'", "''")}'`).join(", ")}]::text[]`;
 
 /** Row estimate from which a table counts as large in the snapshot. */
-const LARGE_TABLE_ROWS = 10_000;
+export const LARGE_TABLE_ROWS = 10_000;
 
 const RELATIONS = (schemas: string) => `
 select c.oid::int8 as id, n.nspname as schema, c.relname as name,
@@ -380,41 +380,53 @@ function groupById<T extends { table_id: number | string }>(
   return map;
 }
 
-/** Reads the extras for `schemas`. Queries run one after another. */
+/** Reads the extras for `schemas`, with the catalog queries in flight together. */
 export async function readExtras(
   db: Queryable,
   schemas: readonly string[],
   hooks: readonly HookTarget[] = [],
 ): Promise<SnapshotExtras> {
   const list = literalArray(schemas);
-  const relations = await rows<{
-    id: number | string;
-    schema: string;
-    name: string;
-    large: boolean;
-  }>(db, RELATIONS(list));
-  const constraints = groupById(
-    await rows<ConstraintRow>(db, CONSTRAINTS(list)),
-  );
-  const indexes = groupById(await rows<IndexRow>(db, INDEXES(list)));
-  const policies = groupById(await rows<PolicyRow>(db, POLICIES(list)));
-  const triggers = groupById(await rows<TriggerRow>(db, TRIGGERS(list)));
-  const grants = groupById(await rows<GrantRow>(db, GRANTS(list)));
-  const columnGrants = groupById(
-    await rows<ColumnGrantRow>(db, COLUMN_GRANTS(list)),
-  );
-  const buckets = await serviceRows<BucketRow>(db, "storage.buckets", BUCKETS);
-  const realtime = await serviceRows<{ name: string }>(
-    db,
-    "pg_catalog.pg_publication_tables",
-    REALTIME,
-  );
-  const functions = await rows<ExtrasFunctionRow>(db, FUNCTIONS(list));
+  const [
+    relations,
+    constraintRows,
+    indexRows,
+    policyRows,
+    triggerRows,
+    grantRows,
+    columnGrantRows,
+    buckets,
+    realtime,
+    functions,
+    roleRows,
+    hookRows,
+  ] = await Promise.all([
+    rows<{
+      id: number | string;
+      schema: string;
+      name: string;
+      large: boolean;
+    }>(db, RELATIONS(list)),
+    rows<ConstraintRow>(db, CONSTRAINTS(list)),
+    rows<IndexRow>(db, INDEXES(list)),
+    rows<PolicyRow>(db, POLICIES(list)),
+    rows<TriggerRow>(db, TRIGGERS(list)),
+    rows<GrantRow>(db, GRANTS(list)),
+    rows<ColumnGrantRow>(db, COLUMN_GRANTS(list)),
+    serviceRows<BucketRow>(db, "storage.buckets", BUCKETS),
+    rows<{ name: string }>(db, REALTIME),
+    rows<ExtrasFunctionRow>(db, FUNCTIONS(list)),
+    rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
+    hooks.length > 0 ? readHooks(db, hooks) : undefined,
+  ]);
+  const constraints = groupById(constraintRows);
+  const indexes = groupById(indexRows);
+  const policies = groupById(policyRows);
+  const triggers = groupById(triggerRows);
+  const grants = groupById(grantRows);
+  const columnGrants = groupById(columnGrantRows);
   const roleSettings: Record<string, Record<string, string>> = {};
-  for (const row of await rows<{ role: string; config: string[] | null }>(
-    db,
-    ROLE_SETTINGS,
-  )) {
+  for (const row of roleRows) {
     Object.assign((roleSettings[row.role] ??= {}), settingsOf(row.config));
   }
 
@@ -505,6 +517,6 @@ export async function readExtras(
       ...functionOf(row),
       execute: row.execute,
     })),
-    ...(hooks.length > 0 ? { hooks: await readHooks(db, hooks) } : {}),
+    ...(hookRows ? { hooks: hookRows } : {}),
   };
 }

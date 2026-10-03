@@ -14,7 +14,7 @@ import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const src = resolve(import.meta.dirname, "../../../src");
 const fixtures = resolve(import.meta.dirname, "../../fixtures");
-const snapshot = parseSnapshot(fixture);
+const snapshot = await parseSnapshot(fixture);
 
 const READ_SETS = `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};
@@ -71,6 +71,27 @@ describe("gen", () => {
     ]);
     expect(seen).toEqual(["./generated.ts", join(root, "src/db/generated.ts")]);
     expect(files[4]!.contents).toContain("customers\n");
+  });
+
+  it("imports JSON column types per file, in code point order", async () => {
+    const config = configure({
+      json: {
+        "notes.attachments": { import: "src/types/notes.ts#Attachments" },
+        "customers.metadata": { import: "src/types/Customer.ts#Metadata" },
+      },
+    });
+    const [, main] = await renderFiles(config, snapshot);
+    const imports = main!.contents
+      .split("\n")
+      .filter(
+        (line) =>
+          line.startsWith("import type { Attachments }") ||
+          line.startsWith("import type { Metadata }"),
+      );
+    expect(imports).toEqual([
+      'import type { Metadata } from "../types/Customer.ts";',
+      'import type { Attachments } from "../types/notes.ts";',
+    ]);
   });
 
   it("writes the read-sets module after the generated one and checks it for drift", async () => {

@@ -1,6 +1,7 @@
 import type { Format, Paint } from "../style.ts";
 import type { Finding, Rule, Severity } from "./rules.ts";
 
+import { byCodePoint } from "../compare.ts";
 import { plain } from "../style.ts";
 import { DOCS_URL } from "./rules.ts";
 
@@ -50,7 +51,7 @@ function text(findings: readonly Finding[], paint: Paint): string {
     .sort(
       (a, b) =>
         order.indexOf(a.severity) - order.indexOf(b.severity) ||
-        a.code.localeCompare(b.code),
+        byCodePoint(a.code, b.code),
     )
     .flatMap((finding) => [
       `${paint(SEVERITY_FORMAT[finding.severity], finding.severity.padEnd(7))} ${paint("bold", finding.code)} ${finding.title}${finding.location ? `  ${finding.location.file}:${finding.location.line}` : ""}`,

@@ -11,15 +11,25 @@ export interface IntrospectionSource {
   close(): Promise<void>;
 }
 
+const POOL_SIZE = 4;
+const STATEMENT_TIMEOUT_MS = 120_000;
+
 /**
- * A `pg` connection. Typegen issues its queries concurrently; one `pg.Client`
- * must run them one at a time, so calls are queued.
+ * A small `pg` pool, since introspection issues its queries concurrently. A
+ * `connect` that returns a single client gets its queries queued, because one
+ * `pg.Client` runs them one at a time.
  */
 export async function pgSource(
   url: string,
   open: typeof connect = connect,
+  signal?: AbortSignal,
 ): Promise<IntrospectionSource> {
-  const { client, close, describe } = await open(url);
+  const { client, pooled, close, describe } = await open(url, undefined, {
+    pool: POOL_SIZE,
+    statementTimeout: STATEMENT_TIMEOUT_MS,
+    ...(signal ? { signal } : {}),
+  });
+  if (pooled) return { queryable: client, close, describe };
   let queue: Promise<unknown> = Promise.resolve();
   const queryable: Queryable = {
     query(sql: string) {
@@ -37,6 +47,8 @@ export interface ManagementSourceOptions {
   /** Defaults to `https://api.supabase.com`. */
   readonly apiUrl?: string;
   readonly fetch?: typeof fetch;
+  /** Cancels in-flight queries (Ctrl-C). */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -61,6 +73,7 @@ export function managementSource(
           "content-type": "application/json",
         },
         body: JSON.stringify({ query: sql }),
+        ...(options.signal ? { signal: options.signal } : {}),
       });
       const text = await response.text();
       if (!response.ok) {

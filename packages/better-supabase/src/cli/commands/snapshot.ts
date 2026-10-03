@@ -9,6 +9,7 @@ import type { Snapshot } from "../introspect/types.ts";
 import { databaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
 import { CliError } from "../errors.ts";
+import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import {
   type IntrospectionSource,
@@ -30,6 +31,10 @@ export interface SnapshotSource {
   readonly projectRef?: string;
   /** Ignore `source.snapshot` and read the database. */
   readonly live?: boolean;
+  /** Ends the database connection or Management API request (Ctrl-C). */
+  readonly signal?: AbortSignal;
+  /** Reuses the snapshot cached for an unchanged catalog fingerprint. */
+  readonly cache?: boolean;
 }
 
 type Env = CliEnv;
@@ -77,10 +82,14 @@ export async function openSource(
   source: SnapshotSource,
   open: typeof connect = connect,
 ): Promise<IntrospectionSource> {
-  if (source.dbUrl) return pgSource(source.dbUrl, open);
+  if (source.dbUrl) return pgSource(source.dbUrl, open, source.signal);
   const target = managementTarget(config, env, source);
-  if (target) return managementSource(target);
-  return pgSource(await databaseUrl(config, env), open);
+  if (target)
+    return managementSource({
+      ...target,
+      ...(source.signal ? { signal: source.signal } : {}),
+    });
+  return pgSource(await databaseUrl(config, env), open, source.signal);
 }
 
 /** Whether `loadSnapshot` reads a saved file rather than a database. */
@@ -96,26 +105,34 @@ export function snapshotFile(
   );
 }
 
-/** Loads a saved snapshot or introspects the database. */
+/**
+ * Loads a saved snapshot or introspects the database. With `shared`, it
+ * introspects over that source and leaves closing it to the caller, so later
+ * queries reuse the connection.
+ */
 export async function loadSnapshot(
   config: ResolvedConfig,
   env: Env,
   source: SnapshotSource,
   open: typeof connect = connect,
+  shared?: () => Promise<IntrospectionSource>,
 ): Promise<Snapshot> {
   const path = snapshotFile(config, source);
   if (path) return readSnapshotFile(resolve(config.root, path), path);
-  const toml = await readSupabaseToml(config.root);
+  const [toml, db] = await Promise.all([
+    readSupabaseToml(config.root),
+    shared ? shared() : openSource(config, env, source, open),
+  ]);
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
-  const db = await openSource(config, env, source, open);
+  const schemas = [...config.schemas, ...EXTRA_SCHEMAS];
   try {
-    return await introspect(
-      db.queryable,
-      [...config.schemas, ...EXTRA_SCHEMAS],
-      { hooks },
-    );
+    const read = (): Promise<Snapshot> =>
+      introspect(db.queryable, schemas, { hooks });
+    return await (source.cache
+      ? cachedIntrospect(config.root, db, [schemas, hooks], read)
+      : read());
   } finally {
-    await db.close();
+    if (!shared) await db.close();
   }
 }
 
@@ -128,10 +145,10 @@ async function readSnapshotFile(
 }
 
 /** Validates a parsed snapshot document. */
-export function parseSnapshot(
+export async function parseSnapshot(
   data: unknown,
   label: string = "snapshot",
-): Snapshot {
+): Promise<Snapshot> {
   // SAFETY: every field is checked below before the document is returned as a Snapshot.
   const doc = data as Partial<Snapshot> | null;
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
@@ -148,7 +165,7 @@ export function parseSnapshot(
   }
   let generator;
   try {
-    generator = validateGeneratorMetadata(doc.generator);
+    generator = await validateGeneratorMetadata(doc.generator);
   } catch (cause) {
     throw new Error(
       `${label} has invalid "generator" metadata: ${cause instanceof Error ? cause.message : String(cause)}`,

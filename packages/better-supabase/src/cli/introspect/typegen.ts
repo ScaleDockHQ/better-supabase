@@ -2,19 +2,25 @@
  * The only module that imports `@supabase/postgrest-typegen`. It is alpha and
  * pinned to an exact version, so every use goes through here.
  */
-import {
-  type GeneratorMetadata,
-  generatorMetadataJsonSchema,
-  introspect,
-  parseGeneratorMetadata,
-  type Queryable,
-  serializeGeneratorMetadata,
-  sortGeneratorMetadata,
-} from "@supabase/postgrest-typegen";
+import type { GeneratorMetadata, Queryable } from "@supabase/postgrest-typegen";
+import type * as Oxfmt from "oxfmt";
+
 import {
   generateTypescript,
   pgTypeToTsType,
+  sortGeneratorMetadata,
 } from "@supabase/postgrest-typegen/generation";
+
+import { byCodePoint } from "../compare.ts";
+
+/**
+ * The package root and `/introspection` build their arktype schemas on
+ * import (about 90 ms), so they load when a command reads or validates
+ * metadata, not for `--help`.
+ */
+const metadataModule = () => import("@supabase/postgrest-typegen");
+const introspectionModule = () =>
+  import("@supabase/postgrest-typegen/introspection");
 
 export type {
   GeneratorMetadata,
@@ -28,6 +34,7 @@ export async function readGeneratorMetadata(
   db: Queryable,
   schemas: readonly string[],
 ): Promise<GeneratorMetadata> {
+  const { introspect } = await introspectionModule();
   const metadata = await introspect(db, { includedSchemas: [...schemas] });
   return pruneTypes(metadata, schemas);
 }
@@ -51,7 +58,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     entries: readonly { id: number; key: string }[],
   ): void => {
     [...entries]
-      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      .sort((a, b) => byCodePoint(a.key, b.key))
       .forEach((entry, index) => {
         if (entry.id >= FIRST_NORMAL_OID) ids.set(entry.id, base + index);
       });
@@ -137,12 +144,16 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
 }
 
 /** Validates metadata loaded from a snapshot file. */
-export function validateGeneratorMetadata(data: unknown): GeneratorMetadata {
+export async function validateGeneratorMetadata(
+  data: unknown,
+): Promise<GeneratorMetadata> {
+  const { parseGeneratorMetadata } = await metadataModule();
   return parseGeneratorMetadata(data);
 }
 
 /** JSON Schema of the metadata contract, embedded in `snapshot-v2.json`. */
-export function generatorJsonSchema(): Record<string, unknown> {
+export async function generatorJsonSchema(): Promise<Record<string, unknown>> {
+  const { generatorMetadataJsonSchema } = await metadataModule();
   // SAFETY: the generator metadata schema is a JSON Schema object with an
   // optional $schema dialect.
   const { $schema: _dialect, ...schema } = generatorMetadataJsonSchema as {
@@ -152,7 +163,10 @@ export function generatorJsonSchema(): Record<string, unknown> {
 }
 
 /** The JSON document out-of-process generators read. */
-export function serializeGenerator(metadata: GeneratorMetadata): string {
+export async function serializeGenerator(
+  metadata: GeneratorMetadata,
+): Promise<string> {
+  const { serializeGeneratorMetadata } = await metadataModule();
   return serializeGeneratorMetadata(sortGeneratorMetadata(metadata));
 }
 
@@ -190,7 +204,43 @@ export interface DatabaseTypesOptions {
   readonly postgrestVersion: string;
 }
 
-/** Renders `database.types.ts`, byte for byte what `supabase gen types` prints. */
+let oxfmt: Promise<typeof Oxfmt | undefined> | undefined;
+
+/** oxfmt is an optional peer, loaded on demand; `undefined` when it is not installed. */
+function loadOxfmt(): Promise<typeof Oxfmt | undefined> {
+  oxfmt ??= import("oxfmt").catch(() => undefined);
+  return oxfmt;
+}
+
+/** Whether `database.types.ts` comes out formatted. */
+export async function oxfmtInstalled(): Promise<boolean> {
+  return (await loadOxfmt()) !== undefined;
+}
+
+/** Formats like `supabase gen types`, or returns `code` as it is without oxfmt. */
+async function formatTypes(code: string): Promise<string> {
+  const formatter = await loadOxfmt();
+  if (!formatter) return code;
+  const { code: formatted, errors } = await formatter.format(
+    "output.ts",
+    code,
+    {
+      semi: false,
+      printWidth: 80,
+    },
+  );
+  if (errors.length > 0) {
+    throw new Error(
+      `oxfmt failed to format database.types.ts: ${errors.map((error) => error.message).join("; ")}`,
+    );
+  }
+  return formatted;
+}
+
+/**
+ * Renders `database.types.ts`, byte for byte what `supabase gen types` prints
+ * when oxfmt is installed.
+ */
 export function generateDatabaseTypes(
   metadata: GeneratorMetadata,
   options: DatabaseTypesOptions,
@@ -200,6 +250,7 @@ export function generateDatabaseTypes(
     {
       postgrestVersion: options.postgrestVersion,
       detectOneToOneRelationships: true,
+      format: formatTypes,
     },
   );
 }

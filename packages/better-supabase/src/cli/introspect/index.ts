@@ -19,10 +19,11 @@ export async function introspect(
   options: IntrospectOptions = {},
 ): Promise<Snapshot> {
   const unique = [...new Set(schemas)].sort();
-  const { metadata: generator, ids } = stabilizeMetadata(
-    await readGeneratorMetadata(db, unique),
-  );
-  const extras = await readExtras(db, unique, options.hooks);
+  const [metadata, extras] = await Promise.all([
+    readGeneratorMetadata(db, unique),
+    readExtras(db, unique, options.hooks),
+  ]);
+  const { metadata: generator, ids } = stabilizeMetadata(metadata);
   return {
     version: 2,
     schemas: unique,

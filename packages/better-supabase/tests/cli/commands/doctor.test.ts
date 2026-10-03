@@ -82,7 +82,7 @@ describe("doctor command", () => {
     );
   });
 
-  it("reads the database once for the snapshot and once for live checks, then closes both", async () => {
+  it("reads the snapshot and the live checks over one connection, then closes it", async () => {
     const db = fakeSql([TEMP_FILES]);
     const open = fakeConnect(db.pg);
     const result = await doctor(["--only", "BS208", "--json"], {
@@ -99,11 +99,21 @@ describe("doctor command", () => {
         ),
       }),
     ]);
-    expect(open.urls).toEqual([
-      "postgresql://u:pw@h/db",
-      "postgresql://u:pw@h/db",
-    ]);
-    expect(open.closed()).toBe(2);
+    expect(open.urls).toEqual(["postgresql://u:pw@h/db"]);
+    expect(open.closed()).toBe(1);
+  });
+
+  it("closes the shared connection when introspection fails", async () => {
+    const open = fakeConnect({
+      query: () => Promise.reject(new Error("permission denied")),
+    });
+    await expect(
+      doctor(["--only", "BS208", "--json"], {
+        connect: open.connect,
+        dbUrl: "postgresql://u:pw@h/db",
+      }),
+    ).rejects.toThrow("permission denied");
+    expect(open.closed()).toBe(1);
   });
 
   it("runs splinter over the database and reports a download it cannot verify", async () => {
@@ -125,7 +135,7 @@ describe("doctor command", () => {
     expect(api.calls).toHaveLength(1);
     expect(api.calls[0]!.url).toMatch(/\/splinter\.sql$/);
     expect(db.texts().some((text) => text.includes("tampered"))).toBe(false);
-    expect(open.closed()).toBe(2);
+    expect(open.closed()).toBe(1);
   });
 
   it("reads a hosted project's advisors and statistics through the Management API", async () => {
@@ -178,7 +188,9 @@ describe("doctor command", () => {
 
   it("prints only the hook grant SQL with --fix-grants", async () => {
     expect(
-      await doctor(["--fix-grants"], { snapshot: parseSnapshot(fixture) }),
+      await doctor(["--fix-grants"], {
+        snapshot: await parseSnapshot(fixture),
+      }),
     ).toEqual({
       code: 0,
       output: "-- Every configured Auth hook function has its grants.",
@@ -186,7 +198,7 @@ describe("doctor command", () => {
   });
 
   it("scans doctor.sources, skipping node_modules", async () => {
-    const snapshot = parseSnapshot({
+    const snapshot = await parseSnapshot({
       ...fixture,
       extras: { ...fixture.extras, roleSettings: {} },
     });
@@ -210,7 +222,7 @@ describe("doctor command", () => {
   });
 
   it("skips the read-sets kit file when config.readSets cannot load", async () => {
-    const snapshot = parseSnapshot(fixture);
+    const snapshot = await parseSnapshot(fixture);
     const config = { sql: { kit: ["read-sets"] } };
     const loaded = await doctor(
       ["--only", "BS304", "--json"],

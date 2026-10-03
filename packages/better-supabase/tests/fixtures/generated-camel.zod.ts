@@ -29,6 +29,22 @@ export const contactsUpdate: z.ZodType<UpdateOf<'contacts'>> = z.object({
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 });
 
+export const customerTagsRow: z.ZodType<RowOf<'customerTags'>> = z.object({
+  customerId: z.guid(),
+  tagId: z.guid(),
+  organizationId: z.guid(),
+});
+export const customerTagsInsert: z.ZodType<InsertOf<'customerTags'>> = z.object({
+  customerId: z.guid(),
+  tagId: z.guid(),
+  organizationId: z.guid(),
+});
+export const customerTagsUpdate: z.ZodType<UpdateOf<'customerTags'>> = z.object({
+  customerId: z.guid().exactOptional(),
+  tagId: z.guid().exactOptional(),
+  organizationId: z.guid().exactOptional(),
+});
+
 export const customersRow: z.ZodType<RowOf<'customers'>> = z.object({
   id: z.guid(),
   organizationId: z.guid(),
@@ -73,22 +89,6 @@ export const customersUpdate: z.ZodType<UpdateOf<'customers'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
   logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable().exactOptional(),
-});
-
-export const customerTagsRow: z.ZodType<RowOf<'customerTags'>> = z.object({
-  customerId: z.guid(),
-  tagId: z.guid(),
-  organizationId: z.guid(),
-});
-export const customerTagsInsert: z.ZodType<InsertOf<'customerTags'>> = z.object({
-  customerId: z.guid(),
-  tagId: z.guid(),
-  organizationId: z.guid(),
-});
-export const customerTagsUpdate: z.ZodType<UpdateOf<'customerTags'>> = z.object({
-  customerId: z.guid().exactOptional(),
-  tagId: z.guid().exactOptional(),
-  organizationId: z.guid().exactOptional(),
 });
 
 export const locationsRow: z.ZodType<RowOf<'locations'>> = z.object({
@@ -221,8 +221,8 @@ export const tagsUpdate: z.ZodType<UpdateOf<'tags'>> = z.object({
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
-  readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
+  readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
   readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
@@ -230,8 +230,8 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
-  customers: { insert: customersInsert, update: customersUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
+  customers: { insert: customersInsert, update: customersUpdate },
   locations: { insert: locationsInsert, update: locationsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
   notifications: { insert: notificationsInsert, update: notificationsUpdate },

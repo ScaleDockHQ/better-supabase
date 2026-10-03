@@ -7,7 +7,7 @@ import { managementSource } from "../../../src/cli/introspect/source.ts";
 import { stabilizeMetadata } from "../../../src/cli/introspect/typegen.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
-const snapshot = parseSnapshot(fixture);
+const snapshot = await parseSnapshot(fixture);
 
 describe("managementSource", () => {
   it("posts SQL to the read-only endpoint and returns the rows", async () => {

@@ -19,7 +19,7 @@ import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
-const base = parseSnapshot(fixture);
+const base = await parseSnapshot(fixture);
 
 function snapshot(change: (tables: CatalogTable[]) => void): Snapshot {
   const copy = structuredClone(toCatalog(base)) as {

@@ -188,23 +188,23 @@ describe("loadSnapshot", () => {
 });
 
 describe("parseSnapshot", () => {
-  it("rejects documents that are not v2 snapshots", () => {
-    expect(() => parseSnapshot(null, "s.json")).toThrow(
+  it("rejects documents that are not v2 snapshots", async () => {
+    await expect(parseSnapshot(null, "s.json")).rejects.toThrow(
       "s.json is not a version 2 snapshot.",
     );
-    expect(() => parseSnapshot({ version: 1 })).toThrow(
+    await expect(parseSnapshot({ version: 1 })).rejects.toThrow(
       "snapshot is not a version 2 snapshot.",
     );
-    expect(() => parseSnapshot({ version: 2, schemas: [] })).toThrow(
+    await expect(parseSnapshot({ version: 2, schemas: [] })).rejects.toThrow(
       'snapshot is missing "schemas" or "extras".',
     );
-    expect(() =>
+    await expect(
       parseSnapshot({ version: 2, schemas: "x", extras: { tables: [] } }),
-    ).toThrow('is missing "schemas" or "extras"');
-    expect(() =>
+    ).rejects.toThrow('is missing "schemas" or "extras"');
+    await expect(
       parseSnapshot({ version: 2, schemas: [], extras: { tables: {} } }),
-    ).toThrow('is missing "schemas" or "extras"');
-    expect(() =>
+    ).rejects.toThrow('is missing "schemas" or "extras"');
+    await expect(
       parseSnapshot(
         {
           version: 2,
@@ -214,18 +214,18 @@ describe("parseSnapshot", () => {
         },
         "old.json",
       ),
-    ).toThrow(/^old\.json has invalid "generator" metadata: /);
+    ).rejects.toThrow(/^old\.json has invalid "generator" metadata: /);
   });
 
-  it("fills in what older snapshots lack and keeps what newer ones carry", () => {
-    const older = parseSnapshot({
+  it("fills in what older snapshots lack and keeps what newer ones carry", async () => {
+    const older = await parseSnapshot({
       version: 2,
       schemas: ["public"],
       generator: fixture.generator,
       extras: { tables: [] },
     });
     expect(older.extras).toEqual({ tables: [], buckets: [], realtime: [] });
-    const full = parseSnapshot(fixture);
+    const full = await parseSnapshot(fixture);
     expect(Object.keys(full.extras).sort()).toEqual(
       [
         "buckets",
@@ -240,9 +240,9 @@ describe("parseSnapshot", () => {
 });
 
 describe("serializeSnapshot", () => {
-  it("writes the published $schema first and ends with a newline", () => {
+  it("writes the published $schema first and ends with a newline", async () => {
     const text = serializeSnapshot({
-      ...parseSnapshot(fixture),
+      ...(await parseSnapshot(fixture)),
       $schema: "./local.json",
     });
     expect(

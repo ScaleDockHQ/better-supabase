@@ -1,5 +1,6 @@
 import type { ColumnModel, FunctionModel, Model } from "./model.ts";
 
+import { byCodePoint } from "../compare.ts";
 import { block, indent, nullable, pascal, prop, q } from "./shared.ts";
 
 export const GENERATED_HEADER =
@@ -203,7 +204,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     byFile.set(entry.from, list);
   }
   for (const [from, names] of [...byFile.entries()].sort(([a], [b]) =>
-    a.localeCompare(b),
+    byCodePoint(a, b),
   )) {
     lines.push(
       `import type { ${names.sort().join(", ")} } from ${q(options.importPathFor(from))};`,

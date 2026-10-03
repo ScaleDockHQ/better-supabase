@@ -43,8 +43,22 @@ export const policyObject = (
   name: policy.name,
 });
 
+const splitTexts = new Map<string, readonly string[]>();
+const SPLIT_CACHE_SIZE = 64;
+
+/** `text` split into lines; doctor locates many objects in the same SQL files. */
+function linesOf(text: string): readonly string[] {
+  let lines = splitTexts.get(text);
+  if (!lines) {
+    if (splitTexts.size >= SPLIT_CACHE_SIZE) splitTexts.clear();
+    lines = text.split("\n");
+    splitTexts.set(text, lines);
+  }
+  return lines;
+}
+
 /** Line number (1-based) of the first line matching `pattern`. */
 export function lineOf(text: string, pattern: RegExp): number | undefined {
-  const index = text.split("\n").findIndex((line) => pattern.test(line));
+  const index = linesOf(text).findIndex((line) => pattern.test(line));
   return index === -1 ? undefined : index + 1;
 }

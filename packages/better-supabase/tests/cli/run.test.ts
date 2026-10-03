@@ -315,6 +315,40 @@ describe("run", () => {
     ).toBeGreaterThanOrEqual(2);
   });
 
+  it("watches the catalog fingerprint and reads the schema only when it changes", async () => {
+    const controller = new AbortController();
+    let polls = 0;
+    const api = fakeFetch((call) => {
+      if (!call.body?.includes("as fingerprint")) return { body: [] };
+      polls += 1;
+      if (polls === 6) controller.abort();
+      return { body: [{ fingerprint: polls < 4 ? "a" : "b" }] };
+    });
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({ stdout: (text) => stdout.push(text) }),
+      },
+    );
+    expect(result.code).toBe(0);
+    expect(
+      api.calls.filter((call) => call.body?.includes("t_enums")),
+    ).toHaveLength(2);
+  });
+
   it("stops a watch while it sleeps", async () => {
     vi.stubGlobal("fetch", emptyProject().fetch);
     const controller = new AbortController();

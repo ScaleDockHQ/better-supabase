@@ -11,6 +11,7 @@ import type { Snapshot } from "../introspect/types.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
+import { byCodePoint } from "../compare.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
 import {
@@ -37,6 +38,7 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { CliError } from "../errors.ts";
+import { CACHE_DIR } from "../introspect/cache.ts";
 import { writeIfChanged } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
@@ -182,7 +184,7 @@ async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
       text: await readFile(resolve(config.root, path), "utf8"),
     });
   }
-  return files.sort((a, b) => a.path.localeCompare(b.path));
+  return files.sort((a, b) => byCodePoint(a.path, b.path));
 }
 
 const escape = (name: string): string =>
@@ -251,6 +253,8 @@ export interface DoctorOptions {
   readonly paint?: Paint;
   /** The connection string `--db-url-stdin` read. */
   readonly dbUrl?: string;
+  /** Ends the database connection (Ctrl-C). */
+  readonly signal?: AbortSignal;
 }
 
 /** Checks that read the database itself rather than the snapshot. */
@@ -261,6 +265,8 @@ type Env = CliEnv;
 interface OpenLive {
   readonly advisors: DoctorContext["advisors"];
   readonly database: DoctorContext["database"];
+  /** The connection the live checks use, opened on first use; introspection shares it. */
+  readonly open?: () => Promise<IntrospectionSource>;
   close(): Promise<void>;
 }
 
@@ -299,9 +305,10 @@ function openLive(
   const close = async (): Promise<void> => {
     if (opened) await (await opened).close();
   };
-  if (target) return { advisors: managementAdvisors(target), database, close };
+  if (target)
+    return { advisors: managementAdvisors(target), database, open, close };
   let splinter: Promise<AdvisorSource> | undefined;
-  const cacheDir = resolve(config.root, "node_modules/.cache/better-supabase");
+  const cacheDir = resolve(config.root, CACHE_DIR);
   const advisors: AdvisorSource = {
     describe: "database (splinter)",
     async lints(category) {
@@ -311,7 +318,7 @@ function openLive(
       return (await splinter).lints(category);
     },
   };
-  return { advisors, database, close };
+  return { advisors, database, open, close };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -391,10 +398,9 @@ export async function runDoctor(
     ...(snapshotPath ? { snapshotPath } : {}),
     ...(dbUrl ? { dbUrl } : {}),
     ...(projectRef ? { projectRef } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   };
   const pg = options.connect ?? connect;
-  const snapshot =
-    options.snapshot ?? (await loadSnapshot(config, env, source, pg));
   const wantsLive =
     hookUser !== undefined || rules.some((rule) => LIVE_CODES.has(rule.code));
   const opened: OpenLive =
@@ -413,12 +419,32 @@ export async function runDoctor(
             ? {}
             : { database: options.database }),
         };
-  const envFiles = (
-    await Promise.all(ENV_FILES.map((path) => readText(config.root, path)))
-  ).filter((file): file is TextFile => file !== undefined);
-  const permdock = await readPermdock(config.root, config.permdock);
-  const configToml = await readSupabaseToml(config.root);
-  const sql = await sqlFiles(config.root, configToml);
+  const [
+    snapshot,
+    envFiles,
+    permdock,
+    [configToml, sql],
+    gitignore,
+    sources,
+    readSets,
+  ] = await Promise.all([
+    options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
+    Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
+      (files) => files.filter((file): file is TextFile => file !== undefined),
+    ),
+    readPermdock(config.root, config.permdock),
+    readSupabaseToml(config.root).then(
+      async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
+    ),
+    readText(config.root, ".gitignore"),
+    sourceFiles(config),
+    compiledReadSets(config).catch((cause: unknown) => ({
+      skipped: cause instanceof Error ? cause.message : String(cause),
+    })),
+  ]).catch(async (cause: unknown) => {
+    await opened.close();
+    throw cause;
+  });
   const context: DoctorContext = {
     config,
     snapshot,
@@ -426,11 +452,9 @@ export async function runDoctor(
     sqlFiles: sql,
     configToml,
     envFiles,
-    gitignore: (await readText(config.root, ".gitignore"))?.text ?? "",
-    sources: await sourceFiles(config),
-    readSets: await compiledReadSets(config).catch((cause: unknown) => ({
-      skipped: cause instanceof Error ? cause.message : String(cause),
-    })),
+    gitignore: gitignore?.text ?? "",
+    sources,
+    readSets,
     ...(opened.advisors ? { advisors: opened.advisors } : {}),
     ...(opened.database ? { database: opened.database } : {}),
     ...(stats ? { stats } : {}),
@@ -499,7 +523,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
   },
   args: ARGS,
   lists: ["only", "ignore", "explain"],
-  run: async (args, { config, env, io }) => {
+  run: async (args, { config, env, io, signal }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
     return withSpinner(
       args.snapshot === undefined ? io.prompts : undefined,
@@ -508,6 +532,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         runDoctor(config, args, env, {
           paint: painter(io.color),
           ...(dbUrl ? { dbUrl } : {}),
+          ...(signal ? { signal } : {}),
         }),
     );
   },

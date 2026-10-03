@@ -33,6 +33,22 @@ export const contactsUpdate: v.GenericSchema<UpdateOf<'contacts'>> = v.object({
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 
+export const customerTagsRow: v.GenericSchema<RowOf<'customerTags'>> = v.object({
+  customerId: v.pipe(v.string(), v.uuid()),
+  tagId: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+});
+export const customerTagsInsert: v.GenericSchema<InsertOf<'customerTags'>> = v.object({
+  customerId: v.pipe(v.string(), v.uuid()),
+  tagId: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+});
+export const customerTagsUpdate: v.GenericSchema<UpdateOf<'customerTags'>> = v.object({
+  customerId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  tagId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+});
+
 export const customersRow: v.GenericSchema<RowOf<'customers'>> = v.object({
   id: v.pipe(v.string(), v.uuid()),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -77,22 +93,6 @@ export const customersUpdate: v.GenericSchema<UpdateOf<'customers'>> = v.object(
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
   logoPath: v.exactOptional(v.nullable((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'customers'>['logoPath']>>))),
-});
-
-export const customerTagsRow: v.GenericSchema<RowOf<'customerTags'>> = v.object({
-  customerId: v.pipe(v.string(), v.uuid()),
-  tagId: v.pipe(v.string(), v.uuid()),
-  organizationId: v.pipe(v.string(), v.uuid()),
-});
-export const customerTagsInsert: v.GenericSchema<InsertOf<'customerTags'>> = v.object({
-  customerId: v.pipe(v.string(), v.uuid()),
-  tagId: v.pipe(v.string(), v.uuid()),
-  organizationId: v.pipe(v.string(), v.uuid()),
-});
-export const customerTagsUpdate: v.GenericSchema<UpdateOf<'customerTags'>> = v.object({
-  customerId: v.exactOptional(v.pipe(v.string(), v.uuid())),
-  tagId: v.exactOptional(v.pipe(v.string(), v.uuid())),
-  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
 });
 
 export const locationsRow: v.GenericSchema<RowOf<'locations'>> = v.object({
@@ -225,8 +225,8 @@ export const tagsUpdate: v.GenericSchema<UpdateOf<'tags'>> = v.object({
 /** Write validators for the validation plugin. */
 export const validators: {
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
-  readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
+  readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
   readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
@@ -234,8 +234,8 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
-  customers: { insert: customersInsert, update: customersUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
+  customers: { insert: customersInsert, update: customersUpdate },
   locations: { insert: locationsInsert, update: locationsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
   notifications: { insert: notificationsInsert, update: notificationsUpdate },

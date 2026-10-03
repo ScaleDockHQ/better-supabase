@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
 import type { CliEnv } from "../env.ts";
+import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import {
@@ -20,7 +21,11 @@ import { fileDiff } from "../diff.ts";
 import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
-import { generateDatabaseTypes } from "../introspect/typegen.ts";
+import { catalogFingerprint } from "../introspect/fingerprint.ts";
+import {
+  generateDatabaseTypes,
+  oxfmtInstalled,
+} from "../introspect/typegen.ts";
 import {
   type CliIo,
   type CommandResult,
@@ -32,7 +37,12 @@ import { readPermdock } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
-import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
+import {
+  loadSnapshot,
+  openSource,
+  snapshotFile,
+  type SnapshotSource,
+} from "./snapshot.ts";
 
 export interface GenOptions extends SnapshotSource {
   readonly config: ResolvedConfig;
@@ -121,6 +131,9 @@ async function rowConditionedBuckets(
   );
 }
 
+const UNFORMATTED =
+  "oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install it: pnpm add -D oxfmt";
+
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
   const refused = await rowConditionedBuckets(config);
@@ -133,6 +146,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
   const files = await renderFiles(config, snapshot);
+  const notice = (await oxfmtInstalled()) ? "" : `\n${UNFORMATTED}`;
 
   if (options.check) {
     const stale: string[] = [];
@@ -170,7 +184,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     }
     return {
       code: 0,
-      output: `Generated files are up to date (${files.length + (readSets ? 1 : 0)}).`,
+      output: `Generated files are up to date (${files.length + (readSets ? 1 : 0)}).${notice}`,
       data: { upToDate: true, stale: [] },
     };
   }
@@ -200,7 +214,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     output:
       written.length === 0
         ? `No changes (${tables} tables).`
-        : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join("\n")}`,
+        : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join("\n")}${notice}`,
     data: { tables, written },
   };
 }
@@ -258,27 +272,76 @@ const ARGS = {
 const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
   delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
 
+/**
+ * Regenerates whenever the schema changes. A database source keeps one
+ * connection open and polls the catalog fingerprint, so an unchanged schema
+ * costs one small query per interval; a source without a fingerprint is
+ * introspected each time and compared.
+ */
+/**
+ * Reads the schema when it may have changed. Returns the new change marker (the
+ * catalog fingerprint, or the snapshot itself when the source has none) and
+ * the snapshot, or no snapshot when the fingerprint still matches `last`.
+ */
+async function poll(
+  options: GenOptions,
+  db: IntrospectionSource | undefined,
+  last: string,
+): Promise<{ marker: string; snapshot?: Snapshot }> {
+  const fingerprint = db
+    ? await catalogFingerprint(db.queryable).catch(() => undefined)
+    : undefined;
+  if (fingerprint !== undefined && fingerprint === last)
+    return { marker: last };
+  const snapshot = await loadSnapshot(
+    options.config,
+    options.env,
+    options,
+    undefined,
+    db ? () => Promise.resolve(db) : undefined,
+  );
+  const marker = fingerprint ?? JSON.stringify(snapshot);
+  return marker === last ? { marker } : { marker, snapshot };
+}
+
+/**
+ * Regenerates whenever the schema changes. A database source keeps one
+ * connection open and polls the catalog fingerprint, so an unchanged schema
+ * costs one small query per interval.
+ */
 async function watch(
   options: GenOptions,
   interval: number,
   { io, signal }: CliContext,
 ): Promise<CommandResult> {
   let last = "";
+  let db: IntrospectionSource | undefined;
   const aborted = (): boolean => signal?.aborted ?? false;
-  while (!aborted()) {
-    try {
-      const snapshot = await loadSnapshot(options.config, options.env, options);
-      const fingerprint = JSON.stringify(snapshot);
-      if (fingerprint !== last) {
-        last = fingerprint;
-        const result = await runGen({ ...options, snapshot });
-        if (result.output) io.stdout(`${result.output}\n`);
-        if (result.error) io.stderr(`${result.error}\n`);
+  const fromFile = snapshotFile(options.config, options) !== undefined;
+  try {
+    while (!aborted()) {
+      try {
+        db ??= fromFile
+          ? undefined
+          : await openSource(options.config, options.env, options);
+        const { marker, snapshot } = await poll(options, db, last);
+        last = marker;
+        const result = snapshot
+          ? await runGen({ ...options, snapshot })
+          : undefined;
+        if (result?.output) io.stdout(`${result.output}\n`);
+        if (result?.error) io.stderr(`${result.error}\n`);
+      } catch (cause) {
+        io.stderr(
+          `${cause instanceof Error ? cause.message : String(cause)}\n`,
+        );
+        await db?.close().catch(() => undefined);
+        db = undefined;
       }
-    } catch (cause) {
-      io.stderr(`${cause instanceof Error ? cause.message : String(cause)}\n`);
+      await sleep(interval, signal);
     }
-    await sleep(interval, signal);
+  } finally {
+    await db?.close().catch(() => undefined);
   }
   return { code: 0 };
 }
@@ -286,7 +349,8 @@ async function watch(
 export const genCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "gen",
-    description: "Writes database.types.ts and generated.ts from the database",
+    description:
+      "Writes database.types.ts, generated.ts and its metadata module from the database",
   },
   args: ARGS,
   run: async (args, context) => {
@@ -296,6 +360,8 @@ export const genCommand: AnyCommand = defineCliCommand({
       check: args.check === true,
       paint: painter(context.io.color),
       ...(await sourceArgs(args, context.io)),
+      ...(context.signal ? { signal: context.signal } : {}),
+      cache: true,
     };
     return args.watch === true
       ? watch(options, Number(args.interval ?? 2000), context)

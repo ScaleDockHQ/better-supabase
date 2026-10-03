@@ -5,7 +5,6 @@ import {
   renderUsage,
   runCommand,
 } from "citty";
-import { closest, distance } from "fastest-levenshtein";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
@@ -16,8 +15,6 @@ import {
   joinRepeated,
   listArgs,
 } from "./command.ts";
-import { loadConfig } from "./config.ts";
-import { parseEnv } from "./env.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { type CliIo, type CommandResult, type RunResult } from "./io.ts";
 import { type Command, legacyCommand } from "./legacy.ts";
@@ -27,24 +24,101 @@ import { VERSION } from "./version.ts";
 
 type Loader = () => Promise<AnyCommand>;
 
-const COMMANDS = new Map<string, Loader>([
-  ["init", () => import("./commands/init.ts").then((m) => m.initCommand)],
-  ["add", () => import("./commands/init.ts").then((m) => m.addCommand)],
-  ["env", () => import("./commands/env.ts").then((m) => m.envCommand)],
-  ["keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
-  ["skills", () => import("./commands/skills.ts").then((m) => m.skillsCommand)],
-  ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
+type Entry =
+  | {
+      readonly load: Loader;
+      /** Shown in the root usage without loading the command. */
+      readonly description: string;
+    }
+  | { readonly load: Loader; readonly command: AnyCommand };
+
+const COMMANDS = new Map<string, Entry>([
+  [
+    "init",
+    {
+      load: () => import("./commands/init.ts").then((m) => m.initCommand),
+      description:
+        "Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json",
+    },
+  ],
+  [
+    "add",
+    {
+      load: () => import("./commands/init.ts").then((m) => m.addCommand),
+      description: "Adds glue for an integration to an existing project",
+    },
+  ],
+  [
+    "env",
+    {
+      load: () => import("./commands/env.ts").then((m) => m.envCommand),
+      description:
+        "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
+    },
+  ],
+  [
+    "keys",
+    {
+      load: () => import("./commands/keys.ts").then((m) => m.keysCommand),
+      description:
+        "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
+    },
+  ],
+  [
+    "skills",
+    {
+      load: () => import("./commands/skills.ts").then((m) => m.skillsCommand),
+      description:
+        "Installs the Agent Skills that ship with this version of better-supabase",
+    },
+  ],
+  [
+    "gen",
+    {
+      load: () => import("./commands/gen.ts").then((m) => m.genCommand),
+      description:
+        "Writes database.types.ts, generated.ts and its metadata module from the database",
+    },
+  ],
   [
     "introspect",
-    () => import("./commands/introspect.ts").then((m) => m.introspectCommand),
+    {
+      load: () =>
+        import("./commands/introspect.ts").then((m) => m.introspectCommand),
+      description: "Saves the database schema as a snapshot for offline gen",
+    },
   ],
   [
     "openapi",
-    () => import("./commands/openapi.ts").then((m) => m.openapiCommand),
+    {
+      load: () => import("./commands/openapi.ts").then((m) => m.openapiCommand),
+      description:
+        "Writes the document your createOpenApi() module exports, so CI can check it for drift",
+    },
   ],
-  ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
-  ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
-  ["sql", () => import("./commands/sql.ts").then((m) => m.sqlCommand)],
+  [
+    "seed",
+    {
+      load: () => import("./commands/seed.ts").then((m) => m.seedCommand),
+      description:
+        "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
+    },
+  ],
+  [
+    "doctor",
+    {
+      load: () => import("./commands/doctor.ts").then((m) => m.doctorCommand),
+      description:
+        "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
+    },
+  ],
+  [
+    "sql",
+    {
+      load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
+      description: "Lists, adds, syncs and prints SQL kit modules",
+    },
+  ],
 ]);
 
 /** Registers a citty command; `defineCliCommand` gives it the `CliContext`. */
@@ -64,7 +138,7 @@ export function registerCommand(
     typeof command === "function"
       ? legacyCommand(name, command, help)
       : command;
-  COMMANDS.set(name, () => Promise.resolve(def));
+  COMMANDS.set(name, { load: () => Promise.resolve(def), command: def });
 }
 
 const ROOT = defineCommand({
@@ -76,12 +150,28 @@ const ROOT = defineCommand({
   },
   args: GLOBAL_ARGS,
   subCommands: () =>
-    Object.fromEntries([...COMMANDS].map(([name, load]) => [name, load])),
+    Object.fromEntries(
+      [...COMMANDS].map(([name, entry]) => [
+        name,
+        "command" in entry
+          ? entry.command
+          : defineCommand({ meta: { name, description: entry.description } }),
+      ]),
+    ),
 });
+
+/** The root usage's description of each built-in command, for checking against the command. */
+export function commandDescriptions(): ReadonlyMap<string, string> {
+  return new Map(
+    [...COMMANDS].flatMap(([name, entry]) =>
+      "description" in entry ? [[name, entry.description] as const] : [],
+    ),
+  );
+}
 
 /** The usage text for the CLI, or for one command; plain unless `color` is set. */
 export async function help(command?: string, color = false): Promise<string> {
-  const load = command === undefined ? undefined : COMMANDS.get(command);
+  const load = command === undefined ? undefined : COMMANDS.get(command)?.load;
   const text = load
     ? await renderUsage(await load(), ROOT)
     : await renderUsage(ROOT);
@@ -123,9 +213,10 @@ export function commandNames(): string[] {
 }
 
 /** The registered command closest to a mistyped one, if it is close enough to be a typo. */
-function suggestCommand(name: string): string | undefined {
+async function suggestCommand(name: string): Promise<string | undefined> {
   const names = [...COMMANDS.keys()];
   if (names.length === 0) return undefined;
+  const { closest, distance } = await import("fastest-levenshtein");
   const candidate = closest(name, names);
   return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
     ? candidate
@@ -216,9 +307,9 @@ export async function run(
     out(await usage(topic));
     return finish(0);
   }
-  const load = COMMANDS.get(name);
+  const load = COMMANDS.get(name)?.load;
   if (!load) {
-    const suggestion = suggestCommand(name);
+    const suggestion = await suggestCommand(name);
     return reportError(
       new CliError(
         "unknown_command",
@@ -235,7 +326,13 @@ export async function run(
   let context: CliContext;
   let command: CommandDef;
   try {
-    command = await load();
+    // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
+    const [loaded, { loadConfig }, { parseEnv }] = await Promise.all([
+      load(),
+      import("./config.ts"),
+      import("./env.ts"),
+    ]);
+    command = loaded;
     const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
     const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
     const env = parseEnv(options.env ?? {});

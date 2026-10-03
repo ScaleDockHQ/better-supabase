@@ -42,7 +42,7 @@ import { resolveConfig } from "../../../src/config/index.ts";
 import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
-const base = parseSnapshot(fixture);
+const base = await parseSnapshot(fixture);
 
 const PERMDOCK: PermdockProject = {
   config: "permdock.config.ts",

@@ -13,7 +13,7 @@ import {
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
-const generator = validateGeneratorMetadata(fixture.generator);
+const generator = await validateGeneratorMetadata(fixture.generator);
 
 type TypeRow = GeneratorMetadata["types"][number];
 const type = (
@@ -254,21 +254,21 @@ describe("restrictSchemas", () => {
 });
 
 describe("generator documents", () => {
-  it("serializes metadata that validates again", () => {
-    const text = serializeGenerator(generator);
-    const parsed = validateGeneratorMetadata(JSON.parse(text));
-    expect(serializeGenerator(parsed)).toBe(text);
+  it("serializes metadata that validates again", async () => {
+    const text = await serializeGenerator(generator);
+    const parsed = await validateGeneratorMetadata(JSON.parse(text));
+    expect(await serializeGenerator(parsed)).toBe(text);
     expect(parsed.tables.length).toBe(generator.tables.length);
   });
 
-  it("rejects metadata that does not match the contract", () => {
-    expect(() => validateGeneratorMetadata({ version: 1 })).toThrow(
+  it("rejects metadata that does not match the contract", async () => {
+    await expect(validateGeneratorMetadata({ version: 1 })).rejects.toThrow(
       /^Invalid GeneratorMetadata: columns must be an array \(was missing\)\n/,
     );
   });
 
-  it("embeds the contract's JSON Schema without its dialect", () => {
-    const schema = generatorJsonSchema();
+  it("embeds the contract's JSON Schema without its dialect", async () => {
+    const schema = await generatorJsonSchema();
     expect(schema).not.toHaveProperty("$schema");
     expect(schema["type"]).toBe("object");
   });
