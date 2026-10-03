@@ -4,11 +4,19 @@ import type {
   PermdockBucketPolicy,
   SchemaMeta,
 } from "../schema/types.ts";
+import type { KitsConfig } from "./kits.ts";
 import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 
 export type { Casing };
+export type {
+  AccessKitConfig,
+  ActiveTenantSource,
+  KitMode,
+  KitModuleConfig,
+  KitsConfig,
+} from "./kits.ts";
 
 /**
  * Where codegen reads the database from. Without any of these, `$DATABASE_URL`
@@ -364,6 +372,12 @@ export interface BetterSupabaseConfig {
    */
   readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
   readonly sql?: SqlConfig;
+  /**
+   * How each SQL kit module maps onto the database: `managed` tables, or
+   * `adopt` and `custom` over the app's own, with table, column and
+   * permission names, keyed by module name.
+   */
+  readonly kits?: KitsConfig;
   readonly seed?: SeedConfig;
   readonly openapi?: OpenApiConfig;
   readonly doctor?: DoctorConfig;
@@ -443,6 +457,7 @@ export interface ResolvedConfig {
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<RealtimeConfig>;
   readonly sql: Required<SqlConfig>;
+  readonly kits: KitsConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
   readonly doctor: Required<Omit<DoctorConfig, "claimsLimit">> &
@@ -535,6 +550,7 @@ export function resolveConfig(
       testsDir: config.sql?.testsDir ?? "supabase/tests",
       kit: config.sql?.kit ?? [],
     },
+    kits: config.kits ?? {},
     seed: {
       entry: config.seed?.entry ?? "supabase/seed.ts",
       output: config.seed?.output ?? "supabase/seeds/000_better_supabase.sql",

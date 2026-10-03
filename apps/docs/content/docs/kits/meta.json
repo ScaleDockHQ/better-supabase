@@ -5,6 +5,7 @@
     "storage",
     "realtime",
     "sql",
+    "access",
     "jobs",
     "entitlements",
     "vector-search"

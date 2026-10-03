@@ -9,6 +9,7 @@ import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import {
+  kitFileVersion,
   type KitLayout,
   kitLayout,
   renderKit,
@@ -19,6 +20,7 @@ import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
 import { migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
+import { KIT_RULES } from "./kits.ts";
 import { LIVE_RULES } from "./live.ts";
 import { entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
 import { POLICY_RULES } from "./policies.ts";
@@ -648,8 +650,14 @@ const OWN_RULES: readonly Rule[] = [
           "utf8",
         ).catch(() => undefined);
         if (sameKitFile(current, file.contents)) continue;
+        const edited =
+          current !== undefined &&
+          kitFileVersion(current)?.version ===
+            kitFileVersion(file.contents)?.version
+            ? ` If you edited it, move the change to \`kits.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`
+            : "";
         stale.push({
-          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.`,
+          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.${edited}`,
           target: file.path,
           ...(current === undefined
             ? {}
@@ -882,6 +890,7 @@ export const RULES: readonly Rule[] = [
   ...HOOK_RULES,
   ...PERMDOCK_RULES,
   ...LIVE_RULES,
+  ...KIT_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

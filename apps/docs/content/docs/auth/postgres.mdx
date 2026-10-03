@@ -40,6 +40,20 @@ leaks back into the pool. Each transaction sets them, with its timeouts, in
 one query after `begin`. Only `authenticated` and `anon` can be assumed this
 way.
 
+`asUser`, `executorFor` and `transaction` also take session options.
+`settings` sets more transaction-local settings, such as
+`better_supabase.tenant` for a [resolved tenant](/docs/kits/access#the-active-tenant);
+their names need a dot, so they can't replace `role` or the claims.
+`readOnly: true` opens every transaction with `begin read only`, so writes fail
+with SQLSTATE 25006.
+
+```ts
+const reader = postgres.asUser(claims, {
+  settings: { "better_supabase.tenant": organizationId },
+  readOnly: true,
+});
+```
+
 ## Timeouts
 
 `set role` doesn't apply a role's own settings, so the `statement_timeout`

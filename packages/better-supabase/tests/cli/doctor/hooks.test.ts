@@ -145,6 +145,77 @@ describe("hookGrantBlock", () => {
   });
 });
 
+describe("BS308 tenant claim", () => {
+  const hookDatabase = (
+    claims: unknown,
+    user: boolean = true,
+  ): LiveDatabase => ({
+    describe: "test",
+    session: true,
+    async query<R>(sql: string) {
+      if (sql.includes("auth.users"))
+        return [{ event: user ? "{}" : null }] as R[];
+      if (sql.includes("pg_roles")) return [{ member: true }] as R[];
+      if (sql.includes("as claims")) {
+        if (claims instanceof Error) throw claims;
+        return [{ claims }] as R[];
+      }
+      return [] as R[];
+    },
+  });
+  const tenantConfig = resolveConfig({ sql: { kit: ["tenant"] } }, "/project");
+  const run = (
+    database: LiveDatabase,
+    config = tenantConfig,
+    hookUser: string | null = "u1",
+  ) =>
+    runRules(
+      context(withHook([hookFn()]), {
+        config,
+        database,
+        ...(hookUser ? { hookUser } : {}),
+      }),
+      only("BS308"),
+    );
+
+  it("warns when the hook's claims have no tenant claim", async () => {
+    expect(await run(hookDatabase({ sub: "u1" }))).toMatchObject([
+      {
+        severity: "warning",
+        message: expect.stringContaining("returns no `tenant_id` claim for u1"),
+        target: "rbac.custom_access_token_hook(event jsonb):tenant_id",
+      },
+    ]);
+    expect(await run(hookDatabase(JSON.stringify({ sub: "u1" })))).toHaveLength(
+      1,
+    );
+  });
+
+  it("accepts the claim at the top level or in app_metadata", async () => {
+    expect(await run(hookDatabase({ tenant_id: "t1" }))).toEqual([]);
+    expect(
+      await run(hookDatabase({ app_metadata: { tenant_id: "t1" } })),
+    ).toEqual([]);
+  });
+
+  it("skips other active-tenant sources, missing users, failures and runs without --as", async () => {
+    const resolver = resolveConfig(
+      {
+        sql: { kit: ["tenant"] },
+        kits: { access: { activeTenant: "resolver" } },
+      },
+      "/project",
+    );
+    const empty = hookDatabase({});
+    expect(await run(empty, resolver)).toEqual([]);
+    expect(await run(empty, resolveConfig({}, "/project"))).toEqual([]);
+    expect(await run(empty, tenantConfig, null)).toEqual([]);
+    expect(await run(hookDatabase({}, false))).toEqual([]);
+    expect(await run(hookDatabase(new Error("boom")))).toEqual([]);
+    expect(await run(hookDatabase(null))).toHaveLength(1);
+  });
+});
+
 describe("BS405 --as", () => {
   it("needs a direct session to call the hook", async () => {
     const run = (database?: DoctorContext["database"]) =>

@@ -7,9 +7,12 @@ import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
 import {
+  contractSignature,
+  customContracts,
   type KitLayout,
   type KitPermdock,
   kitLayout,
+  moduleBody,
   renderKit,
   resolveModules,
   sameKitFile,
@@ -189,10 +192,12 @@ export async function runSql(
         ]),
       );
       const lines = Object.values(SQL_MODULES).map((module) => {
-        const path = files.get(module.name)!;
-        const installed = existsSync(resolve(config.root, path));
+        const path = files.get(module.name);
+        const installed =
+          path !== undefined && existsSync(resolve(config.root, path));
         const tracked = config.sql.kit.includes(module.name);
-        const mark = installed ? (tracked ? "●" : "○") : " ";
+        const mark =
+          path === undefined ? "◇" : installed ? (tracked ? "●" : "○") : " ";
         const requires =
           kit.permdock && module.permdockRequires
             ? module.permdockRequires
@@ -203,7 +208,7 @@ export async function runSql(
       });
       return {
         code: 0,
-        output: `${lines.join("\n")}\n\n● installed and in sql.kit   ○ installed, not in sql.kit`,
+        output: `${lines.join("\n")}\n\n● installed and in sql.kit   ○ installed, not in sql.kit   ◇ custom mode (the app implements it)`,
       };
     }
     case "add": {
@@ -311,15 +316,27 @@ export async function runSql(
           error: `Name one module: ${Object.keys(SQL_MODULES).join(", ")}`,
         };
       }
-      return {
-        code: 0,
-        output: module.render
-          ? module.render(
-              config.claims,
-              await layout(config, args, [module.name]),
+      const body = moduleBody(
+        module.name,
+        await layout(config, args, [module.name]),
+      );
+      if (body === undefined) {
+        return {
+          code: 0,
+          output: `-- kits.${module.name} is in custom mode: the app writes these functions.\n${customContracts(
+            [module.name],
+            await layout(config, args, [module.name]),
+          )
+            .flatMap((contract) =>
+              contract.functions.map(
+                (fn) =>
+                  `-- ${contract.schema}.${fn.name}(${contractSignature(fn, contract.idType)}) returns ${fn.returns.replaceAll("{id}", contract.idType)}`,
+              ),
             )
-          : module.sql,
-      };
+            .join("\n")}`,
+        };
+      }
+      return { code: 0, output: body };
     }
     case undefined:
       return { code: 2, error: `Name an action.\n${USAGE}` };

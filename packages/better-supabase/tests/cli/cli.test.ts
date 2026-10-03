@@ -172,6 +172,7 @@ describe("config JSON Schema", () => {
       expose: true,
       readSets: true,
       sql: true,
+      kits: true,
       seed: true,
       openapi: true,
       doctor: true,

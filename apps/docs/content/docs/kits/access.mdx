@@ -1,0 +1,248 @@
+---
+title: Access contract
+description: One permission check for RLS policies and kit modules, over a role list, your own role tables, PermDock or functions you already have.
+---
+
+The `access` SQL kit module gives policies and the other kit modules one way to
+ask "may the caller do this": `can(scope, id, permission)`. The functions behind
+it come from the access model you pick in `kits.access`, so the same policies
+work over a fixed role list, a role and permission catalog you already have,
+PermDock, or functions your app already wrote.
+
+```bash
+better-supabase sql add access
+```
+
+```sql
+create policy "members read" on public.projects for select to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with('projects.read')));
+
+create policy "admins update" on public.projects for update to authenticated
+  using (better_supabase.can('organization', organization_id, 'projects.update'));
+```
+
+`tenant_ids_with()` returns a set, so Postgres runs it once per statement. Use
+it in policies on large tables, and keep `can()` for single checks.
+
+## The contract
+
+| Function                                      | Returns                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `can(scope, scope_id, permission)`            | whether the caller holds `permission` in that tenant, or on the platform |
+| `tenant_ids_with(permission)`                 | the tenants where the caller holds `permission`                          |
+| `is_platform(permission)`                     | whether the caller holds a platform permission (support staff, admins)   |
+| `can_user(user, scope, scope_id, permission)` | the same check for another user (service role only)                      |
+| `can_assign(tenant, role)`                    | whether the caller may hand out `role` in that tenant                    |
+| `permission_claims(user)`                     | a `jsonb` claim for your access token hook                               |
+
+Permission keys are dotted strings. A granted `*` matches every key, and
+`members.*` matches every key that starts with `members.`. Kit modules check
+the keys in their `permissions` config, so `kits.invitations.permissions.invite`
+can be `organization.members.invite` in an app that already uses that name:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["access", "invitations"] },
+  kits: {
+    invitations: { permissions: { invite: "organization.members.invite" } },
+  },
+});
+```
+
+| Module             | Action and default key                                                                                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizations`    | `update`: `organization.update`, `delete`: `organization.delete`, `removeMember`: `members.remove`, `updateRole`: `members.update_role`, `transferOwnership`: `ownership.transfer` |
+| `invitations`      | `invite`, `revoke` and `view`: `members.invite`                                                                                                                                    |
+| `audit`            | `view`: `audit.view`                                                                                                                                                               |
+| `support-sessions` | `start`: `support.start`, `view`: `support.view`                                                                                                                                   |
+| `notifications`    | `send`: `notifications.send`                                                                                                                                                       |
+| `webhooks-out`     | `manage`: `webhooks.manage`, `view`: `webhooks.view`                                                                                                                               |
+
+## Models
+
+`kits.access.model` picks where permissions come from. Every model writes the
+same contract, so you can change models without touching your policies.
+
+### roles (the default)
+
+Roles and their keys live in the config. The `tenant` module's memberships
+table holds each member's role, and its role check follows the names here.
+Platform permissions come from the `platform_permissions` claim
+(`platformClaim` renames it), an array your access token hook writes.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["access"] },
+  kits: {
+    access: {
+      roles: {
+        owner: ["*"],
+        admin: ["organization.*", "members.*", "billing.*"],
+        member: ["organization.read", "projects.*"],
+      },
+    },
+  },
+});
+```
+
+Without `roles`, the defaults are `owner` (`*`), `admin`, `member` and
+`viewer`. `can_assign()` lets a member hand out a role only when their own role
+holds every key of it, so an admin can't make someone an owner.
+
+### catalog
+
+Roles, permissions and their links are rows in tables. A per-tenant override
+table can grant or deny a key for one role in one tenant (a deny wins), and a
+platform table assigns platform roles to users. In `managed` mode the kit
+creates the tables; in `adopt` mode you point it at yours:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["access"] },
+  kits: {
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_members" },
+      columns: {
+        memberships: {
+          tenant: "organization_id",
+          role: "role_id",
+          lastUsedAt: null,
+        },
+      },
+    },
+    access: {
+      mode: "adopt",
+      model: "catalog",
+      tables: {
+        roles: "public.roles",
+        permissions: "public.permissions",
+        rolePermissions: "public.role_permissions",
+        overrides: "public.organization_role_overrides",
+        platformAssignments: "public.user_roles",
+      },
+      columns: {
+        roles: { key: "slug" },
+        overrides: { tenant: "organization_id" },
+      },
+    },
+  },
+});
+```
+
+`null` marks an optional table or column you don't have. With
+`overrides: null`, role defaults are the only source.
+
+### permdock
+
+With [PermDock](/docs/auth/permdock), `can()` and `tenant_ids_with()` call
+PermDock's `permitted_<scope>_ids` and `permdock_has`. `kits.access.permdock`
+names PermDock's schema and the scope tenants are.
+
+### custom
+
+Your app already has the functions. Give the contract as SQL templates with
+`{scope}`, `{id}`, `{permission}`, `{user}`, `{tenant}` and `{role}`
+placeholders. `can`, `tenantIdsWith` and `isPlatform` are required.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["access"] },
+  kits: {
+    access: {
+      model: "custom",
+      functions: {
+        can: "public.authorize({scope}, {id}, {permission})",
+        tenantIdsWith: "public.organizations_with({permission})",
+        isPlatform: "public.is_staff({permission})",
+      },
+    },
+  },
+});
+```
+
+With `mode: "custom"` instead, the kit writes nothing at all and you write the
+contract functions under those names yourself. `better-supabase sql print
+access` lists their signatures, and [doctor](/docs/cli/doctor#bs307) checks
+them.
+
+## Disabled tenants and users
+
+`kits.access.disabled` names columns that switch a tenant or a user off when
+they are set, such as `disabled_at`. A disabled tenant or user gets no
+permissions, and `membership_claims()` leaves them out of the token.
+
+```ts
+kits: {
+  access: {
+    disabled: {
+      tenant: "public.organizations.disabled_at",
+      user: "public.profiles.disabled_at",
+      userKey: "user_id",
+    },
+  },
+},
+```
+
+`tenantKey` and `userKey` name the column matched against the tenant or user
+id; they default to `id`.
+
+## The active tenant
+
+`current_tenant_id()` and the [`tenant()` plugin](/docs/plugins/tenant) need
+the tenant a request works in. `kits.access.activeTenant` says where it comes
+from.
+
+| Source                   | Reads                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `'claim'` (default)      | the `claims.tenant` claim, at the top level or in `app_metadata`                  |
+| `'resolver'`             | the tenant the server resolved for the request, then the claim                    |
+| `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
+
+With `'resolver'`, pass `tenant` to the server. It runs once per request, and
+the tenant it returns becomes `context.tenant` for the `tenant()` plugin, the
+`better_supabase.tenant` setting for `ctx.sql`, and the `x-bs-tenant` header
+for `ctx.db`. `current_tenant_id()` returns it only while the caller is a
+member, so a tampered header or slug grants nothing.
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createServer } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bs = createServer(betterSupabase, {
+  tenant: async (request, auth) => {
+    const slug = new URL(request.url).pathname.split("/")[2];
+    return slug ? organizationIdForSlug(slug) : undefined;
+  },
+});
+```
+
+A route that already knows the tenant passes it directly:
+`bs.context(request, { tenant })`. `contextFromResolution` runs only
+synchronous resolvers; pass `{ tenant }` to it when yours is async.
+
+With `'claim'`, [doctor `--as <user id>`](/docs/cli/doctor#bs308) calls your
+access token hook and warns when the claims it returns have no tenant.
+
+## Claims for the access token hook
+
+The kit never owns your access token hook. It gives you claim builders to
+call from it: `membership_claims(user)` from the `tenant` module and
+`permission_claims(user)` from this one.
+
+```sql
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb language plpgsql stable set search_path = '' as $$
+declare
+  user_id uuid := (event ->> 'user_id')::uuid;
+begin
+  event := jsonb_set(event, '{claims,memberships}', better_supabase.membership_claims(user_id));
+  return jsonb_set(event, '{claims,permissions}', better_supabase.permission_claims(user_id));
+end $$;
+```
+
+`kits.tenant.options.claimFormat` picks the memberships claim's form:
+`'array'` (the default, PermDock's `[{ scope, id, roles }]`) or `'map'`
+(`{ "<tenant id>": "<role>" }`).

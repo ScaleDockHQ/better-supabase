@@ -4,7 +4,7 @@ export type {
 } from "./delete-account.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
-export { createServer } from "./server.ts";
+export { createServer, TENANT_HEADER } from "./server.ts";
 export type {
   BetterServer,
   ContextOptions,

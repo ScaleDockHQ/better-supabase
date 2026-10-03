@@ -1,7 +1,45 @@
+import type { KitMode, KitsConfig } from "../config/kits.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import {
+  createKitContext,
+  type KitContext,
+  type KitContractFunction,
+  type KitIdType,
+  type KitNames,
+} from "./context.ts";
+import { ACCESS } from "./modules/access.ts";
+import { TENANT } from "./modules/tenant.ts";
+import { SCHEMA } from "./shared.ts";
+
+export {
+  isKitIdType,
+  KIT_ID_TYPES,
+  type KitIdType,
+  kitIdType,
+} from "./context.ts";
+
+/** The step from one module version to the next, for `sql upgrade`. */
+export interface KitUpgrade {
+  /** The installed version this step upgrades from. */
+  readonly from: number;
+  readonly description: string;
+  /** SQL run before the module's current file, e.g. renames and backfills. */
+  readonly sql: (ctx: KitContext) => string;
+}
+
+/** A kit symbol kept as a compatibility wrapper for at least one minor release. */
+export interface KitDeprecation {
+  readonly kind: "function" | "claim" | "table" | "column";
+  /** The old name, e.g. `better_supabase.has_org_role`. */
+  readonly symbol: string;
+  /** What to use instead. */
+  readonly use: string;
+  /** The package version that deprecated it. */
+  readonly since: string;
+}
 
 /**
  * SQL kit modules for `better-supabase sql add`. Every module is idempotent
@@ -15,25 +53,53 @@ export interface SqlModule {
   readonly requires: readonly string[];
   /** What it needs instead when the layout has `permdock`. */
   readonly permdockRequires?: readonly string[];
+  /** What it needs for this layout, e.g. per `kits.access.model`; overrides both. */
+  readonly dependencies?: (layout: KitLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
   /** The module with the default claim names. */
   readonly sql: string;
   /** The module for configured claim names (`config.claims`), when it reads claims. */
   readonly render?: (claims: ClaimsMeta, layout: KitLayout) => string;
+  /** Bumped when installed databases need an upgrade step. Defaults to 1. */
+  readonly version?: number;
+  /** The modes `kits.<name>.mode` accepts. Defaults to `managed` only. */
+  readonly modes?: readonly KitMode[];
+  /** The logical tables and columns `kits.<name>.tables` and `columns` map. */
+  readonly names?: KitNames;
+  /** The functions other modules and the TypeScript side call. */
+  readonly contract?: (ctx: KitContext) => readonly KitContractFunction[];
+  /** Renders the module for a layout; takes precedence over `render`. */
+  readonly build?: (ctx: KitContext, layout: KitLayout) => string;
+  readonly upgrades?: readonly KitUpgrade[];
+  readonly deprecated?: readonly KitDeprecation[];
+}
+
+export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
+
+/** A module rendered by `build`; its `sql` is the build with the defaults. */
+export type KitModuleDefinition = Omit<
+  SqlModule,
+  "sql" | "render" | "build"
+> & {
+  readonly build: NonNullable<SqlModule["build"]>;
+};
+
+function built(definition: KitModuleDefinition): SqlModule {
+  let cached: string | undefined;
+  return {
+    ...definition,
+    get sql() {
+      return (cached ??= definition.build(kitContext(definition.name, {}), {}));
+    },
+  };
 }
 
 const requiresOf = (module: SqlModule, layout: KitLayout): readonly string[] =>
-  layout.permdock && module.permdockRequires
+  module.dependencies?.(layout) ??
+  (layout.permdock && module.permdockRequires
     ? module.permdockRequires
-    : module.requires;
-
-function jwtClaim(name: string): string {
-  return `coalesce(auth.jwt() ->> ${sqlString(name)}, auth.jwt() -> 'app_metadata' ->> ${sqlString(name)})`;
-}
-
-const SCHEMA = `create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;`;
+    : module.requires);
 
 const UPDATED_AT: SqlModule = {
   name: "updated-at",
@@ -298,111 +364,6 @@ const AUDIT: SqlModule = {
   target: "schema",
   sql: auditSql(),
   render: (_claims, layout) => auditSql(layout.tenantColumn),
-};
-
-const tenantSql = (claims: ClaimsMeta): string => `${SCHEMA}
-grant usage on schema better_supabase to supabase_auth_admin;
-
-create table if not exists better_supabase.memberships (
-  org_id uuid not null,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  role text not null default 'member' check (role in ('owner', 'admin', 'member', 'viewer')),
-  created_at timestamptz not null default now(),
-  primary key (org_id, user_id)
-);
-create index if not exists memberships_user_idx on better_supabase.memberships (user_id);
-
-alter table better_supabase.memberships enable row level security;
-grant select on better_supabase.memberships to authenticated;
-grant all on better_supabase.memberships to service_role;
-
--- The tenant of the current request: the top-level \`${claims.tenant}\` claim
--- (custom access token hook) or \`app_metadata.${claims.tenant}\` (Auth admin API).
--- Never user_metadata: users can write it.
-create or replace function better_supabase.current_tenant_id()
-returns uuid
-language sql
-stable
-set search_path = ''
-as $$
-  select nullif(${jwtClaim(claims.tenant)}, '')::uuid
-$$;
-
--- Policies compare against the set once per statement:
---   using (organization_id in (select better_supabase.member_org_ids('{owner,admin}')))
--- has_org_role(org) answers for one organization, in functions and checks.
-create or replace function better_supabase.member_org_ids(roles text[] default null)
-returns setof uuid
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select m.org_id
-  from better_supabase.memberships m
-  where m.user_id = (select auth.uid())
-    and (roles is null or m.role = any (roles))
-$$;
-
-create or replace function better_supabase.has_org_role(org uuid, roles text[] default null)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1
-    from better_supabase.memberships m
-    where m.org_id = org
-      and m.user_id = auth.uid()
-      and (roles is null or m.role = any (roles))
-  )
-$$;
-
-drop policy if exists bs_memberships_read on better_supabase.memberships;
-create policy bs_memberships_read on better_supabase.memberships
-  for select to authenticated
-  using (user_id = (select auth.uid()) or org_id in (select better_supabase.member_org_ids()));
-
-revoke execute on function better_supabase.member_org_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_org_role(uuid, text[]) from public, anon;
-grant execute on function better_supabase.member_org_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_org_role(uuid, text[]) to authenticated, service_role;
-
--- The memberships claim in PermDock's shape: [{ scope, id, roles }]. With
--- PermDock, \`permdock supabase hook generate\` writes the hook instead.
--- Otherwise call it from your custom access token hook:
---   return jsonb_set(event, '{claims,memberships}',
---     better_supabase.membership_claims((event ->> 'user_id')::uuid));
-create or replace function better_supabase.membership_claims(user_id uuid)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'scope', ${sqlString(claims.scope)},
-      'id', m.org_id,
-      'roles', jsonb_build_array(m.role)
-    ) order by m.created_at, m.org_id), '[]'::jsonb)
-  from better_supabase.memberships m
-  where m.user_id = membership_claims.user_id
-$$;
-
-revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
-grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`;
-
-const TENANT: SqlModule = {
-  name: "tenant",
-  title: "Tenant memberships and permission helper",
-  description:
-    "Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. A template: edit the roles to fit your app.",
-  requires: [],
-  target: "schema",
-  sql: tenantSql(DEFAULT_CLAIMS),
-  render: tenantSql,
 };
 
 const MFA: SqlModule = {
@@ -1744,7 +1705,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       UPDATED_AT,
       ACTOR,
       AUDIT,
-      TENANT,
+      built(TENANT),
       INVITATIONS,
       RESERVED_SLUGS,
       JOBS,
@@ -1759,6 +1720,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       ENTITLEMENTS,
       RATE_LIMIT,
       VECTOR_SEARCH,
+      built(ACCESS),
     ].map((module) => [module.name, module]),
   );
 
@@ -1822,6 +1784,8 @@ export interface KitLayout {
   readonly claims?: ClaimsMeta;
   /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
   readonly permdock?: KitPermdock;
+  /** `config.kits`: modes, names and permission keys per module. */
+  readonly kits?: KitsConfig;
 }
 
 /** One PermDock membership source, from the manifest's `memberships`. */
@@ -1842,31 +1806,6 @@ export interface KitPermdock {
   /** The scope's id type, from the manifest's `rls.scopes[].type`. */
   readonly idType: KitIdType;
   readonly memberships: readonly KitMembershipSource[];
-}
-
-/** The scope id types the `entitlements` module renders in PermDock mode. */
-export const KIT_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
-export type KitIdType = (typeof KIT_ID_TYPES)[number];
-
-export const isKitIdType = (value: string): value is KitIdType =>
-  KIT_ID_TYPES.some((type) => type === value);
-
-const ID_TYPE_ALIASES: Readonly<Record<string, KitIdType>> = {
-  int8: "bigint",
-  int4: "integer",
-  int: "integer",
-  varchar: "text",
-  "character varying": "text",
-};
-
-/**
- * A Postgres type name as one of `KIT_ID_TYPES`: case and spacing are
- * normalised and aliases such as `int8` resolved. `undefined` for any other
- * type, so callers refuse it instead of guessing.
- */
-export function kitIdType(value: string): KitIdType | undefined {
-  const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
-  return isKitIdType(name) ? name : ID_TYPE_ALIASES[name];
 }
 
 /** An embedding column `db.$search` can query. */
@@ -2088,35 +2027,165 @@ export function sameKitFile(
   return strip(current) === strip(expected);
 }
 
-/** The files `sql add` writes for these modules. */
+/** The context a module renders with for `layout`. */
+export function kitContext(
+  name: string,
+  layout: KitLayout = {},
+  installed?: readonly string[],
+): KitContext {
+  return createKitContext(name, (module) => SQL_MODULES[module]?.names, {
+    ...(layout.kits ? { kits: layout.kits } : {}),
+    ...(layout.claims ? { claims: layout.claims } : {}),
+    ...(installed ? { installed } : {}),
+    ...(layout.permdock ? { permdockIdType: layout.permdock.idType } : {}),
+  });
+}
+
+/** Throws on a `kits` key that names no module, or a mode a module doesn't support. */
+export function checkKits(kits: KitsConfig = {}): void {
+  for (const [name, entry] of Object.entries(kits)) {
+    const module = SQL_MODULES[name];
+    if (!module) {
+      throw new TypeError(
+        `kits.${name}: there is no SQL kit module "${name}". Modules: ${Object.keys(SQL_MODULES).join(", ")}`,
+      );
+    }
+    const mode = entry?.mode ?? "managed";
+    const modes = module.modes ?? ["managed"];
+    if (!modes.includes(mode)) {
+      throw new TypeError(
+        `kits.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
+      );
+    }
+  }
+}
+
+/** The `@bs-kit` line: module, version and mode, read by `sql upgrade`. */
+export const KIT_MARKER: RegExp =
+  /^-- @bs-kit ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
+
+/** The installed version of a kit file, from its `@bs-kit` line. */
+export function kitFileVersion(
+  contents: string,
+): { readonly module: string; readonly version: number } | undefined {
+  const match = KIT_MARKER.exec(contents);
+  return match ? { module: match[1]!, version: Number(match[2]) } : undefined;
+}
+
+function moduleSql(module: SqlModule, ctx: KitContext, layout: KitLayout) {
+  if (module.build) return module.build(ctx, layout);
+  if (
+    module.render &&
+    (layout.claims || layout.permdock || layout.tenantColumn)
+  )
+    return module.render(layout.claims ?? DEFAULT_CLAIMS, layout);
+  return module.sql;
+}
+
+/** A module's SQL for `layout`, without header; `undefined` in custom mode. */
+export function moduleBody(
+  name: string,
+  layout: KitLayout = {},
+): string | undefined {
+  checkKits(layout.kits);
+  const modules = resolveModules([name], layout);
+  const module = modules.find((entry) => entry.name === name)!;
+  const ctx = kitContext(
+    name,
+    layout,
+    modules.map((entry) => entry.name),
+  );
+  return ctx.mode === "custom" ? undefined : moduleSql(module, ctx, layout);
+}
+
+function kitPath(module: SqlModule, layout: KitLayout): string {
+  const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
+  const prefix = layout.prefix ?? "900_better_supabase";
+  const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
+  const slug = module.name.replaceAll("-", "_");
+  return module.target === "test"
+    ? `${testsDir}/000_better_supabase_${slug}.test.sql`
+    : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
+}
+
+/** Records the module in `better_supabase.kit_modules`, for apps that apply files directly. */
+function kitModuleRow(module: SqlModule, mode: KitMode): string {
+  return `
+create schema if not exists better_supabase;
+create table if not exists better_supabase.kit_modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.kit_modules enable row level security;
+revoke all on better_supabase.kit_modules from anon, authenticated;
+grant select on better_supabase.kit_modules to service_role;
+insert into better_supabase.kit_modules (name, version, mode)
+values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+`;
+}
+
+/**
+ * The files `sql add` writes for these modules. Modules in `custom` mode
+ * write nothing: the app implements their contract.
+ */
 export function renderKit(
   names: readonly string[],
   layout: KitLayout = {},
 ): KitFile[] {
-  const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
-  const prefix = layout.prefix ?? "900_better_supabase";
-  const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
-  return resolveModules(names, layout).map((module) => {
-    const slug = module.name.replaceAll("-", "_");
-    const path =
-      module.target === "test"
-        ? `${testsDir}/000_better_supabase_${slug}.test.sql`
-        : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
+  checkKits(layout.kits);
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module) => {
+    const ctx = kitContext(module.name, layout, installed);
+    if (ctx.mode === "custom") return [];
     const header = [
       `-- better-supabase SQL kit: ${module.name}${layout.version ? ` (${layout.version})` : ""}`,
+      `-- @bs-kit ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
       `-- ${module.description}`,
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
+      "-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.",
     ].join("\n");
     const extra = moduleExtras(module, layout);
-    const sql =
-      module.render && (layout.claims || layout.permdock || layout.tenantColumn)
-        ? module.render(layout.claims ?? DEFAULT_CLAIMS, layout)
-        : module.sql;
-    return {
-      module: module.name,
-      path,
-      contents: `${header}\n\n${sql.trim()}\n${extra}`,
-    };
+    const record =
+      module.target === "schema" ? kitModuleRow(module, ctx.mode) : "";
+    return [
+      {
+        module: module.name,
+        path: kitPath(module, layout),
+        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${record}`,
+      },
+    ];
+  });
+}
+
+/** The contract functions of the modules in `custom` mode, for doctor. */
+export function customContracts(
+  names: readonly string[],
+  layout: KitLayout = {},
+): {
+  readonly module: string;
+  readonly schema: string;
+  readonly idType: KitIdType;
+  readonly functions: readonly KitContractFunction[];
+}[] {
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module) => {
+    const ctx = kitContext(module.name, layout, installed);
+    if (ctx.mode !== "custom" || !module.contract) return [];
+    return [
+      {
+        module: module.name,
+        schema: ctx.schemaName,
+        idType: ctx.idType,
+        functions: module.contract(ctx),
+      },
+    ];
   });
 }
 

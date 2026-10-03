@@ -460,7 +460,11 @@ export function createNext<
 
   const current = cache(async (): Promise<ServerContext<M, F, E, C, P>> => {
     const { request, resolution } = await incoming();
-    return base.contextFromResolution(resolution, request, statsFor(request));
+    const tenant = await options.tenant?.(request, resolution.auth);
+    return base.contextFromResolution(resolution, request, {
+      ...statsFor(request),
+      ...(tenant === undefined ? {} : { tenant }),
+    });
   });
 
   const context = (

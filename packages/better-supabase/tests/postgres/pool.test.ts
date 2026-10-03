@@ -116,6 +116,35 @@ describe("createPostgres", () => {
     expect(fake.values[1]!.slice(0, 2)).toEqual(["statement_timeout", "8000"]);
   });
 
+  it("sets session settings and read-only transactions for a user", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    await pg
+      .asUser(
+        { sub: "u1" },
+        { settings: { "better_supabase.tenant": "t1" }, readOnly: true },
+      )
+      .queryRaw("select 1");
+    await pg.transaction((tx) => tx.queryRaw("select 2"), {
+      claims: { sub: "u1" },
+      settings: { "app.channel": "api" },
+    });
+    expect(fake.log[0]).toBe("begin read only");
+    expect(fake.log[1]).toBe(settingsSql(4));
+    expect(fake.values[1]!.slice(0, 2)).toEqual([
+      "better_supabase.tenant",
+      "t1",
+    ]);
+    expect(fake.log[4]).toBe("begin");
+    expect(fake.values[5]!.slice(0, 2)).toEqual(["app.channel", "api"]);
+    expect(() =>
+      pg.executorFor({ sub: "u1" }, { settings: { role: "postgres" } }),
+    ).toThrow("use a custom setting with a dot");
+    expect(() =>
+      pg.asUser({ sub: "u1" }, { settings: { search_path: "x" } }),
+    ).toThrow(TypeError);
+  });
+
   it("uses anon for claims without a subject, and for postgres.anon", async () => {
     const fake = recordingPool();
     const pg = createPostgres({ pool: fake.pool });

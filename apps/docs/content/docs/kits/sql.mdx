@@ -37,6 +37,7 @@ their functions.
 | `actor`           | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                     |
 | `audit`           | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin |
 | `tenant`          | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                       |
+| `access`          | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                  |
 | `invitations`     | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email                                                        |
 | `reserved-slugs`  | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                         |
 | `jobs`            | Jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, dedupe keys and pg_cron schedules. Used by [`better-supabase/jobs`](/docs/kits/jobs)                                                             |
@@ -52,10 +53,12 @@ their functions.
 | `vector-search`   | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                      |
 | `rate-limit`      | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                    |
 
-`invitations` needs `tenant`, so adding it pulls `tenant` in as well. The
-`tenant` module is a template: edit the roles and policies to fit your app.
-Both read the active tenant from the claim named by `claims.tenant` in the
-config (`tenant_id` by default).
+`invitations` needs `tenant`, so adding it pulls `tenant` in as well. Both
+read the active tenant from the claim named by `claims.tenant` in the config
+(`tenant_id` by default), or from the source in `kits.access.activeTenant`.
+The roles come from `kits.access.roles`. Change modules through `kits` (see
+[below](#existing-tables-managed-adopt-and-custom)) rather than by editing
+the files: `sql sync` rewrites them, and doctor reports a hand edit.
 
 When a `permdock.config.ts` is in the project root, PermDock owns the access
 token hook and the `memberships` claim. `sql add tenant` then stops and points
@@ -92,6 +95,59 @@ Errors raised by the kit carry a stable code in the `hint` field, for example
 `SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
 `INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
+
+## Existing tables: managed, adopt and custom
+
+Each module has a contract: the functions policies, other modules and the
+TypeScript side call. `kits.<module>.mode` decides what stands behind it.
+
+| Mode                | The kit writes                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| `managed` (default) | its tables, policies and functions                                                          |
+| `adopt`             | only functions and views, over tables you already have; never `create table`                |
+| `custom`            | nothing: you write the contract functions, and [doctor](/docs/cli/doctor#bs307) checks them |
+
+`better-supabase sql list` marks custom modules, and `sql print <module>` shows
+the signatures a custom module must provide. Not every module supports every
+mode; `tenant` and `access` support all three.
+
+The other keys rename what the module reads and writes, so an app keeps its
+own names:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["tenant", "invitations"] },
+  kits: {
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: {
+        memberships: { tenant: "organization_id", lastUsedAt: null },
+      },
+      options: { claimFormat: "map" },
+    },
+    invitations: {
+      permissions: { invite: "organization.members.invite" },
+    },
+  },
+});
+```
+
+| Key             | What it sets                                                                            |
+| --------------- | --------------------------------------------------------------------------------------- |
+| `mode`          | `managed`, `adopt` or `custom`                                                          |
+| `schema`        | the schema of the module's functions and managed tables (`better_supabase`)             |
+| `tables`        | logical table to `table` or `schema.table`; `null` for an optional table you don't have |
+| `columns`       | logical table to logical column to column name; `null` for an optional column           |
+| `idType`        | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                     |
+| `triggerPrefix` | the prefix of the triggers the module creates (`bs_`)                                   |
+| `permissions`   | kit action to permission key, checked through the [access contract](/docs/kits/access)  |
+| `options`       | module options, listed on each module's page                                            |
+
+An unknown table, column or module, or a mode a module doesn't support, stops
+`sql add` and `sql sync` with the valid names. Each file's header records the
+module version and mode (`-- @bs-kit tenant@2 adopt`), and schema files record
+them in `better_supabase.kit_modules`.
 
 ## Retention
 
@@ -257,4 +313,7 @@ const files = renderKit(["audit", "jobs"], layout);
 ```
 
 `compileReadSets` turns the read sets in `generated.ts` into the SQL views and
-functions that `better-supabase gen` writes.
+functions that `better-supabase gen` writes. `moduleBody(name, layout)`
+returns one module's SQL without its header, `customContracts` the functions
+custom-mode modules must provide, and `kitFileVersion(contents)` the version
+and mode in a file's header.
