@@ -14,6 +14,7 @@ import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
 } from "../../src/jobs/index.ts";
+import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { renderKit, SQL_MODULES } from "../../src/sql/kit.ts";
@@ -51,6 +52,26 @@ async function reachable(): Promise<boolean> {
 }
 
 const live = await reachable();
+
+interface PlainRow {
+  id: string;
+  name: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  impersonatedBy: string | null;
+}
+
+type PlainModels = {
+  plain: {
+    Row: PlainRow;
+    Insert: Partial<PlainRow>;
+    Update: Partial<PlainRow>;
+    Relations: Record<never, never>;
+    PrimaryKey: "id";
+    UniqueKeys: Record<never, never>;
+    Flags: { actor: true };
+  };
+};
 
 describe.skipIf(!live)("SQL kit against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 4 });
@@ -226,6 +247,107 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       { impersonated_by: admin, impersonation_reason: "support" },
       { impersonated_by: null, impersonation_reason: null },
     ]);
+  });
+
+  it("actor() stamps the same actor columns as track_actor", async () => {
+    const plain = `bs_kit_plain_${RUN}`;
+    const uuid = { type: "uuid", nullable: true, hasDefault: false } as const;
+    const stamped = defineSupabase(
+      defineSchema<PlainModels>({
+        version: 1,
+        casing: "camel",
+        enums: {},
+        functions: {},
+        tables: {
+          plain: {
+            key: "plain",
+            name: plain,
+            schema: "public",
+            kind: "table",
+            columns: {
+              id: { db: "id", type: "uuid", nullable: false, hasDefault: true },
+              name: {
+                db: "name",
+                type: "text",
+                nullable: true,
+                hasDefault: false,
+              },
+              createdBy: { db: "created_by", ...uuid },
+              updatedBy: { db: "updated_by", ...uuid },
+              impersonatedBy: { db: "impersonated_by", ...uuid },
+            },
+            primaryKey: ["id"],
+            uniqueKeys: {},
+            relations: {},
+            flags: {
+              actor: {
+                createdBy: "createdBy",
+                updatedBy: "updatedBy",
+                impersonatedBy: "impersonatedBy",
+              },
+            },
+          },
+        },
+      }),
+    ).use(actor());
+    const user = crypto.randomUUID();
+    const admin = crypto.randomUUID();
+    const columns = "created_by, updated_by, impersonated_by";
+    await pool.query(
+      `create table public.${plain} (id uuid primary key default gen_random_uuid(),
+         name text, created_by uuid, updated_by uuid, impersonated_by uuid);
+       grant all on public.${plain} to authenticated`,
+    );
+    try {
+      const claims = { sub: user, role: "authenticated" };
+      const act = { ...claims, act: { sub: admin } };
+      const [trigger] = await postgres
+        .asUser(act)
+        .queryRaw<{ id: string }>(
+          `insert into ${table} (name) values ('Parity') returning id, ${columns}`,
+        );
+      await stamped
+        .connect(postgres.executorFor(act), {
+          actor: { id: user, kind: "user", impersonator: admin },
+        })
+        .$table("plain")
+        .create({ name: "Parity" })
+        .orThrow();
+      const read = async (): Promise<unknown[]> =>
+        (await pool.query(`select ${columns} from public.${plain}`)).rows;
+      const { id: _id, ...triggerInsert } = trigger!;
+      expect(await read()).toEqual([triggerInsert]);
+      expect(triggerInsert).toEqual({
+        created_by: user,
+        updated_by: user,
+        impersonated_by: admin,
+      });
+      const [triggerUpdate] = await postgres
+        .asUser(claims)
+        .queryRaw(
+          `update ${table} set name = 'Own' where id = $1 returning ${columns}`,
+          [trigger!.id],
+        );
+      await stamped
+        .connect(postgres.executorFor(claims), {
+          actor: { id: user, kind: "user" },
+        })
+        .$table("plain")
+        .update(
+          (await pool.query<{ id: string }>(`select id from public.${plain}`))
+            .rows[0]!.id,
+          { name: "Own" },
+        )
+        .orThrow();
+      expect(await read()).toEqual([triggerUpdate]);
+      expect(triggerUpdate).toEqual({
+        created_by: user,
+        updated_by: user,
+        impersonated_by: null,
+      });
+    } finally {
+      await pool.query(`drop table if exists public.${plain}`);
+    }
   });
 
   it("keys audit entries by the table's primary key, composite ones too", async () => {
@@ -763,6 +885,33 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     });
     expect(waitingBy.get("later@example.com")).toMatchObject({ read_ct: 0 });
     expect(waitingBy.get("a@example.com")?.message.last_error).toBe("retry me");
+  });
+
+  it("carries the enqueuing actor and tenant through pgmq", async () => {
+    const queue = `kit_${RUN}_ctx`;
+    const jobs = createJobs(postgres.admin, {
+      [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
+    });
+    const context = {
+      actor: { id: "u1", kind: "user" as const },
+      claims: { app_metadata: { tenant_id: "o1" } },
+    };
+    const id = await jobs
+      .enqueue(queue, { to: "a@example.com" }, { context, dedupeKey: "a" })
+      .orThrow();
+    expect(
+      await jobs
+        .enqueue(queue, { to: "a@example.com" }, { context, dedupeKey: "a" })
+        .orThrow(),
+    ).toBe(id);
+    const seen: unknown[] = [];
+    const drained = await jobs.drain(queue, (payload, job) => {
+      seen.push([payload, job.context]);
+    });
+    expect(drained).toEqual({ succeeded: 1, failed: 0 });
+    expect(seen).toEqual([
+      [{ to: "a@example.com" }, { actor: context.actor, tenant: "o1" }],
+    ]);
   });
 
   it("schedules recurring jobs with pg_cron", async () => {

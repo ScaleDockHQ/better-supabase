@@ -100,6 +100,7 @@ function isDevelopment(): boolean {
 export class EventHub {
   readonly #handlers = new Map<EventName, Set<(event: never) => void>>();
   readonly #warned = new Set<EventName>();
+  readonly #pending = new Set<Promise<void>>();
   readonly logger: Logger;
 
   constructor(logger: Logger = consoleLogger) {
@@ -130,6 +131,30 @@ export class EventHub {
 
   has(name: EventName): boolean {
     return (this.#handlers.get(name)?.size ?? 0) > 0;
+  }
+
+  /**
+   * Keeps async work a handler started (a sink send) until it settles, so
+   * adapters can hand it to `after()` or `waitUntil`. Its outcome is ignored:
+   * handlers report their own failures.
+   */
+  track(work: PromiseLike<unknown>): void {
+    const settled: Promise<void> = Promise.resolve(work).then(
+      () => undefined,
+      () => undefined,
+    );
+    this.#pending.add(settled);
+    void settled.then(() => this.#pending.delete(settled));
+  }
+
+  /** Whether tracked work is still running. */
+  get pending(): boolean {
+    return this.#pending.size > 0;
+  }
+
+  /** Resolves once the work tracked so far has settled. Never rejects. */
+  async settled(): Promise<void> {
+    await Promise.all(this.#pending);
   }
 
   emit<K extends EventName>(name: K, event: BetterSupabaseEvents[K]): void {

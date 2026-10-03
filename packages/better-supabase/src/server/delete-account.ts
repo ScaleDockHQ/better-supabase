@@ -92,7 +92,8 @@ export function deleteAccount<
       const param = bucket.owner;
       if (!param) continue;
       options.signal?.throwIfAborted();
-      const storage = bucket.connect(client);
+      // A user's objects can sit under every tenant they belonged to.
+      const storage = bucket.connect(client, { allTenants: true });
       const listed = await storage.list(
         { [param]: userId },
         options.signal ? { signal: options.signal } : {},

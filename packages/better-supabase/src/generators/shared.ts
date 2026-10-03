@@ -68,6 +68,7 @@ export function managedColumns(table: TableMeta): ReadonlySet<string> {
       timestamps?.updatedAt,
       actor?.createdBy,
       actor?.updatedBy,
+      actor?.impersonatedBy,
       softDelete,
     ].filter((name): name is string => name !== undefined),
   );

@@ -223,3 +223,18 @@ export function recordTenant(context: RequestContext, tenant: string): void {
 export function tenantOf(context: RequestContext): string | undefined {
   return context.tenant ?? resolvedTenants.get(context);
 }
+
+/**
+ * A symbol key, so JSON, claims and spread request data can't set it, while
+ * `$with` copies it to the derived context.
+ */
+const ALL_TENANTS: unique symbol = Symbol("better-supabase.allTenants");
+
+/** `context`, marked so `tenant()` and tenant buckets skip their tenant scope. */
+export function allTenantsContext(context: RequestContext): RequestContext {
+  return { ...context, [ALL_TENANTS]: true };
+}
+
+export function spansAllTenants(context: RequestContext): boolean {
+  return Object.hasOwn(context, ALL_TENANTS);
+}

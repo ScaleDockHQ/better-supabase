@@ -103,7 +103,9 @@ export interface ForwardOptions extends CloudEventOptions {
 
 /**
  * Sends a CloudEvent for every mutation to `sink`. Returns a function that
- * stops forwarding. Use an outbox (SQL kit) when events must not be lost.
+ * stops forwarding. Sends in flight are tracked on `betterSupabase.events`
+ * (`settled()`), which the Next adapter hands to `after()` and the edge
+ * entry to `waitUntil`. Use an outbox (SQL kit) when events must not be lost.
  */
 export function forwardMutations(
   betterSupabase: { readonly events: EventHub; readonly meta: SchemaMeta },
@@ -126,7 +128,9 @@ export function forwardMutations(
       )(error, events);
     };
     try {
-      void Promise.resolve(sink.send(events)).catch(report);
+      betterSupabase.events.track(
+        Promise.resolve(sink.send(events)).catch(report),
+      );
     } catch (error) {
       report(error);
     }

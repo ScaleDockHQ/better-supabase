@@ -60,6 +60,20 @@ Deno.serve(
 On Supabase, the function name is the first path segment, so `basePath` is
 `/<function-name>`.
 
+## Background work
+
+Event sink sends that a handler started (see
+[event sinks](/docs/standards/events#sends-after-the-response)) are handed to
+`waitUntil`, so the runtime keeps the invocation alive until they finish. On
+Workers the handler uses the `ctx` that `fetch(request, env, ctx)` receives.
+On Supabase, pass the runtime's function:
+
+```ts
+const bs = createEdge(betterSupabase, {
+  waitUntil: (promise) => EdgeRuntime.waitUntil(promise),
+});
+```
+
 ## CORS
 
 `cors: true` answers preflights and adds the headers supabase-js sends

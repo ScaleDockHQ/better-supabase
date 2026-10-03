@@ -61,7 +61,12 @@ export interface TableFlags {
   };
   /** App column holding the tenant id. */
   readonly tenant?: string;
-  readonly actor?: { readonly createdBy?: string; readonly updatedBy?: string };
+  readonly actor?: {
+    readonly createdBy?: string;
+    readonly updatedBy?: string;
+    /** The admin behind an impersonated write; `null` otherwise. */
+    readonly impersonatedBy?: string;
+  };
   /** App column used for optimistic concurrency, usually `updatedAt`. */
   readonly version?: string;
 }

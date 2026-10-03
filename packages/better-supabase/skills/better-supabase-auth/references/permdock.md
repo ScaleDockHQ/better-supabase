@@ -58,6 +58,14 @@ the other.
   `authorize` returns `{ allowed: false }`. Use `decide` instead of `can` to
   put the denial reason in the refusal. `can` decides without a row, so check
   row-conditioned permissions inside `run` or rely on RLS.
+- In oRPC and Hono, pass the adapter's auth state to PermDock:
+  `createPermDock(policy, { subject: ({ context }) => subjectFromSupabaseSession(context.auth) })`
+  from `permdock/orpc`, or `(c) => subjectFromSupabaseSession(c.get("auth"))`
+  from `permdock/hono`. Fail closed: export one builder that takes a
+  permission (`(permission) => authed.use(pd.protect(permission))`, or the
+  route helper `[bs.middleware(), pd.protect(permission)]` in Hono), and don't
+  install `bs.middleware()` app-wide, so a route without a permission has no
+  `db`.
 - In Next.js, cache the permission snapshot in a `'use cache: private'`
   loader. The user id and the snapshot only exist after `bs.cached()`
   returns, so pass it the static tags only, then tag and time the entry from

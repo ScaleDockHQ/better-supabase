@@ -313,6 +313,7 @@
   },
   "./query": {
     "values": [
+      "clearOnUserChange",
       "createQueries",
       "invalidateOnMutation",
       "invalidateTables",
@@ -327,7 +328,8 @@
       "QueryHelpers",
       "QueryKeyOf",
       "QueryOptionsOf",
-      "TableQueries"
+      "TableQueries",
+      "UserChangeSource"
     ]
   },
   "./server": {
@@ -545,6 +547,7 @@
     "types": [
       "BetterEdge",
       "CorsOptions",
+      "EdgeExecutionContext",
       "EdgeHandler",
       "EdgeOptions",
       "GuardOptions",
@@ -597,10 +600,12 @@
       "InboxMessage",
       "InboxOptions",
       "Job",
+      "JobContext",
       "JobHandler",
       "Jobs",
       "QueueRpcClient",
       "QueueSchemas",
+      "ScheduleOptions",
       "SqlClient",
       "WorkOptions"
     ]

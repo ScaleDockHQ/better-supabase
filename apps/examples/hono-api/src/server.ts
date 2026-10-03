@@ -1,8 +1,7 @@
-import { type HonoEnv, createHono } from "better-supabase/hono";
+import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
-import { Hono } from "hono";
 
-import { type Functions, type Models, betterSupabase } from "./lib/supabase";
+import { betterSupabase } from "./lib/supabase";
 
 const bs = createHono(betterSupabase);
 
@@ -14,8 +13,8 @@ const customers = defineListQuery(betterSupabase, "customers", {
   pageSize: 20,
 });
 
-const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-  .onError(bs.onError)
+const app = bs
+  .app()
   .use("/api/*", bs.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }))
   .route(

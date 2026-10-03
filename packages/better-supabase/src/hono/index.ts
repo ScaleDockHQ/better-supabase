@@ -1,3 +1,4 @@
+import type { JWTClaims, UserClaims } from "@supabase/server";
 import type { Context, ErrorHandler, MiddlewareHandler } from "hono";
 
 import { Hono } from "hono";
@@ -24,7 +25,11 @@ import {
   type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
-import { createServer, extendServer } from "../server/server.ts";
+import {
+  createServer,
+  extendServer,
+  rememberVerifiedFor,
+} from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
@@ -56,6 +61,13 @@ export interface BetterHono<
   C = unknown,
   P = unknown,
 > extends BetterServer<M, F, E, C, P> {
+  /**
+   * The app's Hono `Env`, for `new Hono<typeof bs.Env>()` and
+   * `Context<typeof bs.Env>`. Type only: `undefined` at runtime.
+   */
+  readonly Env: HonoEnv<M, F, E, C, P>;
+  /** `new Hono<typeof bs.Env>()` with `onError(bs.onError)` installed. */
+  app(): Hono<HonoEnv<M, F, E, C, P>>;
   /** Resolves the caller, enforces `allow` and sets `c.var.bs`, `c.var.db`, `c.var.auth`. */
   middleware(
     options?: MiddlewareOptions,
@@ -97,6 +109,36 @@ function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
   return ctx;
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
+function isJwtClaims(value: unknown): value is JWTClaims {
+  return isRecord(value) && typeof value["sub"] === "string";
+}
+
+function isUserClaims(value: unknown): value is UserClaims {
+  return isRecord(value) && typeof value["id"] === "string";
+}
+
+/**
+ * The bearer token `withSupabase` from `@supabase/server/adapters/hono`
+ * verified for this request, with the claims it stored in
+ * `c.var.supabaseContext`.
+ */
+function verifiedBySupabase(
+  c: Context,
+): { token: string; claims: JWTClaims; user: UserClaims } | undefined {
+  const supabase: unknown = c.var["supabaseContext"];
+  if (!isRecord(supabase) || supabase["authMode"] !== "user") return undefined;
+  const { jwtClaims, userClaims } = supabase;
+  const header = c.req.header("authorization");
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!token || !isJwtClaims(jwtClaims) || !isUserClaims(userClaims))
+    return undefined;
+  return { token, claims: jwtClaims, user: userClaims };
+}
+
 /** Hono integration: a server plus middleware, handlers and REST resources. */
 export function createHono<
   M extends AnyModels,
@@ -126,10 +168,20 @@ export function createHono<
   };
 
   return extendServer<BetterHono<M, F, E, C, P>>(server, {
+    // SAFETY: `Env` only carries a type, like Drizzle's `$inferSelect`; reading
+    // it at runtime is documented as `undefined`.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
+    Env: undefined as unknown as HonoEnv<M, F, E, C, P>,
     onError,
+
+    app() {
+      return new Hono<HonoEnv<M, F, E, C, P>>().onError(onError);
+    },
 
     middleware(middlewareOptions = {}) {
       return async (c, next) => {
+        const verified = verifiedBySupabase(c);
+        if (verified) rememberVerifiedFor(server, verified);
         const ctx = await server.context(c.req.raw, {
           refresh: middlewareOptions.refresh ?? false,
         });

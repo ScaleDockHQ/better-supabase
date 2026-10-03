@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   authContext,
   clientIp,
+  rememberVerified,
   resolveAuth,
   type ResolveAuthOptions,
 } from "../../src/auth/resolve.ts";
@@ -157,6 +158,64 @@ describe("resolveAuth", async () => {
     expect(authContext(auth)).toMatchObject({
       actor: { id: USER, kind: "user", email: "a@b.c" },
     });
+  });
+
+  it("reuses a token another layer verified only when its claims are the token's own", async () => {
+    const stranger = await createTestSigner();
+    const trusting: ResolveAuthOptions = { env, jwks: stranger.jwks as never };
+    const iss = `${PROJECT_URL}/auth/v1`;
+    const payload = (token: string) =>
+      JSON.parse(
+        atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/")),
+      );
+    const resolved = async (token: string) =>
+      (
+        await resolveAuth(
+          new Request("https://api.test/", {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+          trusting,
+        )
+      ).auth.kind;
+    const user = { id: USER };
+
+    const token = await signer.sign({ sub: USER, iss });
+    const claims = payload(token);
+    const forged = { ...claims, role: "service_role" };
+    expect(rememberVerified(trusting, { token, claims: forged, user })).toBe(
+      false,
+    );
+    const expired = await signer.sign({ sub: USER, iss, expiresIn: -10 });
+    expect(
+      rememberVerified(trusting, {
+        token: expired,
+        claims: payload(expired),
+        user,
+      }),
+    ).toBe(false);
+    const foreign = await signer.sign({
+      sub: USER,
+      iss: "https://x.test/auth/v1",
+    });
+    expect(
+      rememberVerified(trusting, {
+        token: foreign,
+        claims: payload(foreign),
+        user,
+      }),
+    ).toBe(false);
+    const audience = await signer.sign({ sub: USER, iss, aud: "other" });
+    expect(
+      rememberVerified(trusting, {
+        token: audience,
+        claims: payload(audience),
+        user,
+      }),
+    ).toBe(false);
+    expect(await resolved(token)).toBe("invalid");
+
+    expect(rememberVerified(trusting, { token, claims, user })).toBe(true);
+    expect(await resolved(token)).toBe("user");
   });
 
   it("rejects an invalid Bearer token instead of downgrading to anon", async () => {

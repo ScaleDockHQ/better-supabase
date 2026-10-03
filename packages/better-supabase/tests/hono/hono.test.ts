@@ -22,6 +22,27 @@ const env = {
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
+describe("bs.app()", () => {
+  it("installs bs.onError, and Env carries only a type", async () => {
+    const bs = createHono(defineSupabase(schema), { env });
+    expect(bs.Env).toBeUndefined();
+    const app = bs
+      .app()
+      .get("/thrown", () => {
+        throw new DbException(dbError("not_found", "Gone"));
+      })
+      .get("/teapot", () => {
+        throw new HTTPException(418, { message: "Short and stout" });
+      });
+    const thrown = await app.request("/thrown");
+    expect(thrown.status).toBe(404);
+    expect(thrown.headers.get("content-type")).toContain(
+      "application/problem+json",
+    );
+    expect((await app.request("/teapot")).status).toBe(418);
+  });
+});
+
 describe("createHono", () => {
   const betterSupabase = defineSupabase(schema);
   const refresh = vi.fn<typeof fetch>();

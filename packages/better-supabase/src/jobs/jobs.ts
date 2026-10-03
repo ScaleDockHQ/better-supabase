@@ -2,12 +2,19 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SqlClient } from "../postgres/executor.ts";
 
+import { claimAt, tenantClaimPaths } from "../core/claims.ts";
 import {
   type DbError,
   dbError,
   DbException,
   mapDbError,
 } from "../core/errors.ts";
+import {
+  type Actor,
+  allTenantsContext,
+  type RequestContext,
+  tenantOf,
+} from "../core/plugin.ts";
 import { problemResponse } from "../core/problem.ts";
 import {
   AsyncResult,
@@ -70,6 +77,12 @@ type PayloadOut<
   N extends keyof Q,
 > = StandardSchemaV1.InferOutput<Q[N]>;
 
+/** The actor and tenant of the request that enqueued a job. */
+export interface JobContext {
+  readonly actor?: Actor;
+  readonly tenant?: string;
+}
+
 export interface Job<P = unknown> {
   /** The pgmq message id. */
   readonly id: number;
@@ -82,6 +95,12 @@ export interface Job<P = unknown> {
   /** End of the lease: the job becomes claimable again after this. */
   readonly visibleUntil: Temporal.Instant;
   readonly lastError: string | null;
+  /**
+   * The actor and tenant recorded at enqueue, ready for `db.$with(job.context)`.
+   * Without a recorded tenant, `tenant()` applies its `onMissing` unless the
+   * worker runs with `allTenants: true`.
+   */
+  readonly context: RequestContext;
 }
 
 export interface EnqueueOptions {
@@ -96,6 +115,17 @@ export interface EnqueueOptions {
    * its id. SQL connections only.
    */
   readonly dedupeKey?: string;
+  /**
+   * The request context whose actor and tenant the job records, next to the
+   * payload. The tenant is `context.tenant`, the one `tenant()` resolved, or
+   * the `tenant_id` claim (then `app_metadata.tenant_id`).
+   */
+  readonly context?: RequestContext;
+}
+
+export interface ScheduleOptions {
+  /** The actor and tenant every scheduled run records, as in `enqueue`. */
+  readonly context?: RequestContext;
 }
 
 export interface ClaimOptions {
@@ -130,6 +160,12 @@ export interface WorkOptions extends ClaimOptions {
   /** Stops the loop; running jobs finish first. */
   readonly signal?: AbortSignal;
   readonly onError?: (error: DbError, job: Job) => void;
+  /**
+   * Run jobs that recorded no tenant with a context that `tenant()` and
+   * tenant buckets don't scope. Off by default, so such jobs get the
+   * `onMissing` of `tenant()`.
+   */
+  readonly allTenants?: boolean;
 }
 
 export interface DrainResult {
@@ -167,6 +203,7 @@ export interface Jobs<Q extends QueueSchemas> {
     cron: string,
     queue: N,
     payload: PayloadIn<Q, N>,
+    options?: ScheduleOptions,
   ): AsyncResult<void>;
   unschedule(name: string): AsyncResult<boolean>;
   /** Processes ready jobs until the queue is empty. For cron and edge invocations. */
@@ -370,12 +407,71 @@ const toInstant = (value: Date | string): Temporal.Instant =>
     ? temporal().Instant.fromEpochMilliseconds(value.getTime())
     : temporal().Instant.from(value);
 
+/** Marks a payload that carries a job context; pgmq stores it as the payload. */
+const ENVELOPE = "$bs";
+
+function withContext(
+  payload: unknown,
+  context: RequestContext | undefined,
+): unknown {
+  if (!context) return payload;
+  const tenant =
+    tenantOf(context) ??
+    tenantClaimPaths()
+      .map((path) => claimAt(context.claims, path))
+      .find((id) => id !== undefined);
+  const recorded: JobContext = {
+    ...(context.actor ? { actor: context.actor } : {}),
+    ...(tenant === undefined ? {} : { tenant }),
+  };
+  if (!recorded.actor && recorded.tenant === undefined) return payload;
+  return { [ENVELOPE]: 1, context: recorded, payload };
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isActor(value: unknown): value is Actor {
+  return (
+    isRecord(value) &&
+    typeof value["id"] === "string" &&
+    (value["kind"] === "user" ||
+      value["kind"] === "service" ||
+      value["kind"] === "anon")
+  );
+}
+
+function unwrap(stored: unknown): {
+  payload: unknown;
+  context: RequestContext;
+} {
+  if (
+    !isRecord(stored) ||
+    stored[ENVELOPE] !== 1 ||
+    !Object.hasOwn(stored, "payload")
+  ) {
+    return { payload: stored, context: {} };
+  }
+  const recorded = isRecord(stored["context"]) ? stored["context"] : {};
+  const { actor, tenant } = recorded;
+  return {
+    payload: stored["payload"],
+    context: {
+      ...(isActor(actor) ? { actor } : {}),
+      ...(typeof tenant === "string" && tenant.length > 0 ? { tenant } : {}),
+    },
+  };
+}
+
 function toJob(queue: string, row: MessageRow): Job {
   const message = row.message ?? {};
+  const { payload, context } = unwrap(message.payload);
   return {
     id: Number(row.id),
     queue,
-    payload: message.payload,
+    payload,
+    context,
     attempts: row.attempts,
     maxAttempts: message.max_attempts ?? 5,
     enqueuedAt: toInstant(row.enqueued_at),
@@ -490,9 +586,13 @@ export function createJobs<const Q extends QueueSchemas>(
         workOptions.onError?.(payload.error, job);
         return false;
       }
+      const context =
+        workOptions.allTenants && job.context.tenant === undefined
+          ? allTenantsContext(job.context)
+          : job.context;
       const outcome: unknown = await handler(
         payload.data,
-        { ...job, payload: payload.data },
+        { ...job, payload: payload.data, context },
         controller.signal,
       );
       if (
@@ -586,7 +686,7 @@ export function createJobs<const Q extends QueueSchemas>(
         return run(() =>
           transport.send(
             queue,
-            valid.data,
+            withContext(valid.data, enqueueOptions.context),
             delay,
             enqueueOptions.maxAttempts ?? 5,
             enqueueOptions.dedupeKey,
@@ -598,11 +698,12 @@ export function createJobs<const Q extends QueueSchemas>(
     complete,
     fail,
     extend: (job, lease) => run(() => transport.extend(job, lease)),
-    schedule(name, cron, queue, payload) {
+    schedule(name, cron, queue, payload, scheduleOptions = {}) {
       return AsyncResult.from(async () => {
         const valid = await validate(schemaOf(queue), payload, "payload");
         if (!valid.ok) return valid;
-        return run(() => transport.schedule(name, cron, queue, valid.data));
+        const stored = withContext(valid.data, scheduleOptions.context);
+        return run(() => transport.schedule(name, cron, queue, stored));
       });
     },
     unschedule: (name) => run(() => transport.unschedule(name)),

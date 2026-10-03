@@ -45,15 +45,15 @@ export const GET = bs.route(
 ## Hono
 
 ```ts title="src/server.ts"
-import { type HonoEnv, createHono } from "better-supabase/hono";
-import { Hono } from "hono";
+import { createHono } from "better-supabase/hono";
 
-import { type Functions, type Models, betterSupabase } from "./lib/supabase";
+import { betterSupabase } from "./lib/supabase";
 
 const bs = createHono(betterSupabase);
 
-const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-  .onError(bs.onError)
+// bs.app() is new Hono<typeof bs.Env>() with bs.onError installed.
+const app = bs
+  .app()
   .use("/api/*", bs.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }))
   .route(

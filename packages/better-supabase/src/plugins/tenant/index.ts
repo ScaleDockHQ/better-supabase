@@ -8,6 +8,7 @@ import {
   type HasFlag,
   type Plugin,
   recordTenant,
+  spansAllTenants,
   type RepositoryExtension,
   type RequestContext,
 } from "../../core/plugin.ts";
@@ -156,7 +157,7 @@ export function tenant<C = unknown>(
   return definePlugin<"tenant", TenantExtension>({
     name: "tenant",
     transformQuery(op, { context, schema, options: call }): Operation {
-      if (call["allTenants"] === true) return op;
+      if (call["allTenants"] === true || spansAllTenants(context)) return op;
       const id = resolvedFor(context, schema);
       if (id === undefined) {
         if (onMissing === "error") {
@@ -173,7 +174,8 @@ export function tenant<C = unknown>(
     },
     beforeMutation(op, { table, context, schema, options: call }): MutationOp {
       const column = tenantColumn(table);
-      if (!column || call["allTenants"] === true) return op;
+      if (!column || call["allTenants"] === true || spansAllTenants(context))
+        return op;
       const id = current(table, context, schema);
       if (id === undefined) return op;
       switch (op.kind) {

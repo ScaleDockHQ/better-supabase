@@ -7,6 +7,8 @@ import {
 } from "../../core/plugin.ts";
 import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 
+type Row = Readonly<Record<string, unknown>>;
+
 export interface ActorOptions {
   /** Custom actor id resolution. Defaults to `context.actor.id` for users and services. */
   readonly resolve?: (context: RequestContext) => string | undefined;
@@ -20,7 +22,9 @@ function defaultActor(context: RequestContext): string | undefined {
 /**
  * Stamps the columns generated as `Flags.actor`: `createdBy` on insert and
  * `updatedBy` on insert and update. Soft deletes are updates, so they record
- * who deleted the row. Without an actor (anonymous requests) nothing is set.
+ * who deleted the row. `impersonatedBy` gets `context.actor.impersonator` on
+ * every insert and update, and `null` when nobody is impersonating, like the
+ * SQL kit's `track_actor`. Without an actor (anonymous requests) nothing is set.
  */
 export function actor(options: ActorOptions = {}): Plugin<"actor"> {
   const resolve = options.resolve ?? defaultActor;
@@ -31,25 +35,25 @@ export function actor(options: ActorOptions = {}): Plugin<"actor"> {
       if (!flags) return op;
       const created = dbName(table, flags.createdBy);
       const updated = dbName(table, flags.updatedBy);
-      guardManaged(op, [created, updated], "actor", options);
+      const impersonated = dbName(table, flags.impersonatedBy);
+      guardManaged(op, [created, updated, impersonated], "actor", options);
       const id = resolve(context);
       if (id === undefined) return op;
+      const impersonator = context.actor?.impersonator ?? null;
+      const stamp = (row: Row): Row =>
+        withDefault(withDefault(row, updated, id), impersonated, impersonator);
       switch (op.kind) {
         case "insert": {
           const stampCreated = insertsOnly(op);
           return {
             ...op,
             rows: op.rows.map((row) =>
-              withDefault(
-                stampCreated ? withDefault(row, created, id) : row,
-                updated,
-                id,
-              ),
+              stamp(stampCreated ? withDefault(row, created, id) : row),
             ),
           };
         }
         case "update":
-          return { ...op, set: withDefault(op.set, updated, id) };
+          return { ...op, set: stamp(op.set) };
         case "delete":
           return op;
         default: {

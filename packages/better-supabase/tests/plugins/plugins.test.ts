@@ -3,13 +3,20 @@ import { describe, expect, it } from "vitest";
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { allTenantsContext } from "../../src/core/plugin.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { validation } from "../../src/plugins/validation/index.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
-import { schema } from "../fixtures/generated-camel.ts";
+import {
+  type Database,
+  type Functions,
+  type Models,
+  schema,
+} from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
 
 const NOW = Temporal.Instant.from("2026-09-24T10:00:00Z");
@@ -297,6 +304,27 @@ describe("tenant", () => {
       .customers.findMany({ select: ["id"], allTenants: true });
     expect(query(last())).toEqual(["select=id", "order=id.asc"]);
   });
+
+  it("skips the scope for an all-tenants context, including after $with", async () => {
+    const { client, last, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+    const db = betterSupabase
+      .connect(client, allTenantsContext({}))
+      .$with({ actor: { id: USER, kind: "service" } });
+    await db.customers.findMany({ select: ["id"] });
+    expect(query(last())).toEqual(["select=id", "order=id.asc"]);
+    await db.customers.create(
+      { organizationId: ORG, name: "A" },
+      { select: ["id"] },
+    );
+    expect(requests.at(-1)?.body).toEqual({ organization_id: ORG, name: "A" });
+    const spoofed = await betterSupabase
+      .connect(client, JSON.parse('{"allTenants":true}'))
+      .customers.findMany({ select: ["id"] });
+    expect(spoofed.error).toMatchObject({ kind: "forbidden" });
+  });
 });
 
 describe("actor", () => {
@@ -321,6 +349,69 @@ describe("actor", () => {
       updated_by: USER,
     });
     expect(requests[1]?.body).toEqual({ name: "B", updated_by: USER });
+  });
+
+  it("stamps impersonatedBy from the impersonator, and clears it otherwise", async () => {
+    const customers = schema.meta.tables["customers"]!;
+    const impersonation = defineSupabase(
+      defineSchema<Models, Database, Functions>({
+        ...schema.meta,
+        tables: {
+          ...schema.meta.tables,
+          customers: {
+            ...customers,
+            columns: {
+              ...customers.columns,
+              impersonatedBy: {
+                db: "impersonated_by",
+                type: "uuid",
+                nullable: true,
+                hasDefault: true,
+              },
+            },
+            flags: {
+              ...customers.flags,
+              actor: {
+                ...customers.flags.actor,
+                impersonatedBy: "impersonatedBy",
+              },
+            },
+          },
+        },
+      }),
+      { now: () => NOW },
+    ).use(actor());
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+    const ADMIN = "00000000-0000-4000-8000-0000000000ad";
+    const impersonated = impersonation.connect(client, {
+      actor: { id: USER, kind: "user", impersonator: ADMIN },
+    });
+    await impersonated.customers.create(
+      { organizationId: ORG, name: "A" },
+      { select: ["id"] },
+    );
+    await impersonation
+      .connect(client, { actor: { id: USER, kind: "user" } })
+      .customers.update("c", { name: "B" }, { select: ["id"] });
+    expect(requests[0]?.body).toMatchObject({
+      created_by: USER,
+      updated_by: USER,
+      impersonated_by: ADMIN,
+    });
+    expect(requests[1]?.body).toEqual({
+      name: "B",
+      updated_by: USER,
+      impersonated_by: null,
+    });
+    const forged = await impersonated.customers.update(
+      "c",
+      // @ts-expect-error -- the fixture models have no impersonatedBy column
+      { impersonatedBy: USER },
+    );
+    expect(forged.error?.message).toContain("actor()");
   });
 
   it("refuses caller-supplied actor and soft-delete columns without override", async () => {

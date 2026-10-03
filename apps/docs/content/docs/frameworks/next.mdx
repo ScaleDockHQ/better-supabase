@@ -170,6 +170,10 @@ serializable `ActionResult`: `{ ok: true, data }` or `{ ok: false, error }`,
 where `error` is a plain `DbError` your form can render (`validation`
 errors carry `issues` with paths).
 
+Route handlers and actions pass event sink sends they started to `after()`
+from `next/server`, so the function stays alive until the sends finish (see
+[event sinks](/docs/standards/events#sends-after-the-response)).
+
 ## Cache tags
 
 Every mutation invalidates `bs:<table>` and `bs:<table>:<id>`: with

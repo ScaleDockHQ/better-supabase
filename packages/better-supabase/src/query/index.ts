@@ -4,6 +4,8 @@ export {
   invalidateTables,
   queryCache,
 } from "./queries.ts";
+export { clearOnUserChange } from "./user-change.ts";
+export type { UserChangeSource } from "./user-change.ts";
 export type {
   BetterQueryMeta,
   QueriesOptions,

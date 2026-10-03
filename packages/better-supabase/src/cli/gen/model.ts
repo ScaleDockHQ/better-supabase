@@ -384,7 +384,11 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       softDelete?: string;
       timestamps?: { createdAt?: string; updatedAt?: string };
       tenant?: string;
-      actor?: { createdBy?: string; updatedBy?: string };
+      actor?: {
+        createdBy?: string;
+        updatedBy?: string;
+        impersonatedBy?: string;
+      };
     } = {};
     if (flagsConfig.softDelete) {
       const db = flagsConfig.softDelete.column;
@@ -416,10 +420,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     if (flagsConfig.actor) {
       const createdBy = has(flagsConfig.actor.createdBy);
       const updatedBy = has(flagsConfig.actor.updatedBy);
-      if (createdBy || updatedBy) {
+      const impersonatedBy = has(flagsConfig.actor.impersonatedBy);
+      if (createdBy || updatedBy || impersonatedBy) {
         flags.actor = {
           ...(createdBy ? { createdBy } : {}),
           ...(updatedBy ? { updatedBy } : {}),
+          ...(impersonatedBy ? { impersonatedBy } : {}),
         };
       }
     }

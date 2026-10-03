@@ -68,6 +68,55 @@ describe("createEdge", () => {
     );
   });
 
+  it("hands sends a handler started to waitUntil", async () => {
+    const token = await signer.sign({ sub: USER });
+    const kept: Promise<unknown>[] = [];
+    let release: () => void = () => undefined;
+    const serve = bs.handler(() => {
+      betterSupabase.events.track(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+    });
+    const response = await serve(await request("/x", { token }), undefined, {
+      waitUntil: (promise) => void kept.push(promise),
+    });
+    expect(response.status).toBe(204);
+    expect(kept).toHaveLength(1);
+    let done = false;
+    void kept[0]!.then(() => {
+      done = true;
+    });
+    await Promise.resolve();
+    expect(done).toBe(false);
+    release();
+    await kept[0];
+    expect(done).toBe(true);
+
+    const quiet = bs.handler(() => undefined);
+    await quiet(await request("/x", { token }), undefined, {
+      waitUntil: (promise) => void kept.push(promise),
+    });
+    expect(kept).toHaveLength(1);
+
+    const global: Promise<unknown>[] = [];
+    const deno = createEdge(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      waitUntil: (promise) => void global.push(promise),
+    }).handler(() => {
+      betterSupabase.events.track(
+        new Promise((resolve) => {
+          setTimeout(resolve, 5);
+        }),
+      );
+    });
+    await deno(await request("/x", { token }));
+    expect(global).toHaveLength(1);
+    await global[0];
+  });
+
   it("maps thrown errors without leaking details", async () => {
     const token = await signer.sign({ sub: USER });
     const missing = bs.handler(() => {

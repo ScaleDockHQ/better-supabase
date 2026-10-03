@@ -240,6 +240,82 @@ export const listCustomers = pipeline(
 );
 ```
 
+### oRPC
+
+PermDock's oRPC adapter reads the subject from the procedure's context, and
+`bs.middleware()` has put the verified `AuthState` there as `context.auth`.
+`subjectFromSupabaseSession` maps it, and anything but a user becomes an
+anonymous subject that no grant matches.
+
+Export one builder that takes a permission and keep `bs.middleware()` inside
+it. A procedure built any other way has no `context.db`, so it can't reach the
+database, and one built with `procedure()` can't compile without a
+permission:
+
+```ts title="src/router.ts"
+import { os } from "@orpc/server";
+import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
+import type { AuthState } from "better-supabase/server";
+import type { Permission } from "permdock";
+import { createPermDock } from "permdock/orpc";
+import { subjectFromSupabaseSession } from "permdock/supabase";
+
+export const bs = createOrpc(betterSupabase);
+
+const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
+const pd = createPermDock<OrpcRequestContext & { readonly auth: AuthState }>(
+  policy,
+  { subject: ({ context }) => subjectFromSupabaseSession(context.auth) },
+);
+
+/** The only way to build a procedure: refused unless the caller holds `permission`. */
+const procedure = (permission: Permission) =>
+  authed.use(pd.protect(permission));
+
+export const router = {
+  customers: {
+    list: procedure(permissions.customers.read).handler(({ context }) =>
+      bs.unwrap(context.db.customers.findMany({ select: ["id", "name"] })),
+    ),
+  },
+};
+```
+
+`protect` answers `FORBIDDEN` with PermDock's Problem Details as the error's
+`data`, the same shape `bs.unwrap` gives a `DbError`.
+
+### Hono
+
+The Hono adapter works the same way, with `c.var.auth` as the session. Bundle
+both middlewares into one helper and use it on every route, rather than
+`app.use(bs.middleware())`, so a route that skips it has no `c.var.db`
+and `bs.handler` answers 500 instead of running:
+
+```ts title="src/server.ts"
+import { createHono } from "better-supabase/hono";
+import type { Permission } from "permdock";
+import { createPermDock } from "permdock/hono";
+import { subjectFromSupabaseSession } from "permdock/supabase";
+
+const bs = createHono(betterSupabase);
+const pd = createPermDock(policy, {
+  subject: (c) => subjectFromSupabaseSession(c.get("auth")),
+});
+
+const guarded = (permission: Permission) =>
+  [bs.middleware(), pd.protect(permission)] as const;
+
+export const app = bs.app().get(
+  "/customers",
+  ...guarded(permissions.customers.read),
+  bs.handler((_c, { db }) => db.customers.findMany({ select: ["id"] })),
+);
+```
+
+Both recipes are written against PermDock's adapter types; `permdock` on npm
+is still a name placeholder, so they aren't compiled in this repository's
+type tests yet.
+
 ## MCP tools
 
 `permdock/mcp` wraps the official MCP SDK's server, so it can't wrap

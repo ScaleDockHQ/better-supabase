@@ -4,14 +4,13 @@ description: Middleware, Result-aware handlers and REST resources matching your 
 ---
 
 ```ts title="src/server.ts"
-import { Hono } from "hono";
-import { createHono, type HonoEnv } from "better-supabase/hono";
-import { betterSupabase, type Functions, type Models } from "./lib/supabase";
+import { createHono } from "better-supabase/hono";
+import { betterSupabase } from "./lib/supabase";
 
 const bs = createHono(betterSupabase);
 
-const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-  .onError(bs.onError)
+const app = bs
+  .app()
   .use("/api/*", bs.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }));
 
@@ -19,7 +18,23 @@ export default app;
 ```
 
 `createHono(betterSupabase)` is [`createServer`](/docs/auth/server) plus the pieces
-below, so `bs.admin()` and `bs.actingAs()` work too.
+below, so `bs.admin()` and `bs.actingAs()` work too. `bs.app()` is
+`new Hono<typeof bs.Env>()` with [`bs.onError`](#handlers) installed.
+`typeof bs.Env` is the app's Hono `Env`, inferred from the definition, for
+sub-apps and helpers that take a `Context`:
+
+```ts
+import type { Context } from "hono";
+import { Hono } from "hono";
+
+type Env = typeof bs.Env;
+const admin = new Hono<Env>();
+const tenantOf = (c: Context<Env>) =>
+  c.var.auth.kind === "user" ? c.var.auth.claims.tenant_id : undefined;
+```
+
+`bs.Env` holds only a type and is `undefined` at runtime. `HonoEnv<Models,
+Functions, unknown>` is the same type with the generics written out.
 
 ## Middleware
 
@@ -42,19 +57,40 @@ no network call. `refresh: true` refreshes an expiring cookie session and
 adds the new cookies to the response. It is for routes browsers call with
 cookies; bearer tokens never refresh.
 
+### With `@supabase/server`
+
+An app that already uses `withSupabase` from `@supabase/server/adapters/hono`
+can put `bs.middleware()` after it. When `withSupabase` verified a user's
+bearer token, `bs.middleware()` uses that verification instead of checking
+the signature again, then runs its own claims schema, `act` chain and
+`userMetadata` checks as usual:
+
+```ts
+import { withSupabase } from "@supabase/server/adapters/hono";
+
+const app = bs
+  .app()
+  .use("*", withSupabase({ auth: "user" }))
+  .use("*", bs.middleware());
+```
+
+Both give the same `ctx.auth` and actor for a token. The verification is
+reused only when the claims in `c.var.supabaseContext` are the payload of the
+request's `Authorization` token, it hasn't expired, and its `iss` and `aud`
+match what better-supabase would accept. Anything else, such as a cookie
+session or a publishable-key request, is resolved by `bs.middleware()` itself.
+
 ## Typed claims
 
 When the definition has [`.claims(schema)`](/docs/auth#typed-claims),
 `c.var.auth`, `c.var.bs` and the handler context are typed by the schema's
-output. Pass the same type to `HonoEnv` as its fourth parameter:
+output, and so is `profile` with `.userMetadata(schema)`. `bs.app()` and
+`typeof bs.Env` carry both types; with a hand-written `HonoEnv`, pass the
+claims as its fourth parameter:
 
 ```ts
-import type { InferOutput } from "valibot";
-import type { Claims } from "./lib/claims";
-
-type Env = HonoEnv<Models, Functions, unknown, InferOutput<typeof Claims>>;
-
-const app = new Hono<Env>()
+const app = bs
+  .app()
   .use("/api/*", bs.middleware())
   .get("/api/role", (c) =>
     c.json({

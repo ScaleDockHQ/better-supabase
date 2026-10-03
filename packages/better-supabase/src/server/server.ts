@@ -14,6 +14,7 @@ import {
   type AuthState,
   authContext,
   prefetchJwks,
+  rememberVerified,
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
@@ -517,7 +518,7 @@ export function createServer<
     return resolution;
   };
 
-  return {
+  const server: BetterServer<M, F, E, C, P> = {
     get env() {
       return env();
     },
@@ -574,4 +575,27 @@ export function createServer<
       });
     },
   };
+  verifiedSeeders.set(server, (verified) =>
+    rememberVerified({ ...options.auth, env: env() }, verified),
+  );
+  return server;
+}
+
+type VerifiedToken = Parameters<typeof rememberVerified>[1];
+
+const verifiedSeeders = new WeakMap<
+  object,
+  (verified: VerifiedToken) => boolean
+>();
+
+/**
+ * Hands `server` a bearer token another layer verified for this request
+ * (`@supabase/server`'s `withSupabase`), so `context()` doesn't verify it
+ * again. See `rememberVerified` for when it is accepted.
+ */
+export function rememberVerifiedFor(
+  server: object,
+  verified: VerifiedToken,
+): boolean {
+  return verifiedSeeders.get(server)?.(verified) ?? false;
 }

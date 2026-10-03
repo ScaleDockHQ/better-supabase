@@ -85,6 +85,47 @@ describe("CloudEvents", () => {
     });
   });
 
+  it("tracks sends in flight until they settle, failed ones too", async () => {
+    const betterSupabase = defineSupabase(schema);
+    let release: () => void = () => undefined;
+    const late = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const delivered: string[] = [];
+    const failures: unknown[] = [];
+    forwardMutations(
+      betterSupabase,
+      {
+        send: async (events) => {
+          await late;
+          if (events[0]?.subject === "customers/c2") throw new Error("down");
+          delivered.push(String(events[0]?.subject));
+        },
+      },
+      { ...fixed, onError: (error) => failures.push(error) },
+    );
+    let id = 0;
+    const { client } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: `c${String(++id)}`, organization_id: "o1", name: "N" }],
+    }));
+    const db = betterSupabase.connect(client);
+    await db.customers.create({ organizationId: "o1", name: "N" }).orThrow();
+    await db.customers.create({ organizationId: "o1", name: "N" }).orThrow();
+    expect(betterSupabase.events.pending).toBe(true);
+    let flushed = false;
+    const flush = betterSupabase.events.settled().then(() => {
+      flushed = true;
+    });
+    await Promise.resolve();
+    expect(flushed).toBe(false);
+    release();
+    await flush;
+    expect(delivered).toEqual(["customers/c1"]);
+    expect(failures).toEqual([new Error("down")]);
+    expect(betterSupabase.events.pending).toBe(false);
+  });
+
   it("reports soft deletes by key with the resolved tenant", async () => {
     const betterSupabase = defineSupabase(schema)
       .use(softDelete())

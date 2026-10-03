@@ -25,11 +25,16 @@ const mocks = vi.hoisted(() => ({
   revalidateTag: vi.fn<(tag: string, profile: string) => void>(),
   cacheTag: vi.fn<(...tags: string[]) => void>(),
   setCookie: vi.fn<(name: string, value: string, options: unknown) => void>(),
+  after: vi.fn<(task: () => unknown) => void>(),
 }));
 
 vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () => Promise.resolve({ set: mocks.setCookie }),
+}));
+vi.mock("next/server.js", async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  after: mocks.after,
 }));
 vi.mock("next/cache.js", () => ({
   updateTag: mocks.updateTag,
@@ -403,6 +408,55 @@ describe("createNext", () => {
       );
     expect(await (await call("c1")).json()).toEqual({ id: "c1" });
     expect((await call("gone")).status).toBe(404);
+  });
+
+  it("hands event sends a route or action started to after()", async () => {
+    mocks.after.mockReset();
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+    let release: () => void = () => undefined;
+    const sending = (): void => {
+      betterSupabase.events.track(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+    };
+    const route = bs.route(() => {
+      sending();
+      return { ok: true };
+    });
+    await route(
+      new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
+      {
+        params: Promise.resolve({}),
+      },
+    );
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    let flushed = false;
+    void Promise.resolve(mocks.after.mock.calls[0]![0]()).then(() => {
+      flushed = true;
+    });
+    await Promise.resolve();
+    expect(flushed).toBe(false);
+    release();
+    await betterSupabase.events.settled();
+    await Promise.resolve();
+    expect(flushed).toBe(true);
+
+    const action = bs.action({}, () => {
+      sending();
+      return "done";
+    });
+    expect(await action(undefined)).toMatchObject({ ok: true });
+    expect(mocks.after).toHaveBeenCalledTimes(2);
+    release();
+    await bs.route(() => ({ ok: true }))(
+      new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
+      { params: Promise.resolve({}) },
+    );
+    expect(mocks.after).toHaveBeenCalledTimes(2);
   });
 
   it("runs actions with validation, FormData and serializable results", async () => {

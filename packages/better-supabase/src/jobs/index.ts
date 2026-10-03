@@ -17,10 +17,12 @@ export type {
   InboxMessage,
   InboxOptions,
   Job,
+  JobContext,
   JobHandler,
   Jobs,
   QueueRpcClient,
   QueueSchemas,
+  ScheduleOptions,
   WorkOptions,
 } from "./jobs.ts";
 export type { SqlClient } from "../postgres/executor.ts";

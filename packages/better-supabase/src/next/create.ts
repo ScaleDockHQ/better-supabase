@@ -3,7 +3,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { cacheLife, cacheTag, revalidateTag, updateTag } from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
 import { unstable_rethrow } from "next/navigation.js";
-import { type NextRequest, NextResponse } from "next/server.js";
+import { after, type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 
 import type { AuthResolution, AuthState } from "../auth/resolve.ts";
@@ -426,6 +426,20 @@ export function createNext<
     return id ? { stats: collector.recorderFor(id) } : {};
   };
 
+  /** Keeps the function alive for event sink sends the handler started. */
+  const flushAfter = (): void => {
+    const { events } = betterSupabase;
+    if (!events.pending) return;
+    try {
+      after(() => events.settled());
+    } catch (cause) {
+      // after() only works inside a request scope; the sends still run.
+      events.logger.warn("after() is unavailable; event sends may be cut off", {
+        cause,
+      });
+    }
+  };
+
   const incomingRequest = async (): Promise<Request> =>
     new Request("http://next.local/", {
       headers: new Headers(await headers()),
@@ -625,6 +639,7 @@ export function createNext<
           );
         }
         response = withPrimaryPin(response, ctx.replica, pinMs);
+        flushAfter();
         if (collector) {
           try {
             response.headers.set(statsHeader, formatStats(ctx.stats()));
@@ -682,6 +697,7 @@ export function createNext<
         // SAFETY: parsed is the validated input, or the raw input when the
         // action has no schema.
         const settled = await settle(() => fn(parsed as never, ctx));
+        flushAfter();
         if (ctx.replica?.wrote) {
           (await cookies()).set(
             PRIMARY_COOKIE,
