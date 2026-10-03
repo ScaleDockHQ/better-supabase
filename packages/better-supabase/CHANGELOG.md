@@ -1,5 +1,136 @@
 # better-supabase
 
+## 0.4.0
+
+### Minor Changes
+
+- [#16](https://github.com/ScaleDockHQ/better-supabase/pull/16) [`aacef1c`](https://github.com/ScaleDockHQ/better-supabase/commit/aacef1c70c0b122f30e6641b96645720c159bb56) Thanks [@martijn00](https://github.com/martijn00)! - The CLI ships inside `better-supabase` again. Installing `better-supabase` gives you the `better-supabase` command, so drop `@better-supabase/cli` from your dev dependencies (it was never published) and run `npx better-supabase init` in a new project. The commands and their options are unchanged. The CLI's own dependencies are bundled into the package, so apps install nothing extra; `pg` stays an optional peer that the CLI needs to read your database.
+  
+  Import `run`, `registerCommand`, `defineCliCommand` and the introspection helpers from `better-supabase/cli`. `@supabase/config` is an optional peer again, for reading `supabase/config.toml`.
+  
+  `VERSION`, `better-supabase --version`, doctor reports and the header of newly written SQL kit files now show the package version instead of `0.0.0`. Existing kit files are not reported as changed, because the comparison ignores that version.
+
+- [#18](https://github.com/ScaleDockHQ/better-supabase/pull/18) [`345a0b9`](https://github.com/ScaleDockHQ/better-supabase/commit/345a0b95136022a563ff42b7696b7a1914959473) Thanks [@martijn00](https://github.com/martijn00)! - Names are now the same in every adapter. The definition from `defineSupabase` is `betterSupabase`, and every runtime instance an adapter creates is `bs`. They live in `lib/supabase/index.ts`, `lib/supabase/server.ts` (with `import "server-only"` in Next.js) and `lib/supabase/client.ts`, which is what `better-supabase init` now writes. The old names have no aliases; the compiler points out each one. [Naming](https://bettersupabase.com/docs/concepts/naming) lists the conventions.
+  
+  | Before                                                                | After                                                                                         |
+  | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+  | `createBrowser`, `BetterBrowser`, `BrowserOptions`, `BrowserAuth`     | `createClient`, `BetterClient`, `ClientOptions`, `ClientAuth`                                 |
+  | `<BetterSupabaseProvider browser={browser}>`, `BrowserLike`           | `<BetterSupabaseProvider client={bs}>`, `ClientLike`                                          |
+  | `client.sb` and the `sb` option of `testExecutor` and the test plugin | `betterSupabase`                                                                              |
+  | `next.server()`                                                       | `bs.context()` (pass a `Request` to read it instead of the incoming one)                      |
+  | `next.serverFor(session, { token })`                                  | `bs.contextForSession(session, { token })`                                                    |
+  | `BetterEnv` and `bs.handle()` (Hono)                                  | `HonoEnv` and `bs.handler()`                                                                  |
+  | `bs.toORPCError()`                                                    | `bs.toOrpcError()`                                                                            |
+  | `HandlerOptions` (Edge)                                               | `MiddlewareOptions`, shared by Hono, oRPC and Edge and exported from `better-supabase/server` |
+  | `handler` (MCP)                                                       | `endpoint`                                                                                    |
+  | `Queries`, `CreateQueriesOptions`, `queries.key`                      | `BetterQueries`, `QueriesOptions`, `queries.$key`                                             |
+  | `Postgres`                                                            | `BetterPostgres`                                                                              |
+  | `DefineSupabaseOptions`                                               | `SupabaseOptions`                                                                             |
+  | `repository.$table`                                                   | `repository.$tableName`                                                                       |
+  
+  `createHono`, `createOrpc`, `createEdge` and `createMcp` now keep the claims and profile types from `.claims()` and `.userMetadata()`, so `c.var.auth`, `context.auth`, the edge handler's `auth` and MCP's `ctx.auth` are typed by your schema. `better-supabase/next` also exports the `LiveCountSeed` type that `bs.liveCount()` returns.
+
+- [#20](https://github.com/ScaleDockHQ/better-supabase/pull/20) [`6948fc9`](https://github.com/ScaleDockHQ/better-supabase/commit/6948fc9c5f973a5d78fb9676079fa51323a3bbfd) Thanks [@martijn00](https://github.com/martijn00)! - Less work per request in auth and the adapters.
+  
+  - The Next.js adapter verifies the token once per render scope: `context()`,
+    `session()` and `cached()` share one resolution. `BetterServer` gains
+    `contextFromResolution(resolution, request)` for the same pattern elsewhere.
+  - A token seen before skips the claims and `userMetadata` schemas as well as
+    the signature check, per schema pair.
+  - `createServer` fetches the JWKS when it is created, so the first request
+    doesn't wait for it. Pass `prefetchJwks: false` to turn it off; it is off
+    under `NODE_ENV=test`.
+  - Bearer requests parse cookies only when something reads them, and contexts
+    read the replica pin cookie only when a read URL is configured.
+  - Job workers back off from `pollInterval` to `maxPollInterval` (30 seconds by
+    default) while the queue is empty, and keep the leases of every job in a
+    claimed batch alive, not only the running one.
+  - Webhook verification imports each secret's key once, compares signatures
+    with `crypto.subtle.verify`, and checks the headers before reading the body.
+  - The MCP server builds its tool list once when no `visible` hook is set.
+  - The OpenTelemetry plugin builds span and metric attributes once per table
+    and operation.
+  - Edge resource routes answer unknown paths before resolving auth, and a
+    malformed id is a 400 instead of a 500. CORS header values are built once.
+
+- [#20](https://github.com/ScaleDockHQ/better-supabase/pull/20) [`8b41284`](https://github.com/ScaleDockHQ/better-supabase/commit/8b4128490f52deaf5ccbf91bf815c13891826bfc) Thanks [@martijn00](https://github.com/martijn00)! - A faster CLI that reads the database less often.
+  
+  - `--help` and each command's `--help` start in about 30 to 50 ms instead of
+    130 to 150 ms: the commands, config loading, env validation, prompts and
+    the typegen schemas load only when a command runs.
+  - `gen` hashes the system catalogs with one query and reuses the snapshot
+    cached in `node_modules/.cache/better-supabase` while the schema is
+    unchanged. `gen --watch` keeps one connection open and polls that hash, so
+    an unchanged schema costs one small query per interval.
+  - Introspection runs its queries concurrently over a pool of four
+    connections. Connecting gives up after 10 seconds and each introspection
+    query after 2 minutes; Ctrl-C ends the connection or Management API request
+    and exits with code 130.
+  - `doctor` reads the snapshot and runs its live checks and splinter over one
+    connection, and reads its input files concurrently.
+  - `oxfmt` is now an optional peer. Without it, `gen` writes
+    `database.types.ts` unformatted and prints a notice instead of failing.
+  - Generated files and doctor reports sort names by code point, so they no
+    longer depend on the machine's locale. Run `better-supabase gen` once; the
+    order of a few entries in `generated.ts` and the validator files can change.
+  - Breaking: `parseSnapshot` from `better-supabase/cli` now returns a promise,
+    so the typegen schemas load on first use. Add `await`. `loadSnapshot` takes
+    `signal` and `cache` in its source options.
+
+- [#20](https://github.com/ScaleDockHQ/better-supabase/pull/20) [`5ce1b5b`](https://github.com/ScaleDockHQ/better-supabase/commit/5ce1b5b562e9fee9c7fc73eeae0f6a4bb03cb0e7) Thanks [@martijn00](https://github.com/martijn00)! - Fixes four bugs the performance audit found, one of which changes behavior.
+  
+  - `findMany` without `orderBy` now orders by the primary key's database names. On a camel-cased table whose key isn't `id` (`customerTags` with `customerId` and `tagId`) it sent `order=customerId.asc`, which PostgREST rejects.
+  - `topic.send()` no longer closes a subscription on the same topic. realtime-js reuses the open channel for a topic, and `send()` removed it after sending.
+  - `liveQuery` keeps the shared channel when a listener re-joins in the same tick (React StrictMode remounts), instead of subscribing the new listener to a closing channel.
+  - A session refresh now times out after `refreshTimeoutMs` (5000 by default, an option of `resolveAuth` and every adapter's `auth`) and counts as a network failure. Before, a hung Auth request blocked every later request carrying the same refresh token. A rejected refresh is reused for ten seconds, like a successful one.
+  
+  Breaking: where refreshing is off (Server Components, route handlers, prefetches, MCP), a token in its last 60 seconds is now valid until its `exp`. It used to resolve as `{ kind: 'anon', reason: 'expired' }`, so pages rendered signed out in the last minute of every token. `leeway` now only decides when the proxy refreshes.
+
+- [#20](https://github.com/ScaleDockHQ/better-supabase/pull/20) [`511c97b`](https://github.com/ScaleDockHQ/better-supabase/commit/511c97b9ab8b951fcc84031413dea51306a9921f) Thanks [@martijn00](https://github.com/martijn00)! - Generated files and types that cost less to check and to bundle.
+  
+  - Breaking: `gen` writes the schema metadata to `generated.meta.js` with a
+    `generated.meta.d.ts` next to the main module, which imports it. TypeScript
+    reads the metadata as `SchemaMeta` instead of checking a large object
+    literal, which cuts check time and editor memory on large schemas. Run
+    `better-supabase gen` and commit both new files.
+  - Breaking: `BetterPostgres` gains `executorFor(claims)`, and `createServer`
+    uses it for `ctx.sql` and `actingAs()`. Apps that don't pass `postgres`
+    no longer bundle the SQL compiler; the Next.js, Hono, oRPC, edge and MCP
+    entries are about 5 KB gzip smaller. A custom `BetterPostgres` implements
+    `executorFor` as `postgresExecutor(asUser(claims))`.
+  - Reads without `select` or `include` return the row type directly, which
+    removes about a quarter of the type instantiations a query costs.
+  - The build marks library modules as side-effect free and annotates
+    module-level objects as pure, so bundlers drop the parts an app doesn't use.
+
+- [#20](https://github.com/ScaleDockHQ/better-supabase/pull/20) [`36635e2`](https://github.com/ScaleDockHQ/better-supabase/commit/36635e2806618d6e07c7b7d7c6324cee9d89a4d7) Thanks [@martijn00](https://github.com/martijn00)! - Faster request path in the core runtime.
+  
+  - `connect()` costs the same for any number of tables: every connection shares
+    one prototype of table getters, and repositories are built on first access.
+  - For a signed-in user, `ctx.db` (and `dbFor()`) on the server runs on a bare
+    PostgREST client, so requests that only query data no longer build the
+    Realtime, Storage and Auth clients. `ctx.supabase` and `ctx.db.$client`
+    still return the full supabase-js client, built when first read.
+    `better-supabase` now depends on `@supabase/postgrest-js` at the version
+    supabase-js uses.
+  - Default selections, rendered select strings, column lookups, unique keys,
+    invalidation targets and the tables a query spec reads are computed once per
+    table or spec instead of on every call. Plugin hooks, tenant resolution and
+    claim paths are resolved once, and `mutation` and `error` payloads are only
+    built when someone listens.
+  - Row decoding and paging copy each row once instead of spreading and deleting
+    keys in loops.
+  - Bucket connections take `{ cacheSignedUrls: true }` to reuse a signed URL
+    until shortly before it expires. The cache belongs to the connection.
+  - Outside production, the event hub warns once when an event collects more
+    than 50 handlers, which usually means a missing unsubscribe.
+  
+  `invalidationTargets()` now returns a frozen `readonly string[]`.
+
+### Patch Changes
+
+- [#16](https://github.com/ScaleDockHQ/better-supabase/pull/16) [`aacef1c`](https://github.com/ScaleDockHQ/better-supabase/commit/aacef1c70c0b122f30e6641b96645720c159bb56) Thanks [@martijn00](https://github.com/martijn00)! - The Agent Skills cover 0.3. A new `better-supabase-auth` skill teaches sessions, typed claims, OAuth clients and agents behind a token (`session.actor`, `session.delegation` and the `scopes` guard option), `checkSession` before irreversible actions, what happens when claims change, and how to run next to PermDock. The `better-supabase` skill adds an upgrade workflow, cursor pagination, `Temporal` values, the CLI's `--json`, `--db-url-stdin` and exit codes, and `member_org_ids()` in tenant policies. The `better-supabase-api` skill adds `scopes`, cursor resources, the MCP `authorize`, `visible` and `allowedHosts` options, the kit's purge functions and the Postgres pool options. The `better-supabase-testing` skill adds delegated-token API tests, `Temporal` in tests and doctor in CI. Run `better-supabase skills install` to update installed skills.
+
 ## 0.3.0
 
 ### Minor Changes
