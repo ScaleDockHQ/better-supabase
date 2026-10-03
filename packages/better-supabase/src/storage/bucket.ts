@@ -64,7 +64,8 @@ export interface BucketConfig<
   readonly policy?: BucketPolicy;
   /**
    * PermDock's `permissions.catalog.json`. With it, a `permdock` policy
-   * naming a permission with `rowConditions: true` throws.
+   * naming a permission without `rowConditions: false` (including one the
+   * catalog doesn't list) throws.
    */
   readonly catalog?: PermdockCatalog;
   /** `'5MiB'`, `'500KB'` or bytes. */

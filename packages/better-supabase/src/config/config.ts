@@ -254,8 +254,9 @@ export interface EntitlementsConfig {
    * With a PermDock manifest, `has_entitlement` and `feature_claims` read
    * PermDock's memberships (`member_<scope>_ids()` and
    * `member_<scope>_ids_for(user)`) instead of `better_supabase.memberships`.
-   * `scope` is the PermDock scope tenants are (default `organization`);
-   * `false` keeps the kit's memberships table.
+   * `scope` is the PermDock scope tenants are. It defaults to the manifest's
+   * root scope (the `rls.scopes` entry without `within`); `false` keeps the
+   * kit's memberships table.
    */
   readonly permdock?: false | { readonly scope?: string };
 }
@@ -383,7 +384,9 @@ function entitlementsOf(
     permdock:
       config.permdock === false
         ? false
-        : { scope: config.permdock?.scope ?? "organization" },
+        : config.permdock?.scope === undefined
+          ? {}
+          : { scope: config.permdock.scope },
   };
 }
 
@@ -427,7 +430,7 @@ export interface ResolvedConfig {
     readonly table: string;
     readonly column: string;
     readonly key: string;
-    readonly permdock: false | { readonly scope: string };
+    readonly permdock: false | { readonly scope?: string };
   };
   readonly permdock: Required<PermdockPathsConfig>;
   readonly vectorSearch: readonly {

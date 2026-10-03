@@ -143,8 +143,11 @@ module, and `sql add entitlements` no longer adds `tenant`:
 | `feature_claims(user_id)`       | `<schema>.member_<scope>_ids_for(user_id)`, from PermDock's hook as `supabase_auth_admin` |
 | `entitlement_members(customer)` | The manifest's membership tables for that scope                                           |
 
-`<schema>` is the manifest's `rls.schema`. `<scope>` is `organization` unless
-you set another of the manifest's scopes:
+`<schema>` is the manifest's `rls.schema`. `<scope>` is the manifest's root
+scope, the `rls.scopes` entry without `within`. When the manifest has no
+root scope or several, `sql add entitlements` stops and doctor reports
+[BS408](/docs/cli/doctor#bs408) until you name one. Set `scope` to use
+another of the manifest's scopes:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -155,14 +158,24 @@ export default defineConfig({
 });
 ```
 
+The tenant argument of `has_entitlement`, `tenant_entitlements` and
+`tenant_stripe_customer` takes the scope's `type` from the manifest's
+`rls.scopes`: `uuid`, `text` or `bigint`. With another type, or none, `sql
+add entitlements` stops and doctor reports BS408.
+
 `permdock: false` keeps the `tenant` module's `better_supabase.memberships`
 even when the manifest is there. Without a manifest the module also uses
 `tenant`; keep memberships in that table and list it as a PermDock
 membership source, so PermDock and the policy agree:
 `fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
 
-`permdock rls generate` writes both helpers, and doctor reports
-[BS408](/docs/cli/doctor#bs408) when the manifest or the database lacks one.
+`permdock rls generate` writes `member_<scope>_ids` for every scope, but
+`member_<scope>_ids_for` only for a scope with a membership source, and only
+a hook with `supabase.hook.claims` lets `supabase_auth_admin` execute it.
+Doctor reports [BS408](/docs/cli/doctor#bs408) when the manifest or the
+database lacks one of them, and names the `permdock.config.ts` setting that
+adds it.
+
 `hasEntitlement(session, ...)` reads the `features` claim: name
 `feature_claims` in PermDock's hook, and the generated hook writes it:
 
@@ -181,6 +194,11 @@ Then run `permdock supabase hook generate --grants-out <file>`: with
 execute on `member_<scope>_ids_for`, which `feature_claims` calls. Run the
 command again after changing the config instead of editing the generated
 hook, because it overwrites the hook.
+
+The kit's `feature_claims` reads Stripe's `stripe.active_entitlements`, so
+an app whose plan features live in its own table keeps its own
+`feature_claims` and names that one in the hook instead.
+
 `subjectFromSupabaseSession(session, { plans: 'features' })` reads the active
 tenant's `features` into PermDock's `principal.plans`.
 

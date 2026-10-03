@@ -1,5 +1,11 @@
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
-import type { DoctorContext, FindingInput, Location, Rule } from "./rules.ts";
+import type {
+  DoctorContext,
+  FindingInput,
+  Location,
+  Rule,
+  TextFile,
+} from "./rules.ts";
 
 import {
   parseGrantsMarker,
@@ -58,20 +64,23 @@ function ownedClaims(tenant: string): readonly string[] {
 const quotedName = (schema: string, name: string): string =>
   `(?:"?${escapeRegExp(schema)}"?\\s*\\.\\s*)?"?${escapeRegExp(name)}"?`;
 
-/** A SQL file that starts with PermDock's hook marker and creates `fn`. */
-function markerFileFor(
-  context: DoctorContext,
+const createsFunction = (
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
-) {
-  const creates = new RegExp(
+): RegExp =>
+  new RegExp(
     `create\\s+(?:or\\s+replace\\s+)?function\\s+${quotedName(fn.schema, fn.name)}\\s*\\(`,
     "i",
   );
-  for (const file of context.sqlFiles ?? []) {
-    const marker = parseHookMarker(file.text);
-    if (marker && creates.test(file.text)) return marker;
-  }
-  return;
+
+/** The SQL file that starts with PermDock's hook marker and creates `fn`. */
+function markerFileFor(
+  context: DoctorContext,
+  fn: Pick<ExtrasHookFunction, "schema" | "name">,
+): TextFile | undefined {
+  const creates = createsFunction(fn);
+  return (context.sqlFiles ?? []).find(
+    (file) => parseHookMarker(file.text) && creates.test(file.text),
+  );
 }
 
 /** Whether `fn` is the hook PermDock generated: by its manifest, its marker file or its body. */
@@ -208,10 +217,14 @@ function grantProblems(fn: ExtrasHookFunction): {
   return { problems, fix };
 }
 
-/** What fixes a hook function's grants: SQL to append, PermDock's grants migration, or applying one that exists. */
+/**
+ * What fixes a hook function's grants: SQL to add, PermDock's generator (with
+ * the schema file that defines its hook, when one does), or applying the
+ * file that already grants it.
+ */
 type HookGrantFix =
   | { readonly kind: "sql"; readonly sql: readonly string[] }
-  | { readonly kind: "permdock" }
+  | { readonly kind: "permdock"; readonly file?: string }
   | { readonly kind: "migration"; readonly file: string };
 
 export interface HookGrantProblem {
@@ -221,30 +234,49 @@ export interface HookGrantProblem {
   readonly fix: HookGrantFix;
 }
 
-/** The `-- permdock:grants v1` migration that grants `fn`, if any. */
-function grantsMigrationFor(
+const MIGRATIONS = /(?:^|\/)supabase\/migrations\//;
+
+/**
+ * The file that grants `fn` to `supabase_auth_admin`: a `-- permdock:grants
+ * v1` migration, or under pg-delta, which carries grants, the declarative
+ * schema file that defines `fn`. `supabase db diff` drops grants, so the
+ * legacy engine only counts the migration.
+ */
+function grantsSourceFor(
   context: DoctorContext,
   fn: ExtrasHookFunction,
+  engine: DiffEngine,
 ): string | undefined {
   const grants = new RegExp(
-    `grant\\s+execute\\s+on\\s+function\\s+${quotedName(fn.schema, fn.name)}\\s*\\(`,
+    `grant\\s+execute\\s+on\\s+function\\s+${quotedName(fn.schema, fn.name)}\\s*\\([^)]*\\)\\s*to\\s+[^;]*\\bsupabase_auth_admin\\b`,
     "i",
   );
+  const creates = createsFunction(fn);
   return (context.sqlFiles ?? []).find(
-    (file) => parseGrantsMarker(file.text) && grants.test(file.text),
+    (file) =>
+      grants.test(file.text) &&
+      (parseGrantsMarker(file.text) !== undefined ||
+        (engine === "pg-delta" &&
+          !MIGRATIONS.test(file.path) &&
+          creates.test(file.text))),
   )?.path;
 }
 
 const PERMDOCK_GRANTS_COMMAND =
   "permdock supabase hook generate --grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql";
 
+const permdockSchemaCommand = (file: string | undefined): string =>
+  `permdock supabase hook generate --out ${file ?? "<the schema file that defines it>"}`;
+
 /** Configured hook functions whose grants are wrong (BS404, `doctor --fix-grants`). */
 export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
+  const engine = diffEngine(context.configToml);
   return configuredHooks(context).flatMap(({ config, extras }) =>
     (extras?.functions ?? []).flatMap((fn): HookGrantProblem[] => {
       const { problems, fix } = grantProblems(fn);
       if (problems.length === 0) return [];
-      const file = grantsMigrationFor(context, fn);
+      const file = grantsSourceFor(context, fn, engine);
+      const hookFile = markerFileFor(context, fn)?.path;
       return [
         {
           hook: config.hook,
@@ -253,7 +285,7 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
           fix: file
             ? { kind: "migration", file }
             : isPermdockHook(context, fn)
-              ? { kind: "permdock" }
+              ? { kind: "permdock", ...(hookFile ? { file: hookFile } : {}) }
               : { kind: "sql", sql: fix },
         },
       ];
@@ -269,9 +301,13 @@ function grantFixText(fix: HookGrantFix, engine: DiffEngine): string {
         ? `Add to the schema file that defines the function, then run \`supabase db schema declarative sync\` (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`
         : `Append to the migration \`supabase db diff\` wrote (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
     case "permdock":
-      return `It is PermDock's hook, so let PermDock write the grants: \`${PERMDOCK_GRANTS_COMMAND}\`.`;
+      return engine === "pg-delta"
+        ? `It is PermDock's hook, so let PermDock write the grants into the schema file that defines it: \`${permdockSchemaCommand(fix.file)}\`, without \`--grants-out\` so pg-delta carries them, then run \`supabase db schema declarative sync\`.`
+        : `It is PermDock's hook, so let PermDock write the grants: \`${PERMDOCK_GRANTS_COMMAND}\`.`;
     case "migration":
-      return `${fix.file} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`;
+      return engine === "pg-delta"
+        ? `${fix.file} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`
+        : `${fix.file} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`;
     default: {
       const unreachable: never = fix;
       return unreachable;
@@ -301,13 +337,17 @@ export function hookGrantBlock(
       case "permdock":
         lines.push(
           "",
-          `-- ${name} is PermDock's hook: ${PERMDOCK_GRANTS_COMMAND}`,
+          engine === "pg-delta"
+            ? `-- ${name} is PermDock's hook: ${permdockSchemaCommand(fix.file)} (without --grants-out), then supabase db schema declarative sync`
+            : `-- ${name} is PermDock's hook: ${PERMDOCK_GRANTS_COMMAND}`,
         );
         break;
       case "migration":
         lines.push(
           "",
-          `-- ${name}: ${fix.file} grants it; run \`supabase migration up\`.`,
+          engine === "pg-delta"
+            ? `-- ${name}: ${fix.file} grants it; run \`supabase db schema declarative sync\`, then \`supabase migration up\`.`
+            : `-- ${name}: ${fix.file} grants it; run \`supabase migration up\`.`,
         );
         break;
       default: {

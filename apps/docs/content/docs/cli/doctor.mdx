@@ -383,9 +383,14 @@ policies on `storage.objects` and `realtime.messages` in your SQL files, and
 `permdock rls generate` writes for that permission, or a permission without
 row conditions.
 
+A key whose catalog entry has no boolean `rowConditions` is unknown, and so
+is a key the catalog doesn't list. Doctor reports both as errors and `gen`
+refuses them: regenerate the catalog with a current `permdock catalog`, which
+writes the flag for every permission.
+
 When the helpers are used but the catalog file is missing, doctor reports an
 info finding: run `permdock catalog` to write it. `defineBucket` and
-`defineTopic` take the same catalog as `catalog` and throw for those keys.
+`defineTopic` take the same catalog as `catalog` and throw for the same keys.
 
 ### BS215
 
@@ -563,11 +568,20 @@ supabase db diff -f auth_hook
 better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook.sql
 ```
 
-When the function is PermDock's generated hook, the finding points to
-`permdock supabase hook generate --grants-out <file>` instead, which writes
-the grants migration with a `-- permdock:grants v1` marker. When a migration
-with that marker already grants the function, the database is behind the
-migrations, and the finding says to run `supabase migration up`.
+When the function is PermDock's generated hook, the finding lets PermDock
+write the grants instead. On migra it points to
+`permdock supabase hook generate --grants-out <file>`, which writes the grants
+migration with a `-- permdock:grants v1` marker. With pg-delta it points to
+`permdock supabase hook generate --out <schema file>` without `--grants-out`,
+so the grants stay in the schema file that defines the hook, then to
+`supabase db schema declarative sync`.
+
+When a file already grants the function, the database is behind, and the
+finding names that file. On migra only a `-- permdock:grants v1` migration
+counts, and the finding says to run `supabase migration up`. With pg-delta
+the declarative schema file that defines the hook counts too, and the finding
+says to run `supabase db schema declarative sync`, then
+`supabase migration up`.
 
 Doctor reads the declarative schemas, then the migrations newest first, and
 points findings at the first file that declares the object. With pg-delta it
@@ -644,13 +658,30 @@ file paths.
 **Warning: PermDock helpers the entitlements module calls are missing.**
 With a `permdock.manifest.json`, the [`entitlements` kit
 module](/docs/kits/entitlements#with-permdock) reads memberships from
-PermDock's `member_<scope>_ids()` in `has_entitlement` and
-`member_<scope>_ids_for(uuid)` in `feature_claims`. When `entitlements` is in
-`sql.kit`, doctor warns when `entitlements.permdock.scope` is not one of the
-manifest's scopes, when the manifest's `rls.helpers` lacks one of the two
-helpers (run `permdock rls generate` with a current PermDock, then
-`permdock supabase inspect --out`), or when the database lacks it (apply the
-migration `permdock rls generate` wrote before the kit's).
+PermDock's `member_<scope>_ids()` in `has_entitlement`, which runs as
+`authenticated`, and `member_<scope>_ids_for(uuid)` in `feature_claims`, which
+PermDock's hook runs as `supabase_auth_admin`. When `entitlements` is in
+`sql.kit`, doctor checks exactly those two helpers for the chosen scope and
+warns when:
+
+- `entitlements.permdock.scope` is not one of the manifest's scopes, or it is
+  unset and the manifest has no single root scope;
+- the scope's `type` in `rls.scopes` is missing or is not `uuid`, `text` or
+  `bigint`. `sql add entitlements` refuses to render the module then, instead
+  of guessing `uuid`;
+- the manifest's `rls.helpers` lacks `member_<scope>_ids`, or doesn't let
+  `authenticated` execute it: run `permdock rls generate` with a current
+  PermDock, then `permdock supabase inspect --out`;
+- it lacks `member_<scope>_ids_for`. PermDock writes it only for a scope with
+  a membership source, so add one in `permdock.config.ts`
+  (`supabase.hook.memberships`, `rls.membershipSources` or a mapped
+  `rls.memberships` table);
+- `supabase_auth_admin` may not execute `member_<scope>_ids_for`. PermDock
+  grants it only when the hook has claims, so add
+  `supabase.hook.claims: { features: 'better_supabase.feature_claims' }` and
+  run `permdock supabase hook generate` again;
+- the database lacks a helper the manifest lists: apply the migration
+  `permdock rls generate` wrote before the kit's.
 
 ## Env files
 

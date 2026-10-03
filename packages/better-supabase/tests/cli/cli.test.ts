@@ -302,7 +302,7 @@ describe("gen", () => {
       JSON.stringify({
         permissions: [
           { key: "docs.read", rowConditions: true },
-          { key: "docs.write", rowConditions: false },
+          { key: "docs.write" },
         ],
       }),
     );
@@ -316,6 +316,9 @@ describe("gen", () => {
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain(
       'buckets.docs: "docs.read" has row conditions in permissions.catalog.json',
+    );
+    expect(refused.stderr).toContain(
+      'buckets.docs: "docs.write" has no rowConditions flag in permissions.catalog.json',
     );
   });
 

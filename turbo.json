@@ -142,7 +142,8 @@
         "apps/docs/content/**",
         "packages/better-supabase/README.md",
         "packages/better-supabase/package.json",
-        "packages/better-supabase/schemas/**"
+        "packages/better-supabase/schemas/**",
+        "packages/better-supabase/skills/**"
       ]
     },
     "//#knip": {},

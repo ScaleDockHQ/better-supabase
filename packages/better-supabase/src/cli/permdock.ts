@@ -3,7 +3,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
-import type { KitPermdock } from "../sql/index.ts";
+import type { KitPermdock, PermdockCatalog } from "../sql/index.ts";
+
+import { isKitIdType, KIT_ID_TYPES } from "../sql/index.ts";
 
 const PERMDOCK_CONFIGS = [
   "permdock.config.ts",
@@ -61,7 +63,10 @@ export interface PermdockManifest {
     readonly mode: "jwt" | "database";
     readonly scopes: readonly {
       readonly name: string;
-      readonly type: string;
+      /** The id's Postgres type; missing means unknown. */
+      readonly type?: string;
+      /** The parent scope; the root scope has none. */
+      readonly within?: string;
     }[];
     readonly helpers: readonly ManifestHelper[];
   };
@@ -78,8 +83,8 @@ export interface PermdockProject {
   readonly manifest?: PermdockManifest;
   /** The catalog path, relative to the root. */
   readonly catalogPath: string;
-  /** Permission keys whose catalog entry has `rowConditions: true`. */
-  readonly rowConditions?: ReadonlySet<string>;
+  /** The catalog's keys and their `rowConditions` flags, when it could be read. */
+  readonly catalog?: PermdockCatalog;
   /** Files that exist but could not be read, with the reason. */
   readonly problems: readonly string[];
 }
@@ -168,10 +173,18 @@ export function parseManifest(json: unknown): PermdockManifest {
             mode: rls["mode"] === "jwt" ? "jwt" : "database",
             scopes: (Array.isArray(rls["scopes"]) ? rls["scopes"] : []).flatMap(
               (scope) =>
-                isRecord(scope) &&
-                isString(scope["name"]) &&
-                isString(scope["type"])
-                  ? [{ name: scope["name"], type: scope["type"] }]
+                isRecord(scope) && isString(scope["name"])
+                  ? [
+                      {
+                        name: scope["name"],
+                        ...(isString(scope["type"])
+                          ? { type: scope["type"] }
+                          : {}),
+                        ...(isString(scope["within"])
+                          ? { within: scope["within"] }
+                          : {}),
+                      },
+                    ]
                   : [],
             ),
             helpers: (Array.isArray(rls["helpers"])
@@ -199,20 +212,25 @@ export function parseManifest(json: unknown): PermdockManifest {
   };
 }
 
-/** The keys of a parsed `permissions.catalog.json` whose entry has `rowConditions: true`. */
-export function rowConditionKeys(json: unknown): ReadonlySet<string> {
+/**
+ * The keys of a parsed `permissions.catalog.json`, each with its
+ * `rowConditions` flag when it is a boolean. A non-boolean flag is dropped,
+ * so `permdockKeyStatus` reads the key as unknown.
+ */
+export function parseCatalog(json: unknown): PermdockCatalog {
   if (!isRecord(json) || !Array.isArray(json["permissions"]))
     throw new TypeError("has no permissions array");
-  const keys = new Set<string>();
-  for (const permission of json["permissions"]) {
-    if (
-      isRecord(permission) &&
-      isString(permission["key"]) &&
-      permission["rowConditions"] === true
-    )
-      keys.add(permission["key"]);
-  }
-  return keys;
+  return {
+    permissions: json["permissions"].flatMap((permission) => {
+      if (!isRecord(permission) || !isString(permission["key"])) return [];
+      const flag = permission["rowConditions"];
+      return [
+        typeof flag === "boolean"
+          ? { key: permission["key"], rowConditions: flag }
+          : { key: permission["key"] },
+      ];
+    }),
+  };
 }
 
 async function readJson(
@@ -256,10 +274,10 @@ export async function readPermdock(
   } else if ("problem" in manifestFile) problems.push(manifestFile.problem);
   if (!config && !manifest && "missing" in manifestFile) return undefined;
   const catalogFile = await readJson(root, paths.catalog);
-  let rowConditions: ReadonlySet<string> | undefined;
+  let catalog: PermdockCatalog | undefined;
   if ("json" in catalogFile) {
     try {
-      rowConditions = rowConditionKeys(catalogFile.json);
+      catalog = parseCatalog(catalogFile.json);
     } catch (cause) {
       problems.push(
         `${paths.catalog}: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -271,7 +289,7 @@ export async function readPermdock(
     manifestPath: paths.manifest,
     ...(manifest ? { manifest } : {}),
     catalogPath: paths.catalog,
-    ...(rowConditions ? { rowConditions } : {}),
+    ...(catalog ? { catalog } : {}),
     problems,
   };
 }
@@ -333,8 +351,11 @@ export type EntitlementsMode =
 
 /**
  * PermDock mode, when the manifest has an `rls` block and
- * `entitlements.permdock` is not `false`: the scope must be one of the
- * manifest's `rls.scopes`. Without a manifest the module keeps using `tenant`.
+ * `entitlements.permdock` is not `false`. The scope is
+ * `entitlements.permdock.scope`, which must be one of the manifest's
+ * `rls.scopes`, else the one scope without `within`. No root scope, or more
+ * than one, is invalid rather than a guess. Without a manifest the module
+ * keeps using `tenant`.
  */
 export function entitlementsMode(
   config: Pick<ResolvedConfig, "entitlements">,
@@ -344,17 +365,45 @@ export function entitlementsMode(
   const rls = project?.manifest?.rls;
   if (setting === false || !project?.manifest || !rls)
     return { kind: "tenant" };
-  if (!rls.scopes.some((scope) => scope.name === setting.scope)) {
+  const names = rls.scopes.map((scope) => scope.name).join(", ") || "none";
+  let scope: string;
+  if (setting.scope === undefined) {
+    const roots = rls.scopes.filter((entry) => entry.within === undefined);
+    if (roots.length !== 1) {
+      return {
+        kind: "invalid",
+        problem: `${project.manifestPath} has no single root scope (${roots.map((entry) => entry.name).join(", ") || "none"}), so the entitlements module can't tell which scope tenants are. Set entitlements.permdock: { scope } to one of ${names}.`,
+      };
+    }
+    scope = roots[0]!.name;
+  } else {
+    scope = setting.scope;
+    if (!rls.scopes.some((entry) => entry.name === scope)) {
+      return {
+        kind: "invalid",
+        problem: `entitlements.permdock.scope is "${scope}", but ${project.manifestPath} has the scopes ${names}. Set entitlements.permdock: { scope } to one of them, or remove it to use the root scope.`,
+      };
+    }
+  }
+  const type = rls.scopes.find((entry) => entry.name === scope)?.type;
+  if (type === undefined) {
     return {
       kind: "invalid",
-      problem: `entitlements.permdock.scope is "${setting.scope}", but ${project.manifestPath} has the scopes ${rls.scopes.map((scope) => scope.name).join(", ") || "(none)"}. Set entitlements.permdock: { scope } to one of them.`,
+      problem: `${project.manifestPath} gives scope "${scope}" no type, so the entitlements module can't tell its id type. Run \`permdock supabase inspect --out\` with a current PermDock.`,
+    };
+  }
+  if (!isKitIdType(type)) {
+    return {
+      kind: "invalid",
+      problem: `${project.manifestPath} gives scope "${scope}" the type ${type}, but the entitlements module renders only ${KIT_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
     };
   }
   return {
     kind: "permdock",
     permdock: {
       schema: rls.schema,
-      scope: setting.scope,
+      scope,
+      idType: type,
       memberships: project.manifest.memberships.map((source) => ({
         table: source.table,
         userColumn: source.user.column,
@@ -365,8 +414,33 @@ export function entitlementsMode(
   };
 }
 
-/** The `member_<scope>_ids` helpers PermDock mode calls, as `schema.name`. */
-export const entitlementHelpers = (permdock: KitPermdock): string[] => [
-  `${permdock.schema}.member_${permdock.scope}_ids`,
-  `${permdock.schema}.member_${permdock.scope}_ids_for`,
+/** A helper PermDock mode calls (`schema.name`), the kit function that calls it and the role it runs as. */
+export interface EntitlementRequirement {
+  readonly kind: "member" | "member-for";
+  readonly helper: string;
+  readonly caller: string;
+  readonly role: "authenticated" | "supabase_auth_admin";
+}
+
+/**
+ * The helpers the `entitlements` module calls for the chosen scope:
+ * `member_<scope>_ids` from `has_entitlement` as `authenticated`, and
+ * `member_<scope>_ids_for` from `feature_claims`, which PermDock's hook runs
+ * as `supabase_auth_admin`.
+ */
+export const entitlementRequirements = (
+  permdock: KitPermdock,
+): readonly EntitlementRequirement[] => [
+  {
+    kind: "member",
+    helper: `${permdock.schema}.member_${permdock.scope}_ids`,
+    caller: "has_entitlement",
+    role: "authenticated",
+  },
+  {
+    kind: "member-for",
+    helper: `${permdock.schema}.member_${permdock.scope}_ids_for`,
+    caller: "feature_claims",
+    role: "supabase_auth_admin",
+  },
 ];

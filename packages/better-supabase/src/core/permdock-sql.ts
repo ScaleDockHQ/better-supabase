@@ -15,6 +15,34 @@ export interface PermdockCatalog {
   }[];
 }
 
+/**
+ * What PermDock's catalog says about a key: `scope-only` (`rowConditions:
+ * false`), `row-conditions` (`true`), `no-flag` (an entry without a boolean
+ * flag, from an older `permdock catalog`) or `missing`. Only `scope-only` is
+ * safe for the SQL helpers.
+ */
+export type PermdockKeyStatus =
+  | "scope-only"
+  | "row-conditions"
+  | "no-flag"
+  | "missing";
+
+export function permdockKeyStatus(
+  catalog: PermdockCatalog,
+  key: string,
+): PermdockKeyStatus {
+  const entry = catalog.permissions.find(
+    (permission) => permission.key === key,
+  );
+  if (!entry) return "missing";
+  if (entry.rowConditions === true) return "row-conditions";
+  if (entry.rowConditions === false) return "scope-only";
+  return "no-flag";
+}
+
+const REGENERATE =
+  "Regenerate permissions.catalog.json with a current `permdock catalog`, which writes rowConditions for every permission.";
+
 interface PermdockTarget {
   readonly scope: string;
   readonly schema?: string;
@@ -27,8 +55,9 @@ interface PermdockTarget {
  *
  * The helpers check role and scope, not a permission's row conditions, so
  * the condition is only correct for permissions whose grants have none
- * beyond the scope. `#n` keys are refused, and so are keys the catalog marks
- * with `rowConditions: true` when one is passed.
+ * beyond the scope. `#n` keys are refused. With a catalog, only keys it marks
+ * `rowConditions: false` are accepted: `true`, a missing flag and a key the
+ * catalog doesn't list are refused.
  */
 export function permdockCheck(
   where: string,
@@ -44,15 +73,28 @@ export function permdockCheck(
       `${where}: "${key}" is one part of a permission PermDock splits by row condition. Use PermDock's generated policies for it.`,
     );
   }
-  if (
-    catalog?.permissions.some(
-      (permission) =>
-        permission.key === key && permission.rowConditions === true,
-    )
-  ) {
-    throw new TypeError(
-      `${where}: "${key}" has row conditions in PermDock's catalog (rowConditions: true), which the SQL helpers don't check. Use PermDock's generated policies for it.`,
-    );
+  if (catalog) {
+    const status = permdockKeyStatus(catalog, key);
+    switch (status) {
+      case "scope-only":
+        break;
+      case "row-conditions":
+        throw new TypeError(
+          `${where}: "${key}" has row conditions in PermDock's catalog (rowConditions: true), which the SQL helpers don't check. Use PermDock's generated policies for it.`,
+        );
+      case "no-flag":
+        throw new TypeError(
+          `${where}: "${key}" has no rowConditions flag in PermDock's catalog, so whether the SQL helpers check it fully is unknown. ${REGENERATE}`,
+        );
+      case "missing":
+        throw new TypeError(
+          `${where}: "${key}" is not in PermDock's catalog. ${REGENERATE}`,
+        );
+      default: {
+        const unreachable: never = status;
+        return unreachable;
+      }
+    }
   }
   const schema = sqlIdent(target.schema ?? "public");
   if (target.scope === "global")

@@ -468,12 +468,13 @@ const permdockEntitlementChecks = (
 ): string => {
   const member = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids`)}`;
   const memberFor = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids_for`)}`;
+  const id = permdock.idType;
   return `
 -- PermDock mode: memberships come from PermDock's ${permdock.scope} scope
 -- (${member}() and ${memberFor}(uuid), from \`permdock rls generate\`).
 
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
-create or replace function better_supabase.has_entitlement(tenant uuid, key text)
+create or replace function better_supabase.has_entitlement(tenant ${id}, key text)
 returns boolean
 language sql
 stable
@@ -484,8 +485,8 @@ as $$
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
-revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
-grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+revoke execute on function better_supabase.has_entitlement(${id}, text) from public, anon;
+grant execute on function better_supabase.has_entitlement(${id}, text) to authenticated, service_role;
 
 -- The \`${claims.features}\` claim: { [${permdock.scope} id]: lookup keys }, read by
 -- hasEntitlement(). Register it with PermDock instead of writing a hook:
@@ -509,12 +510,14 @@ $$;`;
 const entitlementsSql = (
   claims: ClaimsMeta,
   layout: KitLayout = {},
-): string => `${SCHEMA}
+): string => {
+  const id = layout.permdock?.idType ?? "uuid";
+  return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Lookup keys of the tenant's active entitlements, from the Stripe Sync
 -- Engine's stripe.active_entitlements. Empty before the engine is installed.
-create or replace function better_supabase.tenant_entitlements(tenant uuid)
+create or replace function better_supabase.tenant_entitlements(tenant ${id})
 returns text[]
 language plpgsql
 stable
@@ -536,12 +539,13 @@ begin
 end
 $$;
 
-revoke execute on function better_supabase.tenant_entitlements(uuid) from public, anon, authenticated;
-grant execute on function better_supabase.tenant_entitlements(uuid) to service_role, supabase_auth_admin;
+revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
 ${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
+};
 
 const ENTITLEMENTS: SqlModule = {
   name: "entitlements",
@@ -1817,8 +1821,17 @@ export interface KitPermdock {
   readonly schema: string;
   /** The PermDock scope tenants map to, e.g. `organization`. */
   readonly scope: string;
+  /** The scope's id type, from the manifest's `rls.scopes[].type`. */
+  readonly idType: KitIdType;
   readonly memberships: readonly KitMembershipSource[];
 }
+
+/** The scope id types the `entitlements` module renders in PermDock mode. */
+export const KIT_ID_TYPES = ["uuid", "text", "bigint"] as const;
+export type KitIdType = (typeof KIT_ID_TYPES)[number];
+
+export const isKitIdType = (value: string): value is KitIdType =>
+  KIT_ID_TYPES.some((type) => type === value);
 
 /** An embedding column `db.$search` can query. */
 interface VectorSearchTable {
@@ -1956,11 +1969,12 @@ function entitlementsSource(
   const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
+  const id = permdock?.idType ?? "uuid";
   const definer =
     "language sql\nstable\nsecurity definer\nset search_path = ''";
   return `
 -- config.entitlements: ${source.table}.${source.column}
-create or replace function better_supabase.tenant_stripe_customer(tenant uuid)
+create or replace function better_supabase.tenant_stripe_customer(tenant ${id})
 returns text
 ${definer}
 as $$
@@ -1968,7 +1982,7 @@ as $$
 $$;
 
 create or replace function better_supabase.stripe_customer_tenants(customer text)
-returns setof uuid
+returns setof ${id}
 ${definer}
 as $$
   select ${key} from ${target} t where ${column} = customer
@@ -1989,7 +2003,7 @@ ${
 }
 $$;
 
-revoke execute on function better_supabase.tenant_stripe_customer(uuid) from public, anon, authenticated;
+revoke execute on function better_supabase.tenant_stripe_customer(${id}) from public, anon, authenticated;
 revoke execute on function better_supabase.stripe_customer_tenants(text) from public, anon, authenticated;
 revoke execute on function better_supabase.entitlement_members(text) from public, anon, authenticated;
 grant execute on function better_supabase.entitlement_members(text) to service_role;

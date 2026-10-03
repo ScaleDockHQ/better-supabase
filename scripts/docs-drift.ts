@@ -1,6 +1,8 @@
 // Checks the docs against the code: every doctor code has a heading on the
 // doctor page, every subpath is in the README table and on a docs page, and
-// every `meta.json` lists exactly the pages in its folder. The CLI commands
+// every `meta.json` lists exactly the pages in its folder, and every titled
+// `lib/supabase/*` code block in the docs and skills follows the Naming page.
+// The CLI commands
 // and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, which
 // runs with the package's unit tests. Run with `node scripts/docs-drift.ts`.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -55,13 +57,13 @@ function doctorCodes(): string[] {
   ];
 }
 
-function mdxFiles(dir: string): string[] {
+function markdownFiles(dir: string, extension: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) {
-      return mdxFiles(path);
+      return markdownFiles(path, extension);
     }
-    return name.endsWith(".mdx") ? [path] : [];
+    return name.endsWith(extension) ? [path] : [];
   });
 }
 
@@ -96,7 +98,9 @@ function subpaths(): string[] {
   const imports = readmeImports(
     readFileSync(join(library, "README.md"), "utf8"),
   );
-  const pages = mdxFiles(docs).map((file) => readFileSync(file, "utf8"));
+  const pages = markdownFiles(docs, ".mdx").map((file) =>
+    readFileSync(file, "utf8"),
+  );
   const entries = Object.keys(exportsMap)
     .filter((key) => !key.includes("*") && key !== "./package.json")
     .map((key) =>
@@ -156,11 +160,86 @@ function metaFiles(dir: string): string[] {
   ];
 }
 
-const problems = [...doctorCodes(), ...subpaths(), ...metaFiles(docs)];
+interface CodeBlock {
+  readonly title: string;
+  readonly body: string;
+  readonly line: number;
+}
+
+/** Fenced code blocks with a `title="..."`, also when a list indents them. */
+function titledBlocks(text: string): CodeBlock[] {
+  const lines = text.split("\n");
+  const blocks: CodeBlock[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const open = /^(\s*)```\w*.*\btitle="([^"]+)"/u.exec(lines[index] ?? "");
+    if (!open) {
+      continue;
+    }
+    const indent = open[1] ?? "";
+    const body: string[] = [];
+    let end = index + 1;
+    while (end < lines.length && lines[end]?.trim() !== "```") {
+      body.push((lines[end] ?? "").slice(indent.length));
+      end += 1;
+    }
+    blocks.push({
+      title: open[2] ?? "",
+      body: body.join("\n"),
+      line: index + 1,
+    });
+    index = end;
+  }
+  return blocks;
+}
+
+/**
+ * The Naming page's file layout: the definition from `defineSupabase` lives
+ * in `lib/supabase/index.ts`, never in the `server.ts` or `client.ts` that
+ * create `bs`, and a Next.js `server.ts` starts with `import "server-only"`.
+ */
+function naming(): string[] {
+  const files = [
+    ...markdownFiles(docs, ".mdx"),
+    ...markdownFiles(join(library, "skills"), ".md"),
+  ];
+  return files.flatMap((file) =>
+    titledBlocks(readFileSync(file, "utf8")).flatMap((block) => {
+      const where = `${relative(root, file)}:${String(block.line)}`;
+      const problems: string[] = [];
+      if (
+        /lib\/supabase\/(?:server|client)\.ts$/u.test(block.title) &&
+        block.body.includes("defineSupabase(")
+      ) {
+        problems.push(
+          `${where} defines betterSupabase in ${block.title}; it belongs in src/lib/supabase/index.ts (concepts/naming.mdx)`,
+        );
+      }
+      if (
+        block.title.endsWith("lib/supabase/server.ts") &&
+        block.body.includes("createNext(") &&
+        !block.body.trimStart().startsWith('import "server-only";')
+      ) {
+        problems.push(
+          `${where} creates bs with createNext in ${block.title} without starting with import "server-only" (concepts/naming.mdx)`,
+        );
+      }
+      return problems;
+    }),
+  );
+}
+
+const problems = [
+  ...doctorCodes(),
+  ...subpaths(),
+  ...metaFiles(docs),
+  ...naming(),
+];
 for (const problem of problems) {
   console.error(`docs drift: ${problem}`);
 }
 if (problems.length > 0) {
   exit(1);
 }
-console.log("docs drift: doctor codes, subpaths and meta.json match the code");
+console.log(
+  "docs drift: doctor codes, subpaths, meta.json and lib/supabase naming match the code",
+);

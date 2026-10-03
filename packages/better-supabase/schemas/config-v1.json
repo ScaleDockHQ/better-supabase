@@ -292,7 +292,10 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "scope": { "type": "string", "default": "organization" }
+                "scope": {
+                  "type": "string",
+                  "description": "The PermDock scope tenants are. Defaults to the manifest's root scope, the rls.scopes entry without within."
+                }
               }
             }
           ]

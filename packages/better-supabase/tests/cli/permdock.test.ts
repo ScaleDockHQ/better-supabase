@@ -8,10 +8,11 @@ import {
   parseGrantsMarker,
   parseHookMarker,
   parseManifest,
+  parseCatalog,
   readPermdock,
-  rowConditionKeys,
 } from "../../src/cli/permdock.ts";
 import { resolveConfig } from "../../src/config/index.ts";
+import { permdockKeyStatus } from "../../src/sql/index.ts";
 // Copied from PermDock's apps/examples/next-better-supabase/permdock.manifest.json.
 import manifest from "./fixtures/permdock.manifest.json" with { type: "json" };
 
@@ -57,17 +58,32 @@ describe("PermDock manifest", () => {
     expect(() => parseManifest([])).toThrow(/not a JSON object/);
   });
 
-  it("collects keys with row conditions from the catalog", () => {
-    expect([
-      ...rowConditionKeys({
-        permissions: [
-          { key: "a", rowConditions: true },
-          { key: "b", rowConditions: false },
-          { key: "c" },
-        ],
-      }),
-    ]).toEqual(["a"]);
-    expect(() => rowConditionKeys({})).toThrow(/no permissions array/);
+  it("keeps each catalog key's rowConditions flag, and drops one that isn't boolean", () => {
+    const catalog = parseCatalog({
+      permissions: [
+        { key: "a", rowConditions: true },
+        { key: "b", rowConditions: false },
+        { key: "c" },
+        { key: "d", rowConditions: "yes" },
+        { rowConditions: false },
+      ],
+    });
+    expect(catalog.permissions).toEqual([
+      { key: "a", rowConditions: true },
+      { key: "b", rowConditions: false },
+      { key: "c" },
+      { key: "d" },
+    ]);
+    expect(
+      ["a", "b", "c", "d", "e"].map((key) => permdockKeyStatus(catalog, key)),
+    ).toEqual([
+      "row-conditions",
+      "scope-only",
+      "no-flag",
+      "no-flag",
+      "missing",
+    ]);
+    expect(() => parseCatalog({})).toThrow(/no permissions array/);
   });
 
   it("parses the hook and grants markers", () => {
@@ -106,6 +122,7 @@ describe("entitlementsMode", () => {
       permdock: {
         schema: "public",
         scope: "organization",
+        idType: "uuid",
         memberships: [
           {
             table: "public.memberships",
@@ -125,6 +142,95 @@ describe("entitlementsMode", () => {
     expect(
       entitlementsMode(config({ permdock: { scope: "customer" } }), project),
     ).toMatchObject({ kind: "permdock", permdock: { scope: "customer" } });
+  });
+
+  const withScopes = (
+    scopes: readonly { name: string; type?: string; within?: string }[],
+  ) => ({
+    ...project,
+    manifest: parseManifest({
+      ...manifest,
+      rls: { ...manifest.rls, scopes },
+    }),
+  });
+
+  it("defaults the scope to the manifest's root scope", () => {
+    expect(config().entitlements.permdock).toEqual({});
+    const tenant = withScopes([
+      { name: "tenant", type: "uuid" },
+      { name: "team", type: "uuid", within: "tenant" },
+    ]);
+    expect(entitlementsMode(config(), tenant)).toMatchObject({
+      kind: "permdock",
+      permdock: { scope: "tenant" },
+    });
+    expect(entitlementsMode(config(), project)).toMatchObject({
+      kind: "permdock",
+      permdock: { scope: "organization" },
+    });
+  });
+
+  it("keeps an explicit scope as the override", () => {
+    const tenant = withScopes([
+      { name: "tenant", type: "uuid" },
+      { name: "team", type: "uuid", within: "tenant" },
+    ]);
+    expect(
+      entitlementsMode(config({ permdock: { scope: "team" } }), tenant),
+    ).toMatchObject({ kind: "permdock", permdock: { scope: "team" } });
+    expect(
+      entitlementsMode(config({ permdock: { scope: "organization" } }), tenant),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringContaining(
+        'entitlements.permdock.scope is "organization", but permdock.manifest.json has the scopes tenant, team',
+      ),
+    });
+  });
+
+  it("takes the scope's id type from the manifest", () => {
+    for (const type of ["uuid", "text", "bigint"])
+      expect(
+        entitlementsMode(config(), withScopes([{ name: "tenant", type }])),
+      ).toMatchObject({ kind: "permdock", permdock: { idType: type } });
+  });
+
+  it("refuses a missing or unsupported scope id type instead of guessing uuid", () => {
+    expect(
+      entitlementsMode(config(), withScopes([{ name: "tenant" }])),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringContaining(
+        'permdock.manifest.json gives scope "tenant" no type',
+      ),
+    });
+    expect(
+      entitlementsMode(
+        config(),
+        withScopes([{ name: "tenant", type: "numeric" }]),
+      ),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringMatching(
+        /scope "tenant" the type numeric.*uuid, text or bigint/,
+      ),
+    });
+  });
+
+  it("asks for a scope when the manifest has no single root scope", () => {
+    const twoRoots = withScopes([
+      { name: "tenant", type: "uuid" },
+      { name: "workspace", type: "uuid" },
+    ]);
+    expect(entitlementsMode(config(), twoRoots)).toEqual({
+      kind: "invalid",
+      problem: expect.stringMatching(
+        /no single root scope \(tenant, workspace\).*entitlements\.permdock: \{ scope \}/,
+      ),
+    });
+    expect(entitlementsMode(config(), withScopes([]))).toMatchObject({
+      kind: "invalid",
+    });
   });
 
   it("keeps the tenant module without a manifest or with permdock: false", () => {
@@ -173,7 +279,9 @@ describe("readPermdock", () => {
     const project = await readPermdock(root, PATHS);
     expect(project?.config).toBe("permdock.config.ts");
     expect(project?.manifest?.hook?.function).toBe("custom_access_token_hook");
-    expect([...(project?.rowConditions ?? [])]).toEqual(["docs.read"]);
+    expect(project?.catalog).toEqual({
+      permissions: [{ key: "docs.read", rowConditions: true }],
+    });
     expect(project?.problems).toEqual([]);
   });
 

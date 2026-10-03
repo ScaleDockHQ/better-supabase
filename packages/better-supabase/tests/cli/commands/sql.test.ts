@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -133,5 +133,20 @@ describe("runSql", () => {
     await expect(
       sql(["list"], { entitlements: { permdock: { scope: "team" } } }),
     ).rejects.toThrow(/entitlements\.permdock\.scope is "team"/);
+  });
+
+  it("refuses to render entitlements for a scope id type it doesn't support", async () => {
+    const manifest = JSON.parse(
+      await readFile(join(fixtures, "permdock.manifest.json"), "utf8"),
+    );
+    manifest.rls.scopes[0].type = "numeric";
+    await writeFile(join(root, "permdock.config.ts"), "export default {};\n");
+    await writeFile(
+      join(root, "permdock.manifest.json"),
+      JSON.stringify(manifest),
+    );
+    await expect(sql(["print", "entitlements"])).rejects.toThrow(
+      /scope "organization" the type numeric/,
+    );
   });
 });

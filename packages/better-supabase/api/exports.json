@@ -861,8 +861,11 @@
     "values": [
       "compileReadSet",
       "compileReadSets",
+      "isKitIdType",
+      "KIT_ID_TYPES",
       "kitLayout",
       "permdockKeys",
+      "permdockKeyStatus",
       "renderKit",
       "resolveModules",
       "sameKitFile",
@@ -871,8 +874,11 @@
     "types": [
       "CompiledReadSet",
       "KitFile",
+      "KitIdType",
       "KitLayout",
       "KitPermdock",
+      "PermdockCatalog",
+      "PermdockKeyStatus",
       "SqlModule"
     ]
   },

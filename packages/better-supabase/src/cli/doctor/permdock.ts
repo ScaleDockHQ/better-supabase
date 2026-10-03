@@ -1,8 +1,8 @@
-import type { KitPermdock } from "../../sql/index.ts";
+import type { KitPermdock, PermdockCatalog } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { permdockKeys } from "../../sql/index.ts";
-import { entitlementHelpers, entitlementsMode } from "../permdock.ts";
+import { permdockKeys, permdockKeyStatus } from "../../sql/index.ts";
+import { entitlementRequirements, entitlementsMode } from "../permdock.ts";
 import { catalogOf } from "./shared.ts";
 
 /** Tables whose policies PermDock's helpers can't row-check (PermDock's PD037 scans the same ones). */
@@ -71,6 +71,44 @@ export function configuredPermdockKeys(
   );
 }
 
+const ROW_CONDITIONS_FIX =
+  "Use the policies `permdock rls generate` writes for it, or a permission whose catalog entry has rowConditions: false.";
+const REGENERATE_FIX =
+  "Regenerate it with a current `permdock catalog`, which writes rowConditions for every permission.";
+
+/**
+ * Why the SQL helpers can't be trusted with `key`, or `undefined` when the
+ * catalog marks it `rowConditions: false`. An entry without the flag and a
+ * key the catalog doesn't list are unknown, so they count as unsafe.
+ */
+export function unsafeKey(
+  catalog: PermdockCatalog,
+  key: string,
+  catalogPath: string,
+): { readonly reason: string; readonly fix: string } | undefined {
+  const status = permdockKeyStatus(catalog, key);
+  switch (status) {
+    case "scope-only":
+      return undefined;
+    case "row-conditions":
+      return {
+        reason: `has row conditions in ${catalogPath}`,
+        fix: ROW_CONDITIONS_FIX,
+      };
+    case "no-flag":
+      return {
+        reason: `has no rowConditions flag in ${catalogPath}, so whether it has row conditions is unknown`,
+        fix: REGENERATE_FIX,
+      };
+    case "missing":
+      return { reason: `is not in ${catalogPath}`, fix: REGENERATE_FIX };
+    default: {
+      const unreachable: never = status;
+      return unreachable;
+    }
+  }
+}
+
 /** PermDock's helpers for the `entitlements` kit module, when the manifest allows PermDock mode. */
 export function entitlementsKit(
   context: Pick<DoctorContext, "config" | "permdock">,
@@ -86,7 +124,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     title:
       "PermDock permission with row conditions in a Storage or Realtime policy",
     description:
-      "PermDock's SQL helpers (`permitted_<scope>_ids`, `permdock_has`) check role and scope, not row conditions. A bucket or topic policy that names a permission whose catalog entry has `rowConditions: true` grants every object or topic in the scope. Use PermDock's generated policies for those permissions.",
+      "PermDock's SQL helpers (`permitted_<scope>_ids`, `permdock_has`) check role and scope, not row conditions. A bucket or topic policy that names a permission whose catalog entry has `rowConditions: true` grants every object or topic in the scope. Use PermDock's generated policies for those permissions. A key whose entry has no boolean `rowConditions` (an older `permdock catalog`) or that the catalog doesn't list is unknown and reported the same way.",
     check: (context) => {
       const project = context.permdock;
       if (!project) return [];
@@ -99,8 +137,8 @@ export const PERMDOCK_RULES: readonly Rule[] = [
           message: `Could not read PermDock's catalog: ${problem}`,
           target: project.catalogPath,
         }));
-      const rowConditions = project.rowConditions;
-      if (!rowConditions) {
+      const catalog = project.catalog;
+      if (!catalog) {
         if (
           findings.length === 0 &&
           (fromConfig.length > 0 || fromSql.length > 0)
@@ -113,24 +151,22 @@ export const PERMDOCK_RULES: readonly Rule[] = [
         }
         return findings;
       }
-      const fix =
-        "Use the policies `permdock rls generate` writes for it, or a permission whose catalog entry has rowConditions: false.";
       for (const { bucket, keys } of fromConfig) {
-        for (const key of keys.filter((candidate) =>
-          rowConditions.has(candidate),
-        )) {
+        for (const key of keys) {
+          const problem = unsafeKey(catalog, key, project.catalogPath);
+          if (!problem) continue;
           findings.push({
-            message: `buckets.${bucket} uses PermDock permission "${key}", which has row conditions in ${project.catalogPath}. The bucket policy would grant every object in the scope. ${fix}`,
+            message: `buckets.${bucket} uses PermDock permission "${key}", which ${problem.reason}. The bucket policy could grant every object in the scope. ${problem.fix}`,
             target: `buckets.${bucket}:${key}`,
           });
         }
       }
       for (const policy of fromSql) {
-        for (const key of policy.keys.filter((candidate) =>
-          rowConditions.has(candidate),
-        )) {
+        for (const key of policy.keys) {
+          const problem = unsafeKey(catalog, key, project.catalogPath);
+          if (!problem) continue;
           findings.push({
-            message: `Policy "${policy.name}" on ${policy.table} passes "${key}" to PermDock's helpers, but it has row conditions in ${project.catalogPath}. ${fix}`,
+            message: `Policy "${policy.name}" on ${policy.table} passes "${key}" to PermDock's helpers, but it ${problem.reason}. ${problem.fix}`,
             target: `${policy.table}.${policy.name}:${key}`,
             location: { file: policy.file, line: policy.line },
           });
@@ -144,7 +180,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "PermDock helpers the entitlements module calls are missing",
     description:
-      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`). Doctor warns when `entitlements.permdock.scope` is not one of the manifest's scopes, when the manifest's `rls.helpers` lacks a helper (run `permdock rls generate` with a current PermDock), or when the snapshot lacks it (apply the migration it wrote).",
+      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text` or `bigint`, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
     check: (context) => {
       if (!context.config.sql.kit.includes("entitlements")) return [];
       const mode = entitlementsMode(context.config, context.permdock);
@@ -152,24 +188,35 @@ export const PERMDOCK_RULES: readonly Rule[] = [
       const manifest = context.config.permdock.manifest;
       if (mode.kind === "invalid")
         return [{ message: mode.problem, target: "entitlements.permdock" }];
-      const listed = new Set(
-        (context.permdock?.manifest?.rls?.helpers ?? []).map(
-          (helper) => `${mode.permdock.schema}.${helper.name}`,
-        ),
+      const listed = new Map(
+        (context.permdock?.manifest?.rls?.helpers ?? []).map((helper) => [
+          `${mode.permdock.schema}.${helper.name}`,
+          helper,
+        ]),
       );
       const read = context.snapshot.schemas.includes(mode.permdock.schema);
       const present = new Set(
         catalogOf(context).functions.map((fn) => `${fn.schema}.${fn.name}`),
       );
-      return entitlementHelpers(mode.permdock).flatMap(
-        (helper): FindingInput[] => {
-          if (!listed.has(helper))
-            return [
-              {
-                message: `${manifest} lists no ${helper}, which the entitlements module calls. Run \`permdock rls generate\` (PermDock writes member_<scope>_ids and member_<scope>_ids_for for every scope), then \`permdock supabase inspect --out\`.`,
-                target: helper,
-              },
-            ];
+      const regenerate = `then run \`permdock rls generate\`, \`permdock supabase hook generate\` and \`permdock supabase inspect --out\`.`;
+      return entitlementRequirements(mode.permdock).flatMap(
+        (requirement): FindingInput[] => {
+          const { helper, caller, role } = requirement;
+          const entry = listed.get(helper);
+          if (!entry) {
+            const message =
+              requirement.kind === "member"
+                ? `${manifest} lists no ${helper}, but ${caller} calls it. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`
+                : `${manifest} lists no ${helper}, but ${caller} calls it. PermDock writes it only for a scope with a membership source: add one for "${mode.permdock.scope}" (\`supabase.hook.memberships\`, \`rls.membershipSources\` or a mapped \`rls.memberships\` table in permdock.config.ts), ${regenerate}`;
+            return [{ message, target: helper }];
+          }
+          if (!entry.execute.includes(role)) {
+            const message =
+              requirement.kind === "member"
+                ? `${manifest} says ${role} may not execute ${helper}, but ${caller} calls it as ${role}. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`
+                : `${manifest} says ${role} may not execute ${helper}, but ${caller} calls it from PermDock's hook. PermDock grants it only when the hook has claims: add \`supabase.hook.claims: { features: 'better_supabase.feature_claims' }\` to permdock.config.ts, ${regenerate}`;
+            return [{ message, target: helper }];
+          }
           if (read && !present.has(helper))
             return [
               {

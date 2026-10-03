@@ -26,9 +26,10 @@ the other.
   `hasEntitlement(session, ...)` works.
 - Run `permdock supabase inspect --out` before `sql add entitlements`. With
   `permdock.manifest.json` present, the module reads PermDock's
-  `member_<scope>_ids` helpers and doesn't add `tenant`. Set
-  `entitlements.permdock: { scope }` in `better-supabase.config.ts` for a
-  scope other than `organization`.
+  `member_<scope>_ids` helpers and doesn't add `tenant`. The scope is the
+  manifest's root scope (the `rls.scopes` entry without `within`); set
+  `entitlements.permdock: { scope }` in `better-supabase.config.ts` for
+  another one.
 - Name the same tenant claim on both sides. A non-default `claims.tenant` in
   `better-supabase.config.ts` must also be PermDock's `rls.tenantClaim` and
   go to `subjectFromSupabase` or `subjectFromSupabaseSession` as `{ tenant }`.
@@ -37,18 +38,47 @@ the other.
   option of buckets and topics in `permdock` mode.
 - The `permdock` policy mode checks role and scope only. Use it only for
   permissions whose `rowConditions` is `false` in `permissions.catalog.json`.
+  A missing flag or a key the catalog doesn't list is unknown and refused;
+  regenerate the catalog with a current `permdock catalog`.
   Leave permissions with row conditions to the policies
   `permdock rls generate` writes; doctor reports BS214 and `permdock doctor`
   PD037 otherwise.
 - `permdock` mode compares ids as text, so a path or topic segment must be
   the id's lowercase form.
 - In MCP servers, narrow `tool.meta` with PermDock's `isPermission`, answer
-  `visible` with `mayUse` and `authorize` with `can`. `can` decides without
-  a row, so check row-conditioned permissions inside `run` or rely on RLS.
-- In Next.js, cache the permission snapshot with
-  `bs.cached({ tags: [snapshotTag(userId)], life: cacheLifeFor(snapshot) })`
-  and drop it with `bs.invalidateSession(userId, { tags: [snapshotTag(userId)] })`
-  when a role or plan changes.
+  `visible` with `mayUse` and `authorize` with `can`. A tool without a
+  PermDock permission in `meta` is denied: `visible` returns `false` and
+  `authorize` returns `{ allowed: false }`. Use `decide` instead of `can` to
+  put the denial reason in the refusal. `can` decides without a row, so check
+  row-conditioned permissions inside `run` or rely on RLS.
+- In Next.js, cache the permission snapshot in a `'use cache: private'`
+  loader. The user id and the snapshot only exist after `bs.cached()`
+  returns, so pass it the static tags only, then tag and time the entry from
+  inside the loader with Next.js's `cacheTag` and `cacheLife`:
+
+  ```ts
+  import { cacheLife, cacheTag } from "next/cache";
+  import { snapshotFor } from "permdock";
+  import { cacheLifeFor, snapshotTag } from "permdock/next";
+  import { subjectFromSupabaseSession } from "permdock/supabase";
+
+  export async function loadSnapshot(orgId: string) {
+    "use cache: private";
+    const { session } = await bs.cached({ tags: [`org:${orgId}`] });
+    const snapshot = snapshotFor(policy, subjectFromSupabaseSession(session), {
+      tenant: orgId,
+    });
+    if (session.kind === "user") cacheTag(snapshotTag(session.user.id));
+    cacheLife(cacheLifeFor(snapshot));
+    return snapshot;
+  }
+  ```
+
+  `bs.cached()` already caps the stale time at the token's expiry, and Next.js
+  keeps the smaller `stale` of the two `cacheLife` calls. When a role or plan
+  changes, drop the user's entries and the snapshot with
+  `bs.invalidateSession(userId, { tags: [snapshotTag(userId)] })`.
+
 - Doctor BS405 measures `memberships` plus `attrs` against PermDock's 1 KB
   budget and the whole token against 2 KB; run `doctor --as <user id>`.
 

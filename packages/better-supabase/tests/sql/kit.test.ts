@@ -198,6 +198,7 @@ describe("entitlements in PermDock mode", () => {
   const permdock = {
     schema: "authz",
     scope: "organization",
+    idType: "uuid",
     memberships: [
       {
         table: "public.memberships",
@@ -243,6 +244,31 @@ describe("entitlements in PermDock mode", () => {
     );
     expect(sql).not.toContain('"public"."contacts"');
   });
+
+  it.each(["uuid", "text", "bigint"] as const)(
+    "renders the %s scope id type in every tenant signature",
+    (idType) => {
+      const file = renderKit(["entitlements"], {
+        permdock: { ...permdock, idType },
+      }).find((entry) => entry.module === "entitlements");
+      const sql = file!.contents;
+      for (const signature of [
+        `has_entitlement(tenant ${idType}, key text)`,
+        `has_entitlement(${idType}, text)`,
+        `tenant_entitlements(tenant ${idType})`,
+        `tenant_entitlements(${idType})`,
+        `tenant_stripe_customer(tenant ${idType})`,
+        `tenant_stripe_customer(${idType})`,
+      ])
+        expect(sql).toContain(signature);
+      expect(sql).toContain(`returns setof ${idType}`);
+      expect(sql).toContain("feature_claims(user_id uuid)");
+      expect(
+        sql.match(/\(tenant (\w+)/g)?.map((match) => match.slice(8)),
+      ).toEqual([idType, idType, idType]);
+      expect(sql).toMatchSnapshot();
+    },
+  );
 
   it("keeps the tenant-mode functions without PermDock", () => {
     const file = renderKit(["entitlements"]).find(

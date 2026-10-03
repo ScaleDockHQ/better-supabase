@@ -464,6 +464,10 @@ is a PostgREST request, and islands that wait on each other add up to
 sequential round trips. Count them instead of guessing:
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
+
 export const bs = createNext(betterSupabase, {
   debug: { budget: { calls: 8, waves: 2 } },
 });

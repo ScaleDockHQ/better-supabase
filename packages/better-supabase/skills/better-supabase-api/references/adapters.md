@@ -15,6 +15,7 @@ export const betterSupabase = defineSupabase(schema);
 ## Next.js
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
 import { createNext } from "better-supabase/next";
 
 import { betterSupabase } from "./index";

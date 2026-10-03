@@ -550,6 +550,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     const permdock = {
       schema: pd,
       scope: "organization",
+      idType: "uuid",
       memberships: [
         {
           table: `${pd}.memberships`,
