@@ -12,7 +12,7 @@ claim, so enforcing MFA costs no Auth server call.
 ## The session
 
 ```ts
-const session = await next.session();
+const session = await bs.session();
 if (session.kind === "user") {
   session.aal; // 'aal1' | 'aal2'
   session.amr; // [{ method: 'totp', timestamp: 1767225600 }, { method: 'password', ... }]
@@ -29,16 +29,15 @@ with `code: 'INSUFFICIENT_AAL'` and `required: 'aal2'`, so the client knows to
 start a challenge rather than show a generic error:
 
 ```ts title="src/app/api/billing/route.ts"
-export const POST = next.route(
+export const POST = bs.route(
   async (request, { db }) => db.invoices.create(await request.json()),
   { aal: "aal2" },
 );
 ```
 
 ```ts title="src/features/security/security-actions.ts"
-export const rotateApiKey = next.action(
-  { aal: "aal2" },
-  async (_input, { db }) => db.$rpc("rotate_api_key"),
+export const rotateApiKey = bs.action({ aal: "aal2" }, async (_input, { db }) =>
+  db.$rpc("rotate_api_key"),
 );
 ```
 
@@ -72,7 +71,7 @@ const mfa = requireAal("aal2", {
 });
 
 export function proxy(request: NextRequest) {
-  return next.proxy(request, { protect: mfa });
+  return bs.proxy(request, { protect: mfa });
 }
 ```
 
@@ -117,8 +116,8 @@ With SAML SSO, the first `amr` entry of an SSO session is
 `{ method: 'sso/saml', provider: '<sso provider id>' }`. When each tenant signs
 in through its own identity provider, scope reads by the provider:
 
-```ts title="src/lib/supabase.ts"
-export const sb = defineSupabase(schema).use(
+```ts title="src/lib/supabase/index.ts"
+export const betterSupabase = defineSupabase(schema).use(
   tenant({ claim: ["tenant_id", "amr.0.provider"] }),
 );
 ```

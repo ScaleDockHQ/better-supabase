@@ -14,7 +14,7 @@ packages/
   crm/       customers repositories: import type { Db } from '@acme/runtime'
   commerce/  shipping repositories: import type { Db } from '@acme/runtime'
 apps/
-  web/       next.route and next.action call crm and commerce with ctx.db
+  web/       bs.route and bs.action call crm and commerce with ctx.db
 ```
 
 ## The runtime package
@@ -30,7 +30,7 @@ import {
 
 import { type Functions, type Models, schema } from "./generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
 export type AppContext = ServerContext<Models, Functions, unknown>;
 export type Db = AppContext["db"];
@@ -40,13 +40,13 @@ export function sessionOf(ctx: AppContext): AuthSession {
 }
 
 export function createRuntime(options: EdgeOptions) {
-  return createEdge(sb, options);
+  return createEdge(betterSupabase, options);
 }
 ```
 
 Point `better-supabase gen` at this package (`"output": "src/generated.ts"` in
-its `better-supabase.config.json`). A Next.js app calls `createNext(sb, ...)`
-with the same `sb`, so every adapter shares one definition.
+its `better-supabase.config.json`). A Next.js app calls `createNext(betterSupabase, ...)`
+with the same `betterSupabase`, so every adapter shares one definition.
 
 ## Domain packages
 

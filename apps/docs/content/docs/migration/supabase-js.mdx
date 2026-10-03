@@ -34,20 +34,20 @@ the old one until you've moved over.
 
 ### Wrap the client you already create
 
-```ts title="src/lib/supabase.ts"
+```ts title="src/lib/supabase/index.ts"
 import { defineSupabase } from "better-supabase";
 
-import { schema } from "./supabase/generated.ts";
+import { schema } from "./generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 ```
 
 ```ts
 const supabase = createClient(url, publishableKey); // or createServerClient(...)
-const db = sb.connect(supabase);
+const db = betterSupabase.connect(supabase);
 ```
 
-`sb.connect()` takes any `SupabaseClient`, including the one from
+`betterSupabase.connect()` takes any `SupabaseClient`, including the one from
 `@supabase/ssr`. Connect per request with the user's client, as you do
 today, so RLS still applies. `db.$client` is the same client, for anything
 you haven't moved yet.
@@ -142,14 +142,14 @@ and gives every handler a `db` for the current user:
 
 | You have                                                        | Use                                                                       |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `createServerClient` in a Next.js `middleware.ts` or `proxy.ts` | `next.proxy(request)` ([Next.js](/docs/frameworks/next))                  |
-| `createServerClient` in Server Components and route handlers    | `const { db } = await next.server()`, `next.route(...)`                   |
-| `createBrowserClient`                                           | `createBrowser(sb)` ([Browser client](/docs/frontend/client))             |
+| `createServerClient` in a Next.js `middleware.ts` or `proxy.ts` | `bs.proxy(request)` ([Next.js](/docs/frameworks/next))                    |
+| `createServerClient` in Server Components and route handlers    | `const { db } = await bs.context()`, `bs.route(...)`                      |
+| `createBrowserClient`                                           | `createClient(betterSupabase)` ([Browser client](/docs/frontend/client))  |
 | A client per request in Hono, oRPC or an Edge Function          | `bs.middleware()` or `bs.handler()` ([Frameworks](/docs/frameworks/hono)) |
 
 Auth flows (`supabase.auth.signInWithOtp()` and friends), storage and
 realtime stay on the supabase-js client: `db.$client` on the server,
-`browser.supabase` in the browser.
+`bs.supabase` in the browser.
 
 ## What to expect
 

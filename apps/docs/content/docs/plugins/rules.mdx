@@ -10,7 +10,9 @@ tenant or soft-delete plugins add their filters.
 ```ts
 import { recommended, rules } from "better-supabase/plugins/rules";
 
-export const sb = defineSupabase(schema).use(rules({ rules: recommended() }));
+export const betterSupabase = defineSupabase(schema).use(
+  rules({ rules: recommended() }),
+);
 ```
 
 A `warn` violation goes to `console.warn` and the query runs. An `error`

@@ -91,10 +91,10 @@ grant execute on function public.custom_access_token_hook(jsonb) to supabase_aut
 The claim name comes from `claims.features` in the config (`features` by
 default). With PermDock, see [below](#with-permdock).
 
-Declare the shape in `sb.claims()` to type it, with a `picklist` for the keys you
+Declare the shape in `betterSupabase.claims()` to type it, with a `picklist` for the keys you
 sell:
 
-```ts title="src/lib/supabase.ts"
+```ts title="src/lib/supabase/index.ts"
 const Claims = v.looseObject({
   features: v.optional(
     v.record(v.string(), v.array(v.picklist(["exports", "sso", "audit"]))),
@@ -102,7 +102,7 @@ const Claims = v.looseObject({
   ),
 });
 
-export const sb = defineSupabase(schema).claims(Claims);
+export const betterSupabase = defineSupabase(schema).claims(Claims);
 ```
 
 Every key travels in every request, so keep the list to lookup keys.
@@ -120,7 +120,7 @@ typed claims schema, `key` only accepts its lookup keys:
 ```tsx
 import { hasEntitlement } from "better-supabase/next";
 
-const session = await next.session();
+const session = await bs.session();
 if (!hasEntitlement(session, orgId, "exports")) return <UpgradePrompt />;
 ```
 
@@ -231,13 +231,13 @@ export const GET = async () => {
       postgres.admin,
       message.payload,
     ).orThrow();
-    for (const userId of members) next.invalidateSession(userId);
+    for (const userId of members) bs.invalidateSession(userId);
   });
   return Response.json(result);
 };
 ```
 
-`invalidateSession` drops `next.cached()` entries, so the next render asks
+`invalidateSession` drops `bs.cached()` entries, so the next render asks
 for the session again. The token itself only changes on refresh, which the
 proxy does when it expires. Send the event to its own endpoint: the Stripe
 Sync Engine keeps its webhook for syncing the tables.

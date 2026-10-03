@@ -31,9 +31,9 @@ again once you restore it.
 
 ```ts
 import { defineSeed } from "better-supabase/testing";
-import { sb } from "../src/lib/supabase.ts";
+import { betterSupabase } from "../src/lib/supabase/index.ts";
 
-export const seed = defineSeed(sb, {
+export const seed = defineSeed(betterSupabase, {
   organizations: { acme: { id: ACME, name: "Acme" } },
   customers: { first: { id: FIRST, organizationId: ACME, name: "First" } },
 });
@@ -45,7 +45,11 @@ tests import the same rows (`seed.rows.customers.first.id`).
 ## RLS tests
 
 ```ts
-const alice = await asUser(sb, { sub: aliceId, tenant_id: ACME }, { postgres });
+const alice = await asUser(
+  betterSupabase,
+  { sub: aliceId, tenant_id: ACME },
+  { postgres },
+);
 expect(await alice.db.customers.count().orThrow()).toBe(1);
 expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({
   ok: false,

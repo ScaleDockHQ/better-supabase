@@ -1,6 +1,6 @@
 # Plugins
 
-```ts title="src/lib/supabase.ts"
+```ts title="src/lib/supabase/index.ts"
 import { defineSupabase } from "better-supabase";
 import { actor } from "better-supabase/plugins/actor";
 import { softDelete } from "better-supabase/plugins/soft-delete";
@@ -8,10 +8,10 @@ import { tenant } from "better-supabase/plugins/tenant";
 import { timestamps } from "better-supabase/plugins/timestamps";
 import { validation } from "better-supabase/plugins/validation";
 
-import { schema } from "./supabase/generated.ts";
-import { validators } from "./supabase/generated.zod.ts";
+import { schema } from "./generated.ts";
+import { validators } from "./generated.zod.ts";
 
-export const sb = defineSupabase(schema)
+export const betterSupabase = defineSupabase(schema)
   .use(timestamps())
   .use(softDelete())
   .use(tenant())

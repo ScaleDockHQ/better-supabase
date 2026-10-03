@@ -7,10 +7,10 @@ export type Snippet = {
 export const heroSnippet: Snippet = {
   filename: "app/customers/page.tsx",
   language: "tsx",
-  code: `import { next } from '@/lib/supabase.server';
+  code: `import { bs } from '@/lib/supabase/server';
 
 export default async function Customers() {
-  const { db } = await next.server();
+  const { db } = await bs.context();
 
   const result = await db.customers.findMany({
     select: ['id', 'name'],

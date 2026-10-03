@@ -25,7 +25,7 @@ const name = await db.customers
 ```
 
 `AsyncResult` has `orThrow`, `unwrapOr`, `map`, `mapError` and `andThen`.
-`mapError` here rewrites the `DbError` inside one result; `sb.mapError()`
+`mapError` here rewrites the `DbError` inside one result; `betterSupabase.mapError()`
 ([below](#domain-errors-for-orthrow)) changes what `.orThrow()` throws.
 
 ## Error kinds
@@ -63,7 +63,7 @@ mapping in the server adapters.
 Add mappers for your own `RAISE` codes:
 
 ```ts
-const sb = defineSupabase(schema, {
+const betterSupabase = defineSupabase(schema, {
   errors: [
     (raw, fallback) =>
       raw.hint === "quota_exceeded"
@@ -79,7 +79,7 @@ Postgres or PostgREST error into a `DbError`; the next section turns a
 
 ## Domain errors for `.orThrow()`
 
-`sb.mapError(fn)` sets the error `.orThrow()` throws for every `db` it
+`betterSupabase.mapError(fn)` sets the error `.orThrow()` throws for every `db` it
 connects, instead of a `DbException`:
 
 ```ts
@@ -90,7 +90,7 @@ export class AppError extends Error {
 }
 
 export const toAppError = (error: DbError) => new AppError(error);
-export const sb = defineSupabase(schema).mapError(toAppError);
+export const betterSupabase = defineSupabase(schema).mapError(toAppError);
 
 await db.customers.findById(id).orThrow(); // throws AppError
 ```
@@ -138,7 +138,7 @@ const result = fromBetterResult(Result.ok(42)); // Result<number>
 `found as Result<Customer, AppError>`. The cast is not checked against the
 row type, so keep it next to the call.
 
-Without the third argument, a result from a `db` of `sb.mapError(fn)`
+Without the third argument, a result from a `db` of `betterSupabase.mapError(fn)`
 goes through `fn`, and its error is typed `unknown`; pass the mapper to
 type it. `fromBetterResult` reads the `status` field, so it works across
 better-result versions; pass a second argument to map non-`DbError`

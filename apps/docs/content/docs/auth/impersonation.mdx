@@ -8,7 +8,7 @@ way the app would. `actingAs` runs repositories as that user, under their RLS
 policies, and records who really made each change:
 
 ```ts title="app/admin/actions.ts"
-const db = server.actingAs(
+const db = bs.actingAs(
   userId,
   { tenant_id: orgId },
   { actor: admin.id, reason: "Support ticket 4211" },

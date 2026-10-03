@@ -1,0 +1,91 @@
+---
+title: Naming
+description: The names better-supabase uses for definitions, instances, files and types, and the renames from earlier versions.
+---
+
+Every app has one definition and one runtime instance per side. The docs,
+the examples and the files `better-supabase init` writes all use the same
+names, so code copied from one place works in another.
+
+## Definition and instances
+
+`betterSupabase` is the definition from `defineSupabase`. It holds the schema
+and the configuration, no secrets, and is safe to import anywhere.
+
+`bs` is the runtime instance an adapter creates from it: `createNext`,
+`createServer`, `createClient`, `createHono`, `createOrpc`, `createEdge` or
+`createMcp`. Each file that creates one exports it as `bs`, so a call reads
+the same in every framework:
+
+```ts
+const { db } = await bs.context(); // Next.js Server Component
+app.use("/api/*", bs.middleware()); // Hono
+Deno.serve(bs.handler(fn)); // Edge Function
+```
+
+## Files
+
+The definition and the instances live in `lib/supabase/`, the layout
+Supabase uses for its own `utils/supabase/server.ts` and `client.ts`:
+
+| File                        | Exports          | Runs on                                         |
+| --------------------------- | ---------------- | ----------------------------------------------- |
+| `lib/supabase/index.ts`     | `betterSupabase` | both, imported as `@/lib/supabase`              |
+| `lib/supabase/server.ts`    | `bs`             | the server; Next.js adds `import "server-only"` |
+| `lib/supabase/client.ts`    | `bs`             | the browser                                     |
+| `lib/supabase/generated.ts` | `schema`         | both, written by `better-supabase gen`          |
+
+Hono and oRPC starters create `bs` in the app's entry (`src/server.ts`,
+`src/router.ts`), which only runs on the server. Edge Functions import the
+definition from `supabase/functions/_shared/supabase.ts` and create `bs` in
+the function's own `server.ts`.
+
+## Types
+
+- The adapter factories return `Better<Adapter>`: `createNext` returns
+  `BetterNext`, `createClient` returns `BetterClient`, `createPostgres`
+  returns `BetterPostgres`, `createQueries` returns `BetterQueries`.
+- Options are `<Thing>Options`: `ClientOptions`, `SupabaseOptions`,
+  `QueriesOptions`, `MiddlewareOptions`.
+- Acronyms in names are written as words: `toOrpcError`, `createOpenApi`.
+- Members that sit next to your table names start with `$` so a table can't
+  shadow them: `db.$table(name)`, `repository.$tableName`, `queries.$key`.
+
+Supabase's own cookie and header names keep their `sb-` prefix
+(`sb-<project>-auth-token`); those belong to `@supabase/ssr`, not to the
+library.
+
+## Renames
+
+These names changed in 0.4. There are no aliases: rename them where you use
+them, and the compiler points out the ones you missed.
+
+| Before                                           | After                                           |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `const sb = defineSupabase(schema)`              | `const betterSupabase = defineSupabase(schema)` |
+| `const next = createNext(sb)`                    | `const bs = createNext(betterSupabase)`         |
+| `const browser = createBrowser(sb)`              | `const bs = createClient(betterSupabase)`       |
+| `src/lib/supabase.ts`                            | `src/lib/supabase/index.ts`                     |
+| `src/lib/supabase.server.ts`                     | `src/lib/supabase/server.ts`                    |
+| `src/lib/supabase.browser.ts`                    | `src/lib/supabase/client.ts`                    |
+| `next.server()`                                  | `bs.context()`                                  |
+| `next.serverFor(session, { token })`             | `bs.contextForSession(session, { token })`      |
+| `BetterBrowser`, `BrowserOptions`, `BrowserAuth` | `BetterClient`, `ClientOptions`, `ClientAuth`   |
+| `<BetterSupabaseProvider browser={browser}>`     | `<BetterSupabaseProvider client={bs}>`          |
+| `client.sb`                                      | `client.betterSupabase`                         |
+| `BetterEnv` (Hono)                               | `HonoEnv`                                       |
+| `bs.handle()` (Hono)                             | `bs.handler()`                                  |
+| `bs.toORPCError(error)` (oRPC)                   | `bs.toOrpcError(error)`                         |
+| `HandlerOptions` (Edge)                          | `MiddlewareOptions`                             |
+| `mcp.handler`                                    | `bs.endpoint`                                   |
+| `Queries`, `CreateQueriesOptions`                | `BetterQueries`, `QueriesOptions`               |
+| `queries.key`                                    | `queries.$key`                                  |
+| `Postgres`                                       | `BetterPostgres`                                |
+| `DefineSupabaseOptions`                          | `SupabaseOptions`                               |
+| `repository.$table`                              | `repository.$tableName`                         |
+| `{ sb }` in `testExecutor` and the test plugin   | `{ betterSupabase }`                            |
+
+`createHono`, `createOrpc`, `createEdge` and `createMcp` now keep the claims
+and profile types from `.claims()` and `.userMetadata()`, so `auth.claims`
+is typed in those adapters too. Code that parsed the claims again to read a
+role can drop the parse.

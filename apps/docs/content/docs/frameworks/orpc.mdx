@@ -7,9 +7,9 @@ description: A middleware that adds the caller's repositories to the oRPC contex
 import { os } from "@orpc/server";
 import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
 import * as v from "valibot";
-import { sb } from "./supabase";
+import { betterSupabase } from "./lib/supabase";
 
-export const bs = createOrpc(sb);
+export const bs = createOrpc(betterSupabase);
 
 const base = os.$context<OrpcRequestContext>();
 const authed = base.use(bs.middleware());
@@ -58,6 +58,15 @@ export default {
 - `context.db`: repositories bound to the caller, so RLS applies.
 - `context.auth`: the resolved `AuthState`.
 - `context.bs`: the full server context.
+
+With [`.claims(schema)`](/docs/auth#typed-claims) on the definition,
+`context.auth` and `context.bs` are typed by the schema's output:
+
+```ts
+export const role = authed.handler(({ context }) =>
+  context.auth.kind === "user" ? context.auth.claims.user_role : null,
+);
+```
 
 ## Errors
 

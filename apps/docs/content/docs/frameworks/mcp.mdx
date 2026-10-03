@@ -7,9 +7,9 @@ description: Tools from your tables and your own code, running as the signed-in 
 import { createMcp } from "better-supabase/mcp";
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
-import { customerList, sb } from "../_shared/supabase.ts";
+import { customerList, betterSupabase } from "../_shared/supabase.ts";
 
-const mcp = createMcp(sb, {
+const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   instructions: "Customers and notes of the signed-in user’s organization.",
@@ -25,10 +25,10 @@ const mcp = createMcp(sb, {
   run: ({ id }, { db }) => db.customers.update(id, { status: "archived" }),
 });
 
-Deno.serve(mcp.fetch);
+Deno.serve(bs.fetch);
 ```
 
-`mcp.fetch` serves the MCP endpoint (Streamable HTTP, stateless JSON
+`bs.fetch` serves the MCP endpoint (Streamable HTTP, stateless JSON
 responses) and the RFC 9728 metadata at
 `/.well-known/oauth-protected-resource/...`.
 
@@ -94,7 +94,7 @@ them, so `authorize` can check a scope per tool:
 ```ts title="supabase/functions/mcp/index.ts"
 import { toSession } from "better-supabase/server";
 
-const mcp = createMcp(sb, {
+const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   scopes: ["openid", "crm.read", "crm.write"],
@@ -139,7 +139,7 @@ matching `outputSchema`.
 
 ## Custom tools
 
-`mcp.tool(...)` is typed against your repositories. Its input can be any
+`bs.tool(...)` is typed against your repositories. Its input can be any
 Standard Schema: the tool's JSON Schema comes from Standard JSON Schema
 (zod 4, ArkType, Valibot), or from `inputSchema` if you pass one. The
 arguments are validated before `run`.
@@ -154,7 +154,7 @@ RLS decides which rows a tool reads and writes. To decide whether the caller
 may use a tool at all, pass `authorize` and `visible`:
 
 ```ts title="supabase/functions/mcp/index.ts"
-const mcp = createMcp(sb, {
+const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   scopes: ["openid", "crm.read"],
@@ -191,6 +191,23 @@ Both hooks can be async. An exception in either one fails the call, and the
 error message is hidden unless `exposeErrors`. For PermDock permissions, see
 [MCP tools with PermDock](/docs/auth/permdock#mcp-tools).
 
+With [`.claims(schema)`](/docs/auth#typed-claims) on the definition,
+`ctx.auth` in `authorize`, `visible` and `run` is typed by the schema's
+output, so the hooks read a role without parsing the claims again:
+
+```ts title="supabase/functions/_shared/supabase.ts"
+const RoleClaims = v.looseObject({
+  user_role: v.fallback(v.optional(v.string()), undefined),
+});
+
+export const betterSupabase = defineSupabase(schema).claims(RoleClaims);
+```
+
+```ts
+const isAdmin = (auth: AuthState<v.InferOutput<typeof RoleClaims>>) =>
+  auth.kind === "user" && auth.claims.user_role === "admin";
+```
+
 ## Errors
 
 Failures are reported as tool results with `isError: true`, so the model can
@@ -213,7 +230,7 @@ List every host the server answers on: production, previews and local
 development.
 
 ```ts title="src/mcp.ts"
-export const mcp = createMcp(sb, {
+export const bs = createMcp(betterSupabase, {
   env,
   name: "crm",
   version: "1.0.0",

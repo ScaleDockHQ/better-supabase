@@ -30,7 +30,11 @@ supabase stop && supabase start
 ```ts title="customers.test.ts"
 import { asUser } from "better-supabase/testing";
 
-const alice = await asUser(sb, { sub: aliceId, tenant_id: acme }, { postgres });
+const alice = await asUser(
+  betterSupabase,
+  { sub: aliceId, tenant_id: acme },
+  { postgres },
+);
 
 expect(await alice.db.customers.count().orThrow()).toBe(3);
 expect(await alice.sql!.customers.count().orThrow()).toBe(3);
@@ -61,7 +65,7 @@ import { seed } from "../supabase/seed.ts";
 
 beforeAll(() => seed.insert(postgres.admin));
 
-const alice = await asUser(sb, {
+const alice = await asUser(betterSupabase, {
   sub: aliceId,
   tenant_id: seed.rows.organizations.acme.id,
 });
@@ -74,7 +78,7 @@ ES256 test tokens verify against the local stack's JWKS, so your
 the same claims that RLS sees:
 
 ```ts
-const bs = createHono(sb);
+const bs = createHono(betterSupabase);
 await app.request("/api/customers", {
   headers: { authorization: `Bearer ${alice.token}` },
 });
@@ -85,7 +89,7 @@ tests only.
 
 ## Tenant isolation
 
-`expectTenantIsolation(sb, { tenants, tables })` checks that RLS keeps two
+`expectTenantIsolation(betterSupabase, { tenants, tables })` checks that RLS keeps two
 tenants apart. For each table it seeds one row per tenant through the service
 role, then signs in as a user of each tenant and tries to select, insert,
 update and delete the other tenant's row:
@@ -94,7 +98,7 @@ update and delete the other tenant's row:
 import { expectTenantIsolation } from "better-supabase/testing";
 
 it("keeps organizations apart", async () => {
-  await expectTenantIsolation(sb, {
+  await expectTenantIsolation(betterSupabase, {
     tenants: [
       { id: ACME, name: "acme", claims: { sub: alice, tenant_id: ACME } },
       { id: GLOBEX, name: "globex", claims: { sub: bob, tenant_id: GLOBEX } },
@@ -120,7 +124,7 @@ it("keeps organizations apart", async () => {
 - `row(tenant, n)` builds a row owned by `tenant`. `n` is 0 for the seeded
   row and 1 for the insert attempt, so put it in unique columns. `update`
   must change the row.
-- It runs without `sb`'s plugins, so the [`tenant()` plugin](/docs/plugins)
+- It runs without `betterSupabase`'s plugins, so the [`tenant()` plugin](/docs/plugins)
   can't hide a missing policy.
 - On a leak it throws a `ConformanceError` naming every table and command
   that leaked, such as `tags: globex can't delete leaky's rows`. It removes
@@ -136,7 +140,7 @@ a command before a test has to.
 test when one render makes more database calls or sequential waves than
 allowed. It reads the request id from every document and `_rsc` response
 during `during` (a reload by default) and fetches each render's totals from
-[`next.debugRoute()`](/docs/frameworks/next-cache-components#budget):
+[`bs.debugRoute()`](/docs/frameworks/next-cache-components#budget):
 
 ```ts
 import { expectDbBudget } from "better-supabase/testing";
@@ -151,7 +155,7 @@ const renders = await expectDbBudget(page, {
 The failure lists each render over budget with its tables, so the diff that
 added a query shows up in the message. The page type is structural, so
 Playwright stays your dependency, not better-supabase's. The app needs
-`createNext(sb, { debug: { enabled: true } })` for the test build.
+`createNext(betterSupabase, { debug: { enabled: true } })` for the test build.
 
 ## pgTAP
 

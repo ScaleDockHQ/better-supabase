@@ -26,7 +26,7 @@ const config: NextConfig = {
 
 ## 1. Read the session once, privately cached
 
-`next.session()` returns the verified caller as plain data: `user`, the raw
+`bs.session()` returns the verified caller as plain data: `user`, the raw
 JWT `claims` (including your custom access token hook claims) and
 `expiresAt`, or `anon` / `invalid`. It never contains the token or a client,
 so it can leave a `'use cache: private'` function and cross into Client
@@ -36,11 +36,11 @@ Components.
 import "server-only";
 import { type AuthSession, sessionStale } from "better-supabase/next";
 import { cacheLife } from "next/cache";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 export async function getSession(): Promise<AuthSession> {
   "use cache: private";
-  const session = await next.session();
+  const session = await bs.session();
   cacheLife({ stale: sessionStale(session) });
   return session;
 }
@@ -198,14 +198,14 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 
 ### Who owns what
 
-| Part                      | Owns                                                    |
-| ------------------------- | ------------------------------------------------------- |
-| Supabase Auth             | Identity, sessions, signing and refreshing tokens       |
-| Your hook (SQL)           | Which claims a token carries, read from your tables     |
-| `sb.claims(schema)`       | Validating and typing those claims on the server        |
-| `sb.userMetadata(schema)` | A typed `session.profile` for display, never for access |
-| RLS                       | Enforcing access with the same claims (`auth.jwt()`)    |
-| Your code or PermDock     | Mapping roles to permissions                            |
+| Part                                  | Owns                                                    |
+| ------------------------------------- | ------------------------------------------------------- |
+| Supabase Auth                         | Identity, sessions, signing and refreshing tokens       |
+| Your hook (SQL)                       | Which claims a token carries, read from your tables     |
+| `betterSupabase.claims(schema)`       | Validating and typing those claims on the server        |
+| `betterSupabase.userMetadata(schema)` | A typed `session.profile` for display, never for access |
+| RLS                                   | Enforcing access with the same claims (`auth.jwt()`)    |
+| Your code or PermDock                 | Mapping roles to permissions                            |
 
 The hook, the schema and your policies read the same claims, so agree on
 one shape. For multi-tenant apps, use PermDock's, which the `tenant` kit
@@ -275,33 +275,33 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   return undefined;
 };
 
-export const proxy = (request: NextRequest) => next.proxy(request, { protect });
+export const proxy = (request: NextRequest) => bs.proxy(request, { protect });
 ```
 
 ## 6. Data derived from the session
 
-Per-user rows go through `next.cached()` inside a private cache, so the
+Per-user rows go through `bs.cached()` inside a private cache, so the
 query runs with the user's token and RLS decides what comes back:
 
 ```ts title="src/features/customers/customer-queries.ts"
 export async function getCustomers() {
   "use cache: private";
-  const { db } = await next.cached();
+  const { db } = await bs.cached();
   return db.customers.findMany({ select: ["id", "name", "status"] }).orThrow();
 }
 ```
 
-`next.cached()` must be called inside your own `'use cache: private'`
+`bs.cached()` must be called inside your own `'use cache: private'`
 function: the directive has to be in app code, and Next.js keys the entry on
 that function's arguments. It:
 
 - calls `cacheLife({ stale: sessionStale(session) })`. Pass
   `{ life: { min, max, revalidate, expire } }` to change it, and
   `life.stale` to cap it: the entry then goes stale at the smaller of the two;
-- tags the entry `bs:session:<user id>`, so `next.invalidateSession(userId)`
+- tags the entry `bs:session:<user id>`, so `bs.invalidateSession(userId)`
   drops every cached view of that user, for example after an admin changes
   their role. `tags` adds more tags to the entry, and
-  `next.invalidateSession(userId, { tags })` drops those too;
+  `bs.invalidateSession(userId, { tags })` drops those too;
 - returns the caller's context plus `session`. `db`, `supabase` and `sql` are
   built on first access.
 
@@ -309,24 +309,24 @@ that function's arguments. It:
 
 With [PermDock](/docs/auth/permdock), cache the permission snapshot the same
 way. The snapshot needs the session, so read it first, then let
-`next.cached()` set the tags and the lifetime: `cacheLifeFor(snapshot)` caps
+`bs.cached()` set the tags and the lifetime: `cacheLifeFor(snapshot)` caps
 `stale` at the snapshot's expiry, and `sessionStale` caps it at the token's.
 
 ```ts title="src/lib/access.ts"
 import { snapshotFor } from "permdock";
 import { cacheLifeFor, snapshotTag } from "permdock/next";
 import { subjectFromSupabaseSession } from "permdock/supabase";
-import { next } from "@/lib/supabase";
+import { bs } from "@/lib/supabase";
 import { policy } from "@/policy";
 
 export async function loadSnapshot(orgId: string) {
   "use cache: private";
-  const session = await next.session();
+  const session = await bs.session();
   const subject = subjectFromSupabaseSession(session, {
     memberships: "memberships",
   });
   const snapshot = snapshotFor(policy, subject, { tenant: orgId });
-  await next.cached({
+  await bs.cached({
     tags: [
       snapshotTag(session.kind === "user" ? session.user.id : null),
       `org:${orgId}`,
@@ -361,14 +361,14 @@ When a role or plan changes, drop the user's cached views and their snapshot
 in the Server Action or webhook that changed it:
 
 ```ts
-next.invalidateSession(userId, { tags: [snapshotTag(userId)] });
+bs.invalidateSession(userId, { tags: [snapshotTag(userId)] });
 ```
 
 The user's token keeps the old memberships until it refreshes. Policies that
 read the membership tables (PermDock's `database` mode) see the change
 immediately.
 
-Outside a request, `next.serverFor(session, { token })` builds the same
+Outside a request, `bs.contextForSession(session, { token })` builds the same
 context from a session you already have. The token is verified again, and a
 token for another user gives an `invalid` context.
 
@@ -391,11 +391,11 @@ The database calls themselves are what's left; count them with the
 [budget](#budget).
 
 Data that is the same for every user belongs in a plain `'use cache'` with
-`next.cacheTag()` and `next.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
+`bs.cacheTag()` and `bs.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
 Don't pass a user id into a shared `'use cache'` function that uses
-`next.admin()`: that bypasses RLS.
+`bs.admin()`: that bypasses RLS.
 
-Mutations through `next.action()` call `updateTag`, which also clears the
+Mutations through `bs.action()` call `updateTag`, which also clears the
 client router cache, so the user sees their own write.
 
 ## 7. Signing in and out
@@ -423,7 +423,7 @@ router.push("/");
 
 All of this depends on verifying tokens locally. With asymmetric JWT signing
 keys (ES256 or RS256) the JWKS is public and cached, so the proxy, every
-`next.session()` and every `next.server()` verify without a network call.
+`bs.session()` and every `bs.context()` verify without a network call.
 Hosted projects use them by default. Locally, `better-supabase doctor` warns
 when `[auth] signing_keys_path` is missing; `better-supabase keys` creates
 one.
@@ -434,23 +434,23 @@ A page renders in up to four stages. Each database read belongs to the
 earliest stage that can hold it; a read that lands later than it has to
 turns an instant navigation into a spinner.
 
-| Stage            | Rendered                             | Holds                                    | APIs                                                          |
-| ---------------- | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------- |
-| 1. Static shell  | At build time, once for everyone     | Layout, headings, skeletons, public data | `next.admin()` inside `'use cache'`                           |
-| 2. App Shell     | Once per browser session, prefetched | The session and data derived from it     | `next.cached()`, `next.session()`, `next.liveCount(spec, db)` |
-| 3. Link prefetch | When a link enters the viewport      | The data behind that link                | `next.cacheTags()`, read sets through `db.$many`              |
-| 4. Navigation    | On click, not prefetched             | Per-request and uncached data            | `next.server()`, `next.route()`                               |
+| Stage            | Rendered                             | Holds                                    | APIs                                                    |
+| ---------------- | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------- |
+| 1. Static shell  | At build time, once for everyone     | Layout, headings, skeletons, public data | `bs.admin()` inside `'use cache'`                       |
+| 2. App Shell     | Once per browser session, prefetched | The session and data derived from it     | `bs.cached()`, `bs.session()`, `bs.liveCount(spec, db)` |
+| 3. Link prefetch | When a link enters the viewport      | The data behind that link                | `bs.cacheTags()`, read sets through `db.$many`          |
+| 4. Navigation    | On click, not prefetched             | Per-request and uncached data            | `bs.context()`, `bs.route()`                            |
 
-- **Stage 1** can't read the request. `next.admin()` bypasses RLS, so only
+- **Stage 1** can't read the request. `bs.admin()` bypasses RLS, so only
   use it for data every visitor may see, and tag the entry with
-  `next.cacheTags()` so mutations revalidate it.
+  `bs.cacheTags()` so mutations revalidate it.
 - **Stage 2** runs once and is reused until `sessionStale` expires or
-  `next.invalidateSession()` drops it. Keep it small: the menu, the
-  session, a few counts. Pass the `db` from `next.cached()` to
-  `next.liveCount` here; without it, `liveCount` reads the request and
+  `bs.invalidateSession()` drops it. Keep it small: the menu, the
+  session, a few counts. Pass the `db` from `bs.cached()` to
+  `bs.liveCount` here; without it, `liveCount` reads the request and
   moves to stage 4.
 - **Stage 3** is where most page data goes. One read set per page keeps it
-  to one call, and `next.cacheTags(readSet)` revalidates it on any mutation
+  to one call, and `bs.cacheTags(readSet)` revalidates it on any mutation
   of a table it reads.
 - **Stage 4** is anything that reads `searchParams`, headers or the request
   body, plus route handlers and actions. It is never prefetched, so budget
@@ -463,14 +463,14 @@ with its own `'use cache: private'` read. Every island that misses the cache
 is a PostgREST request, and islands that wait on each other add up to
 sequential round trips. Count them instead of guessing:
 
-```ts title="src/lib/supabase.server.ts"
-export const next = createNext(sb, {
+```ts title="src/lib/supabase/server.ts"
+export const bs = createNext(betterSupabase, {
   debug: { budget: { calls: 8, waves: 2 } },
 });
 ```
 
 ```ts title="src/app/api/bs-stats/route.ts"
-export const GET = next.debugRoute();
+export const GET = bs.debugRoute();
 ```
 
 - **calls** are repository operations and RPCs. **waves** are sequential
@@ -478,13 +478,13 @@ export const GET = next.debugRoute();
   `Promise.all` of three reads is one wave.
 - The proxy gives every render a request id (`x-bs-request-id`, forwarded to
   Server Components and sent back on the document and `_rsc` responses).
-  `next.server()` records into it, across all the scopes of that render.
+  `bs.context()` records into it, across all the scopes of that render.
 - In development, a render that goes over `budget` logs a warning once its
   calls have been idle for 250 ms. A private-cache hit makes no call, so
   warm navigations cost 0.
-- `next.route()` responses carry `x-bs-db-calls: calls;waves;ms` directly.
+- `bs.route()` responses carry `x-bs-db-calls: calls;waves;ms` directly.
   Pages stream, so their headers leave before the render finishes; their
-  totals are served by `next.debugRoute()` at the URL in the `x-bs-stats`
+  totals are served by `bs.debugRoute()` at the URL in the `x-bs-stats`
   response header.
 - Outside development, collecting is off and the debug route answers 404.
   Set `debug.enabled` for e2e runs against `next start`.

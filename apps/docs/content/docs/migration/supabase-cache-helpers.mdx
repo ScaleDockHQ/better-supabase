@@ -14,8 +14,8 @@ under RLS, includes and cascading deletes. See [Caching](/docs/concepts/caching)
 ```ts
 import { createQueries, invalidateOnMutation } from "better-supabase/query";
 
-export const q = createQueries(sb, db);
-invalidateOnMutation(sb, queryClient); // every write through db invalidates
+export const q = createQueries(betterSupabase, db);
+invalidateOnMutation(betterSupabase, queryClient); // every write through db invalidates
 ```
 
 ## Hooks
@@ -52,5 +52,5 @@ invalidateOnMutation(sb, queryClient); // every write through db invalidates
   matching error codes.
 - **Disabled queries** use TanStack's `skipToken`:
   `q.customers.findById(id ?? skipToken)`.
-- **RPCs that write** need `sb.defineRpc(name, { invalidates })` so their
+- **RPCs that write** need `betterSupabase.defineRpc(name, { invalidates })` so their
   mutation invalidates the right tables.

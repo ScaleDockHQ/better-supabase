@@ -11,13 +11,13 @@ pnpm better-supabase init  # once it is a dependency
 `init` reads your `package.json` and writes:
 
 - `better-supabase.config.ts` (`--casing camel|snake`, camel by default)
-- `src/lib/supabase.ts`, which exports `sb` and the `Models` and `Functions` types
+- `src/lib/supabase/index.ts`, which exports `betterSupabase` and the `Models` and `Functions` types
 - glue for every framework it finds, the same files `add` writes
 
 It then prints the next steps: the install command for your package manager,
 `supabase start`, `better-supabase env` and `better-supabase gen`. Files that
 already exist are never overwritten unless you pass `--force` or confirm the
-prompt, and `--dry-run` shows what would be written.
+prompt, and `--dry-run` shows what would be written. The names and the layout are described in [Naming](/docs/concepts/naming).
 
 In a terminal, `init` asks for the casing (unless you pass `--casing`), the
 integrations, with the detected ones checked (unless you pass `--with`), and
@@ -34,7 +34,7 @@ terminal, or with `--yes`, which takes the flags and the defaults.
 | `@tanstack/react-query` | `react` (and `client`) |
 
 Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
-`src/lib/supabase.ts`: Edge Functions import `sb` from
+`src/lib/supabase/index.ts`: Edge Functions import `betterSupabase` from
 `supabase/functions/_shared/supabase.ts`.
 
 ## add
@@ -43,18 +43,18 @@ Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
 pnpm better-supabase add hono mcp
 ```
 
-| Integration | Writes                                                                 |
-| ----------- | ---------------------------------------------------------------------- |
-| `client`    | `lib/supabase.browser.ts` with the framework's public env variables    |
-| `next`      | `lib/supabase.server.ts` and `proxy.ts`                                |
-| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`    |
-| `hono`      | `server.ts` with the middleware and error handler                      |
-| `orpc`      | `router.ts` with the auth middleware                                   |
-| `edge`      | `supabase/functions/api` plus `supabase/functions/_shared/supabase.ts` |
-| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function            |
+| Integration | Writes                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                |
+| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                             |
+| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                               |
+| `hono`      | `server.ts`, which creates `bs` and adds the middleware and error handler                         |
+| `orpc`      | `router.ts`, which creates `bs` and adds the auth middleware                                      |
+| `edge`      | `supabase/functions/api` (`server.ts` creates `bs`) plus `supabase/functions/_shared/supabase.ts` |
+| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bs`)            |
 
 Relative imports follow your `tsconfig.json`: they keep `.ts` when
 `allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.
 Edge Functions always use `.ts` and get a `deno.json` import map. CI
 typechecks every template against the library, so the files compile as
-written.
+written. The names and the layout are described in [Naming](/docs/concepts/naming).

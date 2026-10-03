@@ -10,9 +10,9 @@ per table.
 
 ```ts title="lib/lists.ts"
 import { defineListQuery } from "better-supabase/list";
-import { sb } from "./sb";
+import { betterSupabase } from "./supabase";
 
-export const customerList = defineListQuery(sb, "customers", {
+export const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name", "kvk"],
   facets: { status: "status", kvk: "kvk" },
   sorts: {
@@ -35,7 +35,7 @@ input. Facet values can be comma-separated or repeated
 
 ```ts title="app/customers/page.tsx"
 export default async function Page({ searchParams }: PageProps<'/customers'>) {
-  const { db } = await next.server();
+  const { db } = await bs.context();
   const query = customerList.parse(await searchParams);
   if (!query.ok) return <InvalidFilters issues={query.issues} />;
 
@@ -60,7 +60,7 @@ The total uses `count: 'exact'` by default. On large tables, set
 Set `pagination: 'cursor'` and the list takes `after` instead of `page`:
 
 ```ts
-export const customerFeed = defineListQuery(sb, "customers", {
+export const customerFeed = defineListQuery(betterSupabase, "customers", {
   sorts: { newest: [{ createdAt: "desc" }, { id: "desc" }] },
   defaultSort: "newest",
   pagination: "cursor",
@@ -84,7 +84,7 @@ Filter UIs usually show how many rows each facet value would match
 `page.facetCounts`:
 
 ```ts
-export const customerList = defineListQuery(sb, "customers", {
+export const customerList = defineListQuery(betterSupabase, "customers", {
   facets: { status: "status", kvk: "kvk" },
   sorts: { name: { name: "asc" } },
   defaultSort: "name",
@@ -151,7 +151,7 @@ customerList.parse(new URLSearchParams("sort=oldest&page=0&status=bogus"))
 ```
 
 `customerList.schema` is a [Standard Schema](/docs/standards), so it plugs into
-any router or form library that accepts one. Pass it to `next.action({ input })`
+any router or form library that accepts one. Pass it to `bs.action({ input })`
 or an oRPC procedure without writing a validator.
 
 ## URLs and nuqs

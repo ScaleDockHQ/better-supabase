@@ -10,9 +10,9 @@ database types.
 ```ts title="lib/openapi.ts"
 import { createOpenApi } from "better-supabase/openapi";
 import { customerList } from "./lists";
-import { sb } from "./sb";
+import { betterSupabase } from "./supabase";
 
-export const openapi = createOpenApi(sb, {
+export const openapi = createOpenApi(betterSupabase, {
   info: { title: "CRM API", version: "1.0.0" },
   servers: [{ url: "https://crm.example.com" }],
   basePath: "/api",

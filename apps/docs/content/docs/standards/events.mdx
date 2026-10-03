@@ -10,7 +10,7 @@ description: Mutations as CloudEvents 1.0, for queues, buses and webhooks.
 import { forwardMutations, httpSink } from "better-supabase/events";
 
 const stop = forwardMutations(
-  sb,
+  betterSupabase,
   httpSink("https://events.example.com/ingest"),
   {
     source: "https://crm.example.com",

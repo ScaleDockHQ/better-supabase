@@ -5,12 +5,12 @@ description: Middleware, Result-aware handlers and REST resources matching your 
 
 ```ts title="src/server.ts"
 import { Hono } from "hono";
-import { createHono, type BetterEnv } from "better-supabase/hono";
-import { sb, type Functions, type Models } from "./supabase";
+import { createHono, type HonoEnv } from "better-supabase/hono";
+import { betterSupabase, type Functions, type Models } from "./lib/supabase";
 
-const bs = createHono(sb);
+const bs = createHono(betterSupabase);
 
-const app = new Hono<BetterEnv<Models, Functions, unknown>>()
+const app = new Hono<HonoEnv<Models, Functions, unknown>>()
   .onError(bs.onError)
   .use("/api/*", bs.middleware())
   .get("/api/me", (c) => c.json({ kind: c.var.auth.kind }));
@@ -18,7 +18,7 @@ const app = new Hono<BetterEnv<Models, Functions, unknown>>()
 export default app;
 ```
 
-`createHono(sb)` is [`createServer`](/docs/auth/server) plus the pieces
+`createHono(betterSupabase)` is [`createServer`](/docs/auth/server) plus the pieces
 below, so `bs.admin()` and `bs.actingAs()` work too.
 
 ## Middleware
@@ -42,9 +42,30 @@ no network call. `refresh: true` refreshes an expiring cookie session and
 adds the new cookies to the response. It is for routes browsers call with
 cookies; bearer tokens never refresh.
 
+## Typed claims
+
+When the definition has [`.claims(schema)`](/docs/auth#typed-claims),
+`c.var.auth`, `c.var.bs` and the handler context are typed by the schema's
+output. Pass the same type to `HonoEnv` as its fourth parameter:
+
+```ts
+import type { InferOutput } from "valibot";
+import type { Claims } from "./lib/claims";
+
+type Env = HonoEnv<Models, Functions, unknown, InferOutput<typeof Claims>>;
+
+const app = new Hono<Env>()
+  .use("/api/*", bs.middleware())
+  .get("/api/role", (c) =>
+    c.json({
+      role: c.var.auth.kind === "user" ? c.var.auth.claims.user_role : null,
+    }),
+  );
+```
+
 ## Handlers
 
-`bs.handle` unwraps what the handler returns:
+`bs.handler` unwraps what the handler returns:
 
 - A `Result` or `AsyncResult` becomes JSON on success, or Problem Details on
   failure.
@@ -55,17 +76,17 @@ cookies; bearer tokens never refresh.
 ```ts
 app.get(
   "/api/customers/:id",
-  bs.handle((c, { db }) => db.customers.findById(c.req.param("id"))),
+  bs.handler((c, { db }) => db.customers.findById(c.req.param("id"))),
 );
 app.post(
   "/api/customers",
-  bs.handle(async (c, { db }) => db.customers.create(await c.req.json()), {
+  bs.handler(async (c, { db }) => db.customers.create(await c.req.json()), {
     status: 201,
   }),
 );
 ```
 
-`bs.onError` handles errors thrown outside `bs.handle`. It sends a
+`bs.onError` handles errors thrown outside `bs.handler`. It sends a
 `DbException` as its Problem Details, and anything else as a 500 without
 internal details (unless `exposeErrors`).
 
@@ -78,7 +99,7 @@ codes and bodies.
 ```ts
 import { defineListQuery } from "better-supabase/list";
 
-const customerList = defineListQuery(sb, "customers", {
+const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
   facets: ["status"],
   sorts: { name: { name: "asc" }, newest: { createdAt: "desc" } },
@@ -121,7 +142,7 @@ the same claims that PostgREST and RLS see:
 ```ts
 import { signLocalJwt } from "better-supabase/testing";
 
-const bs = createHono(sb);
+const bs = createHono(betterSupabase);
 const token = await signLocalJwt({ sub: userId, tenant_id: orgId });
 await app.request("/api/customers", {
   headers: { authorization: `Bearer ${token}` },

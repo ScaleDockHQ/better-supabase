@@ -18,7 +18,7 @@ Instead:
 
 - Put multi-step writes in a database function and call it with
   `db.$rpc()`. Declare what it changes with
-  [`sb.defineRpc`](/docs/concepts/caching#writes-invalidation-targets) so
+  [`betterSupabase.defineRpc`](/docs/concepts/caching#writes-invalidation-targets) so
   caches refresh.
 - On the server, use `postgres.transaction()` with
   [`postgresExecutor`](/docs/auth/postgres). The same `db` calls then run in

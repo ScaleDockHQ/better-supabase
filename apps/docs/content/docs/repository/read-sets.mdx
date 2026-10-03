@@ -17,8 +17,11 @@ per entry:
 ```ts
 const [customers, notes] = await db
   .$many([
-    sb.spec.customers.findMany({ select: ["id", "name"], limit: 10 }),
-    sb.spec.notes.count(),
+    betterSupabase.spec.customers.findMany({
+      select: ["id", "name"],
+      limit: 10,
+    }),
+    betterSupabase.spec.notes.count(),
   ])
   .orThrow();
 ```
@@ -35,10 +38,10 @@ A read set names its reads once, with typed placeholders for parameters:
 ```ts title="src/lib/read-sets.ts"
 import { defineReadSet } from "better-supabase";
 
-import { sb } from "./supabase.ts";
+import { betterSupabase } from "./supabase/index.ts";
 
 export const workspaceSummary = defineReadSet(
-  sb,
+  betterSupabase,
   "workspace_summary",
   { params: { userId: "uuid" } },
   (s, p) => ({
@@ -151,8 +154,8 @@ of specs) reads:
 ```ts
 export async function getWorkspaceSummary() {
   "use cache: private";
-  const { db, session } = await next.cached();
-  next.cacheTags(workspaceSummary);
+  const { db, session } = await bs.cached();
+  bs.cacheTags(workspaceSummary);
   return db.$many(workspaceSummary, { userId: session.user.id }).orThrow();
 }
 ```

@@ -14,15 +14,15 @@ repository call.
 import { dbError, err } from "better-supabase";
 
 import { avatars, documents } from "@/lib/buckets";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
-export const deleteMyAccount = next.action(
+export const deleteMyAccount = bs.action(
   { aal: "aal2" },
   async (_input, { auth }) => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to delete your account"));
     }
-    return next.deleteAccount(auth.user.id, {
+    return bs.deleteAccount(auth.user.id, {
       buckets: [avatars, documents],
       cascades: ["notifications", "memberships"],
     });
@@ -75,8 +75,8 @@ request keeps verifying the token without a database or Auth round trip.
    user id as the row), then a table-wide delete notice for each table in
    `cascades`, so [cache adapters](/docs/concepts/caching) drop the reads the database
    changed behind their back. Sinks and audit forwarders see the delete too.
-4. **Sessions.** `next.deleteAccount` also calls
-   `next.invalidateSession(userId)`, so `next.cached()` entries for the user
+4. **Sessions.** `bs.deleteAccount` also calls
+   `bs.invalidateSession(userId)`, so `bs.cached()` entries for the user
    are gone.
 
 Objects are removed before the user. If Storage fails, the user still exists
@@ -123,7 +123,7 @@ await supabase.auth.signOut({ scope: "local" });
 ## Exports and retention
 
 Deletion is often the last step of a GDPR request that starts with an export.
-Run the export first with `server.admin()` (it bypasses RLS), store it where
+Run the export first with `bs.admin()` (it bypasses RLS), store it where
 the user can download it, then call `deleteAccount`. Rows kept for legal
 reasons (invoices, audit logs) should reference the user with
 `on delete set null` and keep a copy of what they need, such as the email at

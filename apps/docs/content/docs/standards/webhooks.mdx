@@ -60,7 +60,11 @@ create them and check it with `verifySharedSecret(request, secret)`. Then
 read the payload with `databaseChange`:
 
 ```ts
-const change = databaseChange(sb, "customers", await request.json());
+const change = databaseChange(
+  betterSupabase,
+  "customers",
+  await request.json(),
+);
 if (change?.type === "INSERT") await welcome(change.record!.email);
 ```
 

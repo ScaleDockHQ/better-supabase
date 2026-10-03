@@ -7,17 +7,17 @@ Every integration point is a small interface. The built-in behavior is one
 implementation of it, and yours can replace or sit next to it. Each interface
 has a [conformance kit](/docs/extending/conformance).
 
-| Interface                           | Built in                                                  | Plug in with                                |
-| ----------------------------------- | --------------------------------------------------------- | ------------------------------------------- |
-| [`Executor`](#executor)             | `postgrestExecutor`, `postgresExecutor`                   | `sb.connect(executor)`                      |
-| [`Compiler`](#compiler)             | `postgrestCompiler`, `sqlCompiler`                        | your executor                               |
-| [`CacheAdapter`](#cacheadapter)     | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `sb.cache(adapter)`                         |
-| [`EventSink`](#eventsink)           | `httpSink()`                                              | `forwardMutations(sb, sink, { source })`    |
-| [`AuthResolver`](#authresolver)     | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(sb, { auth: { resolvers } })` |
-| [`Generator`](#generator)           | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                  |
-| [`Logger`](#logger)                 | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`        |
-| `EnvSource`                         | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                          |
-| [`Plugin`](/docs/extending/plugins) | timestamps, soft delete, tenant, actor, validation        | `sb.use(plugin)`                            |
+| Interface                           | Built in                                                  | Plug in with                                            |
+| ----------------------------------- | --------------------------------------------------------- | ------------------------------------------------------- |
+| [`Executor`](#executor)             | `postgrestExecutor`, `postgresExecutor`                   | `betterSupabase.connect(executor)`                      |
+| [`Compiler`](#compiler)             | `postgrestCompiler`, `sqlCompiler`                        | your executor                                           |
+| [`CacheAdapter`](#cacheadapter)     | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `betterSupabase.cache(adapter)`                         |
+| [`EventSink`](#eventsink)           | `httpSink()`                                              | `forwardMutations(betterSupabase, sink, { source })`    |
+| [`AuthResolver`](#authresolver)     | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(betterSupabase, { auth: { resolvers } })` |
+| [`Generator`](#generator)           | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                              |
+| [`Logger`](#logger)                 | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                    |
+| `EnvSource`                         | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                      |
+| [`Plugin`](/docs/extending/plugins) | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                            |
 
 ## Executor
 
@@ -37,7 +37,7 @@ export function kyselyExecutor(db: Kysely<Database>): Executor {
   };
 }
 
-const db = sb.connect(kyselyExecutor(kysely), { claims });
+const db = betterSupabase.connect(kyselyExecutor(kysely), { claims });
 ```
 
 `batch(ops, context)` is optional. `db.$many` hands it every operation that
@@ -56,7 +56,7 @@ that set-returning function, with its named arguments, instead of the table.
 [`db.$search`](/docs/kits/vector-search) needs it. `testExecutor` checks that a
 missing source function fails rather than falling back to the table.
 
-`sb.connect(client, { executor })` runs the queries through `executor` while
+`betterSupabase.connect(client, { executor })` runs the queries through `executor` while
 `db.$client` stays the given client. The server uses this to wrap two
 PostgREST executors for [read replicas](/docs/guides/read-replicas).
 
@@ -70,7 +70,7 @@ compiler for another query builder.
 
 ## CacheAdapter
 
-Invalidates cached reads after mutations. `sb.cache(adapter)` calls it with the
+Invalidates cached reads after mutations. `betterSupabase.cache(adapter)` calls it with the
 table key, the primary keys of the changed rows and the tenant, and returns a
 function that detaches it.
 
@@ -86,10 +86,10 @@ const redis: CacheAdapter = {
     ]),
 };
 
-sb.cache(redis);
+betterSupabase.cache(redis);
 ```
 
-`createNext` attaches `nextCache()` for you, and `invalidateOnMutation(sb,
+`createNext` attaches `nextCache()` for you, and `invalidateOnMutation(betterSupabase,
 client)` attaches `queryCache(client)`. Adapter errors are logged, never
 returned from the mutation.
 
@@ -117,5 +117,5 @@ Where better-supabase reports errors it swallows on purpose: event handlers,
 logger (pino, consola) or `silentLogger` in tests.
 
 ```ts
-export const sb = defineSupabase(schema, { logger: pino() });
+export const betterSupabase = defineSupabase(schema, { logger: pino() });
 ```

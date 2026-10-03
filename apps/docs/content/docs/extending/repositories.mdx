@@ -8,7 +8,7 @@ description: Domain methods with defineRepository and extend, and the escape hat
 Put domain queries next to the table they belong to. `defineRepository`
 returns a plugin that adds methods to one table only:
 
-```ts title="src/lib/supabase.ts"
+```ts title="src/lib/supabase/index.ts"
 import { defineRepository, defineSupabase } from "better-supabase";
 
 const base = defineSupabase(schema).use(tenant()).use(softDelete());
@@ -19,7 +19,7 @@ const customers = defineRepository(base, "customers", (repo) => ({
   byKvk: (kvk: string) => repo.findFirst({ where: { kvk } }),
 }));
 
-export const sb = base.use(customers);
+export const betterSupabase = base.use(customers);
 ```
 
 ```ts
@@ -51,10 +51,10 @@ const customers = ctx.db.customers.extend((repo) => ({
 
 Each layer has a way out when the repository doesn't cover a query:
 
-| Need                                     | Use                                                                           |
-| ---------------------------------------- | ----------------------------------------------------------------------------- |
-| A PostgREST feature the repository lacks | `db.$client`, the supabase-js client (database column names)                  |
-| A database function                      | `db.$rpc(name, args, { returns })`                                            |
-| Raw SQL under RLS                        | `ctx.sql` from [`/postgres`](/docs/auth/postgres)                             |
-| A different backend                      | an [`Executor`](/docs/extending/interfaces#executor) passed to `sb.connect()` |
-| Rewriting queries everywhere             | a [plugin](/docs/extending/plugins) with `transformQuery`                     |
+| Need                                     | Use                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| A PostgREST feature the repository lacks | `db.$client`, the supabase-js client (database column names)                              |
+| A database function                      | `db.$rpc(name, args, { returns })`                                                        |
+| Raw SQL under RLS                        | `ctx.sql` from [`/postgres`](/docs/auth/postgres)                                         |
+| A different backend                      | an [`Executor`](/docs/extending/interfaces#executor) passed to `betterSupabase.connect()` |
+| Rewriting queries everywhere             | a [plugin](/docs/extending/plugins) with `transformQuery`                                 |

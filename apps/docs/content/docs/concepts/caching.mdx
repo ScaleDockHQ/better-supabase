@@ -22,7 +22,7 @@ db.customers.findMany({
 // touches customers, notes, organizations, locations
 ```
 
-`sb.tablesOf(spec)` returns that list for a [query spec](#query-specs), and
+`betterSupabase.tablesOf(spec)` returns that list for a [query spec](#query-specs), and
 `touchedTables(op)` returns it for a built operation.
 
 ## Writes: invalidation targets
@@ -33,16 +33,19 @@ or `set default`, followed through further cascades. `gen` records those
 actions from the database, so there's nothing to configure.
 
 ```ts
-invalidationTargets(sb.meta, "customers");
+invalidationTargets(betterSupabase.meta, "customers");
 // ['customers', 'contacts', 'locations', 'notes', 'customerTags', ...]
 ```
 
 Database functions don't say what they change. Declare it once:
 
 ```ts
-export const sb = defineSupabase(schema).defineRpc("archive_customer", {
-  invalidates: ["customers", "notes"],
-});
+export const betterSupabase = defineSupabase(schema).defineRpc(
+  "archive_customer",
+  {
+    invalidates: ["customers", "notes"],
+  },
+);
 ```
 
 `db.$rpc('archive_customer', ...)` then invalidates those tables like any
@@ -50,7 +53,7 @@ mutation.
 
 ## Cache adapters
 
-`sb.cache(adapter)` subscribes a [`CacheAdapter`](/docs/extending/interfaces#cacheadapter)
+`betterSupabase.cache(adapter)` subscribes a [`CacheAdapter`](/docs/extending/interfaces#cacheadapter)
 to every mutation and declared RPC. Each call gets a `CacheTarget` with the
 table, the changed row ids, and `tables`, the full list to invalidate.
 
@@ -76,29 +79,34 @@ In a cached server component, tag the data with what it touched:
 
 ```ts
 "use cache";
-const spec = sb.spec.customers.findMany({ include: { notes: true } });
-next.cacheTags(spec); // tags customers and notes
+const spec = betterSupabase.spec.customers.findMany({
+  include: { notes: true },
+});
+bs.cacheTags(spec); // tags customers and notes
 const customers = await db.$run(spec).orThrow();
 ```
 
 Server actions and route handlers that write through `db` revalidate those
 tags automatically (`cacheTags: false` turns it off).
 
-`next.cacheTags` also takes an array of specs or a
+`bs.cacheTags` also takes an array of specs or a
 [read set](/docs/repository/read-sets), and tags the union of the tables
 they read.
 
 ## Query specs
 
 A `QuerySpec` is a read described as plain JSON:
-`{ v: 1, table, method, args }`. `sb.spec.<table>.<method>(...)` builds one
+`{ v: 1, table, method, args }`. `betterSupabase.spec.<table>.<method>(...)` builds one
 with full types, `db.$run(spec)` runs it, and `InferResult<typeof spec>` is
 its result type. Because it serializes, the same spec can be built on the
 server, sent to the client, used as a query key and passed to
 [`useLiveQuery`](/docs/frontend/live-queries).
 
 ```ts
-const spec = sb.spec.customers.findMany({ select: ["id", "name"], limit: 20 });
+const spec = betterSupabase.spec.customers.findMany({
+  select: ["id", "name"],
+  limit: 20,
+});
 type Rows = InferResult<typeof spec>; // { id: string; name: string }[]
 await queryClient.prefetchQuery(q.$spec(spec));
 ```

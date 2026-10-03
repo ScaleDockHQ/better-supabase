@@ -27,7 +27,7 @@ once at startup; see [Temporal](/docs/concepts/temporal).
 
 ### Configure
 
-Run `pnpm better-supabase init` to write the config, `src/lib/supabase.ts`,
+Run `pnpm better-supabase init` to write the config, `src/lib/supabase/index.ts`,
 and glue for the frameworks it finds (see [init](/docs/cli/init)). In a
 terminal it asks for the row casing and the integrations; `--yes` takes the
 defaults. Before installing anything, `npx better-supabase init` does
@@ -79,9 +79,9 @@ import { defineSupabase } from "better-supabase";
 
 import { schema } from "./lib/supabase/generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
-const db = sb.connect(createClient(url, publishableKey));
+const db = betterSupabase.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
   .findMany({

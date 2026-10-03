@@ -18,7 +18,7 @@ const db = defineSupabase(schema)
 - Anonymous requests set nothing.
 
 Server adapters fill `actor` from the verified JWT; jobs use
-`sb.actingAs(userId)` or a service actor. Pass `resolve(context)` to read the
+`betterSupabase.actingAs(userId)` or a service actor. Pass `resolve(context)` to read the
 id from somewhere else.
 
 For a tamper-proof trail, add the `actor` and `audit` SQL kit triggers, which

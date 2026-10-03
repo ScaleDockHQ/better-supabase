@@ -8,14 +8,14 @@ description: Provider, typed hooks and the server session.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BetterSupabaseProvider } from "better-supabase/react";
-import { browser } from "@/lib/supabase.browser";
+import { bs } from "@/lib/supabase/client";
 
 const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <BetterSupabaseProvider browser={browser} queryClient={queryClient}>
+      <BetterSupabaseProvider client={bs} queryClient={queryClient}>
         {children}
       </BetterSupabaseProvider>
     </QueryClientProvider>
@@ -27,10 +27,10 @@ Create hooks typed for your schema once:
 
 ```ts title="src/lib/hooks.ts"
 import { createHooks } from "better-supabase/react";
-import type { browser } from "./supabase.browser";
+import type { bs } from "./supabase/client";
 
 export const { useDb, useQueries, useAuth, useSupabase } =
-  createHooks<typeof browser>();
+  createHooks<typeof bs>();
 ```
 
 ```tsx
@@ -63,7 +63,7 @@ function CustomerList() {
 
 `useAuth()` reads the browser client, so it is `loading` during server
 rendering. To render signed-in UI on the server, hand Client Components the
-server-verified session instead: pass a `next.session()` promise to
+server-verified session instead: pass a `bs.session()` promise to
 `SessionProvider` and read it with `useSession()`.
 
 ```tsx title="Server Component, inside <Suspense>"
@@ -89,7 +89,7 @@ export function SideNav() {
 - `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
   create the promise inside that boundary.
 - The session is a plain `AuthSession` (no token), the same type
-  `next.session()` returns.
+  `bs.session()` returns.
 
 See [Cache Components](/docs/frameworks/next-cache-components) for the full
 pattern, including role-filtered menus.

@@ -107,7 +107,10 @@ error at runtime.
 `aggregate` is a read method, so it works everywhere a spec does:
 
 ```ts
-const spec = sb.spec.customers.aggregate({ groupBy: ["status"], _count: true });
+const spec = betterSupabase.spec.customers.aggregate({
+  groupBy: ["status"],
+  _count: true,
+});
 const groups = await db.$run(spec).orThrow();
 
 // TanStack Query

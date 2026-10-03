@@ -6,8 +6,8 @@ description: Scope every query to the request's tenant, on top of RLS.
 ```ts
 import { tenant } from "better-supabase/plugins/tenant";
 
-const sb = defineSupabase(schema).use(tenant());
-const db = sb.connect(supabase, { claims }); // or { tenant: orgId }
+const betterSupabase = defineSupabase(schema).use(tenant());
+const db = betterSupabase.connect(supabase, { claims }); // or { tenant: orgId }
 ```
 
 For tables with the tenant flag:
@@ -29,14 +29,14 @@ fill the context from the verified JWT.
 
 A tenant from a URL or request body is only safe after you check it against
 the user's memberships. Do that in `resolve`, or pass `{ tenant }` to
-`sb.connect` once it is checked.
+`betterSupabase.connect` once it is checked.
 
 Pass your [claims type](/docs/auth#typed-claims) to check the paths at
 compile time. Only paths to string claims, up to three levels deep, are
 accepted:
 
 ```ts
-const sb = defineSupabase(schema)
+const betterSupabase = defineSupabase(schema)
   .claims(Claims)
   .use(
     tenant<v.InferOutput<typeof Claims>>({ claim: "app_metadata.tenant_id" }),

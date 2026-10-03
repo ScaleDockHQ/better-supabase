@@ -6,7 +6,7 @@ description: ctx.db and ctx.sql as @supabase/middleware entries, and composing t
 ## @supabase/server pipelines
 
 better-supabase builds on `@supabase/server` and `@supabase/middleware`
-directly. `withBetterSupabase(sb)` and `withBetterPostgres(sb)` are
+directly. `withBetterSupabase(betterSupabase)` and `withBetterPostgres(betterSupabase)` are
 `defineMiddleware` entries, so they compose by position with everything else
 in a pipeline, and the type checker verifies the order.
 
@@ -20,9 +20,9 @@ export default {
   fetch: pipeline(
     [
       withSupabase({ auth: "user" }),
-      withBetterSupabase(sb)(), // ctx.db, needs ctx.supabase
+      withBetterSupabase(betterSupabase)(), // ctx.db, needs ctx.supabase
       withPostgresClient(),
-      withBetterPostgres(sb)(), // ctx.sql, needs ctx.postgres
+      withBetterPostgres(betterSupabase)(), // ctx.sql, needs ctx.postgres
     ],
     async (req, ctx) => {
       const customers = await ctx.db.customers
@@ -44,7 +44,7 @@ claims and role per query, so RLS applies exactly as over PostgREST.
 
 ## Next.js proxy composition
 
-`next.proxy(request, options)` owns the session refresh. Other middleware
+`bs.proxy(request, options)` owns the session refresh. Other middleware
 (i18n, rewrites, A/B buckets) goes in `before` and `after` instead of
 wrapping the proxy, so cookies and forwarded request headers are merged once
 and in the right order:
@@ -52,13 +52,13 @@ and in the right order:
 ```ts title="src/proxy.ts"
 import createMiddleware from "next-intl/middleware";
 import type { NextRequest } from "next/server";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 import { routing } from "@/i18n/routing";
 
 const intl = createMiddleware(routing);
 
 export const proxy = (request: NextRequest) =>
-  next.proxy(request, {
+  bs.proxy(request, {
     before: intl,
     protect: (auth, req) => (auth.kind === "user" ? undefined : toLogin(req)),
     after: (response, auth) => {
@@ -146,7 +146,7 @@ is right on Vercel and behind most proxies. Pass your own reader or turn it
 off:
 
 ```ts
-createNext(sb, {
+createNext(betterSupabase, {
   auth: {
     clientIp: (request) => request.headers.get("cf-connecting-ip") ?? undefined,
     // clientIp: false,
