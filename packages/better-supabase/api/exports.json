@@ -863,6 +863,7 @@
       "compileReadSets",
       "kitLayout",
       "permdockKeys",
+      "permdockKeyStatus",
       "renderKit",
       "resolveModules",
       "sameKitFile",
@@ -873,6 +874,8 @@
       "KitFile",
       "KitLayout",
       "KitPermdock",
+      "PermdockCatalog",
+      "PermdockKeyStatus",
       "SqlModule"
     ]
   },

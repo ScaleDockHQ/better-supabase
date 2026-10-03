@@ -3,8 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
-import type { PermdockCatalog } from "../core/permdock-sql.ts";
-import type { KitPermdock } from "../sql/index.ts";
+import type { KitPermdock, PermdockCatalog } from "../sql/index.ts";
 
 const PERMDOCK_CONFIGS = [
   "permdock.config.ts",
@@ -62,7 +61,10 @@ export interface PermdockManifest {
     readonly mode: "jwt" | "database";
     readonly scopes: readonly {
       readonly name: string;
-      readonly type: string;
+      /** The id's Postgres type; missing means unknown. */
+      readonly type?: string;
+      /** The parent scope; the root scope has none. */
+      readonly within?: string;
     }[];
     readonly helpers: readonly ManifestHelper[];
   };
@@ -169,10 +171,18 @@ export function parseManifest(json: unknown): PermdockManifest {
             mode: rls["mode"] === "jwt" ? "jwt" : "database",
             scopes: (Array.isArray(rls["scopes"]) ? rls["scopes"] : []).flatMap(
               (scope) =>
-                isRecord(scope) &&
-                isString(scope["name"]) &&
-                isString(scope["type"])
-                  ? [{ name: scope["name"], type: scope["type"] }]
+                isRecord(scope) && isString(scope["name"])
+                  ? [
+                      {
+                        name: scope["name"],
+                        ...(isString(scope["type"])
+                          ? { type: scope["type"] }
+                          : {}),
+                        ...(isString(scope["within"])
+                          ? { within: scope["within"] }
+                          : {}),
+                      },
+                    ]
                   : [],
             ),
             helpers: (Array.isArray(rls["helpers"])
@@ -339,8 +349,11 @@ export type EntitlementsMode =
 
 /**
  * PermDock mode, when the manifest has an `rls` block and
- * `entitlements.permdock` is not `false`: the scope must be one of the
- * manifest's `rls.scopes`. Without a manifest the module keeps using `tenant`.
+ * `entitlements.permdock` is not `false`. The scope is
+ * `entitlements.permdock.scope`, which must be one of the manifest's
+ * `rls.scopes`, else the one scope without `within`. No root scope, or more
+ * than one, is invalid rather than a guess. Without a manifest the module
+ * keeps using `tenant`.
  */
 export function entitlementsMode(
   config: Pick<ResolvedConfig, "entitlements">,
@@ -350,17 +363,31 @@ export function entitlementsMode(
   const rls = project?.manifest?.rls;
   if (setting === false || !project?.manifest || !rls)
     return { kind: "tenant" };
-  if (!rls.scopes.some((scope) => scope.name === setting.scope)) {
-    return {
-      kind: "invalid",
-      problem: `entitlements.permdock.scope is "${setting.scope}", but ${project.manifestPath} has the scopes ${rls.scopes.map((scope) => scope.name).join(", ") || "(none)"}. Set entitlements.permdock: { scope } to one of them.`,
-    };
+  const names = rls.scopes.map((scope) => scope.name).join(", ") || "none";
+  let scope: string;
+  if (setting.scope === undefined) {
+    const roots = rls.scopes.filter((entry) => entry.within === undefined);
+    if (roots.length !== 1) {
+      return {
+        kind: "invalid",
+        problem: `${project.manifestPath} has no single root scope (${roots.map((entry) => entry.name).join(", ") || "none"}), so the entitlements module can't tell which scope tenants are. Set entitlements.permdock: { scope } to one of ${names}.`,
+      };
+    }
+    scope = roots[0]!.name;
+  } else {
+    scope = setting.scope;
+    if (!rls.scopes.some((entry) => entry.name === scope)) {
+      return {
+        kind: "invalid",
+        problem: `entitlements.permdock.scope is "${scope}", but ${project.manifestPath} has the scopes ${names}. Set entitlements.permdock: { scope } to one of them, or remove it to use the root scope.`,
+      };
+    }
   }
   return {
     kind: "permdock",
     permdock: {
       schema: rls.schema,
-      scope: setting.scope,
+      scope,
       memberships: project.manifest.memberships.map((source) => ({
         table: source.table,
         userColumn: source.user.column,

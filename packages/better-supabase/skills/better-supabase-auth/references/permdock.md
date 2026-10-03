@@ -26,9 +26,10 @@ the other.
   `hasEntitlement(session, ...)` works.
 - Run `permdock supabase inspect --out` before `sql add entitlements`. With
   `permdock.manifest.json` present, the module reads PermDock's
-  `member_<scope>_ids` helpers and doesn't add `tenant`. Set
-  `entitlements.permdock: { scope }` in `better-supabase.config.ts` for a
-  scope other than `organization`.
+  `member_<scope>_ids` helpers and doesn't add `tenant`. The scope is the
+  manifest's root scope (the `rls.scopes` entry without `within`); set
+  `entitlements.permdock: { scope }` in `better-supabase.config.ts` for
+  another one.
 - Name the same tenant claim on both sides. A non-default `claims.tenant` in
   `better-supabase.config.ts` must also be PermDock's `rls.tenantClaim` and
   go to `subjectFromSupabase` or `subjectFromSupabaseSession` as `{ tenant }`.

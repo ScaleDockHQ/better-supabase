@@ -12,7 +12,7 @@ import {
   readPermdock,
 } from "../../src/cli/permdock.ts";
 import { resolveConfig } from "../../src/config/index.ts";
-import { permdockKeyStatus } from "../../src/core/permdock-sql.ts";
+import { permdockKeyStatus } from "../../src/sql/index.ts";
 // Copied from PermDock's apps/examples/next-better-supabase/permdock.manifest.json.
 import manifest from "./fixtures/permdock.manifest.json" with { type: "json" };
 
@@ -141,6 +141,66 @@ describe("entitlementsMode", () => {
     expect(
       entitlementsMode(config({ permdock: { scope: "customer" } }), project),
     ).toMatchObject({ kind: "permdock", permdock: { scope: "customer" } });
+  });
+
+  const withScopes = (
+    scopes: readonly { name: string; type?: string; within?: string }[],
+  ) => ({
+    ...project,
+    manifest: parseManifest({
+      ...manifest,
+      rls: { ...manifest.rls, scopes },
+    }),
+  });
+
+  it("defaults the scope to the manifest's root scope", () => {
+    expect(config().entitlements.permdock).toEqual({});
+    const tenant = withScopes([
+      { name: "tenant", type: "uuid" },
+      { name: "team", type: "uuid", within: "tenant" },
+    ]);
+    expect(entitlementsMode(config(), tenant)).toMatchObject({
+      kind: "permdock",
+      permdock: { scope: "tenant" },
+    });
+    expect(entitlementsMode(config(), project)).toMatchObject({
+      kind: "permdock",
+      permdock: { scope: "organization" },
+    });
+  });
+
+  it("keeps an explicit scope as the override", () => {
+    const tenant = withScopes([
+      { name: "tenant", type: "uuid" },
+      { name: "team", type: "uuid", within: "tenant" },
+    ]);
+    expect(
+      entitlementsMode(config({ permdock: { scope: "team" } }), tenant),
+    ).toMatchObject({ kind: "permdock", permdock: { scope: "team" } });
+    expect(
+      entitlementsMode(config({ permdock: { scope: "organization" } }), tenant),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringContaining(
+        'entitlements.permdock.scope is "organization", but permdock.manifest.json has the scopes tenant, team',
+      ),
+    });
+  });
+
+  it("asks for a scope when the manifest has no single root scope", () => {
+    const twoRoots = withScopes([
+      { name: "tenant", type: "uuid" },
+      { name: "workspace", type: "uuid" },
+    ]);
+    expect(entitlementsMode(config(), twoRoots)).toEqual({
+      kind: "invalid",
+      problem: expect.stringMatching(
+        /no single root scope \(tenant, workspace\).*entitlements\.permdock: \{ scope \}/,
+      ),
+    });
+    expect(entitlementsMode(config(), withScopes([]))).toMatchObject({
+      kind: "invalid",
+    });
   });
 
   it("keeps the tenant module without a manifest or with permdock: false", () => {

@@ -1,9 +1,7 @@
-import type { PermdockCatalog } from "../../core/permdock-sql.ts";
-import type { KitPermdock } from "../../sql/index.ts";
+import type { KitPermdock, PermdockCatalog } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { permdockKeyStatus } from "../../core/permdock-sql.ts";
-import { permdockKeys } from "../../sql/index.ts";
+import { permdockKeys, permdockKeyStatus } from "../../sql/index.ts";
 import { entitlementHelpers, entitlementsMode } from "../permdock.ts";
 import { catalogOf } from "./shared.ts";
 

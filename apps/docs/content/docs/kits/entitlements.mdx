@@ -143,8 +143,11 @@ module, and `sql add entitlements` no longer adds `tenant`:
 | `feature_claims(user_id)`       | `<schema>.member_<scope>_ids_for(user_id)`, from PermDock's hook as `supabase_auth_admin` |
 | `entitlement_members(customer)` | The manifest's membership tables for that scope                                           |
 
-`<schema>` is the manifest's `rls.schema`. `<scope>` is `organization` unless
-you set another of the manifest's scopes:
+`<schema>` is the manifest's `rls.schema`. `<scope>` is the manifest's root
+scope, the `rls.scopes` entry without `within`. When the manifest has no
+root scope or several, `sql add entitlements` stops and doctor reports
+[BS408](/docs/cli/doctor#bs408) until you name one. Set `scope` to use
+another of the manifest's scopes:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
