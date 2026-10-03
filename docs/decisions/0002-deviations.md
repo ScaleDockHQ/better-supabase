@@ -37,11 +37,14 @@ backlogs too large to clear in the upgrade.
   top level. Oxlint's `turbo/no-undeclared-env-vars` reads only those keys,
   so the `global` block made it report 65 declared variables as undeclared.
 - `pnpm test` runs each workspace's Vitest through Turbo instead of one root
-  `vitest run`. Each published package's unit tests have to hold its
-  coverage thresholds alone; a root run merges coverage, and the CLI's
-  tests would count toward the library's source through the
+  `vitest run`. The library's unit tests have to hold its coverage
+  thresholds alone; a root run merges coverage, and the validation suites
+  would count toward the library's source through the
   `@better-supabase/source` condition. The root `vitest.config.ts` lists the
   projects for `vitest --project` in an editor.
+- The CLI ships inside `better-supabase` (`src/cli` and the `better-supabase`
+  bin) instead of as `@{{SCOPE}}/cli` in `packages/cli` and a Changesets
+  `fixed` group, as `cli.md` describes. ADR 0007 has the reasons.
 
 ### Docs site
 
@@ -93,6 +96,11 @@ backlogs too large to clear in the upgrade.
 - Dependabot targets `main` until a `develop` branch exists.
 - `actionlint` is not installed; the workflows are checked by parsing them,
   and zizmor runs on workflow changes (`security.yml`).
+- `pnpm audit` ignores GHSA-vfj7-8cjw-p6xm (`auditConfig` in
+  `pnpm-workspace.yaml`). The `braces` advisory has no patched release, and
+  `braces` arrives only through `shadcn` in `apps/marketing`, which is dev
+  tooling that never ships. It ends when a fixed `braces` ships or `shadcn`
+  drops `micromatch`.
 
 ### Agent files
 

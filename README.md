@@ -27,10 +27,10 @@ better-supabase removes the glue code every Supabase app rewrites: auth wiring, 
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D @better-supabase/cli pg
+pnpm add -D pg
 ```
 
-Or start with `npx @better-supabase/cli init`, which detects your frameworks
+Or start with `npx better-supabase init`, which detects your frameworks
 and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 6 and 7 are tested.
 
 ## Quick start
@@ -189,8 +189,7 @@ The seed creates two users in the Acme organization, both with the password
 ### Layout
 
 ```text
-packages/better-supabase   the published library and its consumer skills
-packages/cli               @better-supabase/cli: the better-supabase command, codegen and doctor
+packages/better-supabase   the published library, the better-supabase CLI and its consumer skills
 packages/next-config       shared Next.js config for docs and marketing
 packages/ox-config         Oxlint presets, Oxfmt config and the anti-slop plugin
 packages/typescript-config tsconfig presets

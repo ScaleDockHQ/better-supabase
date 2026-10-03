@@ -1,8 +1,0 @@
-{
-  "extends": "@better-supabase/typescript-config/library.json",
-  "compilerOptions": {
-    "lib": ["ES2025", "ESNext.Disposable", "DOM", "DOM.Iterable"],
-    "types": ["node"]
-  },
-  "include": ["src", "tests", "scripts"]
-}

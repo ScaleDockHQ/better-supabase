@@ -166,6 +166,13 @@ peerDependencyRules:
     # generated types with whichever oxfmt the CLI installs.
     "@supabase/postgrest-typegen>oxfmt": "0.71.0"
 
+auditConfig:
+  ignoreGhsas:
+    # braces <=3.0.3 has no patched release. It reaches the tree only through
+    # shadcn in apps/marketing (dev tooling, never shipped). Remove it once a
+    # fixed braces ships or shadcn drops micromatch (ADR 0002).
+    - GHSA-vfj7-8cjw-p6xm
+
 allowBuilds:
   # tsdown and vite bundle through esbuild's platform binary.
   esbuild: true

@@ -7,7 +7,7 @@ import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const HERE = import.meta.dirname;
 /** The CLI's conformance tests (doctor's SARIF, schemas, keys and skills). */
-const CLI = resolve(HERE, "../../../cli/tests/standards");
+const CLI = resolve(HERE, "../cli/standards");
 const DIRS = [HERE, CLI];
 const testFiles = (dir: string): string[] =>
   readdirSync(dir).filter((file) => file.endsWith(".test.ts"));

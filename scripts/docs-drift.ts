@@ -1,7 +1,7 @@
 // Checks the docs against the code: every doctor code has a heading on the
 // doctor page, every subpath is in the README table and on a docs page, and
 // every `meta.json` lists exactly the pages in its folder. The CLI commands
-// and flags are checked by `packages/cli/tests/docs-drift.test.ts`, which
+// and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, which
 // `pnpm docs:drift` runs after this. Run with `node scripts/docs-drift.ts`.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";

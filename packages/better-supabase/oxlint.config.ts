@@ -23,12 +23,14 @@ export default defineConfig({
   ],
   rules: {
     // The core decodes PostgREST, Auth, webhook and storage payloads without
-    // a schema dependency (invariant 1), so its decoders take `unknown`,
-    // branch on `typeof` and build rows as dictionaries. Findings when
-    // measured, tests included: no-runtime-typeof 229,
-    // no-unsafe-dictionary-type 213, no-unknown-parameters 208,
-    // no-unknown-returns 59, no-known-value-widening 49 and
-    // no-object-parameters 29. Backlog in docs/decisions/0002.
+    // a schema dependency (invariant 1), and the CLI's introspection and
+    // doctor read catalog rows, config.toml and splinter JSON, so their
+    // decoders take `unknown`, branch on `typeof` and build rows as
+    // dictionaries. Findings when measured, tests included (core plus CLI):
+    // no-runtime-typeof 280, no-unsafe-dictionary-type 249,
+    // no-unknown-parameters 238, no-unknown-returns 69,
+    // no-known-value-widening 66 and no-object-parameters 29 (core only).
+    // Backlog in docs/decisions/0002.
     "anti-slop/no-runtime-typeof": "off",
     "anti-slop/no-unsafe-dictionary-type": "off",
     "anti-slop/no-unknown-parameters": "off",
@@ -36,7 +38,8 @@ export default defineConfig({
     "anti-slop/no-known-value-widening": "off",
     "anti-slop/no-object-parameters": "off",
     // exactOptionalPropertyTypes forbids `key: undefined`, and these spreads
-    // are how an absent option stays absent; 127 findings when measured.
+    // are how an absent option stays absent; 199 findings when measured
+    // (127 core, 72 CLI).
     "anti-slop/no-conditional-empty-object-spread": "off",
   },
   overrides: [
@@ -88,6 +91,9 @@ export default defineConfig({
         "src/testing/**",
         "src/next/create.ts",
         "src/server/respond.ts",
+        // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.
+        "src/cli/run.ts",
+        "src/cli/bin.ts",
       ],
       rules: { "node/no-process-env": "off" },
     },

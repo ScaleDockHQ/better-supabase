@@ -6,14 +6,14 @@ import { gzipSync } from "node:zlib";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const PACKAGE = resolve(import.meta.dirname, "../../packages/better-supabase");
-const CLI_BIN = resolve(import.meta.dirname, "../../packages/cli/dist/bin.js");
+const CLI_BIN = resolve(PACKAGE, "dist/cli/bin.js");
 /** The CLI's startup cost: what `better-supabase --version` loads before any command. */
-const CLI_STARTUP = "@better-supabase/cli (startup)";
+const CLI_STARTUP = "better-supabase CLI (startup)";
 const BASELINE = resolve(import.meta.dirname, "baseline.json");
 /** Growth allowed before the size check fails: 5% or 256 bytes, whichever is larger. */
 const TOLERANCE = { ratio: 0.05, bytes: 256 };
 /** Entries that may use Node built-ins. Everything else must run on any WinterTC runtime. */
-const NODE_ENTRIES = new Set(["./postgres", "./testing"]);
+const NODE_ENTRIES = new Set(["./cli", "./postgres", "./testing"]);
 
 const BUILTINS = new Set([
   ...builtinModules,
@@ -138,12 +138,15 @@ describe("bundle", () => {
     ).toEqual([]);
   });
 
-  it("never imports postgrest-typegen at runtime (only @better-supabase/cli does)", () => {
+  it("never imports postgrest-typegen at runtime outside the CLI", () => {
     const offenders = [...closures]
-      .filter(([, { externals }]) =>
-        externals.some((name) =>
-          name.startsWith("@supabase/postgrest-typegen"),
-        ),
+      .filter(
+        ([subpath, { externals }]) =>
+          subpath !== "./cli" &&
+          subpath !== CLI_STARTUP &&
+          externals.some((name) =>
+            name.startsWith("@supabase/postgrest-typegen"),
+          ),
       )
       .map(([subpath]) => subpath);
     expect(offenders).toEqual([]);

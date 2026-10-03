@@ -22,6 +22,15 @@ Branch on `result.error.kind`, not on the message.
 | `stale`                                               | `update(..., { expect })` found a newer row                                    | Reload the row and retry                                                      |
 | `serialization`, `timeout`, `network`, `rate_limited` | Transient                                                                      | Retry with backoff, or surface the error                                      |
 | `raised`                                              | A database function raised an exception                                        | Read `message` and `code` from the function                                   |
+| `unexpected` naming `temporal-polyfill/global`        | The runtime has no `Temporal` (Node 24, Safari)                                | Install `temporal-polyfill` and import `temporal-polyfill/global` at startup  |
+
+## By error `code`
+
+| Code                             | Meaning                                                                    | Fix                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `CLAIMS_INVALID` (unauthorized)  | The token verified but failed the `sb.claims(schema)` schema               | Fix the access token hook or loosen the schema; the error names the failing paths          |
+| `SESSION_REVOKED` (unauthorized) | `checkSession` found the session gone (signed out, or ended by an admin)   | Expected for irreversible actions; ask the user to sign in again                           |
+| `INSUFFICIENT_SCOPE` (forbidden) | A delegated token (OAuth client or agent) lacks a scope the route requires | The 403 carries an `insufficient_scope` challenge; the client asks the user for that scope |
 
 ## Other symptoms
 
@@ -34,6 +43,17 @@ Branch on `result.error.kind`, not on the message.
   the proxy. Refresh happens only in the Next.js proxy (`next.proxy`).
 - Tests pass with the service role but fail as a user: that's the RLS policy.
   Test as users, never with the service role.
+- A relation name changed after `gen`: a composite foreign key that repeats a
+  column on both sides is named after the remaining column. Set
+  `tables.<name>.relations` in the config to keep the old name.
+- The CLI exits with 2: the command line, the config or an environment
+  variable needs a change. Rerun with `--json` to get the error `code`, and
+  look it up at https://bettersupabase.com/docs/cli/errors.
+- `--db-url` is rejected: set `$DATABASE_URL` or pipe the URL in with
+  `--db-url-stdin`.
+- Two different `Temporal.Instant` values compare equal in `toEqual`: compare
+  with `.equals()` or register an equality tester (the
+  `better-supabase-testing` skill).
 
 Docs: https://bettersupabase.com/docs/cli/doctor.md and
 https://bettersupabase.com/docs/guides/limitations.md

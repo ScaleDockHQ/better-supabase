@@ -43,15 +43,13 @@ const config: KnipConfig = {
         "src/*/index.ts",
         "src/*/*/index.ts",
         "src/react/{server,session}.ts",
+        "scripts/*.ts",
       ],
       ignore: [
         "tests/fixtures/generated*.ts",
         "tests/fixtures/database.types.ts",
       ],
-    },
-    "packages/cli": {
-      entry: ["scripts/*.ts"],
-      // Peers of @supabase/config, which supabase-toml.ts loads lazily.
+      // Peers of @supabase/config, which src/cli/supabase-toml.ts loads lazily.
       ignoreDependencies: [
         "@supabase/config",
         "effect",
@@ -87,7 +85,7 @@ const config: KnipConfig = {
     "tests/bundle": {
       // The size checks read the built packages from disk; the dependencies
       // make Turbo build them first.
-      ignoreDependencies: ["better-supabase", "@better-supabase/cli"],
+      ignoreDependencies: ["better-supabase"],
     },
     "tests/e2e": {
       ignoreBinaries: ["next"],
@@ -97,10 +95,6 @@ const config: KnipConfig = {
     },
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],
-    },
-    "tests/types/perf": {
-      // The consumer that bench.ts writes to tmp/ imports both.
-      ignoreDependencies: ["better-supabase", "@supabase/supabase-js"],
     },
     // Modules ported from production apps; their exports are the app's API.
     "tests/validation-*": {

@@ -1,8 +1,3 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-
 import {
   type CatalogColumn,
   type CatalogForeignKey,
@@ -11,7 +6,11 @@ import {
   type CatalogUnique,
   fromCatalog,
   type Snapshot,
-} from "@better-supabase/cli";
+} from "better-supabase/cli";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
 interface Measurement {
   readonly types: number;
@@ -50,7 +49,7 @@ const tsc = join(
   "tsc",
 );
 const cli = join(
-  dirname(require.resolve("@better-supabase/cli/package.json")),
+  dirname(require.resolve("better-supabase/package.json")),
   "bin",
   "better-supabase.js",
 );

@@ -57,12 +57,8 @@ The tenant comes from the verified `tenant_id` claim (renamed with
 `claims.tenant` in `better-supabase.config.ts`), then `app_metadata.tenant_id`.
 Never read it from `user_metadata`, a URL or a request body. When the project
 has a `permdock.config.ts`, PermDock's hook writes that claim and the
-memberships; don't run `sql add tenant` there or call `membership_claims()`
-from a hook. `sql add entitlements` is fine: `features` is not a PermDock
-claim. Add `claims: { features: 'better_supabase.feature_claims' }` to
-`supabase.hook` in `permdock.config.ts`, run `permdock supabase hook generate`,
-and `hasEntitlement(session, ...)` works. Run `permdock supabase inspect --out`
-first: with `permdock.manifest.json` present, the entitlements module reads
-PermDock's `member_<scope>_ids` helpers and doesn't add `tenant`.
+memberships: don't run `sql add tenant`, and follow the PermDock reference of
+the `better-supabase-auth` skill
+(https://bettersupabase.com/docs/auth/permdock.md).
 
 Docs: https://bettersupabase.com/docs/plugins.md
