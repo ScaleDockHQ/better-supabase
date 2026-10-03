@@ -8,6 +8,7 @@ import {
 } from "../../core/errors.ts";
 import { definePlugin, type Plugin } from "../../core/plugin.ts";
 import { type StandardSchemaV1, validate } from "../../core/standard.ts";
+import { decodeValue, encodeValue } from "../../ir/wire.ts";
 import { toApp, toDb } from "../shared.ts";
 
 export interface TableValidators {
@@ -25,6 +26,33 @@ export interface ValidationOptions {
   readonly schemas: Readonly<Record<string, TableValidators>>;
 }
 
+/**
+ * Rows reach plugins in wire form (ISO text, decimal text), while generated
+ * validators expect the column codecs' app values (Temporal, `bigint`).
+ */
+function decoded(
+  table: TableMeta,
+  row: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const app = toApp(table, row);
+  for (const [name, value] of Object.entries(app)) {
+    const codec = table.columns[name]?.codec;
+    if (codec === undefined || typeof value !== "string") continue;
+    try {
+      app[name] = decodeValue(codec, value);
+    } catch {
+      // Malformed text stays as it is, so the validator reports it.
+    }
+  }
+  return app;
+}
+
+function encoded(row: Record<string, unknown>): Record<string, unknown> {
+  for (const [name, value] of Object.entries(row))
+    row[name] = encodeValue(value);
+  return row;
+}
+
 async function check(
   schema: StandardSchemaV1,
   table: TableMeta,
@@ -32,13 +60,13 @@ async function check(
   label: string,
   index: number | undefined,
 ): Promise<Record<string, unknown>> {
-  const result = await validate(schema, toApp(table, row), label);
+  const result = await validate(schema, decoded(table, row), label);
   if (result.ok) {
     const output = result.data;
     // SAFETY: the condition narrows output to a non-null object, and schemas
     // for rows output records.
     return typeof output === "object" && output !== null
-      ? toDb(table, output as Record<string, unknown>)
+      ? encoded(toDb(table, output as Record<string, unknown>))
       : { ...row };
   }
   const error = result.error;

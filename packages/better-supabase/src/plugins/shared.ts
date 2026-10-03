@@ -1,4 +1,5 @@
-import type { Condition, InsertOp } from "../ir/types.ts";
+import type { CallOptions } from "../core/plugin.ts";
+import type { Condition, InsertOp, MutationOp } from "../ir/types.ts";
 import type { TableMeta } from "../schema/types.ts";
 
 import { dbError } from "../core/errors.ts";
@@ -35,6 +36,35 @@ export function withDefault(
 ): Row {
   if (column === undefined || column in row) return row;
   return { ...row, [column]: value };
+}
+
+/**
+ * Refuses caller-supplied values for columns a plugin fills (timestamps,
+ * actor, soft delete) unless the call passes `{ override: true }`. Returns
+ * whether the caller may keep its own values.
+ */
+export function guardManaged(
+  op: MutationOp,
+  columns: readonly (string | undefined)[],
+  plugin: string,
+  options: CallOptions,
+): boolean {
+  if (options["override"] === true) return true;
+  const rows =
+    op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
+  for (const column of columns) {
+    if (column === undefined) continue;
+    if (rows.some((row) => column in row)) {
+      throw new DbException(
+        dbError(
+          "invalid_request",
+          `"${column}" on ${op.table.key} is filled by ${plugin}(); pass { override: true } to set it yourself`,
+          { table: op.table.key },
+        ),
+      );
+    }
+  }
+  return false;
 }
 
 /** Upserts that may update existing rows must not overwrite "created" columns. */

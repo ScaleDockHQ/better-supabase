@@ -114,6 +114,7 @@
       "Logger",
       "MemoryCache",
       "MutationEvent",
+      "MutationIntent",
       "MutationKind",
       "MutationNotice",
       "NoExtension",
@@ -312,6 +313,7 @@
   },
   "./query": {
     "values": [
+      "clearOnUserChange",
       "createQueries",
       "invalidateOnMutation",
       "invalidateTables",
@@ -326,7 +328,8 @@
       "QueryHelpers",
       "QueryKeyOf",
       "QueryOptionsOf",
-      "TableQueries"
+      "TableQueries",
+      "UserChangeSource"
     ]
   },
   "./server": {
@@ -529,6 +532,8 @@
       "GuardOptions",
       "MiddlewareOptions",
       "OrpcContext",
+      "OrpcFetchHandler",
+      "OrpcFetchOptions",
       "OrpcMiddleware",
       "OrpcOptions",
       "OrpcRequestContext"
@@ -542,6 +547,7 @@
     "types": [
       "BetterEdge",
       "CorsOptions",
+      "EdgeExecutionContext",
       "EdgeHandler",
       "EdgeOptions",
       "GuardOptions",
@@ -569,6 +575,7 @@
       "ToolDefinition",
       "ToolInfo",
       "ToolRef",
+      "ToolResourceOptions",
       "ToolResources",
       "ToolResult"
     ]
@@ -593,10 +600,12 @@
       "InboxMessage",
       "InboxOptions",
       "Job",
+      "JobContext",
       "JobHandler",
       "Jobs",
       "QueueRpcClient",
       "QueueSchemas",
+      "ScheduleOptions",
       "SqlClient",
       "WorkOptions"
     ]
@@ -617,6 +626,7 @@
       "EnvOptions",
       "EnvResult",
       "EnvSource",
+      "InlineJwks",
       "PublicEnv"
     ]
   },
@@ -863,7 +873,9 @@
       "compileReadSets",
       "isKitIdType",
       "KIT_ID_TYPES",
+      "kitIdType",
       "kitLayout",
+      "PERMDOCK_SCHEMA",
       "permdockKeys",
       "permdockKeyStatus",
       "renderKit",

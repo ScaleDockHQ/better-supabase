@@ -1,7 +1,7 @@
 import type { MutationOp } from "../../ir/types.ts";
 
 import { definePlugin, type Plugin } from "../../core/plugin.ts";
-import { dbName, insertsOnly, withDefault } from "../shared.ts";
+import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 
 /**
  * Stamps the columns generated as `Flags.timestamps`: `createdAt` on insert,
@@ -11,11 +11,12 @@ import { dbName, insertsOnly, withDefault } from "../shared.ts";
 export function timestamps(): Plugin<"timestamps"> {
   return definePlugin({
     name: "timestamps",
-    beforeMutation(op, { table, now }): MutationOp {
+    beforeMutation(op, { table, now, options }): MutationOp {
       const flags = table.flags.timestamps;
       if (!flags) return op;
       const created = dbName(table, flags.createdAt);
       const updated = dbName(table, flags.updatedAt);
+      guardManaged(op, [created, updated], "timestamps", options);
       const stamp = now().toString();
       switch (op.kind) {
         case "insert": {

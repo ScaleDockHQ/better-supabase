@@ -19,7 +19,8 @@ const { items, page } = await db.customers
 ```
 
 Without `count`, `total` and `pages` are `null`. `hasMore` comes from fetching
-one extra row, so it never needs a count.
+one extra row, so it never needs a count. Without `orderBy`, pages are
+ordered by the primary key, so they never overlap.
 
 ## Cursors
 

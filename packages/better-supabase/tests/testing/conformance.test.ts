@@ -349,6 +349,23 @@ describe("testPlugin", () => {
     ]);
   });
 
+  it("checks that afterMutation cannot change the result", async () => {
+    const tamper = definePlugin({
+      name: "tamper",
+      afterMutation: (event) => {
+        (event.rows[0] as Record<string, unknown>)["marker"] = "changed";
+      },
+    });
+    const report = await testPlugin(tamper, {
+      betterSupabase,
+      table: "tags",
+      create: { organizationId: ACME, name: "x" },
+    });
+    expect(report.checks.map((check) => check.name)).toContain(
+      "afterMutation cannot change the result",
+    );
+  });
+
   it("rejects an unknown table and a wrong apiVersion", async () => {
     expect(() =>
       testPlugin(definePlugin({ name: "p" }), {

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { Include, Selection } from "../../src/ir/types.ts";
+import type { Codec } from "../../src/schema/types.ts";
 
-import { decodeRows, encodeValue, needsDecoding } from "../../src/ir/codec.ts";
+import { DbException } from "../../src/core/errors.ts";
+import { decodeRows, needsDecoding } from "../../src/ir/codec.ts";
+import { encodeValue } from "../../src/ir/wire.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const customers = schema.meta.tables["customers"];
@@ -180,6 +183,29 @@ describe("decodeRows", () => {
         gone: null,
       },
     ]);
+  });
+
+  it.each<[string, Codec, unknown]>([
+    ["infinity", "instant", "infinity"],
+    ["-infinity", "plainDateTime", "-infinity"],
+    ["infinity in an array", "instant", ["1970-01-01 00:00:00+00", "infinity"]],
+  ])("rejects %s with an invalid_value error", (_name, codec, value) => {
+    const selection: Selection = {
+      columns: [{ alias: "at", column: "at", cast: "text", codec }],
+      includes: [],
+    };
+    let thrown: unknown;
+    try {
+      decodeRows(selection, [{ at: value }]);
+    } catch (cause) {
+      thrown = cause;
+    }
+    expect(thrown).toBeInstanceOf(DbException);
+    expect(thrown instanceof DbException && thrown.error).toMatchObject({
+      kind: "invalid_value",
+      column: "at",
+      status: 500,
+    });
   });
 
   it("folds aggregate counts and measures", () => {

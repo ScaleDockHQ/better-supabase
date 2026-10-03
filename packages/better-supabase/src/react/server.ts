@@ -1,5 +1,12 @@
 import type { AuthSession } from "../auth/view.ts";
-import type { BetterHooks, ClientLike } from "./index.ts";
+import type { QuerySpec } from "../core/spec.ts";
+import type { LiveCountSeed } from "../realtime/live.ts";
+import type {
+  BetterHooks,
+  ClientLike,
+  LiveCount,
+  LiveCountHookOptions,
+} from "./index.ts";
 
 export {
   BetterSupabaseProvider,
@@ -17,11 +24,17 @@ export type {
   BroadcastOptions,
   ClientLike,
   ClaimsOf,
+  LiveCount,
+  LiveCountHookOptions,
   LiveQueryHookOptions,
   ProfileOf,
 } from "./index.ts";
 export type { SessionProviderProps } from "./session.ts";
 export type { AuthSession } from "../auth/view.ts";
+export type { Impersonator } from "../auth/impersonation.ts";
+export { hasEntitlement } from "../auth/entitlements.ts";
+export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";
+export type { LiveCountSeed } from "../realtime/live.ts";
 
 function clientOnly(name: string): () => never {
   return () => {
@@ -34,6 +47,12 @@ function clientOnly(name: string): () => never {
 /** The `react-server` build of `useSession`: await `bs.session()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
+
+/** The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed instead. */
+export const useLiveCount: (
+  source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
+  options?: LiveCountHookOptions,
+) => LiveCount = clientOnly("useLiveCount");
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates

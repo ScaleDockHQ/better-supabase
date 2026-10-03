@@ -9,6 +9,7 @@ export type {
   ToolDefinition,
   ToolInfo,
   ToolRef,
+  ToolResourceOptions,
   ToolResources,
   ToolResult,
 } from "./mcp.ts";

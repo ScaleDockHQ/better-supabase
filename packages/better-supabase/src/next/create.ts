@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { cacheLife, cacheTag, revalidateTag, updateTag } from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
-import { type NextRequest, NextResponse } from "next/server.js";
+import { after, type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 
 import type { AuthResolution, AuthState } from "../auth/resolve.ts";
@@ -25,7 +25,8 @@ import { EMPTY_STATS } from "../core/stats.ts";
 import {
   DEFAULT_PIN_MS,
   PRIMARY_COOKIE,
-  primaryCookie,
+  primaryCookieOptions,
+  withPrimaryPin,
 } from "../server/replicas.ts";
 import {
   defaultExpose,
@@ -424,6 +425,20 @@ export function createNext<
     return id ? { stats: collector.recorderFor(id) } : {};
   };
 
+  /** Keeps the function alive for event sink sends the handler started. */
+  const flushAfter = (): void => {
+    const { events } = betterSupabase;
+    if (!events.pending) return;
+    try {
+      after(() => events.settled());
+    } catch (cause) {
+      // after() only works inside a request scope; the sends still run.
+      events.logger.warn("after() is unavailable; event sends may be cut off", {
+        cause,
+      });
+    }
+  };
+
   const incomingRequest = async (): Promise<Request> =>
     new Request("http://next.local/", {
       headers: new Headers(await headers()),
@@ -469,7 +484,7 @@ export function createNext<
     const matches =
       ctx.auth.kind === "user"
         ? view.kind === "user" && view.user.id === ctx.auth.user.id
-        : view.kind !== "user";
+        : view.kind === ctx.auth.kind;
     if (matches) return ctx;
     return base.contextFor({
       kind: "invalid",
@@ -603,17 +618,27 @@ export function createNext<
         const instance = request.nextUrl.pathname;
         if (denied) return problemResponse(denied, { instance, expose });
         const params = await segment.params;
-        const response = await respond(
-          () => handler(request, withExtra(ctx, { params })),
-          { instance, expose },
-        );
-        if (ctx.replica?.wrote) {
-          try {
-            response.headers.append("set-cookie", primaryCookie(pinMs));
-          } catch {
-            // A handler returned a Response with immutable headers.
-          }
+        let response: Response;
+        try {
+          response = await respond(
+            () => handler(request, withExtra(ctx, { params })),
+            { instance, expose },
+          );
+        } catch (cause) {
+          // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
+          rethrowNextControlFlow(cause);
+          response = problemResponse(
+            dbError(
+              "unexpected",
+              expose && cause instanceof Error
+                ? cause.message
+                : "Internal server error",
+            ),
+            { instance, expose },
+          );
         }
+        response = withPrimaryPin(response, ctx.replica, pinMs);
+        flushAfter();
         if (collector) {
           try {
             response.headers.set(statsHeader, formatStats(ctx.stats()));
@@ -671,13 +696,13 @@ export function createNext<
         // SAFETY: parsed is the validated input, or the raw input when the
         // action has no schema.
         const settled = await settle(() => fn(parsed as never, ctx));
+        flushAfter();
         if (ctx.replica?.wrote) {
-          (await cookies()).set(PRIMARY_COOKIE, String(Date.now() + pinMs), {
-            path: "/",
-            maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
-            httpOnly: true,
-            sameSite: "lax",
-          });
+          (await cookies()).set(
+            PRIMARY_COOKIE,
+            String(Date.now() + pinMs),
+            primaryCookieOptions(pinMs),
+          );
         }
         // SAFETY: Out is the Result of the action's return type, which both branches build.
         return (
@@ -713,4 +738,35 @@ export function createNext<
       cacheTag(...tags);
     },
   });
+}
+
+const NEXT_DIGESTS: ReadonlySet<string> = new Set([
+  "NEXT_REDIRECT",
+  "NEXT_HTTP_ERROR_FALLBACK",
+  "DYNAMIC_SERVER_USAGE",
+  "BAILOUT_TO_CLIENT_SIDE_RENDERING",
+  "HANGING_PROMISE_REJECTION",
+  "NEXT_PRERENDER_INTERRUPTED",
+]);
+const REACT_POSTPONE = Symbol.for("react.postpone");
+
+/**
+ * `unstable_rethrow` without `next/navigation`: that entry loads the client
+ * router context, which Turbopack can't resolve inside route handlers. The
+ * digests are the ones Next 16 checks.
+ */
+function rethrowNextControlFlow(error: unknown): void {
+  if (typeof error !== "object" || error === null) return;
+  const digest = "digest" in error ? error.digest : undefined;
+  if (
+    (typeof digest === "string" &&
+      NEXT_DIGESTS.has(digest.split(";", 1)[0] ?? "")) ||
+    ("$$typeof" in error && error.$$typeof === REACT_POSTPONE) ||
+    (error instanceof Error &&
+      error.message.includes("needs to bail out of prerendering"))
+  ) {
+    // oxlint-disable-next-line typescript/only-throw-error -- React's postpone signal is not an Error, and Next needs the original value.
+    throw error;
+  }
+  if ("cause" in error) rethrowNextControlFlow(error.cause);
 }

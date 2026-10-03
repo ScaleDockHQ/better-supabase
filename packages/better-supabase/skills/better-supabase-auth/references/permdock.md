@@ -34,8 +34,15 @@ the other.
   `better-supabase.config.ts` must also be PermDock's `rls.tenantClaim` and
   go to `subjectFromSupabase` or `subjectFromSupabaseSession` as `{ tenant }`.
 - Validate claims with PermDock's schema: `betterSupabase.claims(supabaseClaims().extend(appClaims))`.
-- The helpers live in PermDock's `rls.schema`, which must equal the `schema`
-  option of buckets and topics in `permdock` mode.
+- The helpers live in PermDock's `rls.schema` (`permdock` by default). Buckets
+  and topics in `permdock` mode call them in `permdock` unless their `schema`
+  option names another schema; it must equal `rls.schema`.
+- Use the scope names the manifest declares (`organization`, not PermDock's
+  `tenant` alias): the helpers are named after them, and doctor reports a
+  key checked at another scope than its catalog entry.
+- The entitlements module needs PermDock's hook to fill `claims.features`
+  from `better_supabase.feature_claims`
+  (`supabase.hook.claims: { features: 'better_supabase.feature_claims' }`).
 - The `permdock` policy mode checks role and scope only. Use it only for
   permissions whose `rowConditions` is `false` in `permissions.catalog.json`.
   A missing flag or a key the catalog doesn't list is unknown and refused;
@@ -51,6 +58,14 @@ the other.
   `authorize` returns `{ allowed: false }`. Use `decide` instead of `can` to
   put the denial reason in the refusal. `can` decides without a row, so check
   row-conditioned permissions inside `run` or rely on RLS.
+- In oRPC and Hono, pass the adapter's auth state to PermDock:
+  `createPermDock(policy, { subject: ({ context }) => subjectFromSupabaseSession(context.auth) })`
+  from `permdock/orpc`, or `(c) => subjectFromSupabaseSession(c.get("auth"))`
+  from `permdock/hono`. Fail closed: export one builder that takes a
+  permission (`(permission) => authed.use(pd.protect(permission))`, or the
+  route helper `[bs.middleware(), pd.protect(permission)]` in Hono), and don't
+  install `bs.middleware()` app-wide, so a route without a permission has no
+  `db`.
 - In Next.js, cache the permission snapshot in a `'use cache: private'`
   loader. The user id and the snapshot only exist after `bs.cached()`
   returns, so pass it the static tags only, then tag and time the entry from

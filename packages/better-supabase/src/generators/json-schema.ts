@@ -62,6 +62,11 @@ function scalar(kind: ScalarKind): JsonSchema {
 }
 
 function property(plan: FieldPlan): JsonSchema {
+  const schema = nullable(plan);
+  return plan.managed ? { ...schema, readOnly: true } : schema;
+}
+
+function nullable(plan: FieldPlan): JsonSchema {
   let schema = scalar(plan.scalar);
   if (plan.column.array) schema = { type: "array", items: schema };
   if (!plan.nullable) return schema;

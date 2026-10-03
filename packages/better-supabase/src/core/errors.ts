@@ -18,6 +18,8 @@ export interface DbErrorKinds {
   not_null: { column?: string };
   exclusion: { constraint?: string };
   invalid_input: Record<never, never>;
+  /** A stored value the app type can't hold, e.g. `infinity` for a Temporal timestamp. */
+  invalid_value: { column?: string };
   raised: Record<never, never>;
   timeout: Record<never, never>;
   serialization: Record<never, never>;
@@ -73,6 +75,7 @@ const STATUS: { readonly [K in DbErrorKind]: number } = {
   not_null: 422,
   exclusion: 409,
   invalid_input: 400,
+  invalid_value: 500,
   raised: 400,
   timeout: 504,
   serialization: 409,

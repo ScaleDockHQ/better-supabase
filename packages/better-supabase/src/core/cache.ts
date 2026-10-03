@@ -46,10 +46,11 @@ export function cacheTargetOf(
   notice: MutationNotice,
 ): CacheTarget {
   const table = meta.tables[notice.table];
+  const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
   const ids = table
-    ? [...new Set(notice.rows.flatMap((row) => rowKey(table, row) ?? []))]
+    ? [...new Set(rows.flatMap((row) => rowKey(table, row) ?? []))]
     : [];
-  const tenant = notice.context.tenant;
+  const tenant = notice.tenant ?? notice.context.tenant;
   return {
     table: notice.table,
     tables:

@@ -1,17 +1,21 @@
-import type { Query, QueryClient } from "@tanstack/query-core";
+import type { Query, QueryClient, QueryMeta } from "@tanstack/query-core";
 
-/** Carried by every better-supabase query: the tables whose changes make it stale. */
-export interface BetterQueryMeta {
+/**
+ * Carried by every better-supabase query: the tables whose changes make it
+ * stale, on top of the app's `Register['queryMeta']`, so the options stay
+ * assignable to `useQuery` when the app narrows its query meta.
+ */
+export type BetterQueryMeta = QueryMeta & {
   readonly bsTables: readonly string[];
-  readonly [key: string]: unknown;
-}
+};
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
 function queryTables(query: Query): readonly string[] | undefined {
-  const tables = query.meta?.["bsTables"];
+  const meta: Readonly<Record<string, unknown>> | undefined = query.meta;
+  const tables = meta?.["bsTables"];
   if (Array.isArray(tables)) {
     const list: readonly unknown[] = tables;
     return list.every(isString) ? list : list.filter(isString);

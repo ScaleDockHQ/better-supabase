@@ -26,6 +26,7 @@ ctx.auth; // the resolved AuthState
 ctx.db; // repositories over PostgREST as the caller (RLS applies)
 ctx.sql; // the same repositories over direct Postgres as the caller
 ctx.supabase; // a stateless supabase-js client for storage, functions, …
+ctx.apply(response); // refreshed session cookies, and bs-primary-until after a write
 ```
 
 Each client is built on first access. For a signed-in user, `ctx.db` runs on
@@ -36,8 +37,9 @@ queries data never builds the Realtime, Storage and Auth clients. Reading
 By default `context()` never refreshes; run the proxy for that. For routes
 that browsers call with cookies outside a proxy, `context(request, { refresh: true })`
 refreshes an expiring session; send the new cookies with
-`ctx.resolution.apply(response)`. The Hono and edge adapters do this for
-you with `refresh: true`. The supabase-js client is built from the verified
+`ctx.apply(response)`, which also sets `bs-primary-until` after a write when
+read replicas are configured. The Hono, edge and oRPC (`bs.fetchHandler`)
+adapters do this for you. The supabase-js client is built from the verified
 token, so it makes no auth calls and keeps no state between requests.
 
 To build several contexts from one request without verifying the token
@@ -99,3 +101,12 @@ export const bs = createServer(betterSupabase, { auth: { secret: ["cron"] } });
 
 `secret: true` accepts any configured key. The admin client is created on the
 first `admin()` call, so servers that never use it don't need a secret key.
+
+For a service caller `ctx.db` runs with the secret key, so RLS doesn't apply,
+and `ctx.sql` is `undefined`: there is no user to run as. Use `bs.admin()`
+for privileged repository work, or `bs.actingAs(userId)` to run over Postgres
+as a particular user.
+
+Pass `fetch` (for example `tracedFetch()` from `better-supabase/otel`) to send
+every PostgREST and supabase-js request through it. Auth refreshes use
+`auth.fetch`.

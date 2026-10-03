@@ -29,6 +29,18 @@ await db.customers.delete(id, { hard: true }); // really deletes
 `withDeleted` and `onlyDeleted` change the queried table only; nested
 includes stay filtered.
 
+## Writes
+
+Set the column through `delete` and `restore` only: a create or update that
+passes `archivedAt` fails with `invalid_request` unless it passes
+`{ override: true }`. An upsert that updates an existing row clears the
+column, so upserting a deleted row brings it back.
+
+A soft delete returns no rows, so mutation events and cache invalidation get
+the primary key from the `where` instead: listeners see `intent: "softDelete"`
+and `keys`, and [CloudEvents](/docs/extending/events) are typed
+`dev.better-supabase.row.softdeleted`.
+
 ## Indexes
 
 Every read adds `archived_at is null`, so index the live rows only. A partial

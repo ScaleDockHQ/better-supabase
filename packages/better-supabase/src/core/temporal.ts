@@ -24,24 +24,35 @@ export function nowInstant(): Temporal.Instant {
   return namespace.Now.instant();
 }
 
+const ISO_TAGS: ReadonlySet<unknown> = new Set([
+  "Temporal.Instant",
+  "Temporal.PlainDateTime",
+  "Temporal.PlainDate",
+  "Temporal.PlainTime",
+]);
+
 /**
  * The text Postgres reads back for a Temporal value: ISO 8601, with a
  * `ZonedDateTime` sent as its instant because Postgres rejects the
  * `[Region/City]` annotation. `undefined` for anything else.
+ *
+ * Values are recognized by `Symbol.toStringTag`, not `instanceof`, so values
+ * from another realm or a second copy of the polyfill still encode.
  */
 export function temporalText(value: unknown): string | undefined {
-  const namespace = optionalTemporal();
-  if (namespace === undefined) return undefined;
-  if (value instanceof namespace.ZonedDateTime) {
-    return value.toInstant().toString();
-  }
-  if (
-    value instanceof namespace.Instant ||
-    value instanceof namespace.PlainDateTime ||
-    value instanceof namespace.PlainDate ||
-    value instanceof namespace.PlainTime
-  ) {
-    return value.toString();
-  }
-  return undefined;
+  if (typeof value !== "object" || value === null) return undefined;
+  if (!(Symbol.toStringTag in value)) return undefined;
+  const tag = value[Symbol.toStringTag];
+  if (ISO_TAGS.has(tag)) return String(value);
+  return tag === "Temporal.ZonedDateTime" && isZoned(value)
+    ? String(value.toInstant())
+    : undefined;
+}
+
+interface ZonedLike {
+  toInstant(): unknown;
+}
+
+function isZoned(value: object): value is ZonedLike {
+  return "toInstant" in value && typeof value.toInstant === "function";
 }

@@ -108,6 +108,27 @@ describe.skipIf(!live)("PostgREST integration", () => {
       })
       .orThrow();
     expect(same.map((row) => row.id)).toEqual([first?.id]);
+
+    const endless = await admin.customers
+      .create(
+        {
+          organizationId: ACME,
+          name: "Endless Co",
+          kvk: "it-infinity",
+          createdAt: "infinity",
+        },
+        { select: ["id"] },
+      )
+      .orThrow();
+    const infinite = await instants.customers.findMany({
+      select: ["id", "createdAt"],
+      where: { id: endless.id },
+    });
+    await admin.customers.delete(endless.id).orThrow();
+    expect(infinite.error).toMatchObject({
+      kind: "invalid_value",
+      column: "createdAt",
+    });
   });
 
   it("filters with some, none and every against real data", async () => {

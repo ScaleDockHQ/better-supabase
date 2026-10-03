@@ -80,6 +80,32 @@ await jobs.work(
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
 
+### Actor and tenant
+
+Pass the request context to `enqueue` and the job records its actor and
+tenant next to the payload. The tenant is `context.tenant`, the one
+`tenant()` resolved for the connection, or the `tenant_id` claim (then
+`app_metadata.tenant_id`). The handler gets them back as `job.context`, so a
+database bound to it stamps `createdBy` and scopes to the tenant the way the
+original request would have:
+
+```ts
+await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
+
+await jobs.work("send_invoice", async (payload, job) => {
+  const scoped = admin.$with(job.context);
+  const invoice = await scoped.invoices.findById(payload.invoiceId).orThrow();
+  // ...
+});
+```
+
+A job enqueued without a tenant runs with a context that has none, so
+`tenant()` applies its `onMissing` (a `forbidden` error by default). Workers
+that handle cross-tenant jobs on purpose pass `allTenants: true` to `work` or
+`drain`; jobs that recorded no tenant then run without the tenant scope, and
+jobs that did keep theirs. `schedule` takes the same `{ context }` as its last
+argument.
+
 ### Schedules
 
 `schedule` enqueues a payload on a [pg_cron](https://supabase.com/docs/guides/cron)

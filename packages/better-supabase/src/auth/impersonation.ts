@@ -1,3 +1,5 @@
+import type { Actor, RequestContext } from "../core/plugin.ts";
+
 /** The admin acting as the user, from the RFC 8693 `act` claim. */
 export interface Impersonator {
   readonly id: string;
@@ -28,4 +30,28 @@ export function impersonatorOf(
   const { sub, reason } = act as Record<string, unknown>;
   if (typeof sub !== "string" || sub === "") return undefined;
   return typeof reason === "string" ? { id: sub, reason } : { id: sub };
+}
+
+/**
+ * The repository context of a signed-in user: the actor, with the
+ * impersonator from `act`, and the claims. Every adapter builds it here, so
+ * plugins see the same actor on the server, in middleware and in the browser.
+ */
+export function userContext(
+  user: {
+    readonly id: string;
+    readonly role?: string | undefined;
+    readonly email?: string | undefined;
+  },
+  claims: Readonly<Record<string, unknown>>,
+): RequestContext {
+  const impersonator = impersonatorOf(claims);
+  const actor: Actor = {
+    id: user.id,
+    kind: "user",
+    ...(user.role ? { role: user.role } : {}),
+    ...(user.email ? { email: user.email } : {}),
+    ...(impersonator ? { impersonator: impersonator.id } : {}),
+  };
+  return { actor, claims };
 }

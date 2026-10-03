@@ -4,8 +4,9 @@ description: Runtime checks that catch unbounded reads, missing tenants, sensiti
 ---
 
 `rules()` checks every query before it's sent and reports what looks wrong.
-It runs first (`enforce: 'pre'`), so it sees the query you wrote, before the
-tenant or soft-delete plugins add their filters.
+It runs before every other plugin, `pre` ones included and whatever the `use()`
+order, so it sees the query you wrote, before the tenant or soft-delete
+plugins add their filters.
 
 ```ts
 import { recommended, rules } from "better-supabase/plugins/rules";
@@ -52,8 +53,14 @@ rules({
 | `noDeleteManyWithoutWhere` | A delete without `where`                                                                                                                                                                                      |                                                |
 | `storagePathColumns`       | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/kits/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead |                                                |
 
-`noSensitiveSelect` looks at the columns actually selected, includes too. A
-`select` that leaves the column out passes; to read it on purpose:
+`noUnboundedFindMany` skips `aggregate()`, and `maxLimit` doesn't count the
+extra row `paginate()` reads to know whether there is a next page.
+`requireTenantContext` reads the same claim paths as the `tenant()` plugin,
+so a tenant in `app_metadata` counts.
+
+`noSensitiveSelect` looks at the columns actually selected by reads,
+includes too. A `select` that leaves the column out passes; to read it on
+purpose:
 
 ```ts
 await db.contacts.findMany({
@@ -62,6 +69,10 @@ await db.contacts.findMany({
   sensitive: true,
 });
 ```
+
+Writes don't trip the rule: without a `select`, `create`, `update` and
+`upsert` return every column except the sensitive ones. Name the column in
+`select`, or pass `sensitive: true`, to get it back.
 
 The repository already refuses `deleteMany` without `where` on its own, so
 `noDeleteManyWithoutWhere` only catches deletes built by other plugins. The

@@ -13,7 +13,18 @@ defineSupabase(schema).use(timestamps());
 - Updates (including soft deletes) get `updatedAt`.
 - Upserts that may update an existing row only get `updatedAt`, so the
   original `createdAt` survives. With `ignoreDuplicates: true` both are set.
-- Values you pass yourself are kept.
+- Values you pass yourself are refused with `invalid_request`, so a client
+  cannot backdate a row. Imports and backfills pass `{ override: true }` to
+  keep them:
+
+```ts
+await db.customers.create(
+  { ...row, createdAt: imported.createdAt },
+  { override: true },
+);
+```
+
+Generated JSON Schema and OpenAPI documents mark these columns `readOnly`.
 
 The time comes from `defineSupabase(schema, { now })`, a function that returns
 a `Temporal.Instant`, which makes tests deterministic. See

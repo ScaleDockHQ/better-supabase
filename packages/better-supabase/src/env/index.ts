@@ -10,6 +10,8 @@ export interface BetterSupabaseEnv {
   readonly secretKeys?: Readonly<Record<string, string>>;
   /** `SUPABASE_JWKS_URL`, or `<url>/auth/v1/.well-known/jwks.json`. */
   readonly jwksUrl: URL;
+  /** `SUPABASE_JWKS`: inline keys, used instead of fetching `jwksUrl`. */
+  readonly jwks?: InlineJwks;
   /** Direct Postgres connection string (`SUPABASE_DB_URL` / `DATABASE_URL`). */
   readonly dbUrl?: string;
   /** Project ref for hosted projects (`<ref>.supabase.co`). */
@@ -17,6 +19,9 @@ export interface BetterSupabaseEnv {
   /** `SUPABASE_READ_URL`: a read replica or the `<ref>-all` load balancer, for reads. */
   readonly readUrl?: string;
 }
+
+/** A JSON Web Key Set, as `@supabase/server` verifies with it. */
+export type InlineJwks = Exclude<SupabaseEnv["jwks"], URL | null>;
 
 export interface PublicEnv {
   readonly url: string;
@@ -63,6 +68,7 @@ export const ENV_VARIABLES: {
   readonly secretKey: readonly string[];
   readonly dbUrl: readonly string[];
   readonly jwksUrl: readonly string[];
+  readonly jwks: readonly string[];
   readonly readUrl: readonly string[];
 } = {
   url: PREFIXES.map((prefix) => `${prefix}SUPABASE_URL`),
@@ -73,6 +79,7 @@ export const ENV_VARIABLES: {
   secretKey: ["SUPABASE_SECRET_KEY"],
   dbUrl: ["SUPABASE_DB_URL", "DATABASE_URL"],
   jwksUrl: ["SUPABASE_JWKS_URL"],
+  jwks: ["SUPABASE_JWKS"],
   readUrl: ["SUPABASE_READ_URL"],
 };
 
@@ -144,6 +151,48 @@ function preferred(
 ): string | undefined {
   if (!keys) return undefined;
   return keys["default"] ?? Object.values(keys)[0];
+}
+
+function isJwk(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "kty" in value &&
+    typeof value.kty === "string"
+  );
+}
+
+/** At least one key, each an object with a string `kty`, the shape the verifier reads. */
+function isJwkList(value: unknown): value is InlineJwks["keys"] {
+  return Array.isArray(value) && value.length > 0 && value.every(isJwk);
+}
+
+/** `SUPABASE_JWKS` as `@supabase/server` reads it: `{"keys":[...]}` or `[...]`. */
+function checkJwks(raw: string, issues: EnvIssue[]): InlineJwks | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    issues.push({
+      variables: ENV_VARIABLES.jwks,
+      message: 'must be JSON: {"keys":[...]} or [...]',
+    });
+    return undefined;
+  }
+  const keys: unknown =
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? "keys" in parsed
+        ? parsed.keys
+        : undefined
+      : parsed;
+  if (!isJwkList(keys)) {
+    issues.push({
+      variables: ENV_VARIABLES.jwks,
+      message: "must hold at least one JSON Web Key with a kty",
+    });
+    return undefined;
+  }
+  return { keys };
 }
 
 function checkUrl(
@@ -258,6 +307,9 @@ export function parseEnv(
     ? checkUrl(rawJwks, ENV_VARIABLES.jwksUrl, issues)
     : undefined;
 
+  const rawInline = first(source, ENV_VARIABLES.jwks);
+  const jwks = rawInline ? checkJwks(rawInline, issues) : undefined;
+
   const rawRead = first(source, ENV_VARIABLES.readUrl);
   const readUrl = rawRead
     ? checkUrl(rawRead, ENV_VARIABLES.readUrl, issues)
@@ -274,6 +326,7 @@ export function parseEnv(
       url: base,
       publishableKey,
       jwksUrl: jwksOverride ?? new URL(`${base}/auth/v1/.well-known/jwks.json`),
+      ...(jwks ? { jwks } : {}),
       ...(secretKey
         ? {
             secretKey,
@@ -342,6 +395,6 @@ export function toServerEnv(env: BetterSupabaseEnv): SupabaseEnv {
     publishableKeys: { default: env.publishableKey },
     secretKeys:
       env.secretKeys ?? (env.secretKey ? { default: env.secretKey } : {}),
-    jwks: env.jwksUrl,
+    jwks: env.jwks ?? env.jwksUrl,
   };
 }

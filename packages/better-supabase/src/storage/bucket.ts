@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { RequestContext } from "../core/plugin.ts";
 import type {
   BucketPolicyName,
   PermdockBucketPolicy,
@@ -14,7 +15,13 @@ import {
   isDbError,
 } from "../core/errors.ts";
 import { type PermdockCatalog, permdockCheck } from "../core/permdock-sql.ts";
-import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
+import {
+  AsyncResult,
+  err,
+  ok,
+  type Result,
+  toDbError,
+} from "../core/result.ts";
 import {
   parseTemplate,
   slug,
@@ -26,6 +33,7 @@ import {
 } from "../core/template.ts";
 import { temporalMissing } from "../core/temporal-required.ts";
 import { optionalTemporal } from "../core/temporal.ts";
+import { type TenantGuard, tenantGuard } from "./tenant-scope.ts";
 
 export type BucketPolicy = BucketPolicyName | PermdockBucketPolicy;
 
@@ -72,6 +80,11 @@ export interface BucketConfig<
   readonly fileSizeLimit?: string | number;
   /** `['image/png', 'image/*']`. */
   readonly allowedMimeTypes?: readonly string[];
+  /**
+   * The tenant segment. Set it and connected clients only touch paths whose
+   * `param` holds the caller's tenant: pass `{ context }` or `{ tenant }` to
+   * `connect()`, or `{ allTenants: true }` for cross-tenant admin work.
+   */
   readonly tenant?: {
     /** Placeholder holding the tenant id. Defaults to `orgId`. */
     readonly param?: string;
@@ -209,6 +222,8 @@ export type StorageClient = Pick<SupabaseClient, "storage">;
 
 export interface BucketClient<P extends string, Id extends string = string> {
   readonly bucket: Bucket<P, Id>;
+  /** The object path, checked against the template and, with `tenant`, the caller's tenant. */
+  path(target: ObjectTarget<P, Id>): Result<StoragePath<Id>>;
   upload(
     target: ObjectTarget<P, Id>,
     body: UploadBody,
@@ -277,6 +292,8 @@ export interface Bucket<P extends string, Id extends string = string> {
    * removes the objects it fills.
    */
   readonly owner: string | undefined;
+  /** Placeholder connected clients check against the caller's tenant; set by `tenant`. */
+  readonly tenant: string | undefined;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
   path(values: TemplateValues<P>): StoragePath<Id>;
@@ -304,6 +321,17 @@ export interface BucketConnectOptions {
    * never cross users.
    */
   readonly cacheSignedUrls?: boolean;
+  /**
+   * The request context (`db.$context`, or what an adapter passes to
+   * `connect`). For a bucket with `tenant`, its tenant (`context.tenant`, the
+   * one `tenant()` resolved, or the `tenant.claim` claims) must fill the
+   * tenant segment of every path.
+   */
+  readonly context?: RequestContext;
+  /** The tenant every path must hold, instead of reading it from `context`. */
+  readonly tenant?: string;
+  /** Skip the tenant check, for admin jobs that work across tenants. */
+  readonly allTenants?: boolean;
 }
 
 const SIZE_UNITS: Readonly<Record<string, number>> = {
@@ -466,6 +494,15 @@ export function defineBucket<
     }
     return index;
   }
+  const tenantParam = config.tenant
+    ? (config.tenant.param ?? "orgId")
+    : undefined;
+  if (tenantParam !== undefined && !template.params.includes(tenantParam)) {
+    throw new TypeError(
+      `defineBucket: tenant.param {${tenantParam}} is not in "${config.path}"`,
+    );
+  }
+  const tenantClaim = config.tenant?.claim;
   const mode = typeof policy === "string" ? policy : "permdock";
   const accessCheck = ((): string | undefined => {
     switch (mode) {
@@ -565,6 +602,7 @@ export function defineBucket<
         : template.params.includes("userId")
           ? "userId"
           : undefined,
+    tenant: tenantParam,
     public: config.public ?? false,
     policy,
     fileSizeLimit,
@@ -742,8 +780,20 @@ export function defineBucket<
       }
       return issues;
     },
-    connect: (client, options) =>
-      connectBucket(bucket, client, resolve, options),
+    connect: (client, options = {}) =>
+      connectBucket(
+        bucket,
+        client,
+        resolve,
+        options,
+        tenantGuard(
+          bucket.id,
+          tenantParam,
+          tenantClaim,
+          (path) => bucket.match(path),
+          options,
+        ),
+      ),
   };
   return bucket;
 }
@@ -780,9 +830,18 @@ function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
 function connectBucket<P extends string, Id extends string>(
   bucket: Bucket<P, Id>,
   client: StorageClient,
-  resolve: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
-  connectOptions: BucketConnectOptions = {},
+  resolveTarget: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
+  connectOptions: BucketConnectOptions,
+  guard: TenantGuard | undefined,
 ): BucketClient<P, Id> {
+  const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
+    const path = resolveTarget(target);
+    return guard ? guard.path(path) : path;
+  };
+  const scopedWithin = (
+    within: Partial<TemplateValues<P>> | undefined,
+  ): Partial<TemplateValues<P>> =>
+    guard ? { ...within, [guard.param]: guard.within(within) } : (within ?? {});
   const api = () => client.storage.from(bucket.id);
   const signed = connectOptions.cacheSignedUrls
     ? new Map<string, { readonly url: string; readonly until: number }>()
@@ -874,7 +933,7 @@ function connectBucket<P extends string, Id extends string>(
   const list: BucketClient<P, Id>["list"] = (within, options) =>
     AsyncResult.from(async () => {
       const out: StoredObject[] = [];
-      await walk(bucket.prefix(within ?? {}), options?.signal, out);
+      await walk(bucket.prefix(scopedWithin(within)), options?.signal, out);
       return ok(out);
     }).mapError((error) => ({ ...error, table: bucket.id }));
 
@@ -907,6 +966,13 @@ function connectBucket<P extends string, Id extends string>(
 
   return {
     bucket,
+    path: (target) => {
+      try {
+        return ok(resolve(target));
+      } catch (cause) {
+        return err(toDbError(cause));
+      }
+    },
     upload,
     download: (target, options) =>
       AsyncResult.from(async () => {

@@ -9,7 +9,14 @@ import {
 import { AsyncResult, ok, type Result } from "../../core/result.ts";
 import { scopeOperation } from "../../ir/scope.ts";
 import { and, type MutationOp, type Operation } from "../../ir/types.ts";
-import { dbName, isNotNull, isNull } from "../shared.ts";
+import {
+  dbName,
+  guardManaged,
+  insertsOnly,
+  isNotNull,
+  isNull,
+  withDefault,
+} from "../shared.ts";
 
 export interface SoftDeleteFindArgs {
   /** Include soft-deleted rows of the queried table. */
@@ -84,9 +91,18 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
       return { ...scoped, where: and(scoped.where, isNotNull(column)) };
     },
     beforeMutation(op, { table, options, now }): MutationOp {
-      if (op.kind !== "delete" || options["hard"] === true) return op;
       const column = deletedColumn(table);
       if (!column) return op;
+      guardManaged(op, [column], "softDelete", options);
+      if (op.kind === "insert") {
+        // An upsert that updates a soft-deleted row brings it back.
+        if (insertsOnly(op)) return op;
+        return {
+          ...op,
+          rows: op.rows.map((row) => withDefault(row, column, null)),
+        };
+      }
+      if (op.kind !== "delete" || options["hard"] === true) return op;
       return {
         kind: "update",
         table,
@@ -112,6 +128,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
                 ...args,
                 withDeleted: true,
                 returning: false,
+                override: true,
               },
             );
             return result.ok ? ok(undefined) : result;

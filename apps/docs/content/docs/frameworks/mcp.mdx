@@ -69,19 +69,27 @@ authorization server. Clients that support MCP authorization then sign the
 user in through Supabase's OAuth server and retry. Override `resource` and
 `authorizationServers` when the server sits behind a proxy.
 
-A signed-in caller that `allow` or `aal` turns away gets a 403 with the same
-metadata URL, so the client can ask for more access:
+A signed-in caller that `allow` or `requiredScopes` turns away gets a 403 with
+the same metadata URL, so the client can ask for more access:
 
 ```http
 HTTP/1.1 403 Forbidden
 WWW-Authenticate: Bearer error="insufficient_scope", error_description="...", scope="openid crm.read", resource_metadata="https://<host>/.well-known/oauth-protected-resource/mcp"
 ```
 
-`scopes` lists the scopes your tools need. They appear as `scopes_supported`
-in the metadata and as `scope` in both challenges. `offline_access` is always
-left out: whether a client gets a refresh token is between the client and
-the authorization server. Here `scopes` advertises what the server uses; it
-does not refuse calls by itself. Refuse a call in `authorize`.
+`advertisedScopes` lists the scopes your tools need. They appear as
+`scopes_supported` in the metadata and as `scope` in both challenges.
+`offline_access` is always left out: whether a client gets a refresh token is
+between the client and the authorization server. `advertisedScopes` does not
+refuse calls by itself. `requiredScopes` refuses a delegated token (an OAuth
+client or an `act` chain) that lacks one of them, and `authorize` refuses a
+single call. The older `scopes` option still works as an alias of
+`advertisedScopes`.
+
+A session below `aal` gets a plain 403 without a scope challenge, since more
+scopes would not help. When the server can't verify the token (the JWKS is
+unreachable), the answer is a 503 Problem Details response rather than a
+challenge.
 
 ## Bearer callers
 
@@ -97,7 +105,7 @@ import { toSession } from "better-supabase/server";
 const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
-  scopes: ["openid", "crm.read", "crm.write"],
+  advertisedScopes: ["openid", "crm.read", "crm.write"],
   resources: { customers: true },
   authorize: (ctx, tool) => {
     const session = toSession(ctx.auth);
@@ -157,7 +165,7 @@ may use a tool at all, pass `authorize` and `visible`:
 const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
-  scopes: ["openid", "crm.read"],
+  advertisedScopes: ["openid", "crm.read"],
   resources: { customers: true },
   authorize: (ctx, tool, args) =>
     tool.meta === "admin" && !isAdmin(ctx.auth)
@@ -174,8 +182,11 @@ const bs = createMcp(betterSupabase, {
 ```
 
 `meta` is opaque data on a tool, for example a permission, that both hooks
-receive as `tool.meta`. It is never sent to clients. Table tools have no
-`meta`; use `tool.info.name` for them.
+receive as `tool.meta`. It is never sent to clients. Table tools take theirs
+from the resource's `meta`, keyed by operation:
+`resources: { customers: { meta: { delete: "admin" } } }` gives
+`customers_delete` the `meta` `"admin"`, and an operation without an entry
+gets `undefined`.
 
 - `authorize(ctx, tool, args)` runs on every `tools/call`, after the
   arguments are validated and before `run`. It returns `{ allowed: true }` or

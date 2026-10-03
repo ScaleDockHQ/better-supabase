@@ -36,9 +36,10 @@ one `permitted_<scope>_ids(p_grant)` and one membership-only
 permdock rls generate --target sql --dialect supabase --out supabase/migrations/20260929_permdock_rls.sql
 ```
 
-The helpers live in PermDock's `rls.schema` (`public` by default). Buckets and
-topics in `permdock` mode call them, so their `schema` option must name the
-same schema.
+The helpers live in PermDock's `rls.schema` (`permdock` by default, a schema
+the Data API does not expose). Buckets and topics in `permdock` mode call them
+in `permdock` unless their `schema` option names another schema, and doctor
+(BS214) reports a `schema` that differs from the manifest's.
 
 </Step>
 
@@ -239,6 +240,82 @@ export const listCustomers = pipeline(
 );
 ```
 
+### oRPC
+
+PermDock's oRPC adapter reads the subject from the procedure's context, and
+`bs.middleware()` has put the verified `AuthState` there as `context.auth`.
+`subjectFromSupabaseSession` maps it, and anything but a user becomes an
+anonymous subject that no grant matches.
+
+Export one builder that takes a permission and keep `bs.middleware()` inside
+it. A procedure built any other way has no `context.db`, so it can't reach the
+database, and one built with `procedure()` can't compile without a
+permission:
+
+```ts title="src/router.ts"
+import { os } from "@orpc/server";
+import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
+import type { AuthState } from "better-supabase/server";
+import type { Permission } from "permdock";
+import { createPermDock } from "permdock/orpc";
+import { subjectFromSupabaseSession } from "permdock/supabase";
+
+export const bs = createOrpc(betterSupabase);
+
+const authed = os.$context<OrpcRequestContext>().use(bs.middleware());
+const pd = createPermDock<OrpcRequestContext & { readonly auth: AuthState }>(
+  policy,
+  { subject: ({ context }) => subjectFromSupabaseSession(context.auth) },
+);
+
+/** The only way to build a procedure: refused unless the caller holds `permission`. */
+const procedure = (permission: Permission) =>
+  authed.use(pd.protect(permission));
+
+export const router = {
+  customers: {
+    list: procedure(permissions.customers.read).handler(({ context }) =>
+      bs.unwrap(context.db.customers.findMany({ select: ["id", "name"] })),
+    ),
+  },
+};
+```
+
+`protect` answers `FORBIDDEN` with PermDock's Problem Details as the error's
+`data`, the same shape `bs.unwrap` gives a `DbError`.
+
+### Hono
+
+The Hono adapter works the same way, with `c.var.auth` as the session. Bundle
+both middlewares into one helper and use it on every route, rather than
+`app.use(bs.middleware())`, so a route that skips it has no `c.var.db`
+and `bs.handler` answers 500 instead of running:
+
+```ts title="src/server.ts"
+import { createHono } from "better-supabase/hono";
+import type { Permission } from "permdock";
+import { createPermDock } from "permdock/hono";
+import { subjectFromSupabaseSession } from "permdock/supabase";
+
+const bs = createHono(betterSupabase);
+const pd = createPermDock(policy, {
+  subject: (c) => subjectFromSupabaseSession(c.get("auth")),
+});
+
+const guarded = (permission: Permission) =>
+  [bs.middleware(), pd.protect(permission)] as const;
+
+export const app = bs.app().get(
+  "/customers",
+  ...guarded(permissions.customers.read),
+  bs.handler((_c, { db }) => db.customers.findMany({ select: ["id"] })),
+);
+```
+
+Both recipes are written against PermDock's adapter types; `permdock` on npm
+is still a name placeholder, so they aren't compiled in this repository's
+type tests yet.
+
 ## MCP tools
 
 `permdock/mcp` wraps the official MCP SDK's server, so it can't wrap
@@ -255,14 +332,34 @@ import { createMcp } from "better-supabase/mcp";
 import { createPermDock, isPermission, mayUse } from "permdock";
 import { subjectFromSupabaseSession } from "permdock/supabase";
 
-async function dockFor(ctx: { auth: { kind: string; claims?: unknown } }) {
-  return createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
+type Auth = { kind: string; claims?: unknown };
+type Dock = Awaited<ReturnType<typeof createPermDock>>;
+
+// One PermDock instance per request: `visible` runs once per tool.
+const docks = new WeakMap<Auth, Promise<Dock>>();
+function dockFor(ctx: { auth: Auth }): Promise<Dock> {
+  let dock = docks.get(ctx.auth);
+  if (!dock) {
+    dock = createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
+    docks.set(ctx.auth, dock);
+  }
+  return dock;
 }
 
 const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   scopes: ["openid"],
+  // Table tools carry a permission per operation; one without stays hidden.
+  resources: {
+    customers: {
+      operations: ["list", "get"],
+      meta: {
+        list: permissions.customers.read,
+        get: permissions.customers.read,
+      },
+    },
+  },
   authorize: async (ctx, tool) => {
     if (!isPermission(tool.meta))
       return { allowed: false, reason: "No PermDock permission in meta" };
@@ -279,6 +376,10 @@ const bs = createMcp(betterSupabase, {
   run: (_args, { db }) => db.customers.findMany(),
 });
 ```
+
+Table tools from `resources` take their permission from the resource's
+`meta`, keyed by operation (`list`, `get`, `create`, `update`, `delete`); an
+operation without one is hidden and refused like any other tool.
 
 To tell the client why PermDock refused, call `decide(tool.meta)` instead of
 `can`: the decision's `denials` carry the reason (such as `no-grant` or

@@ -38,6 +38,7 @@ import type { SchemaMeta } from "../schema/types.ts";
 
 import { claimAt, claimsOf, tenantClaimPaths } from "../core/claims.ts";
 import { invalidateTables } from "../query/invalidate.ts";
+import { clearOnUserChange } from "../query/user-change.ts";
 import { liveCount, liveQuery } from "../realtime/live.ts";
 import { useSession } from "./session.ts";
 
@@ -71,19 +72,10 @@ export function BetterSupabaseProvider(
   props: BetterSupabaseProviderProps,
 ): ReactNode {
   const { client, queryClient } = props;
-  const user = useRef<string | null | undefined>(undefined);
 
   useEffect(
     () =>
-      client.auth.subscribe(() => {
-        const snapshot = client.auth.current();
-        if (snapshot.status === "loading") return;
-        const id = snapshot.user?.id ?? null;
-        if (user.current !== undefined && user.current !== id) {
-          queryClient?.removeQueries({ queryKey: ["bs"] });
-        }
-        user.current = id;
-      }),
+      queryClient ? clearOnUserChange(queryClient, client.auth) : undefined,
     [client, queryClient],
   );
 

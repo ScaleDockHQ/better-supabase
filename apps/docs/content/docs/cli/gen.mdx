@@ -32,7 +32,16 @@ don't rebuild for nothing.
 
 `database.types.ts` is formatted with [oxfmt](https://oxc.rs/docs/guide/usage/formatter),
 an optional peer. Without it, `gen` writes the file unformatted and says so;
-install it (`pnpm add -D oxfmt`) to match `supabase gen types` byte for byte.
+install it (`pnpm add -D oxfmt@0.66.0`) to match `supabase gen types` byte for byte.
+`@supabase/postgrest-typegen` pins that exact version as its peer. To use a
+newer oxfmt, allow it in `pnpm-workspace.yaml`:
+
+```yaml title="pnpm-workspace.yaml"
+peerDependencyRules:
+  allowedVersions:
+    "@supabase/postgrest-typegen>oxfmt": "0.71.0"
+```
+
 Names are sorted by code point, not by locale, so every machine writes the
 same files.
 

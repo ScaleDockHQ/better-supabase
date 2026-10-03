@@ -43,9 +43,11 @@ right after saving could miss the row it just wrote. So a successful write
 _pins_ the request to the primary: every later read in that request goes
 there too.
 
-The pin also crosses the redirect. When a Next.js action or route writes, it
-sets an `HttpOnly` cookie `bs-primary-until` that holds a timestamp
-`replicas.pinMs` (5 s by default) ahead. Every request with that cookie reads
+The pin also crosses the redirect. When a Next.js action or route, a Hono
+or edge handler, or an oRPC procedure served by `bs.fetchHandler` writes, the
+response sets an `HttpOnly` cookie `bs-primary-until` that holds a timestamp
+`replicas.pinMs` (5 s by default) ahead. Custom adapters get the same cookie
+from `ctx.apply(response)`. Every request with that cookie reads
 from the primary until then, so the page you redirect to shows the new data.
 
 Writes through `db.$client` or `ctx.sql` bypass the router. Pin by hand after

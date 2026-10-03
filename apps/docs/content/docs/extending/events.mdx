@@ -23,14 +23,21 @@ production, the logger warns once when one event has more than 50 handlers.
 | Event      | Payload                                                                                                                                 |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `query`    | `table`, `operation`, `ok`, `durationMs`, `rows`, `truncated` (an unbounded read hit [`maxRows`](/docs/repository/pagination#row-caps)) |
-| `mutation` | `table`, `kind` (`insert`, `upsert`, `update`, `delete`), app-cased `rows`, `context`                                                   |
+| `mutation` | `table`, `kind` (`insert`, `upsert`, `update`, `delete`), `intent`, a copy of the app-cased `rows`, `keys`, `tenant`, `context`         |
 | `error`    | `table`, the `DbError`                                                                                                                  |
-| `auth`     | `source` (`bearer`, `cookie`, `none`), `ok`, `userId`                                                                                   |
+| `auth`     | `source` (`bearer`, `cookie`, `none`), `ok`, `userId`, `rawSource` (a custom resolver's name), `reason` (why there is no user)          |
 | `refresh`  | `ok`, `shared` (joined an in-flight refresh), `durationMs`                                                                              |
 
-`mutation` rows are what the database returned. `delete(id)` returns the
-primary key, so row-level cache tags and `row.deleted` CloudEvents work for
-deletes too.
+`mutation` rows are a copy of what the database returned, so a listener
+cannot change the caller's result. `delete(id)` returns the primary key, so
+row-level cache tags and `row.deleted` CloudEvents work for deletes too.
+
+`intent` is what the caller asked for: a soft delete runs as an `update`
+(`kind`) with `intent: "softDelete"`. `keys` holds the primary keys of the
+changed rows when they are known, from the returned rows or from a `where` on
+the primary key, so writes that return nothing (soft deletes,
+`returning: false`) still invalidate the right rows. `tenant` is
+`context.tenant` or the tenant the `tenant()` plugin resolved from the claims.
 
 Listeners are per runtime: register them once, next to `defineSupabase`, not
 per request. Cache invalidation (`betterSupabase.cache`), CloudEvents

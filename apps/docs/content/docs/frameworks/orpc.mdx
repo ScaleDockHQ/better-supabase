@@ -32,23 +32,22 @@ export const router = {
 };
 ```
 
-Pass the request as the initial context:
+Serve the router with `bs.fetchHandler`. It passes the request as the
+initial context, answers 404 when no procedure matches, and adds the
+request's cookies to the response: refreshed session cookies with
+`middleware({ refresh: true })`, and `bs-primary-until` after a write when
+[read replicas](/docs/guides/read-replicas) are configured.
 
 ```ts
 import { RPCHandler } from "@orpc/server/fetch";
 
-const handler = new RPCHandler(router);
-
 export default {
-  async fetch(request: Request) {
-    const { response } = await handler.handle(request, {
-      prefix: "/rpc",
-      context: { request },
-    });
-    return response ?? new Response("Not found", { status: 404 });
-  },
+  fetch: bs.fetchHandler(new RPCHandler(router), { prefix: "/rpc" }),
 };
 ```
+
+Calling `handler.handle(request, { context: { request } })` yourself also
+works, but then those cookies never reach the client.
 
 ## Context
 

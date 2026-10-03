@@ -104,6 +104,7 @@ describe("react", () => {
         claims: { sub: "u1" },
         expiresAt: null,
         aal: "aal1",
+        anonymous: false,
         amr: [],
       }),
     ).toContain("<p>ada@example.com</p>");

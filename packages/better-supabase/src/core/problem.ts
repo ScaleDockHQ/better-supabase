@@ -42,6 +42,7 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   not_null: "Required value missing",
   exclusion: "Exclusion constraint violated",
   invalid_input: "Invalid input",
+  invalid_value: "Stored value not representable",
   raised: "Request rejected",
   timeout: "Timed out",
   serialization: "Concurrent update, retry",

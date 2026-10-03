@@ -15,9 +15,19 @@ const db = defineSupabase(schema)
 - Updates get `updatedBy`. With `softDelete()`, the delete is an update, so
   `updatedBy` records who deleted the row.
 - Upserts that may update only get `updatedBy`.
+- Tables with an `impersonated_by` column (`plugins.actor.impersonatedBy` in
+  the config renames it) get `impersonatedBy` on every insert and update: the
+  admin from `actor.impersonator` during
+  [impersonation](/docs/auth/impersonation), `null` otherwise. That is what
+  the SQL kit's `track_actor(table, impersonated_by => 'impersonated_by')`
+  writes.
 - Anonymous requests set nothing.
+- `createdBy`, `updatedBy` and `impersonatedBy` values you pass yourself are refused with
+  `invalid_request`, so a caller cannot sign a row as someone else. Pass
+  `{ override: true }` for imports and backfills.
 
 Server adapters fill `actor` from the verified JWT; jobs use
+`db.$with(job.context)` (see [jobs](/docs/kits/jobs#actor-and-tenant)),
 `betterSupabase.actingAs(userId)` or a service actor. Pass `resolve(context)` to read the
 id from somewhere else.
 

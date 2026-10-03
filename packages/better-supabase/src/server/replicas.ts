@@ -49,14 +49,50 @@ export function pinnedUntil(
   return value !== undefined && Number.isFinite(until) ? until : 0;
 }
 
-/** A `Set-Cookie` value keeping the next requests on the primary for `pinMs`. */
-export function primaryCookie(pinMs: number, now: number = Date.now()): string {
-  return serializeCookieHeader(PRIMARY_COOKIE, String(now + pinMs), {
+/** Options of the `bs-primary-until` cookie, for frameworks that set cookies themselves. */
+export function primaryCookieOptions(pinMs: number): {
+  readonly path: "/";
+  readonly maxAge: number;
+  readonly httpOnly: true;
+  readonly sameSite: "lax";
+} {
+  return {
     path: "/",
     maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
     httpOnly: true,
     sameSite: "lax",
-  });
+  };
+}
+
+/** A `Set-Cookie` value keeping the next requests on the primary for `pinMs`. */
+export function primaryCookie(pinMs: number, now: number = Date.now()): string {
+  return serializeCookieHeader(
+    PRIMARY_COOKIE,
+    String(now + pinMs),
+    primaryCookieOptions(pinMs),
+  );
+}
+
+/**
+ * `response` with the `bs-primary-until` cookie when the request wrote, so the
+ * caller's next requests read their own writes. A response with immutable
+ * headers is copied.
+ */
+export function withPrimaryPin(
+  response: Response,
+  replica: ReplicaState | undefined,
+  pinMs: number,
+): Response {
+  if (!replica?.wrote) return response;
+  const cookie = primaryCookie(pinMs);
+  try {
+    response.headers.append("set-cookie", cookie);
+    return response;
+  } catch {
+    const copy = new Response(response.body, response);
+    copy.headers.append("set-cookie", cookie);
+    return copy;
+  }
 }
 
 /**

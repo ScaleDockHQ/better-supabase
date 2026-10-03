@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
@@ -20,6 +21,27 @@ const env = {
 };
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
+
+describe("bs.app()", () => {
+  it("installs bs.onError, and Env carries only a type", async () => {
+    const bs = createHono(defineSupabase(schema), { env });
+    expect(bs.Env).toBeUndefined();
+    const app = bs
+      .app()
+      .get("/thrown", () => {
+        throw new DbException(dbError("not_found", "Gone"));
+      })
+      .get("/teapot", () => {
+        throw new HTTPException(418, { message: "Short and stout" });
+      });
+    const thrown = await app.request("/thrown");
+    expect(thrown.status).toBe(404);
+    expect(thrown.headers.get("content-type")).toContain(
+      "application/problem+json",
+    );
+    expect((await app.request("/teapot")).status).toBe(418);
+  });
+});
 
 describe("createHono", () => {
   const betterSupabase = defineSupabase(schema);
@@ -54,6 +76,9 @@ describe("createHono", () => {
     })
     .get("/api/crash", () => {
       throw new Error("secret detail");
+    })
+    .get("/api/teapot", () => {
+      throw new HTTPException(418, { message: "Short and stout" });
     });
 
   const call = async (path: string, token?: string) =>
@@ -89,6 +114,9 @@ describe("createHono", () => {
     const crash = await call("/api/crash", token);
     expect(crash.status).toBe(500);
     expect(JSON.stringify(await crash.json())).not.toContain("secret detail");
+    const teapot = await call("/api/teapot", token);
+    expect(teapot.status).toBe(418);
+    expect(await teapot.text()).toBe("Short and stout");
   });
 
   it("explains a missing middleware", async () => {

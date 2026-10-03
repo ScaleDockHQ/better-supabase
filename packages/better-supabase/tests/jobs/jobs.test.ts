@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DbError } from "../../src/core/errors.ts";
 
+import { spansAllTenants } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
 import {
   createIdempotency,
@@ -77,6 +78,7 @@ const sampleJob = (overrides: Partial<Job> = {}): Job => ({
   enqueuedAt: Temporal.Instant.fromEpochMilliseconds(0),
   visibleUntil: Temporal.Instant.fromEpochMilliseconds(0),
   lastError: null,
+  context: {},
   ...overrides,
 });
 
@@ -256,6 +258,149 @@ describe("createJobs over pgmq_public", () => {
   });
 });
 
+describe("job context", () => {
+  const ACTOR = { id: "u1", kind: "user", impersonator: "admin" } as const;
+
+  function memoryQueue(): { client: QueueRpcClient; sent: unknown[] } {
+    const sent: unknown[] = [];
+    const { client } = fakeClient(({ fn, args }) => {
+      if (fn === "send") {
+        sent.push(args["message"]);
+        return [sent.length];
+      }
+      if (fn === "read") {
+        return sent.splice(0).map((message, index) => ({
+          msg_id: index + 1,
+          read_ct: 1,
+          enqueued_at: "2026-09-24T10:00:00Z",
+          vt: "2026-09-24T10:05:00Z",
+          message,
+        }));
+      }
+      return true;
+    });
+    return { client, sent };
+  }
+
+  it("records the actor and tenant next to the payload, and restores them on claim", async () => {
+    const { client, sent } = memoryQueue();
+    const jobs = createJobs(client, queues);
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "a@example.com" },
+        { context: { actor: ACTOR, claims: { tenant_id: "o1" } } },
+      )
+      .orThrow();
+    expect(sent).toEqual([
+      {
+        payload: {
+          $bs: 1,
+          context: { actor: ACTOR, tenant: "o1" },
+          payload: { to: "a@example.com" },
+        },
+        max_attempts: 5,
+      },
+    ]);
+    const [job] = await jobs.claim("emails").orThrow();
+    expect(job?.payload).toEqual({ to: "a@example.com" });
+    expect(job?.context).toEqual({ actor: ACTOR, tenant: "o1" });
+  });
+
+  it("prefers context.tenant, and stores bare payloads without an actor or tenant", async () => {
+    const { client, sent } = memoryQueue();
+    const jobs = createJobs(client, queues);
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "a@example.com" },
+        { context: { tenant: "o2", claims: { tenant_id: "o1" } } },
+      )
+      .orThrow();
+    await jobs
+      .enqueue("emails", { to: "b@example.com" }, { context: { claims: {} } })
+      .orThrow();
+    expect(
+      sent.map((message) => (message as { payload: unknown }).payload),
+    ).toEqual([
+      { $bs: 1, context: { tenant: "o2" }, payload: { to: "a@example.com" } },
+      { to: "b@example.com" },
+    ]);
+  });
+
+  it("drops a recorded actor or tenant that isn't well formed", async () => {
+    const { client, sent } = memoryQueue();
+    sent.push({
+      payload: {
+        $bs: 1,
+        context: { actor: { id: 1, kind: "root" }, tenant: "" },
+        payload: { to: "a@example.com" },
+      },
+    });
+    const [job] = await createJobs(client, queues).claim("emails").orThrow();
+    expect(job).toMatchObject({
+      payload: { to: "a@example.com" },
+      context: {},
+    });
+  });
+
+  it("hands the handler the recorded context, marking tenantless jobs only with allTenants", async () => {
+    const { client } = memoryQueue();
+    const jobs = createJobs(client, queues);
+    const context = { actor: ACTOR };
+    await jobs
+      .enqueue("emails", { to: "a@example.com" }, { context })
+      .orThrow();
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "b@example.com" },
+        { context: { ...context, tenant: "o1" } },
+      )
+      .orThrow();
+    const seen: [string, boolean][] = [];
+    const record = (payload: { to: string }, job: Job) => {
+      seen.push([payload.to, spansAllTenants(job.context)]);
+    };
+    await jobs.drain("emails", record, { batch: 2 });
+    await jobs
+      .enqueue("emails", { to: "a@example.com" }, { context })
+      .orThrow();
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "b@example.com" },
+        { context: { ...context, tenant: "o1" } },
+      )
+      .orThrow();
+    await jobs.drain("emails", record, { batch: 2, allTenants: true });
+    expect(seen).toEqual([
+      ["a@example.com", false],
+      ["b@example.com", false],
+      ["a@example.com", true],
+      ["b@example.com", false],
+    ]);
+  });
+
+  it("records the context on schedules", async () => {
+    const fake = fakeSql();
+    await createJobs(fake.sql, queues)
+      .schedule(
+        "nightly",
+        "0 3 * * *",
+        "emails",
+        { to: "a@example.com" },
+        { context: { tenant: "o1" } },
+      )
+      .orThrow();
+    expect(JSON.parse(String(fake.calls[0]?.values[3]))).toEqual({
+      $bs: 1,
+      context: { tenant: "o1" },
+      payload: { to: "a@example.com" },
+    });
+  });
+});
+
 describe("createJobs over SQL", () => {
   it("enqueues through enqueue_job with the validated payload and defaults", async () => {
     const fake = fakeSql([["enqueue_job", [{ id: "17" }]]]);
@@ -389,6 +534,7 @@ describe("createJobs over SQL", () => {
         enqueuedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
         visibleUntil: Temporal.Instant.from("2026-09-24T10:05:00Z"),
         lastError: "timeout",
+        context: {},
       },
       {
         id: 13,
@@ -399,6 +545,7 @@ describe("createJobs over SQL", () => {
         enqueuedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
         visibleUntil: Temporal.Instant.from("2026-09-24T10:05:00Z"),
         lastError: null,
+        context: {},
       },
     ]);
   });

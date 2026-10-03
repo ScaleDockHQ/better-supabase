@@ -1,6 +1,8 @@
 import { sqlIdent, sqlString } from "./template.ts";
 
-const SCOPE = /^[a-z_][a-z0-9_]*$/;
+const SCOPE = /^[a-z][a-z0-9_]*$/;
+/** PermDock's default `rls.schema`, a schema the Data API does not expose. */
+export const PERMDOCK_SCHEMA = "permdock";
 /** PermDock splits a key with row conditions into `key#1`, `key#2`, ...: those need its own policies. */
 const SPLIT_KEY = /#\d+$/;
 
@@ -12,6 +14,8 @@ export interface PermdockCatalog {
   readonly permissions: readonly {
     readonly key: string;
     readonly rowConditions?: boolean;
+    /** The scope PermDock declares the permission at. */
+    readonly scope?: string;
   }[];
 }
 
@@ -96,7 +100,7 @@ export function permdockCheck(
       }
     }
   }
-  const schema = sqlIdent(target.schema ?? "public");
+  const schema = sqlIdent(target.schema ?? PERMDOCK_SCHEMA);
   if (target.scope === "global")
     return `(select ${schema}.permdock_has(${sqlString(key)}))`;
   if (!SCOPE.test(target.scope))

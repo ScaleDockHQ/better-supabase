@@ -20,7 +20,9 @@ const server = (scopes?: string[]) =>
     auth: { jwks: signer.jwks as never },
     name: "crm",
     version: "1.0.0",
-    ...(scopes ? { scopes, allow: ["service" as const] } : {}),
+    ...(scopes
+      ? { advertisedScopes: scopes, allow: ["service" as const] }
+      : {}),
   });
 
 const METADATA = "https://tools.test/.well-known/oauth-protected-resource/mcp";

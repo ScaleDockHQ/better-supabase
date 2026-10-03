@@ -1,5 +1,6 @@
 export {
   isKitIdType,
+  kitIdType,
   KIT_ID_TYPES,
   renderKit,
   resolveModules,
@@ -16,7 +17,11 @@ export type {
 export { kitLayout } from "./layout.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";
 export type { CompiledReadSet } from "./read-sets.ts";
-export { permdockKeys, permdockKeyStatus } from "../core/permdock-sql.ts";
+export {
+  PERMDOCK_SCHEMA,
+  permdockKeys,
+  permdockKeyStatus,
+} from "../core/permdock-sql.ts";
 export type {
   PermdockCatalog,
   PermdockKeyStatus,

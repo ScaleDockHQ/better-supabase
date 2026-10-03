@@ -48,6 +48,11 @@ export interface WriteArgs<
 > extends ReadArgs<M, T> {
   /** `false` skips `RETURNING` (needed when RLS hides the written row). */
   readonly returning?: boolean;
+  /**
+   * Keep caller-supplied values for columns that `timestamps()`, `actor()`
+   * and `softDelete()` fill (imports, backfills). Without it they are refused.
+   */
+  readonly override?: boolean;
 }
 
 export interface UpdateArgs<

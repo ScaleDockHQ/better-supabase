@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   authContext,
   clientIp,
+  rememberVerified,
   resolveAuth,
   type ResolveAuthOptions,
 } from "../../src/auth/resolve.ts";
@@ -157,6 +158,64 @@ describe("resolveAuth", async () => {
     expect(authContext(auth)).toMatchObject({
       actor: { id: USER, kind: "user", email: "a@b.c" },
     });
+  });
+
+  it("reuses a token another layer verified only when its claims are the token's own", async () => {
+    const stranger = await createTestSigner();
+    const trusting: ResolveAuthOptions = { env, jwks: stranger.jwks as never };
+    const iss = `${PROJECT_URL}/auth/v1`;
+    const payload = (token: string) =>
+      JSON.parse(
+        atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/")),
+      );
+    const resolved = async (token: string) =>
+      (
+        await resolveAuth(
+          new Request("https://api.test/", {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+          trusting,
+        )
+      ).auth.kind;
+    const user = { id: USER };
+
+    const token = await signer.sign({ sub: USER, iss });
+    const claims = payload(token);
+    const forged = { ...claims, role: "service_role" };
+    expect(rememberVerified(trusting, { token, claims: forged, user })).toBe(
+      false,
+    );
+    const expired = await signer.sign({ sub: USER, iss, expiresIn: -10 });
+    expect(
+      rememberVerified(trusting, {
+        token: expired,
+        claims: payload(expired),
+        user,
+      }),
+    ).toBe(false);
+    const foreign = await signer.sign({
+      sub: USER,
+      iss: "https://x.test/auth/v1",
+    });
+    expect(
+      rememberVerified(trusting, {
+        token: foreign,
+        claims: payload(foreign),
+        user,
+      }),
+    ).toBe(false);
+    const audience = await signer.sign({ sub: USER, iss, aud: "other" });
+    expect(
+      rememberVerified(trusting, {
+        token: audience,
+        claims: payload(audience),
+        user,
+      }),
+    ).toBe(false);
+    expect(await resolved(token)).toBe("invalid");
+
+    expect(rememberVerified(trusting, { token, claims, user })).toBe(true);
+    expect(await resolved(token)).toBe("user");
   });
 
   it("rejects an invalid Bearer token instead of downgrading to anon", async () => {
@@ -650,6 +709,54 @@ describe("env", () => {
       publishableKeys: { default: "sb_publishable_x" },
       secretKeys: {},
     });
+  });
+
+  it("reads inline keys from SUPABASE_JWKS and rejects malformed ones", () => {
+    const base = {
+      SUPABASE_URL: PROJECT_URL,
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+    };
+    const key = { kty: "EC", crv: "P-256", x: "x", y: "y" };
+    for (const value of [
+      JSON.stringify({ keys: [key] }),
+      JSON.stringify([key]),
+    ]) {
+      const result = parseEnv({ ...base, SUPABASE_JWKS: value });
+      expect(result.env?.jwks).toEqual({ keys: [key] });
+      expect(toServerEnv(result.env!).jwks).toEqual({ keys: [key] });
+    }
+    for (const [value, message] of [
+      ["not json", 'must be JSON: {"keys":[...]} or [...]'],
+      ["[]", "must hold at least one JSON Web Key with a kty"],
+      [
+        '{"keys":[{"crv":"P-256"}]}',
+        "must hold at least one JSON Web Key with a kty",
+      ],
+    ]) {
+      expect(parseEnv({ ...base, SUPABASE_JWKS: value }).issues).toEqual([
+        { variables: ["SUPABASE_JWKS"], message },
+      ]);
+    }
+  });
+
+  it("verifies with the inline env keys without fetching the JWKS URL", async () => {
+    const signer = await createTestSigner();
+    const token = await signer.sign({ sub: USER });
+    const inline = parseEnv({
+      SUPABASE_URL: PROJECT_URL,
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+      SUPABASE_JWKS: JSON.stringify(signer.jwks),
+    }).env!;
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { auth } = await resolveAuth(
+      new Request("https://api.test/", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      { env: inline },
+    );
+    expect(auth.kind).toBe("user");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
   it("reads named key maps and rejects malformed ones", () => {

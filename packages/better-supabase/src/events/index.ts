@@ -1,6 +1,6 @@
 import type { MutationNotice } from "../core/events.ts";
 import type { EventHub } from "../core/events.ts";
-import type { MutationKind } from "../core/plugin.ts";
+import type { MutationIntent } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
 import { nowInstant } from "../core/temporal.ts";
@@ -19,11 +19,12 @@ export interface CloudEvent<T = unknown> {
   readonly [extension: string]: unknown;
 }
 
-export const ROW_EVENT_TYPES: { readonly [K in MutationKind]: string } = {
+export const ROW_EVENT_TYPES: { readonly [K in MutationIntent]: string } = {
   insert: "dev.better-supabase.row.created",
   upsert: "dev.better-supabase.row.upserted",
   update: "dev.better-supabase.row.updated",
   delete: "dev.better-supabase.row.deleted",
+  softDelete: "dev.better-supabase.row.softdeleted",
 };
 
 export interface RowEventData {
@@ -61,17 +62,22 @@ function subjectOf(
 /**
  * One CloudEvent per mutated row: `dev.better-supabase.row.created` with the
  * app-cased row as `data`, the primary key as `subject`, the tenant as
- * `partitionkey` and the actor as `actorid`.
+ * `partitionkey` and the actor as `actorid`. Writes that return no rows (soft
+ * deletes, `returning: false`) send one event per known primary key, with the
+ * key as `row`.
  */
 export function toCloudEvents(
   notice: MutationNotice,
   options: CloudEventOptions & { readonly meta?: SchemaMeta },
 ): CloudEvent<RowEventData>[] {
+  const intent = notice.intent ?? notice.kind;
   const type = options.typePrefix
-    ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[notice.kind].split(".").at(-1)!}`
-    : ROW_EVENT_TYPES[notice.kind];
+    ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[intent].split(".").at(-1)!}`
+    : ROW_EVENT_TYPES[intent];
   const time = (options.now ?? nowInstant)().toString();
-  return notice.rows.map((row) => {
+  const tenant = notice.tenant ?? notice.context.tenant;
+  const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
+  return rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
     return {
       specversion: "1.0",
@@ -82,7 +88,7 @@ export function toCloudEvents(
       time,
       datacontenttype: "application/json",
       data: { table: notice.table, row },
-      ...(notice.context.tenant ? { partitionkey: notice.context.tenant } : {}),
+      ...(tenant ? { partitionkey: tenant } : {}),
       ...(notice.context.actor?.id ? { actorid: notice.context.actor.id } : {}),
     };
   });
@@ -97,7 +103,9 @@ export interface ForwardOptions extends CloudEventOptions {
 
 /**
  * Sends a CloudEvent for every mutation to `sink`. Returns a function that
- * stops forwarding. Use an outbox (SQL kit) when events must not be lost.
+ * stops forwarding. Sends in flight are tracked on `betterSupabase.events`
+ * (`settled()`), which the Next adapter hands to `after()` and the edge
+ * entry to `waitUntil`. Use an outbox (SQL kit) when events must not be lost.
  */
 export function forwardMutations(
   betterSupabase: { readonly events: EventHub; readonly meta: SchemaMeta },
@@ -120,7 +128,9 @@ export function forwardMutations(
       )(error, events);
     };
     try {
-      void Promise.resolve(sink.send(events)).catch(report);
+      betterSupabase.events.track(
+        Promise.resolve(sink.send(events)).catch(report),
+      );
     } catch (error) {
       report(error);
     }

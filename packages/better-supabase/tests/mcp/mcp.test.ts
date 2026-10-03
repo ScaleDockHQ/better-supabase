@@ -1,6 +1,6 @@
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -225,7 +225,7 @@ describe("createMcp", () => {
     });
     expect(badKey).toMatchObject({
       isError: true,
-      structuredContent: { kind: "invalid_request" },
+      structuredContent: { kind: "invalid_input" },
     });
   });
 
@@ -383,7 +383,7 @@ describe("createMcp", () => {
       name: "admin",
       version: "1.0.0",
       allow: ["service"],
-      scopes: ["openid", "crm.read", "offline_access"],
+      advertisedScopes: ["openid", "crm.read", "offline_access"],
     });
     const response = await scoped.fetch(
       new Request(ENDPOINT, {
@@ -418,6 +418,86 @@ describe("createMcp", () => {
     });
   });
 
+  it("enforces requiredScopes on delegated tokens and keeps the scopes alias", async () => {
+    const scoped = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      // oxlint-disable-next-line typescript/no-deprecated -- checks the alias.
+      scopes: ["openid"],
+      requiredScopes: ["crm.read"],
+    });
+    const call = async (claims: Record<string, unknown>) =>
+      scoped.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${await signer.sign({ sub: USER, ...claims })}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+        }),
+      );
+    const denied = await call({ client_id: "agent", scope: "openid" });
+    expect(denied.status).toBe(403);
+    expect(denied.headers.get("www-authenticate")).toContain(
+      'scope="openid crm.read"',
+    );
+    expect(
+      (await call({ client_id: "agent", scope: "openid crm.read" })).status,
+    ).toBe(200);
+    expect((await call({})).status).toBe(200);
+  });
+
+  it("answers a missing second factor without a scope challenge", async () => {
+    const strict = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      aal: "aal2",
+    });
+    const response = await strict.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER, aal: "aal1" })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(response.headers.get("www-authenticate")).toBeNull();
+  });
+
+  it("answers an unreachable JWKS as an outage, not a challenge", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("down", { status: 500 })),
+    );
+    const offline = createMcp(betterSupabase, {
+      env: { ...env, jwksUrl: new URL(`${PROJECT_URL}/mcp-down/jwks.json`) },
+      name: "crm",
+      version: "1.0.0",
+    });
+    const response = await offline.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+      }),
+    );
+    vi.unstubAllGlobals();
+    expect(response.status).toBe(503);
+    expect(response.headers.get("www-authenticate")).toBeNull();
+    expect(await response.json()).toMatchObject({ kind: "network" });
+  });
+
   it("authorizes calls and filters lists with per-tool hooks", async () => {
     const seen: { tool: string; meta: unknown; args: unknown }[] = [];
     const guarded = createMcp(betterSupabase, {
@@ -425,7 +505,7 @@ describe("createMcp", () => {
       auth: { jwks: signer.jwks as never },
       name: "guarded",
       version: "1.0.0",
-      scopes: ["openid"],
+      advertisedScopes: ["openid"],
       resources: { tags: { operations: ["list"] } },
       tools: [
         defineTool({
@@ -577,6 +657,47 @@ describe("createMcp", () => {
     expect(() =>
       mcp.tool({ name: "echo", description: "again", run: () => null }),
     ).toThrow('Duplicate MCP tool "echo"');
+  });
+});
+
+describe("createMcp table tool meta", () => {
+  it("passes each operation's meta to visible and authorize", async () => {
+    const betterSupabase = defineSupabase(schema);
+    const seen: [string, unknown][] = [];
+    const mcp = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      resources: {
+        tags: {
+          operations: ["list", "delete"],
+          meta: { list: { permission: "tags.read" } },
+        },
+      },
+      visible: (_ctx, tool) => {
+        seen.push([tool.info.name, tool.meta]);
+        return tool.meta !== undefined;
+      },
+    });
+    const response = await mcp.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      }),
+    );
+    const { result } = (await response.json()) as {
+      result: { tools: { name: string }[] };
+    };
+    expect(result.tools.map((tool) => tool.name)).toEqual(["tags_list"]);
+    expect(seen).toEqual([
+      ["tags_list", { permission: "tags.read" }],
+      ["tags_delete", undefined],
+    ]);
   });
 });
 

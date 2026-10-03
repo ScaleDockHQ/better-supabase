@@ -61,7 +61,12 @@ export interface TableFlags {
   };
   /** App column holding the tenant id. */
   readonly tenant?: string;
-  readonly actor?: { readonly createdBy?: string; readonly updatedBy?: string };
+  readonly actor?: {
+    readonly createdBy?: string;
+    readonly updatedBy?: string;
+    /** The admin behind an impersonated write; `null` otherwise. */
+    readonly impersonatedBy?: string;
+  };
   /** App column used for optimistic concurrency, usually `updatedAt`. */
   readonly version?: string;
 }
@@ -142,7 +147,7 @@ export interface PermdockBucketPolicy {
   readonly segment?: number;
   /**
    * Schema of the helpers `permdock rls generate` writes: PermDock's
-   * `rls.schema`. Defaults to `public`.
+   * `rls.schema`. Defaults to `permdock`, PermDock's default.
    */
   readonly schema?: string;
 }
@@ -156,6 +161,7 @@ export interface PermdockTopicPolicy {
   readonly scope: string;
   /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{orgId}` segment. */
   readonly segment?: number;
+  /** Schema of PermDock's helpers (`rls.schema`). Defaults to `permdock`. */
   readonly schema?: string;
 }
 

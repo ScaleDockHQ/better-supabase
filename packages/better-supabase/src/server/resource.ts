@@ -99,7 +99,7 @@ const INTEGER = new Set(["int2", "int4", "int8"]);
 function keyValue(table: TableMeta, raw: unknown): Result<unknown> {
   const invalid = err(
     dbError(
-      "invalid_request",
+      "invalid_input",
       `${JSON.stringify(raw)} is not a valid ${table.key} key`,
     ),
   );
@@ -113,6 +113,21 @@ function keyValue(table: TableMeta, raw: unknown): Result<unknown> {
   return typeof raw === "string" && raw !== "" ? ok(raw) : invalid;
 }
 
+/**
+ * A cross-site browser request that needed no CORS preflight: a form post
+ * riding on the session cookie. Bearer requests and JSON bodies (which need a
+ * preflight) pass, as do requests without an `Origin` (not a browser).
+ */
+function crossSiteSimpleRequest(request: Request): boolean {
+  if (request.method === "GET" || request.method === "HEAD") return false;
+  if (request.headers.has("authorization")) return false;
+  const origin = request.headers.get("origin");
+  if (!origin || origin === new URL(request.url).origin) return false;
+  if (request.headers.get("sec-fetch-site") === "same-origin") return false;
+  const type = request.headers.get("content-type") ?? "";
+  return !/^application\/(?:[\w.+-]+\+)?json\b/iu.test(type);
+}
+
 async function readBody(request: Request): Promise<Result<unknown>> {
   try {
     const body: unknown = await request.json();
@@ -123,7 +138,7 @@ async function readBody(request: Request): Promise<Result<unknown>> {
     // Reported below.
   }
   return err(
-    dbError("invalid_request", "The request body must be a JSON object"),
+    dbError("invalid_input", "The request body must be a JSON object"),
   );
 }
 
@@ -177,7 +192,7 @@ function pageArgs(
 function asObject(value: unknown): Result<unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? ok(value)
-    : err(dbError("invalid_request", "Expected an object of column values"));
+    : err(dbError("invalid_input", "Expected an object of column values"));
 }
 
 async function settled(value: unknown): Promise<Result<unknown>> {
@@ -346,6 +361,15 @@ export function defineResource<
     db: object,
     id: string | undefined,
   ): Promise<unknown> => {
+    if (crossSiteSimpleRequest(request)) {
+      return err(
+        dbError(
+          "forbidden",
+          "Cross-site requests need Content-Type: application/json or a bearer token",
+          { code: "CROSS_SITE_REQUEST" },
+        ),
+      );
+    }
     if (id === undefined) {
       if (request.method === "GET" && has("list")) {
         return execute(db, "list", {

@@ -38,9 +38,25 @@ export interface EdgeOptions extends ServerOptions {
   readonly cors?: boolean | CorsOptions;
   /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
   readonly exposeErrors?: boolean;
+  /**
+   * Keeps the invocation alive for event sink sends a handler started, e.g.
+   * `EdgeRuntime.waitUntil` on Supabase. On Workers the `ctx` the runtime
+   * passes to `fetch` is used when this is unset.
+   */
+  readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
-export type EdgeHandler = (request: Request) => Promise<Response>;
+/** The platform context Workers pass as the third `fetch` argument. */
+export interface EdgeExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+/** `Deno.serve` passes `(request, info)`, Workers `fetch` passes `(request, env, ctx)`. */
+export type EdgeHandler = (
+  request: Request,
+  env?: unknown,
+  executionContext?: EdgeExecutionContext,
+) => Promise<Response>;
 
 export type ResourceMap<M extends AnyModels> = {
   readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
@@ -150,7 +166,7 @@ export function createEdge<
     /** Answers before auth resolves, e.g. a 404 for an unknown route. */
     early?: (request: Request) => Response | undefined,
   ): EdgeHandler => {
-    return async (request) => {
+    return async (request, _env, executionContext) => {
       const extra = corsHeaders?.(request);
       if (cors && request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: extra ?? {} });
@@ -183,7 +199,11 @@ export function createEdge<
           { instance, expose },
         );
       }
-      response = ctx.resolution.apply(response);
+      response = ctx.apply(response);
+      const { events } = betterSupabase;
+      const waitUntil =
+        options.waitUntil ?? executionContext?.waitUntil.bind(executionContext);
+      if (events.pending && waitUntil) waitUntil(events.settled());
       return extra ? withHeaders(response, extra) : response;
     };
   };
@@ -247,7 +267,7 @@ export function createEdge<
             id === undefined || id === "" ? undefined : decodeURIComponent(id);
         } catch {
           return problemResponse(
-            dbError("invalid_request", `Malformed id in ${pathname}`),
+            dbError("invalid_input", `Malformed id in ${pathname}`),
             { instance: pathname },
           );
         }

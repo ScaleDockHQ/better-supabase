@@ -3,7 +3,6 @@ import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { relationMeta } from "../schema/define.ts";
 import { lookupOf } from "../schema/lookup.ts";
-import { encodeValue } from "./codec.ts";
 import {
   type AggregateFn,
   type Condition,
@@ -16,6 +15,7 @@ import {
   not,
   or,
 } from "./types.ts";
+import { encodeValue } from "./wire.ts";
 
 const AGGREGATE_KEYS: Readonly<Record<string, AggregateFn>> = {
   _sum: "sum",
@@ -70,7 +70,9 @@ const FIELD_OPS = new Set([
   "containedBy",
 ]);
 
-function isPlainObject(value: unknown): value is Input {
+export function isPlainObject(
+  value: unknown,
+): value is Readonly<Record<string, unknown>> {
   if (typeof value !== "object" || value === null) return false;
   const proto: unknown = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;

@@ -128,6 +128,8 @@ export interface SelectOp {
   /** Only count, return no rows. */
   readonly head: boolean;
   readonly single: "one" | "maybe" | undefined;
+  /** `limit` includes one row past the page, which `paginate()` reads to set `hasMore`. */
+  readonly lookAhead?: boolean;
   /**
    * Read from this set-returning function instead of the table (`db.$search`).
    * Only executors with `functionSources` honor it.

@@ -39,3 +39,32 @@ describe("betterSupabase.claims(schema) in Hono", () => {
     });
   });
 });
+
+describe("bs.Env and bs.app()", () => {
+  const Profile = v.object({ display_name: v.string() });
+  const bs = createHono(
+    defineSupabase(schema).claims(Claims).userMetadata(Profile),
+  );
+  type Env = typeof bs.Env;
+
+  it("types c.var from the definition without repeating the generics", () => {
+    expectTypeOf<Env>().toEqualTypeOf<
+      HonoEnv<Models, Functions, unknown, Claims, { display_name: string }>
+    >();
+    bs.app()
+      .use(bs.middleware())
+      .get("/", (c) => {
+        expectTypeOf(c.var.auth).toEqualTypeOf<
+          AuthState<Claims, { display_name: string }>
+        >();
+        if (c.var.auth.kind === "user") {
+          expectTypeOf(c.var.auth.claims.tenant_id).toEqualTypeOf<string>();
+          expectTypeOf(c.var.auth.profile).toEqualTypeOf<
+            { display_name: string } | undefined
+          >();
+        }
+        return c.json({});
+      });
+    expectTypeOf(bs.app()).toEqualTypeOf<Hono<Env>>();
+  });
+});

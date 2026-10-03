@@ -124,7 +124,7 @@ describe("defineBucket", () => {
     });
     const sql = files.sql();
     const ids = (key: string) =>
-      `split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('${key}') as t(id))`;
+      `split_part(name, '/', 1) in (select t.id::text from "permdock"."permitted_organization_ids"('${key}') as t(id))`;
     const listing =
       "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
     expect(sql).toContain(
@@ -408,7 +408,7 @@ describe("defineBucket options", () => {
       },
     }).sql();
     expect(sql).toContain(
-      `split_part(name, '/', 2) in (select t.id::text from "public"."permitted_team_ids"('f.read') as t(id))`,
+      `split_part(name, '/', 2) in (select t.id::text from "permdock"."permitted_team_ids"('f.read') as t(id))`,
     );
   });
 
@@ -1292,5 +1292,113 @@ describe("BucketClient sweep", () => {
         signal: AbortSignal.abort(),
       }),
     ).toMatchObject({ ok: false, error: { kind: "aborted" } });
+  });
+});
+
+describe("tenant-scoped buckets", () => {
+  const scoped = defineBucket({
+    id: "scoped",
+    path: "{orgId}/{userId}/{file}",
+    tenant: {},
+  });
+  const mine = { orgId: "o1", userId: "u1", file: "a.txt" } as const;
+  const theirs = { orgId: "o2", userId: "u1", file: "a.txt" } as const;
+
+  it("names the tenant placeholder and rejects one the template lacks", () => {
+    expect(scoped.tenant).toBe("orgId");
+    expect(docs.tenant).toBeUndefined();
+    expect(() =>
+      defineBucket({ id: "x", path: "{teamId}/{file}", tenant: {} }),
+    ).toThrow('defineBucket: tenant.param {orgId} is not in "{teamId}/{file}"');
+  });
+
+  it("refuses other tenants' paths before any Storage call", async () => {
+    const { client, calls } = fakeStorage({
+      files: { "scoped/o2/u1/a.txt": "x" },
+    });
+    const storage = scoped.connect(client, { tenant: "o1" });
+    const refused = {
+      ok: false,
+      error: { kind: "forbidden", table: "scoped" },
+    };
+    expect(await storage.upload(theirs, "x")).toMatchObject(refused);
+    expect(await storage.upload("o2/u1/b.txt", "x")).toMatchObject(refused);
+    expect(await storage.download(theirs)).toMatchObject(refused);
+    expect(await storage.signedUrl(theirs)).toMatchObject(refused);
+    expect(await storage.signedUrls([mine, theirs])).toMatchObject(refused);
+    expect(await storage.remove([theirs])).toMatchObject(refused);
+    expect(await storage.reserve(theirs)).toMatchObject(refused);
+    expect(await storage.list({ orgId: "o2" })).toMatchObject(refused);
+    expect(storage.path(theirs)).toMatchObject({
+      ok: false,
+      error: {
+        kind: "forbidden",
+        message: 'Path "o2/u1/a.txt" belongs to another tenant',
+      },
+    });
+    expect(calls).toEqual([]);
+    expect(storage.path(mine)).toEqual({
+      ok: true,
+      data: "o1/u1/a.txt",
+      error: null,
+    });
+    expect((await storage.upload(mine, "x")).ok).toBe(true);
+  });
+
+  it("lists only under the caller's tenant", async () => {
+    const { client } = fakeStorage({
+      files: { "scoped/o1/u1/a.txt": "x", "scoped/o2/u1/a.txt": "y" },
+    });
+    const listed = await scoped.connect(client, { tenant: "o1" }).list();
+    expect(listed.ok && listed.data.map((object) => object.path)).toEqual([
+      "o1/u1/a.txt",
+    ]);
+  });
+
+  it("reads the tenant from the request context, and fails closed without one", async () => {
+    const { client, calls } = fakeStorage();
+    const fromClaims = scoped.connect(client, {
+      context: { claims: { tenant_id: "o1" } },
+    });
+    expect((await fromClaims.upload(mine, "x")).ok).toBe(true);
+    const fromContext = scoped.connect(client, { context: { tenant: "o2" } });
+    expect(await fromContext.upload(mine, "x")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
+    const custom = defineBucket({
+      id: "scoped",
+      path: "{orgId}/{file}",
+      tenant: { claim: "app_metadata.org" },
+    });
+    expect(
+      custom
+        .connect(client, {
+          context: { claims: { app_metadata: { org: "o3" } } },
+        })
+        .path({ orgId: "o3", file: "a" }).ok,
+    ).toBe(true);
+    const before = calls.length;
+    const anonymous = scoped.connect(client, { context: {} });
+    expect(await anonymous.list()).toMatchObject({
+      ok: false,
+      error: {
+        kind: "forbidden",
+        message:
+          'No tenant for bucket "scoped": pass { context } or { tenant } to connect(), or { allTenants: true }',
+      },
+    });
+    expect(await scoped.connect(client).upload(mine, "x")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
+    expect(calls).toHaveLength(before);
+  });
+
+  it("lets admin work cross tenants with allTenants", async () => {
+    const { client } = fakeStorage();
+    const admin = scoped.connect(client, { allTenants: true });
+    expect((await admin.upload(theirs, "x")).ok).toBe(true);
+    expect((await admin.upload(mine, "x")).ok).toBe(true);
   });
 });

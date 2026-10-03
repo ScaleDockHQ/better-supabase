@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { EventHub } from "../../src/core/events.ts";
+import { ok } from "../../src/core/result.ts";
 import { otel, traceAuth, tracedFetch } from "../../src/otel/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -98,7 +99,7 @@ describe("otel", () => {
         name: "SELECT customers",
         attributes: {
           "db.system.name": "postgresql",
-          "db.namespace": "public",
+          "db.namespace": "postgres|public",
           "db.collection.name": "customers",
           "db.operation.name": "SELECT",
           "db.query.summary": "SELECT customers",
@@ -140,6 +141,55 @@ describe("otel", () => {
       status: { code: SpanStatusCode.ERROR },
       ended: true,
     });
+  });
+
+  it("adds the database, server and only SQLSTATE status codes", async () => {
+    const { tracer, spans } = memoryTracer();
+    const { meter, records } = memoryMeter();
+    const betterSupabase = defineSupabase(schema).use(
+      otel({
+        tracer,
+        meter,
+        database: "crm",
+        server: { address: "abc.supabase.co", port: 443 },
+      }),
+    );
+    const { client } = capturingClient(() => ({
+      status: 406,
+      body: { code: "PGRST116", message: "no rows" },
+    }));
+    const result = await betterSupabase
+      .connect(client)
+      .customers.findMany({ select: ["id"] });
+    expect(result.ok).toBe(false);
+    expect(spans[0]?.attributes).toMatchObject({
+      "db.namespace": "crm|public",
+      "server.address": "abc.supabase.co",
+      "server.port": 443,
+    });
+    expect(spans[0]?.attributes).not.toHaveProperty("db.response.status_code");
+    expect(records[0]?.attributes).toMatchObject({
+      "server.address": "abc.supabase.co",
+      "server.port": 443,
+    });
+  });
+
+  it("keeps the schema alone as the namespace for other executors", async () => {
+    const { tracer, spans } = memoryTracer();
+    const betterSupabase = defineSupabase(schema).use(
+      otel({ tracer, metrics: false, server: { address: "db.internal" } }),
+    );
+    const db = betterSupabase.connect({
+      name: "custom",
+      execute: async () => ok({ rows: [], count: null }),
+    });
+    await db.customers.findMany({ select: ["id"] });
+    expect(spans[0]?.attributes).toMatchObject({
+      "db.system.name": "custom",
+      "db.namespace": "public",
+      "server.address": "db.internal",
+    });
+    expect(spans[0]?.attributes).not.toHaveProperty("server.port");
   });
 
   it("traces auth events", () => {

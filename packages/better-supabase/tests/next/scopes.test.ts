@@ -168,6 +168,14 @@ describe("private-cache scopes", () => {
       },
     );
     expect(anon.auth.kind).toBe("anon");
+    const service = await bs.contextForSession(
+      { kind: "service", keyName: "cron" },
+      { token: null },
+    );
+    expect(service.auth).toMatchObject({
+      kind: "invalid",
+      error: { kind: "unauthorized" },
+    });
   });
 
   it("drops the cached session after deleting the account", async () => {

@@ -14,6 +14,7 @@ import {
   type AuthState,
   authContext,
   prefetchJwks,
+  rememberVerified,
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
@@ -29,10 +30,12 @@ import {
   type DeleteAccountResult,
 } from "./delete-account.ts";
 import {
+  DEFAULT_PIN_MS,
   pinnedUntil,
   type ReplicaState,
   replicaState,
   routedExecutor,
+  withPrimaryPin,
 } from "./replicas.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
 
@@ -44,8 +47,8 @@ export interface ServerOptions {
   readonly auth?: Omit<ResolveAuthOptions, "env">;
   /**
    * Fetch the JWKS when the server is created, so the first request verifies
-   * its token without waiting for it. Applies when `env.jwksUrl` is set and
-   * `auth.jwks` is not. Defaults to true, except under `NODE_ENV=test`.
+   * its token without waiting for it. Applies when neither `auth.jwks` nor
+   * `env.jwks` (`SUPABASE_JWKS`) holds the keys inline. Defaults to true, except under `NODE_ENV=test`.
    */
   readonly prefetchJwks?: boolean;
   /**
@@ -59,6 +62,11 @@ export interface ServerOptions {
    * primary.
    */
   readonly readUrl?: string | false;
+  /**
+   * `fetch` for the PostgREST and supabase-js clients, e.g. `tracedFetch()`
+   * from `better-supabase/otel`. Auth refreshes use `auth.fetch`.
+   */
+  readonly fetch?: typeof globalThis.fetch;
   readonly replicas?: {
     /** How long the next requests read from the primary after a write. Defaults to 5 s. */
     readonly pinMs?: number;
@@ -84,10 +92,17 @@ export interface ServerContext<
   stats(): DbStats;
   /** Where `db` reads go, when a read URL is configured. */
   readonly replica: ReplicaState | undefined;
+  /**
+   * `response` with this request's cookies: refreshed session cookies
+   * (`resolution.apply`) and, after a write, `bs-primary-until`.
+   */
+  apply(response: Response): Response;
 }
 
 export interface ContextOptions {
   readonly refresh?: boolean;
+  /** Read the session cookie. Defaults to true; `false` resolves bearer tokens only. */
+  readonly cookies?: boolean;
   /** Epoch ms until which `db` reads from the primary (the `bs-primary-until` cookie). */
   readonly pinnedUntil?: number;
   /** Also records this context's calls into a request-wide recorder. */
@@ -104,11 +119,11 @@ export interface BetterServer<
   readonly env: BetterSupabaseEnv;
   resolve(
     request: Request,
-    options?: { readonly refresh?: boolean },
+    options?: { readonly refresh?: boolean; readonly cookies?: boolean },
   ): Promise<AuthResolution<C, P>>;
   /**
    * Resolves auth and binds repositories to the caller. Refreshes an expired
-   * cookie session only with `refresh: true`; send `ctx.resolution.apply(response)`.
+   * cookie session only with `refresh: true`; send `ctx.apply(response)`.
    */
   context(
     request: Request,
@@ -234,8 +249,13 @@ export function createServer<
     }
     return key;
   };
+  const customFetch = options.fetch ? { fetch: options.fetch } : undefined;
+  const sharedGlobal = customFetch ? { global: customFetch } : {};
   const serviceClient = (): SupabaseClient => {
-    adminClient ??= createClient(env().url, secretKey(), { auth: STATELESS });
+    adminClient ??= createClient(env().url, secretKey(), {
+      auth: STATELESS,
+      ...sharedGlobal,
+    });
     return adminClient;
   };
 
@@ -250,9 +270,11 @@ export function createServer<
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
   ): SupabaseClient => {
-    const global =
-      Object.keys(headers).length > 0 ? { global: { headers } } : undefined;
-    const shared = !global && url === env().url;
+    const custom = Object.keys(headers).length > 0;
+    const global = custom
+      ? { global: { headers, ...customFetch } }
+      : sharedGlobal;
+    const shared = !custom && url === env().url;
     switch (auth.kind) {
       case "user":
         // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
@@ -276,6 +298,7 @@ export function createServer<
         }
         anonClient ??= createClient(url, env().publishableKey, {
           auth: STATELESS,
+          ...sharedGlobal,
         });
         return anonClient;
       default: {
@@ -310,6 +333,7 @@ export function createServer<
           apikey: key,
           Authorization: `Bearer ${auth.token}`,
         },
+        ...customFetch,
       },
     );
   };
@@ -355,6 +379,8 @@ export function createServer<
       stats ? { stats } : {},
     );
   };
+
+  const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
 
   /** Clients and repositories are built on first access: most scopes use one of them. */
   const contextFor = (
@@ -420,6 +446,8 @@ export function createServer<
         return sql;
       },
       stats: () => recorder.snapshot(),
+      apply: (response) =>
+        withPrimaryPin(resolution.apply(response), replica, pinMs),
     };
   };
 
@@ -438,7 +466,10 @@ export function createServer<
 
   const resolve = async (
     request: Request,
-    resolveOptions: { readonly refresh?: boolean } = {},
+    resolveOptions: {
+      readonly refresh?: boolean;
+      readonly cookies?: boolean;
+    } = {},
   ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
     const userMetadata = betterSupabase.userMetadataSchema;
@@ -451,6 +482,9 @@ export function createServer<
       ...(resolveOptions.refresh === undefined
         ? {}
         : { refresh: resolveOptions.refresh }),
+      ...(resolveOptions.cookies === undefined
+        ? {}
+        : { cookies: resolveOptions.cookies }),
       onRefresh: (event) => {
         options.auth?.onRefresh?.(event);
         betterSupabase.events.emit("refresh", event);
@@ -473,13 +507,18 @@ export function createServer<
               ? "bearer"
               : "none",
         ok: auth.kind !== "invalid",
-        ...(auth.kind === "user" ? { userId: auth.user.id } : {}),
+        ...(auth.kind === "user"
+          ? { userId: auth.user.id, rawSource: auth.source }
+          : {}),
+        ...(auth.kind === "anon" || auth.kind === "invalid"
+          ? { reason: auth.reason }
+          : {}),
       });
     }
     return resolution;
   };
 
-  return {
+  const server: BetterServer<M, F, E, C, P> = {
     get env() {
       return env();
     },
@@ -502,6 +541,9 @@ export function createServer<
     async context(request, contextOptions = {}) {
       const resolution = await resolve(request, {
         refresh: contextOptions.refresh ?? false,
+        ...(contextOptions.cookies === undefined
+          ? {}
+          : { cookies: contextOptions.cookies }),
       });
       return fromResolution(resolution, request, contextOptions);
     },
@@ -533,4 +575,27 @@ export function createServer<
       });
     },
   };
+  verifiedSeeders.set(server, (verified) =>
+    rememberVerified({ ...options.auth, env: env() }, verified),
+  );
+  return server;
+}
+
+type VerifiedToken = Parameters<typeof rememberVerified>[1];
+
+const verifiedSeeders = new WeakMap<
+  object,
+  (verified: VerifiedToken) => boolean
+>();
+
+/**
+ * Hands `server` a bearer token another layer verified for this request
+ * (`@supabase/server`'s `withSupabase`), so `context()` doesn't verify it
+ * again. See `rememberVerified` for when it is accepted.
+ */
+export function rememberVerifiedFor(
+  server: object,
+  verified: VerifiedToken,
+): boolean {
+  return verifiedSeeders.get(server)?.(verified) ?? false;
 }

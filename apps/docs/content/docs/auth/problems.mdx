@@ -38,7 +38,8 @@ Kind-specific details become extension members next to `code`: `constraint`
 and `columns` for conflicts, `column` for `not_null`, and `required` (`aal1` or
 `aal2`) when a guard's [`aal`](/docs/auth/mfa-sso) rejects the session,
 `scopes` when a guard's `scopes` rejects a delegated token
-(`code: "INSUFFICIENT_SCOPE"`), and `retryAfter` for `rate_limited`, which
+(`code: "INSUFFICIENT_SCOPE"`), `code: "ANONYMOUS_USER"` when a guard turns
+away an anonymous user because `allow` lacks `'anonymous'`, and `retryAfter` for `rate_limited`, which
 also sets the `Retry-After` header.
 
 ## Safe by default

@@ -113,6 +113,8 @@ export interface ClaimsConfig {
 export interface ActorConfig {
   readonly createdBy?: string;
   readonly updatedBy?: string;
+  /** Defaults to `impersonated_by`, the column the SQL kit's `track_actor` fills. */
+  readonly impersonatedBy?: string;
 }
 
 export interface PluginFlagsConfig {
@@ -514,6 +516,7 @@ export function resolveConfig(
       actor: pick(config.plugins?.actor, {
         createdBy: "created_by",
         updatedBy: "updated_by",
+        impersonatedBy: "impersonated_by",
       }),
     },
     claims: { ...DEFAULT_CLAIMS, ...config.claims },

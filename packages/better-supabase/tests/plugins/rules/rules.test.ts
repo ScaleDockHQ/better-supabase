@@ -144,6 +144,57 @@ describe("rules()", () => {
     expect(named.error).toBeNull();
     const allowed = await db.contacts.findMany({ limit: 1, sensitive: true });
     expect(allowed.error).toBeNull();
+
+    const { client: writes, last } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "k" }],
+    }));
+    const written = await defineSupabase({ ...schema, meta: marked.meta })
+      .use(plugin)
+      .connect(writes, context)
+      .contacts.create({ organizationId: "org-1", email: "a@b.c" });
+    expect(written.error).toBeNull();
+    const select = last().params.get("select") ?? "";
+    expect(select.split(",")).not.toContain("email");
+    expect(select.split(",")).toContain("id");
+  });
+
+  it("allows aggregates, paginate's look-ahead row and app_metadata tenants", async () => {
+    const { plugin, violations } = withReport({
+      ...strict(),
+      maxLimit: ["error", 10],
+    });
+    const { client } = capturingClient();
+    const db = defineSupabase(schema).use(plugin).connect(client, context);
+    expect(
+      (await db.customers.aggregate({ groupBy: ["status"], _count: true }))
+        .error,
+    ).toBeNull();
+    expect((await db.customers.paginate({ size: 10 })).error).toBeNull();
+    expect(violations).toEqual([]);
+
+    const claims = defineSupabase(schema)
+      .use(plugin)
+      .connect(client, { claims: { app_metadata: { tenant_id: "org-1" } } });
+    expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
+    expect(violations).toEqual([]);
+  });
+
+  it("runs before other pre plugins whatever the use() order", async () => {
+    const { plugin, violations } = withReport();
+    const early = definePlugin({
+      name: "early",
+      enforce: "pre",
+      transformQuery: (op) =>
+        op.kind === "select" ? { ...op, limit: undefined } : op,
+    });
+    const { client } = capturingClient();
+    await defineSupabase(schema)
+      .use(early)
+      .use(plugin)
+      .connect(client, context)
+      .customers.findMany({ limit: 1 });
+    expect(violations).toEqual([]);
   });
 
   it("flags storage objects written to *_url columns", async () => {

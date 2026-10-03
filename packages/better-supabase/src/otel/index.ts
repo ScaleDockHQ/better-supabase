@@ -31,6 +31,23 @@ export interface OtelOptions {
   readonly attributes?: Attributes;
   /** Set `false` to skip the duration histogram. */
   readonly metrics?: boolean;
+  /**
+   * The database name in `db.namespace` (`{database}|{schema}`). Supabase
+   * names it `postgres`, the default for Postgres executors.
+   */
+  readonly database?: string;
+  /** `server.address` and `server.port` on spans and metrics, e.g. the project host. */
+  readonly server?: { readonly address: string; readonly port?: number };
+}
+
+/** A five-character SQLSTATE; PostgREST's own codes (`PGRST116`) are not one. */
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+
+function serverAttributes(server: OtelOptions["server"]): Attributes {
+  if (!server) return {};
+  return server.port === undefined
+    ? { "server.address": server.address }
+    : { "server.address": server.address, "server.port": server.port };
 }
 
 const OPERATION_NAME: { readonly [K in Operation["kind"]]: string } = {
@@ -85,6 +102,9 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
     enforce: "post",
     wrapExecutor: (executor): Executor => {
       const system = systemOf(executor);
+      const database =
+        options.database ?? (system === "postgresql" ? "postgres" : undefined);
+      const server = serverAttributes(options.server);
       /** Span and metric attributes per table and operation, built once. */
       const described = new Map<
         string,
@@ -105,13 +125,17 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
             attributes: {
               ...options.attributes,
               "db.system.name": system,
-              "db.namespace": op.table.schema,
+              "db.namespace": database
+                ? `${database}|${op.table.schema}`
+                : op.table.schema,
               "db.collection.name": op.table.name,
               "db.operation.name": operation,
               "db.query.summary": summary,
               "better_supabase.executor": executor.name,
+              ...server,
             },
             metric: {
+              ...server,
               "db.system.name": system,
               "db.collection.name": op.table.name,
               "db.operation.name": operation,
@@ -150,7 +174,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
                 } else {
                   span.setAttributes({
                     "error.type": result.error.kind,
-                    ...(result.error.code
+                    ...(result.error.code && SQLSTATE.test(result.error.code)
                       ? { "db.response.status_code": result.error.code }
                       : {}),
                   });

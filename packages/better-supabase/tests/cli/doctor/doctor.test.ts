@@ -1507,9 +1507,18 @@ uri = "https://example.com/hook"
 
   describe("PermDock helpers for entitlements (BS408)", () => {
     const only = RULES.filter((rule) => rule.code === "BS408");
+    const parsed = parseManifest(manifest);
+    // The fixture's example fills `features` from its own function; the kit's needs better_supabase.feature_claims.
     const project: PermdockProject = {
       ...PERMDOCK,
-      manifest: parseManifest(manifest),
+      manifest: {
+        ...parsed,
+        claims: parsed.claims.map((claim) =>
+          claim.name === "features"
+            ? { ...claim, source: "better_supabase.feature_claims" }
+            : claim,
+        ),
+      },
     };
     const entitlementsConfig: Parameters<typeof resolveConfig>[0] = {
       sql: { kit: ["entitlements"] },
@@ -1546,7 +1555,76 @@ uri = "https://example.com/hook"
           },
         ),
       ).toEqual([]);
-      expect(await check({ permdock: PERMDOCK })).toEqual([]);
+      expect(await check({ permdock: PERMDOCK })).toMatchObject([
+        {
+          target: "entitlements.permdock",
+          message: expect.stringContaining("has no rls block"),
+        },
+      ]);
+    });
+
+    it("checks the features claim PermDock's hook registers", async () => {
+      const withClaims = (
+        claims: { name: string; source: string }[],
+      ): PermdockProject => ({
+        ...project,
+        manifest: { ...project.manifest!, claims },
+      });
+      expect(
+        await messages(
+          withClaims([{ name: "features", source: "public.feature_claims" }]),
+        ),
+      ).toEqual([
+        [
+          "claims.features",
+          expect.stringContaining(
+            'fills the "features" claim from public.feature_claims, not better_supabase.feature_claims',
+          ),
+        ],
+      ]);
+      expect(
+        await messages(
+          withClaims([
+            { name: "plan", source: "better_supabase.feature_claims" },
+          ]),
+        ),
+      ).toEqual([
+        [
+          "claims.features",
+          expect.stringContaining(
+            'registers better_supabase.feature_claims as the "plan" claim, but claims.features is "features"',
+          ),
+        ],
+      ]);
+      expect(await messages(withClaims([]))).toEqual([
+        [
+          "claims.features",
+          expect.stringContaining(
+            'has no "features" claim, so PermDock\'s hook never writes the plan features',
+          ),
+        ],
+      ]);
+    });
+
+    it("warns when no membership source covers the scope", async () => {
+      expect(
+        await messages({
+          ...project,
+          manifest: {
+            ...project.manifest!,
+            memberships: project.manifest!.memberships.filter(
+              (source) => "value" in source.scope,
+            ),
+          },
+        }),
+      ).toEqual([
+        [
+          "entitlements.permdock.organization",
+          expect.stringContaining(
+            'No membership source in permdock.manifest.json covers scope "organization"',
+          ),
+        ],
+      ]);
     });
 
     it("reports helpers missing from the database or the manifest", async () => {
@@ -1652,7 +1730,7 @@ uri = "https://example.com/hook"
         [
           "public.member_organization_ids_for",
           expect.stringMatching(
-            /supabase_auth_admin may not execute.*supabase\.hook\.claims: \{ features: 'better_supabase\.feature_claims' \}.*permdock\.config\.ts/,
+            /supabase_auth_admin may not execute.*feature_claims runs as its owner.*supabase\.hook\.claims.*permdock\.config\.ts/,
           ),
         ],
       ]);
@@ -1703,7 +1781,7 @@ uri = "https://example.com/hook"
       expect(await check({ permdock: untyped })).toMatchObject([
         {
           target: "entitlements.permdock",
-          message: expect.stringContaining("uuid, text or bigint"),
+          message: expect.stringContaining("uuid, text, bigint or integer"),
         },
       ]);
     });
@@ -1780,6 +1858,74 @@ uri = "https://example.com/hook"
       });
     });
 
+    it("checks the helper schema and scope against the manifest and catalog", async () => {
+      const project: PermdockProject = {
+        ...PERMDOCK,
+        manifest: parseManifest(manifest),
+        catalog: {
+          permissions: [
+            { key: "docs.read", rowConditions: false, scope: "organization" },
+            { key: "docs.write", rowConditions: false, scope: "customer" },
+          ],
+        },
+      };
+      const bucket = (policy: { scope: string; schema?: string }) =>
+        resolveConfig(
+          {
+            buckets: {
+              docs: {
+                path: "{orgId}/{file}",
+                policy: {
+                  permdock: { read: "docs.read", write: "docs.write" },
+                  ...policy,
+                },
+              },
+            },
+          },
+          "/project",
+        );
+      const run = async (
+        config: ReturnType<typeof resolveConfig>,
+        sqlFiles: DoctorContext["sqlFiles"] = [],
+      ) =>
+        (
+          await runRules(
+            context(base, { permdock: project, config, sqlFiles }),
+            only,
+          )
+        ).map((finding) => finding.message);
+      // The default schema is PermDock's `permdock`; this manifest puts the helpers in `public`.
+      expect(await run(bucket({ scope: "organization" }))).toEqual([
+        expect.stringContaining(
+          "calls PermDock's helpers in schema permdock, but permdock.manifest.json puts them in public",
+        ),
+        expect.stringContaining(
+          'buckets.docs ("docs.write") calls PermDock\'s helpers in schema permdock',
+        ),
+        expect.stringContaining(
+          'checks "docs.write" at scope "organization", but permissions.catalog.json declares it at "customer"',
+        ),
+      ]);
+      expect(await run(bucket({ scope: "tenant", schema: "public" }))).toEqual([
+        expect.stringContaining(
+          'uses scope "tenant", which permdock.manifest.json doesn\'t declare, so permitted_tenant_ids doesn\'t exist. Use "organization"',
+        ),
+        expect.stringContaining('uses scope "tenant"'),
+      ]);
+      expect(
+        await run(resolveConfig({}, "/project"), [
+          {
+            path: "supabase/schemas/900_storage.sql",
+            text: `create policy "bs_docs_select" on storage.objects for select using (split_part(name, '/', 1) in (select t.id::text from "authz"."permitted_organization_ids"(p_permission => 'docs.read') as t(id)));`,
+          },
+        ]),
+      ).toEqual([
+        expect.stringContaining(
+          'Policy "bs_docs_select" on storage.objects calls PermDock\'s helpers in schema authz',
+        ),
+      ]);
+    });
+
     it("treats a key without a rowConditions flag, or missing from the catalog, as unknown", async () => {
       const findings = await runRules(
         context(base, {
@@ -1832,13 +1978,93 @@ uri = "https://example.com/hook"
         ),
       ).toMatchObject([
         {
-          severity: "info",
-          message: expect.stringContaining("permdock catalog"),
+          severity: "error",
+          message: expect.stringContaining(
+            "so whether their permissions have row conditions is unknown. Run `permdock catalog`",
+          ),
         },
       ]);
       expect(
         await runRules(context(base, { sqlFiles: [policyFile] }), only),
       ).toEqual([]);
+    });
+  });
+
+  describe("PermDock manifest and config agree (BS409)", () => {
+    const only = RULES.filter((rule) => rule.code === "BS409");
+    const project: PermdockProject = {
+      ...PERMDOCK,
+      manifest: parseManifest(manifest),
+    };
+    const run = async (
+      extra: Partial<DoctorContext> = {},
+      config: Parameters<typeof resolveConfig>[0] = {},
+    ) =>
+      runRules(
+        context(base, {
+          permdock: project,
+          config: resolveConfig(config, "/project"),
+          ...extra,
+        }),
+        only,
+      );
+
+    it("passes when the claims match the manifest", async () => {
+      expect(await run()).toEqual([]);
+      expect(await run({}, { claims: { scope: "organization" } })).toEqual([]);
+      expect(
+        await runRules(
+          context(base, { config: resolveConfig({}, "/project") }),
+          only,
+        ),
+      ).toEqual([]);
+    });
+
+    it("warns when claims.tenant names another claim than PermDock's", async () => {
+      expect(await run({}, { claims: { tenant: "org_id" } })).toMatchObject([
+        {
+          severity: "warning",
+          target: "claims.tenant",
+          message: expect.stringContaining(
+            'PermDock writes the active tenant to "tenant_id", but claims.tenant is "org_id"',
+          ),
+        },
+      ]);
+    });
+
+    it("refuses hook and grants markers it can't read", async () => {
+      expect(
+        await run({
+          sqlFiles: [
+            {
+              path: "supabase/migrations/1_hook.sql",
+              text: "-- permdock:hook v2 schema=public\ncreate function x()",
+            },
+            {
+              path: "supabase/migrations/2_grants.sql",
+              text: "-- permdock:grants v1 schema=public\n",
+            },
+          ],
+        }),
+      ).toMatchObject([
+        {
+          severity: "error",
+          target: "supabase/migrations/1_hook.sql",
+          message: expect.stringContaining("`-- permdock:hook v2` marker"),
+        },
+      ]);
+    });
+
+    it("notes a claims.scope that isn't the manifest's root scope", async () => {
+      expect(await run({}, { claims: { scope: "customer" } })).toMatchObject([
+        {
+          severity: "info",
+          target: "claims.scope",
+          message: expect.stringContaining(
+            'claims.scope is "customer", which stands for "customer" in permdock.manifest.json, whose root scope is "organization"',
+          ),
+        },
+      ]);
     });
   });
 

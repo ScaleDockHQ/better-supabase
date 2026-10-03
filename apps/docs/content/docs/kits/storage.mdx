@@ -100,8 +100,8 @@ With [PermDock](/docs/auth/permdock), a bucket can check permissions instead
 of the tenant claim. The policies call the helpers `permdock rls generate`
 writes: `<schema>.permitted_<scope>_ids(key)` for a scope whose id is a path
 segment, and `<schema>.permdock_has(key)` for `scope: 'global'`. The helpers
-live in PermDock's `rls.schema` (`public` by default), and the bucket's
-`schema` option must name the same schema.
+live in PermDock's `rls.schema` (`permdock` by default), and the bucket calls
+them in `permdock` unless its `schema` option names PermDock's other schema.
 
 ```ts title="src/lib/storage.ts"
 export const files = defineBucket({
@@ -226,6 +226,34 @@ The connection then signs each path, `ttl`, `transform` and `download`
 combination once and reuses the URL until a tenth of its `ttl` (at most a
 minute) remains. The cache lives on that connection only, so connect once
 per request and URLs signed for one user never reach another.
+
+### Tenant scope
+
+Setting `tenant` on the bucket also makes connected clients check paths
+before they reach Storage, which matters for the secret-key client that
+policies don't limit. Every path the client builds, accepts, signs, uploads,
+removes or reserves must hold the caller's tenant in the `tenant.param`
+segment (`{orgId}` by default), and `list()` lists only under it:
+
+```ts
+const logos = defineBucket({
+  id: "customer-logos",
+  path: "{orgId}/{customerId}/logo/{version}.webp",
+  policy: "tenant",
+  tenant: { claim: "tenant_id" },
+});
+
+const storage = logos.connect(supabase, { context: db.$context });
+await storage.upload({ orgId: otherOrg, customerId, version }, file);
+// { ok: false, error: { kind: "forbidden" } }, no request made
+```
+
+The tenant comes from `{ tenant }`, else from `context`: `context.tenant`,
+the tenant the `tenant()` plugin resolved, then the `tenant.claim` claims. A
+connection without a tenant gets `forbidden` for every call. Cross-tenant
+admin work (account deletion does this) connects with `{ allTenants: true }`.
+`storage.path(target)` returns the checked path as a `Result`, and
+`publicUrl()`, which makes no request, throws the `forbidden` `DbException`.
 
 ### Image transformations
 

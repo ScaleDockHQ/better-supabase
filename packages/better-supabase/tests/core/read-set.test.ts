@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ExecuteResult, Executor } from "../../src/core/executor.ts";
 import type { Operation } from "../../src/ir/types.ts";
@@ -7,6 +7,7 @@ import { batchingExecutor } from "../../src/core/batch.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
 import { ok, type Result } from "../../src/core/result.ts";
+import { tenant } from "../../src/plugins/tenant/index.ts";
 import { compileReadSet, compileReadSets } from "../../src/sql/read-sets.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -90,6 +91,23 @@ describe("defineReadSet", () => {
         nope: {} as never,
       })),
     ).toThrow(/not a spec/);
+  });
+
+  it("warns when runtime plugins scope tables the generated function reads", () => {
+    const warn = vi.fn();
+    const logger = { debug() {}, info() {}, warn, error() {} };
+    const scoped = defineSupabase(schema, { logger }).use(tenant());
+    defineReadSet(scoped, "scoped", {}, (s) => ({
+      customers: s.customers.count(),
+    }));
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain(
+      'read set "scoped" reads customers, which tenant scope at runtime',
+    );
+    defineReadSet(defineSupabase(schema, { logger }), "plain", {}, (s) => ({
+      customers: s.customers.count(),
+    }));
+    expect(warn).toHaveBeenCalledOnce();
   });
 
   it("lists every table the set reads", () => {

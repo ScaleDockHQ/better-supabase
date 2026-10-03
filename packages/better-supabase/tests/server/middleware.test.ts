@@ -48,6 +48,22 @@ describe("contextFromSupabase", () => {
     });
   });
 
+  it("carries the impersonator like authContext does", () => {
+    const claims = { sub: "u1", act: { sub: "admin-1", reason: "ticket" } };
+    expect(
+      contextFromSupabase(
+        auth({
+          authMode: "user",
+          userClaims: { id: "u1" },
+          jwtClaims: claims,
+        }),
+      ),
+    ).toEqual({
+      actor: { id: "u1", kind: "user", impersonator: "admin-1" },
+      claims,
+    });
+  });
+
   it("omits a missing role and email, and defaults claims to empty", () => {
     expect(
       contextFromSupabase(auth({ authMode: "user", userClaims: { id: "u1" } })),

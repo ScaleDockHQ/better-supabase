@@ -50,6 +50,25 @@ export interface OrpcOptions extends ServerOptions {
   readonly exposeErrors?: boolean;
 }
 
+/** The part of an oRPC fetch handler (`RPCHandler`, `OpenAPIHandler`) `fetchHandler` calls. */
+export interface OrpcFetchHandler {
+  handle(
+    request: Request,
+    options: {
+      readonly prefix?: `/${string}`;
+      readonly context: OrpcRequestContext;
+    },
+  ): Promise<{
+    readonly matched: boolean;
+    readonly response?: Response | undefined;
+  }>;
+}
+
+export interface OrpcFetchOptions {
+  /** Path prefix the router is mounted under, e.g. `/rpc`. */
+  readonly prefix?: `/${string}`;
+}
+
 export type OrpcMiddleware<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -74,10 +93,19 @@ export interface BetterOrpc<
   /**
    * Resolves the caller, enforces `allow` and adds `context.db`, `context.auth`
    * and `context.bs`. Thrown `DbException`s, and errors caused by a
-   * `DbError`, become `ORPCError`s. With `refresh`, pair it with
-   * `ctx.bs.resolution.apply` in the handler adapter.
+   * `DbError`, become `ORPCError`s. Serve the router with `fetchHandler` so
+   * refreshed session cookies and `bs-primary-until` reach the response.
    */
   middleware(options?: MiddlewareOptions): OrpcMiddleware<M, F, E, C, P>;
+  /**
+   * A fetch handler for an oRPC handler: passes `{ request }` as the initial
+   * context, answers 404 when no procedure matched, and applies the cookies
+   * of the request's context (`ctx.apply`).
+   */
+  fetchHandler(
+    handler: OrpcFetchHandler,
+    options?: OrpcFetchOptions,
+  ): (request: Request) => Promise<Response>;
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
   unwrap<T>(value: Result<T> | PromiseLike<Result<T>>): Promise<T>;
   /** Plain values pass through; thrown `DbException`s become `ORPCError`s. */
@@ -114,6 +142,7 @@ export function createOrpc<
 ): BetterOrpc<M, F, E, C, P> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
+  const contexts = new WeakMap<Request, ServerContext<M, F, E, C, P>>();
 
   const toOrpcError = (error: DbError): ORPCError<string, ProblemDetails> => {
     const problem = toProblem(error, { expose });
@@ -140,6 +169,7 @@ export function createOrpc<
             middlewareOptions.scopes,
           );
           if (denied) throw toOrpcError(denied);
+          contexts.set(context.request, ctx);
           try {
             return await next({
               context: { bs: ctx, db: ctx.db, auth: ctx.auth },
@@ -150,6 +180,18 @@ export function createOrpc<
             throw cause;
           }
         });
+    },
+
+    fetchHandler(handler, fetchOptions = {}) {
+      return async (request) => {
+        const { response } = await handler.handle(request, {
+          ...(fetchOptions.prefix ? { prefix: fetchOptions.prefix } : {}),
+          context: { request },
+        });
+        const ctx = contexts.get(request);
+        const answer = response ?? new Response("Not found", { status: 404 });
+        return ctx ? ctx.apply(answer) : answer;
+      };
     },
 
     async unwrap(value: unknown): Promise<never> {

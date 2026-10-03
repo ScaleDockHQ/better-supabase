@@ -6,10 +6,11 @@ import {
 } from "@supabase/supabase-js";
 
 import type { BetterSupabase } from "../core/define.ts";
-import type { Actor, RequestContext } from "../core/plugin.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
+import { userContext } from "../auth/impersonation.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
 import { EnvValidationError, parseEnv, type PublicEnv } from "../env/index.ts";
 import { createQueries, type BetterQueries } from "../query/index.ts";
@@ -99,13 +100,7 @@ function contextOf(snapshot: AuthSnapshot): RequestContext {
       claims: { role: "anon" },
     };
   }
-  const actor: Actor = {
-    id: snapshot.user.id,
-    kind: "user",
-    ...(snapshot.user.role ? { role: snapshot.user.role } : {}),
-    ...(snapshot.user.email ? { email: snapshot.user.email } : {}),
-  };
-  return { actor, claims: snapshot.claims };
+  return userContext(snapshot.user, snapshot.claims);
 }
 
 function clientFor(options: ClientOptions): SupabaseClient {

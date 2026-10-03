@@ -18,7 +18,7 @@ import {
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { display, writeIfChanged } from "../io.ts";
-import { entitlementsMode, permdockConfig, readPermdock } from "../permdock.ts";
+import { entitlementsMode, permdockSource, readPermdock } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
 import {
@@ -57,9 +57,15 @@ const USAGE = "Run `better-supabase sql --help` for the actions.";
 /** Modules that fill a claim PermDock's hook also writes (`memberships`). */
 const PERMDOCK_OWNED: ReadonlySet<string> = new Set(["tenant"]);
 
-/** PermDock's helpers for the `entitlements` module; throws for a scope the manifest lacks. */
+/**
+ * PermDock's helpers for the `entitlements` module. When `names` resolve to
+ * that module, an invalid PermDock mode (no manifest, a scope it lacks, an
+ * unknown id type) throws instead of falling back to the tenant module.
+ * Without `names` (`sql list`) it only describes the modules, so it doesn't.
+ */
 async function permdockFor(
   config: ResolvedConfig,
+  names?: readonly string[],
 ): Promise<KitPermdock | undefined> {
   const mode = entitlementsMode(
     config,
@@ -71,6 +77,13 @@ async function permdockFor(
     case "permdock":
       return mode.permdock;
     case "invalid":
+      if (
+        names === undefined ||
+        !resolveModules(names, {}).some(
+          (module) => module.name === "entitlements",
+        )
+      )
+        return undefined;
       throw new TypeError(mode.problem);
     default: {
       const unreachable: never = mode;
@@ -82,8 +95,14 @@ async function permdockFor(
 async function layout(
   config: ResolvedConfig,
   args: SqlArgs,
+  names?: readonly string[],
 ): Promise<KitLayout> {
-  return kitLayout(config, args["tests-dir"], [], await permdockFor(config));
+  return kitLayout(
+    config,
+    args["tests-dir"],
+    [],
+    await permdockFor(config, names),
+  );
 }
 
 /** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
@@ -92,7 +111,7 @@ async function layoutFor(
   args: SqlArgs,
   names: readonly string[],
 ): Promise<KitLayout> {
-  const permdock = await permdockFor(config);
+  const permdock = await permdockFor(config, names);
   const needsReadSets = resolveModules(names, {
     ...(permdock ? { permdock } : {}),
   }).some((module) => module.name === "read-sets");
@@ -198,7 +217,8 @@ export async function runSql(
           error: `Unknown module ${unknown.join(", ")}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
         };
       }
-      const permdock = permdockConfig(config.root);
+      const project = await readPermdock(config.root, config.permdock);
+      const permdock = project ? permdockSource(project) : undefined;
       const hookModules = names.filter((name) => PERMDOCK_OWNED.has(name));
       if (permdock && hookModules.length > 0 && args.force !== true) {
         return {
@@ -294,7 +314,10 @@ export async function runSql(
       return {
         code: 0,
         output: module.render
-          ? module.render(config.claims, await layout(config, args))
+          ? module.render(
+              config.claims,
+              await layout(config, args, [module.name]),
+            )
           : module.sql,
       };
     }

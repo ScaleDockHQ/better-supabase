@@ -9,7 +9,7 @@ import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
 import type { RefreshEvent } from "../core/events.ts";
 import type { Logger } from "../core/logger.ts";
-import type { Actor, RequestContext } from "../core/plugin.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
 
@@ -17,7 +17,7 @@ import { decodeJwtPayload } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
-import { impersonatorOf } from "./impersonation.ts";
+import { userContext } from "./impersonation.ts";
 import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
@@ -119,6 +119,12 @@ export interface ResolveAuthOptions {
     readonly name?: string;
     readonly options?: CookieOptions;
   };
+  /**
+   * Read the session cookie. Defaults to true. `false` suits endpoints only
+   * bearer clients call (MCP): a browser's cookie then can't authorize a
+   * request another site makes it send.
+   */
+  readonly cookies?: boolean;
   /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
   readonly jwks?: SupabaseEnv["jwks"];
   /**
@@ -174,7 +180,7 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
     publishableKeys: { default: env.publishableKey },
     secretKeys:
       env.secretKeys ?? (env.secretKey ? { default: env.secretKey } : {}),
-    jwks: options.jwks ?? env.jwksUrl,
+    jwks: options.jwks ?? env.jwks ?? env.jwksUrl,
   };
 }
 
@@ -192,7 +198,7 @@ let memoByJwks = new WeakMap<object, Map<string, VerifiedUser>>();
  * and island resolves the same token again; this skips the signature check.
  */
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
-  const jwks = options.jwks;
+  const jwks = options.jwks ?? options.env.jwks;
   if (jwks && typeof jwks === "object" && !(jwks instanceof URL)) {
     let memo = memoByJwks.get(jwks);
     if (!memo) memoByJwks.set(jwks, (memo = new Map<string, VerifiedUser>()));
@@ -207,6 +213,56 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   let memo = memoByUrl.get(key);
   if (!memo) memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
   return memo;
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const left = Object.entries(a);
+  const right = new Map(Object.entries(b));
+  return (
+    left.length === right.size &&
+    left.every(
+      ([key, value]) => right.has(key) && sameJson(value, right.get(key)),
+    )
+  );
+}
+
+/**
+ * Records a token that `@supabase/server` verified for this request, so the
+ * next `resolveAuth` with these options doesn't verify it again. Only when
+ * `claims` is the token's own payload, it hasn't expired, and its `iss` and
+ * `aud` pass the checks these options would apply; otherwise returns false
+ * and the token is verified as usual.
+ */
+export function rememberVerified(
+  options: ResolveAuthOptions,
+  verified: {
+    readonly token: string;
+    readonly claims: JWTClaims;
+    readonly user: UserClaims;
+  },
+): boolean {
+  const { token, claims, user } = verified;
+  const now = Math.floor((options.now ?? Date.now)() / 1000);
+  const expiresAt = typeof claims.exp === "number" ? claims.exp : null;
+  if (expiresAt === null || expiresAt <= now) return false;
+  if (!sameJson(decodeJwtPayload(token), claims)) return false;
+  const issuers = [options.issuer ?? `${options.env.url}/auth/v1`].flat();
+  if (typeof claims.iss !== "string" || !issuers.includes(claims.iss))
+    return false;
+  const audiences = [options.audience ?? "authenticated"].flat();
+  const aud: unknown = claims.aud;
+  const given = Array.isArray(aud) ? aud : [aud];
+  if (!audiences.some((audience) => given.includes(audience))) return false;
+  remember(
+    memoFor(options),
+    token,
+    { kind: "user", token, claims, user, expiresAt },
+    expiresAt,
+  );
+  return true;
 }
 
 /** Forgets every verified token. For benchmarks and tests. */
@@ -430,7 +486,8 @@ function base64url(text: string): string {
  * fetch it as before.
  */
 export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
-  if (options.jwks !== undefined) return Promise.resolve();
+  if (options.jwks !== undefined || options.env.jwks !== undefined)
+    return Promise.resolve();
   return verifyCredentials(
     { token: PREFETCH_TOKEN, apikey: null },
     { auth: ["user"], env: serverEnv(options) },
@@ -586,6 +643,9 @@ export async function resolveAuth(
     );
   }
 
+  if (options.cookies === false) {
+    return resolution({ kind: "anon", reason: "none" }, cookies);
+  }
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
   const session = readSession(cookies(), name);
   if (!session) {
@@ -678,17 +738,8 @@ export async function resolveAuth(
 /** The repository context (`actor`, `claims`) for an auth state. */
 export function authContext(auth: AuthState): RequestContext {
   switch (auth.kind) {
-    case "user": {
-      const impersonator = impersonatorOf(auth.claims);
-      const actor: Actor = {
-        id: auth.user.id,
-        kind: "user",
-        ...(auth.user.role === undefined ? {} : { role: auth.user.role }),
-        ...(auth.user.email === undefined ? {} : { email: auth.user.email }),
-        ...(impersonator ? { impersonator: impersonator.id } : {}),
-      };
-      return { actor, claims: auth.claims };
-    }
+    case "user":
+      return userContext(auth.user, auth.claims);
     case "service":
       return {
         actor: {

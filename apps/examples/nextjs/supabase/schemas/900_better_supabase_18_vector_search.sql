@@ -1,4 +1,4 @@
--- better-supabase SQL kit: vector-search (0.0.0)
+-- better-supabase SQL kit: vector-search (0.4.0)
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 

@@ -119,15 +119,17 @@ catalogs:
   # Ranges the published packages declare as peers, so consumers pick the
   # version. They are deliberately not exact pins.
   peers:
-    "@opentelemetry/api": ">=1.9"
-    "@orpc/server": ">=2.0.0-0"
+    "@opentelemetry/api": ">=1.9 <2"
+    "@orpc/server": ">=2.0.0-beta.40 <3"
     "@supabase/config": ">=0.9.0 <0.12"
     "@supabase/supabase-js": "^2.116.0"
-    "@tanstack/query-core": "^5"
-    hono: ">=4"
-    next: ">=16"
-    oxfmt: ">=0.66"
-    pg: ">=8"
+    # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
+    "@tanstack/query-core": "^5.62.0"
+    hono: ">=4 <5"
+    next: ">=16 <17"
+    # The version @supabase/postgrest-typegen pins as its optional peer.
+    oxfmt: "0.66.0"
+    pg: ">=8.15 <9"
     react: "^19"
     temporal-polyfill: ">=1"
 

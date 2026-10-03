@@ -251,7 +251,12 @@ describe("reads", () => {
       pages: 3,
       hasMore: false,
     });
-    expect(query(last())).toEqual(["select=id", "offset=20", "limit=11"]);
+    expect(query(last())).toEqual([
+      "select=id",
+      "order=id.asc",
+      "offset=20",
+      "limit=11",
+    ]);
   });
 });
 

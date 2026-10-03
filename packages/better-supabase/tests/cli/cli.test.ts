@@ -110,6 +110,19 @@ describe("storagePaths", () => {
   });
 });
 
+describe("plugin flags", () => {
+  it("rejects a soft-delete column that is not a timestamp", async () => {
+    const config = resolveConfig(
+      { plugins: { softDelete: { column: "name" } } },
+      fixtures,
+    );
+    const snapshot = await loadFixtureSnapshot();
+    expect(() => buildModel(snapshot, config)).toThrow(
+      "plugins.softDelete.column: public.customers.name is text, but softDelete() writes a timestamp",
+    );
+  });
+});
+
 describe("codecs", () => {
   const createdAt = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures))
@@ -300,6 +313,7 @@ describe("gen", () => {
     await writeFile(
       join(dir, "permissions.catalog.json"),
       JSON.stringify({
+        version: 1,
         permissions: [
           { key: "docs.read", rowConditions: true },
           { key: "docs.write" },
@@ -319,6 +333,35 @@ describe("gen", () => {
     );
     expect(refused.stderr).toContain(
       'buckets.docs: "docs.write" has no rowConditions flag in permissions.catalog.json',
+    );
+  });
+
+  it("refuses PermDock bucket policies when there is no catalog", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        output: "src/db/generated.ts",
+        buckets: {
+          docs: {
+            path: "{orgId}/{file}",
+            policy: {
+              permdock: { read: "docs.read", write: "docs.write" },
+              scope: "organization",
+            },
+          },
+        },
+      }),
+    );
+    const refused = await run([
+      "gen",
+      "--snapshot",
+      "snapshot.json",
+      "--cwd",
+      dir,
+    ]);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain(
+      "buckets.docs: there is no permissions.catalog.json, so whether the keys have row conditions is unknown",
     );
   });
 
@@ -430,8 +473,17 @@ describe("sql", () => {
     expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
   });
 
-  it("writes entitlements next to a permdock.config.ts without --force", async () => {
+  it("refuses entitlements next to a permdock.config.ts without a manifest", async () => {
     await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
+    const refused = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain(
+      "permdock.config.ts is a PermDock project, but there is no permdock.manifest.json",
+    );
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ entitlements: { permdock: false } }),
+    );
     const added = await run(["sql", "add", "entitlements", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(/900_better_supabase_\d\d_entitlements\.sql/);

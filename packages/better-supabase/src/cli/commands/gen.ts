@@ -112,7 +112,11 @@ async function readSetFile(
   )[0];
 }
 
-/** `buckets` keys the catalog doesn't mark `rowConditions: false`, as error lines. */
+/**
+ * `buckets` keys the catalog doesn't mark `rowConditions: false`, as error
+ * lines. Without a readable catalog every PermDock bucket is refused, since
+ * whether its keys have row conditions is unknown.
+ */
 async function rowConditionedBuckets(
   config: ResolvedConfig,
 ): Promise<string[]> {
@@ -120,7 +124,13 @@ async function rowConditionedBuckets(
   if (configured.length === 0) return [];
   const project = await readPermdock(config.root, config.permdock);
   const catalog = project?.catalog;
-  if (!catalog) return [];
+  if (!catalog) {
+    const path = project?.catalogPath ?? config.permdock.catalog;
+    const problem = project?.problems.find((entry) => entry.startsWith(path));
+    return [
+      `  ${configured.map(({ bucket }) => `buckets.${bucket}`).join(", ")}: ${problem ? `could not read PermDock's catalog (${problem})` : `there is no ${path}`}, so whether the keys have row conditions is unknown. Run \`permdock catalog\`, or set permdock.catalog in the config.`,
+    ];
+  }
   return configured.flatMap(({ bucket, keys }) =>
     keys.flatMap((key) => {
       const problem = unsafeKey(catalog, key, project.catalogPath);
@@ -132,7 +142,7 @@ async function rowConditionedBuckets(
 }
 
 const UNFORMATTED =
-  "oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install it: pnpm add -D oxfmt";
+  'oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install the version @supabase/postgrest-typegen pins: pnpm add -D oxfmt@0.66.0. To use a newer oxfmt, allow it in pnpm-workspace.yaml under peerDependencyRules.allowedVersions, keyed "@supabase/postgrest-typegen>oxfmt".';
 
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;

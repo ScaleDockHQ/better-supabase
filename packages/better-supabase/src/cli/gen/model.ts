@@ -33,6 +33,8 @@ import {
   singular,
 } from "./shared.ts";
 
+const SOFT_DELETE_UDTS = new Set(["timestamptz", "timestamp"]);
+
 const applyCasing = (name: string, casing: Casing): string =>
   casing === "camel" ? toCamel(name) : name;
 
@@ -382,11 +384,24 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       softDelete?: string;
       timestamps?: { createdAt?: string; updatedAt?: string };
       tenant?: string;
-      actor?: { createdBy?: string; updatedBy?: string };
+      actor?: {
+        createdBy?: string;
+        updatedBy?: string;
+        impersonatedBy?: string;
+      };
     } = {};
     if (flagsConfig.softDelete) {
-      const column = has(flagsConfig.softDelete.column);
-      if (column) flags.softDelete = column;
+      const db = flagsConfig.softDelete.column;
+      const column = columns.find((col) => col.db === db);
+      if (column) {
+        const udt = column.snapshot.udt;
+        if (column.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
+          throw new TypeError(
+            `plugins.softDelete.column: ${table.schema}.${table.name}.${db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
+          );
+        }
+        flags.softDelete = column.app;
+      }
     }
     if (flagsConfig.timestamps) {
       const createdAt = has(flagsConfig.timestamps.createdAt);
@@ -405,10 +420,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     if (flagsConfig.actor) {
       const createdBy = has(flagsConfig.actor.createdBy);
       const updatedBy = has(flagsConfig.actor.updatedBy);
-      if (createdBy || updatedBy) {
+      const impersonatedBy = has(flagsConfig.actor.impersonatedBy);
+      if (createdBy || updatedBy || impersonatedBy) {
         flags.actor = {
           ...(createdBy ? { createdBy } : {}),
           ...(updatedBy ? { updatedBy } : {}),
+          ...(impersonatedBy ? { impersonatedBy } : {}),
         };
       }
     }

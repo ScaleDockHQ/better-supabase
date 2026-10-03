@@ -1,7 +1,7 @@
 import type { Operation, Selection } from "../../ir/types.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../../schema/types.ts";
 
-import { claimAt, claimsOf } from "../../core/claims.ts";
+import { claimAt, claimsOf, tenantClaimPaths } from "../../core/claims.ts";
 import { dbError, DbException } from "../../core/errors.ts";
 import {
   definePlugin,
@@ -281,13 +281,17 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       op.kind === "select" &&
       op.single === undefined &&
       !op.head &&
-      op.limit === undefined
+      op.limit === undefined &&
+      op.selection.aggregate === undefined
         ? "findMany without limit reads every visible row"
         : undefined,
-    maxLimit: (op) =>
-      op.kind === "select" && op.limit !== undefined && op.limit > maxLimit
-        ? `limit ${op.limit} is above the maximum of ${maxLimit}`
-        : undefined,
+    maxLimit: (op) => {
+      if (op.kind !== "select" || op.limit === undefined) return;
+      const limit = op.lookAhead === true ? op.limit - 1 : op.limit;
+      return limit > maxLimit
+        ? `limit ${limit} is above the maximum of ${maxLimit}`
+        : undefined;
+    },
     requireOrderByForCursor: (op) =>
       op.kind === "select" &&
       !op.head &&
@@ -305,23 +309,26 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
     },
     requireTenantContext: (op, { context, schema }) => {
       if (!op.table.flags.tenant || context.actor?.kind === "service") return;
-      const claim = optionOf(
+      if (typeof context.tenant === "string") return;
+      const claim = optionOf<string | undefined>(
         rules.requireTenantContext,
-        claimsOf(schema).tenant,
+        undefined,
       );
-      return context.tenant === undefined &&
-        claimAt(context.claims, claim) === undefined
-        ? `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim "${claim}")`
-        : undefined;
+      const paths =
+        claim === undefined
+          ? tenantClaimPaths(claimsOf(schema).tenant)
+          : [claim];
+      return paths.some((path) => claimAt(context.claims, path) !== undefined)
+        ? undefined
+        : `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim ${paths.map((path) => `"${path}"`).join(" or ")})`;
     },
     noAdminInBrowser: (_op, { context }) =>
       context.actor?.kind === "service" && isBrowser()
         ? "a service-role connection is running in a browser"
         : undefined,
     noSensitiveSelect: (op, { options }) => {
-      if (options["sensitive"] === true) return;
-      const selection = op.kind === "select" ? op.selection : op.returning;
-      const columns = selection ? sensitiveColumns(selection, op.table) : [];
+      if (options["sensitive"] === true || op.kind !== "select") return;
+      const columns = sensitiveColumns(op.selection, op.table);
       return columns.length > 0
         ? `reads sensitive column(s) ${columns.join(", ")}; pass { sensitive: true } to allow`
         : undefined;
