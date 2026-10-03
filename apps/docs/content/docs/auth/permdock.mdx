@@ -151,7 +151,7 @@ hook writes and passes the rest through, so claims it doesn't name reach
 PermDock unchanged. `extend(app)` adds your own hook claims, validated by your
 schema library:
 
-```ts title="src/lib/supabase/client.ts"
+```ts title="src/lib/supabase/index.ts"
 import { defineSupabase } from "better-supabase";
 import { supabaseClaims } from "permdock/supabase";
 import * as v from "valibot";
@@ -171,6 +171,29 @@ export const betterSupabase = defineSupabase(schema).claims(
     }),
   ),
 );
+```
+
+The server and the browser each create `bs` from that definition, so both
+validate the claims the same way:
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
+
+export const bs = createNext(betterSupabase);
+```
+
+```ts title="src/lib/supabase/client.ts"
+import { createClient } from "better-supabase/client";
+import { betterSupabase } from "./index";
+
+export const bs = createClient(betterSupabase, {
+  env: {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    publishableKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  },
+});
 ```
 
 `session.claims` then has PermDock's `memberships`, `tenant_id`, `roles` and

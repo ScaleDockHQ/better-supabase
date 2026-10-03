@@ -15,6 +15,10 @@ SUPABASE_READ_URL=https://abc-rr-eu-west-1-xyz.supabase.co
 Or pass it in code, where `readUrl: false` turns an env value off:
 
 ```ts title="lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
+
 export const bs = createNext(betterSupabase, {
   readUrl: process.env.REPLICA_URL,
   replicas: { pinMs: 5000 },
