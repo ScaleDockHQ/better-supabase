@@ -129,6 +129,12 @@ export async function respond(
   return Response.json(settled.data, { status: options.status ?? 200 });
 }
 
+/** Prefetching the JWKS would add a network call to every test that builds a server. */
+export function defaultPrefetchJwks(): boolean {
+  // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.
+  return typeof process === "undefined" || process.env["NODE_ENV"] !== "test";
+}
+
 export function defaultExpose(): boolean {
   return (
     // oxlint-disable-next-line typescript/prefer-optional-chain -- `process?.env` throws where `process` is undeclared.

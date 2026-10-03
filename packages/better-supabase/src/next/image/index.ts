@@ -44,16 +44,16 @@ export function createImageLoader(options: ImageLoaderOptions): ImageLoader {
   const publicPrefixes = [
     `${storage}/object/public/`,
     `${storage}/render/image/public/`,
-  ];
+  ].map((prefix) => ({ prefix, length: new URL(prefix).pathname.length }));
   const fallback = options.fallback ?? (({ src }) => src);
 
   return (props) => {
     const prefix = publicPrefixes.find((candidate) =>
-      props.src.startsWith(candidate),
+      props.src.startsWith(candidate.prefix),
     );
     if (prefix === undefined) return fallback(props);
     const source = new URL(props.src);
-    const object = source.pathname.slice(new URL(prefix).pathname.length);
+    const object = source.pathname.slice(prefix.length);
     const target = new URL(`${storage}/render/image/public/${object}`);
     for (const [key, value] of source.searchParams)
       target.searchParams.set(key, value);

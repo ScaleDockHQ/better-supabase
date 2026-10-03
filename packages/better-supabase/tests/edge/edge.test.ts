@@ -102,5 +102,23 @@ describe("createEdge", () => {
       ).status,
     ).toBe(405);
     expect((await serve(await request("/api/customers"))).status).toBe(401);
+    // Unknown routes answer before auth: no token still gets a 404.
+    expect((await serve(await request("/api/nope"))).status).toBe(404);
+    expect(
+      (await serve(await request("/api/customers/%E0%A4%A", { token }))).status,
+    ).toBe(400);
+  });
+
+  it("allows any origin with cors: true", async () => {
+    const open = createEdge(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      cors: true,
+    });
+    const response = await open.handler(() => undefined)(
+      await request("/x", { origin: "https://elsewhere.test" }),
+    );
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("vary")).toBeNull();
   });
 });

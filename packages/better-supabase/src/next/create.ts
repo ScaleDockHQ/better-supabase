@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers.js";
 import { type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 
-import type { AuthState } from "../auth/resolve.ts";
+import type { AuthResolution, AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
@@ -429,9 +429,23 @@ export function createNext<
       headers: new Headers(await headers()),
     });
 
+  /** One token verification per render scope backs `context()`, `session()` and `cached()`. */
+  const incoming = cache(
+    async (): Promise<{
+      readonly request: Request;
+      readonly resolution: AuthResolution<C, P>;
+    }> => {
+      const request = await incomingRequest();
+      return {
+        request,
+        resolution: await base.resolve(request, { refresh: false }),
+      };
+    },
+  );
+
   const current = cache(async (): Promise<ServerContext<M, F, E, C, P>> => {
-    const request = await incomingRequest();
-    return base.context(request, statsFor(request));
+    const { request, resolution } = await incoming();
+    return base.contextFromResolution(resolution, request, statsFor(request));
   });
 
   const context = (
@@ -440,12 +454,9 @@ export function createNext<
   ): Promise<ServerContext<M, F, E, C, P>> =>
     request ? base.context(request, contextOptions) : current();
 
-  const session = cache(async (): Promise<AuthSession<C, P>> => {
-    const resolution = await base.resolve(await incomingRequest(), {
-      refresh: false,
-    });
-    return toSession(resolution.auth);
-  });
+  const session = cache(async (): Promise<AuthSession<C, P>> =>
+    toSession((await incoming()).resolution.auth),
+  );
 
   const contextForSession = async (
     view: AuthSession<C, P>,

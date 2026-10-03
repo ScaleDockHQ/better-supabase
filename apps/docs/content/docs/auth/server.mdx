@@ -40,6 +40,19 @@ refreshes an expiring session; send the new cookies with
 you with `refresh: true`. The supabase-js client is built from the verified
 token, so it makes no auth calls and keeps no state between requests.
 
+To build several contexts from one request without verifying the token
+again, resolve once and pass the resolution:
+
+```ts
+const resolution = await bs.resolve(request);
+const ctx = bs.contextFromResolution(resolution, request);
+```
+
+When `env.jwksUrl` is set and `auth.jwks` is not, `createServer` fetches the
+JWKS right away, so the first request verifies its token without waiting for
+it. Pass `prefetchJwks: false` to turn that off; it is off under
+`NODE_ENV=test`.
+
 ## Explicit identities
 
 ```ts

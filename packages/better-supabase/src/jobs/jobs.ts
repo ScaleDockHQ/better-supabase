@@ -119,8 +119,14 @@ export type JobHandler<P> = (
 export interface WorkOptions extends ClaimOptions {
   /** Jobs handled at once. Defaults to 1. */
   readonly concurrency?: number;
-  /** Wait between polls when the queue is empty, in ms. Defaults to 1000. */
+  /**
+   * First wait between polls when the queue is empty, in ms. Defaults to
+   * 1000. Each empty poll doubles the wait up to `maxPollInterval`; a claimed
+   * job resets it.
+   */
   readonly pollInterval?: number;
+  /** Longest wait between empty polls, in ms. Defaults to 30000. */
+  readonly maxPollInterval?: number;
   /** Stops the loop; running jobs finish first. */
   readonly signal?: AbortSignal;
   readonly onError?: (error: DbError, job: Job) => void;
@@ -167,7 +173,7 @@ export interface Jobs<Q extends QueueSchemas> {
   drain<N extends Extract<keyof Q, string>>(
     queue: N,
     handler: JobHandler<PayloadOut<Q, N>>,
-    options?: Omit<WorkOptions, "pollInterval" | "signal">,
+    options?: Omit<WorkOptions, "pollInterval" | "maxPollInterval" | "signal">,
   ): Promise<DrainResult>;
   /** Polls and processes jobs until `signal` aborts. */
   work<N extends Extract<keyof Q, string>>(
@@ -449,22 +455,30 @@ export function createJobs<const Q extends QueueSchemas>(
       return rows.map((row) => toJob(queue, row));
     });
 
+  /**
+   * Extends the lease of every job in `held` at half the lease, so jobs
+   * waiting their turn in a claimed batch don't expire before they run.
+   */
+  const heartbeat = (
+    held: ReadonlySet<Job>,
+    lease: number,
+  ): ReturnType<typeof setInterval> | undefined =>
+    transport.name === "sql"
+      ? setInterval(
+          () => {
+            for (const job of held)
+              void run(() => transport.extend(job, lease));
+          },
+          Math.max(1000, (lease * 1000) / 2),
+        )
+      : undefined;
+
   const handle = async (
     job: Job,
     handler: JobHandler<unknown>,
     workOptions: WorkOptions,
   ): Promise<boolean> => {
     const controller = new AbortController();
-    const lease = workOptions.lease ?? 300;
-    const heartbeat =
-      transport.name === "sql"
-        ? setInterval(
-            () => {
-              void run(() => transport.extend(job, lease));
-            },
-            Math.max(1000, (lease * 1000) / 2),
-          )
-        : undefined;
     try {
       const payload = await validate(
         schemaOf(job.queue),
@@ -504,8 +518,6 @@ export function createJobs<const Q extends QueueSchemas>(
         job,
       );
       return false;
-    } finally {
-      clearInterval(heartbeat);
     }
   };
 
@@ -516,9 +528,13 @@ export function createJobs<const Q extends QueueSchemas>(
     forever: boolean,
   ): Promise<DrainResult> => {
     const concurrency = Math.max(1, workOptions.concurrency ?? 1);
+    const lease = workOptions.lease ?? 300;
+    const firstWait = workOptions.pollInterval ?? 1000;
+    const maxWait = Math.max(firstWait, workOptions.maxPollInterval ?? 30_000);
     let succeeded = 0;
     let failed = 0;
     const lanes = Array.from({ length: concurrency }, async () => {
+      let wait = firstWait;
       while (!workOptions.signal?.aborted) {
         const claimed = await claim(queue, {
           ...workOptions,
@@ -528,12 +544,21 @@ export function createJobs<const Q extends QueueSchemas>(
           throw new TypeError(claimed.error.message, { cause: claimed.error });
         if (claimed.data.length === 0) {
           if (!forever) return;
-          await sleep(workOptions.pollInterval ?? 1000, workOptions.signal);
+          await sleep(wait, workOptions.signal);
+          wait = Math.min(maxWait, wait * 2);
           continue;
         }
-        for (const job of claimed.data) {
-          if (await handle(job, handler, workOptions)) succeeded += 1;
-          else failed += 1;
+        wait = firstWait;
+        const held = new Set(claimed.data);
+        const timer = heartbeat(held, lease);
+        try {
+          for (const job of claimed.data) {
+            if (await handle(job, handler, workOptions)) succeeded += 1;
+            else failed += 1;
+            held.delete(job);
+          }
+        } finally {
+          clearInterval(timer);
         }
       }
     });

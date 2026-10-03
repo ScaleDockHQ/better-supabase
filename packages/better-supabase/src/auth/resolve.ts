@@ -228,12 +228,51 @@ function remembered(
   return hit;
 }
 
-function remember(
-  memo: Map<string, VerifiedUser>,
+type CheckedState = DistributiveOmit<AuthState, "source">;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+
+const NO_SCHEMA = {};
+const checkedByMemo = new WeakMap<
+  object,
+  WeakMap<object, WeakMap<object, Map<string, CheckedState>>>
+>();
+
+/**
+ * Tokens that already passed (or failed) the claims and `userMetadata`
+ * schemas, per verification memo and schema pair, so a memo hit skips
+ * validation too.
+ */
+function checkedFor(
+  memo: object,
+  options: ResolveAuthOptions,
+): Map<string, CheckedState> {
+  const claims = options.claims ?? NO_SCHEMA;
+  const metadata = options.userMetadata ?? NO_SCHEMA;
+  let byClaims = checkedByMemo.get(memo);
+  if (!byClaims) checkedByMemo.set(memo, (byClaims = new WeakMap()));
+  let byMetadata = byClaims.get(claims);
+  if (!byMetadata) byClaims.set(claims, (byMetadata = new WeakMap()));
+  let checked = byMetadata.get(metadata);
+  if (!checked)
+    byMetadata.set(metadata, (checked = new Map<string, CheckedState>()));
+  return checked;
+}
+
+function withoutSource(state: AuthState): CheckedState {
+  if (state.kind !== "user") return state;
+  const { source: _source, ...rest } = state;
+  return rest;
+}
+
+function remember<T>(
+  memo: Map<string, T>,
   token: string,
-  user: VerifiedUser,
+  user: T,
+  expiresAt: number | null,
 ): void {
-  if (user.expiresAt === null) return;
+  if (expiresAt === null) return;
   memo.set(token, user);
   if (memo.size > MEMO_SIZE) memo.delete(memo.keys().next().value!);
 }
@@ -249,19 +288,42 @@ async function verify(
   if (token && memo) {
     const now = Math.floor((options.now ?? Date.now)() / 1000);
     const hit = remembered(memo, token, now);
-    if (hit) return checkUser({ ...hit, source }, options);
+    if (hit) {
+      const checked = checkedFor(memo, options);
+      const known = checked.get(token);
+      if (known) {
+        return known.kind === "user" ? { ...known, source } : known;
+      }
+      const state = await checkUser({ ...hit, source }, options);
+      remember(checked, token, withoutSource(state), hit.expiresAt);
+      return state;
+    }
   }
   const state = await verifyOnce(credentials, modes, options, source);
   if (token && memo && state.kind === "user") {
-    remember(memo, token, {
-      kind: "user",
-      token: state.token,
-      claims: state.claims,
-      user: state.user,
-      expiresAt: state.expiresAt,
-    });
+    remember(
+      memo,
+      token,
+      {
+        kind: "user",
+        token: state.token,
+        claims: state.claims,
+        user: state.user,
+        expiresAt: state.expiresAt,
+      },
+      state.expiresAt,
+    );
   }
-  return checkUser(state, options);
+  const checked = await checkUser(state, options);
+  if (token && memo && state.kind === "user") {
+    remember(
+      checkedFor(memo, options),
+      token,
+      withoutSource(checked),
+      state.expiresAt,
+    );
+  }
+  return checked;
 }
 
 /** Validates a user's claims against `options.claims`, keeping every JWT claim. */
@@ -350,6 +412,34 @@ async function checkUser(
   return user;
 }
 
+/** A token whose `kid` matches no key: verifying it loads the JWKS and fails. */
+const PREFETCH_TOKEN = `${base64url(
+  JSON.stringify({ alg: "ES256", kid: "better-supabase-prefetch", typ: "JWT" }),
+)}.e30.AA`;
+
+function base64url(text: string): string {
+  return btoa(text)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
+/**
+ * Loads the remote JWKS into the verifier's cache so the first request
+ * doesn't wait for it. Never throws; a failure leaves the first request to
+ * fetch it as before.
+ */
+export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
+  if (options.jwks !== undefined) return Promise.resolve();
+  return verifyCredentials(
+    { token: PREFETCH_TOKEN, apikey: null },
+    { auth: ["user"], env: serverEnv(options) },
+  ).then(
+    () => {},
+    () => {},
+  );
+}
+
 async function verifyOnce(
   credentials: { token: string | null; apikey: string | null },
   modes: AuthModeWithKey[],
@@ -398,16 +488,21 @@ async function verifyOnce(
 
 function resolution(
   auth: AuthState,
-  cookies: readonly CookieRecord[],
+  cookies: () => readonly CookieRecord[],
   writes: readonly CookieWrite[] = [],
 ): AuthResolution {
   const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
+  let requestCookies: readonly CookieRecord[] | undefined;
   return {
     auth,
     cookies: writes,
     headers,
-    requestCookies:
-      writes.length > 0 ? applyCookieWrites(cookies, writes) : cookies,
+    /** Parsed on first read: bearer requests rarely need their cookies. */
+    get requestCookies() {
+      requestCookies ??=
+        writes.length > 0 ? applyCookieWrites(cookies(), writes) : cookies();
+      return requestCookies;
+    },
     apply(response) {
       if (writes.length === 0) return response;
       let target = response;
@@ -446,7 +541,9 @@ export async function resolveAuth(
   request: Request,
   options: ResolveAuthOptions,
 ): Promise<AuthResolution> {
-  const cookies = parseCookies(request.headers.get("cookie"));
+  let parsed: readonly CookieRecord[] | undefined;
+  const cookies = (): readonly CookieRecord[] =>
+    (parsed ??= parseCookies(request.headers.get("cookie")));
 
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
@@ -490,14 +587,14 @@ export async function resolveAuth(
   }
 
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
-  const session = readSession(cookies, name);
+  const session = readSession(cookies(), name);
   if (!session) {
-    const stale = cookies.some(
+    const stale = cookies().some(
       (cookie) => cookie.name === name || cookie.name.startsWith(`${name}.`),
     );
     const writes =
       stale && options.refresh
-        ? writeSession(cookies, name, null, options.cookie?.options)
+        ? writeSession(cookies(), name, null, options.cookie?.options)
         : [];
     return resolution(
       { kind: "anon", reason: stale ? "signed_out" : "none" },
@@ -560,11 +657,11 @@ export async function resolveAuth(
     return resolution(
       { kind: "anon", reason: "signed_out" },
       cookies,
-      writeSession(cookies, name, null, options.cookie?.options),
+      writeSession(cookies(), name, null, options.cookie?.options),
     );
   }
   const writes = writeSession(
-    cookies,
+    cookies(),
     name,
     outcome.session,
     options.cookie?.options,

@@ -552,11 +552,13 @@ export function createMcp<
     call(args: unknown, ctx: ToolContext<M, F, E, C, P>): Promise<Invocation>;
   }
   const registry = new Map<string, Entry>();
+  let allTools: ToolInfo[] | undefined;
   const register = (entry: Entry): void => {
     if (registry.has(entry.info.name)) {
       throw new TypeError(`Duplicate MCP tool "${entry.info.name}"`);
     }
     registry.set(entry.info.name, entry);
+    allTools = undefined;
   };
   const failure = (error: DbError): ToolResult =>
     textResult(toProblem(error, { expose }), true);
@@ -635,10 +637,13 @@ export function createMcp<
   for (const tool of options.tools ?? []) addTool(tool);
 
   const listTools = (): ToolInfo[] =>
-    [...registry.values()].map((entry) => entry.info);
+    (allTools ??= [...registry.values()].map((entry) => entry.info));
+  /** Without a `visible` hook every caller sees the same list, built once. */
   const visibleTools = async (
-    ctx: ToolContext<M, F, E, C, P>,
+    context: () => ToolContext<M, F, E, C, P>,
   ): Promise<ToolInfo[]> => {
+    if (!options.visible) return listTools();
+    const ctx = context();
     const entries = [...registry.values()];
     const shown = await Promise.all(
       entries.map((entry) => isVisible(entry, ctx)),
@@ -885,7 +890,7 @@ export function createMcp<
         return modern ? notFound() : reply({});
       case "tools/list":
         return reply({
-          tools: await visibleTools(toolContext()),
+          tools: await visibleTools(toolContext),
           ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: "private" } : {}),
         });
       case "tools/call": {
@@ -939,7 +944,7 @@ export function createMcp<
     server,
     {
       get tools() {
-        return listTools();
+        return [...listTools()];
       },
       tool(definition) {
         addTool(defineTool(definition));

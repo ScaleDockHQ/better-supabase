@@ -759,6 +759,66 @@ describe("drain and work", () => {
     expect(claims()).toHaveLength(2);
   });
 
+  it("doubles the wait after each empty poll up to maxPollInterval", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const fake = fakeSql();
+    const working = createJobs(fake.sql, queues).work(
+      "emails",
+      () => undefined,
+      { signal: controller.signal, pollInterval: 100, maxPollInterval: 300 },
+    );
+    const claims = () => fake.calls.length;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(claims()).toBe(2);
+    await vi.advanceTimersByTimeAsync(199);
+    expect(claims()).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(claims()).toBe(3);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(claims()).toBe(4);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(claims()).toBe(5);
+    controller.abort();
+    await working;
+  });
+
+  it("keeps the leases of jobs waiting in a claimed batch alive", async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    const fake = fakeSql([
+      [
+        "claim_jobs",
+        sequence([
+          messageRow(1, { to: "a@example.com" }),
+          messageRow(2, { to: "b@example.com" }),
+        ]),
+      ],
+      ["extend_job_lease", [{ extended: true }]],
+      ["complete_job", [{ done: true }]],
+    ]);
+    let calls = 0;
+    const draining = createJobs(fake.sql, queues).drain(
+      "emails",
+      () => {
+        calls += 1;
+        if (calls > 1) return;
+        return new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      },
+      { lease: 4, batch: 2 },
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    const extended = fake.calls
+      .filter((call) => call.text.includes("extend_job_lease"))
+      .map((call) => call.values[1]);
+    expect(extended).toEqual([1, 2]);
+    finish();
+    expect(await draining).toEqual({ succeeded: 2, failed: 0 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("waits a second between polls by default and wakes up on abort", async () => {
     vi.useFakeTimers();
     const controller = new AbortController();

@@ -37,12 +37,14 @@ export function replicaState(
   };
 }
 
-/** `bs-primary-until` from a `cookie` header, or 0. */
-export function pinnedUntil(cookieHeader: string | null): number {
-  if (!cookieHeader) return 0;
-  const value = parseCookieHeader(cookieHeader).find(
-    (cookie) => cookie.name === PRIMARY_COOKIE,
-  )?.value;
+/** `bs-primary-until` from a `cookie` header or parsed cookies, or 0. */
+export function pinnedUntil(
+  cookies: string | null | readonly { name: string; value: string }[],
+): number {
+  if (!cookies) return 0;
+  const records =
+    typeof cookies === "string" ? parseCookieHeader(cookies) : cookies;
+  const value = records.find((cookie) => cookie.name === PRIMARY_COOKIE)?.value;
   const until = Number(value);
   return value !== undefined && Number.isFinite(until) ? until : 0;
 }

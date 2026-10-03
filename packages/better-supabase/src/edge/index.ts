@@ -77,22 +77,13 @@ export const SUPABASE_CORS_HEADERS: readonly string[] = [
   "content-type",
 ];
 
-function corsHeaders(
-  request: Request,
+/** The CORS headers for a request's origin; the fixed ones are joined once. */
+function corsFor(
   cors: CorsOptions,
-): Record<string, string> | undefined {
-  const origin = request.headers.get("origin");
+): (request: Request) => Record<string, string> | undefined {
   const allowed = cors.origin ?? "*";
-  let value: string | undefined;
-  if (allowed === "*") value = "*";
-  else if (
-    origin &&
-    (typeof allowed === "string" ? [allowed] : allowed).includes(origin)
-  )
-    value = origin;
-  if (!value) return undefined;
-  return {
-    "access-control-allow-origin": value,
+  const origins = new Set(typeof allowed === "string" ? [allowed] : allowed);
+  const fixed: Record<string, string> = {
     "access-control-allow-headers": (
       cors.headers ?? SUPABASE_CORS_HEADERS
     ).join(", "),
@@ -102,7 +93,13 @@ function corsHeaders(
     ...(cors.maxAge === undefined
       ? {}
       : { "access-control-max-age": String(cors.maxAge) }),
-    ...(value === "*" ? {} : { vary: "origin" }),
+  };
+  const any = { "access-control-allow-origin": "*", ...fixed };
+  return (request) => {
+    if (allowed === "*") return any;
+    const origin = request.headers.get("origin");
+    if (!origin || !origins.has(origin)) return;
+    return { "access-control-allow-origin": origin, ...fixed, vary: "origin" };
   };
 }
 
@@ -142,6 +139,7 @@ export function createEdge<
       : options.cors === false
         ? undefined
         : options.cors;
+  const corsHeaders = cors ? corsFor(cors) : undefined;
 
   const serve = (
     run: (
@@ -149,12 +147,16 @@ export function createEdge<
       ctx: ServerContext<M, F, E, C, P>,
     ) => Promise<Response>,
     handlerOptions: MiddlewareOptions,
+    /** Answers before auth resolves, e.g. a 404 for an unknown route. */
+    early?: (request: Request) => Response | undefined,
   ): EdgeHandler => {
     return async (request) => {
-      const extra = cors ? corsHeaders(request, cors) : undefined;
+      const extra = corsHeaders?.(request);
       if (cors && request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: extra ?? {} });
       }
+      const answered = early?.(request);
+      if (answered) return extra ? withHeaders(answered, extra) : answered;
       const ctx = await server.context(request, {
         refresh: handlerOptions.refresh ?? false,
       });
@@ -216,9 +218,14 @@ export function createEdge<
           ),
         );
       }
-      return serve(async (request, ctx) => {
+      interface Route {
+        readonly handler: ResourceHandler;
+        readonly id: string | undefined;
+        readonly instance: string;
+      }
+      const routes = new WeakMap<Request, Route>();
+      const notFound = (request: Request): Response | undefined => {
         const { pathname } = new URL(request.url);
-        const instance = pathname;
         const rest = pathname.startsWith(`${base}/`)
           ? pathname.slice(base.length + 1)
           : undefined;
@@ -231,18 +238,31 @@ export function createEdge<
         ) {
           return problemResponse(
             dbError("not_found", `No route for ${pathname}`),
-            {
-              instance,
-            },
+            { instance: pathname },
           );
         }
-        return handler.handle(
-          request,
-          ctx.db,
-          id === undefined || id === "" ? undefined : decodeURIComponent(id),
-          { instance, expose },
-        );
-      }, resourcesOptions);
+        let key: string | undefined;
+        try {
+          key =
+            id === undefined || id === "" ? undefined : decodeURIComponent(id);
+        } catch {
+          return problemResponse(
+            dbError("invalid_request", `Malformed id in ${pathname}`),
+            { instance: pathname },
+          );
+        }
+        routes.set(request, { handler, id: key, instance: pathname });
+        return undefined;
+      };
+      return serve(
+        (request, ctx) => {
+          // SAFETY: serve() only runs this after notFound() matched the request.
+          const { handler, id, instance } = routes.get(request)!;
+          return handler.handle(request, ctx.db, id, { instance, expose });
+        },
+        resourcesOptions,
+        notFound,
+      );
     },
   });
 }

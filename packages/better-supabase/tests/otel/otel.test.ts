@@ -50,6 +50,7 @@ function memoryTracer() {
         return span;
       },
       recordException: () => undefined,
+      isRecording: () => true,
       end: () => {
         record.ended = true;
       },
