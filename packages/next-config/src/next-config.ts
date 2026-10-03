@@ -67,12 +67,8 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       requestInsights: true,
       authInterrupts: true,
       typedEnv: true,
-      // Both opt the app directory into react@experimental.
-      taint: true,
-      blockingSSR: true,
       turbopackRustReactCompiler: true,
       serverComponentsHmrCancellation: true,
-      webVitalsAttribution: ["CLS", "LCP"],
       exposeTestingApiInProductionBuild:
         process.env["EXPOSE_TESTING_API"] === "1",
       ...experimental,

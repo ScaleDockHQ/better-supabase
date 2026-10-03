@@ -50,12 +50,19 @@ Inter is the sans face (`--font-sans`) and Geist Mono the code face
   The registry needs `REUI_LICENSE_KEY`.
 - `components/sections`: page sections. Every section renders through
   `Section`, which sets the width, padding, eyebrow, heading and description.
-- `components/site`: the navbar, footer, logo, theme toggle and `SiteLink`,
+- `components/site`: the navbar, footer, logo, theme toggle, `SiteLink`,
   which picks a typed Next.js `Link` for app routes and a plain anchor for
-  `/docs` and external URLs.
-- Buttons use the `Button` variants (`default`, `outline`, `secondary`,
-  `ghost`, `destructive`, `link`) and sizes (`xs`, `sm`, `default`, `lg` and the
-  `icon` sizes). Don't restyle a button with ad hoc classes.
+  `/docs` and external URLs, and `LinkButton`, a `SiteLink` with the button
+  classes.
+- Buttons use the `buttonVariants` variants (`default`, `outline`,
+  `secondary`, `ghost`, `destructive`, `link`) and sizes (`xs`, `sm`,
+  `default`, `lg` and the `icon` sizes) from `components/ui/button-variants.ts`.
+  Don't restyle a button with ad hoc classes.
+- A link that looks like a button is a `LinkButton`, rendered on the server.
+  A client component that needs button classes gets them as a `className`
+  prop from its server parent, so `cva` and `tailwind-merge` stay out of the
+  client bundle. The Base UI `Button` is for client components that need its
+  behavior.
 - Code samples render through `components/code-block.tsx` (Shiki, highlighted
   at build time).
 
@@ -83,9 +90,7 @@ looping animation.
 - The theme follows the system setting (`next-themes`, `defaultTheme="system"`),
   and the toggle overrides it.
 - Headings go in order: one `h1` per page, `h2` per section.
-- `jsx-a11y` runs in lint. Marketing turns off
-  `control-has-associated-label` only because Base UI link buttons take their
-  label from their children (`docs/decisions/0002-deviations.md`).
+- `jsx-a11y` runs in lint with no rules turned off.
 
 ## Reject these
 

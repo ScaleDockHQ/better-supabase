@@ -66,10 +66,7 @@ const config: KnipConfig = {
     },
     "packages/typescript-config": {},
     "packages/next-config": {},
-    "apps/docs": {
-      // twoslash is a peer of fumadocs-twoslash.
-      ignoreDependencies: ["twoslash"],
-    },
+    "apps/docs": {},
     "apps/marketing": {
       ignore: ["components/ui/**", "components/reui/**"],
     },

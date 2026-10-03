@@ -13,11 +13,14 @@ backlogs too large to clear in the upgrade.
 
 ### Tooling
 
-- `apps/docs` stays on TypeScript 6. `fumadocs-twoslash` needs the TypeScript
-  compiler API, which the native TypeScript 7 compiler does not expose. Every
-  other workspace uses TypeScript 7. The `ts6` catalog pins the docs version.
-- `typescript` is not in `overrides`, because `tests/types/ts-6` and
-  `apps/docs` pin 6 through the `ts6` catalog for the compatibility matrix.
+- `apps/docs` leaves out `fumadocs-twoslash`, which the standard lists for
+  library repos. No page used it, it added a client bundle and CSS to every
+  page, and it needed the TypeScript compiler API, which kept the docs on
+  TypeScript 6. Without it, every workspace except `tests/types/ts-6` uses
+  TypeScript 7 (`fumadocs-typescript` ships its own TypeScript). A page that
+  needs hover types would bring it back.
+- `typescript` is not in `overrides`, because `tests/types/ts-6` pins 6
+  through the `ts6` catalog for the compatibility matrix.
 - `zod` stays in the catalog for two reasons: the codegen fixture that tests
   Zod output, and the `ai` package, which needs it as a peer. Lint rejects
   `zod` imports everywhere else; the repo's own code uses Valibot.
@@ -174,13 +177,10 @@ asymmetric matchers and `Response.json()` are typed `any` (60 findings).
 The docs table wrapper disables `jsx-a11y/no-noninteractive-tabindex` on one
 line: axe requires a scrolling region to take keyboard focus
 (`scrollable-region-focusable`), which that rule forbids.
-Marketing turns off `jsx-a11y/control-has-associated-label`: Base UI buttons
-rendered as links take their label from their children at runtime, which the
-rule cannot see (11 findings).
 
 ## Consequences
 
-Each item names what would end it: twoslash on the native compiler, a typed
+Each item names what would end it: a page that needs twoslash, a typed
 `services` config in `@vercel/config`, `fumadocs-core/mcp` setting tool
 annotations, a `develop` branch, Vercel honoring `devEngines`, an
 `AGENTS.md` split into rules, or an empty backlog. When one happens, update the config and this record.

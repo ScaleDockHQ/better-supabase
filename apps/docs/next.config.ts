@@ -8,19 +8,48 @@ import "./env.ts";
 
 const withMDX = createMDX();
 
+/** A client that asks for Markdown (`Accept: text/markdown`) gets the `.md` route. */
+const prefersMarkdown = [
+  { type: "header", key: "accept", value: "(.*)text/markdown(.*)" },
+] as const;
+
 const config = createNextConfig({
   // Served under /docs on bettersupabase.com, next to the marketing app.
   assetPrefix: "/docs",
-  serverExternalPackages: ["typescript", "twoslash"],
-  experimental: { optimizePackageImports: ["lucide-react"] },
   redirects() {
     return Promise.resolve([
       { source: "/", destination: "/docs", permanent: false },
     ]);
   },
   rewrites() {
+    return Promise.resolve({
+      beforeFiles: [
+        { source: "/docs/_next/:path*", destination: "/_next/:path*" },
+        { source: "/docs.md", destination: "/llms.mdx/docs/content.md" },
+        {
+          source: "/docs/:path(.*)\\.md",
+          destination: "/llms.mdx/docs/:path/content.md",
+        },
+        {
+          source: "/docs",
+          has: [...prefersMarkdown],
+          destination: "/llms.mdx/docs/content.md",
+        },
+        {
+          source: "/docs/:path*",
+          has: [...prefersMarkdown],
+          destination: "/llms.mdx/docs/:path*/content.md",
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    });
+  },
+  headers() {
     return Promise.resolve([
-      { source: "/docs/_next/:path*", destination: "/_next/:path*" },
+      // The same URL answers HTML or Markdown, so caches key on Accept.
+      { source: "/docs/:path*", headers: [{ key: "Vary", value: "Accept" }] },
+      { source: "/docs", headers: [{ key: "Vary", value: "Accept" }] },
     ]);
   },
 });

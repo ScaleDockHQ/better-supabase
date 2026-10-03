@@ -1,19 +1,16 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import manifest from "better-supabase/package.json" with { type: "json" };
-import { llms } from "fumadocs-core/source";
 
 import { createDocsMcpServer } from "@/lib/docs-mcp";
 import { searchHits } from "@/lib/search";
-import { getLLMText, source } from "@/lib/source";
-
-const docsLlms = llms(source);
+import { getLLMIndex, getLLMText, source } from "@/lib/source";
 
 const handler = createMcpHandler(
   () =>
     createDocsMcpServer({
       version: manifest.version,
       search: searchHits,
-      index: () => docsLlms.index(),
+      index: getLLMIndex,
       page: async (url) => {
         const page = source.getPageByUrl(url);
         return page === undefined ? undefined : getLLMText(page);

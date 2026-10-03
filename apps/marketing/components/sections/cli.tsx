@@ -1,6 +1,6 @@
 import { CodeBlock } from "@/components/code-block";
 import { Section } from "@/components/sections/section";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/site/link-button";
 import { cliSnippet } from "@/lib/snippets";
 
 const points: readonly string[] = [
@@ -32,13 +32,9 @@ export function CliSection() {
             ))}
           </ul>
           <div>
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<a href="/docs/cli" />}
-            >
+            <LinkButton variant="outline" href="/docs/cli">
               CLI reference
-            </Button>
+            </LinkButton>
           </div>
         </div>
       </div>

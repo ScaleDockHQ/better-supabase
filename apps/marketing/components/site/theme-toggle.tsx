@@ -4,11 +4,10 @@ import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
-import { Button } from "@/components/ui/button";
-
 const subscribe = () => () => {};
 
-export function ThemeToggle() {
+/** `className` comes from the server so the button variants stay out of the client bundle. */
+export function ThemeToggle({ className }: { readonly className: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   // The theme is only known in the browser; the server render shows the default icon.
   const mounted = useSyncExternalStore(
@@ -20,10 +19,10 @@ export function ThemeToggle() {
   const isDark = mounted && resolvedTheme === "dark";
 
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      size="icon"
+      data-slot="button"
+      className={className}
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       onClick={() => {
         setTheme(isDark ? "light" : "dark");
@@ -34,6 +33,6 @@ export function ThemeToggle() {
       ) : (
         <MoonIcon aria-hidden="true" />
       )}
-    </Button>
+    </button>
   );
 }

@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/site/link-button";
 import { site } from "@/lib/site";
 
 export function Closer() {
@@ -13,21 +13,12 @@ export function Closer() {
           else.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
-          <Button
-            size="lg"
-            nativeButton={false}
-            render={<a href={site.getStarted} />}
-          >
+          <LinkButton size="lg" href={site.getStarted}>
             Read the quickstart
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            nativeButton={false}
-            render={<a href={site.github} />}
-          >
+          </LinkButton>
+          <LinkButton variant="outline" size="lg" href={site.github}>
             Star on GitHub
-          </Button>
+          </LinkButton>
         </div>
       </div>
     </section>

@@ -17,7 +17,6 @@ const docsPaths = [
 ];
 
 export default createNextConfig({
-  experimental: { optimizePackageImports: ["lucide-react"] },
   redirects() {
     return Promise.resolve([
       {

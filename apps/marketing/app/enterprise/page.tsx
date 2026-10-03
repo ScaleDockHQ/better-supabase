@@ -5,7 +5,7 @@ import { MailIcon, ShieldCheckIcon } from "lucide-react";
 import { Badge } from "@/components/reui/badge";
 import { FeatureGrid } from "@/components/sections/feature-grid";
 import { Section } from "@/components/sections/section";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/site/link-button";
 import { engagements, pillars } from "@/lib/enterprise";
 import { site } from "@/lib/site";
 
@@ -30,23 +30,21 @@ export default function EnterprisePage() {
           maintainers, we offer support, reviews and migration help.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
-          <Button
+          <LinkButton
             size="lg"
-            nativeButton={false}
-            render={<a href={`mailto:${site.email}?subject=Enterprise`} />}
+            href={`mailto:${site.email}?subject=Enterprise`}
           >
             <MailIcon aria-hidden="true" />
             Contact us
-          </Button>
-          <Button
+          </LinkButton>
+          <LinkButton
             variant="outline"
             size="lg"
-            nativeButton={false}
-            render={<a href={`${site.github}/security`} />}
+            href={`${site.github}/security`}
           >
             <ShieldCheckIcon aria-hidden="true" />
             Security policy
-          </Button>
+          </LinkButton>
         </div>
       </section>
       <Section
@@ -79,14 +77,13 @@ export default function EnterprisePage() {
           <p className="text-muted-foreground max-w-md text-sm leading-6">
             Tell us about your stack, your Supabase setup and what you need.
           </p>
-          <Button
+          <LinkButton
             variant="outline"
             size="lg"
-            nativeButton={false}
-            render={<a href={`mailto:${site.email}?subject=Enterprise`} />}
+            href={`mailto:${site.email}?subject=Enterprise`}
           >
             {site.email}
-          </Button>
+          </LinkButton>
         </div>
       </section>
     </>

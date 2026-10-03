@@ -23,12 +23,6 @@ export default defineConfig({
   ],
   overrides: [
     {
-      // Base UI buttons with `render={<a />}` take their label from the
-      // children at runtime, which the rule cannot see (11 findings).
-      files: ["**/*.tsx"],
-      rules: { "jsx-a11y/control-has-associated-label": "off" },
-    },
-    {
       // env.ts is the app's only reader of process.env.
       files: ["env.ts"],
       rules: { "node/no-process-env": "off" },

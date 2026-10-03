@@ -1,9 +1,10 @@
 import Link from "next/link";
 
+import { LinkButton } from "@/components/site/link-button";
 import { LogoMark } from "@/components/site/logo";
 import { SiteLink } from "@/components/site/site-link";
 import { ThemeToggle } from "@/components/site/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { navLinks, site } from "@/lib/site";
 
 export function Navbar() {
@@ -31,22 +32,15 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<a href={site.github} />}
-          >
+          <LinkButton variant="ghost" size="sm" href={site.github}>
             GitHub
-          </Button>
-          <ThemeToggle />
-          <Button
-            size="sm"
-            nativeButton={false}
-            render={<a href={site.getStarted} />}
-          >
+          </LinkButton>
+          <ThemeToggle
+            className={buttonVariants({ variant: "ghost", size: "icon" })}
+          />
+          <LinkButton size="sm" href={site.getStarted}>
             Get started
-          </Button>
+          </LinkButton>
         </div>
       </div>
     </header>

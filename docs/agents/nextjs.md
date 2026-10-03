@@ -15,7 +15,8 @@ flag.
   function (`components/code-block.tsx` in marketing).
 - A client hook that creates an id on mount (`useChat`) fails the prerender
   as well. Mount the component only after user interaction, as `ChatPanel`
-  in `apps/docs/components/ask-ai.tsx` does.
+  (`apps/docs/components/chat-panel.tsx`) does; `ask-ai.tsx` loads it with
+  `next/dynamic` and `ssr: false`, so its client code stays out of the page.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
   `<html>`, fonts and `metadataBase`.
 

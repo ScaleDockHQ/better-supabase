@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 
-import { getLLMText, getPageMarkdownUrl, source } from "@/lib/source";
+import {
+  getLLMText,
+  getPageMarkdownUrl,
+  markdownHeaders,
+  source,
+} from "@/lib/source";
 
 type MarkdownRouteContext = {
   params: Promise<{ slug?: string[] }>;
@@ -14,9 +19,7 @@ export async function GET(
   const page = source.getPage(slug?.slice(0, -1));
   if (!page) notFound();
 
-  return new Response(await getLLMText(page), {
-    headers: { "Content-Type": "text/markdown" },
-  });
+  return new Response(await getLLMText(page), { headers: markdownHeaders });
 }
 
 export function generateStaticParams() {
