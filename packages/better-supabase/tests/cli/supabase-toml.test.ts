@@ -54,6 +54,18 @@ describe("readSupabaseToml", () => {
     }
   });
 
+  it("parses a file without env() with smol-toml and reuses the parse", async () => {
+    const path = join(dir, "supabase/config.toml");
+    await writeFile(path, "[db]\nport = 55422\n");
+    const first = await readSupabaseToml(dir);
+    expect(first?.parser).toBe("smol-toml");
+    expect(await readSupabaseToml(dir)).toBe(first);
+    await writeFile(path, "[db]\nport = 55432\n");
+    const changed = await readSupabaseToml(dir);
+    expect(changed).not.toBe(first);
+    expect(tomlGet(changed!.document, ["db", "port"])).toBe(55432);
+  });
+
   it("returns undefined without a config.toml", async () => {
     expect(await readSupabaseToml(join(dir, "missing"))).toBeUndefined();
   });

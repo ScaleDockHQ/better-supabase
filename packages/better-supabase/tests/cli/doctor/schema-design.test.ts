@@ -19,7 +19,7 @@ import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
-const base = parseSnapshot(fixture);
+const base = await parseSnapshot(fixture);
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 

@@ -23,7 +23,7 @@ import { resolveConfig } from "../../../src/config/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
-const fixtureSnapshot = parseSnapshot(fixture);
+const fixtureSnapshot = await parseSnapshot(fixture);
 // The fixture's own hook writes user_role; each test adds the hook it needs.
 const base: Snapshot = {
   ...fixtureSnapshot,

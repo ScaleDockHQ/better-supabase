@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntrospectionSource } from "../../../src/cli/introspect/source.ts";
 
+import { catalogFingerprint } from "../../../src/cli/introspect/fingerprint.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
 
@@ -49,5 +50,20 @@ describe.skipIf(!source)("introspect against the local stack", () => {
       snapshot.extras.tables.map((table) => [table.name, table.large]),
     );
     expect(flags).toEqual({ events: true, settings: undefined });
+  });
+
+  it("keeps the catalog fingerprint through ANALYZE and changes it on DDL", async () => {
+    const before = await catalogFingerprint(db.queryable);
+    await db.queryable.query(`analyze ${SCHEMA}.settings`);
+    expect(await catalogFingerprint(db.queryable)).toBe(before);
+    await db.queryable.query(
+      `alter table ${SCHEMA}.settings add column note text`,
+    );
+    const altered = await catalogFingerprint(db.queryable);
+    expect(altered).not.toBe(before);
+    await db.queryable.query(
+      `comment on column ${SCHEMA}.settings.note is 'A note'`,
+    );
+    expect(await catalogFingerprint(db.queryable)).not.toBe(altered);
   });
 });

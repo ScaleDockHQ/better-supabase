@@ -3,13 +3,9 @@ import { describe, expect, it } from "vitest";
 import { readExtras } from "../../../src/cli/introspect/extras.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 
-const catalog = (present: { buckets?: boolean; realtime?: boolean } = {}) =>
+const catalog = (present: { buckets?: boolean } = {}) =>
   fakeSql([
     ["to_regclass('storage.buckets')", [{ present: present.buckets ?? true }]],
-    [
-      "to_regclass('pg_catalog.pg_publication_tables')",
-      [{ present: present.realtime ?? true }],
-    ],
     [
       "c.reltuples >=",
       [
@@ -421,10 +417,9 @@ describe("readExtras", () => {
   });
 
   it("skips service tables that do not exist", async () => {
-    const db = catalog({ buckets: false, realtime: false });
+    const db = catalog({ buckets: false });
     const extras = await readExtras(db.pg, ["public"]);
     expect(extras.buckets).toEqual([]);
-    expect(extras.realtime).toEqual([]);
     expect(
       db.texts().some((text) => text.includes("from storage.buckets")),
     ).toBe(false);

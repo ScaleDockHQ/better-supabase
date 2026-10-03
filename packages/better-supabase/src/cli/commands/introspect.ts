@@ -38,7 +38,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
     description: "Saves the database schema as a snapshot for offline gen",
   },
   args: ARGS,
-  run: async (args, { config, env, io }) => {
+  run: async (args, { config, env, io, signal }) => {
     const format = args.format ?? "snapshot";
     if (format !== "snapshot" && format !== "generator-metadata") {
       return {
@@ -48,7 +48,11 @@ export const introspectCommand: AnyCommand = defineCliCommand({
     }
     const { snapshotPath: _ignored, ...source } = await sourceArgs(args, io);
     const snapshot = await withSpinner(io.prompts, "Reading the schema", () =>
-      loadSnapshot(config, env, { ...source, live: true }),
+      loadSnapshot(config, env, {
+        ...source,
+        live: true,
+        ...(signal ? { signal } : {}),
+      }),
     );
     const out =
       args.out ??
@@ -58,7 +62,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
     const contents =
       format === "snapshot"
         ? serializeSnapshot(snapshot)
-        : `${serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
+        : `${await serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
     if (args.check === true) {
       const current = await readFile(resolve(config.root, out), "utf8").catch(
         () => undefined,

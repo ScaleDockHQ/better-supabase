@@ -28,7 +28,7 @@ import { renderKit } from "../../../src/sql/index.ts";
 import { kitLayout } from "../../../src/sql/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
-const base = parseSnapshot(fixture);
+const base = await parseSnapshot(fixture);
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 

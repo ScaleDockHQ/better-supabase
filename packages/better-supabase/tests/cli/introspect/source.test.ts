@@ -56,6 +56,29 @@ describe("pgSource", () => {
     await source.close();
     expect(closed).toBe(1);
   });
+
+  it("asks for a pool and passes a pooled client through", async () => {
+    const client: PgQueryable = {
+      query: <R>() => Promise.resolve({ rows: [] as R[] }),
+    };
+    const signal = new AbortController().signal;
+    const requested: unknown[] = [];
+    const source = await pgSource(
+      "postgresql://db/x",
+      (_url, _load, options) => {
+        requested.push(options);
+        return Promise.resolve({
+          client,
+          pooled: true,
+          close: () => Promise.resolve(),
+          describe: "postgresql://db/x",
+        });
+      },
+      signal,
+    );
+    expect(requested).toEqual([{ pool: 4, statementTimeout: 120_000, signal }]);
+    expect(source.queryable).toBe(client);
+  });
 });
 
 describe("managementSource", () => {
@@ -73,6 +96,22 @@ describe("managementSource", () => {
       "http://localhost:9000/v1/projects/a%2Fb/database/query/read-only",
     );
     await expect(source.close()).resolves.toBeUndefined();
+  });
+
+  it("passes the abort signal to fetch", async () => {
+    const signals: unknown[] = [];
+    const signal = new AbortController().signal;
+    const source = managementSource({
+      projectRef: "abc",
+      accessToken: "t",
+      fetch: async (_input, init) => {
+        signals.push(init?.signal);
+        return Response.json([]);
+      },
+      signal,
+    });
+    await source.queryable.query("select 1");
+    expect(signals).toEqual([signal]);
   });
 
   it("rejects a body that is not a row array", async () => {

@@ -16,6 +16,7 @@ import {
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
 import { renderFiles } from "../commands/gen.ts";
+import { byCodePoint } from "../compare.ts";
 import { migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -881,7 +882,7 @@ export const RULES: readonly Rule[] = [
   ...HOOK_RULES,
   ...PERMDOCK_RULES,
   ...LIVE_RULES,
-].sort((a, b) => a.code.localeCompare(b.code));
+].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);
 

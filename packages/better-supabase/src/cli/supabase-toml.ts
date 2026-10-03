@@ -81,9 +81,17 @@ export function parseToml(text: string): TomlTable {
   }
 }
 
+const parsed = new Map<
+  string,
+  { readonly text: string; readonly toml: Promise<SupabaseToml> }
+>();
+
 /**
- * Reads `supabase/config.toml` with `@supabase/config` when it is installed,
- * otherwise with smol-toml.
+ * Reads `supabase/config.toml`. A file with `env()` values goes through
+ * `@supabase/config` when it is installed, which resolves them; any other
+ * file, or a project without it, is parsed with smol-toml, since loading
+ * `@supabase/config` costs hundreds of milliseconds. Parses are reused while
+ * the file's text is unchanged.
  */
 export async function readSupabaseToml(
   root: string,
@@ -91,7 +99,18 @@ export async function readSupabaseToml(
   const absolute = join(root, CONFIG_TOML);
   if (!existsSync(absolute)) return undefined;
   const text = await readFile(absolute, "utf8");
-  const io = await loadSupabaseConfig();
+  const cached = parsed.get(absolute);
+  if (cached?.text === text) return cached.toml;
+  const toml = parseSupabaseToml(root, text);
+  parsed.set(absolute, { text, toml });
+  return toml;
+}
+
+async function parseSupabaseToml(
+  root: string,
+  text: string,
+): Promise<SupabaseToml> {
+  const io = text.includes("env(") ? await loadSupabaseConfig() : undefined;
   if (io) {
     try {
       const loaded = await io.loadCliConfig(root, {

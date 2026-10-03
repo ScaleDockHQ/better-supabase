@@ -26,7 +26,8 @@ writes what it found to `supabase/snapshot.json`. Commit the file, set
 The schema comes from the same places as for `gen`, in the
 [same order](/docs/cli/gen#where-the-schema-comes-from). With `--json`,
 `introspect` prints `{ "file", "written", "tables" }`, and `--check` prints
-`{ "file", "upToDate" }`.
+`{ "file", "upToDate" }`. It always reads the full schema, without the
+[introspection cache](/docs/cli/gen#introspection-cache) `gen` uses.
 
 ## What the snapshot holds
 

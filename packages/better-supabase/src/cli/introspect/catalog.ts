@@ -14,6 +14,8 @@ import type {
   Snapshot,
 } from "./types.ts";
 
+import { byCodePoint } from "../compare.ts";
+
 const byName = (a: { schema: string; name: string }, b: typeof a): number =>
   a.schema === b.schema
     ? a.name < b.name
@@ -156,7 +158,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
           onUpdate: action?.onUpdate ?? "no action",
         };
       })
-      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      .sort((a, b) => byCodePoint(a.name, b.name));
   };
 
   const build = (
@@ -259,11 +261,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
         (id) => (id === null ? null : (relationNames.get(id) ?? null)),
       ),
     )
-    .sort(
-      (a, b) =>
-        byName(a, b) ||
-        (a.signature < b.signature ? -1 : a.signature > b.signature ? 1 : 0),
-    );
+    .sort((a, b) => byName(a, b) || byCodePoint(a.signature, b.signature));
 
   return {
     schemas: snapshot.schemas,

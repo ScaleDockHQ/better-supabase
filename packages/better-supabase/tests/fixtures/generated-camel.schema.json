@@ -106,6 +106,70 @@
       },
       "additionalProperties": false
     },
+    "customerTagsRow": {
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tagId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "customerId",
+        "tagId",
+        "organizationId"
+      ],
+      "additionalProperties": false
+    },
+    "customerTagsInsert": {
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tagId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "customerId",
+        "tagId",
+        "organizationId"
+      ],
+      "additionalProperties": false
+    },
+    "customerTagsUpdate": {
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tagId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false
+    },
     "customersRow": {
       "type": "object",
       "properties": {
@@ -343,70 +407,6 @@
             "string",
             "null"
           ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "customerTagsRow": {
-      "type": "object",
-      "properties": {
-        "customerId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "tagId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "organizationId": {
-          "type": "string",
-          "format": "uuid"
-        }
-      },
-      "required": [
-        "customerId",
-        "tagId",
-        "organizationId"
-      ],
-      "additionalProperties": false
-    },
-    "customerTagsInsert": {
-      "type": "object",
-      "properties": {
-        "customerId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "tagId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "organizationId": {
-          "type": "string",
-          "format": "uuid"
-        }
-      },
-      "required": [
-        "customerId",
-        "tagId",
-        "organizationId"
-      ],
-      "additionalProperties": false
-    },
-    "customerTagsUpdate": {
-      "type": "object",
-      "properties": {
-        "customerId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "tagId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "organizationId": {
-          "type": "string",
-          "format": "uuid"
         }
       },
       "additionalProperties": false

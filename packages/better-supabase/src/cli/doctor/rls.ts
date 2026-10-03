@@ -192,8 +192,24 @@ export function functionBody(
   return undefined;
 }
 
+const helpersByContext = new WeakMap<
+  DoctorContext,
+  ReadonlyMap<string, string>
+>();
+
 /** The functions policies call, and the functions those call, with their bodies. */
-export function policyHelpers(context: DoctorContext): Map<string, string> {
+export function policyHelpers(
+  context: DoctorContext,
+): ReadonlyMap<string, string> {
+  let helpers = helpersByContext.get(context);
+  if (!helpers) {
+    helpers = findPolicyHelpers(context);
+    helpersByContext.set(context, helpers);
+  }
+  return helpers;
+}
+
+function findPolicyHelpers(context: DoctorContext): Map<string, string> {
   const known = context.snapshot.generator.functions;
   const queue = catalogOf(context).tables.flatMap((table) =>
     table.policies.flatMap((policy) => policy.functions ?? []),

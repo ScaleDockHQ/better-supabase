@@ -114,12 +114,16 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     only (`src/config/snapshot.ts`). It is pinned to an exact version so
     `database.types.ts` matches `supabase gen types`; bumping it needs the
     parity test and a changeset.
-12. Imports stay at the top of the module. The one exception is optional
+12. Imports stay at the top of the module. The exceptions are optional
     peers loaded lazily, each with a comment and a fallback:
     `@supabase/config/io` through a variable specifier in
     `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
-    without it) and `pg` in `src/cli/db.ts` (an install message
-    when it is missing).
+    without it), `pg` in `src/cli/db.ts` (an install message
+    when it is missing) and `oxfmt` in `src/cli/introspect/typegen.ts`
+    (unformatted output with a notice). CLI startup work also loads on
+    demand, each with a comment: the commands, config loading and env
+    validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
+    the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
     match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).

@@ -10,6 +10,7 @@ import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
+import { byCodePoint } from "../compare.ts";
 import { display, writeIfChanged } from "../io.ts";
 
 const ARGS = {
@@ -80,7 +81,7 @@ interface Skill {
 async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of entries.sort((a, b) => byCodePoint(a.name, b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) files.push(...(await readTree(root, path)));
     else if (entry.isFile())
@@ -109,7 +110,7 @@ export async function loadSkills(
       files,
     });
   }
-  return skills.sort((a, b) => a.name.localeCompare(b.name));
+  return skills.sort((a, b) => byCodePoint(a.name, b.name));
 }
 
 export async function runSkills(

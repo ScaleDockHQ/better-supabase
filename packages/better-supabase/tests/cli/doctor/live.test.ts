@@ -18,7 +18,7 @@ import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";
 import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 
-const snapshot = parseSnapshot(fixture);
+const snapshot = await parseSnapshot(fixture);
 
 function context(extra: Partial<DoctorContext> = {}): DoctorContext {
   return {

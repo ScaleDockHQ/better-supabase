@@ -66,7 +66,7 @@ OPTIONS
 `;
 
 exports[`help > documents gen 1`] = `
-"Writes database.types.ts and generated.ts from the database (better-supabase gen v0.3.0)
+"Writes database.types.ts, generated.ts and its metadata module from the database (better-supabase gen v0.3.0)
 
 USAGE better-supabase gen [OPTIONS] 
 
@@ -243,7 +243,7 @@ COMMANDS
          env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines   
         keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones 
       skills    Installs the Agent Skills that ship with this version of better-supabase                               
-         gen    Writes database.types.ts and generated.ts from the database                                            
+         gen    Writes database.types.ts, generated.ts and its metadata module from the database                       
   introspect    Saves the database schema as a snapshot for offline gen                                                
      openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                  
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                

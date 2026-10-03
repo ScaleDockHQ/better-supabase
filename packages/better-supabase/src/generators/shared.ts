@@ -106,7 +106,7 @@ export function variantsFor(table: TableMeta): readonly Variant[] {
 
 export function tableEntries(input: SchemaSource): [string, TableMeta][] {
   return Object.entries(input.meta.tables).sort(([a], [b]) =>
-    a.localeCompare(b),
+    a < b ? -1 : a > b ? 1 : 0,
   );
 }
 
