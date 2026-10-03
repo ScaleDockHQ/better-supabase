@@ -1,4 +1,5 @@
 import type {
+  AccessBucketPolicy,
   BucketPolicyName,
   Casing,
   PermdockBucketPolicy,
@@ -137,8 +138,14 @@ export interface BucketConfig {
   readonly public?: boolean;
   /** Path template with `{placeholders}`, e.g. `{orgId}/{customerId}/logo.webp`. */
   readonly path: string;
-  /** Generated storage policy, or a PermDock policy (`{ permdock, scope }`). */
-  readonly policy?: BucketPolicyName | PermdockBucketPolicy;
+  /**
+   * Generated storage policy, a PermDock policy (`{ permdock, scope }`) or
+   * an access contract policy (`{ access }`).
+   */
+  readonly policy?:
+    | BucketPolicyName
+    | PermdockBucketPolicy
+    | AccessBucketPolicy;
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
 }

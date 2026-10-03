@@ -167,11 +167,35 @@ export interface PermdockTopicPolicy {
 
 export type BucketPolicyName = "tenant" | "owner" | "public" | "none";
 
+/**
+ * A policy through the SQL kit's [access contract](/docs/kits/access):
+ * `tenant_ids_with(permission)` for the tenant id in the path, or
+ * `is_platform(permission)`. Works with every access model.
+ */
+export interface AccessBucketPolicy {
+  readonly access: {
+    /** Downloads, signed URLs, renders and metadata reads. */
+    readonly read: string;
+    /** Listing; without it `read` covers listing too. */
+    readonly list?: string;
+    /** Uploads, updates and moves; also deletes unless `delete` is set. */
+    readonly write: string;
+    readonly delete?: string;
+  };
+  /** `tenant` (default) checks the path's tenant segment; `platform` checks platform permissions. */
+  readonly scope?: "tenant" | "platform";
+  /** 1-based path segment holding the tenant id. Defaults to the `{orgId}` segment. */
+  readonly segment?: number;
+}
+
 export interface BucketMeta {
   readonly id: string;
   readonly public: boolean;
   readonly path: string;
-  readonly policy?: BucketPolicyName | PermdockBucketPolicy;
+  readonly policy?:
+    | BucketPolicyName
+    | PermdockBucketPolicy
+    | AccessBucketPolicy;
   /** Claim paths for the tenant policy, when `config.claims.tenant` is not the default. */
   readonly tenant?: { readonly claim: readonly string[] };
   readonly fileSizeLimit?: string;

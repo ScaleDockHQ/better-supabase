@@ -1,0 +1,155 @@
+import { describe, expect, it } from "vitest";
+
+import type { KitsConfig } from "../../../src/config/kits.ts";
+
+import { moduleBody, renderKit, resolveModules } from "../../../src/sql/kit.ts";
+
+const CENTRAKIT: KitsConfig = {
+  profiles: {
+    mode: "adopt",
+    tables: { profiles: "public.profiles" },
+    columns: {
+      profiles: {
+        key: "user_id",
+        fullName: null,
+        avatar: "avatar_path",
+        activeTenant: "active_organization_id",
+        onboarding: null,
+      },
+    },
+    hooks: {
+      schema: "public",
+      functions: { after_profile_sync: "create_contact_profile" },
+    },
+    options: {
+      syncTrigger: false,
+      usernameMaxLength: 30,
+      metadata: { first_name: "first_name", last_name: "last_name" },
+    },
+  },
+};
+
+const body = (kits: KitsConfig) => moduleBody("profiles", { kits })!;
+
+describe("profiles module", () => {
+  it("owns its table with grants, a guard and the auth triggers", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."profiles" (',
+    );
+    expect(sql).toContain(
+      'grant update ("full_name", "first_name", "last_name", "avatar_url", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
+    );
+    expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
+    expect(sql).toContain(
+      'new."active_org_id" is distinct from old."active_org_id"',
+    );
+    expect(sql).toContain(
+      'create trigger "bs_profile_sync" after insert on auth.users',
+    );
+    expect(sql).toContain(
+      'create trigger "bs_profile_email" after update of email on auth.users',
+    );
+    expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
+    expect(sql).toContain('"better_supabase"."allocate_username"(');
+    expect(sql).toContain('"id" = (select auth.uid())');
+  });
+
+  it("adopts CentraKit's profiles without touching its table or grants", () => {
+    const sql = body(CENTRAKIT);
+    expect(sql).not.toContain("create table");
+    expect(sql).not.toContain("revoke update");
+    expect(sql).toContain(
+      'insert into "public"."profiles" ("user_id", "first_name", "last_name", "email", "username")',
+    );
+    expect(sql).toContain(
+      `left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_]+', '', 'g'), 26)`,
+    );
+    expect(sql).toContain(
+      'drop trigger if exists "bs_profile_sync" on auth.users;',
+    );
+    expect(sql).toContain(
+      `to_regprocedure('"public"."create_contact_profile"(uuid)')`,
+    );
+    expect(sql).toContain('new."active_organization_id" is distinct from');
+    expect(sql).not.toContain("onboarding");
+  });
+
+  it("adds extra columns and a members read policy", () => {
+    const sql = renderKit(["tenant", "profiles"], {
+      kits: {
+        profiles: {
+          options: {
+            extraColumns: { locale: "text not null default 'en'" },
+            readPolicy: "members",
+          },
+        },
+      },
+    }).at(-1)!.contents;
+    expect(sql).toContain(
+      `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,
+    );
+    expect(sql).toContain('"locale", "updated_at") on');
+    expect(sql).toContain(
+      '"id" in (select "better_supabase"."profile_peer_ids"())',
+    );
+  });
+
+  it("honours updatable, serviceColumns and turning features off", () => {
+    const sql = body({
+      profiles: {
+        columns: { profiles: { email: null } },
+        options: {
+          updatable: ["full_name"],
+          serviceColumns: [],
+          username: false,
+          splitName: false,
+        },
+      },
+    });
+    expect(sql).toContain(
+      'grant update ("full_name", "updated_at") on "better_supabase"."profiles" to authenticated;',
+    );
+    expect(sql).toContain('drop trigger if exists "bs_profile_guard"');
+    expect(sql).not.toContain('allocate_username"(coalesce');
+    expect(sql).not.toContain("split_part(nullif");
+    expect(sql).toContain(
+      'drop trigger if exists "bs_profile_email" on auth.users;',
+    );
+  });
+
+  it("writes nothing in custom mode", () => {
+    expect(
+      moduleBody("profiles", { kits: { profiles: { mode: "custom" } } }),
+    ).toBeUndefined();
+  });
+
+  it("rejects bad options", () => {
+    expect(() =>
+      body({ profiles: { options: { readPolicy: "everyone" } } }),
+    ).toThrow(/readPolicy/);
+    expect(() =>
+      body({ profiles: { options: { readPolicy: "members" } } }),
+    ).toThrow(/needs the tenant module/);
+    expect(() =>
+      body({
+        profiles: { options: { extraColumns: { x: "text; drop table y" } } },
+      }),
+    ).toThrow(/extraColumns.x/);
+    expect(() =>
+      body({ profiles: { options: { metadata: { name: "Bad Column" } } } }),
+    ).toThrow(/not a valid column name/);
+    expect(() =>
+      body({ profiles: { options: { metadata: { name: 1 } } } }),
+    ).toThrow(/must be a column name/);
+    expect(() => body({ profiles: { options: { metadata: [] } } })).toThrow(
+      /must be an object/,
+    );
+  });
+
+  it("needs no other module", () => {
+    expect(resolveModules(["profiles"]).map((module) => module.name)).toEqual([
+      "profiles",
+    ]);
+  });
+});

@@ -15,6 +15,7 @@ import { AUDIT } from "./modules/audit.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
+import { PROFILES } from "./modules/profiles.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
@@ -1212,6 +1213,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ACCESS),
       built(SUPPORT_SESSIONS),
       built(ORGANIZATIONS),
+      built(PROFILES),
     ].map((module) => [module.name, module]),
   );
 

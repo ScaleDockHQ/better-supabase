@@ -201,7 +201,7 @@ export function supportCookie(
 ): string {
   const maxAge = Math.max(
     0,
-    Math.floor((session.expiresAt.epochMilliseconds - now) / 1000),
+    Math.ceil((session.expiresAt.epochMilliseconds - now) / 1000),
   );
   return cookieLine(options, encodeURIComponent(session.id), maxAge);
 }

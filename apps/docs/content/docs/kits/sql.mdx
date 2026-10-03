@@ -54,6 +54,7 @@ their functions.
 | `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                    |
 | `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                          |
 | `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(org)` and an owner check on commit. See [Organizations](/docs/kits/orgs)                                                                |
+| `profiles`         | A profile per user from sign-up metadata, with a unique username, an email mirror, column grants and service-owned columns. See [Profiles](/docs/kits/profiles)                                                              |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the claim named by `claims.tenant` in the config

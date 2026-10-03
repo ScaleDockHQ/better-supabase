@@ -729,20 +729,27 @@
   },
   "./storage": {
     "values": [
+      "avatarBucket",
       "defineBucket",
       "fromStorageError",
+      "IMAGE_TYPES",
+      "orgLogoBucket",
       "parseSize",
       "TTL"
     ],
     "types": [
+      "AccessBucketPolicy",
       "ActualBucket",
+      "AvatarBucketOptions",
       "Bucket",
       "BucketClient",
       "BucketConfig",
       "BucketConnectOptions",
       "BucketDrift",
       "BucketPolicy",
+      "ImageBucketOptions",
       "ObjectTarget",
+      "OrgLogoBucketOptions",
       "PathIn",
       "PermdockBucketPolicy",
       "PermdockCatalog",

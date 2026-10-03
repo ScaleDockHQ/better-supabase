@@ -1,4 +1,12 @@
 export { defineBucket, fromStorageError, parseSize, TTL } from "./bucket.ts";
+export {
+  avatarBucket,
+  IMAGE_TYPES,
+  orgLogoBucket,
+  type AvatarBucketOptions,
+  type ImageBucketOptions,
+  type OrgLogoBucketOptions,
+} from "./presets.ts";
 export type {
   ActualBucket,
   Bucket,
@@ -23,5 +31,8 @@ export type {
 } from "./bucket.ts";
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { PathIn, StoragePath } from "./path.ts";
-export type { PermdockBucketPolicy } from "../schema/types.ts";
+export type {
+  AccessBucketPolicy,
+  PermdockBucketPolicy,
+} from "../schema/types.ts";
 export type { PermdockCatalog } from "../core/permdock-sql.ts";
