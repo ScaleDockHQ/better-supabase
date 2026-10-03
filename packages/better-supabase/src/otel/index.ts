@@ -83,77 +83,101 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
   return definePlugin({
     name: "otel",
     enforce: "post",
-    wrapExecutor: (executor): Executor => ({
-      ...executor,
-      name: executor.name,
-      execute(op, executeContext) {
+    wrapExecutor: (executor): Executor => {
+      const system = systemOf(executor);
+      /** Span and metric attributes per table and operation, built once. */
+      const described = new Map<
+        string,
+        {
+          readonly summary: string;
+          readonly attributes: Attributes;
+          readonly metric: Attributes;
+        }
+      >();
+      const describe = (op: Operation) => {
         const operation = operationName(op);
-        const summary = `${operation} ${op.table.name}`;
-        const attributes: Attributes = {
-          ...options.attributes,
-          "db.system.name": systemOf(executor),
-          "db.namespace": op.table.schema,
-          "db.collection.name": op.table.name,
-          "db.operation.name": operation,
-          "db.query.summary": summary,
-          "better_supabase.executor": executor.name,
-        };
-        const started = performance.now();
-        return tracer.startActiveSpan(
-          summary,
-          { kind: SpanKind.CLIENT, attributes },
-          async (span) => {
-            const finish = (errorType?: string) => {
-              const metricAttributes: Attributes = {
-                "db.system.name": attributes["db.system.name"],
-                "db.collection.name": op.table.name,
-                "db.operation.name": operation,
-                ...(errorType ? { "error.type": errorType } : {}),
-              };
-              histogram?.record(
-                (performance.now() - started) / 1000,
-                metricAttributes,
-              );
-              span.end();
-            };
-            try {
-              const result = await executor.execute(op, executeContext);
-              if (result.ok) {
-                span.setAttribute(
-                  "db.response.returned_rows",
-                  result.data.rows.length,
+        const key = `${op.table.key}:${operation}`;
+        let entry = described.get(key);
+        if (!entry) {
+          const summary = `${operation} ${op.table.name}`;
+          entry = {
+            summary,
+            attributes: {
+              ...options.attributes,
+              "db.system.name": system,
+              "db.namespace": op.table.schema,
+              "db.collection.name": op.table.name,
+              "db.operation.name": operation,
+              "db.query.summary": summary,
+              "better_supabase.executor": executor.name,
+            },
+            metric: {
+              "db.system.name": system,
+              "db.collection.name": op.table.name,
+              "db.operation.name": operation,
+            },
+          };
+          described.set(key, entry);
+        }
+        return entry;
+      };
+      return {
+        ...executor,
+        name: executor.name,
+        execute(op, executeContext) {
+          const { summary, attributes, metric } = describe(op);
+          const started = performance.now();
+          return tracer.startActiveSpan(
+            summary,
+            { kind: SpanKind.CLIENT, attributes },
+            async (span) => {
+              const finish = (errorType?: string) => {
+                histogram?.record(
+                  (performance.now() - started) / 1000,
+                  errorType ? { ...metric, "error.type": errorType } : metric,
                 );
-                finish();
-              } else {
-                span.setAttributes({
-                  "error.type": result.error.kind,
-                  ...(result.error.code
-                    ? { "db.response.status_code": result.error.code }
-                    : {}),
-                });
+                span.end();
+              };
+              try {
+                const result = await executor.execute(op, executeContext);
+                if (result.ok) {
+                  if (span.isRecording())
+                    span.setAttribute(
+                      "db.response.returned_rows",
+                      result.data.rows.length,
+                    );
+                  finish();
+                } else {
+                  span.setAttributes({
+                    "error.type": result.error.kind,
+                    ...(result.error.code
+                      ? { "db.response.status_code": result.error.code }
+                      : {}),
+                  });
+                  span.setStatus({
+                    code: SpanStatusCode.ERROR,
+                    message: result.error.message,
+                  });
+                  finish(result.error.kind);
+                }
+                return result;
+              } catch (cause) {
+                const error =
+                  cause instanceof Error ? cause : new Error(String(cause));
+                span.recordException(error);
+                span.setAttribute("error.type", error.name);
                 span.setStatus({
                   code: SpanStatusCode.ERROR,
-                  message: result.error.message,
+                  message: error.message,
                 });
-                finish(result.error.kind);
+                finish(error.name);
+                throw cause;
               }
-              return result;
-            } catch (cause) {
-              const error =
-                cause instanceof Error ? cause : new Error(String(cause));
-              span.recordException(error);
-              span.setAttribute("error.type", error.name);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: error.message,
-              });
-              finish(error.name);
-              throw cause;
-            }
-          },
-        );
-      },
-    }),
+            },
+          );
+        },
+      };
+    },
   });
 }
 

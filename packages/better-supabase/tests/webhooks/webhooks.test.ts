@@ -115,6 +115,26 @@ describe("Standard Webhooks", () => {
     expect(error).toMatchObject({ kind: "unauthorized", status: 401 });
   });
 
+  it("leaves the body unread when the headers are missing, and skips invalid base64", async () => {
+    const request = new Request("https://app.test/hook", {
+      method: "POST",
+      body: BODY,
+    });
+    expect((await verifyWebhook(request, SECRET, { now })).error?.code).toBe(
+      "WEBHOOK_MISSING_HEADERS",
+    );
+    expect(request.bodyUsed).toBe(false);
+    expect(
+      (
+        await verifyWebhook(
+          { headers: headers(`v1,%%% ${SIGNATURE}`), body: BODY },
+          SECRET,
+          { now },
+        )
+      ).ok,
+    ).toBe(true);
+  });
+
   it("compares in constant time and checks shared secrets", () => {
     expect(timingSafeEqual("abc", "abc")).toBe(true);
     expect(timingSafeEqual("abc", "abd")).toBe(false);

@@ -51,6 +51,7 @@ function recorder() {
         span
       ),
       recordException: () => undefined,
+      isRecording: () => true,
       end: () => undefined,
     };
     return fn(span as unknown as Span);

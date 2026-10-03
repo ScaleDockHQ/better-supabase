@@ -283,6 +283,42 @@ describe("createServer clients", () => {
     expect(typeof db.$client.storage.from).toBe("function");
   });
 
+  it("builds contexts from one resolution", async () => {
+    const server = createServer(defineSupabase(schema), { env });
+    const request = new Request("https://app.test/");
+    const resolution = await server.resolve(request);
+    const first = server.contextFromResolution(resolution, request);
+    const second = server.contextFromResolution(resolution, request);
+    expect(first.resolution).toBe(resolution);
+    expect(second.auth).toBe(first.auth);
+    expect(first.db).not.toBe(second.db);
+  });
+
+  it("prefetches the JWKS when asked, and never with an inline JWKS", async () => {
+    const { fetch } = stubFetch();
+    createServer(defineSupabase(schema), {
+      env: { ...env, jwksUrl: new URL("https://prefetch.test/jwks.json") },
+      prefetchJwks: true,
+    });
+    await vi.waitFor(() => {
+      expect(
+        fetch.mock.calls.some(([input]) =>
+          String(input).startsWith("https://prefetch.test/jwks.json"),
+        ),
+      ).toBe(true);
+    });
+    fetch.mockClear();
+    createServer(defineSupabase(schema), {
+      env,
+      prefetchJwks: true,
+      auth: { jwks: { keys: [] } },
+    });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("needs a secret key for service clients and admin()", () => {
     const server = createServer(defineSupabase(schema), { env });
     expect(() => server.admin()).toThrow(

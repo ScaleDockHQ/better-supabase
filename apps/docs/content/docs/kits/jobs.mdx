@@ -67,10 +67,14 @@ await jobs.work(
   after 10s, 20s, 40s and so on, up to an hour. `last_error` is kept on the
   message. After `maxAttempts` (5 by default) it is archived with
   `dead: true`.
-- While a handler runs, a heartbeat keeps extending its lease. If a worker
+- While a batch runs, a heartbeat keeps extending the lease of every job in
+  it that hasn't finished, including the ones waiting their turn. If a worker
   crashes, the lease ends and another worker picks the job up. `job.attempts`
   is pgmq's `read_ct`; a worker whose lease was taken over gets `false` from
   `complete` instead of finishing someone else's job.
+- An idle worker polls after `pollInterval` (1 second), then doubles the wait
+  after each empty poll up to `maxPollInterval` (30 seconds). The next claimed
+  job resets it.
 - A `dedupeKey` keeps one waiting or running job per key.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available

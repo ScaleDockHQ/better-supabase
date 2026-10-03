@@ -49,19 +49,45 @@ function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
   }
 }
 
+/** Secrets come from configuration, so a handful of keys suffice. */
+const keys = new Map<string, Promise<CryptoKey>>();
+
+function keyFor(secret: string): Promise<CryptoKey> {
+  let key = keys.get(secret);
+  if (!key) {
+    key = crypto.subtle.importKey(
+      "raw",
+      secretBytes(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"],
+    );
+    if (keys.size < 16) {
+      keys.set(secret, key);
+      key.catch(() => keys.delete(secret));
+    }
+  }
+  return key;
+}
+
 async function signature(secret: string, content: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    secretBytes(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
   return toBase64(
     new Uint8Array(
-      await crypto.subtle.sign("HMAC", key, encoder.encode(content)),
+      await crypto.subtle.sign(
+        "HMAC",
+        await keyFor(secret),
+        encoder.encode(content),
+      ),
     ),
   );
+}
+
+function decodeSignature(value: string): Uint8Array<ArrayBuffer> | undefined {
+  try {
+    return fromBase64(value);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Constant-time string comparison. */
@@ -120,7 +146,6 @@ export async function verifyWebhook<T = unknown>(
   options: VerifyOptions = {},
 ): Promise<Result<VerifiedWebhook<T>>> {
   const headers = input.headers;
-  const body = input instanceof Request ? await input.text() : input.body;
   const id = header(headers, "webhook-id");
   const timestamp = header(headers, "webhook-timestamp");
   const signatures = header(headers, "webhook-signature");
@@ -153,17 +178,21 @@ export async function verifyWebhook<T = unknown>(
       ),
     );
 
-  const content = `${id}.${timestamp}.${body}`;
+  const body = input instanceof Request ? await input.text() : input.body;
+  const content = encoder.encode(`${id}.${timestamp}.${body}`);
   const offered = signatures
     .split(" ")
     .map((entry) => entry.split(","))
     .filter(([version, value]) => version === "v1" && value)
-    .map(([, value]) => value!);
+    .flatMap(([, value]) => decodeSignature(value!) ?? []);
   let valid = false;
   for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
-    const expected = await signature(secret, content);
-    for (const candidate of offered)
-      if (timingSafeEqual(candidate, expected)) valid = true;
+    const key = await keyFor(secret);
+    for (const candidate of offered) {
+      // crypto.subtle.verify compares HMACs in constant time.
+      if (await crypto.subtle.verify("HMAC", key, candidate, content))
+        valid = true;
+    }
   }
   if (!valid)
     return err(

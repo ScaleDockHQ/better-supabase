@@ -485,6 +485,32 @@ describe("resolveAuth", async () => {
       }
     });
 
+    it("runs the schemas once per token and schema pair", async () => {
+      const token = await signer.sign({ sub: USER, tenant_id: TENANT });
+      const counted = (schema: typeof claims) => {
+        const validate = vi.fn(schema["~standard"].validate);
+        return {
+          validate,
+          schema: {
+            ...schema,
+            "~standard": { ...schema["~standard"], validate },
+          } as typeof claims,
+        };
+      };
+      const first = counted(claims);
+      for (let i = 0; i < 3; i++) {
+        const { auth } = await resolveAuth(bearer(token), {
+          ...options,
+          claims: first.schema,
+        });
+        expect(auth).toMatchObject({ kind: "user", source: "bearer" });
+      }
+      expect(first.validate).toHaveBeenCalledOnce();
+      const second = counted(claims);
+      await resolveAuth(bearer(token), { ...options, claims: second.schema });
+      expect(second.validate).toHaveBeenCalledOnce();
+    });
+
     it("never refreshes a cookie session whose claims fail", async () => {
       const token = await signer.sign({ sub: USER });
       const fetchSpy = vi.fn<typeof fetch>();

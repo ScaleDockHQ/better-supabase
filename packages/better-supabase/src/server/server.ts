@@ -13,6 +13,7 @@ import {
   type AuthResolution,
   type AuthState,
   authContext,
+  prefetchJwks,
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
@@ -34,6 +35,7 @@ import {
   replicaState,
   routedExecutor,
 } from "./replicas.ts";
+import { defaultPrefetchJwks } from "./respond.ts";
 
 export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
@@ -41,6 +43,12 @@ export interface ServerOptions {
   /** Enables `ctx.sql` and `actingAs()`. */
   readonly postgres?: BetterPostgres;
   readonly auth?: Omit<ResolveAuthOptions, "env">;
+  /**
+   * Fetch the JWKS when the server is created, so the first request verifies
+   * its token without waiting for it. Applies when `env.jwksUrl` is set and
+   * `auth.jwks` is not. Defaults to true, except under `NODE_ENV=test`.
+   */
+  readonly prefetchJwks?: boolean;
   /**
    * Extra headers on the caller's PostgREST requests, readable in Postgres as
    * `current_setting('request.headers')` (channel, request id, client IP for audit).
@@ -107,6 +115,15 @@ export interface BetterServer<
     request: Request,
     options?: ContextOptions,
   ): Promise<ServerContext<M, F, E, C, P>>;
+  /**
+   * The context for a resolution from `resolve(request)`, so one resolution
+   * can back several contexts without verifying the token again.
+   */
+  contextFromResolution(
+    resolution: AuthResolution<C, P>,
+    request: Request,
+    options?: Omit<ContextOptions, "refresh">,
+  ): ServerContext<M, F, E, C, P>;
   /** The context for an auth state resolved elsewhere (the proxy, a queue message). */
   contextFor(
     auth: AuthState<C, P>,
@@ -199,6 +216,17 @@ export function createServer<
   const env = (): BetterSupabaseEnv => (loaded ??= options.env ?? loadEnv());
   let adminClient: SupabaseClient | undefined;
   let anonClient: SupabaseClient | undefined;
+
+  if (
+    (options.prefetchJwks ?? defaultPrefetchJwks()) &&
+    options.auth?.jwks === undefined
+  ) {
+    try {
+      void prefetchJwks({ ...options.auth, env: env() });
+    } catch {
+      // No environment yet (a build step): the first request loads it.
+    }
+  }
 
   const secretKey = (): string => {
     const key = env().secretKey;
@@ -396,6 +424,19 @@ export function createServer<
     };
   };
 
+  const fromResolution = (
+    resolution: AuthResolution<C, P>,
+    request: Request,
+    contextOptions: ContextOptions,
+  ): ServerContext<M, F, E, C, P> =>
+    contextFor(
+      resolution,
+      options.headers?.(request) ?? {},
+      contextOptions.stats,
+      contextOptions.pinnedUntil ??
+        (readUrl() ? pinnedUntil(resolution.requestCookies) : 0),
+    );
+
   const resolve = async (
     request: Request,
     resolveOptions: { readonly refresh?: boolean } = {},
@@ -463,14 +504,10 @@ export function createServer<
       const resolution = await resolve(request, {
         refresh: contextOptions.refresh ?? false,
       });
-      return contextFor(
-        resolution,
-        options.headers?.(request) ?? {},
-        contextOptions.stats,
-        contextOptions.pinnedUntil ??
-          pinnedUntil(request.headers.get("cookie")),
-      );
+      return fromResolution(resolution, request, contextOptions);
     },
+    contextFromResolution: (resolution, request, contextOptions = {}) =>
+      fromResolution(resolution, request, contextOptions),
     admin: (context = {}) =>
       betterSupabase.connect(serviceClient(), {
         actor: { id: "service", kind: "service", role: "service_role" },

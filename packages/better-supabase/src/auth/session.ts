@@ -44,8 +44,16 @@ export const AUTH_CACHE_HEADERS: Readonly<Record<string, string>> = {
 
 /** `sb-<first label of the hostname>-auth-token`, the supabase-js default. */
 export function sessionCookieName(url: string): string {
-  return `sb-${new URL(url).hostname.split(".")[0] ?? ""}-auth-token`;
+  let name = cookieNames.get(url);
+  if (name === undefined) {
+    name = `sb-${new URL(url).hostname.split(".")[0] ?? ""}-auth-token`;
+    if (cookieNames.size < 16) cookieNames.set(url, name);
+  }
+  return name;
 }
+
+/** Project URLs come from configuration, so a handful of entries suffice. */
+const cookieNames = new Map<string, string>();
 
 export function parseCookies(
   header: string | null | undefined,
