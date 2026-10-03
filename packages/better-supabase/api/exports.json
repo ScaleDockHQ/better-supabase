@@ -589,15 +589,23 @@
   },
   "./jobs": {
     "values": [
+      "assertCron",
       "createIdempotency",
       "createInbox",
       "createJobs",
       "entitlementMembers",
-      "ENTITLEMENTS_UPDATED"
+      "ENTITLEMENTS_UPDATED",
+      "nextCronRun",
+      "pgmqPublicBackend",
+      "sqlQueueBackend"
     ],
     "types": [
       "ClaimOptions",
+      "DrainOptions",
       "DrainResult",
+      "DrainRouteOptions",
+      "DrainRouteResult",
+      "DueSchedule",
       "EnqueueOptions",
       "FailOptions",
       "Idempotency",
@@ -610,8 +618,12 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "QueueBackend",
+      "QueueMessageBody",
+      "QueueMessageRow",
       "QueueRpcClient",
       "QueueSchemas",
+      "RunSchedulesOptions",
       "ScheduleOptions",
       "SqlClient",
       "WorkOptions"
@@ -954,7 +966,8 @@
       "testEventSink",
       "testExecutor",
       "testGenerator",
-      "testPlugin"
+      "testPlugin",
+      "testQueueBackend"
     ],
     "types": [
       "BudgetPage",
@@ -978,6 +991,7 @@
       "TestGeneratorOptions",
       "TestJwtClaims",
       "TestPluginOptions",
+      "TestQueueBackendOptions",
       "TestSigner",
       "TestUser"
     ]

@@ -6,6 +6,7 @@ import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Executor } from "../../src/core/executor.ts";
 import type { CloudEvent, EventSink } from "../../src/events/index.ts";
 import type { Condition, Selection } from "../../src/ir/types.ts";
+import type { QueueBackend, QueueMessageRow } from "../../src/jobs/index.ts";
 
 import {
   jsonSchema,
@@ -36,6 +37,7 @@ import {
   testExecutor,
   testGenerator,
   testPlugin,
+  testQueueBackend,
 } from "../../src/testing/conformance.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
@@ -173,6 +175,111 @@ describe("testEventSink", () => {
     };
     expect(await failures(testEventSink(mutating))).toEqual([
       "accepts a batch without mutating it",
+    ]);
+  });
+});
+
+interface Stored {
+  id: number;
+  attempts: number;
+  visibleAt: number;
+  done: boolean;
+  key: string | undefined;
+  message: { payload: unknown; max_attempts: number; last_error?: string };
+}
+
+function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
+  const rows: Stored[] = [];
+  const now = () => Date.now();
+  const find = (id: number, attempts: number) =>
+    rows.find((row) => row.id === id && row.attempts === attempts && !row.done);
+  return {
+    apiVersion: 1,
+    name: "memory",
+    leases: options.leases ?? true,
+    send: (_queue, payload, delay, maxAttempts, key) => {
+      const existing = key && rows.find((row) => row.key === key && !row.done);
+      if (existing) return Promise.resolve(existing.id);
+      const id = rows.length + 1;
+      rows.push({
+        id,
+        attempts: 0,
+        visibleAt: now() + delay * 1000,
+        done: false,
+        key,
+        message: {
+          payload: structuredClone(payload),
+          max_attempts: maxAttempts,
+        },
+      });
+      return Promise.resolve(id);
+    },
+    read: (_queue, lease, batch) => {
+      const claimed: QueueMessageRow[] = rows
+        .filter((row) => !row.done && row.visibleAt <= now())
+        .slice(0, batch)
+        .map((row) => {
+          row.attempts += 1;
+          row.visibleAt = now() + lease * 1000;
+          return {
+            id: row.id,
+            attempts: row.attempts,
+            enqueued_at: new Date(),
+            visible_until: new Date(row.visibleAt),
+            message: structuredClone(row.message),
+          };
+        });
+      return Promise.resolve(claimed);
+    },
+    complete: (job) => {
+      const row = find(job.id, job.attempts);
+      if (row) row.done = true;
+      return Promise.resolve(row !== undefined);
+    },
+    fail: (job, error, retryIn) => {
+      const row = find(job.id, job.attempts);
+      if (!row) return Promise.resolve(null);
+      row.message.last_error = error;
+      if (row.attempts >= row.message.max_attempts) {
+        row.done = true;
+        return Promise.resolve("dead");
+      }
+      row.visibleAt = now() + (retryIn ?? 10) * 1000;
+      return Promise.resolve("queued");
+    },
+    extend: (job, lease) => {
+      const row = find(job.id, job.attempts);
+      if (row) row.visibleAt = now() + lease * 1000;
+      return Promise.resolve(row !== undefined);
+    },
+    schedule: () => Promise.resolve(),
+    unschedule: () => Promise.resolve(false),
+  };
+}
+
+describe("testQueueBackend", () => {
+  it("passes a backend that keeps the contract", async () => {
+    const report = await testQueueBackend(memoryQueue(), { queue: "q" });
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(report.checks).toHaveLength(6);
+    const lite = await testQueueBackend(memoryQueue({ leases: false }), {
+      queue: "q",
+    });
+    expect(lite.checks).toHaveLength(4);
+  });
+
+  it("fails a backend that never hides or dead-letters messages", async () => {
+    const base = memoryQueue();
+    const leaky: QueueBackend = {
+      ...base,
+      apiVersion: 2 as 1,
+      read: async (queue, _lease, batch) => base.read(queue, 0, batch),
+      fail: () => Promise.resolve("queued"),
+    };
+    expect(await failures(testQueueBackend(leaky, { queue: "q" }))).toEqual([
+      "has apiVersion 1",
+      "round-trips a payload and leases it",
+      "retries, then dead-letters at max attempts",
     ]);
   });
 });

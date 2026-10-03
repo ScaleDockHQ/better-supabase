@@ -88,7 +88,7 @@ for lists that clients read page by page: the list takes `after` instead of
 
 ## Background work (`better-supabase/jobs`, needs `sql add jobs idempotency webhook-inbox`)
 
-- `createJobs(postgres.admin, { queue_name: zodSchema })` runs on Supabase Queues (pgmq): `enqueue` in the request, then `work` or `drain` in a worker. The handler throws to retry. `schedule(name, cron, queue, payload)` uses pg_cron. Queue names are lowercase letters, digits and underscores. With a service-role Supabase client instead of SQL, it uses the `pgmq_public` RPCs (no dedupe or schedules).
+- `createJobs(postgres.admin, { queue_name: zodSchema })` runs on Supabase Queues (pgmq): `enqueue` in the request, then `work` or `drain` in a worker. The handler throws to retry. `schedule(name, cron, queue, payload, { timeZone })` uses pg_cron, or with `kits.jobs.options.scheduler: "drain"` a `jobs.drainRoute({ secret: process.env.CRON_SECRET, handlers })` route that Vercel Cron calls; `kits.jobs.options.backend: "table"` runs without pgmq. Queue names are lowercase letters, digits and underscores. With a service-role Supabase client instead of SQL, it uses the `pgmq_public` RPCs (no dedupe or schedules).
 - `createIdempotency(postgres.admin).handle(request, handler)` for POST endpoints that clients retry.
 - `createInbox(postgres.admin, { source, secrets }).receive(request)` for webhooks; `process(handler)` later.
 - Times are `Temporal.Instant`: `EnqueueOptions.runAt`, `Job.enqueuedAt`, `Job.visibleUntil`, `InboxMessage.receivedAt` and webhook timestamps.

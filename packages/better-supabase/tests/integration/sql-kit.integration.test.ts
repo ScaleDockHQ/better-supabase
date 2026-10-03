@@ -13,13 +13,15 @@ import {
   createJobs,
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
+  sqlQueueBackend,
 } from "../../src/jobs/index.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
-import { renderKit, SQL_MODULES } from "../../src/sql/kit.ts";
+import { moduleBody, renderKit, SQL_MODULES } from "../../src/sql/kit.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { asUser } from "../../src/testing/as-user.ts";
+import { testQueueBackend } from "../../src/testing/conformance.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { signWebhook } from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -985,6 +987,127 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     );
     expect(done.toSorted((a, b) => a - b)).toEqual([1, 2, 3, 4]);
     expect(result).toEqual({ succeeded: 4, failed: 0 });
+  });
+
+  it("passes the queue backend conformance kit on pgmq", async () => {
+    await testQueueBackend(sqlQueueBackend(postgres.admin), {
+      queue: `kit_${RUN}_conf`,
+    });
+  });
+
+  it("runs jobs and time-zone schedules on the table backend", async () => {
+    const queue = `kit_${RUN}_table`;
+    const name = `bs-kit-table-${RUN}`;
+    await pool.query(
+      moduleBody("jobs", {
+        kits: { jobs: { options: { backend: "table", scheduler: "drain" } } },
+      })!,
+    );
+    try {
+      await testQueueBackend(sqlQueueBackend(postgres.admin), {
+        queue: `${queue}_conf`,
+      });
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ to: v.string() }),
+      });
+      const first = await jobs
+        .enqueue(queue, { to: "a" }, { dedupeKey: "a" })
+        .orThrow();
+      expect(
+        await jobs.enqueue(queue, { to: "a" }, { dedupeKey: "a" }).orThrow(),
+      ).toBe(first);
+      await jobs.enqueue(queue, { to: "b" }, { maxAttempts: 1 }).orThrow();
+
+      const other = createJobs(postgres.admin, {
+        [queue]: v.object({ to: v.string() }),
+      });
+      const [mine, theirs] = await Promise.all([
+        jobs.claim(queue).orThrow(),
+        other.claim(queue).orThrow(),
+      ]);
+      expect(mine[0]!.id).not.toBe(theirs[0]!.id);
+      expect(await jobs.complete({ ...mine[0]!, attempts: 99 }).orThrow()).toBe(
+        false,
+      );
+      const states = await Promise.all(
+        [...mine, ...theirs].map((job) =>
+          jobs.fail(job, "boom", { retryIn: 0 }).orThrow(),
+        ),
+      );
+      expect(
+        states.toSorted((a, b) => String(a).localeCompare(String(b))),
+      ).toEqual(["dead", "queued"]);
+      expect(await jobs.drain(queue, () => undefined)).toEqual({
+        succeeded: 1,
+        failed: 0,
+      });
+      const rows = await pool.query<{ dead: boolean; archived: boolean }>(
+        `select dead, archived_at is not null as archived
+         from better_supabase.job_messages where queue = $1 order by id`,
+        [queue],
+      );
+      expect(rows.rows).toEqual([
+        { dead: false, archived: true },
+        { dead: true, archived: true },
+      ]);
+
+      await jobs
+        .schedule(
+          name,
+          "0 9 * * *",
+          queue,
+          { to: "digest" },
+          {
+            timeZone: "Europe/Amsterdam",
+          },
+        )
+        .orThrow();
+      const stored = await pool.query<{ timezone: string; local: string }>(
+        `select timezone, to_char(next_run at time zone timezone, 'HH24:MI') as local
+         from better_supabase.job_schedules where job_name = $1`,
+        [name],
+      );
+      expect(stored.rows[0]).toEqual({
+        timezone: "Europe/Amsterdam",
+        local: "09:00",
+      });
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name = $1`,
+        [name],
+      );
+      const route = jobs.drainRoute({
+        secret: "s3cret",
+        handlers: { [queue]: () => undefined },
+      });
+      const response = await route(
+        new Request("https://app.test/api/jobs/drain", {
+          headers: { authorization: "Bearer s3cret" },
+        }),
+      );
+      expect(await response.json()).toMatchObject({
+        schedules: 1,
+        queues: { [queue]: { succeeded: 1, failed: 0 } },
+      });
+      const moved = await pool.query<{ due: boolean }>(
+        "select next_run > now() as due from better_supabase.job_schedules where job_name = $1",
+        [name],
+      );
+      expect(moved.rows[0]!.due).toBe(true);
+      await expect(
+        pool.query(
+          "select better_supabase.schedule_job('x', '* * * * *', 'q', '{}', 'Mars/Base')",
+        ),
+      ).rejects.toThrow(/Unknown time zone/);
+      expect(await jobs.unschedule(name).orThrow()).toBe(true);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue like $1",
+        [`${queue}%`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
   });
 
   it("replays idempotent requests and rejects reuse", async () => {

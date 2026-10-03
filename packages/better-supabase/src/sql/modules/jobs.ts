@@ -1,0 +1,637 @@
+import type { KitContext } from "../context.ts";
+import type { KitModuleDefinition } from "../kit.ts";
+
+import { SCHEMA } from "../shared.ts";
+
+export type JobsBackend = "pgmq" | "table";
+export type JobsScheduler = "pg_cron" | "drain";
+
+/** `kits.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
+export function jobsBackend(ctx: KitContext): JobsBackend {
+  const backend = ctx.text("backend", "pgmq");
+  if (backend !== "pgmq" && backend !== "table") {
+    throw new TypeError(
+      `kits.jobs.options.backend must be "pgmq" or "table", not "${backend}"`,
+    );
+  }
+  return backend;
+}
+
+/** `kits.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
+export function jobsScheduler(ctx: KitContext): JobsScheduler {
+  const scheduler = ctx.text("scheduler", "pg_cron");
+  if (scheduler !== "pg_cron" && scheduler !== "drain") {
+    throw new TypeError(
+      `kits.jobs.options.scheduler must be "pg_cron" or "drain", not "${scheduler}"`,
+    );
+  }
+  return scheduler;
+}
+
+const LEGACY = `-- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
+drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
+drop function if exists better_supabase.complete_job(bigint, text);
+drop function if exists better_supabase.fail_job(bigint, text, text, interval);
+drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+-- schedule_job before time zones.
+drop function if exists better_supabase.schedule_job(text, text, text, jsonb);`;
+
+const PGMQ = `-- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
+-- pgmq's read_ct is the attempt number and vt the lease.
+create extension if not exists pgmq;
+
+-- Deduplicated enqueues look the key up under an advisory lock, so each
+-- queue table gets a partial index on it.
+create or replace function better_supabase.index_job_queue(queue text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  execute format(
+    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
+    'q_' || queue || '_dedupe_idx',
+    'q_' || queue
+  );
+end;
+$$;
+
+-- Queue names: lowercase letters, digits and underscores (pgmq's rule).
+create or replace function better_supabase.ensure_job_queue(queue text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from pgmq.list_queues() q where q.queue_name = queue) then
+    perform pgmq.create(queue);
+    perform better_supabase.index_job_queue(queue);
+  end if;
+end;
+$$;
+
+select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
+
+-- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
+create or replace function better_supabase.enqueue_job(
+  queue text,
+  payload jsonb default '{}',
+  delay integer default 0,
+  max_attempts integer default 5,
+  dedupe_key text default null
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  existing bigint;
+begin
+  perform better_supabase.ensure_job_queue(queue);
+  if dedupe_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
+    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)
+      into existing using dedupe_key;
+    if existing is not null then
+      return existing;
+    end if;
+  end if;
+  return (
+    select pgmq.send(
+      queue,
+      jsonb_build_object('payload', payload, 'max_attempts', max_attempts)
+        || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,
+      greatest(delay, 0)
+    )
+  );
+end;
+$$;
+
+create or replace function better_supabase.claim_jobs(queue text, lease integer default 300, batch integer default 1)
+returns table (id bigint, attempts integer, enqueued_at timestamptz, visible_until timestamptz, message jsonb)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.ensure_job_queue(queue);
+  return query
+    select r.msg_id, r.read_ct, r.enqueued_at, r.vt, r.message
+    from pgmq.read(queue, lease, batch) r;
+end;
+$$;
+
+-- Each claim bumps read_ct, so a stale worker (its lease expired and another
+-- worker claimed the message) no longer matches and gets false / null.
+create or replace function better_supabase.complete_job(queue text, job_id bigint, attempt integer)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  hit bigint;
+begin
+  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
+    into hit using job_id, attempt;
+  if hit is null then
+    return false;
+  end if;
+  return pgmq.archive(queue, job_id);
+end;
+$$;
+
+-- Retries with exponential backoff (10s, 20s, 40s, ... at most an hour) until
+-- max_attempts, then archives the message with dead = true.
+create or replace function better_supabase.fail_job(
+  queue text,
+  job_id bigint,
+  attempt integer,
+  error text,
+  retry_in integer default null
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  msg jsonb;
+begin
+  execute format('select message from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
+    into msg using job_id, attempt;
+  if msg is null then
+    return null;
+  end if;
+  if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then
+    execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text, ''dead'', true) where msg_id = $1', 'q_' || queue)
+      using job_id, left(error, 4000);
+    perform pgmq.archive(queue, job_id);
+    return 'dead';
+  end if;
+  execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text), vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1', 'q_' || queue)
+    using job_id, left(error, 4000), coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer));
+  return 'queued';
+end;
+$$;
+
+create or replace function better_supabase.extend_job_lease(queue text, job_id bigint, attempt integer, lease integer)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  hit bigint;
+begin
+  execute format('update pgmq.%I set vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1 and read_ct = $2 returning msg_id', 'q_' || queue)
+    into hit using job_id, attempt, lease;
+  return hit is not null;
+end;
+$$;
+
+-- pgmq keeps completed and dead messages in pgmq.a_<queue>. Deletes up to
+-- batch of them archived longer than older_than.
+create or replace function better_supabase.purge_job_archive(
+  queue text,
+  older_than interval default '7 days',
+  batch integer default 10000
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  purged integer;
+begin
+  execute format(
+    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
+    'a_' || queue
+  ) into purged using older_than, batch;
+  return purged;
+end;
+$$;`;
+
+const TABLE = `-- Jobs in a plain table, for projects without pgmq. Messages have the same
+-- {payload, max_attempts, dedupe_key?, last_error?} body as on pgmq; claims
+-- take rows with for update skip locked, and attempts is the lease token.
+create table if not exists better_supabase.job_messages (
+  id bigint generated always as identity primary key,
+  queue text not null check (queue ~ '^[a-z_][a-z0-9_]{0,46}$'),
+  message jsonb not null,
+  attempts integer not null default 0,
+  enqueued_at timestamptz not null default now(),
+  visible_at timestamptz not null default now(),
+  archived_at timestamptz,
+  dead boolean not null default false,
+  dedupe_key text generated always as (message ->> 'dedupe_key') stored
+);
+create index if not exists job_messages_ready_idx
+  on better_supabase.job_messages (queue, visible_at) where archived_at is null;
+create unique index if not exists job_messages_dedupe_idx
+  on better_supabase.job_messages (queue, dedupe_key) where archived_at is null and dedupe_key is not null;
+create index if not exists job_messages_archived_idx
+  on better_supabase.job_messages (queue, archived_at) where archived_at is not null;
+alter table better_supabase.job_messages enable row level security;
+revoke all on better_supabase.job_messages from anon, authenticated;
+
+-- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
+create or replace function better_supabase.enqueue_job(
+  queue text,
+  payload jsonb default '{}',
+  delay integer default 0,
+  max_attempts integer default 5,
+  dedupe_key text default null
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  existing bigint;
+  created bigint;
+begin
+  if dedupe_key is not null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
+    select m.id into existing
+    from better_supabase.job_messages m
+    where m.queue = enqueue_job.queue and m.dedupe_key = enqueue_job.dedupe_key and m.archived_at is null
+    limit 1;
+    if existing is not null then
+      return existing;
+    end if;
+  end if;
+  insert into better_supabase.job_messages (queue, message, visible_at)
+  values (
+    queue,
+    jsonb_build_object('payload', payload, 'max_attempts', max_attempts)
+      || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,
+    clock_timestamp() + make_interval(secs => greatest(delay, 0))
+  )
+  returning id into created;
+  return created;
+end;
+$$;
+
+create or replace function better_supabase.claim_jobs(queue text, lease integer default 300, batch integer default 1)
+returns table (id bigint, attempts integer, enqueued_at timestamptz, visible_until timestamptz, message jsonb)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  return query
+    with picked as (
+      select m.id
+      from better_supabase.job_messages m
+      where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= clock_timestamp()
+      order by m.visible_at, m.id
+      limit greatest(batch, 1)
+      for update skip locked
+    )
+    update better_supabase.job_messages m
+    set attempts = m.attempts + 1,
+        visible_at = clock_timestamp() + make_interval(secs => lease)
+    from picked
+    where m.id = picked.id
+    returning m.id, m.attempts, m.enqueued_at, m.visible_at, m.message;
+end;
+$$;
+
+-- Each claim bumps attempts, so a stale worker (its lease expired and another
+-- worker claimed the message) no longer matches and gets false / null.
+create or replace function better_supabase.complete_job(queue text, job_id bigint, attempt integer)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  with done as (
+    update better_supabase.job_messages m
+    set archived_at = now()
+    where m.id = job_id and m.queue = complete_job.queue and m.attempts = attempt and m.archived_at is null
+    returning 1
+  )
+  select exists (select 1 from done);
+$$;
+
+-- Retries with exponential backoff (10s, 20s, 40s, ... at most an hour) until
+-- max_attempts, then archives the message with dead = true.
+create or replace function better_supabase.fail_job(
+  queue text,
+  job_id bigint,
+  attempt integer,
+  error text,
+  retry_in integer default null
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  msg jsonb;
+begin
+  select m.message into msg
+  from better_supabase.job_messages m
+  where m.id = job_id and m.queue = fail_job.queue and m.attempts = attempt and m.archived_at is null
+  for update;
+  if msg is null then
+    return null;
+  end if;
+  if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then
+    update better_supabase.job_messages m
+    set message = m.message || jsonb_build_object('last_error', left(error, 4000), 'dead', true),
+        dead = true,
+        archived_at = now()
+    where m.id = job_id;
+    return 'dead';
+  end if;
+  update better_supabase.job_messages m
+  set message = m.message || jsonb_build_object('last_error', left(error, 4000)),
+      visible_at = clock_timestamp() + make_interval(secs => coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer)))
+  where m.id = job_id;
+  return 'queued';
+end;
+$$;
+
+create or replace function better_supabase.extend_job_lease(queue text, job_id bigint, attempt integer, lease integer)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  with extended as (
+    update better_supabase.job_messages m
+    set visible_at = clock_timestamp() + make_interval(secs => lease)
+    where m.id = job_id and m.queue = extend_job_lease.queue and m.attempts = attempt and m.archived_at is null
+    returning 1
+  )
+  select exists (select 1 from extended);
+$$;
+
+-- Completed and dead messages stay in job_messages with archived_at. Deletes
+-- up to batch of them archived longer than older_than.
+create or replace function better_supabase.purge_job_archive(
+  queue text,
+  older_than interval default '7 days',
+  batch integer default 10000
+)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with purged as (
+    delete from better_supabase.job_messages
+    where id in (
+      select m.id from better_supabase.job_messages m
+      where m.queue = purge_job_archive.queue and m.archived_at < now() - older_than
+      order by m.id
+      limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged;
+$$;`;
+
+const ensureQueue = (backend: JobsBackend): string =>
+  backend === "pgmq"
+    ? "\n  perform better_supabase.ensure_job_queue(queue);"
+    : "";
+
+const PG_CRON = (
+  backend: JobsBackend,
+) => `-- Recurring jobs with pg_cron, in cron.timezone (UTC unless the project changed it):
+-- select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
+-- For another time zone, set kits.jobs.options.scheduler to "drain".
+create or replace function better_supabase.schedule_job(
+  job_name text,
+  schedule text,
+  queue text,
+  payload jsonb default '{}',
+  timezone text default 'UTC',
+  next_run timestamptz default null
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if pg_catalog.to_regnamespace('cron') is null then
+    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set kits.jobs.options.scheduler to "drain"';
+  end if;
+  if timezone <> 'UTC' then
+    raise exception 'pg_cron runs schedules in cron.timezone, not %; set kits.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
+  end if;${ensureQueue(backend)}
+  return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));
+end;
+$$;
+
+create or replace function better_supabase.unschedule_job(job_name text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if pg_catalog.to_regnamespace('cron') is null then
+    return false;
+  end if;
+  return cron.unschedule(job_name);
+end;
+$$;
+
+-- pg_cron enqueues the runs itself, so the drain route has no schedules to claim.
+create or replace function better_supabase.claim_due_schedules(lease integer default 60, batch integer default 100)
+returns table (job_name text, schedule text, timezone text, queue text, payload jsonb, next_run timestamptz)
+language sql
+security definer
+set search_path = ''
+as $$
+  select null::text, null::text, null::text, null::text, null::jsonb, null::timestamptz where false;
+$$;
+
+create or replace function better_supabase.advance_schedule(job_name text, ran timestamptz, next_run timestamptz)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  select false;
+$$;`;
+
+const DRAIN = `-- Recurring jobs without pg_cron: the drain route (jobs.drainRoute) claims due
+-- schedules, enqueues a run and moves next_run on. Times are computed in
+-- TypeScript, in each schedule's time zone.
+create table if not exists better_supabase.job_schedules (
+  job_name text primary key,
+  schedule text not null,
+  timezone text not null default 'UTC',
+  queue text not null,
+  payload jsonb not null default '{}',
+  next_run timestamptz not null,
+  last_run timestamptz,
+  locked_until timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists job_schedules_due_idx on better_supabase.job_schedules (next_run);
+alter table better_supabase.job_schedules enable row level security;
+revoke all on better_supabase.job_schedules from anon, authenticated;
+
+-- next_run defaults to now (the next drain); jobs.schedule passes the next cron time.
+create or replace function better_supabase.schedule_job(
+  job_name text,
+  schedule text,
+  queue text,
+  payload jsonb default '{}',
+  timezone text default 'UTC',
+  next_run timestamptz default null
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = timezone) then
+    raise exception 'Unknown time zone %', timezone;
+  end if;
+  insert into better_supabase.job_schedules (job_name, schedule, timezone, queue, payload, next_run)
+  values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', coalesce(next_run, now())))
+  on conflict on constraint job_schedules_pkey do update
+    set schedule = excluded.schedule,
+        timezone = excluded.timezone,
+        queue = excluded.queue,
+        payload = excluded.payload,
+        next_run = excluded.next_run,
+        locked_until = null;
+  return null;
+end;
+$$;
+
+create or replace function better_supabase.unschedule_job(job_name text)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  with removed as (
+    delete from better_supabase.job_schedules s where s.job_name = unschedule_job.job_name returning 1
+  )
+  select exists (select 1 from removed);
+$$;
+
+-- Leases due schedules for lease seconds, so concurrent drains don't run one twice.
+create or replace function better_supabase.claim_due_schedules(lease integer default 60, batch integer default 100)
+returns table (job_name text, schedule text, timezone text, queue text, payload jsonb, next_run timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  return query
+    with due as (
+      select s.job_name
+      from better_supabase.job_schedules s
+      where s.next_run <= clock_timestamp()
+        and (s.locked_until is null or s.locked_until < clock_timestamp())
+      order by s.next_run
+      limit greatest(batch, 1)
+      for update skip locked
+    )
+    update better_supabase.job_schedules s
+    set locked_until = clock_timestamp() + make_interval(secs => lease)
+    from due
+    where s.job_name = due.job_name
+    returning s.job_name, s.schedule, s.timezone, s.queue, s.payload, s.next_run;
+end;
+$$;
+
+-- Moves a schedule on after its run was enqueued. Times are kept to the
+-- millisecond, the precision JavaScript reads them back with. False when it was
+-- rescheduled or another drain advanced it since the claim.
+create or replace function better_supabase.advance_schedule(job_name text, ran timestamptz, next_run timestamptz)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  with advanced as (
+    update better_supabase.job_schedules s
+    set next_run = date_trunc('milliseconds', advance_schedule.next_run), last_run = ran, locked_until = null
+    where s.job_name = advance_schedule.job_name
+      and date_trunc('milliseconds', s.next_run) = date_trunc('milliseconds', ran)
+    returning 1
+  )
+  select exists (select 1 from advanced);
+$$;`;
+
+const GRANTS = (backend: JobsBackend) => `do $$
+declare
+  fn text;
+begin
+  foreach fn in array array[${
+    backend === "pgmq"
+      ? `
+    'index_job_queue(text)',
+    'ensure_job_queue(text)',`
+      : ""
+  }
+    'enqueue_job(text, jsonb, integer, integer, text)',
+    'claim_jobs(text, integer, integer)',
+    'complete_job(text, bigint, integer)',
+    'fail_job(text, bigint, integer, text, integer)',
+    'extend_job_lease(text, bigint, integer, integer)',
+    'schedule_job(text, text, text, jsonb, text, timestamptz)',
+    'unschedule_job(text)',
+    'claim_due_schedules(integer, integer)',
+    'advance_schedule(text, timestamptz, timestamptz)',
+    'purge_job_archive(text, interval, integer)'
+  ] loop
+    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
+    execute format('grant execute on function better_supabase.%s to service_role', fn);
+  end loop;
+end;
+$$;`;
+
+function jobsSql(ctx: KitContext): string {
+  const backend = jobsBackend(ctx);
+  const scheduler = jobsScheduler(ctx);
+  return [
+    SCHEMA,
+    LEGACY,
+    backend === "pgmq" ? PGMQ : TABLE,
+    scheduler === "pg_cron" ? PG_CRON(backend) : DRAIN,
+    GRANTS(backend),
+  ].join("\n\n");
+}
+
+export const JOBS: KitModuleDefinition = {
+  name: "jobs",
+  title: "Job queue",
+  description:
+    "Typed jobs on Supabase Queues (pgmq) or a plain table (kits.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
+  requires: [],
+  target: "schema",
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "schedule_job takes a time zone and next run; the drain scheduler and the table backend are options.",
+      sql: () =>
+        "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
+    },
+  ],
+  build: jobsSql,
+};

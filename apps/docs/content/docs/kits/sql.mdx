@@ -40,7 +40,7 @@ their functions.
 | `access`          | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                  |
 | `invitations`     | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email                                                        |
 | `reserved-slugs`  | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                         |
-| `jobs`            | Jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, dedupe keys and pg_cron schedules. Used by [`better-supabase/jobs`](/docs/kits/jobs)                                                             |
+| `jobs`            | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/jobs`](/docs/kits/jobs)                             |
 | `idempotency`     | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                               |
 | `webhook-inbox`   | Stores verified webhooks once and hands them to a worker                                                                                                                                                                     |
 | `realtime-tables` | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                            |
@@ -159,12 +159,12 @@ rows per call (10,000 by default), and returns how many it deleted. They
 delete in primary-key order, so they find the oldest rows through the primary
 key index without a full scan. Only `service_role` can call them.
 
-| Function                                           | Deletes                                                           |
-| -------------------------------------------------- | ----------------------------------------------------------------- |
-| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`                       |
-| `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones |
-| `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs in pgmq's archive table `pgmq.a_<queue>`  |
-| `purge_idempotency_keys()`                         | expired idempotency keys                                          |
+| Function                                           | Deletes                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`                                        |
+| `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones                  |
+| `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
+| `purge_idempotency_keys()`                         | expired idempotency keys                                                           |
 
 Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
 hour. Enable the extension once (`create extension pg_cron with schema

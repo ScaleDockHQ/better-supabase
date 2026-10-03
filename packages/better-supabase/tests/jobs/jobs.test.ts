@@ -12,7 +12,10 @@ import {
   entitlementMembers,
   ENTITLEMENTS_UPDATED,
   type Job,
+  pgmqPublicBackend,
+  type QueueBackend,
   type QueueRpcClient,
+  sqlQueueBackend,
 } from "../../src/jobs/index.ts";
 import { signWebhook } from "../../src/webhooks/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -623,14 +626,267 @@ describe("createJobs over SQL", () => {
     expect(await jobs.unschedule("nightly").orThrow()).toBe(true);
     expect(fake.calls).toEqual([
       {
-        text: "select better_supabase.schedule_job($1, $2, $3, $4)",
-        values: ["nightly", "0 3 * * *", "reports", '{"day":"SUN"}'],
+        text: "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6)",
+        values: [
+          "nightly",
+          "0 3 * * *",
+          "reports",
+          '{"day":"SUN"}',
+          "UTC",
+          expect.stringMatching(/T03:00:00Z$/),
+        ],
       },
       {
         text: "select better_supabase.unschedule_job($1) as done",
         values: ["nightly"],
       },
     ]);
+  });
+});
+
+describe("schedules with the drain scheduler", () => {
+  it("passes the time zone and the next run in that zone", async () => {
+    const fake = fakeSql([]);
+    await createJobs(fake.sql, queues)
+      .schedule(
+        "digest",
+        "0 9 * * 1-5",
+        "reports",
+        { day: "mon" },
+        {
+          timeZone: "Europe/Amsterdam",
+        },
+      )
+      .orThrow();
+    const [name, , , , zone, next] = fake.calls[0]!.values;
+    expect([name, zone]).toEqual(["digest", "Europe/Amsterdam"]);
+    const local = Temporal.Instant.from(String(next)).toZonedDateTimeISO(
+      "Europe/Amsterdam",
+    );
+    expect([local.hour, local.minute]).toEqual([9, 0]);
+    expect(local.dayOfWeek).toBeLessThanOrEqual(5);
+  });
+
+  it("rejects an invalid cron before calling the database", async () => {
+    const fake = fakeSql([]);
+    const result = await createJobs(fake.sql, queues).schedule(
+      "bad",
+      "61 * * * *",
+      "reports",
+      { day: "mon" },
+    );
+    expect(result.ok).toBe(false);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("enqueues each due schedule once and moves it on", async () => {
+    const fake = fakeSql([
+      [
+        "claim_due_schedules",
+        [
+          {
+            job_name: "digest",
+            schedule: "0 * * * *",
+            timezone: "UTC",
+            queue: "reports",
+            payload: { day: "mon" },
+            next_run: new Date("2026-01-01T10:00:00Z"),
+          },
+        ],
+      ],
+      ["enqueue_job", [{ id: 7 }]],
+      ["advance_schedule", [{ advanced: true }]],
+    ]);
+    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(1);
+    const [, enqueue, advance] = fake.calls;
+    expect(enqueue!.values).toEqual([
+      "reports",
+      '{"day":"mon"}',
+      0,
+      5,
+      "schedule:digest:2026-01-01T10:00:00Z",
+    ]);
+    expect(advance!.values[0]).toBe("digest");
+    expect(advance!.values[1]).toBe("2026-01-01T10:00:00Z");
+    expect(String(advance!.values[2])).toMatch(/:00:00Z$/);
+  });
+
+  it("counts a schedule another drain advanced as not run", async () => {
+    const fake = fakeSql([
+      [
+        "claim_due_schedules",
+        [
+          {
+            job_name: "tick",
+            schedule: "30 seconds",
+            timezone: "UTC",
+            queue: "reports",
+            payload: {},
+            next_run: "2026-01-01T10:00:00Z",
+          },
+        ],
+      ],
+      ["enqueue_job", [{ id: 1 }]],
+      ["advance_schedule", [{ advanced: false }]],
+    ]);
+    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(0);
+  });
+
+  it("runs no schedules over pgmq_public", async () => {
+    const { client } = fakeClient(() => []);
+    expect(await createJobs(client, queues).runSchedules().orThrow()).toBe(0);
+  });
+});
+
+describe("drainRoute", () => {
+  const request = (init: RequestInit = {}) =>
+    new Request("https://app.test/api/jobs/drain", {
+      headers: { authorization: "Bearer s3cret" },
+      ...init,
+    });
+
+  it("needs a secret", () => {
+    expect(() =>
+      createJobs(fakeSql([]).sql, queues).drainRoute({
+        secret: undefined,
+        handlers: {},
+      }),
+    ).toThrow(/secret/);
+  });
+
+  it("rejects an unknown queue", () => {
+    expect(() =>
+      createJobs(fakeSql([]).sql, queues).drainRoute({
+        secret: "s3cret",
+        // @ts-expect-error not a queue
+        handlers: { nope: () => undefined },
+      }),
+    ).toThrow(/Unknown queue/);
+  });
+
+  it("answers 401 without the bearer secret and 405 for other methods", async () => {
+    const route = createJobs(fakeSql([]).sql, queues).drainRoute({
+      secret: "s3cret",
+      handlers: {},
+    });
+    const denied = await route(request({ headers: {} }));
+    expect(denied.status).toBe(401);
+    expect((await route(request({ method: "PUT" }))).status).toBe(405);
+  });
+
+  it("runs schedules, then drains each queue", async () => {
+    const fake = fakeSql([
+      ["claim_due_schedules", []],
+      ["claim_jobs", sequence([messageRow(1, { day: "mon" })])],
+      ["complete_job", [{ done: true }]],
+    ]);
+    const handled: unknown[] = [];
+    const route = createJobs(fake.sql, queues).drainRoute({
+      secret: "s3cret",
+      handlers: {
+        reports: (payload) => {
+          handled.push(payload);
+        },
+      },
+    });
+    const response = await route(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      schedules: 0,
+      queues: { reports: { succeeded: 1, failed: 0 } },
+      budgetExhausted: false,
+    });
+    expect(handled).toEqual([{ day: "MON" }]);
+  });
+
+  it("reports schedule and queue errors and keeps going", async () => {
+    const fake = fakeSql([
+      ["claim_due_schedules", { throws: pgError("42883", "no function") }],
+      ["claim_jobs", { throws: pgError("42P01", "no table") }],
+    ]);
+    const errors: DbError[] = [];
+    const route = createJobs(fake.sql, queues).drainRoute({
+      secret: "s3cret",
+      schedules: true,
+      handlers: { emails: () => undefined, reports: () => undefined },
+      onError: (error) => errors.push(error),
+    });
+    const body = await (await route(request({ method: "POST" }))).json();
+    expect(body).toMatchObject({
+      queues: {
+        emails: { succeeded: 0, failed: 0 },
+        reports: { succeeded: 0, failed: 0 },
+      },
+    });
+    expect(errors).toHaveLength(3);
+  });
+
+  it("stops claiming once the budget is spent", async () => {
+    const fake = fakeSql([["claim_jobs", [messageRow(1, { day: "mon" })]]]);
+    const route = createJobs(fake.sql, queues).drainRoute({
+      secret: "s3cret",
+      budgetMs: 0,
+      schedules: false,
+      handlers: { reports: () => undefined },
+    });
+    const body = await (await route(request())).json();
+    expect(body).toEqual({ schedules: 0, queues: {}, budgetExhausted: true });
+    expect(fake.calls).toEqual([]);
+  });
+});
+
+describe("drain budget", () => {
+  it("stops claiming at the deadline", async () => {
+    const fake = fakeSql([
+      ["claim_jobs", [messageRow(1, { day: "mon" })]],
+      ["complete_job", [{ done: true }]],
+    ]);
+    const result = await createJobs(fake.sql, queues).drain(
+      "reports",
+      () => undefined,
+      { budgetMs: 0 },
+    );
+    expect(result).toEqual({ succeeded: 0, failed: 0 });
+  });
+});
+
+describe("custom queue backends", () => {
+  it("runs jobs on any QueueBackend", async () => {
+    const sent: unknown[] = [];
+    const backend: QueueBackend = {
+      apiVersion: 1,
+      name: "memory",
+      leases: false,
+      send: (queue, payload) => {
+        sent.push([queue, payload]);
+        return Promise.resolve(sent.length);
+      },
+      read: () => Promise.resolve([]),
+      complete: () => Promise.resolve(true),
+      fail: () => Promise.resolve("queued"),
+      extend: () => Promise.resolve(false),
+      schedule: () => Promise.resolve(),
+      unschedule: () => Promise.resolve(true),
+    };
+    const jobs = createJobs(backend, queues);
+    expect(
+      await jobs.enqueue("emails", { to: "a@example.com" }).orThrow(),
+    ).toBe(1);
+    expect(sent).toEqual([["emails", { to: "a@example.com" }]]);
+    expect(await jobs.runSchedules().orThrow()).toBe(0);
+  });
+
+  it("exposes the built-in backends", () => {
+    expect(sqlQueueBackend(fakeSql([]).sql)).toMatchObject({
+      apiVersion: 1,
+      name: "sql",
+      leases: true,
+    });
+    expect(pgmqPublicBackend(fakeClient(() => null).client)).toMatchObject({
+      apiVersion: 1,
+      name: "pgmq_public",
+      leases: false,
+    });
   });
 });
 
