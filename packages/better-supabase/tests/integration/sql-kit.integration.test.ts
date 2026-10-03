@@ -228,6 +228,29 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     ]);
   });
 
+  it("keys audit entries by the table's primary key, composite ones too", async () => {
+    const composite = `public.bs_kit_pk_${RUN}`;
+    try {
+      await pool.query(`
+        create table ${composite} (tenant int, code text, name text, primary key (tenant, code));
+        select better_supabase.audit('${composite}');
+        insert into ${composite} values (7, 'x', 'Seven');
+      `);
+      const log = await pool.query<{ record_id: string }>(
+        `select record_id from better_supabase.audit_log where table_name = $1`,
+        [composite],
+      );
+      expect(log.rows).toEqual([{ record_id: "7,x" }]);
+    } finally {
+      await pool.query(`select better_supabase.unaudit('${composite}')`);
+      await pool.query(`drop table if exists ${composite}`);
+      await pool.query(
+        `delete from better_supabase.audit_log where table_name = $1`,
+        [composite],
+      );
+    }
+  });
+
   it("runs invitations through memberships and has_org_role", async () => {
     const createUser = async (
       email: string,

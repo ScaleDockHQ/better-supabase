@@ -1,6 +1,6 @@
 import type { Operation } from "../ir/types.ts";
 import type { DbError } from "./errors.ts";
-import type { MutationKind, RequestContext } from "./plugin.ts";
+import type { MutationIntent, MutationKind, RequestContext } from "./plugin.ts";
 
 import { consoleLogger, type Logger } from "./logger.ts";
 
@@ -20,7 +20,14 @@ export interface QueryEvent {
 export interface MutationNotice {
   readonly table: string;
   readonly kind: MutationKind;
+  /** See `MutationEvent.intent`. */
+  readonly intent?: MutationIntent;
+  /** A copy of the returned rows: changing it never changes the result. */
   readonly rows: readonly Readonly<Record<string, unknown>>[];
+  /** See `MutationEvent.keys`. */
+  readonly keys?: readonly Readonly<Record<string, unknown>>[];
+  /** See `MutationEvent.tenant`. */
+  readonly tenant?: string;
   readonly context: RequestContext;
 }
 

@@ -36,9 +36,12 @@ Each mutated row becomes one event:
 }
 ```
 
-The types are `row.created`, `row.updated`, `row.upserted` and `row.deleted`.
-Use `typePrefix: 'com.acme.crm'` to use your own namespace. `subject` is the
-primary key, `partitionkey` the tenant and `actorid` the acting user.
+The types are `row.created`, `row.updated`, `row.upserted`, `row.deleted` and
+`row.softdeleted`. Use `typePrefix: 'com.acme.crm'` to use your own namespace.
+`subject` is the primary key, `partitionkey` the tenant (also the one
+`tenant()` resolved from the claims) and `actorid` the acting user. Writes
+that return no rows send one event per known primary key, with the key as
+`data.row`.
 
 ## Sinks
 

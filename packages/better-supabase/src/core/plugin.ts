@@ -37,11 +37,25 @@ export interface HookArgs {
 
 export type MutationKind = "insert" | "upsert" | "update" | "delete";
 
+/** What the caller asked for: `softDelete` is a `delete` that a plugin turned into an update. */
+export type MutationIntent = MutationKind | "softDelete";
+
 export interface MutationEvent {
   readonly table: TableMeta;
+  /** The statement that ran. */
   readonly kind: MutationKind;
-  /** App-cased rows returned by the mutation. */
+  /** What the caller asked for; differs from `kind` when a plugin rewrote the mutation. */
+  readonly intent?: MutationIntent;
+  /** App-cased rows returned by the mutation. A copy: changing it never changes the result. */
   readonly rows: readonly Readonly<Record<string, unknown>>[];
+  /**
+   * App-cased primary keys of the changed rows, when they are known: from
+   * the returned rows, or from a `where` on the primary key when nothing is
+   * returned (soft deletes, `returning: false`).
+   */
+  readonly keys?: readonly Readonly<Record<string, unknown>>[];
+  /** The tenant of the write: `context.tenant`, or the one `tenant()` resolved. */
+  readonly tenant?: string;
   readonly context: RequestContext;
 }
 
@@ -167,15 +181,23 @@ export type WithExtension<E, X> = unknown extends X
 
 const RANK = { pre: 0, normal: 1, post: 2 } as const;
 
-/** Plugins in hook order: `pre`, then unmarked in `use()` order, then `post`. */
+/**
+ * `rules()` checks the query as the caller wrote it, so it runs before every
+ * other `pre` plugin (soft delete turns deletes into updates, tenant adds
+ * filters).
+ */
+function rankOf(plugin: AnyPlugin): number {
+  return plugin.name === "rules" ? -1 : RANK[plugin.enforce ?? "normal"];
+}
+
+/**
+ * Plugins in hook order: `rules`, then `pre`, then unmarked in `use()` order,
+ * then `post`.
+ */
 export function orderPlugins(plugins: readonly AnyPlugin[]): AnyPlugin[] {
   return plugins
     .map((plugin, index) => ({ plugin, index }))
-    .sort(
-      (a, b) =>
-        RANK[a.plugin.enforce ?? "normal"] -
-          RANK[b.plugin.enforce ?? "normal"] || a.index - b.index,
-    )
+    .sort((a, b) => rankOf(a.plugin) - rankOf(b.plugin) || a.index - b.index)
     .map(({ plugin }) => plugin);
 }
 
@@ -187,4 +209,17 @@ export function definePlugin<
   plugin: Omit<Plugin<Name, Ext>, "apiVersion"> & { readonly apiVersion?: 1 },
 ): Plugin<Name, Ext> {
   return { ...plugin, apiVersion: 1 };
+}
+
+/** Tenants that `tenant()` resolved from claims, per connection context. */
+const resolvedTenants = new WeakMap<RequestContext, string>();
+
+/** Records the tenant a plugin resolved for `context`, so mutation notices carry it. */
+export function recordTenant(context: RequestContext, tenant: string): void {
+  resolvedTenants.set(context, tenant);
+}
+
+/** `context.tenant`, else the tenant a plugin resolved for this connection. */
+export function tenantOf(context: RequestContext): string | undefined {
+  return context.tenant ?? resolvedTenants.get(context);
 }

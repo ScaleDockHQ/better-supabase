@@ -133,7 +133,8 @@ as for any other query. Execute is granted to `authenticated` only; pass
 Read sets run without query plugins, on both executors: the function is
 compiled once, and plugins such as `tenant` or `softDelete` add filters at
 request time. Scope read sets with RLS, or with explicit parameters and
-`where` filters.
+`where` filters. `defineReadSet` logs a warning when the definition has
+query plugins and the set reads a table with a tenant or soft-delete flag.
 
 ### Limits
 

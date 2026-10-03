@@ -1,44 +1,6 @@
-import type { Codec } from "../schema/types.ts";
 import type { Measure, Selection } from "./types.ts";
 
-import { temporal } from "../core/temporal-required.ts";
-import { temporalText } from "../core/temporal.ts";
-
-/** Wire form of an app value: Temporal values to ISO text, `bigint` to decimal text. */
-export function encodeValue(value: unknown): unknown {
-  if (typeof value !== "object" || value === null) {
-    return typeof value === "bigint" ? value.toString() : value;
-  }
-  const text = temporalText(value);
-  if (text !== undefined) return text;
-  if (Array.isArray(value)) return value.map(encodeValue);
-  return value;
-}
-
-function decodeScalar(codec: Codec, value: unknown): unknown {
-  if (value === null || value === undefined) return value;
-  switch (codec) {
-    case "instant":
-      return temporal().Instant.from(String(value));
-    case "plainDateTime":
-      return temporal().PlainDateTime.from(String(value));
-    case "bigint":
-      // SAFETY: codec columns are selected with a text cast, so they arrive as strings.
-      return BigInt(value as string);
-    case "string":
-      return String(value);
-    default: {
-      const exhaustive: never = codec;
-      return exhaustive;
-    }
-  }
-}
-
-function decode(codec: Codec, value: unknown): unknown {
-  return Array.isArray(value)
-    ? value.map((item) => decodeScalar(codec, item))
-    : decodeScalar(codec, value);
-}
+import { decodeScalar, decodeValue } from "./wire.ts";
 
 /** Whether decoding `selection` changes anything, so plain reads skip the walk. */
 export function needsDecoding(selection: Selection): boolean {
@@ -133,7 +95,7 @@ function decodeRow(
   const folded: Folded = new Map();
   for (const column of selection.columns) {
     if (column.codec && column.alias in out)
-      out[column.alias] = decode(column.codec, out[column.alias]);
+      out[column.alias] = decodeValue(column.codec, out[column.alias]);
   }
   if (selection.aggregate) {
     if (selection.aggregate.count) out["_count"] = countOf(out["_count"]);

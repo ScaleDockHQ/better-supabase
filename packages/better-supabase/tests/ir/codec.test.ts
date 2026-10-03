@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { Include, Selection } from "../../src/ir/types.ts";
 
-import { decodeRows, encodeValue, needsDecoding } from "../../src/ir/codec.ts";
+import { decodeRows, needsDecoding } from "../../src/ir/codec.ts";
+import { encodeValue } from "../../src/ir/wire.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const customers = schema.meta.tables["customers"];

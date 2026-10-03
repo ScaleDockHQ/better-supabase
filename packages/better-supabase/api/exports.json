@@ -114,6 +114,7 @@
       "Logger",
       "MemoryCache",
       "MutationEvent",
+      "MutationIntent",
       "MutationKind",
       "MutationNotice",
       "NoExtension",
@@ -569,6 +570,7 @@
       "ToolDefinition",
       "ToolInfo",
       "ToolRef",
+      "ToolResourceOptions",
       "ToolResources",
       "ToolResult"
     ]
@@ -863,7 +865,9 @@
       "compileReadSets",
       "isKitIdType",
       "KIT_ID_TYPES",
+      "kitIdType",
       "kitLayout",
+      "PERMDOCK_SCHEMA",
       "permdockKeys",
       "permdockKeyStatus",
       "renderKit",

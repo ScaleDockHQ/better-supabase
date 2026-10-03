@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { StandardSchemaV1 } from "../../src/core/standard.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
@@ -19,15 +21,25 @@ const base = defineSupabase(schema, { now: () => NOW });
 describe("timestamps", () => {
   const betterSupabase = base.use(timestamps());
 
-  it("stamps inserts and updates without overriding explicit values", async () => {
+  it("stamps inserts and updates, keeping explicit values only with override", async () => {
     const { client, requests } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c" }],
     }));
     const db = betterSupabase.connect(client);
+    const refused = await db.customers.create({
+      organizationId: ORG,
+      name: "A",
+      createdAt: "2020-01-01T00:00:00Z",
+    });
+    expect(refused.error).toMatchObject({
+      kind: "invalid_request",
+      message: expect.stringContaining("override: true"),
+    });
+    expect(requests).toHaveLength(0);
     await db.customers.create(
       { organizationId: ORG, name: "A", createdAt: "2020-01-01T00:00:00Z" },
-      { select: ["id"] },
+      { select: ["id"], override: true },
     );
     await db.customers.update("c", { name: "B" }, { select: ["id"] });
     expect(requests[0]?.body).toEqual({
@@ -127,6 +139,35 @@ describe("softDelete", () => {
     expect(query(requests[1] ?? (undefined as never))).toEqual(["id=eq.c"]);
   });
 
+  it("restores a soft-deleted row that an upsert updates", async () => {
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+    const db = betterSupabase.connect(client);
+    await db.customers.upsert(
+      { organizationId: ORG, name: "A", kvk: "1" },
+      { onConflict: "customers_organization_id_kvk_key", select: ["id"] },
+    );
+    await db.customers.upsert(
+      { organizationId: ORG, name: "A", kvk: "1" },
+      {
+        onConflict: "customers_organization_id_kvk_key",
+        ignoreDuplicates: true,
+        select: ["id"],
+      },
+    );
+    await db.customers.create(
+      { organizationId: ORG, name: "A" },
+      { select: ["id"] },
+    );
+    expect(requests.map((request) => request.body)).toEqual([
+      { organization_id: ORG, name: "A", kvk: "1", archived_at: null },
+      { organization_id: ORG, name: "A", kvk: "1" },
+      { organization_id: ORG, name: "A" },
+    ]);
+  });
+
   it("leaves tables without the flag alone", async () => {
     const { client, last } = capturingClient(() => ({
       status: 204,
@@ -191,6 +232,64 @@ describe("tenant", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("refuses upserts that update on a conflict target without the tenant column", async () => {
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+    const db = betterSupabase.connect(client, { tenant: ORG });
+    const crossing = await db.customers.upsert(
+      { id: "c", name: "A" } as never,
+      { onConflict: ["id"] },
+    );
+    expect(crossing.error?.kind).toBe("forbidden");
+    expect(requests).toHaveLength(0);
+    const ignoring = await db.customers.upsert(
+      { id: "c", name: "A" } as never,
+      {
+        onConflict: ["id"],
+        ignoreDuplicates: true,
+        select: ["id"],
+      },
+    );
+    expect(ignoring.ok).toBe(true);
+    const scoped = await db.customers.upsert({ name: "A", kvk: "1" } as never, {
+      onConflict: "customers_organization_id_kvk_key",
+      select: ["id"],
+    });
+    expect(scoped.ok).toBe(true);
+    expect(requests).toHaveLength(2);
+  });
+
+  it("fails closed when an include reaches a tenant table", async () => {
+    const { client, requests } = capturingClient();
+    const result = await betterSupabase.connect(client).organizations.findMany({
+      select: ["id"],
+      include: { customers: { select: ["id"] } },
+    } as never);
+    expect(result.error?.kind).toBe("forbidden");
+    expect(requests).toHaveLength(0);
+  });
+
+  it("accepts a numeric tenant value that matches the resolved tenant", async () => {
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "t" }],
+    }));
+    const db = betterSupabase.connect(client, { tenant: "42" });
+    const same = await db.tags.create({
+      organizationId: 42,
+      name: "x",
+    } as never);
+    expect(same.ok).toBe(true);
+    const other = await db.tags.create({
+      organizationId: 7,
+      name: "x",
+    } as never);
+    expect(other.error?.kind).toBe("forbidden");
+    expect(requests).toHaveLength(1);
+  });
+
   it("skips the filter with allTenants", async () => {
     const { client, last } = capturingClient();
     await betterSupabase
@@ -222,6 +321,26 @@ describe("actor", () => {
       updated_by: USER,
     });
     expect(requests[1]?.body).toEqual({ name: "B", updated_by: USER });
+  });
+
+  it("refuses caller-supplied actor and soft-delete columns without override", async () => {
+    const betterSupabase = base.use(actor()).use(softDelete());
+    const { client, requests } = capturingClient(() => ({
+      status: 204,
+      headers: { "content-range": "*/1" },
+    }));
+    const db = betterSupabase.connect(client, {
+      actor: { id: USER, kind: "user" },
+    });
+    const forged = await db.customers.update("c", { updatedBy: "someone" });
+    expect(forged.error?.message).toContain("actor()");
+    const archived = await db.customers.update("c", {
+      archivedAt: NOW.toString(),
+    });
+    expect(archived.error?.message).toContain("softDelete()");
+    expect(requests).toHaveLength(0);
+    expect((await db.customers.restore("c")).ok).toBe(true);
+    expect(requests).toHaveLength(1);
   });
 
   it("records who soft-deleted a row", async () => {
@@ -257,6 +376,57 @@ describe("validation", () => {
       result.error?.kind === "validation" && result.error.issues[0]?.path,
     ).toEqual(["status"]);
     expect(requests).toHaveLength(0);
+  });
+
+  it("validates codec columns as app values and sends them as text", async () => {
+    const customers = schema.meta.tables["customers"]!;
+    const withCodec = {
+      ...schema,
+      meta: {
+        ...schema.meta,
+        tables: {
+          ...schema.meta.tables,
+          customers: {
+            ...customers,
+            columns: {
+              ...customers.columns,
+              createdAt: {
+                ...customers.columns["createdAt"]!,
+                codec: "instant" as const,
+              },
+            },
+          },
+        },
+      },
+    };
+    const seen: unknown[] = [];
+    const insert: StandardSchemaV1 = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) => {
+          const row = value as Record<string, unknown>;
+          seen.push(row["createdAt"]);
+          return row["createdAt"] instanceof Temporal.Instant
+            ? { value: row }
+            : { issues: [{ message: "not an instant", path: ["createdAt"] }] };
+        },
+      },
+    };
+    const { client, last } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+    const result = await defineSupabase(withCodec as typeof schema)
+      .use(validation({ schemas: { customers: { insert } } }))
+      .connect(client)
+      .customers.create(
+        { organizationId: ORG, name: "A", createdAt: NOW } as never,
+        { select: ["id"] },
+      );
+    expect(result.error).toBeNull();
+    expect(seen[0]).toBeInstanceOf(Temporal.Instant);
+    expect(last().body).toMatchObject({ created_at: NOW.toString() });
   });
 
   it("runs after other plugins and prefixes bulk issues with the row index", async () => {

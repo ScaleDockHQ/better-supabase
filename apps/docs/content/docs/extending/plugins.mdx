@@ -88,7 +88,10 @@ compose.
 
 - Hooks never see or return app-cased rows in the IR; convert with the table
   metadata.
-- `afterMutation` and event handlers cannot change results. Errors they throw
-  go to the [`Logger`](/docs/extending/interfaces#logger), not the caller.
+- `afterMutation` and event handlers cannot change results: they get a copy
+  of the rows, and `testPlugin` checks it. Errors they throw go to the
+  [`Logger`](/docs/extending/interfaces#logger), not the caller.
+- `rules()` runs before every other plugin; `enforce: 'pre'` plugins run
+  next, in `use()` order.
 - Prove a plugin with [`testPlugin`](/docs/extending/conformance).
 - A plugin must leave tables without its flag untouched.

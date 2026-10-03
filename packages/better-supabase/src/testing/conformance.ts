@@ -723,6 +723,30 @@ export function testPlugin(
           expect(same(first, second), "two calls with the same input differ");
         },
       ],
+    plugin.afterMutation &&
+      create && [
+        "afterMutation cannot change the result",
+        async () => {
+          const row = { marker: "conformance", nested: { kept: true } };
+          const executor: Executor = {
+            name: "rows",
+            execute: () =>
+              Promise.resolve(ok({ rows: [structuredClone(row)], count: 1 })),
+          };
+          // SAFETY: the kit runs against any schema, so it indexes repositories
+          // by table name.
+          // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
+          const db = betterSupabase
+            .use(plugin)
+            .connect(executor, context) as unknown as AnyDb;
+          const result = await db[table]!["create"]!(create);
+          expect(result.ok, "create failed");
+          expect(
+            same(result.data, row),
+            "afterMutation changed the returned row",
+          );
+        },
+      ],
     plugin.wrapExecutor && [
       "wrapExecutor keeps results intact",
       async () => {

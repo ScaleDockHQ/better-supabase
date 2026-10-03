@@ -175,6 +175,7 @@ export function defineReadSet<
       );
     }
   }
+  warnUnscopedReads(betterSupabase, name, specs);
   return {
     kind: "read-set",
     name,
@@ -186,6 +187,37 @@ export function defineReadSet<
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the read set stores the definition without its schema generics.
     definition: betterSupabase as unknown as ReadSet["definition"],
   };
+}
+
+/**
+ * The generated function runs the reads as compiled at `gen` time, without
+ * the runtime's `transformQuery` plugins, so tenant and soft-delete filters
+ * that only those plugins add never reach it.
+ */
+function warnUnscopedReads(
+  betterSupabase: Pick<BetterSupabase, "plugins" | "events" | "meta">,
+  name: string,
+  specs: Readonly<Record<string, QuerySpec>>,
+): void {
+  const scoping = betterSupabase.plugins
+    .filter(
+      (plugin) =>
+        plugin.transformQuery !== undefined && plugin.name !== "rules",
+    )
+    .map((plugin) => plugin.name);
+  if (scoping.length === 0) return;
+  const { meta } = betterSupabase;
+  const tables = [
+    ...new Set(Object.values(specs).flatMap((spec) => specTables(meta, spec))),
+  ].filter((key) => {
+    const flags = meta.tables[key]?.flags;
+    return flags?.tenant !== undefined || flags?.softDelete !== undefined;
+  });
+  if (tables.length === 0) return;
+  betterSupabase.events.logger.warn(
+    `read set "${name}" reads ${tables.join(", ")}, which ${scoping.join(", ")} scope at runtime; its generated function only sees those filters when the specs spell them out (or RLS enforces them)`,
+    { readSet: name, tables, plugins: scoping },
+  );
 }
 
 export function isReadSet(value: unknown): value is ReadSet {

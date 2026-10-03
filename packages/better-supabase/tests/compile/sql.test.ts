@@ -750,7 +750,7 @@ describe("compileSql inserts", () => {
     [
       "updates on conflict",
       { onConflict: { columns: ["id"], action: "update" } },
-      `${into} ("name", "organization_id") values ($1, $2) on conflict ("id") do update set "name" = excluded."name", "organization_id" = excluded."organization_id" returning 1`,
+      `${into} ("name", "organization_id") values ($1, $2) on conflict ("id") do update set "name" = excluded."name", "organization_id" = excluded."organization_id" where t0."organization_id" = excluded."organization_id" returning 1`,
     ],
     [
       "ignores on conflict",

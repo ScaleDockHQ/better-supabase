@@ -55,6 +55,22 @@ export interface FieldPlan {
   readonly optional: boolean;
   /** Set when the config gives this jsonb column a custom TypeScript type. */
   readonly customJson: boolean;
+  /** Filled by `timestamps()`, `actor()` or `softDelete()`; writes need `{ override: true }`. */
+  readonly managed: boolean;
+}
+
+/** App names of the columns that plugins fill from the table's flags. */
+export function managedColumns(table: TableMeta): ReadonlySet<string> {
+  const { timestamps, actor, softDelete } = table.flags;
+  return new Set(
+    [
+      timestamps?.createdAt,
+      timestamps?.updatedAt,
+      actor?.createdBy,
+      actor?.updatedBy,
+      softDelete,
+    ].filter((name): name is string => name !== undefined),
+  );
 }
 
 /**
@@ -73,6 +89,7 @@ export function fieldsFor(
   input: SchemaSource,
 ): FieldPlan[] {
   const fields: FieldPlan[] = [];
+  const managed = managedColumns(table);
   for (const [name, column] of Object.entries(table.columns)) {
     if (
       variant === "Insert" &&
@@ -95,6 +112,7 @@ export function fieldsFor(
       customJson: Boolean(
         column.json && input.config.json[`${table.name}.${column.db}`],
       ),
+      managed: managed.has(name),
     });
   }
   return fields;

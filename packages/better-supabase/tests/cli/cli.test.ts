@@ -110,6 +110,19 @@ describe("storagePaths", () => {
   });
 });
 
+describe("plugin flags", () => {
+  it("rejects a soft-delete column that is not a timestamp", async () => {
+    const config = resolveConfig(
+      { plugins: { softDelete: { column: "name" } } },
+      fixtures,
+    );
+    const snapshot = await loadFixtureSnapshot();
+    expect(() => buildModel(snapshot, config)).toThrow(
+      "plugins.softDelete.column: public.customers.name is text, but softDelete() writes a timestamp",
+    );
+  });
+});
+
 describe("codecs", () => {
   const createdAt = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures))

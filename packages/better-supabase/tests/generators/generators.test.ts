@@ -108,7 +108,9 @@ describe("json schema generator", () => {
     expect(doc.$defs["customersRow"]?.properties["archivedAt"]).toEqual({
       type: ["string", "null"],
       format: "date-time",
+      readOnly: true,
     });
+    expect(insert?.properties["name"]).not.toHaveProperty("readOnly");
   });
 });
 

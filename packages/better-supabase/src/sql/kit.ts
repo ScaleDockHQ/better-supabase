@@ -138,19 +138,14 @@ end;
 $$;`,
 };
 
-const AUDIT: SqlModule = {
-  name: "audit",
-  title: "Audit log",
-  description:
-    "Records inserts, updates and deletes with the actor and changed columns, for tables you register.",
-  requires: [],
-  target: "schema",
-  sql: `${SCHEMA}
+const auditSql = (tenantColumn = "organization_id"): string => `${SCHEMA}
 
 create table if not exists better_supabase.audited_tables (
   target regclass primary key,
   ignore text[] not null default '{}'
 );
+-- The primary key columns, read when the table is registered; composite keys are joined with ','.
+alter table better_supabase.audited_tables add column if not exists key_columns text[] not null default '{id}';
 
 create table if not exists better_supabase.audit_log (
   id bigint generated always as identity primary key,
@@ -184,15 +179,17 @@ set search_path = ''
 as $$
 declare
   ignored text[];
+  keys text[];
   old_row jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
   new_row jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
   row_data jsonb := coalesce(new_row, old_row);
   changed_columns text[];
 begin
-  select a.ignore into ignored
+  select a.ignore, a.key_columns into ignored, keys
   from better_supabase.audited_tables a
   where a.target = tg_relid::regclass;
   ignored := coalesce(ignored, '{}');
+  keys := coalesce(keys, '{id}');
   old_row := old_row - ignored;
   new_row := new_row - ignored;
   if tg_op = 'UPDATE' then
@@ -208,7 +205,7 @@ begin
      impersonated_by, impersonation_reason)
   values (
     tg_table_schema || '.' || tg_table_name,
-    row_data ->> 'id',
+    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(keys) with ordinality k(name, ord)),
     lower(tg_op),
     old_row,
     new_row,
@@ -216,8 +213,8 @@ begin
     auth.uid(),
     coalesce(auth.jwt() ->> 'role', current_user),
     case
-      when row_data ->> 'organization_id' ~ '^[0-9a-f-]{36}$'
-        then (row_data ->> 'organization_id')::uuid
+      when row_data ->> ${sqlString(tenantColumn)} ~ '^[0-9a-f-]{36}$'
+        then (row_data ->> ${sqlString(tenantColumn)})::uuid
     end,
     case
       when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$'
@@ -235,9 +232,18 @@ returns void
 language plpgsql
 set search_path = ''
 as $$
+declare
+  keys text[];
 begin
-  insert into better_supabase.audited_tables as a (target, ignore) values (audit.target, audit.ignore)
-  on conflict on constraint audited_tables_pkey do update set ignore = excluded.ignore;
+  select array_agg(c.attname::text order by k.ord) into keys
+  from pg_catalog.pg_index i
+  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+  where i.indrelid = audit.target and i.indisprimary;
+  insert into better_supabase.audited_tables as a (target, ignore, key_columns)
+  values (audit.target, audit.ignore, coalesce(keys, '{id}'))
+  on conflict on constraint audited_tables_pkey do update
+    set ignore = excluded.ignore, key_columns = excluded.key_columns;
   execute format('drop trigger if exists bs_audit on %s', target);
   execute format(
     'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_trigger()',
@@ -281,7 +287,17 @@ as $$
   select count(*)::integer from purged
 $$;
 revoke execute on function better_supabase.purge_audit_log(interval, integer) from public, anon, authenticated;
-grant execute on function better_supabase.purge_audit_log(interval, integer) to service_role;`,
+grant execute on function better_supabase.purge_audit_log(interval, integer) to service_role;`;
+
+const AUDIT: SqlModule = {
+  name: "audit",
+  title: "Audit log",
+  description:
+    "Records inserts, updates and deletes with the actor and changed columns, for tables you register.",
+  requires: [],
+  target: "schema",
+  sql: auditSql(),
+  render: (_claims, layout) => auditSql(layout.tenantColumn),
 };
 
 const tenantSql = (claims: ClaimsMeta): string => `${SCHEMA}
@@ -2091,7 +2107,7 @@ export function renderKit(
     ].join("\n");
     const extra = moduleExtras(module, layout);
     const sql =
-      module.render && (layout.claims || layout.permdock)
+      module.render && (layout.claims || layout.permdock || layout.tenantColumn)
         ? module.render(layout.claims ?? DEFAULT_CLAIMS, layout)
         : module.sql;
     return {

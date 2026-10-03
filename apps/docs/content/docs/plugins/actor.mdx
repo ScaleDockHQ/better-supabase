@@ -16,6 +16,9 @@ const db = defineSupabase(schema)
   `updatedBy` records who deleted the row.
 - Upserts that may update only get `updatedBy`.
 - Anonymous requests set nothing.
+- `createdBy` and `updatedBy` values you pass yourself are refused with
+  `invalid_request`, so a caller cannot sign a row as someone else. Pass
+  `{ override: true }` for imports and backfills.
 
 Server adapters fill `actor` from the verified JWT; jobs use
 `betterSupabase.actingAs(userId)` or a service actor. Pass `resolve(context)` to read the

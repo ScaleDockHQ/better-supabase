@@ -85,6 +85,7 @@ export type {
   HasFlag,
   HookArgs,
   MutationEvent,
+  MutationIntent,
   MutationKind,
   Plugin,
   RepositoryApi,
@@ -161,7 +162,8 @@ export type { SearchArgs } from "./core/search.ts";
 export type * from "./ir/args.ts";
 export type * from "./ir/types.ts";
 export { escapeLike } from "./ir/build.ts";
-export { decodeRows, encodeValue } from "./ir/codec.ts";
+export { decodeRows } from "./ir/codec.ts";
+export { encodeValue } from "./ir/wire.ts";
 export { and, column, not, or } from "./ir/types.ts";
 export { scopeCondition, scopeOperation, scopeSelection } from "./ir/scope.ts";
 export type { ScopeFor } from "./ir/scope.ts";

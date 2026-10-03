@@ -9,7 +9,11 @@ import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Compiler } from "../../src/core/compiler.ts";
 import type { Executor } from "../../src/core/executor.ts";
 import type { Logger } from "../../src/core/logger.ts";
-import type { AnyPlugin } from "../../src/core/plugin.ts";
+import type {
+  AnyPlugin,
+  MutationEvent,
+  MutationIntent,
+} from "../../src/core/plugin.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
@@ -97,5 +101,20 @@ describe("defineRepository", () => {
   it("accepts only known tables", () => {
     // @ts-expect-error unknown table
     defineRepository(betterSupabase, "nope", () => ({}));
+  });
+});
+
+describe("mutation events", () => {
+  it("carry the intent, the known keys and the resolved tenant", () => {
+    expectTypeOf<MutationEvent["intent"]>().toEqualTypeOf<
+      MutationIntent | undefined
+    >();
+    expectTypeOf<MutationIntent>().toEqualTypeOf<
+      "insert" | "upsert" | "update" | "delete" | "softDelete"
+    >();
+    expectTypeOf<MutationEvent["tenant"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<MutationEvent["keys"]>().toEqualTypeOf<
+      readonly Readonly<Record<string, unknown>>[] | undefined
+    >();
   });
 });

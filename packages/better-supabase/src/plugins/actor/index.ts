@@ -5,7 +5,7 @@ import {
   type Plugin,
   type RequestContext,
 } from "../../core/plugin.ts";
-import { dbName, insertsOnly, withDefault } from "../shared.ts";
+import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 
 export interface ActorOptions {
   /** Custom actor id resolution. Defaults to `context.actor.id` for users and services. */
@@ -26,13 +26,14 @@ export function actor(options: ActorOptions = {}): Plugin<"actor"> {
   const resolve = options.resolve ?? defaultActor;
   return definePlugin({
     name: "actor",
-    beforeMutation(op, { table, context }): MutationOp {
+    beforeMutation(op, { table, context, options }): MutationOp {
       const flags = table.flags.actor;
       if (!flags) return op;
-      const id = resolve(context);
-      if (id === undefined) return op;
       const created = dbName(table, flags.createdBy);
       const updated = dbName(table, flags.updatedBy);
+      guardManaged(op, [created, updated], "actor", options);
+      const id = resolve(context);
+      if (id === undefined) return op;
       switch (op.kind) {
         case "insert": {
           const stampCreated = insertsOnly(op);

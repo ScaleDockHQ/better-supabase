@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { MutationNotice } from "../../src/core/events.ts";
+
+import { memoryCache } from "../../src/core/cache.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { definePlugin } from "../../src/core/plugin.ts";
 import {
   type CloudEvent,
   forwardMutations,
@@ -9,6 +13,8 @@ import {
   toCloudEvents,
   toHttp,
 } from "../../src/events/index.ts";
+import { softDelete } from "../../src/plugins/soft-delete/index.ts";
+import { tenant } from "../../src/plugins/tenant/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -77,6 +83,69 @@ describe("CloudEvents", () => {
       subject: "customers/c9",
       data: { table: "customers", row: { id: "c9" } },
     });
+  });
+
+  it("reports soft deletes by key with the resolved tenant", async () => {
+    const betterSupabase = defineSupabase(schema)
+      .use(softDelete())
+      .use(tenant());
+    const sent: CloudEvent[] = [];
+    forwardMutations(
+      betterSupabase,
+      { send: (events) => void sent.push(...events) },
+      fixed,
+    );
+    const cache = memoryCache();
+    betterSupabase.cache(cache);
+    const notices: MutationNotice[] = [];
+    betterSupabase.events.on("mutation", (notice) => notices.push(notice));
+    const { client } = capturingClient(() => ({
+      status: 204,
+      headers: { "content-range": "*/1" },
+    }));
+    await betterSupabase
+      .connect(client, { claims: { tenant_id: "org-1" } })
+      .customers.delete("c1")
+      .orThrow();
+    expect(notices[0]).toMatchObject({
+      kind: "update",
+      intent: "softDelete",
+      rows: [],
+      keys: [{ id: "c1" }],
+      tenant: "org-1",
+    });
+    expect(sent[0]).toMatchObject({
+      type: "dev.better-supabase.row.softdeleted",
+      subject: "customers/c1",
+      partitionkey: "org-1",
+    });
+    expect(cache.invalidated[0]).toMatchObject({
+      table: "customers",
+      ids: ["c1"],
+      tenant: "org-1",
+    });
+  });
+
+  it("hands hooks and listeners a copy of the rows", async () => {
+    const tamper = definePlugin({
+      name: "tamper",
+      afterMutation(event) {
+        (event.rows[0] as Record<string, unknown>)["name"] = "changed";
+      },
+    });
+    const betterSupabase = defineSupabase(schema).use(tamper);
+    betterSupabase.events.on("mutation", (notice) => {
+      (notice.rows[0] as Record<string, unknown>)["id"] = "other";
+    });
+    const { client } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c1", name: "Acme", metadata: { tier: "pro" } }],
+    }));
+    const row = await betterSupabase
+      .connect(client)
+      .customers.create({ organizationId: "o1", name: "Acme" })
+      .orThrow();
+    expect(row).toMatchObject({ id: "c1", name: "Acme" });
   });
 
   it("reports sink failures without failing the mutation", async () => {

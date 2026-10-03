@@ -533,10 +533,18 @@ function insertPlan(
     conflict =
       op.onConflict.action === "ignore" || updates.length === 0
         ? ` on conflict ${target} do nothing`
-        : ` on conflict ${target} do update set ${updates.join(", ")}`;
+        : ` on conflict ${target} do update set ${updates.join(", ")}${tenantGuard(op, alias)}`;
   }
   const statement = `insert into ${from} ${body}${conflict}${returningRows(compiler, op, alias)}`;
   return mutation(statement, op.returning !== undefined, compiler.params);
+}
+
+/** An upsert never updates a row that belongs to another tenant. */
+function tenantGuard(op: InsertOp, alias: string): string {
+  const app = op.table.flags.tenant;
+  const column = app === undefined ? undefined : op.table.columns[app]?.db;
+  if (column === undefined) return "";
+  return ` where ${alias}.${quoteIdent(column)} = excluded.${quoteIdent(column)}`;
 }
 
 function mutation(

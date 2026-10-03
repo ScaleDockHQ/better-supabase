@@ -58,6 +58,16 @@ describe("renderKit", () => {
     expect(file!.path).toMatch(/^schemas\/zz_\d\d_audit\.sql$/);
   });
 
+  it("renders the audit log's tenant column from config and keys rows by their primary key", () => {
+    const [plain] = renderKit(["audit"]);
+    expect(plain!.contents).toContain("row_data ->> 'organization_id'");
+    const [file] = renderKit(["audit"], { tenantColumn: "team_id" });
+    expect(file!.contents).toContain("row_data ->> 'team_id'");
+    expect(file!.contents).not.toContain("organization_id");
+    expect(file!.contents).toContain("i.indisprimary");
+    expect(file!.contents).not.toContain("row_data ->> 'id'");
+  });
+
   it("keeps every schema module in the better_supabase schema", () => {
     for (const module of Object.values(SQL_MODULES)) {
       if (module.target !== "schema") continue;

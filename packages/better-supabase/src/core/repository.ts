@@ -1,17 +1,9 @@
 import type { SchemaMeta, TableMeta } from "../schema/types.ts";
 import type { EventHub } from "./events.ts";
 import type { ExecuteResult, Executor } from "./executor.ts";
-import type {
-  AnyPlugin,
-  CallOptions,
-  HookArgs,
-  MutationEvent,
-  MutationKind,
-  RequestContext,
-} from "./plugin.ts";
 
-import { type IrBuilder, invalidRequest } from "../ir/build.ts";
-import { decodeRows, encodeValue, needsDecoding } from "../ir/codec.ts";
+import { type IrBuilder, invalidRequest, isPlainObject } from "../ir/build.ts";
+import { decodeRows, needsDecoding } from "../ir/codec.ts";
 import {
   type Condition,
   type DeleteOp,
@@ -27,6 +19,7 @@ import {
   not,
   or,
 } from "../ir/types.ts";
+import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { decodeCursor, encodeCursor } from "./cursor.ts";
 import {
@@ -35,6 +28,15 @@ import {
   type ErrorMapper,
   dbError,
 } from "./errors.ts";
+import {
+  type AnyPlugin,
+  type CallOptions,
+  type HookArgs,
+  type MutationEvent,
+  type MutationKind,
+  type RequestContext,
+  tenantOf,
+} from "./plugin.ts";
 import { AsyncResult, err, ok, type Result } from "./result.ts";
 
 export interface Runtime {
@@ -127,6 +129,78 @@ function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
 function signalOf(args: Args | undefined): AbortSignal | undefined {
   const signal = args?.["signal"];
   return signal instanceof AbortSignal ? signal : undefined;
+}
+
+/**
+ * Copies plain objects and arrays so hooks and listeners cannot change the
+ * caller's result (invariant 5). Temporal values are immutable and stay shared.
+ */
+function cloneValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneValue);
+  if (isPlainObject(value)) {
+    const copy: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value))
+      copy[key] = cloneValue(item);
+    return copy;
+  }
+  return value;
+}
+
+function cloneRows(rows: readonly Row[]): Row[] {
+  // SAFETY: cloneValue keeps the shape of plain objects.
+  return rows.map((row) => cloneValue(row) as Row);
+}
+
+/** App-cased primary keys of `rows`, or of a `where` that pins the primary key. */
+function keysOf(
+  op: MutationOp,
+  rows: readonly Row[],
+): readonly Row[] | undefined {
+  const { primaryKey } = op.table;
+  if (primaryKey.length === 0) return undefined;
+  const fromRows = rows.flatMap((row) =>
+    primaryKey.every((name) => row[name] !== undefined && row[name] !== null)
+      ? [Object.fromEntries(primaryKey.map((name) => [name, row[name]]))]
+      : [],
+  );
+  if (fromRows.length > 0) return fromRows;
+  if (op.kind === "insert") return undefined;
+  return keysFromWhere(op.table, op.where);
+}
+
+function keysFromWhere(
+  table: TableMeta,
+  where: Condition | undefined,
+): readonly Row[] | undefined {
+  if (!where) return undefined;
+  const { byDb } = lookupOf(table);
+  const pinned = new Map<string, readonly unknown[]>();
+  const items: Condition[] = [];
+  const flatten = (condition: Condition): void => {
+    if (condition.kind === "and") condition.items.forEach(flatten);
+    else items.push(condition);
+  };
+  flatten(where);
+  for (const item of items) {
+    if (item.kind !== "column") continue;
+    const app = byDb.get(item.column)?.[0];
+    if (app === undefined || !table.primaryKey.includes(app)) continue;
+    if (item.op === "eq") pinned.set(app, [item.value]);
+    else if (item.op === "in" && Array.isArray(item.value))
+      pinned.set(app, item.value);
+  }
+  if (pinned.size !== table.primaryKey.length) return undefined;
+  const [first, ...rest] = table.primaryKey;
+  if (first === undefined) return undefined;
+  if (rest.length === 0)
+    return (pinned.get(first) ?? []).map((value) => ({ [first]: value }));
+  if ([...pinned.values()].some((values) => values.length !== 1))
+    return undefined;
+  return [
+    Object.fromEntries(
+      table.primaryKey.map((name) => [name, pinned.get(name)?.[0]]),
+    ),
+  ];
 }
 
 function mutationKind(op: MutationOp): MutationKind {
@@ -231,12 +305,13 @@ export class OperationRunner {
     if (!result.ok) return this.fail(op.table, result.error);
 
     if (current.kind !== "select") {
-      await this.afterMutation(current, result.data);
+      await this.afterMutation(op, current, result.data);
     }
     return result;
   }
 
   private async afterMutation(
+    requested: Operation,
     op: MutationOp,
     data: ExecuteResult,
   ): Promise<void> {
@@ -244,10 +319,20 @@ export class OperationRunner {
     const plugins = this.#hooks.afterMutation;
     const listening = runtime.events.has("mutation");
     if (plugins.length === 0 && !listening) return;
+    const kind = mutationKind(op);
+    const rows = cloneRows(data.rows);
+    const keys = keysOf(op, rows);
+    const tenant = tenantOf(runtime.context);
     const event: MutationEvent = {
       table: op.table,
-      kind: mutationKind(op),
-      rows: data.rows,
+      kind,
+      intent:
+        requested.kind === "delete" && op.kind === "update"
+          ? "softDelete"
+          : kind,
+      rows,
+      ...(keys ? { keys } : {}),
+      ...(tenant === undefined ? {} : { tenant }),
       context: runtime.context,
     };
     for (const plugin of plugins) {
@@ -265,7 +350,10 @@ export class OperationRunner {
       runtime.events.emit("mutation", {
         table: op.table.key,
         kind: event.kind,
+        ...(event.intent ? { intent: event.intent } : {}),
         rows: event.rows,
+        ...(event.keys ? { keys: event.keys } : {}),
+        ...(event.tenant === undefined ? {} : { tenant: event.tenant }),
         context: event.context,
       });
     }
@@ -279,12 +367,29 @@ export class OperationRunner {
   }
 }
 
+const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
+
+/** Database names of the table's `config.sensitive` columns. */
+function sensitiveColumnsOf(table: TableMeta): ReadonlySet<string> {
+  let sensitive = sensitiveByTable.get(table);
+  if (!sensitive) {
+    sensitive = new Set(
+      lookupOf(table)
+        .entries.filter(([, column]) => column.sensitive)
+        .map(([, column]) => column.db),
+    );
+    sensitiveByTable.set(table, sensitive);
+  }
+  return sensitive;
+}
+
 /** Creates the runtime repository object for one table. */
 export function createRepository(
   runner: OperationRunner,
   table: TableMeta,
 ): Record<string, unknown> {
   const { builder } = runner.runtime;
+  const sensitiveDb = sensitiveColumnsOf(table);
 
   // SAFETY: the select option of every read method is a column list.
   const selection = (args: Args | undefined): Selection =>
@@ -311,8 +416,17 @@ export function createRepository(
     ...patch,
   });
 
-  const returning = (args: Args | undefined): Selection | undefined =>
-    args?.["returning"] === false ? undefined : selection(args);
+  /** Writes return every column but the sensitive ones unless they are asked for. */
+  const returning = (args: Args | undefined): Selection | undefined => {
+    if (args?.["returning"] === false) return undefined;
+    const all = selection(args);
+    if (args?.["select"] !== undefined || args?.["sensitive"] === true)
+      return all;
+    const columns = all.columns.filter(
+      (entry) => !sensitiveDb.has(entry.column),
+    );
+    return columns.length === all.columns.length ? all : { ...all, columns };
+  };
 
   const run = (
     op: Operation,
@@ -656,8 +770,14 @@ export function createRepository(
       );
     }
     const count = args["count"];
+    const orderBy = builder.orderBy(table, args["orderBy"]);
     const op = selectOp(args, {
+      orderBy:
+        orderBy.length > 0 || table.primaryKey.length === 0
+          ? orderBy
+          : defaultOrder(),
       limit: size + 1,
+      lookAhead: true,
       offset: (number - 1) * size,
       count:
         count === "exact" || count === "planned" || count === "estimated"
@@ -711,6 +831,7 @@ export function createRepository(
       where: and(builder.where(table, args["where"]), after),
       orderBy,
       limit: size + 1,
+      lookAhead: true,
       offset: undefined,
     });
     const result = await run(op, args);

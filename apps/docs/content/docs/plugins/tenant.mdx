@@ -16,7 +16,12 @@ For tables with the tenant flag:
   includes and relation filters;
 - inserts get the tenant column filled in;
 - writing a row for another tenant, or moving a row to one, fails with
-  `forbidden` before anything is sent.
+  `forbidden` before anything is sent. A numeric tenant column matches when
+  its text equals the tenant;
+- an upsert that updates on conflict needs the tenant column in its conflict
+  target (`onConflict: ["organizationId", "kvk"]` or a unique constraint that
+  includes it), so it cannot overwrite another tenant's row. The SQL executor
+  also adds `where <tenant> = excluded.<tenant>` to the update.
 
 The tenant comes from `context.tenant`, then the JWT claim, or from your own
 `resolve(context)`. `claim` takes one or more dotted paths and defaults to
@@ -46,7 +51,8 @@ const betterSupabase = defineSupabase(schema)
 ## Missing tenant
 
 By default a query on a tenant table without a tenant fails with
-`forbidden`: the plugin fails closed. Use `onMissing: 'skip'` to leave it
+`forbidden`: the plugin fails closed. That includes a query on another table
+whose includes or relation filters reach a tenant table. Use `onMissing: 'skip'` to leave it
 to RLS, or `{ allTenants: true }` per call for admin tooling:
 
 ```ts

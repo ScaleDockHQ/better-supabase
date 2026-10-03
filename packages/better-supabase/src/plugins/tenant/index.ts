@@ -7,11 +7,12 @@ import {
   definePlugin,
   type HasFlag,
   type Plugin,
+  recordTenant,
   type RepositoryExtension,
   type RequestContext,
 } from "../../core/plugin.ts";
 import { scopeOperation } from "../../ir/scope.ts";
-import { dbName, equals, forbidden } from "../shared.ts";
+import { dbName, equals, forbidden, insertsOnly } from "../shared.ts";
 
 /**
  * Dotted paths to the string claims of `C` (up to three levels), e.g.
@@ -91,6 +92,15 @@ export function resolveTenant<C = unknown>(
   return undefined;
 }
 
+/** Tenant columns may be numeric; the resolved tenant is always a string. */
+function sameTenant(value: unknown, id: string): boolean {
+  if (value === id) return true;
+  return (
+    (typeof value === "number" || typeof value === "bigint") &&
+    String(value) === id
+  );
+}
+
 function tenantColumn(table: TableMeta): string | undefined {
   return dbName(table, table.flags.tenant);
 }
@@ -109,8 +119,7 @@ export function tenant<C = unknown>(
   /** A context is fixed for a connection, so its tenant is resolved once. */
   const resolved = new WeakMap<RequestContext, string | undefined>();
 
-  const current = (
-    table: TableMeta,
+  const resolvedFor = (
     context: RequestContext,
     schema: SchemaMeta,
   ): string | undefined => {
@@ -118,14 +127,28 @@ export function tenant<C = unknown>(
     if (id === undefined && !resolved.has(context)) {
       id = resolveTenant(context, options, schema);
       resolved.set(context, id);
+      if (id !== undefined) recordTenant(context, id);
     }
+    return id;
+  };
+
+  const missing = (table: TableMeta): never => {
+    throw new DbException(
+      dbError(
+        "forbidden",
+        `No tenant in the request context for "${table.key}"`,
+      ),
+    );
+  };
+
+  const current = (
+    table: TableMeta,
+    context: RequestContext,
+    schema: SchemaMeta,
+  ): string | undefined => {
+    const id = resolvedFor(context, schema);
     if (id === undefined && onMissing === "error" && tenantColumn(table)) {
-      throw new DbException(
-        dbError(
-          "forbidden",
-          `No tenant in the request context for "${table.key}"`,
-        ),
-      );
+      missing(table);
     }
     return id;
   };
@@ -134,8 +157,15 @@ export function tenant<C = unknown>(
     name: "tenant",
     transformQuery(op, { context, schema, options: call }): Operation {
       if (call["allTenants"] === true) return op;
-      const id = current(op.table, context, schema);
-      if (id === undefined) return op;
+      const id = resolvedFor(context, schema);
+      if (id === undefined) {
+        if (onMissing === "error") {
+          scopeOperation(op, (table) =>
+            tenantColumn(table) ? missing(table) : undefined,
+          );
+        }
+        return op;
+      }
       return scopeOperation(op, (table) => {
         const column = tenantColumn(table);
         return column ? equals(column, id) : undefined;
@@ -148,17 +178,22 @@ export function tenant<C = unknown>(
       if (id === undefined) return op;
       switch (op.kind) {
         case "insert":
+          if (!insertsOnly(op) && !op.onConflict?.columns.includes(column)) {
+            forbidden(
+              `An upsert on ${table.key} that updates on conflict needs the tenant column "${column}" in its conflict target`,
+            );
+          }
           return {
             ...op,
             rows: op.rows.map((row) => {
-              if (column in row && row[column] !== id) {
+              if (column in row && !sameTenant(row[column], id)) {
                 forbidden(`Cannot write a ${table.key} row for another tenant`);
               }
               return { ...row, [column]: id };
             }),
           };
         case "update":
-          if (column in op.set && op.set[column] !== id) {
+          if (column in op.set && !sameTenant(op.set[column], id)) {
             forbidden(`Cannot move a ${table.key} row to another tenant`);
           }
           return op;
