@@ -2,7 +2,7 @@ import type { KitContext, KitIdType, KitNames } from "../context.ts";
 import type { KitLayout, KitModuleDefinition } from "../kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
+import { EQUIVALENT_TRIGGERS, SCHEMA, SERVICE_CALLER } from "../shared.ts";
 
 const NAMES: KitNames = {
   tables: {
@@ -22,6 +22,7 @@ const NAMES: KitNames = {
         at: "at",
         impersonatedBy: "impersonated_by",
         impersonationReason: "impersonation_reason",
+        supportSession: "support_session_id",
         eventType: "event_type",
         category: "category",
         outcome: "outcome",
@@ -40,6 +41,7 @@ const NAMES: KitNames = {
         "actorRole",
         "impersonatedBy",
         "impersonationReason",
+        "supportSession",
         "eventType",
         "category",
         "outcome",
@@ -155,7 +157,7 @@ revoke all on ${ctx.table("restricted")} from anon, authenticated;`
   ${c("tenant")} ${ctx.idType},
   ${c("at")} timestamptz not null default now()
 );${op}${table}
--- Set when an admin acted as the user (the act claim).${add("impersonatedBy", "uuid")}${add("impersonationReason", "text")}
+-- Set when an admin acted as the user (the act claim).${add("impersonatedBy", "uuid")}${add("impersonationReason", "text")}${add("supportSession", "uuid")}
 -- Semantic events (audit_event) and the per-table registry fill these.${add("eventType", "text")}${add("category", "text")}${add("outcome", "text")}${add("source", "text")}${add("targetType", "text")}${add("metadata", "jsonb")}${add("idempotencyKey", "text")}
 ${
   ctx.has("log", "table") && ctx.has("log", "record")
@@ -264,6 +266,10 @@ function triggerFunction(
     ],
     ["impersonationReason", "auth.jwt() -> 'act' ->> 'reason'"],
     [
+      "supportSession",
+      "case when auth.jwt() -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'session_id')::uuid end",
+    ],
+    [
       "eventType",
       "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
     ],
@@ -330,6 +336,10 @@ function auditEvent(ctx: KitContext, restricted: boolean): string {
       "case when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'sub')::uuid end",
     ],
     ["impersonationReason", "auth.jwt() -> 'act' ->> 'reason'"],
+    [
+      "supportSession",
+      "case when auth.jwt() -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'session_id')::uuid end",
+    ],
     ["eventType", "event_type"],
     [
       "category",
@@ -361,7 +371,8 @@ function auditEvent(ctx: KitContext, restricted: boolean): string {
     : "";
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
--- actor_id is honoured for service_role callers; everyone else is auth.uid().
+-- actor_id is honoured for the service role and direct admin connections;
+-- everyone else is auth.uid().
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
 create or replace function better_supabase.audit_event(
   event_type text,
@@ -385,7 +396,7 @@ declare
   existing text;
   entry_id ${log}.${c("id")}%type;
 begin
-  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' or actor_id is null then
+  if not (${SERVICE_CALLER}) or actor_id is null then
     actor_id := auth.uid();
   end if;${idempotent}
   insert into ${log} (${insert.columns})
@@ -436,7 +447,7 @@ function readPolicy(ctx: KitContext): string {
   const viewAll = ctx.permission("viewAll", "audit.view");
   const hidden = new Set(
     impersonators(ctx) === "hide"
-      ? ["impersonatedBy", "impersonationReason"]
+      ? ["impersonatedBy", "impersonationReason", "supportSession"]
       : [],
   );
   const readable = Object.keys(NAMES.tables["log"]!.columns)

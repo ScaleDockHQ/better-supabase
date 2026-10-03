@@ -5,6 +5,13 @@ import { sqlIdent, sqlString } from "../core/template.ts";
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 
+/**
+ * A SQL condition true for the service role and for a direct admin
+ * connection (no JWT, a privileged session user), which may act for others.
+ */
+export const SERVICE_CALLER =
+  "coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
+
 /** Creates the module's schema when it isn't `better_supabase`, then the kit schema. */
 export function schemaPreamble(ctx: KitContext): string {
   if (ctx.schemaName === "better_supabase") return SCHEMA;

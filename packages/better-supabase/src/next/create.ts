@@ -13,8 +13,10 @@ import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { SupportStartRequest } from "../server/support.ts";
 
 import { type Aal, checkAal } from "../auth/mfa.ts";
+import { SUPPORT_COOKIE } from "../auth/support.ts";
 import { toSession } from "../auth/view.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
@@ -232,6 +234,30 @@ export interface BetterNext<
    * `expectDbBudget`. Answers 404 unless `debug` is on.
    */
   debugRoute(): (request: Request) => Promise<Response>;
+  /**
+   * Starts a support session for the signed-in admin and sets its cookie,
+   * so the admin's next requests render as the target. Call it from a
+   * server action.
+   */
+  startSupport(
+    request: SupportStartRequest,
+  ): Promise<ActionResult<SupportStarted>>;
+  /** Ends the admin's support session and clears its cookie. Call it from a server action. */
+  stopSupport(): Promise<ActionResult<{ readonly ended: boolean }>>;
+}
+
+/** What `startSupport` returns: plain data, safe across the action boundary. */
+export interface SupportStarted {
+  readonly sessionId: string;
+  readonly targetUserId: string;
+  readonly readOnly: boolean;
+  /** ISO 8601. */
+  readonly expiresAt: string;
+}
+
+/** The tag `bs.cached()` adds to entries rendered in a support session. */
+export function supportTag(sessionId: string): string {
+  return `bs:support:${sessionId}`;
 }
 
 export interface SessionStaleOptions {
@@ -460,10 +486,14 @@ export function createNext<
 
   const current = cache(async (): Promise<ServerContext<M, F, E, C, P>> => {
     const { request, resolution } = await incoming();
-    const tenant = await options.tenant?.(request, resolution.auth);
+    const [tenant, support] = await Promise.all([
+      options.tenant?.(request, resolution.auth),
+      base.support.current(request, resolution.auth),
+    ]);
     return base.contextFromResolution(resolution, request, {
       ...statsFor(request),
       ...(tenant === undefined ? {} : { tenant }),
+      ...(support ? { support } : {}),
     });
   });
 
@@ -473,9 +503,22 @@ export function createNext<
   ): Promise<ServerContext<M, F, E, C, P>> =>
     request ? base.context(request, contextOptions) : current();
 
+  /** In a support session, the target's view: `impersonator` names the admin. */
   const session = cache(async (): Promise<AuthSession<C, P>> =>
-    toSession((await incoming()).resolution.auth),
+    toSession(
+      options.support
+        ? (await current()).auth
+        : (await incoming()).resolution.auth,
+    ),
   );
+
+  const supportCookieName = options.support?.cookie?.name ?? SUPPORT_COOKIE;
+  const supportCookieOptions = {
+    httpOnly: true,
+    sameSite: "lax",
+    path: options.support?.cookie?.path ?? "/",
+    secure: options.support?.cookie?.secure ?? true,
+  } as const;
 
   const contextForSession = async (
     view: AuthSession<C, P>,
@@ -526,6 +569,7 @@ export function createNext<
       });
       const tags = [
         ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
+        ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
         ...(cachedOptions.tags ?? []),
       ];
       if (tags.length > 0) cacheTag(...tags);
@@ -715,6 +759,51 @@ export function createNext<
             : { ok: false, data: null, error: settled.error }
         ) as Out;
       };
+    },
+
+    async startSupport(request) {
+      const { resolution } = await incoming();
+      const started = await base.support.start(resolution.auth, request);
+      flushAfter();
+      if (!started.ok) return { ok: false, data: null, error: started.error };
+      const { session: support } = started.data;
+      (await cookies()).set(supportCookieName, support.id, {
+        ...supportCookieOptions,
+        maxAge: Math.max(
+          0,
+          Math.floor((support.expiresAt.epochMilliseconds - Date.now()) / 1000),
+        ),
+      });
+      if (resolution.auth.kind === "user") {
+        invalidate(sessionTag(resolution.auth.user.id));
+      }
+      return {
+        ok: true,
+        data: {
+          sessionId: support.id,
+          targetUserId: support.targetUserId,
+          readOnly: support.readOnly,
+          expiresAt: support.expiresAt.toString(),
+        },
+        error: null,
+      };
+    },
+
+    async stopSupport() {
+      const { request, resolution } = await incoming();
+      const jar = await cookies();
+      const id = base.support.sessionIdOf(request);
+      jar.delete({ name: supportCookieName, path: supportCookieOptions.path });
+      if (!id) return { ok: true, data: { ended: false }, error: null };
+      const stopped = await base.support.stop(resolution.auth, id);
+      flushAfter();
+      invalidate(supportTag(id));
+      if (resolution.auth.kind === "user") {
+        invalidate(sessionTag(resolution.auth.user.id));
+      }
+      return stopped.ok
+        ? { ok: true, data: { ended: stopped.data.ended }, error: null }
+        : { ok: false, data: null, error: stopped.error };
     },
 
     cacheTag(table, id) {

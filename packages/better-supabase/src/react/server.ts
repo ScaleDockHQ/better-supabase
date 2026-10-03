@@ -1,4 +1,4 @@
-import type { AuthSession } from "../auth/view.ts";
+import type { AuthSession, SupportView } from "../auth/view.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
 import type {
@@ -30,7 +30,8 @@ export type {
   ProfileOf,
 } from "./index.ts";
 export type { SessionProviderProps } from "./session.ts";
-export type { AuthSession } from "../auth/view.ts";
+export type { AuthSession, SupportView } from "../auth/view.ts";
+export { supportOf } from "../auth/view.ts";
 export type { Impersonator } from "../auth/impersonation.ts";
 export { hasEntitlement } from "../auth/entitlements.ts";
 export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";
@@ -47,6 +48,10 @@ function clientOnly(name: string): () => never {
 /** The `react-server` build of `useSession`: await `bs.session()` instead. */
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
+
+/** The `react-server` build of `useSupportSession`: use `supportOf(await bs.session())` instead. */
+export const useSupportSession: () => SupportView | undefined =
+  clientOnly("useSupportSession");
 
 /** The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed instead. */
 export const useLiveCount: (

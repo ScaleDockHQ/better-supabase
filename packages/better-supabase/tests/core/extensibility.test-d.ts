@@ -18,6 +18,7 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 import type { QueueBackend } from "../../src/jobs/index.ts";
+import type { SupportSessionStore } from "../../src/server/index.ts";
 
 import { jsonSchema } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
@@ -36,6 +37,7 @@ import { tenant } from "../../src/plugins/tenant/index.ts";
 import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
+import { sqlSupportStore } from "../../src/server/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -54,6 +56,8 @@ describe("extension interfaces", () => {
     expectTypeOf(sqlQueueBackend).returns.toExtend<QueueBackend>();
     expectTypeOf(pgmqPublicBackend).returns.toExtend<QueueBackend>();
     expectTypeOf<QueueBackend["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
+    expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(consoleLogger).toExtend<Logger>();
     expectTypeOf(silentLogger).toExtend<Logger>();
     expectTypeOf(zod()).toExtend<Generator>();

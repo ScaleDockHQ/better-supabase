@@ -6,6 +6,33 @@ export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
 export { createServer, TENANT_HEADER } from "./server.ts";
 export type {
+  ActiveSupport,
+  SupportApi,
+  SupportAuthorizeInput,
+  SupportOptions,
+  SupportPolicy,
+  SupportStartRequest,
+} from "./support.ts";
+export {
+  clearSupportCookie,
+  sqlSupportStore,
+  SUPPORT_COOKIE,
+  supportClaims,
+  supportCookie,
+  supportCookieValue,
+} from "../auth/support.ts";
+export type {
+  SqlSupportStoreOptions,
+  SupportCookieOptions,
+  SupportEndedBy,
+  SupportListFilter,
+  SupportSession,
+  SupportSessionStore,
+  SupportStartInput,
+} from "../auth/support.ts";
+export { supportOf } from "../auth/view.ts";
+export type { SupportView } from "../auth/view.ts";
+export type {
   BetterServer,
   ContextOptions,
   ServerContext,

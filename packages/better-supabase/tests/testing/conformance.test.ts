@@ -38,9 +38,11 @@ import {
   testGenerator,
   testPlugin,
   testQueueBackend,
+  testSupportSessionStore,
 } from "../../src/testing/conformance.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
+import { memorySupportStore } from "../fixtures/support-store.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
 const betterSupabase = defineSupabase(schema);
@@ -280,6 +282,33 @@ describe("testQueueBackend", () => {
       "has apiVersion 1",
       "round-trips a payload and leases it",
       "retries, then dead-letters at max attempts",
+    ]);
+  });
+});
+
+describe("testSupportSessionStore", () => {
+  const options = {
+    admin: { id: "a", claims: { sub: "a" } },
+    targets: ["t1", "t2"],
+  } as const;
+
+  it("passes a store that keeps the contract", async () => {
+    const report = await testSupportSessionStore(memorySupportStore(), options);
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(report.checks).toHaveLength(5);
+  });
+
+  it("fails a store that shows sessions to anyone and never ends them", async () => {
+    const base = memorySupportStore();
+    const leaky = {
+      ...base,
+      get: async (id: string) => (await base.list()).find((s) => s.id === id),
+      end: () => Promise.resolve(true),
+    };
+    expect(await failures(testSupportSessionStore(leaky, options))).toEqual([
+      "starts a session with its input and shows it to its admin only",
+      "ends the admin's previous session on start",
+      "ends a session once and lists it",
     ]);
   });
 });

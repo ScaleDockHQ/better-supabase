@@ -94,6 +94,7 @@ for lists that clients read page by page: the list takes `after` instead of
 - Times are `Temporal.Instant`: `EnqueueOptions.runAt`, `Job.enqueuedAt`, `Job.visibleUntil`, `InboxMessage.receivedAt` and webhook timestamps.
 - Schedule cleanup with pg_cron at a quiet hour: `better_supabase.purge_job_archive('<queue>')`, `purge_webhooks()`, `purge_audit_log()` and `purge_idempotency_keys()`. Only `service_role` can execute them.
 - Audit a table with `better_supabase.audit('public.t', redact => '{secret}', event_prefix => 't')`; record non-row events with `better_supabase.audit_event(event_type, ...)` and an `idempotency_key`. For per-tenant retention, write an `audit_retention(tenant)` SQL function or call `purgeAuditLog(sql, { retention })` from `better-supabase/jobs`.
+- For a "view as user" support mode, add the `support-sessions` SQL module, pass `support: { store: sqlSupportStore(postgres) }` to `createServer`, call `bs.startSupport({ targetUserId, reason })` and `bs.stopSupport()` from server actions, and show a banner with `useSupportSession()`. Sessions are read-only by default; grant admins the `support.start` platform permission.
 
 Done when a failing job is retried and then archived after `maxAttempts`,
 a replayed webhook or POST doesn't run twice, and each kit table has a purge

@@ -33,6 +33,7 @@ export {
   testGenerator,
   testPlugin,
   testQueueBackend,
+  testSupportSessionStore,
 } from "./conformance.ts";
 export type {
   ConformanceCheck,
@@ -43,4 +44,5 @@ export type {
   TestGeneratorOptions,
   TestPluginOptions,
   TestQueueBackendOptions,
+  TestSupportSessionStoreOptions,
 } from "./conformance.ts";

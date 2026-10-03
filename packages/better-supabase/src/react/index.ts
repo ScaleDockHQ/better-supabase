@@ -20,9 +20,10 @@ export type {
   LiveQueryHookOptions,
   ProfileOf,
 } from "./hooks.ts";
-export { SessionProvider, useSession } from "./session.ts";
+export { SessionProvider, useSession, useSupportSession } from "./session.ts";
 export type { SessionProviderProps } from "./session.ts";
-export type { AuthSession } from "../auth/view.ts";
+export type { AuthSession, SupportView } from "../auth/view.ts";
+export { supportOf } from "../auth/view.ts";
 export type { Impersonator } from "../auth/impersonation.ts";
 export { hasEntitlement } from "../auth/entitlements.ts";
 export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";

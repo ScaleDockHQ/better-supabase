@@ -31,27 +31,28 @@ their functions.
 
 ## Modules
 
-| Module            | What it adds                                                                                                                                                                                                                 |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `updated-at`      | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                               |
-| `actor`           | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                     |
-| `audit`           | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin |
-| `tenant`          | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                       |
-| `access`          | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                  |
-| `invitations`     | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email                                                        |
-| `reserved-slugs`  | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                         |
-| `jobs`            | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/jobs`](/docs/kits/jobs)                             |
-| `idempotency`     | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                               |
-| `webhook-inbox`   | Stores verified webhooks once and hands them to a worker                                                                                                                                                                     |
-| `realtime-tables` | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                            |
-| `jsonb-schemas`   | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                         |
-| `pgtap`           | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                            |
-| `grants`          | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                              |
-| `read-sets`       | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                          |
-| `mfa`             | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                      |
-| `entitlements`    | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)                                                            |
-| `vector-search`   | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                      |
-| `rate-limit`      | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                    |
+| Module             | What it adds                                                                                                                                                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                               |
+| `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                     |
+| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin |
+| `tenant`           | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                       |
+| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                  |
+| `invitations`      | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email                                                        |
+| `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                         |
+| `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/jobs`](/docs/kits/jobs)                             |
+| `idempotency`      | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                               |
+| `webhook-inbox`    | Stores verified webhooks once and hands them to a worker                                                                                                                                                                     |
+| `realtime-tables`  | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                            |
+| `jsonb-schemas`    | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                         |
+| `pgtap`            | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                            |
+| `grants`           | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                              |
+| `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                          |
+| `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                      |
+| `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)                                                            |
+| `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                      |
+| `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                    |
+| `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                          |
 
 `invitations` needs `tenant`, so adding it pulls `tenant` in as well. Both
 read the active tenant from the claim named by `claims.tenant` in the config
@@ -199,7 +200,7 @@ The module options (`kits.audit.options`):
 
 An app with its own audit table adopts it: map `kits.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
-snapshots, for example). The module then writes into your table and never
+snapshots or `supportSession`, for example). The module then writes into your table and never
 creates it.
 
 ## Retention
@@ -248,6 +249,44 @@ When a table holds more old rows than one batch, the next run picks up the
 rest; run the job more often, or raise `batch`, until it keeps up. Keep the
 webhook retention above your senders' retry window: a retried message whose id
 was purged is stored and processed again.
+
+## Support sessions
+
+`support-sessions` records who viewed the app as whom, for
+[support mode](/docs/auth/impersonation). It needs `access` and `audit`.
+`start_support_session(target, reason, ttl, read_only, metadata, tenant)`
+checks `is_platform('support.start')` for the caller, ends the caller's
+previous session, writes `support.started` to the audit log and returns the
+session as jsonb. `end_support_session(session_id)` ends it for its admin, the
+service role or a caller with `support.revoke`. Errors carry `SUPPORT_FORBIDDEN`,
+`SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TTL` or
+`SUPPORT_REASON_REQUIRED` in the `hint`.
+
+| Option          | Default   | What it does                                                             |
+| --------------- | --------- | ------------------------------------------------------------------------ |
+| `maxTtl`        | `4 hours` | the longest session `start_support_session` accepts                      |
+| `requireReason` | `true`    | refuses a start without a reason                                         |
+| `auditCategory` | `support` | the audit log category of `support.started` and `support.ended`          |
+| `claimsHook`    | none      | `schema.function` of your access token hook, for `support_target_claims` |
+
+The permission keys are `support.start`, `support.view` and `support.revoke`;
+rename them with `kits["support-sessions"].permissions`. The hooks
+`before_support_start(admin, target, reason, metadata)`,
+`after_support_start(session_id)` and `after_support_end(session_id)` run in
+the schema `hooks.schema` names. An existing sessions table can be adopted:
+the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional.
+
+```ts title="better-supabase.config.ts"
+kits: {
+  "support-sessions": {
+    mode: "adopt",
+    tables: { sessions: "public.impersonation_sessions" },
+    columns: { sessions: { admin: "impersonator_id", metadata: null } },
+    permissions: { start: "system.users.impersonate" },
+    options: { claimsHook: "public.custom_access_token_hook" },
+  },
+},
+```
 
 ## Rate limiting writes
 

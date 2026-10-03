@@ -8,7 +8,7 @@ import {
   useContext,
 } from "react";
 
-import type { AuthSession } from "../auth/view.ts";
+import { type AuthSession, supportOf, type SupportView } from "../auth/view.ts";
 
 const SessionContext = createContext<Promise<AuthSession> | null>(null);
 
@@ -45,4 +45,12 @@ export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
   }
   // SAFETY: the provider receives `bs.session()` from the same `betterSupabase`, whose schemas fix `C` and `P`.
   return use(promise) as AuthSession<C, P>;
+}
+
+/**
+ * The support session the page renders in, for a "Viewing as" banner, or
+ * `undefined` for a normal session. Needs `<SessionProvider>` like `useSession`.
+ */
+export function useSupportSession(): SupportView | undefined {
+  return supportOf(useSession());
 }

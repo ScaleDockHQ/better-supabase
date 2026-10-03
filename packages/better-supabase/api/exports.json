@@ -291,12 +291,14 @@
       "createHooks",
       "hasEntitlement",
       "SessionProvider",
+      "supportOf",
       "useAuth",
       "useBroadcast",
       "useLiveCount",
       "useLiveQuery",
       "useSession",
-      "useSupabase"
+      "useSupabase",
+      "useSupportSession"
     ],
     "types": [
       "AuthSession",
@@ -313,7 +315,8 @@
       "LiveQueryHookOptions",
       "MembershipClaim",
       "ProfileOf",
-      "SessionProviderProps"
+      "SessionProviderProps",
+      "SupportView"
     ]
   },
   "./query": {
@@ -345,6 +348,7 @@
       "authContext",
       "checkAal",
       "checkSession",
+      "clearSupportCookie",
       "clientIp",
       "contextFromSupabase",
       "createServer",
@@ -364,6 +368,12 @@
       "respond",
       "sessionCookieName",
       "settle",
+      "sqlSupportStore",
+      "SUPPORT_COOKIE",
+      "supportClaims",
+      "supportCookie",
+      "supportCookieValue",
+      "supportOf",
       "TENANT_HEADER",
       "toProblem",
       "toSession",
@@ -374,6 +384,7 @@
     "types": [
       "Aal",
       "ActClaim",
+      "ActiveSupport",
       "AmrEntry",
       "AuthKind",
       "AuthResolution",
@@ -411,8 +422,21 @@
       "SessionDelegation",
       "SessionLookup",
       "Settled",
+      "SqlSupportStoreOptions",
       "StoredSession",
-      "SupabaseAuthContext"
+      "SupabaseAuthContext",
+      "SupportApi",
+      "SupportAuthorizeInput",
+      "SupportCookieOptions",
+      "SupportEndedBy",
+      "SupportListFilter",
+      "SupportOptions",
+      "SupportPolicy",
+      "SupportSession",
+      "SupportSessionStore",
+      "SupportStartInput",
+      "SupportStartRequest",
+      "SupportView"
     ]
   },
   "./postgres": {
@@ -479,6 +503,8 @@
       "sessionTag",
       "shouldRefresh",
       "STATS_URL_HEADER",
+      "supportOf",
+      "supportTag",
       "tagFor",
       "toSession"
     ],
@@ -486,6 +512,7 @@
       "Aal",
       "ActionOptions",
       "ActionResult",
+      "ActiveSupport",
       "AmrEntry",
       "AuthKind",
       "AuthSession",
@@ -503,7 +530,12 @@
       "NextOptions",
       "ProxyOptions",
       "RequireAalOptions",
-      "SessionStaleOptions"
+      "SessionStaleOptions",
+      "SupportOptions",
+      "SupportPolicy",
+      "SupportStarted",
+      "SupportStartRequest",
+      "SupportView"
     ]
   },
   "./next/image": {
@@ -969,7 +1001,8 @@
       "testExecutor",
       "testGenerator",
       "testPlugin",
-      "testQueueBackend"
+      "testQueueBackend",
+      "testSupportSessionStore"
     ],
     "types": [
       "BudgetPage",
@@ -995,6 +1028,7 @@
       "TestPluginOptions",
       "TestQueueBackendOptions",
       "TestSigner",
+      "TestSupportSessionStoreOptions",
       "TestUser"
     ]
   }

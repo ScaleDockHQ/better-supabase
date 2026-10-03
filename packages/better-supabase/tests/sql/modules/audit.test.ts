@@ -31,6 +31,7 @@ const CENTRAKIT: KitModuleConfig = {
       at: "occurred_at",
       impersonatedBy: null,
       impersonationReason: null,
+      supportSession: null,
       metadata: "safe_metadata",
     },
     restricted: {

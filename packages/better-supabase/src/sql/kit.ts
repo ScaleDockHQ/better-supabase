@@ -13,6 +13,7 @@ import {
 import { ACCESS } from "./modules/access.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { JOBS } from "./modules/jobs.ts";
+import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
 
@@ -1332,6 +1333,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       RATE_LIMIT,
       VECTOR_SEARCH,
       built(ACCESS),
+      built(SUPPORT_SESSIONS),
     ].map((module) => [module.name, module]),
   );
 
