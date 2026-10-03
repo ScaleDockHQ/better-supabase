@@ -9,6 +9,9 @@ import type { CommandResult } from "../io.ts";
 import {
   contractSignature,
   customContracts,
+  type InstalledKitModule,
+  type KitFile,
+  kitFileVersion,
   type KitLayout,
   type KitPermdock,
   kitLayout,
@@ -17,6 +20,7 @@ import {
   resolveModules,
   sameKitFile,
   SQL_MODULES,
+  upgradePlan,
 } from "../../sql/index.ts";
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
@@ -35,11 +39,12 @@ const SQL_ARGS = {
     type: "positional",
     required: false,
     description:
-      "list (modules and whether they are installed), add <module...>, sync or print <module>",
+      "list (modules and whether they are installed), add <module...>, sync, upgrade or print <module>",
   },
   check: {
     type: "boolean",
-    description: "With sync: fail when a file is stale",
+    description:
+      "With sync: fail when a file is stale. With upgrade: fail when a module is behind",
   },
   "tests-dir": {
     type: "string",
@@ -176,6 +181,116 @@ async function unlistedKitFiles(
   ];
 }
 
+/** `YYYYMMDDHHMMSS` in UTC, the Supabase CLI's migration prefix. */
+const migrationStamp = (now: Date): string =>
+  now.toISOString().replaceAll(/[-:T]/g, "").slice(0, 14);
+
+/**
+ * Rewrites the kit files of modules behind the current version, and writes
+ * their upgrade steps (renames, backfills) as a migration that runs before
+ * the one the schema diff creates.
+ */
+async function upgrade(
+  config: ResolvedConfig,
+  args: SqlArgs,
+  paint: Paint,
+): Promise<CommandResult> {
+  if (config.sql.kit.length === 0) {
+    return { code: 0, output: "sql.kit is empty; nothing to upgrade." };
+  }
+  const kit = await layoutFor(config, args, config.sql.kit);
+  const files = renderKit(config.sql.kit, kit);
+  const installed: InstalledKitModule[] = [];
+  const stale: KitFile[] = [];
+  const diffs: string[] = [];
+  for (const file of files) {
+    const current = await readFile(
+      resolve(config.root, file.path),
+      "utf8",
+    ).catch(() => undefined);
+    if (current === undefined) continue;
+    installed.push({
+      module: file.module,
+      version: kitFileVersion(current)?.version ?? 1,
+    });
+    if (!sameKitFile(current, file.contents)) {
+      stale.push(file);
+      diffs.push(
+        fileDiff(
+          display(config.root, file.path),
+          current,
+          file.contents,
+          paint,
+        ),
+      );
+    }
+  }
+  const plan = upgradePlan(installed, kit);
+  const behind = plan.map(
+    (entry) =>
+      `${entry.module} is at version ${String(entry.from)}; the current version is ${String(entry.to)}`,
+  );
+  if (args.check === true) {
+    if (plan.length === 0 && stale.length === 0) {
+      return {
+        code: 0,
+        output: "SQL kit modules are at their current versions.",
+      };
+    }
+    return {
+      code: 1,
+      output: diffs.join("\n\n"),
+      error: [
+        ...behind,
+        ...(stale.length > 0
+          ? [
+              `Out of date: ${stale.map((file) => display(config.root, file.path)).join(", ")}.`,
+            ]
+          : []),
+        "Run `better-supabase sql upgrade`.",
+      ].join("\n"),
+    };
+  }
+  if (plan.length === 0 && stale.length === 0) {
+    return {
+      code: 0,
+      output: "SQL kit modules are at their current versions.",
+    };
+  }
+  const lines: string[] = [];
+  const steps = plan.flatMap((entry) =>
+    entry.steps
+      .filter((step) => step.sql !== "")
+      .map(
+        (step) =>
+          `-- ${entry.module}: version ${String(step.from)} to ${String(step.from + 1)}. ${step.description}\n${step.sql}`,
+      ),
+  );
+  const dryRun = args["dry-run"] === true;
+  if (steps.length > 0) {
+    const path = `supabase/migrations/${migrationStamp(new Date())}_better_supabase_kit_upgrade.sql`;
+    const contents = `-- better-supabase sql upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
+    if (dryRun) {
+      lines.push(`Would write ${path}`);
+    } else {
+      await writeIfChanged(resolve(config.root, path), contents);
+      lines.push(`Wrote ${path}`);
+    }
+  }
+  for (const entry of plan) {
+    lines.push(
+      `${entry.module}: version ${String(entry.from)} to ${String(entry.to)}`,
+      ...entry.steps.map((step) => `  ${step.description}`),
+    );
+  }
+  lines.push(
+    ...(await write(config, args, config.sql.kit, kit)),
+    "",
+    `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_kit")}`,
+  );
+  return { code: 0, output: lines.join("\n") };
+}
+
 export async function runSql(
   config: ResolvedConfig,
   args: SqlArgs,
@@ -307,6 +422,8 @@ export async function runSql(
             error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`.`,
           };
     }
+    case "upgrade":
+      return upgrade(config, args, paint);
     case "print": {
       const [name] = names;
       const module = name ? SQL_MODULES[name] : undefined;
@@ -351,7 +468,7 @@ export async function runSql(
 export const sqlCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "sql",
-    description: "Lists, adds, syncs and prints SQL kit modules",
+    description: "Lists, adds, syncs, upgrades and prints SQL kit modules",
   },
   args: SQL_ARGS,
   run: (args, { config, io }) => runSql(config, args, painter(io.color)),

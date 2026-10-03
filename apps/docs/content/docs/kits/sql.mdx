@@ -294,6 +294,44 @@ export default defineConfig({
 | `sql.testsDir` | `supabase/tests`      |
 | `sql.kit`      | `[]`                  |
 
+## Upgrading modules
+
+When a release changes a module in a way the schema diff can't follow (a
+renamed column, a backfill that must run before a new constraint), the module's
+version goes up and the release ships a forward step. Run the upgrade after you
+update the package:
+
+```bash
+better-supabase sql upgrade
+```
+
+It reads the version from each file's `@bs-kit` line (a file without one,
+written before the line existed, counts as version 1). It then writes the
+forward steps into `supabase/migrations/<timestamp>_better_supabase_kit_upgrade.sql`
+and rewrites the module files. Create the schema migration afterwards, so the
+steps run first. `sql upgrade --check` exits with 1 when a module is behind or
+a file is stale, and `--dry-run` lists the steps without writing.
+
+A renamed function or claim keeps working for at least one minor version. The
+module file keeps a wrapper under the old name, marked `-- Deprecated since`,
+and doctor reports code that still uses it (BS309). The
+[stability page](/docs/extending/stability#sql-kit-objects-and-claims) lists
+what each module guarantees.
+
+## Existing triggers
+
+`track_updated_at()` and `audit()` warn when the table already has a trigger
+that does the same work (a `moddatetime` or `touch_updated_at` trigger, or
+another audit trigger), because both would run on every write. Pass
+`replace_trigger => true` to drop the existing trigger in the same call:
+
+```sql
+select better_supabase.track_updated_at('public.customers', replace_trigger => true);
+select better_supabase.audit('public.customers', replace_trigger => true);
+```
+
+Doctor reports a table that still has both (BS310).
+
 ## Rendering modules in code
 
 `better-supabase/sql` exports what the `sql` command uses, for build scripts

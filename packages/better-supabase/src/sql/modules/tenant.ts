@@ -249,5 +249,21 @@ export const TENANT: KitModuleDefinition = {
       sql: () => "",
     },
   ],
+  deprecated: [
+    {
+      kind: "function",
+      symbol: "better_supabase.current_org_id",
+      use: "better_supabase.current_tenant_id()",
+      since: "0.2.0",
+      removed: "0.2.0",
+    },
+    {
+      kind: "claim",
+      symbol: "org_id",
+      use: "the claims.tenant claim (tenant_id)",
+      since: "0.2.0",
+      removed: "0.2.0",
+    },
+  ],
   build: tenantSql,
 };

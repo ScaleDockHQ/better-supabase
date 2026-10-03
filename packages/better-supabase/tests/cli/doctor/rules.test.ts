@@ -467,6 +467,57 @@ describe("generated and kit files (BS303, BS304)", () => {
     ]);
   });
 
+  it("reports a module behind its version in BS311, not BS304", async () => {
+    const ctx = rooted({ sql: { kit: ["tenant"] } });
+    const [file] = renderKit(["tenant"], kitLayout(ctx.config));
+    await write(file!.path, file!.contents.replace(/^-- @bs-kit .*\n/m, ""));
+    expect(await run("BS304", ctx)).toEqual([]);
+    expect(await run("BS311", ctx)).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: file!.path,
+        message: expect.stringContaining(
+          "has tenant version 1; this release ships version 2. Run `better-supabase sql upgrade`",
+        ),
+      }),
+    ]);
+    await write(file!.path, file!.contents);
+    expect(await run("BS311", ctx)).toEqual([]);
+  });
+
+  it("reads kit_modules on a live database in BS311", async () => {
+    const ctx = rooted({ sql: { kit: ["tenant", "mfa"] } });
+    const live = (rows: Record<string, unknown>[] | Error) => ({
+      ...ctx,
+      database: {
+        describe: "test",
+        session: true,
+        query: <R>() =>
+          rows instanceof Error
+            ? Promise.reject(rows)
+            : Promise.resolve(rows as R[]),
+      },
+    });
+    expect(
+      await run(
+        "BS311",
+        live([
+          { name: "tenant", version: 1 },
+          { name: "mfa", version: 1 },
+          { name: "audit", version: 0 },
+        ]),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        target: "better_supabase.kit_modules.tenant",
+        message: expect.stringContaining(
+          "The database has tenant version 1; this release ships version 2.",
+        ),
+      }),
+    ]);
+    expect(await run("BS311", live(new Error("no table")))).toEqual([]);
+  });
+
   it("skips the read-sets module when the read sets could not be loaded", async () => {
     const ctx = rooted({ sql: { kit: ["read-sets"] } });
     expect(
@@ -481,6 +532,97 @@ describe("generated and kit files (BS303, BS304)", () => {
     ).toEqual(
       renderKit(["read-sets"], kitLayout(ctx.config)).map((file) => file.path),
     );
+  });
+});
+
+describe("kit upgrades (BS309, BS310)", () => {
+  it("reports deprecated kit symbols in schema files and policies", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        {
+          name: "org members",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using: "(org_id = (auth.jwt() ->> 'org_id')::uuid)",
+          check: null,
+        },
+      ];
+    });
+    const findings = await run(
+      "BS309",
+      context(
+        snap,
+        {
+          sqlFiles: [
+            {
+              path: "supabase/schemas/100_notes.sql",
+              text: "create view v as\nselect better_supabase.current_org_id();\n",
+            },
+            {
+              path: "supabase/migrations/1_old.sql",
+              text: "select better_supabase.current_org_id();",
+            },
+            {
+              path: "supabase/schemas/900_better_supabase_04_tenant.sql",
+              text: "-- @bs-kit tenant@2 managed\nselect better_supabase.current_org_id();",
+            },
+          ],
+        },
+        { sql: { kit: ["tenant"] } },
+      ),
+    );
+    expect(
+      findings.map((finding) => [finding.target, finding.location]),
+    ).toEqual([
+      [
+        "supabase/schemas/100_notes.sql:better_supabase.current_org_id",
+        { file: "supabase/schemas/100_notes.sql", line: 2 },
+      ],
+      ["public.notes.org members:org_id", undefined],
+    ]);
+    expect(findings[0]!.message).toContain(
+      "removed in 0.2.0. Use better_supabase.current_tenant_id().",
+    );
+    expect(
+      await run(
+        "BS309",
+        context(
+          snap,
+          {},
+          { sql: { kit: ["tenant"] }, claims: { tenant: "org_id" } },
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS309", context(snap))).toEqual([]);
+  });
+
+  it("reports a table with a kit trigger and an equivalent one", async () => {
+    const trigger = (name: string, fn: string) => ({
+      name,
+      timing: "before" as const,
+      events: ["update" as const],
+      level: "row" as const,
+      function: fn,
+    });
+    const snap = snapshot((tables) => {
+      table(tables, "notes").triggers = [
+        trigger("bs_updated_at", "better_supabase.set_updated_at"),
+        trigger("handle_updated_at", "extensions.moddatetime"),
+        trigger("bs_audit", "better_supabase.audit_trigger"),
+        trigger("notify", "public.notify_change"),
+      ];
+      table(tables, "tags").triggers = [trigger("touch", "public.touch_row")];
+    });
+    const findings = await run("BS310", context(snap));
+    expect(findings).toEqual([
+      expect.objectContaining({
+        target: "public.notes.handle_updated_at",
+        message: expect.stringContaining(
+          "select better_supabase.track_updated_at('public.notes', replace_trigger => true)",
+        ),
+      }),
+    ]);
   });
 });
 

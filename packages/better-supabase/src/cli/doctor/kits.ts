@@ -4,10 +4,20 @@ import { tenantClaimPaths } from "../../config/index.ts";
 import {
   contractSignature,
   customContracts,
+  type KitDeprecation,
+  kitDeprecations,
+  kitFileVersion,
   kitLayout,
 } from "../../sql/index.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
+import {
+  catalogOf,
+  lineOf,
+  policyObject,
+  qualified,
+  tableObject,
+} from "./shared.ts";
 
 /** The non-empty string at a dotted path, as the tenant() plugin reads it. */
 function claimAt(
@@ -47,9 +57,10 @@ function contractChecks(context: DoctorContext): ContractCheck[] {
 const escapeRegExp = (value: string): string =>
   value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const ident = (name: string): string => `"?${escapeRegExp(name)}"?`;
+
 /** Whether a `create function schema.name(` appears in the SQL files. */
 function declared(context: DoctorContext, check: ContractCheck): boolean {
-  const ident = (name: string): string => `"?${escapeRegExp(name)}"?`;
   const pattern = new RegExp(
     `create\\s+(?:or\\s+replace\\s+)?function\\s+${ident(check.schema)}\\.${ident(check.name)}\\s*\\(`,
     "i",
@@ -184,6 +195,108 @@ async function missingTenantClaim(
   return findings;
 }
 
+/** Where a deprecated symbol is used: a call, a qualified name or a claim lookup. */
+function deprecationPattern(entry: KitDeprecation): RegExp {
+  const [first = "", second] = entry.symbol.split(".");
+  const qualified =
+    second === undefined ? ident(first) : `${ident(first)}\\.${ident(second)}`;
+  switch (entry.kind) {
+    case "function":
+      return new RegExp(`${qualified}\\s*\\(`, "i");
+    case "table":
+    case "column":
+      return new RegExp(`(?<![\\w."])${qualified}(?![\\w"])`, "i");
+    case "claim": {
+      const name = escapeRegExp(entry.symbol);
+      return new RegExp(
+        `->>?\\s*'${name}'|#>>?\\s*'\\{[^}]*\\b${name}\\b[^}]*\\}'`,
+        "i",
+      );
+    }
+    default: {
+      const never: never = entry.kind;
+      throw new TypeError(`Unknown deprecation kind ${String(never)}`);
+    }
+  }
+}
+
+/** SQL files and policies that still use a symbol a kit module deprecated or removed. */
+function deprecatedSymbols(context: DoctorContext): FindingInput[] {
+  const configured = new Set<string>(Object.values(context.config.claims));
+  const entries = kitDeprecations().filter(
+    (entry) =>
+      context.config.sql.kit.includes(entry.module) &&
+      !(entry.kind === "claim" && configured.has(entry.symbol)),
+  );
+  if (entries.length === 0) return [];
+  const files = (context.sqlFiles ?? []).filter(
+    (file) =>
+      !file.path.startsWith("supabase/migrations/") &&
+      kitFileVersion(file.text) === undefined,
+  );
+  const findings: FindingInput[] = [];
+  for (const entry of entries) {
+    const pattern = deprecationPattern(entry);
+    const status =
+      entry.removed === undefined
+        ? `deprecated since ${entry.since}`
+        : `removed in ${entry.removed}`;
+    const advice = `the ${entry.module} module's ${entry.kind} ${entry.symbol}, ${status}. Use ${entry.use}.`;
+    for (const file of files) {
+      const line = lineOf(file.text, pattern);
+      if (line === undefined) continue;
+      findings.push({
+        message: `${file.path} uses ${advice}`,
+        target: `${file.path}:${entry.symbol}`,
+        location: { file: file.path, line },
+      });
+    }
+    for (const table of catalogOf(context).tables) {
+      for (const policy of table.policies) {
+        if (!pattern.test(`${policy.using ?? ""}\n${policy.check ?? ""}`)) {
+          continue;
+        }
+        findings.push({
+          message: `Policy "${policy.name}" on ${qualified(table)} uses ${advice}`,
+          target: `${qualified(table)}.${policy.name}:${entry.symbol}`,
+          object: policyObject(table, policy),
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+/** Kit triggers and the equivalent triggers they replace. */
+const EQUIVALENT_TRIGGERS = [
+  {
+    trigger: "bs_updated_at",
+    call: "track_updated_at",
+    pattern: /updated_at|moddatetime|touch/i,
+  },
+  { trigger: "bs_audit", call: "audit", pattern: /audit/i },
+] as const;
+
+/** Tables where a kit trigger and an older trigger do the same work. */
+function duplicateTriggers(context: DoctorContext): FindingInput[] {
+  return catalogOf(context).tables.flatMap((table) =>
+    EQUIVALENT_TRIGGERS.flatMap(({ trigger, call, pattern }) => {
+      if (!table.triggers.some((entry) => entry.name === trigger)) return [];
+      return table.triggers
+        .filter(
+          (entry) =>
+            entry.name !== trigger &&
+            pattern.test(entry.function.split(".").at(-1) ?? ""),
+        )
+        .map((entry) => ({
+          message: `${qualified(table)} has ${trigger} and ${entry.name} (${entry.function}), so both run on every write. Drop ${entry.name}, or run \`select better_supabase.${call}('${qualified(table)}', replace_trigger => true)\` in a migration.`,
+          target: `${qualified(table)}.${entry.name}`,
+          object: tableObject(table),
+        }));
+    }),
+  );
+}
+
 export const KIT_RULES: readonly Rule[] = [
   {
     code: "BS307",
@@ -200,5 +313,21 @@ export const KIT_RULES: readonly Rule[] = [
     description:
       "With the `tenant` module and `kits.access.activeTenant: 'claim'` (the default), `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. Apps without a tenant claim set `activeTenant` to `'resolver'` or a profile column.",
     check: missingTenantClaim,
+  },
+  {
+    code: "BS309",
+    severity: "warning",
+    title: "Deprecated SQL kit symbol",
+    description:
+      "A schema file or policy uses a function, table, column or claim that a kit module deprecated or removed. Deprecated symbols keep a wrapper for at least one minor release; removed ones fail at run time.",
+    check: deprecatedSymbols,
+  },
+  {
+    code: "BS310",
+    severity: "warning",
+    title: "Duplicate kit trigger",
+    description:
+      "A table has a kit trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
+    check: duplicateTriggers,
   },
 ];

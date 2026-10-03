@@ -9,11 +9,14 @@ import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import {
+  type KitFile,
   kitFileVersion,
   type KitLayout,
   kitLayout,
+  moduleVersion,
   renderKit,
   sameKitFile,
+  SQL_MODULES,
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
 import { renderFiles } from "../commands/gen.ts";
@@ -132,6 +135,83 @@ const publicRoles = (policy: CatalogPolicy): boolean =>
 
 const isTrue = (expression: string | null): boolean =>
   expression !== null && /^\(*\s*true\s*\)*$/i.test(expression.trim());
+
+interface KitFileState {
+  readonly file: KitFile;
+  readonly current: string | undefined;
+  /** The file's `@bs-kit` version (1 without one) is below the module's. */
+  readonly behind: boolean;
+}
+
+/** The `sql.kit` files as this release renders them, next to what is on disk. */
+async function kitFiles(context: DoctorContext): Promise<KitFileState[]> {
+  if (context.config.sql.kit.length === 0) return [];
+  const readSets = context.readSets;
+  const skipped = readSets !== undefined && "skipped" in readSets;
+  const files = renderKit(
+    context.config.sql.kit,
+    kitLayout(
+      context.config,
+      context.config.sql.testsDir,
+      skipped ? [] : readSets,
+      entitlementsKit(context),
+    ),
+  ).filter((file) => !(skipped && file.module === "read-sets"));
+  return Promise.all(
+    files.map(async (file) => {
+      const current = await readFile(
+        resolve(context.config.root, file.path),
+        "utf8",
+      ).catch(() => undefined);
+      const version = kitFileVersion(file.contents)?.version ?? 1;
+      return {
+        file,
+        current,
+        behind:
+          current !== undefined &&
+          (kitFileVersion(current)?.version ?? 1) < version,
+      };
+    }),
+  );
+}
+
+async function kitVersionsBehind(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
+  const findings: FindingInput[] = [];
+  const upgrade = "Run `better-supabase sql upgrade`";
+  for (const { file, current, behind } of await kitFiles(context)) {
+    if (!behind || current === undefined) continue;
+    findings.push({
+      message: `${file.path} has ${file.module} version ${String(kitFileVersion(current)?.version ?? 1)}; this release ships version ${String(kitFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(context.configToml)}\`.`,
+      target: file.path,
+      location: { file: file.path, line: 1 },
+    });
+  }
+  const db = context.database;
+  if (!db || "skipped" in db || context.config.sql.kit.length === 0) {
+    return findings;
+  }
+  let rows: { name: string; version: number }[];
+  try {
+    rows = await db.query(
+      "select name, version from better_supabase.kit_modules",
+    );
+  } catch {
+    return findings;
+  }
+  for (const row of rows) {
+    const module = SQL_MODULES[row.name];
+    if (!module || !context.config.sql.kit.includes(row.name)) continue;
+    const version = moduleVersion(module);
+    if (row.version >= version) continue;
+    findings.push({
+      message: `The database has ${row.name} version ${String(row.version)}; this release ships version ${String(version)}. ${upgrade} and apply the migrations it prints.`,
+      target: `better_supabase.kit_modules.${row.name}`,
+    });
+  }
+  return findings;
+}
 
 function authSetting(
   context: DoctorContext,
@@ -631,31 +711,13 @@ const OWN_RULES: readonly Rule[] = [
     description:
       "A module listed in `sql.kit` differs from the version in this release. Same check as `sql sync --check`.",
     check: async (context) => {
-      if (context.config.sql.kit.length === 0) return [];
       const stale: FindingInput[] = [];
-      const readSets = context.readSets;
-      const skipped = readSets !== undefined && "skipped" in readSets;
-      for (const file of renderKit(
-        context.config.sql.kit,
-        kitLayout(
-          context.config,
-          context.config.sql.testsDir,
-          skipped ? [] : readSets,
-          entitlementsKit(context),
-        ),
-      )) {
-        if (skipped && file.module === "read-sets") continue;
-        const current = await readFile(
-          resolve(context.config.root, file.path),
-          "utf8",
-        ).catch(() => undefined);
-        if (sameKitFile(current, file.contents)) continue;
+      for (const { file, current, behind } of await kitFiles(context)) {
+        if (behind || sameKitFile(current, file.contents)) continue;
         const edited =
-          current !== undefined &&
-          kitFileVersion(current)?.version ===
-            kitFileVersion(file.contents)?.version
-            ? ` If you edited it, move the change to \`kits.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`
-            : "";
+          current === undefined
+            ? ""
+            : ` If you edited it, move the change to \`kits.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
         stale.push({
           message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.${edited}`,
           target: file.path,
@@ -725,6 +787,14 @@ const OWN_RULES: readonly Rule[] = [
           object: tableObject(table),
         }));
     },
+  },
+  {
+    code: "BS311",
+    severity: "warning",
+    title: "SQL kit module behind its current version",
+    description:
+      "A module file or `better_supabase.kit_modules` records an older module version than this release ships. Same check as `sql upgrade --check`.",
+    check: kitVersionsBehind,
   },
   {
     code: "BS401",

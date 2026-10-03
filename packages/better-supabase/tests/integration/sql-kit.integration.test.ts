@@ -128,6 +128,40 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     }
   });
 
+  it("warns about equivalent triggers and replaces them on request", async () => {
+    const name = `public.bs_dup_${RUN}`;
+    const notices: string[] = [];
+    const client = await pool.connect();
+    client.on("notice", (notice) => notices.push(notice.message ?? ""));
+    try {
+      await client.query(`
+        create table ${name} (id int primary key, updated_at timestamptz);
+        create function public.touch_${RUN}() returns trigger language plpgsql as $$
+        begin new.updated_at := now(); return new; end $$;
+        create trigger touch_row before update on ${name}
+          for each row execute function public.touch_${RUN}();
+      `);
+      await client.query(`select better_supabase.track_updated_at('${name}')`);
+      expect(notices.join("\n")).toContain("touch_row");
+      const triggers = async () =>
+        (
+          await client.query<{ tgname: string }>(
+            `select tgname from pg_trigger where tgrelid = $1::regclass and not tgisinternal order by 1`,
+            [name],
+          )
+        ).rows.map((row) => row.tgname);
+      expect(await triggers()).toEqual(["bs_updated_at", "touch_row"]);
+      await client.query(
+        `select better_supabase.track_updated_at('${name}', replace_trigger => true)`,
+      );
+      expect(await triggers()).toEqual(["bs_updated_at"]);
+    } finally {
+      await client.query(`drop table if exists ${name}`);
+      await client.query(`drop function if exists public.touch_${RUN}()`);
+      client.release();
+    }
+  });
+
   it("grants tables in expose to the Data API roles", async () => {
     const name = `bs_grants_${RUN}`;
     const read = async (): Promise<Response> => {

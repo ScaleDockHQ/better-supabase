@@ -30,15 +30,27 @@ export interface KitUpgrade {
   readonly sql: (ctx: KitContext) => string;
 }
 
-/** A kit symbol kept as a compatibility wrapper for at least one minor release. */
+/**
+ * A renamed kit symbol. It keeps a compatibility wrapper for at least one
+ * minor release, then is removed; doctor reports uses of both (BS309), and
+ * the name stays reserved.
+ */
 export interface KitDeprecation {
   readonly kind: "function" | "claim" | "table" | "column";
-  /** The old name, e.g. `better_supabase.has_org_role`. */
+  /** The old name: `schema.function`, a claim name, `schema.table` or `table.column`. */
   readonly symbol: string;
   /** What to use instead. */
   readonly use: string;
   /** The package version that deprecated it. */
   readonly since: string;
+  /** The package version that removed it; until then `wrapper` is written. */
+  readonly removed?: string;
+  /**
+   * The compatibility wrapper the module file keeps, e.g. a function with the
+   * old name that calls the new one and a `comment on function ... is
+   * 'deprecated: use X'`.
+   */
+  readonly wrapper?: (ctx: KitContext) => string;
 }
 
 /**
@@ -101,6 +113,45 @@ const requiresOf = (module: SqlModule, layout: KitLayout): readonly string[] =>
     ? module.permdockRequires
     : module.requires);
 
+/**
+ * Another row trigger on `target` whose function name matches `pattern` does
+ * the kit trigger's job twice. `track_*` warns about it, or drops it with
+ * `replace_trigger => true`.
+ */
+const EQUIVALENT_TRIGGERS = `
+create or replace function better_supabase.replace_equivalent_triggers(
+  target regclass,
+  kit_trigger text,
+  pattern text,
+  replace_trigger boolean
+)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found record;
+begin
+  for found in
+    select t.tgname as name, p.proname as fn
+    from pg_catalog.pg_trigger t
+    join pg_catalog.pg_proc p on p.oid = t.tgfoid
+    where t.tgrelid = replace_equivalent_triggers.target
+      and not t.tgisinternal
+      and t.tgname <> replace_equivalent_triggers.kit_trigger
+      and p.proname ~* replace_equivalent_triggers.pattern
+  loop
+    if replace_trigger then
+      execute format('drop trigger %I on %s', found.name, target);
+    else
+      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
+        target, found.name, found.fn, kit_trigger;
+    end if;
+  end loop;
+end;
+$$;
+revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;`;
+
 const UPDATED_AT: SqlModule = {
   name: "updated-at",
   title: "updated_at triggers",
@@ -123,16 +174,25 @@ begin
 end;
 $$;
 
+${EQUIVALENT_TRIGGERS}
+
+drop function if exists better_supabase.track_updated_at(regclass, text);
+
 -- select better_supabase.track_updated_at('public.customers');
+-- replace_trigger => true drops another trigger that sets updated_at (moddatetime, touch_*).
 create or replace function better_supabase.track_updated_at(
   target regclass,
-  column_name text default 'updated_at'
+  column_name text default 'updated_at',
+  replace_trigger boolean default false
 )
 returns void
 language plpgsql
 set search_path = ''
 as $$
 begin
+  perform better_supabase.replace_equivalent_triggers(
+    target, 'bs_updated_at', 'updated_at|moddatetime|touch', replace_trigger
+  );
   execute format('drop trigger if exists bs_updated_at on %s', target);
   execute format(
     'create trigger bs_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',
@@ -292,8 +352,17 @@ begin
 end;
 $$;
 
+${EQUIVALENT_TRIGGERS}
+
+drop function if exists better_supabase.audit(regclass, text[]);
+
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
-create or replace function better_supabase.audit(target regclass, ignore text[] default '{}')
+-- replace_trigger => true drops another audit trigger on the table.
+create or replace function better_supabase.audit(
+  target regclass,
+  ignore text[] default '{}',
+  replace_trigger boolean default false
+)
 returns void
 language plpgsql
 set search_path = ''
@@ -301,6 +370,9 @@ as $$
 declare
   keys text[];
 begin
+  perform better_supabase.replace_equivalent_triggers(
+    target, 'bs_audit', 'audit', replace_trigger
+  );
   select array_agg(c.attname::text order by k.ord) into keys
   from pg_catalog.pg_index i
   cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
@@ -2042,12 +2114,15 @@ export function kitContext(
 }
 
 /** Throws on a `kits` key that names no module, or a mode a module doesn't support. */
-export function checkKits(kits: KitsConfig = {}): void {
+export function checkKits(
+  kits: KitsConfig = {},
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): void {
   for (const [name, entry] of Object.entries(kits)) {
-    const module = SQL_MODULES[name];
+    const module = modules[name];
     if (!module) {
       throw new TypeError(
-        `kits.${name}: there is no SQL kit module "${name}". Modules: ${Object.keys(SQL_MODULES).join(", ")}`,
+        `kits.${name}: there is no SQL kit module "${name}". Modules: ${Object.keys(modules).join(", ")}`,
       );
     }
     const mode = entry?.mode ?? "managed";
@@ -2151,16 +2226,98 @@ export function renderKit(
       "-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.",
     ].join("\n");
     const extra = moduleExtras(module, layout);
+    const wrappers = deprecationWrappers(module, ctx);
     const record =
       module.target === "schema" ? kitModuleRow(module, ctx.mode) : "";
     return [
       {
         module: module.name,
         path: kitPath(module, layout),
-        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${record}`,
+        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${record}`,
       },
     ];
   });
+}
+
+/** The compatibility wrappers of a module's deprecated symbols that are not removed yet. */
+export function deprecationWrappers(
+  module: SqlModule,
+  ctx: KitContext,
+): string {
+  return (module.deprecated ?? [])
+    .flatMap((entry) =>
+      entry.removed === undefined && entry.wrapper
+        ? [
+            `\n-- Deprecated since ${entry.since}: use ${entry.use}.\n${entry.wrapper(ctx).trim()}\n`,
+          ]
+        : [],
+    )
+    .join("");
+}
+
+/** An installed module, from its file's `@bs-kit` line or `kit_modules`. */
+export interface InstalledKitModule {
+  readonly module: string;
+  readonly version: number;
+}
+
+/** What `sql upgrade` runs for one module behind the current version. */
+export interface KitUpgradePlan {
+  readonly module: string;
+  readonly from: number;
+  readonly to: number;
+  readonly steps: readonly {
+    readonly from: number;
+    readonly description: string;
+    readonly sql: string;
+  }[];
+}
+
+/**
+ * The upgrade steps for modules installed at an older version. A version
+ * without a step needs none: the module file upgrades in place. Modules in
+ * custom mode belong to the app and are skipped.
+ */
+export function upgradePlan(
+  installed: readonly InstalledKitModule[],
+  layout: KitLayout = {},
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): KitUpgradePlan[] {
+  checkKits(layout.kits, modules);
+  const names = installed.map((entry) => entry.module);
+  return installed.flatMap((entry): KitUpgradePlan[] => {
+    const module = modules[entry.module];
+    if (!module) return [];
+    const to = moduleVersion(module);
+    if (entry.version >= to) return [];
+    const ctx = createKitContext(entry.module, (name) => modules[name]?.names, {
+      ...(layout.kits ? { kits: layout.kits } : {}),
+      ...(layout.claims ? { claims: layout.claims } : {}),
+      installed: names,
+    });
+    if (ctx.mode === "custom") return [];
+    const steps = (module.upgrades ?? [])
+      .filter((step) => step.from >= entry.version && step.from < to)
+      .toSorted((a, b) => a.from - b.from)
+      .map((step) => ({
+        from: step.from,
+        description: step.description,
+        sql: step.sql(ctx).trim(),
+      }));
+    return [{ module: module.name, from: entry.version, to, steps }];
+  });
+}
+
+/** Every deprecated or removed kit symbol, with its module. */
+export function kitDeprecations(
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): readonly (KitDeprecation & { readonly module: string })[] {
+  return Object.values(modules).flatMap((module) =>
+    (module.deprecated ?? []).map((entry) => ({
+      ...entry,
+      module: module.name,
+    })),
+  );
 }
 
 /** The contract functions of the modules in `custom` mode, for doctor. */

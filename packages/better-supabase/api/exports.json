@@ -877,20 +877,24 @@
       "customContracts",
       "isKitIdType",
       "KIT_ID_TYPES",
+      "kitDeprecations",
       "kitFileVersion",
       "kitIdType",
       "kitLayout",
       "moduleBody",
+      "moduleVersion",
       "PERMDOCK_SCHEMA",
       "permdockKeys",
       "permdockKeyStatus",
       "renderKit",
       "resolveModules",
       "sameKitFile",
-      "SQL_MODULES"
+      "SQL_MODULES",
+      "upgradePlan"
     ],
     "types": [
       "CompiledReadSet",
+      "InstalledKitModule",
       "KitContext",
       "KitContractFunction",
       "KitDeprecation",
@@ -901,6 +905,7 @@
       "KitPermdock",
       "KitTableSpec",
       "KitUpgrade",
+      "KitUpgradePlan",
       "PermdockCatalog",
       "PermdockKeyStatus",
       "SqlModule"

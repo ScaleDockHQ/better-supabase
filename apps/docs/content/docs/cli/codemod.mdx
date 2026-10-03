@@ -1,0 +1,66 @@
+---
+title: codemod
+description: Rewrite imports and calls for renamed better-supabase APIs after an upgrade.
+---
+
+`better-supabase codemod` rewrites your source for the renames in a release,
+so an upgrade is a command and a review instead of a search through the
+codebase. Run it after you update the package:
+
+```bash
+pnpm better-supabase codemod 0.5 --dry-run
+pnpm better-supabase codemod 0.5
+```
+
+Pass files or directories after the name to limit it (`codemod 0.4 src app`).
+Without them it walks the project and skips `node_modules`, build output
+(`dist`, `build`, `.next`, `.turbo`, `.vercel`, `coverage`) and `.d.ts` files.
+`--dry-run` prints a unified diff of each file it would change and writes
+nothing.
+
+| Codemod | What it changes                                                                                             |
+| ------- | ----------------------------------------------------------------------------------------------------------- |
+| `0.4`   | The 0.4 renames on the [naming page](/docs/concepts/naming#renames): imports, members and the provider prop |
+| `0.5`   | `scopes` in `createMcp()` options becomes `advertisedScopes`                                                |
+
+## What it rewrites
+
+Each codemod makes narrow, mechanical renames. It reads the source with a
+small scanner that skips strings, template literals and comments, so a name
+in a message or a comment stays as it is.
+
+- **Imports.** A renamed export imported from `better-supabase` or one of its
+  subpaths is renamed in the import and wherever the file uses it. An aliased
+  import (`Postgres as PG`) keeps the alias, and imports from other modules
+  are left alone.
+- **Members.** Renamed methods and properties after a `.`, such as
+  `next.serverFor(` to `next.contextForSession(` and `repository.$table` to
+  `repository.$tableName`. `db.$table("notes")`, which still exists, is
+  skipped.
+- **Props.** `browser=` on `<BetterSupabaseProvider>` becomes `client=`.
+- **Options.** A key at the top level of an object literal passed to a named
+  call: `createMcp(betterSupabase, { scopes })` becomes `{ advertisedScopes:
+scopes }`. Nested objects keep their keys.
+
+## What it leaves for you
+
+Some renames depend on what a variable holds (`next.server()` is
+`bs.context()` only on a `createNext()` instance). The codemod doesn't guess:
+it lists those lines after the summary, as `path:line: message`, so you can
+change them by hand.
+
+```text
+Updated 3 of 41 files:
+  src/lib/supabase/client.ts
+  src/app/providers.tsx
+  src/app/api/mcp/route.ts
+
+Check these by hand:
+  src/app/page.tsx:12: `next.server()` is `bs.context()` on the createNext() instance
+```
+
+Run your type checker afterwards; a rename the codemod missed shows up there.
+With `--json`, the result is `{ codemod, dryRun, changed, review }`.
+
+SQL kit renames are not source rewrites: `better-supabase sql upgrade`
+handles them, and doctor reports SQL that still uses an old name (BS309).

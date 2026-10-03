@@ -547,6 +547,32 @@ returns. Write the claim in the hook, or, for apps that pick the tenant from
 the URL or a profile, set `activeTenant` to `'resolver'` (with
 `ServerOptions.tenant`) or `{ profileColumn }`.
 
+### BS309
+
+**Warning: deprecated SQL kit symbol.** A file in `supabase/schemas` or a
+policy uses a function, table, column or claim that a kit module in `sql.kit`
+deprecated or removed, such as `better_supabase.current_org_id()` or the
+`org_id` claim. A deprecated symbol keeps a compatibility wrapper for at least
+one minor release; a removed one fails at run time. The message names the
+replacement. Kit files and migrations are skipped, and so is a claim the config
+maps in `claims`.
+
+### BS310
+
+**Warning: duplicate kit trigger.** A table has `bs_updated_at` and another
+trigger whose function looks like `updated_at`, `moddatetime` or `touch`, or
+`bs_audit` and another audit trigger, so both run on every write. Drop the
+older trigger, or call `track_updated_at()` or `audit()` with
+`replace_trigger => true` in a migration.
+
+### BS311
+
+**Warning: SQL kit module behind its current version.** A module file's
+`@bs-kit` line, or its row in `better_supabase.kit_modules` on a live database,
+records an older version than this release ships. Run `better-supabase sql
+upgrade`, which writes the forward steps into a migration and rewrites the
+files, then create the schema migration. BS304 skips files this check reports.
+
 ## Auth config
 
 ### BS401

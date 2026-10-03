@@ -14,7 +14,7 @@ import {
   type BetterSupabaseConfig,
   resolveConfig,
 } from "../../../src/config/index.ts";
-import { SQL_MODULES } from "../../../src/sql/index.ts";
+import { renderKit, SQL_MODULES } from "../../../src/sql/index.ts";
 import { kitLayout } from "../../../src/sql/index.ts";
 
 const fixtures = resolve(import.meta.dirname, "../fixtures");
@@ -109,6 +109,64 @@ describe("runSql", () => {
       code: 0,
       output: "sql.kit is empty; nothing to sync.",
     });
+  });
+
+  it("upgrades modules installed before versioned headers", async () => {
+    const config: BetterSupabaseConfig = { sql: { kit: ["tenant"] } };
+    expect(await sql(["upgrade"])).toEqual({
+      code: 0,
+      output: "sql.kit is empty; nothing to upgrade.",
+    });
+    expect(await sql(["upgrade", "--check"], config)).toEqual({
+      code: 0,
+      output: "SQL kit modules are at their current versions.",
+    });
+    await sql(["sync"], config);
+    const [file] = renderKit(
+      ["tenant"],
+      kitLayout(resolveConfig(config, root)),
+    );
+    const path = join(root, file!.path);
+    const legacy = (await readFile(path, "utf8")).replace(
+      /^-- @bs-kit .*\n/m,
+      "",
+    );
+    await writeFile(path, legacy);
+
+    const check = await sql(["upgrade", "--check"], config);
+    expect(check.code).toBe(1);
+    expect(check.error).toContain(
+      "tenant is at version 1; the current version is 2",
+    );
+    expect(check.error).toContain("Run `better-supabase sql upgrade`.");
+
+    const dry = await sql(["upgrade", "--dry-run"], config);
+    expect(dry.output).toContain("tenant: version 1 to 2");
+    expect(await readFile(path, "utf8")).toBe(legacy);
+
+    const done = await sql(["upgrade"], config);
+    expect(done.output).toContain(
+      "Adds memberships.last_used_at and org_member_role()",
+    );
+    expect(done.output).toContain("Then create a migration:");
+    expect(await readFile(path, "utf8")).toContain("-- @bs-kit tenant@2");
+    expect((await sql(["upgrade"], config)).output).toBe(
+      "SQL kit modules are at their current versions.",
+    );
+  });
+
+  it("reports a stale file at the current version in upgrade --check", async () => {
+    const config: BetterSupabaseConfig = { sql: { kit: ["mfa"] } };
+    await sql(["sync"], config);
+    const [file] = renderKit(["mfa"], kitLayout(resolveConfig(config, root)));
+    await writeFile(
+      join(root, file!.path),
+      `${await readFile(join(root, file!.path), "utf8")}\n-- edited\n`,
+    );
+    const check = await sql(["upgrade", "--check"], config);
+    expect(check.code).toBe(1);
+    expect(check.error).toMatch(/^Out of date: .*mfa\.sql\./);
+    expect(check.output).toContain("-- edited");
   });
 
   it("prints a rendered module with the configured claims", async () => {
