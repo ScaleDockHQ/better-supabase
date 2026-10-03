@@ -1,6 +1,8 @@
+import type { PermdockCatalog } from "../../core/permdock-sql.ts";
 import type { KitPermdock } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { permdockKeyStatus } from "../../core/permdock-sql.ts";
 import { permdockKeys } from "../../sql/index.ts";
 import { entitlementHelpers, entitlementsMode } from "../permdock.ts";
 import { catalogOf } from "./shared.ts";
@@ -71,6 +73,44 @@ export function configuredPermdockKeys(
   );
 }
 
+const ROW_CONDITIONS_FIX =
+  "Use the policies `permdock rls generate` writes for it, or a permission whose catalog entry has rowConditions: false.";
+const REGENERATE_FIX =
+  "Regenerate it with a current `permdock catalog`, which writes rowConditions for every permission.";
+
+/**
+ * Why the SQL helpers can't be trusted with `key`, or `undefined` when the
+ * catalog marks it `rowConditions: false`. An entry without the flag and a
+ * key the catalog doesn't list are unknown, so they count as unsafe.
+ */
+export function unsafeKey(
+  catalog: PermdockCatalog,
+  key: string,
+  catalogPath: string,
+): { readonly reason: string; readonly fix: string } | undefined {
+  const status = permdockKeyStatus(catalog, key);
+  switch (status) {
+    case "scope-only":
+      return undefined;
+    case "row-conditions":
+      return {
+        reason: `has row conditions in ${catalogPath}`,
+        fix: ROW_CONDITIONS_FIX,
+      };
+    case "no-flag":
+      return {
+        reason: `has no rowConditions flag in ${catalogPath}, so whether it has row conditions is unknown`,
+        fix: REGENERATE_FIX,
+      };
+    case "missing":
+      return { reason: `is not in ${catalogPath}`, fix: REGENERATE_FIX };
+    default: {
+      const unreachable: never = status;
+      return unreachable;
+    }
+  }
+}
+
 /** PermDock's helpers for the `entitlements` kit module, when the manifest allows PermDock mode. */
 export function entitlementsKit(
   context: Pick<DoctorContext, "config" | "permdock">,
@@ -86,7 +126,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     title:
       "PermDock permission with row conditions in a Storage or Realtime policy",
     description:
-      "PermDock's SQL helpers (`permitted_<scope>_ids`, `permdock_has`) check role and scope, not row conditions. A bucket or topic policy that names a permission whose catalog entry has `rowConditions: true` grants every object or topic in the scope. Use PermDock's generated policies for those permissions.",
+      "PermDock's SQL helpers (`permitted_<scope>_ids`, `permdock_has`) check role and scope, not row conditions. A bucket or topic policy that names a permission whose catalog entry has `rowConditions: true` grants every object or topic in the scope. Use PermDock's generated policies for those permissions. A key whose entry has no boolean `rowConditions` (an older `permdock catalog`) or that the catalog doesn't list is unknown and reported the same way.",
     check: (context) => {
       const project = context.permdock;
       if (!project) return [];
@@ -99,8 +139,8 @@ export const PERMDOCK_RULES: readonly Rule[] = [
           message: `Could not read PermDock's catalog: ${problem}`,
           target: project.catalogPath,
         }));
-      const rowConditions = project.rowConditions;
-      if (!rowConditions) {
+      const catalog = project.catalog;
+      if (!catalog) {
         if (
           findings.length === 0 &&
           (fromConfig.length > 0 || fromSql.length > 0)
@@ -113,24 +153,22 @@ export const PERMDOCK_RULES: readonly Rule[] = [
         }
         return findings;
       }
-      const fix =
-        "Use the policies `permdock rls generate` writes for it, or a permission whose catalog entry has rowConditions: false.";
       for (const { bucket, keys } of fromConfig) {
-        for (const key of keys.filter((candidate) =>
-          rowConditions.has(candidate),
-        )) {
+        for (const key of keys) {
+          const problem = unsafeKey(catalog, key, project.catalogPath);
+          if (!problem) continue;
           findings.push({
-            message: `buckets.${bucket} uses PermDock permission "${key}", which has row conditions in ${project.catalogPath}. The bucket policy would grant every object in the scope. ${fix}`,
+            message: `buckets.${bucket} uses PermDock permission "${key}", which ${problem.reason}. The bucket policy could grant every object in the scope. ${problem.fix}`,
             target: `buckets.${bucket}:${key}`,
           });
         }
       }
       for (const policy of fromSql) {
-        for (const key of policy.keys.filter((candidate) =>
-          rowConditions.has(candidate),
-        )) {
+        for (const key of policy.keys) {
+          const problem = unsafeKey(catalog, key, project.catalogPath);
+          if (!problem) continue;
           findings.push({
-            message: `Policy "${policy.name}" on ${policy.table} passes "${key}" to PermDock's helpers, but it has row conditions in ${project.catalogPath}. ${fix}`,
+            message: `Policy "${policy.name}" on ${policy.table} passes "${key}" to PermDock's helpers, but it ${problem.reason}. ${problem.fix}`,
             target: `${policy.table}.${policy.name}:${key}`,
             location: { file: policy.file, line: policy.line },
           });

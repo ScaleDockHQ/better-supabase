@@ -171,7 +171,9 @@ PermDock splits some permissions with row conditions into keys such as
 row conditions doesn't always have one. The `rowConditions` flag on the
 permission in `permissions.catalog.json` says so: `true` means the helpers
 would grant more than the application does. Pass the catalog as `catalog`
-and `defineBucket` throws for those keys:
+and `defineBucket` accepts only keys marked `rowConditions: false`. It throws
+for `true`, for an entry without the flag (regenerate the catalog with a
+current `permdock catalog`) and for a key the catalog doesn't list:
 
 ```ts title="src/lib/storage.ts"
 import catalog from "../../permissions.catalog.json" with { type: "json" };

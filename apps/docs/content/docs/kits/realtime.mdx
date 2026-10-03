@@ -77,7 +77,9 @@ defineTopic("org:{orgId}:board", {
 ```
 
 Pass `permissions.catalog.json` as `catalog` and `defineTopic` throws for a
-`receive` or `send` key with `rowConditions: true`:
+`receive` or `send` key unless the catalog marks it `rowConditions: false`.
+An entry without the flag and a key the catalog doesn't list count as
+unknown, so they throw too:
 
 ```ts
 import catalog from "../../permissions.catalog.json" with { type: "json" };

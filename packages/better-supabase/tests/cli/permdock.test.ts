@@ -8,10 +8,11 @@ import {
   parseGrantsMarker,
   parseHookMarker,
   parseManifest,
+  parseCatalog,
   readPermdock,
-  rowConditionKeys,
 } from "../../src/cli/permdock.ts";
 import { resolveConfig } from "../../src/config/index.ts";
+import { permdockKeyStatus } from "../../src/core/permdock-sql.ts";
 // Copied from PermDock's apps/examples/next-better-supabase/permdock.manifest.json.
 import manifest from "./fixtures/permdock.manifest.json" with { type: "json" };
 
@@ -57,17 +58,32 @@ describe("PermDock manifest", () => {
     expect(() => parseManifest([])).toThrow(/not a JSON object/);
   });
 
-  it("collects keys with row conditions from the catalog", () => {
-    expect([
-      ...rowConditionKeys({
-        permissions: [
-          { key: "a", rowConditions: true },
-          { key: "b", rowConditions: false },
-          { key: "c" },
-        ],
-      }),
-    ]).toEqual(["a"]);
-    expect(() => rowConditionKeys({})).toThrow(/no permissions array/);
+  it("keeps each catalog key's rowConditions flag, and drops one that isn't boolean", () => {
+    const catalog = parseCatalog({
+      permissions: [
+        { key: "a", rowConditions: true },
+        { key: "b", rowConditions: false },
+        { key: "c" },
+        { key: "d", rowConditions: "yes" },
+        { rowConditions: false },
+      ],
+    });
+    expect(catalog.permissions).toEqual([
+      { key: "a", rowConditions: true },
+      { key: "b", rowConditions: false },
+      { key: "c" },
+      { key: "d" },
+    ]);
+    expect(
+      ["a", "b", "c", "d", "e"].map((key) => permdockKeyStatus(catalog, key)),
+    ).toEqual([
+      "row-conditions",
+      "scope-only",
+      "no-flag",
+      "no-flag",
+      "missing",
+    ]);
+    expect(() => parseCatalog({})).toThrow(/no permissions array/);
   });
 
   it("parses the hook and grants markers", () => {
@@ -173,7 +189,9 @@ describe("readPermdock", () => {
     const project = await readPermdock(root, PATHS);
     expect(project?.config).toBe("permdock.config.ts");
     expect(project?.manifest?.hook?.function).toBe("custom_access_token_hook");
-    expect([...(project?.rowConditions ?? [])]).toEqual(["docs.read"]);
+    expect(project?.catalog).toEqual({
+      permissions: [{ key: "docs.read", rowConditions: true }],
+    });
     expect(project?.problems).toEqual([]);
   });
 

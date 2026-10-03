@@ -67,7 +67,8 @@ export interface TopicOptions<E extends EventSchemas> {
   readonly permdock?: PermdockTopicPolicy;
   /**
    * PermDock's `permissions.catalog.json`. With it, a `permdock` policy
-   * naming a permission with `rowConditions: true` throws.
+   * naming a permission without `rowConditions: false` (including one the
+   * catalog doesn't list) throws.
    */
   readonly catalog?: PermdockCatalog;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */

@@ -1509,7 +1509,12 @@ uri = "https://example.com/hook"
     const only = RULES.filter((rule) => rule.code === "BS214");
     const withCatalog: PermdockProject = {
       ...PERMDOCK,
-      rowConditions: new Set(["docs.read"]),
+      catalog: {
+        permissions: [
+          { key: "docs.read", rowConditions: true },
+          { key: "docs.write", rowConditions: false },
+        ],
+      },
     };
     const policyFile = {
       path: "supabase/schemas/900_better_supabase_storage.sql",
@@ -1557,6 +1562,50 @@ uri = "https://example.com/hook"
           line: 3,
         },
       });
+    });
+
+    it("treats a key without a rowConditions flag, or missing from the catalog, as unknown", async () => {
+      const findings = await runRules(
+        context(base, {
+          permdock: {
+            ...PERMDOCK,
+            catalog: {
+              permissions: [{ key: "docs.read" }, { key: "docs.write" }],
+            },
+          },
+          sqlFiles: [policyFile],
+          config: resolveConfig(
+            {
+              buckets: {
+                docs: {
+                  path: "{orgId}/{file}",
+                  policy: {
+                    permdock: { read: "docs.read", write: "docs.list" },
+                    scope: "organization",
+                  },
+                },
+              },
+            },
+            "/project",
+          ),
+        }),
+        only,
+      );
+      expect(
+        findings.map((finding) => [finding.severity, finding.target]),
+      ).toEqual([
+        ["error", "buckets.docs:docs.read"],
+        ["error", "buckets.docs:docs.list"],
+        ["error", "storage.objects.bs_docs_select:docs.read"],
+        ["error", "storage.objects.bs_docs_insert:docs.write"],
+      ]);
+      expect(findings[0]!.message).toContain(
+        "has no rowConditions flag in permissions.catalog.json",
+      );
+      expect(findings[1]!.message).toContain(
+        "is not in permissions.catalog.json",
+      );
+      expect(findings[0]!.message).toContain("current `permdock catalog`");
     });
 
     it("asks for the catalog when helpers are used without one", async () => {

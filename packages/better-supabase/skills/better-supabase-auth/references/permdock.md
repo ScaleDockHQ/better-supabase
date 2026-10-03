@@ -37,6 +37,8 @@ the other.
   option of buckets and topics in `permdock` mode.
 - The `permdock` policy mode checks role and scope only. Use it only for
   permissions whose `rowConditions` is `false` in `permissions.catalog.json`.
+  A missing flag or a key the catalog doesn't list is unknown and refused;
+  regenerate the catalog with a current `permdock catalog`.
   Leave permissions with row conditions to the policies
   `permdock rls generate` writes; doctor reports BS214 and `permdock doctor`
   PD037 otherwise.

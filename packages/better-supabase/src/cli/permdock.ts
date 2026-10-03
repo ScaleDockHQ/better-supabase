@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
+import type { PermdockCatalog } from "../core/permdock-sql.ts";
 import type { KitPermdock } from "../sql/index.ts";
 
 const PERMDOCK_CONFIGS = [
@@ -78,8 +79,8 @@ export interface PermdockProject {
   readonly manifest?: PermdockManifest;
   /** The catalog path, relative to the root. */
   readonly catalogPath: string;
-  /** Permission keys whose catalog entry has `rowConditions: true`. */
-  readonly rowConditions?: ReadonlySet<string>;
+  /** The catalog's keys and their `rowConditions` flags, when it could be read. */
+  readonly catalog?: PermdockCatalog;
   /** Files that exist but could not be read, with the reason. */
   readonly problems: readonly string[];
 }
@@ -199,20 +200,25 @@ export function parseManifest(json: unknown): PermdockManifest {
   };
 }
 
-/** The keys of a parsed `permissions.catalog.json` whose entry has `rowConditions: true`. */
-export function rowConditionKeys(json: unknown): ReadonlySet<string> {
+/**
+ * The keys of a parsed `permissions.catalog.json`, each with its
+ * `rowConditions` flag when it is a boolean. A non-boolean flag is dropped,
+ * so `permdockKeyStatus` reads the key as unknown.
+ */
+export function parseCatalog(json: unknown): PermdockCatalog {
   if (!isRecord(json) || !Array.isArray(json["permissions"]))
     throw new TypeError("has no permissions array");
-  const keys = new Set<string>();
-  for (const permission of json["permissions"]) {
-    if (
-      isRecord(permission) &&
-      isString(permission["key"]) &&
-      permission["rowConditions"] === true
-    )
-      keys.add(permission["key"]);
-  }
-  return keys;
+  return {
+    permissions: json["permissions"].flatMap((permission) => {
+      if (!isRecord(permission) || !isString(permission["key"])) return [];
+      const flag = permission["rowConditions"];
+      return [
+        typeof flag === "boolean"
+          ? { key: permission["key"], rowConditions: flag }
+          : { key: permission["key"] },
+      ];
+    }),
+  };
 }
 
 async function readJson(
@@ -256,10 +262,10 @@ export async function readPermdock(
   } else if ("problem" in manifestFile) problems.push(manifestFile.problem);
   if (!config && !manifest && "missing" in manifestFile) return undefined;
   const catalogFile = await readJson(root, paths.catalog);
-  let rowConditions: ReadonlySet<string> | undefined;
+  let catalog: PermdockCatalog | undefined;
   if ("json" in catalogFile) {
     try {
-      rowConditions = rowConditionKeys(catalogFile.json);
+      catalog = parseCatalog(catalogFile.json);
     } catch (cause) {
       problems.push(
         `${paths.catalog}: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -271,7 +277,7 @@ export async function readPermdock(
     manifestPath: paths.manifest,
     ...(manifest ? { manifest } : {}),
     catalogPath: paths.catalog,
-    ...(rowConditions ? { rowConditions } : {}),
+    ...(catalog ? { catalog } : {}),
     problems,
   };
 }

@@ -189,6 +189,8 @@ describe("defineBucket", () => {
       permissions: [
         { key: "files.read", rowConditions: true },
         { key: "files.write", rowConditions: false },
+        { key: "files.list", rowConditions: false },
+        { key: "files.share" },
       ],
     };
     const bucket = (read: string) =>
@@ -203,6 +205,12 @@ describe("defineBucket", () => {
       });
     expect(() => bucket("files.read")).toThrow(
       /"files\.read" has row conditions in PermDock's catalog/,
+    );
+    expect(() => bucket("files.share")).toThrow(
+      /"files\.share" has no rowConditions flag in PermDock's catalog.*current `permdock catalog`/,
+    );
+    expect(() => bucket("files.unknown")).toThrow(
+      /"files\.unknown" is not in PermDock's catalog/,
     );
     expect(bucket("files.list").sql()).toContain("permitted_organization_ids");
   });

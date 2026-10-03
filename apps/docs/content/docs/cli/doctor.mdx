@@ -383,9 +383,14 @@ policies on `storage.objects` and `realtime.messages` in your SQL files, and
 `permdock rls generate` writes for that permission, or a permission without
 row conditions.
 
+A key whose catalog entry has no boolean `rowConditions` is unknown, and so
+is a key the catalog doesn't list. Doctor reports both as errors and `gen`
+refuses them: regenerate the catalog with a current `permdock catalog`, which
+writes the flag for every permission.
+
 When the helpers are used but the catalog file is missing, doctor reports an
 info finding: run `permdock catalog` to write it. `defineBucket` and
-`defineTopic` take the same catalog as `catalog` and throw for those keys.
+`defineTopic` take the same catalog as `catalog` and throw for the same keys.
 
 ### BS215
 

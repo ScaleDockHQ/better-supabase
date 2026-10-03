@@ -166,8 +166,24 @@ describe("defineTopic", () => {
       }),
     ).toThrow(/splits by row condition/);
     const catalog = {
-      permissions: [{ key: "board.write", rowConditions: true }],
+      permissions: [
+        { key: "board.write", rowConditions: true },
+        { key: "board.read", rowConditions: false },
+        { key: "board.watch" },
+      ],
     };
+    expect(() =>
+      defineTopic("org:{orgId}:board", {
+        permdock: { receive: "board.watch", scope: "organization" },
+        catalog,
+      }),
+    ).toThrow(/"board\.watch" has no rowConditions flag/);
+    expect(() =>
+      defineTopic("org:{orgId}:board", {
+        permdock: { receive: "board.other", scope: "organization" },
+        catalog,
+      }),
+    ).toThrow(/"board\.other" is not in PermDock's catalog/);
     expect(() =>
       defineTopic("org:{orgId}:board", {
         permdock: {

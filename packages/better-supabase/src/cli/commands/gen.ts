@@ -18,7 +18,7 @@ import {
 import { defineCliCommand } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
-import { configuredPermdockKeys } from "../doctor/permdock.ts";
+import { configuredPermdockKeys, unsafeKey } from "../doctor/permdock.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
@@ -112,22 +112,22 @@ async function readSetFile(
   )[0];
 }
 
-/** `buckets` keys that PermDock's catalog marks with row conditions, as error lines. */
+/** `buckets` keys the catalog doesn't mark `rowConditions: false`, as error lines. */
 async function rowConditionedBuckets(
   config: ResolvedConfig,
 ): Promise<string[]> {
   const configured = configuredPermdockKeys({ config });
   if (configured.length === 0) return [];
   const project = await readPermdock(config.root, config.permdock);
-  const rowConditions = project?.rowConditions;
-  if (!rowConditions) return [];
+  const catalog = project?.catalog;
+  if (!catalog) return [];
   return configured.flatMap(({ bucket, keys }) =>
-    keys
-      .filter((key) => rowConditions.has(key))
-      .map(
-        (key) =>
-          `  buckets.${bucket}: "${key}" has row conditions in ${project.catalogPath}`,
-      ),
+    keys.flatMap((key) => {
+      const problem = unsafeKey(catalog, key, project.catalogPath);
+      return problem
+        ? [`  buckets.${bucket}: "${key}" ${problem.reason}. ${problem.fix}`]
+        : [];
+    }),
   );
 }
 
@@ -140,7 +140,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   if (refused.length > 0) {
     return {
       code: 1,
-      error: `PermDock's SQL helpers don't check row conditions, so these bucket policies would grant every object in the scope:\n${refused.join("\n")}\nUse the policies \`permdock rls generate\` writes for them (doctor BS214).`,
+      error: `PermDock's SQL helpers don't check row conditions, so these bucket policies could grant every object in the scope:\n${refused.join("\n")}\nSee doctor BS214.`,
     };
   }
   const snapshot =
