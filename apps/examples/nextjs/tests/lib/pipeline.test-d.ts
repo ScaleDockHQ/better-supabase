@@ -6,7 +6,7 @@ import { withBetterSupabase } from "better-supabase/server";
 
 import type { Claims } from "@/lib/claims";
 
-import { sb } from "@/lib/supabase";
+import { betterSupabase } from "@/lib/supabase";
 
 // Compile-time only. `permdock` is not on npm yet, so these stand-ins copy
 // the shapes `permdock/supabase/middleware` and `permdock/supabase` export:
@@ -40,7 +40,11 @@ declare function subjectFromSupabaseSession(
 /* oxlint-enable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns */
 
 export const handler = pipeline(
-  [withSupabase({ auth: "user" }), withBetterSupabase(sb)(), withPermDock()],
+  [
+    withSupabase({ auth: "user" }),
+    withBetterSupabase(betterSupabase)(),
+    withPermDock(),
+  ],
   async (_req, ctx) => {
     if (!ctx.permdock.can("customers.read")) {
       return new Response(null, { status: 403 });

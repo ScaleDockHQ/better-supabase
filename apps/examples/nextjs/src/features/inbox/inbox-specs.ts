@@ -1,6 +1,6 @@
-import { sb } from "@/lib/supabase";
+import { betterSupabase } from "@/lib/supabase";
 
 /** The caller's unread notifications; RLS keeps it to their own rows. */
-export const unreadSpec = sb.spec.notifications.count({
+export const unreadSpec = betterSupabase.spec.notifications.count({
   where: { readAt: null },
 });

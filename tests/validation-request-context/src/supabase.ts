@@ -2,7 +2,7 @@ import type { ServerContext } from "better-supabase/server";
 
 import { createBrowserClient } from "@supabase/ssr";
 import { defineSupabase } from "better-supabase";
-import { createBrowser } from "better-supabase/client";
+import { createClient } from "better-supabase/client";
 import { createEdge } from "better-supabase/edge";
 import {
   type BetterSupabaseEnv,
@@ -12,7 +12,7 @@ import {
 
 import { type Functions, type Models, schema } from "./generated.ts";
 
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
 export const supabaseServerEnv = envSchema({ require: ["secretKey"] });
 export const supabaseClientEnv = envSchema();
@@ -33,7 +33,7 @@ export function appRequestHeaders(
 }
 
 export function createAppServer(env: BetterSupabaseEnv, channel: Channel) {
-  return createEdge(sb, {
+  return createEdge(betterSupabase, {
     env,
     headers: (request) => appRequestHeaders(request, channel),
     auth: { secret: ["cron"] },
@@ -61,7 +61,7 @@ export function withCron(
 }
 
 export function createAppBrowser(env: PublicEnv) {
-  return createBrowser(sb, {
+  return createClient(betterSupabase, {
     // oxlint-disable-next-line typescript/no-unsafe-assignment -- supabase-js infers `any` for the schema name without a Database type.
     client: createBrowserClient(env.url, env.publishableKey, {
       global: { headers: { "x-app-channel": "web" } },

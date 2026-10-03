@@ -1,8 +1,9 @@
+import "server-only";
 import { createNext } from "better-supabase/next";
 
-import { sb } from "./supabase";
+import { betterSupabase } from "./index";
 
-export const next = createNext(sb, {
+export const bs = createNext(betterSupabase, {
   debug: {
     enabled: process.env["NEXT_E2E"] === "1",
     budget: { calls: 8, waves: 2 },

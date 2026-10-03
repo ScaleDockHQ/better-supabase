@@ -3,10 +3,10 @@
 import { dbError, err } from "better-supabase";
 import * as v from "valibot";
 
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 /** Sends the caller a notification; the header badge updates over Realtime. */
-export const notifyMe = next.action(
+export const notifyMe = bs.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
@@ -25,7 +25,7 @@ export const notifyMe = next.action(
   },
 );
 
-export const markAllRead = next.action({}, async (_input, { db }) =>
+export const markAllRead = bs.action({}, async (_input, { db }) =>
   db.notifications.updateMany({
     where: { readAt: null },
     data: { readAt: new Date().toISOString() },

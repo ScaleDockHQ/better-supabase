@@ -7,14 +7,14 @@ import * as v from "valibot";
 import { can } from "@/features/user/user-permissions";
 import { toAppResult } from "@/lib/app-error";
 import { logos } from "@/lib/buckets";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 /**
  * Mutations invalidate `bs:customers` with `updateTag` (see `createNext`).
  * With `select better_supabase.set_rate_limit('/customers', 30)` (the
  * `rate-limit` kit module), a burst of creates returns `rate_limited`.
  */
-export const createCustomer = next.action(
+export const createCustomer = bs.action(
   {
     input: v.object({
       name: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
@@ -40,7 +40,7 @@ export const createCustomer = next.action(
  * Uploads a new logo, points the row at its path, then removes the old one.
  * The row keeps the path; URLs are signed when rendering.
  */
-export const uploadCustomerLogo = next.action(
+export const uploadCustomerLogo = bs.action(
   {
     input: v.object({
       customerId: v.pipe(v.string(), v.uuid()),

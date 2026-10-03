@@ -1,8 +1,8 @@
-import type { Queries } from "better-supabase/query";
+import type { BetterQueries } from "better-supabase/query";
 
 import type { Models } from "./lib/supabase";
 
-type AppQueries = Queries<Models, unknown>;
+type AppQueries = BetterQueries<Models, unknown>;
 
 export const customerList = (queries: AppQueries, search = "") =>
   queries.customers.findMany({

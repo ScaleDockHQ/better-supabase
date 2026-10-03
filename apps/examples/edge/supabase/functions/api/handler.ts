@@ -1,8 +1,8 @@
 import { createEdge } from "better-supabase/edge";
 
-import { sb } from "../_shared/supabase.ts";
+import { betterSupabase } from "../_shared/supabase.ts";
 
-const bs = createEdge(sb, { cors: true });
+const bs = createEdge(betterSupabase, { cors: true });
 
 const me = bs.handler((_request, { auth }) => ({ kind: auth.kind }));
 

@@ -2,29 +2,25 @@ import { createMcp, type ToolRef } from "better-supabase/mcp";
 import { type AuthState } from "better-supabase/server";
 import * as v from "valibot";
 
-import { sb } from "../_shared/supabase.ts";
+import { betterSupabase, type RoleClaims } from "../_shared/supabase.ts";
+
+type Auth = AuthState<v.InferOutput<typeof RoleClaims>>;
 
 /** Tools that need a role carry it in `meta`; table tools have none. */
 const RoleMeta = v.object({ role: v.string() });
-/** The custom access token hook sets `user_role` to one role or a list. */
-const RoleClaims = v.object({
-  user_role: v.union([v.string(), v.array(v.string())]),
-});
 
 const requiredRole = (tool: ToolRef): string | undefined => {
   const meta = v.safeParse(RoleMeta, tool.meta);
   return meta.success ? meta.output.role : undefined;
 };
 
-const hasRole = (auth: AuthState, role: string): boolean => {
+const hasRole = (auth: Auth, role: string): boolean => {
   if (auth.kind !== "user") return false;
-  const claims = v.safeParse(RoleClaims, auth.claims);
-  if (!claims.success) return false;
-  const held = claims.output.user_role;
+  const held = auth.claims.user_role;
   return Array.isArray(held) ? held.includes(role) : held === role;
 };
 
-export const mcp = createMcp(sb, {
+export const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "0.1.0",
   resources: {

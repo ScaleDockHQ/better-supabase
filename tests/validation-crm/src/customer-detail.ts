@@ -2,7 +2,7 @@ import { defineReadSet } from "better-supabase";
 
 import type { CrmDb } from "./customers.ts";
 
-import { sb } from "./latency.ts";
+import { betterSupabase } from "./latency.ts";
 
 const CUSTOMER_COLUMNS = [
   "id",
@@ -67,7 +67,7 @@ export function customerDetail(
  * `db.$many(customerDetailSet, params)` reads it with one GET.
  */
 export const customerDetailSet = defineReadSet(
-  sb,
+  betterSupabase,
   "customer_detail",
   { params: { organizationId: "uuid", customerId: "int8" } },
   (s, p) => ({

@@ -2,9 +2,9 @@ import { os } from "@orpc/server";
 import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
 import * as v from "valibot";
 
-import { sb } from "./lib/supabase";
+import { betterSupabase } from "./lib/supabase";
 
-export const bs = createOrpc(sb);
+export const bs = createOrpc(betterSupabase);
 
 const base = os.$context<OrpcRequestContext>();
 const authed = base.use(bs.middleware());

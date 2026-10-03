@@ -9,7 +9,7 @@ import {
 import { type Functions, type Models, schema } from "./generated.ts";
 
 /** The one `defineSupabase` in the monorepo. Domain packages never import `./generated.ts`. */
-export const sb = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema);
 
 /** The request context every domain package receives. */
 export type AppContext = ServerContext<Models, Functions, unknown>;
@@ -23,7 +23,7 @@ export function sessionOf(ctx: AppContext): AuthSession {
 }
 
 export function createRuntime(options: EdgeOptions) {
-  return createEdge(sb, options);
+  return createEdge(betterSupabase, options);
 }
 
 export type Runtime = ReturnType<typeof createRuntime>;

@@ -1,5 +1,5 @@
 import "server-only";
-import { next } from "@/lib/supabase.server";
+import { bs } from "@/lib/supabase/server";
 
 import { unreadSpec } from "./inbox-specs";
 
@@ -8,5 +8,5 @@ import { unreadSpec } from "./inbox-specs";
  * Not cached: the seed must be as fresh as the channel the client joins.
  */
 export async function getUnreadSeed() {
-  return next.liveCount(unreadSpec);
+  return bs.liveCount(unreadSpec);
 }

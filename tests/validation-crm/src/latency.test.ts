@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
 import { type Json } from "./generated.ts";
-import { appChrome, customerOverview, sb } from "./latency.ts";
+import { appChrome, customerOverview, betterSupabase } from "./latency.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -32,7 +32,7 @@ describe("CRM latency ports", () => {
           ]
         : [],
     );
-    const db = sb.connect(
+    const db = betterSupabase.connect(
       createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
     );
     const query = customerOverview.parse(
@@ -71,7 +71,7 @@ describe("CRM latency ports", () => {
           }
         : [],
     );
-    const db = sb.connect(
+    const db = betterSupabase.connect(
       createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
     );
 
