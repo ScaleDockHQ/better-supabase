@@ -38,7 +38,7 @@ their functions.
 | `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin |
 | `tenant`           | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                       |
 | `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                  |
-| `invitations`      | `create_invitation(org, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email                                                        |
+| `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/kits/orgs)                   |
 | `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                         |
 | `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/jobs`](/docs/kits/jobs)                             |
 | `idempotency`      | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                               |
@@ -53,9 +53,10 @@ their functions.
 | `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                      |
 | `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                    |
 | `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                          |
+| `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(org)` and an owner check on commit. See [Organizations](/docs/kits/orgs)                                                                |
 
-`invitations` needs `tenant`, so adding it pulls `tenant` in as well. Both
-read the active tenant from the claim named by `claims.tenant` in the config
+`invitations` and `organizations` need `tenant` and `access`, so adding one
+pulls those in as well. They read the active tenant from the claim named by `claims.tenant` in the config
 (`tenant_id` by default), or from the source in `kits.access.activeTenant`.
 The roles come from `kits.access.roles`. Change modules through `kits` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing

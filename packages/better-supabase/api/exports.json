@@ -663,6 +663,28 @@
       "WorkOptions"
     ]
   },
+  "./orgs": {
+    "values": [
+      "createOrgs",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "CreateOrgOptions",
+      "Invitation",
+      "InvitationPreview",
+      "InvitationSent",
+      "InvitationStatus",
+      "InviteRequest",
+      "OrgAttributes",
+      "Orgs",
+      "OrgsOptions",
+      "OrgsTransport",
+      "RpcClient",
+      "SlugProblem",
+      "SwitchResult"
+    ]
+  },
   "./env": {
     "values": [
       "ENV_VARIABLES",

@@ -64,6 +64,7 @@ if (!result.ok) return result; // DbError: kind, message, status, code
 | `better-supabase/hono`, `/orpc`, `/edge`                   | Framework adapters                                                       |
 | `better-supabase/mcp`                                      | MCP servers whose tools run as the signed-in user                        |
 | `better-supabase/jobs`                                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
+| `better-supabase/orgs`                                     | Organizations, members, invitations and switching from the SQL kit       |
 | `better-supabase/list`                                     | Search, facets, sorting and pagination from one definition               |
 | `better-supabase/storage`, `/realtime`                     | Typed bucket paths and broadcast topics                                  |
 | `better-supabase/env`                                      | Validated Supabase settings                                              |

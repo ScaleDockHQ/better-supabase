@@ -6,6 +6,7 @@
     "realtime",
     "sql",
     "access",
+    "orgs",
     "jobs",
     "entitlements",
     "vector-search"

@@ -19,6 +19,7 @@ const entries = [
   "edge/index",
   "mcp/index",
   "jobs/index",
+  "orgs/index",
   "env/index",
   "list/index",
   "storage/index",

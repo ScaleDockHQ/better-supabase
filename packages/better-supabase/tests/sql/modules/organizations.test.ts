@@ -1,0 +1,118 @@
+import { describe, expect, it } from "vitest";
+
+import type { KitsConfig } from "../../../src/config/kits.ts";
+
+import { moduleBody, resolveModules } from "../../../src/sql/kit.ts";
+
+const CENTRAKIT: KitsConfig = {
+  access: { model: "catalog", platformClaim: "system_permissions" },
+  tenant: {
+    mode: "adopt",
+    tables: { memberships: "public.organization_users" },
+    columns: {
+      memberships: {
+        tenant: "organization_id",
+        role: "role_id",
+        lastUsedAt: null,
+      },
+    },
+  },
+  organizations: {
+    mode: "adopt",
+    tables: { organizations: "public.organizations" },
+    columns: { organizations: { createdBy: null, deletedAt: null } },
+    permissions: { removeMember: "organization.members.remove" },
+    hooks: {
+      schema: "public",
+      functions: { after_organization_create: "seed_organization" },
+    },
+    options: {
+      attributes: ["website", "default_currency"],
+      reservedSlugs: ["app"],
+    },
+  },
+};
+
+const body = (kits: KitsConfig) => moduleBody("organizations", { kits })!;
+
+describe("organizations module", () => {
+  it("owns its table and makes the creator the owner", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."organizations" (',
+    );
+    expect(sql).toContain(
+      'insert into "better_supabase"."memberships" ("org_id", "user_id", "role")\n  values (org, owner, \'owner\');',
+    );
+    expect(sql).toContain('create constraint trigger "bs_org_owner"');
+    expect(sql).toContain("deferrable initially deferred");
+    expect(sql).toContain("hint = 'ORG_ROLE_CEILING'");
+    expect(sql).toContain(
+      "perform set_config('better_supabase.trusted', 'on', true);",
+    );
+    expect(sql).toContain(
+      'delete from "better_supabase"."organizations" where "id" = org;',
+    );
+  });
+
+  it("adopts CentraKit's tables with catalog role ids and its seeding hook", () => {
+    const sql = body(CENTRAKIT);
+    expect(sql).not.toContain("create table if not exists");
+    expect(sql).toContain(
+      'insert into "public"."organizations" ("name", "slug", "website", "default_currency")',
+    );
+    expect(sql).toContain(
+      'select r."id" from "better_supabase"."roles" r where r."id"::text = (\'owner\')::text',
+    );
+    expect(sql).toContain(
+      `to_regprocedure('"public"."seed_organization"(uuid, uuid)')`,
+    );
+    expect(sql).toContain("'organization.members.remove'");
+    expect(sql).toContain(`lower(value) = any (array['app']::text[])`);
+    expect(sql).toContain('o."disabled_at" is null');
+    expect(sql).toContain('on "public"."organization_users"');
+  });
+
+  it("soft-deletes, renders without the guards and checks its options", () => {
+    const soft = body({
+      organizations: {
+        options: {
+          deleteMode: "soft",
+          ownerInvariant: false,
+          assignmentCeiling: false,
+        },
+      },
+    });
+    expect(soft).toContain('set "deleted_at" = now()');
+    expect(soft).not.toContain("bs_org_owner");
+    expect(soft).not.toContain("guard_membership");
+    expect(() =>
+      body({
+        organizations: {
+          options: { deleteMode: "soft" },
+          columns: { organizations: { deletedAt: null } },
+        },
+      }),
+    ).toThrow(/deleteMode 'soft' needs the deletedAt column/);
+    expect(() =>
+      body({ organizations: { options: { attributes: ["x; drop"] } } }),
+    ).toThrow(/is not a valid column/);
+  });
+
+  it("checks a create permission when one is configured", () => {
+    expect(
+      body({ organizations: { permissions: { create: "orgs.create" } } }),
+    ).toContain("better_supabase.is_platform('orgs.create')");
+    expect(body({})).not.toContain("Not allowed to create an organization");
+  });
+
+  it("installs after tenant and access", () => {
+    const names = resolveModules(["organizations"]).map((m) => m.name);
+    expect(names).toEqual(["tenant", "access", "organizations"]);
+    expect(
+      moduleBody("organizations", {
+        kits: { organizations: { mode: "custom" } },
+      }),
+    ).toBeUndefined();
+  });
+});

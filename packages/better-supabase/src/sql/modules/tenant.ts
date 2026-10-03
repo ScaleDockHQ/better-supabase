@@ -128,9 +128,12 @@ create policy bs_memberships_read on ${m}
   using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_org_ids()));
 `
     : "";
+  // The catalog's roles table is in the access module's file, which sorts
+  // after this one; the bodies are checked when they first run instead.
+  const deferBodies = model === "catalog";
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${table}${disabledHelpers(ctx)}
+${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${disabledHelpers(ctx)}
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:
@@ -207,7 +210,7 @@ as $$
 $$;
 
 revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
-grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`;
+grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;${deferBodies ? "\nreset check_function_bodies;" : ""}`;
 }
 
 export const TENANT: KitModuleDefinition = {

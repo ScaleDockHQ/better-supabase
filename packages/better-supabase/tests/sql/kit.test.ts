@@ -17,11 +17,11 @@ describe("resolveModules", () => {
       resolveModules(["invitations", "updated-at"]).map(
         (module) => module.name,
       ),
-    ).toEqual(["updated-at", "tenant", "invitations"]);
+    ).toEqual(["updated-at", "tenant", "invitations", "access"]);
   });
 
   it("deduplicates and rejects unknown modules", () => {
-    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(2);
+    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(3);
     expect(() => resolveModules(["nope"])).toThrow(
       /Unknown SQL kit module "nope"/,
     );

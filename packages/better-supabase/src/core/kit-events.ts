@@ -63,6 +63,8 @@ export interface KitEventMap {
   "support.ended": SupportEventData;
   "support.denied": SupportEventData;
   "org.created": OrgEventData;
+  "org.updated": OrgEventData;
+  "org.deleted": OrgEventData;
   "org.member_added": OrgEventData;
   "org.member_removed": OrgEventData;
   "org.member_left": OrgEventData;

@@ -244,7 +244,7 @@ describe("kit modes", () => {
   it("writes no file in custom mode and lists the contract instead", () => {
     const layout = { kits: { tenant: { mode: "custom" as const } } };
     const files = renderKit(["invitations"], layout);
-    expect(files.map((file) => file.module)).toEqual(["invitations"]);
+    expect(files.map((file) => file.module)).toEqual(["invitations", "access"]);
     expect(moduleBody("tenant", layout)).toBeUndefined();
     const [contract] = customContracts(["invitations"], layout);
     expect(contract).toMatchObject({
