@@ -51,6 +51,22 @@ export interface KitTableSpec {
 
 export interface KitNames {
   readonly tables: Readonly<Record<string, KitTableSpec>>;
+  /** The `before_*` and `after_*` hooks the module calls, so `kits.<name>.hooks.functions` is checked. */
+  readonly hooks?: readonly string[];
+}
+
+/** An event a module writes to the outbox, as SQL expressions. */
+export interface KitEmit {
+  /** The event type, e.g. `org.created`. */
+  readonly type: string;
+  /** A `jsonb` expression. */
+  readonly payload: string;
+  /** A `text` expression, e.g. `'organizations/' || new_org`. */
+  readonly subject?: string;
+  /** The tenant id expression; it is cast to text. */
+  readonly tenant?: string;
+  /** A `text` idempotency key expression. */
+  readonly key?: string;
 }
 
 /** A function of a module's contract: what other modules and the TypeScript side call. */
@@ -105,6 +121,18 @@ export interface KitContext {
   flag(name: string, fallback: boolean): boolean;
   /** A module option that is a list of strings. */
   list(name: string, fallback: readonly string[]): readonly string[];
+  /**
+   * PL/pgSQL that calls the app's hook function when it exists, with
+   * `[type, expression]` arguments: `if to_regprocedure(...) is not null
+   * then perform ...; end if;`.
+   */
+  hook(name: string, args: readonly (readonly [string, string])[]): string;
+  /**
+   * PL/pgSQL that writes the event to the outbox (`emit_event`) when the
+   * `outbox` module is installed and `kits.<name>.events` isn't false;
+   * otherwise an empty string.
+   */
+  emit(event: KitEmit): string;
 }
 
 export interface KitContextSource {
@@ -184,6 +212,18 @@ export function createKitContext(
         }
       } else checkIdent(`${where}.columns.${table}.${column}`, name);
     }
+  }
+
+  checkIdent(`${where}.hooks.schema`, config.hooks.schema);
+  for (const [hook, target] of Object.entries(config.hooks.functions)) {
+    if (!names.hooks?.includes(hook)) {
+      throw new TypeError(
+        `${where}.hooks.functions: unknown hook "${hook}". Hooks: ${names.hooks?.length ? names.hooks.join(", ") : "none"}`,
+      );
+    }
+    const parts = splitTable(target, config.hooks.schema);
+    checkIdent(`${where}.hooks.functions.${hook}`, parts.schema);
+    checkIdent(`${where}.hooks.functions.${hook}`, parts.name);
   }
 
   const rawId =
@@ -298,6 +338,32 @@ export function createKitContext(
         throw new TypeError(`${where}.options.${name} must be a string array`);
       }
       return value;
+    },
+    hook(name, args) {
+      if (!names.hooks?.includes(name)) {
+        throw new TypeError(`Module "${module}" declares no hook "${name}"`);
+      }
+      const parts = splitTable(
+        config.hooks.functions[name] ?? name,
+        config.hooks.schema,
+      );
+      const target = `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
+      const types = args.map(([type]) => type).join(", ");
+      return `if to_regprocedure(${sqlString(`${target}(${types})`)}) is not null then
+    perform ${target}(${args.map(([, value]) => value).join(", ")});
+  end if;`;
+    },
+    emit(event) {
+      if (!config.events || !installed.has("outbox")) return "";
+      const outbox = sqlIdent(resolveKitModule(kits["outbox"]).schema);
+      return `perform ${outbox}.emit_event(${[
+        sqlString(event.type),
+        event.payload,
+        event.subject ?? "null",
+        event.tenant === undefined ? "null" : `(${event.tenant})::text`,
+        event.key ?? "null",
+        sqlString(`better-supabase/${module}`),
+      ].join(", ")});`;
     },
   };
 }

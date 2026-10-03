@@ -110,6 +110,9 @@
       "HookArgs",
       "InferReadSetParams",
       "InferResult",
+      "KitEvent",
+      "KitEventMap",
+      "KitEventType",
       "LogFields",
       "Logger",
       "MemoryCache",
@@ -126,6 +129,8 @@
       "PlanLimit",
       "PlanOrder",
       "Plugin",
+      "Policy",
+      "PolicyDecision",
       "PostgrestClientLike",
       "PostgrestPlan",
       "ProblemDetails",
@@ -726,10 +731,15 @@
   },
   "./events": {
     "values": [
+      "forwardKitEvents",
       "forwardMutations",
       "fromHttp",
       "httpSink",
       "isCloudEvent",
+      "KIT_ATTRIBUTES",
+      "kitCloudEvent",
+      "kitEventAttributes",
+      "onKitEvent",
       "ROW_EVENT_TYPES",
       "toCloudEvents",
       "toHttp"
@@ -738,10 +748,22 @@
       "CloudEvent",
       "CloudEventOptions",
       "EventSink",
+      "ForwardKitOptions",
       "ForwardOptions",
       "HttpMode",
       "HttpSinkOptions",
-      "RowEventData"
+      "InvitationEventData",
+      "KitEvent",
+      "KitEventMap",
+      "KitEventMeta",
+      "KitEventPattern",
+      "KitEventsMatching",
+      "KitEventType",
+      "NotificationEventData",
+      "OrgEventData",
+      "RowEventData",
+      "SupportEventData",
+      "WebhookEventData"
     ]
   },
   "./webhooks": {
@@ -784,7 +806,8 @@
       "otel",
       "SEMCONV_VERSION",
       "traceAuth",
-      "tracedFetch"
+      "tracedFetch",
+      "traceKitEvents"
     ],
     "types": [
       "OtelOptions"

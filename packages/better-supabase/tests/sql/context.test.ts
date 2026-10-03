@@ -129,6 +129,92 @@ describe("createKitContext", () => {
   });
 });
 
+describe("hooks and events", () => {
+  const hooked = { ...names, hooks: ["after_item_create"] };
+
+  it("calls the app's hook function when it exists", () => {
+    const ctx = createKitContext("demo", () => hooked);
+    expect(
+      ctx.hook("after_item_create", [
+        ["uuid", "new_id"],
+        ["uuid", "auth.uid()"],
+      ]),
+    )
+      .toBe(`if to_regprocedure('"public"."after_item_create"(uuid, uuid)') is not null then
+    perform "public"."after_item_create"(new_id, auth.uid());
+  end if;`);
+    expect(() => ctx.hook("before_item_create", [])).toThrow(
+      'Module "demo" declares no hook "before_item_create"',
+    );
+  });
+
+  it("looks hooks up in the configured schema and functions", () => {
+    const ctx = createKitContext("demo", () => hooked, {
+      kits: {
+        demo: {
+          hooks: {
+            schema: "app",
+            functions: { after_item_create: "private.seed_item" },
+          },
+        },
+      },
+    });
+    expect(ctx.hook("after_item_create", [["uuid", "id"]])).toContain(
+      'perform "private"."seed_item"(id);',
+    );
+    expect(() =>
+      createKitContext("demo", () => hooked, {
+        kits: { demo: { hooks: { functions: { nope: "x" } } } },
+      }),
+    ).toThrow(
+      'kits.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
+    );
+    expect(() =>
+      createKitContext("demo", () => names, {
+        kits: { demo: { hooks: { functions: { nope: "x" } } } },
+      }),
+    ).toThrow("Hooks: none");
+    expect(() =>
+      createKitContext("demo", () => hooked, {
+        kits: {
+          demo: { hooks: { functions: { after_item_create: "bad name" } } },
+        },
+      }),
+    ).toThrow("is not a valid identifier");
+    expect(() =>
+      createKitContext("demo", () => hooked, {
+        kits: { demo: { hooks: { schema: "1x" } } },
+      }),
+    ).toThrow("kits.demo.hooks.schema");
+  });
+
+  it("writes outbox events only with the outbox installed", () => {
+    const event = {
+      type: "item.created",
+      payload: "jsonb_build_object('id', new_id)",
+      subject: "'items/' || new_id",
+      tenant: "org",
+    };
+    expect(createKitContext("demo", () => names).emit(event)).toBe("");
+    const ctx = createKitContext("demo", () => names, {
+      installed: ["demo", "outbox"],
+      kits: { outbox: { schema: "events" } },
+    });
+    expect(ctx.emit(event)).toBe(
+      `perform "events".emit_event('item.created', jsonb_build_object('id', new_id), 'items/' || new_id, (org)::text, null, 'better-supabase/demo');`,
+    );
+    expect(ctx.emit({ type: "x", payload: "'{}'", key: "k" })).toBe(
+      `perform "events".emit_event('x', '{}', null, null, k, 'better-supabase/demo');`,
+    );
+    expect(
+      createKitContext("demo", () => names, {
+        installed: ["demo", "outbox"],
+        kits: { demo: { events: false } },
+      }).emit(event),
+    ).toBe("");
+  });
+});
+
 describe("kit modes", () => {
   it("rejects kits for unknown modules and unsupported modes", () => {
     expect(() => {

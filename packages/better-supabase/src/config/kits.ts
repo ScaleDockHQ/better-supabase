@@ -45,6 +45,21 @@ export interface KitModuleConfig {
   readonly permissions?: Readonly<Record<string, string>>;
   /** Module-specific options; each module's docs page lists them. */
   readonly options?: Readonly<Record<string, unknown>>;
+  /**
+   * The app's optional `before_*` and `after_*` functions the module calls
+   * when they exist, e.g. `after_organization_create(org, user)`. They are
+   * looked up in `schema` (default `public`); `functions` maps a hook name
+   * to another function, e.g. `{ after_organization_create: 'app.seed_org' }`.
+   */
+  readonly hooks?: {
+    readonly schema?: string;
+    readonly functions?: Readonly<Record<string, string>>;
+  };
+  /**
+   * Whether the module writes its events to the outbox (`emit_event`) when
+   * the `outbox` module is installed. Defaults to true.
+   */
+  readonly events?: boolean;
 }
 
 /** Where the active tenant of a request comes from. */
@@ -134,6 +149,11 @@ export interface ResolvedKitModule {
   readonly triggerPrefix: string;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
+  readonly hooks: {
+    readonly schema: string;
+    readonly functions: Readonly<Record<string, string>>;
+  };
+  readonly events: boolean;
 }
 
 export const KIT_SCHEMA = "better_supabase";
@@ -150,5 +170,10 @@ export function resolveKitModule(
     triggerPrefix: config.triggerPrefix ?? "bs_",
     permissions: config.permissions ?? {},
     options: config.options ?? {},
+    hooks: {
+      schema: config.hooks?.schema ?? "public",
+      functions: config.hooks?.functions ?? {},
+    },
+    events: config.events ?? true,
   };
 }

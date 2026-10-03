@@ -33,6 +33,13 @@ const kitModuleEntries = {
   triggerPrefix: v.optional(v.string()),
   permissions: v.optional(stringRecord),
   options: v.optional(v.record(v.string(), v.unknown())),
+  hooks: v.optional(
+    v.strictObject({
+      schema: v.optional(v.string()),
+      functions: v.optional(stringRecord),
+    }),
+  ),
+  events: v.optional(v.boolean()),
 };
 
 const accessKit = v.strictObject({

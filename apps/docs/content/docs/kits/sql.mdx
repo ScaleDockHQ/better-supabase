@@ -143,6 +143,8 @@ export default defineConfig({
 | `triggerPrefix` | the prefix of the triggers the module creates (`bs_`)                                   |
 | `permissions`   | kit action to permission key, checked through the [access contract](/docs/kits/access)  |
 | `options`       | module options, listed on each module's page                                            |
+| `hooks`         | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)      |
+| `events`        | `false` stops the module writing its events to the outbox                               |
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the
