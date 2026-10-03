@@ -65,7 +65,8 @@ const library = defineConfig({
   // so their directive survives in the entry chunks.
   treeshake: {
     moduleSideEffects: (id) =>
-      /src\/react\/(index|hooks|session)\.ts$/.test(id) || !id.startsWith(src),
+      /src\/react\/(index|hooks|session|notifications)\.ts$/.test(id) ||
+      !id.startsWith(src),
   },
   plugins: [
     {
@@ -98,9 +99,9 @@ const library = defineConfig({
       // Rolldown keeps "use client" on the react entry chunks; tests/bundle asserts it.
       if (
         log.code === "MODULE_LEVEL_DIRECTIVE" &&
-        (log.id?.endsWith("src/react/index.ts") ||
-          log.id?.endsWith("src/react/hooks.ts") ||
-          log.id?.endsWith("src/react/session.ts"))
+        /src\/react\/(index|hooks|session|notifications)\.ts$/.test(
+          log.id ?? "",
+        )
       )
         return;
       handler(level, log);
