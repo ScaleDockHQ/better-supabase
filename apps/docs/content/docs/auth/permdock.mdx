@@ -223,7 +223,9 @@ export const listCustomers = pipeline(
 hooks](/docs/frameworks/mcp#authorizing-tools) instead: put the PermDock
 permission in each tool's `meta`, answer `visible` with PermDock's `mayUse`
 and `authorize` with `can`. `meta` is `unknown` to better-supabase, which
-never imports PermDock, so narrow it with PermDock's `isPermission` first:
+never imports PermDock, so narrow it with PermDock's `isPermission` first. A
+tool without a PermDock permission in `meta` is hidden and refused, so a tool
+someone forgot to annotate is never open to everyone:
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from "better-supabase/mcp";
@@ -239,13 +241,14 @@ const bs = createMcp(betterSupabase, {
   version: "1.0.0",
   scopes: ["openid"],
   authorize: async (ctx, tool) => {
-    if (!isPermission(tool.meta)) return { allowed: true };
+    if (!isPermission(tool.meta))
+      return { allowed: false, reason: "No PermDock permission in meta" };
     return (await dockFor(ctx)).can(tool.meta)
       ? { allowed: true }
       : { allowed: false, reason: "PermDock denied this tool" };
   },
   visible: async (ctx, tool) =>
-    !isPermission(tool.meta) || mayUse(await dockFor(ctx), tool.meta),
+    isPermission(tool.meta) && mayUse(await dockFor(ctx), tool.meta),
 }).tool({
   name: "export_customers",
   description: "Export the organization’s customers as CSV.",
@@ -253,6 +256,10 @@ const bs = createMcp(betterSupabase, {
   run: (_args, { db }) => db.customers.findMany(),
 });
 ```
+
+To tell the client why PermDock refused, call `decide(tool.meta)` instead of
+`can`: the decision's `denials` carry the reason (such as `no-grant` or
+`approval`) to put in the refusal's `reason`.
 
 Return `scopes` from `authorize` when the permission needs an OAuth scope the
 token lacks, and the client gets an `insufficient_scope` challenge naming it.

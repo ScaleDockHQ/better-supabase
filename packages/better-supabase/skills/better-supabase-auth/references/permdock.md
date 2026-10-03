@@ -46,8 +46,11 @@ the other.
 - `permdock` mode compares ids as text, so a path or topic segment must be
   the id's lowercase form.
 - In MCP servers, narrow `tool.meta` with PermDock's `isPermission`, answer
-  `visible` with `mayUse` and `authorize` with `can`. `can` decides without
-  a row, so check row-conditioned permissions inside `run` or rely on RLS.
+  `visible` with `mayUse` and `authorize` with `can`. A tool without a
+  PermDock permission in `meta` is denied: `visible` returns `false` and
+  `authorize` returns `{ allowed: false }`. Use `decide` instead of `can` to
+  put the denial reason in the refusal. `can` decides without a row, so check
+  row-conditioned permissions inside `run` or rely on RLS.
 - In Next.js, cache the permission snapshot with
   `bs.cached({ tags: [snapshotTag(userId)], life: cacheLifeFor(snapshot) })`
   and drop it with `bs.invalidateSession(userId, { tags: [snapshotTag(userId)] })`
