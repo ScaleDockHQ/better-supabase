@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tags": ["test"],
   "tasks": {
-    "bench": {
+    "typecheck:perf": {
       "env": ["BENCH_UPDATE"],
       "dependsOn": ["^build"]
     }

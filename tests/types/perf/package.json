@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench": "node bench.ts",
     "lint": "oxlint",
     "transit": "true",
+    "typecheck:perf": "node bench.ts",
     "update": "BENCH_UPDATE=1 node bench.ts"
   },
   "devDependencies": {

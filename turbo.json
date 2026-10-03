@@ -29,7 +29,9 @@
     "oxfmt.config.ts",
     "pnpm-workspace.yaml",
     "packages/typescript-config/**",
-    "packages/ox-config/**"
+    "packages/ox-config/**",
+    "!packages/*/.turbo/**",
+    "!packages/*/node_modules/**"
   ],
   "remoteCache": {
     "teamSlug": "scaledock",
@@ -89,6 +91,61 @@
     "typecheck": {
       "dependsOn": ["transit"]
     },
+    "//#typecheck:tooling": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!apps/**",
+        "!packages/**",
+        "!tests/**",
+        "!supabase/**",
+        "!docs/**"
+      ]
+    },
+    "typecheck:matrix": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tests/types/shared/*.json",
+        "$TURBO_ROOT$/tests/types/shared/*.ts"
+      ]
+    },
+    "typecheck:perf": {
+      "dependsOn": ["^build"]
+    },
+    "gen:check": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/supabase/snapshot.json"]
+    },
+    "doctor": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/snapshot.json",
+        "$TURBO_ROOT$/supabase/schemas/**",
+        "$TURBO_ROOT$/supabase/migrations/**"
+      ]
+    },
+    "//#check:prose": {
+      "inputs": [
+        "scripts/check-prose.ts",
+        "*.md",
+        "docs/**",
+        ".changeset/**",
+        "apps/docs/content/**",
+        "packages/better-supabase/README.md",
+        "packages/better-supabase/skills/**"
+      ]
+    },
+    "//#docs:drift": {
+      "inputs": [
+        "scripts/docs-drift.ts",
+        "apps/docs/content/**",
+        "packages/better-supabase/README.md",
+        "packages/better-supabase/package.json",
+        "packages/better-supabase/schemas/**"
+      ]
+    },
+    "//#knip": {},
     "test": {
       "dependsOn": ["transit"]
     },

@@ -45,14 +45,16 @@ docs/
 - `pnpm install`: install (pnpm 12, Node 24).
 - `pnpm verify`: the gate before every push. It runs the format check, lint
   (type-aware Oxlint with the anti-slop plugin), the prose check, typecheck,
-  Knip, Turbo boundaries, tests, doctor and `pnpm audit`.
+  Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except
+  the format check, boundaries and audit is a cached Turbo task with
+  `inputs` in `turbo.json`, so a second run only repeats what changed.
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm knip` and `pnpm boundaries` run one step of `verify`.
 - `pnpm build`: tsdown build of every package and app.
 - `pnpm test`: unit and type tests (vitest, `expectTypeOf`). Tests live in each
   workspace's `tests/` folder, and the root `vitest.config.ts` lists the projects.
   Each published package's unit tests alone must hold the coverage thresholds
   in its `vitest.config.ts` (never below 90% lines, statements and functions,
-  80% branches); `autoUpdate` raises them.
+  80% branches); `autoUpdate` raises them locally, never in CI.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack (`SUPABASE_EXPERIMENTAL_STACK=1` runs it without Docker), a reset from the migrations and seed, and the pgTAP tests.
