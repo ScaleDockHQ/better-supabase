@@ -84,8 +84,22 @@ function scope(client: PostgrestClientLike, schema: string): ScopedClient {
   // from() and may have schema() and rpc().
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PostgrestClientLike is structural and `schema()` is optional at runtime.
   const loose = client as unknown as LooseClient;
-  return schema !== "public" && loose.schema ? loose.schema(schema) : loose;
+  if (schema === "public" || !loose.schema) return loose;
+  let schemas = scopedClients.get(client);
+  if (!schemas) {
+    schemas = new Map();
+    scopedClients.set(client, schemas);
+  }
+  let scoped = schemas.get(schema);
+  if (!scoped) {
+    scoped = loose.schema(schema);
+    schemas.set(schema, scoped);
+  }
+  return scoped;
 }
+
+/** `schema()` builds a new client on every call; one per client and schema is enough. */
+const scopedClients = new WeakMap<object, Map<string, ScopedClient>>();
 
 function fromTable(
   client: PostgrestClientLike,

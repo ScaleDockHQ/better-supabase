@@ -2,6 +2,7 @@ import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
 import { DbException, dbError } from "../core/errors.ts";
 import { relationMeta } from "../schema/define.ts";
+import { lookupOf } from "../schema/lookup.ts";
 import { encodeValue } from "./codec.ts";
 import {
   type AggregateFn,
@@ -93,8 +94,22 @@ export function escapeLike(value: string): string {
   return value.replaceAll(/[\\%_]/g, (char) => `\\${char}`);
 }
 
+const builders = new WeakMap<SchemaMeta, IrBuilder>();
+
+/** The shared builder for a schema; a builder holds no per-call state. */
+export function builderFor(meta: SchemaMeta): IrBuilder {
+  let builder = builders.get(meta);
+  if (!builder) {
+    builder = new IrBuilder(meta);
+    builders.set(meta, builder);
+  }
+  return builder;
+}
+
 export class IrBuilder {
   readonly meta: SchemaMeta;
+  /** Every column of a table, the selection of reads without `select`. */
+  readonly #allColumns = new WeakMap<TableMeta, readonly SelectColumn[]>();
 
   constructor(meta: SchemaMeta) {
     this.meta = meta;
@@ -328,8 +343,9 @@ export class IrBuilder {
     select: readonly string[] | undefined,
     include: unknown,
   ): Selection {
-    const names = select ?? Object.keys(table.columns);
-    const columns = names.map((alias) => this.selectColumn(table, alias));
+    const columns =
+      select?.map((alias) => this.selectColumn(table, alias)) ??
+      this.allColumns(table);
     const includes: Include[] = [];
     if (include !== undefined) {
       if (!isPlainObject(include)) {
@@ -459,6 +475,17 @@ export class IrBuilder {
     const codec = fn === "avg" ? undefined : meta?.codec;
     if (!codec) return { fn, key, alias, column };
     return { fn, key, alias, column, cast: "text", codec };
+  }
+
+  private allColumns(table: TableMeta): readonly SelectColumn[] {
+    let columns = this.#allColumns.get(table);
+    if (!columns) {
+      columns = Object.keys(table.columns).map((alias) =>
+        this.selectColumn(table, alias),
+      );
+      this.#allColumns.set(table, columns);
+    }
+    return columns;
   }
 
   /** A selected column, with the cast and codec its metadata asks for. */
@@ -595,7 +622,7 @@ export class IrBuilder {
       invalidRequest(`"where" on "${table.key}" must be an object`, table.key);
     }
     const given = Object.keys(input).filter((key) => input[key] !== undefined);
-    const keys = [table.primaryKey, ...Object.values(table.uniqueKeys)];
+    const { keys } = lookupOf(table);
     const match = keys.find(
       (key) =>
         key.length > 0 &&

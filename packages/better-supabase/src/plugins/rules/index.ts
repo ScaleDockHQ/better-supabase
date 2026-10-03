@@ -1,5 +1,5 @@
 import type { Operation, Selection } from "../../ir/types.ts";
-import type { SchemaMeta, TableMeta } from "../../schema/types.ts";
+import type { ColumnMeta, SchemaMeta, TableMeta } from "../../schema/types.ts";
 
 import { claimAt, claimsOf } from "../../core/claims.ts";
 import { dbError, DbException } from "../../core/errors.ts";
@@ -9,6 +9,7 @@ import {
   type Plugin,
   type RepositoryExtension,
 } from "../../core/plugin.ts";
+import { lookupOf } from "../../schema/lookup.ts";
 
 export type RuleLevel = "off" | "warn" | "error";
 
@@ -134,7 +135,18 @@ function optionOf<T>(setting: RuleSetting<T> | undefined, fallback: T): T {
     : fallback;
 }
 
+const depths = new WeakMap<Selection, number>();
+
 function includeDepth(selection: Selection): number {
+  let depth = depths.get(selection);
+  if (depth === undefined) {
+    depth = computeIncludeDepth(selection);
+    depths.set(selection, depth);
+  }
+  return depth;
+}
+
+function computeIncludeDepth(selection: Selection): number {
   let depth = 0;
   for (const include of selection.includes) {
     if (include.count !== undefined || include.aggregate !== undefined)
@@ -144,20 +156,33 @@ function includeDepth(selection: Selection): number {
   return depth;
 }
 
+const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
+
+function sensitiveOf(table: TableMeta): ReadonlySet<string> {
+  let sensitive = sensitiveByTable.get(table);
+  if (!sensitive) {
+    sensitive = new Set(
+      lookupOf(table)
+        .entries.filter(([, column]) => column.sensitive)
+        .map(([, column]) => column.db),
+    );
+    sensitiveByTable.set(table, sensitive);
+  }
+  return sensitive;
+}
+
 function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
   const found: string[] = [];
-  const sensitive = new Set(
-    Object.values(table.columns)
-      .filter((column) => column.sensitive)
-      .map((column) => column.db),
-  );
-  const columns = [
-    ...selection.columns,
-    ...(selection.aggregate?.measures ?? []),
-  ];
-  for (const column of columns) {
-    if (sensitive.has(column.column))
-      found.push(`${table.key}.${column.column}`);
+  const sensitive = sensitiveOf(table);
+  if (sensitive.size > 0) {
+    for (const column of selection.columns) {
+      if (sensitive.has(column.column))
+        found.push(`${table.key}.${column.column}`);
+    }
+    for (const measure of selection.aggregate?.measures ?? []) {
+      if (sensitive.has(measure.column))
+        found.push(`${table.key}.${measure.column}`);
+    }
   }
   for (const include of selection.includes) {
     found.push(...sensitiveColumns(include.selection, include.target));
@@ -201,6 +226,25 @@ function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
   return templates;
 }
 
+const urlColumnsByTable = new WeakMap<TableMeta, readonly ColumnMeta[]>();
+
+/** Scalar text columns named `*_url`, the only ones the rule inspects. */
+function urlColumns(table: TableMeta): readonly ColumnMeta[] {
+  let columns = urlColumnsByTable.get(table);
+  if (!columns) {
+    columns = lookupOf(table)
+      .entries.map(([, column]) => column)
+      .filter(
+        (column) =>
+          column.db.endsWith("_url") &&
+          !column.array &&
+          TEXT_TYPES.has(column.type),
+      );
+    urlColumnsByTable.set(table, columns);
+  }
+  return columns;
+}
+
 function storedObjectColumn(
   op: Operation,
   schema: SchemaMeta,
@@ -208,14 +252,8 @@ function storedObjectColumn(
   const rows =
     op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
   if (rows.length === 0) return undefined;
-  for (const column of Object.values(op.table.columns)) {
-    if (
-      !rows.some((row) => column.db in row) ||
-      !column.db.endsWith("_url") ||
-      column.array ||
-      !TEXT_TYPES.has(column.type)
-    )
-      continue;
+  for (const column of urlColumns(op.table)) {
+    if (!rows.some((row) => column.db in row)) continue;
     const path = `${column.db.slice(0, -4)}_path`;
     if (column.storage !== undefined)
       return `"${column.db}" holds paths in bucket "${column.storage}"; name it "${path}"`;
@@ -236,6 +274,8 @@ function storedObjectColumn(
 type Check = (op: Operation, hook: HookArgs) => string | undefined;
 
 function checks(rules: RuleSet): Record<RuleName, Check> {
+  const maxLimit = optionOf(rules.maxLimit, 1000);
+  const maxDepth = optionOf(rules.maxIncludeDepth, 3);
   return {
     noUnboundedFindMany: (op) =>
       op.kind === "select" &&
@@ -244,12 +284,10 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       op.limit === undefined
         ? "findMany without limit reads every visible row"
         : undefined,
-    maxLimit: (op) => {
-      const max = optionOf(rules.maxLimit, 1000);
-      return op.kind === "select" && op.limit !== undefined && op.limit > max
-        ? `limit ${op.limit} is above the maximum of ${max}`
-        : undefined;
-    },
+    maxLimit: (op) =>
+      op.kind === "select" && op.limit !== undefined && op.limit > maxLimit
+        ? `limit ${op.limit} is above the maximum of ${maxLimit}`
+        : undefined,
     requireOrderByForCursor: (op) =>
       op.kind === "select" &&
       !op.head &&
@@ -258,7 +296,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         ? "paging without orderBy returns rows in no stable order"
         : undefined,
     maxIncludeDepth: (op) => {
-      const max = optionOf(rules.maxIncludeDepth, 3);
+      const max = maxDepth;
       const selection = op.kind === "select" ? op.selection : op.returning;
       const depth = selection ? includeDepth(selection) : 0;
       return depth > max

@@ -245,6 +245,9 @@ catalogs:
     '@supabase/middleware':
       specifier: 1.0.0
       version: 1.0.0
+    '@supabase/postgrest-js':
+      specifier: 2.117.2
+      version: 2.117.2
     '@supabase/postgrest-typegen':
       specifier: 0.3.1
       version: 0.3.1
@@ -1003,6 +1006,9 @@ importers:
       '@supabase/middleware':
         specifier: 'catalog:'
         version: 1.0.0(typescript@7.0.2)
+      '@supabase/postgrest-js':
+        specifier: 'catalog:'
+        version: 2.117.2
       '@supabase/postgrest-typegen':
         specifier: 'catalog:'
         version: 0.3.1(oxfmt@0.71.0)

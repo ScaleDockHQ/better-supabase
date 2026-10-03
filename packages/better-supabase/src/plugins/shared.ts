@@ -3,6 +3,7 @@ import type { TableMeta } from "../schema/types.ts";
 
 import { dbError } from "../core/errors.ts";
 import { DbException } from "../core/errors.ts";
+import { lookupOf } from "../schema/lookup.ts";
 
 type Row = Readonly<Record<string, unknown>>;
 
@@ -48,7 +49,7 @@ export function forbidden(message: string): never {
 /** Database-keyed row to app-keyed row. */
 export function toApp(table: TableMeta, row: Row): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [app, meta] of Object.entries(table.columns)) {
+  for (const [app, meta] of lookupOf(table).entries) {
     if (meta.db in row) out[app] = row[meta.db];
   }
   return out;
@@ -57,7 +58,7 @@ export function toApp(table: TableMeta, row: Row): Record<string, unknown> {
 /** App-keyed row to database-keyed row. Unknown keys are dropped. */
 export function toDb(table: TableMeta, row: Row): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [app, meta] of Object.entries(table.columns)) {
+  for (const [app, meta] of lookupOf(table).entries) {
     if (app in row) out[meta.db] = row[app];
   }
   return out;

@@ -15,6 +15,11 @@ off();
 can't change a result, and an error they throw goes to the
 [`Logger`](/docs/extending/interfaces#logger) instead of the caller.
 
+Subscribe once, at module scope or when a long-lived service starts. A
+handler registered per request or per component render is never removed
+unless you call `off()`, so the hub grows with every call. Outside
+production, the logger warns once when one event has more than 50 handlers.
+
 | Event      | Payload                                                                                                                                 |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `query`    | `table`, `operation`, `ok`, `durationMs`, `rows`, `truncated` (an unbounded read hit [`maxRows`](/docs/repository/pagination#row-caps)) |

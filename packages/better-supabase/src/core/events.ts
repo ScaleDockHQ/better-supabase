@@ -63,12 +63,22 @@ export type EventHandler<K extends EventName> = (
   event: BetterSupabaseEvents[K],
 ) => void;
 
+/** More handlers than this for one event usually means a missing unsubscribe. */
+const HANDLER_WARNING = 50;
+
+function isDevelopment(): boolean {
+  return (
+    typeof process !== "undefined" && process.env["NODE_ENV"] !== "production"
+  );
+}
+
 /**
  * Observers only: a handler that throws is reported to the logger and never
  * changes a result.
  */
 export class EventHub {
   readonly #handlers = new Map<EventName, Set<(event: never) => void>>();
+  readonly #warned = new Set<EventName>();
   readonly logger: Logger;
 
   constructor(logger: Logger = consoleLogger) {
@@ -82,6 +92,16 @@ export class EventHub {
       this.#handlers.set(name, set);
     }
     set.add(handler);
+    if (
+      set.size > HANDLER_WARNING &&
+      !this.#warned.has(name) &&
+      isDevelopment()
+    ) {
+      this.#warned.add(name);
+      this.logger.warn(
+        `${set.size} "${name}" handlers are registered; call the function on() returns to remove one you no longer need`,
+      );
+    }
     return () => {
       set.delete(handler);
     };

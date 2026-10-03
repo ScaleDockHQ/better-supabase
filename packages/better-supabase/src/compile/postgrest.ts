@@ -72,6 +72,8 @@ interface EmbedNode {
 
 function scalar(value: unknown): string {
   if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
   const temporalValue = temporalText(value);
   if (temporalValue !== undefined) return temporalValue;
   if (
@@ -416,11 +418,25 @@ function filterEmbed(
   };
 }
 
+const columnTexts = new WeakMap<readonly SelectColumn[], string>();
+
+/** The rendered column list, cached per (shared, immutable) column array. */
+function columnText(columns: readonly SelectColumn[]): string {
+  let text = columnTexts.get(columns);
+  if (text === undefined) {
+    text = columns
+      .map(({ alias, column, cast }) => {
+        const source = cast ? `${column}::${cast}` : column;
+        return alias === column ? source : `${alias}:${source}`;
+      })
+      .join(",");
+    columnTexts.set(columns, text);
+  }
+  return text;
+}
+
 function columnList(columns: readonly SelectColumn[]): string[] {
-  return columns.map(({ alias, column, cast }) => {
-    const source = cast ? `${column}::${cast}` : column;
-    return alias === column ? source : `${alias}:${source}`;
-  });
+  return columns.length > 0 ? [columnText(columns)] : [];
 }
 
 /** `key:column.sum()::text`, PostgREST's aggregate syntax (PostgREST 12+). */
@@ -456,6 +472,8 @@ function renderSelect(
   selection: Selection,
   embeds: readonly EmbedNode[],
 ): string {
+  if (!selection.aggregate && embeds.length === 0)
+    return selection.columns.length > 0 ? columnText(selection.columns) : "*";
   const parts = [
     ...columnList(selection.columns),
     ...(selection.aggregate ? aggregateList(selection.aggregate) : []),

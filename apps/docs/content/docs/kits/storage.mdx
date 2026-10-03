@@ -214,6 +214,17 @@ request. Failures become `DbError`s: `invalid_input` with status 413 or 415,
 for 5xx responses. TTL presets are `minute`, `hour`, `day` and `week`, or pass
 a number of seconds.
 
+A page that renders the same object many times can reuse its signed URL:
+
+```ts
+const storage = logos.connect(supabase, { cacheSignedUrls: true });
+```
+
+The connection then signs each path, `ttl`, `transform` and `download`
+combination once and reuses the URL until a tenth of its `ttl` (at most a
+minute) remains. The cache lives on that connection only, so connect once
+per request and URLs signed for one user never reach another.
+
 ### Image transformations
 
 `renderUrl(target, { width, height, resize, quality })` returns a
