@@ -1,4 +1,4 @@
--- better-supabase SQL kit: rate-limit (0.0.0)
+-- better-supabase SQL kit: rate-limit (0.4.0)
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 

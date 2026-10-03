@@ -1,4 +1,4 @@
--- better-supabase SQL kit: realtime-tables (0.0.0)
+-- better-supabase SQL kit: realtime-tables (0.4.0)
 -- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 
@@ -91,11 +91,13 @@ revoke execute on function better_supabase.track_realtime(regclass, text) from p
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
 -- Signed-in users receive unscoped topics, and topics of their active tenant.
+-- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
     and (select realtime.topic()) like 'bs:t:%'
+    and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
       or split_part((select realtime.topic()), ':', 4) = coalesce(
