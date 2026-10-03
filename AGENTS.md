@@ -270,6 +270,7 @@ every bump.
 Read the page for the area you are changing. When an agent needs the same
 correction twice, add it to one of these pages.
 
+- [`docs/agents/core.md`](docs/agents/core.md): column casing in queries and per-request work in the core.
 - [`docs/agents/database.md`](docs/agents/database.md): the declarative schema workflow and what the diff misses.
 - [`docs/agents/nextjs.md`](docs/agents/nextjs.md): Cache Components and prerender errors in docs and marketing.
 - [`docs/agents/tooling.md`](docs/agents/tooling.md): registry queries, release age, changesets and CI.
