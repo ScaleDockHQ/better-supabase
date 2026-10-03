@@ -2,7 +2,7 @@ import type { KitPermdock, PermdockCatalog } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { permdockKeys, permdockKeyStatus } from "../../sql/index.ts";
-import { entitlementHelpers, entitlementsMode } from "../permdock.ts";
+import { entitlementRequirements, entitlementsMode } from "../permdock.ts";
 import { catalogOf } from "./shared.ts";
 
 /** Tables whose policies PermDock's helpers can't row-check (PermDock's PD037 scans the same ones). */
@@ -180,7 +180,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "PermDock helpers the entitlements module calls are missing",
     description:
-      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`). Doctor warns when `entitlements.permdock.scope` is not one of the manifest's scopes, when the manifest's `rls.helpers` lacks a helper (run `permdock rls generate` with a current PermDock), or when the snapshot lacks it (apply the migration it wrote).",
+      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when the scope is not one of the manifest's scopes or can't be chosen, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
     check: (context) => {
       if (!context.config.sql.kit.includes("entitlements")) return [];
       const mode = entitlementsMode(context.config, context.permdock);
@@ -188,24 +188,35 @@ export const PERMDOCK_RULES: readonly Rule[] = [
       const manifest = context.config.permdock.manifest;
       if (mode.kind === "invalid")
         return [{ message: mode.problem, target: "entitlements.permdock" }];
-      const listed = new Set(
-        (context.permdock?.manifest?.rls?.helpers ?? []).map(
-          (helper) => `${mode.permdock.schema}.${helper.name}`,
-        ),
+      const listed = new Map(
+        (context.permdock?.manifest?.rls?.helpers ?? []).map((helper) => [
+          `${mode.permdock.schema}.${helper.name}`,
+          helper,
+        ]),
       );
       const read = context.snapshot.schemas.includes(mode.permdock.schema);
       const present = new Set(
         catalogOf(context).functions.map((fn) => `${fn.schema}.${fn.name}`),
       );
-      return entitlementHelpers(mode.permdock).flatMap(
-        (helper): FindingInput[] => {
-          if (!listed.has(helper))
-            return [
-              {
-                message: `${manifest} lists no ${helper}, which the entitlements module calls. Run \`permdock rls generate\` (PermDock writes member_<scope>_ids and member_<scope>_ids_for for every scope), then \`permdock supabase inspect --out\`.`,
-                target: helper,
-              },
-            ];
+      const regenerate = `then run \`permdock rls generate\`, \`permdock supabase hook generate\` and \`permdock supabase inspect --out\`.`;
+      return entitlementRequirements(mode.permdock).flatMap(
+        (requirement): FindingInput[] => {
+          const { helper, caller, role } = requirement;
+          const entry = listed.get(helper);
+          if (!entry) {
+            const message =
+              requirement.kind === "member"
+                ? `${manifest} lists no ${helper}, but ${caller} calls it. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`
+                : `${manifest} lists no ${helper}, but ${caller} calls it. PermDock writes it only for a scope with a membership source: add one for "${mode.permdock.scope}" (\`supabase.hook.memberships\`, \`rls.membershipSources\` or a mapped \`rls.memberships\` table in permdock.config.ts), ${regenerate}`;
+            return [{ message, target: helper }];
+          }
+          if (!entry.execute.includes(role)) {
+            const message =
+              requirement.kind === "member"
+                ? `${manifest} says ${role} may not execute ${helper}, but ${caller} calls it as ${role}. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`
+                : `${manifest} says ${role} may not execute ${helper}, but ${caller} calls it from PermDock's hook. PermDock grants it only when the hook has claims: add \`supabase.hook.claims: { features: 'better_supabase.feature_claims' }\` to permdock.config.ts, ${regenerate}`;
+            return [{ message, target: helper }];
+          }
           if (read && !present.has(helper))
             return [
               {

@@ -1492,6 +1492,114 @@ uri = "https://example.com/hook"
       ]);
     });
 
+    type Helpers = NonNullable<
+      NonNullable<PermdockProject["manifest"]>["rls"]
+    >["helpers"];
+    const editHelpers = (
+      edit: (helpers: Helpers) => Helpers,
+    ): PermdockProject => ({
+      ...project,
+      manifest: {
+        ...project.manifest!,
+        rls: {
+          ...project.manifest!.rls!,
+          helpers: edit(project.manifest!.rls!.helpers),
+        },
+      },
+    });
+    const messages = async (permdock: PermdockProject) =>
+      (await check({ permdock, snapshot: withHelpers })).map(
+        (finding) => [finding.target, finding.message] as const,
+      );
+
+    it("asks for permdock rls generate when member_<scope>_ids is missing", async () => {
+      const findings = await messages(
+        editHelpers((helpers) =>
+          helpers.filter((helper) => helper.name !== "member_organization_ids"),
+        ),
+      );
+      expect(findings).toEqual([
+        [
+          "public.member_organization_ids",
+          expect.stringContaining(
+            "has_entitlement calls it. Run `permdock rls generate` with a current PermDock",
+          ),
+        ],
+      ]);
+      expect(findings[0]![1]).not.toContain("every scope");
+    });
+
+    it("names the membership source setting when member_<scope>_ids_for is missing", async () => {
+      expect(
+        await messages(
+          editHelpers((helpers) =>
+            helpers.filter(
+              (helper) => helper.name !== "member_organization_ids_for",
+            ),
+          ),
+        ),
+      ).toEqual([
+        [
+          "public.member_organization_ids_for",
+          expect.stringMatching(
+            /only for a scope with a membership source.*supabase\.hook\.memberships.*rls\.membershipSources.*permdock\.config\.ts/,
+          ),
+        ],
+      ]);
+    });
+
+    it("names supabase.hook.claims when supabase_auth_admin can't execute member_<scope>_ids_for", async () => {
+      expect(
+        await messages(
+          editHelpers((helpers) =>
+            helpers.map((helper) =>
+              helper.name === "member_organization_ids_for"
+                ? { ...helper, execute: [] }
+                : helper,
+            ),
+          ),
+        ),
+      ).toEqual([
+        [
+          "public.member_organization_ids_for",
+          expect.stringMatching(
+            /supabase_auth_admin may not execute.*supabase\.hook\.claims: \{ features: 'better_supabase\.feature_claims' \}.*permdock\.config\.ts/,
+          ),
+        ],
+      ]);
+    });
+
+    it("reports member_<scope>_ids that authenticated may not execute", async () => {
+      expect(
+        await messages(
+          editHelpers((helpers) =>
+            helpers.map((helper) =>
+              helper.name === "member_organization_ids"
+                ? { ...helper, execute: [] }
+                : helper,
+            ),
+          ),
+        ),
+      ).toEqual([
+        [
+          "public.member_organization_ids",
+          expect.stringContaining("authenticated may not execute"),
+        ],
+      ]);
+    });
+
+    it("checks only the helpers of the chosen scope", async () => {
+      expect(
+        await messages(
+          editHelpers((helpers) =>
+            helpers.filter(
+              (helper) => !helper.name.startsWith("member_customer"),
+            ),
+          ),
+        ),
+      ).toEqual([]);
+    });
+
     it("reports a scope the manifest doesn't have", async () => {
       expect(
         await check(

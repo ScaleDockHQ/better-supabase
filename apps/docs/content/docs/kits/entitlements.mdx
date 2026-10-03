@@ -164,8 +164,12 @@ even when the manifest is there. Without a manifest the module also uses
 membership source, so PermDock and the policy agree:
 `fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
 
-`permdock rls generate` writes both helpers, and doctor reports
-[BS408](/docs/cli/doctor#bs408) when the manifest or the database lacks one.
+`permdock rls generate` writes `member_<scope>_ids` for every scope, but
+`member_<scope>_ids_for` only for a scope with a membership source, and only
+a hook with `supabase.hook.claims` lets `supabase_auth_admin` execute it.
+Doctor reports [BS408](/docs/cli/doctor#bs408) when the manifest or the
+database lacks one of them, and names the `permdock.config.ts` setting that
+adds it.
 `hasEntitlement(session, ...)` reads the `features` claim: name
 `feature_claims` in PermDock's hook, and the generated hook writes it:
 

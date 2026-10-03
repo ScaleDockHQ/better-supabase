@@ -649,13 +649,27 @@ file paths.
 **Warning: PermDock helpers the entitlements module calls are missing.**
 With a `permdock.manifest.json`, the [`entitlements` kit
 module](/docs/kits/entitlements#with-permdock) reads memberships from
-PermDock's `member_<scope>_ids()` in `has_entitlement` and
-`member_<scope>_ids_for(uuid)` in `feature_claims`. When `entitlements` is in
-`sql.kit`, doctor warns when `entitlements.permdock.scope` is not one of the
-manifest's scopes, when the manifest's `rls.helpers` lacks one of the two
-helpers (run `permdock rls generate` with a current PermDock, then
-`permdock supabase inspect --out`), or when the database lacks it (apply the
-migration `permdock rls generate` wrote before the kit's).
+PermDock's `member_<scope>_ids()` in `has_entitlement`, which runs as
+`authenticated`, and `member_<scope>_ids_for(uuid)` in `feature_claims`, which
+PermDock's hook runs as `supabase_auth_admin`. When `entitlements` is in
+`sql.kit`, doctor checks exactly those two helpers for the chosen scope and
+warns when:
+
+- `entitlements.permdock.scope` is not one of the manifest's scopes, or it is
+  unset and the manifest has no single root scope;
+- the manifest's `rls.helpers` lacks `member_<scope>_ids`, or doesn't let
+  `authenticated` execute it: run `permdock rls generate` with a current
+  PermDock, then `permdock supabase inspect --out`;
+- it lacks `member_<scope>_ids_for`. PermDock writes it only for a scope with
+  a membership source, so add one in `permdock.config.ts`
+  (`supabase.hook.memberships`, `rls.membershipSources` or a mapped
+  `rls.memberships` table);
+- `supabase_auth_admin` may not execute `member_<scope>_ids_for`. PermDock
+  grants it only when the hook has claims, so add
+  `supabase.hook.claims: { features: 'better_supabase.feature_claims' }` and
+  run `permdock supabase hook generate` again;
+- the database lacks a helper the manifest lists: apply the migration
+  `permdock rls generate` wrote before the kit's.
 
 ## Env files
 

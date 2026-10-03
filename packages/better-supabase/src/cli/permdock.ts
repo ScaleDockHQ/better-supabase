@@ -398,8 +398,33 @@ export function entitlementsMode(
   };
 }
 
-/** The `member_<scope>_ids` helpers PermDock mode calls, as `schema.name`. */
-export const entitlementHelpers = (permdock: KitPermdock): string[] => [
-  `${permdock.schema}.member_${permdock.scope}_ids`,
-  `${permdock.schema}.member_${permdock.scope}_ids_for`,
+/** A helper PermDock mode calls (`schema.name`), the kit function that calls it and the role it runs as. */
+export interface EntitlementRequirement {
+  readonly kind: "member" | "member-for";
+  readonly helper: string;
+  readonly caller: string;
+  readonly role: "authenticated" | "supabase_auth_admin";
+}
+
+/**
+ * The helpers the `entitlements` module calls for the chosen scope:
+ * `member_<scope>_ids` from `has_entitlement` as `authenticated`, and
+ * `member_<scope>_ids_for` from `feature_claims`, which PermDock's hook runs
+ * as `supabase_auth_admin`.
+ */
+export const entitlementRequirements = (
+  permdock: KitPermdock,
+): readonly EntitlementRequirement[] => [
+  {
+    kind: "member",
+    helper: `${permdock.schema}.member_${permdock.scope}_ids`,
+    caller: "has_entitlement",
+    role: "authenticated",
+  },
+  {
+    kind: "member-for",
+    helper: `${permdock.schema}.member_${permdock.scope}_ids_for`,
+    caller: "feature_claims",
+    role: "supabase_auth_admin",
+  },
 ];
