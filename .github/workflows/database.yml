@@ -5,13 +5,13 @@ on:
     branches: [main]
     paths:
       - "supabase/**"
-      - "packages/cli/src/doctor/**"
+      - "packages/better-supabase/src/cli/doctor/**"
       - ".github/workflows/database.yml"
   pull_request:
     branches: [main]
     paths:
       - "supabase/**"
-      - "packages/cli/src/doctor/**"
+      - "packages/better-supabase/src/cli/doctor/**"
       - ".github/workflows/database.yml"
 
 permissions:
@@ -47,7 +47,7 @@ jobs:
 
       - name: Create the local signing key
         run: |
-          pnpm exec turbo run build --filter=@better-supabase/cli...
+          pnpm exec turbo run build --filter=better-supabase...
           pnpm exec better-supabase keys --cwd .
 
       - name: Start Supabase

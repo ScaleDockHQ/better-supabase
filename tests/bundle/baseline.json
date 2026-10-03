@@ -1,6 +1,7 @@
 {
   ".": 37237,
   "./config": 6728,
+  "./cli": 186248,
   "./client": 10147,
   "./react": 6483,
   "./query": 5887,
@@ -21,7 +22,7 @@
   "./events": 2605,
   "./webhooks": 9055,
   "./openapi": 10066,
-  "./otel": 2911,
+  "./otel": 2913,
   "./plugins/timestamps": 4132,
   "./lint": 1913,
   "./plugins/rules": 6043,
@@ -29,7 +30,7 @@
   "./plugins/tenant": 6374,
   "./plugins/actor": 4210,
   "./plugins/validation": 6314,
-  "./sql": 41952,
+  "./sql": 41953,
   "./testing": 56599,
-  "@better-supabase/cli (startup)": 12149
+  "better-supabase CLI (startup)": 58683
 }

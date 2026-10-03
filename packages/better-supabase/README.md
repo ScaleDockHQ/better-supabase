@@ -12,14 +12,14 @@
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D @better-supabase/cli pg
+pnpm add -D pg
 ```
 
-ESM only. The CLI ships as [`@better-supabase/cli`](https://www.npmjs.com/package/@better-supabase/cli), always at the same version as `better-supabase`, and needs Node 24 or later; the runtime entries run on every WinterTC runtime (Node, Deno, Bun, Workers, Supabase Edge Functions). TypeScript 6 and 7 are tested.
+ESM only. The package includes the `better-supabase` CLI, which needs Node 24 or later; the runtime entries run on every WinterTC runtime (Node, Deno, Bun, Workers, Supabase Edge Functions). TypeScript 6 and 7 are tested.
 
 ## Quick start
 
-Or start with `npx @better-supabase/cli init`, which detects your frameworks and prints the install command.
+Or start with `npx better-supabase init`, which detects your frameworks and prints the install command.
 
 ```bash
 supabase start
@@ -53,6 +53,7 @@ if (!result.ok) return result; // DbError: kind, message, status, code
 | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `better-supabase`                                          | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`         |
 | `better-supabase/config`                                   | `defineConfig` and generators for `better-supabase.config.ts`            |
+| `better-supabase/cli`                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI      |
 | `better-supabase/client`                                   | Browser repositories that follow the session                             |
 | `better-supabase/react`                                    | Provider, typed hooks and the server session                             |
 | `better-supabase/query`                                    | TanStack Query options with table-based invalidation                     |

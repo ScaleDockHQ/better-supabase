@@ -1,6 +1,6 @@
 # 0003: Ship the CLI as @better-supabase/cli on citty
 
-- Status: accepted
+- Status: accepted; the package split is superseded by 0007
 - Date: 2026-10-02
 
 ## Context

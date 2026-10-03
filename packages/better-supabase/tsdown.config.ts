@@ -1,3 +1,4 @@
+import { dirname, relative, resolve } from "node:path";
 import { defineConfig } from "tsdown";
 
 const entries = [
@@ -37,7 +38,21 @@ const entries = [
   "testing/index",
 ];
 
-export default defineConfig({
+const src = resolve(import.meta.dirname, "src");
+
+/**
+ * The subpath of a library entry (`src/sql/index.ts` is `sql`), or undefined
+ * for any other file. Declaration builds ask for `.d.ts` and `.js` names too.
+ */
+function librarySubpath(file: string): string | undefined {
+  const path = relative(src, file).replace(/(\.d)?\.(ts|js)$/, "");
+  if (path === "index") return "";
+  if (!path.endsWith("/index") || path.startsWith("cli/")) return undefined;
+  const subpath = path.slice(0, -"/index".length);
+  return entries.includes(`${subpath}/index`) ? subpath : undefined;
+}
+
+const library = defineConfig({
   entry: Object.fromEntries(entries.map((name) => [name, `src/${name}.ts`])),
   platform: "neutral",
   format: "esm",
@@ -99,3 +114,70 @@ export default defineConfig({
     ],
   },
 });
+
+// The CLI runs on Node and inlines its own packages (citty, c12, valibot and
+// the rest are devDependencies), so apps install no CLI dependency
+// (invariant 1). It loads the library from the package's own entries, so a
+// command and the app's config share one copy of `defineSchema` and the kit.
+const cli = defineConfig({
+  entry: { "cli/index": "src/cli/index.ts", "cli/bin": "src/cli/bin.ts" },
+  platform: "node",
+  format: "esm",
+  fixedExtension: false,
+  dts: true,
+  clean: false,
+  exports: false,
+  outputOptions: { chunkFileNames: "cli/[name]-[hash].js" },
+  plugins: [
+    {
+      name: "library-entries",
+      resolveId(source, importer) {
+        if (!importer || !source.startsWith(".")) return null;
+        const subpath = librarySubpath(resolve(dirname(importer), source));
+        if (subpath === undefined) return null;
+        return {
+          id: subpath === "" ? "better-supabase" : `better-supabase/${subpath}`,
+          external: true,
+        };
+      },
+    },
+  ],
+  deps: {
+    neverBundle: [
+      /^@supabase\//,
+      /^better-supabase(\/|$)/,
+      /^node:/,
+      "pg",
+      // c12's optional peers, each loaded through import() with a fallback.
+      "dotenv",
+      "giget",
+      "jiti",
+      "magicast",
+    ],
+    onlyBundle: [
+      "@clack/core",
+      "@clack/prompts",
+      "@t3-oss/env-core",
+      "c12",
+      "citty",
+      "confbox",
+      "defu",
+      "destr",
+      "diff",
+      "exsolve",
+      "fast-string-truncated-width",
+      "fast-string-width",
+      "fast-wrap-ansi",
+      "fastest-levenshtein",
+      "pathe",
+      "pkg-types",
+      "rc9",
+      "sisteransi",
+      "smol-toml",
+      "tinyexec",
+      "valibot",
+    ],
+  },
+});
+
+export default [library, cli];

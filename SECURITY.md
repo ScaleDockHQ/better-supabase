@@ -28,4 +28,4 @@ better-supabase is on `0.x`. Patch releases of the current minor are supported. 
 
 ## Scope
 
-In scope: everything published in the `better-supabase` and `@better-supabase/cli` npm packages, including the SQL kit modules the CLI writes, the code it generates, and the Agent Skills the library ships. Both packages share a version, so the table covers both. Supabase itself (Auth, PostgREST, Storage, Realtime) is out of scope; report those to [Supabase](https://supabase.com/.well-known/security.txt).
+In scope: everything published in the `better-supabase` npm package, including its CLI, the SQL kit modules the CLI writes, the code it generates, and the Agent Skills the package ships. Supabase itself (Auth, PostgREST, Storage, Realtime) is out of scope; report those to [Supabase](https://supabase.com/.well-known/security.txt).

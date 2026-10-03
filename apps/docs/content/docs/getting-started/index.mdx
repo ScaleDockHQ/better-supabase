@@ -11,12 +11,12 @@ description: Install better-supabase, generate your schema and run your first ty
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D @better-supabase/cli pg
+pnpm add -D pg
 ```
 
-`@better-supabase/cli` is the `better-supabase` command, released at the
-same version as the library. `pg` is only used by the CLI to read your
-database schema. TypeScript 6 and 7 are supported, with `nodenext` or
+The `better-supabase` command ships in the `better-supabase` package. `pg` is
+only used by the CLI to read your database schema. TypeScript 6 and 7 are
+supported, with `nodenext` or
 `bundler` module resolution. On runtimes without a native `Temporal` (Node 24,
 Safari), install `temporal-polyfill` and import `temporal-polyfill/global`
 once at startup; see [Temporal](/docs/concepts/temporal).
@@ -30,7 +30,7 @@ once at startup; see [Temporal](/docs/concepts/temporal).
 Run `pnpm better-supabase init` to write the config, `src/lib/supabase.ts`,
 and glue for the frameworks it finds (see [init](/docs/cli/init)). In a
 terminal it asks for the row casing and the integrations; `--yes` takes the
-defaults. Before installing anything, `npx @better-supabase/cli init` does
+defaults. Before installing anything, `npx better-supabase init` does
 the same and prints the install command for your package manager. Or create
 `better-supabase.config.ts` in your project root yourself:
 

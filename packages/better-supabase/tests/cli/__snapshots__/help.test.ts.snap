@@ -1,0 +1,254 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`help > documents add 1`] = `
+"Adds glue for an integration to an existing project (better-supabase add v0.3.0)
+
+USAGE better-supabase add [OPTIONS] [INTEGRATION]
+
+ARGUMENTS
+
+  INTEGRATION    next, hono, orpc, edge, mcp, client or react
+
+OPTIONS
+
+          --force    Overwrite files that exist                                  
+        --dry-run    Show what would be written                                  
+      --cwd=<dir>    Project directory                                           
+  --config=<file>    Config file, relative to --cwd                              
+           --json    Print one JSON document on stdout; errors as Problem Details
+        -y, --yes    Ask nothing; use the flags and the defaults                 
+"
+`;
+
+exports[`help > documents doctor 1`] = `
+"Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict (better-supabase doctor v0.3.0)
+
+USAGE better-supabase doctor [OPTIONS] 
+
+OPTIONS
+
+    --format=<format>    text (default), sarif (code scanning) or github (workflow annotations); --json for the JSON report           
+         --out=<file>    Write the report to a file                                                                                   
+       --only=<codes>    Run only these checks, e.g. --only BS100,BS304                                                               
+     --ignore=<codes>    Skip checks; also doctor.ignore in the config                                                                
+             --strict    Fail on warnings; also doctor.strict                                                                         
+    --snapshot=<file>    Check a saved snapshot instead of the database                                                               
+       --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config                                 
+  --project-ref=<ref>    Read a hosted project through the Management API                                                             
+              --stats    Report slow frequent statements from pg_stat_statements (BS209)                                              
+   --explain=<tables>    EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)                                                  
+          --as=<uuid>    Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
+      --claims=<json>    Plan with these JWT claims ({"role":"authenticated",...})                                                    
+         --fix-grants    Print the grant and revoke SQL BS404 asks for, to add to your schema or migration                            
+          --cwd=<dir>    Project directory                                                                                            
+      --config=<file>    Config file, relative to --cwd                                                                               
+               --json    Print one JSON document on stdout; errors as Problem Details                                                 
+            -y, --yes    Ask nothing; use the flags and the defaults                                                                  
+"
+`;
+
+exports[`help > documents env 1`] = `
+"Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines (better-supabase env v0.3.0)
+
+USAGE better-supabase env [OPTIONS] 
+
+OPTIONS
+
+       --out=<file>    Env file to write. Defaults to .env.local                                       
+  --prefix=<prefix>    Prefix for browser variables, detected from your framework; "none" for no prefix
+      --from=<file>    Read \`supabase status -o json\` output from a file                               
+            --print    Print the variables instead of writing them                                     
+        --cwd=<dir>    Project directory                                                               
+    --config=<file>    Config file, relative to --cwd                                                  
+             --json    Print one JSON document on stdout; errors as Problem Details                    
+          -y, --yes    Ask nothing; use the flags and the defaults                                     
+"
+`;
+
+exports[`help > documents gen 1`] = `
+"Writes database.types.ts and generated.ts from the database (better-supabase gen v0.3.0)
+
+USAGE better-supabase gen [OPTIONS] 
+
+OPTIONS
+
+              --check    Fail when a generated file is out of date                                   
+              --watch    Regenerate whenever the schema changes                                      
+      --interval=<ms>    Milliseconds between checks in --watch. Defaults to 2000                    
+    --snapshot=<file>    Read a saved snapshot instead of the database                               
+       --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config
+  --project-ref=<ref>    Read a hosted project through the Management API                            
+          --cwd=<dir>    Project directory                                                           
+      --config=<file>    Config file, relative to --cwd                                              
+               --json    Print one JSON document on stdout; errors as Problem Details                
+            -y, --yes    Ask nothing; use the flags and the defaults                                 
+"
+`;
+
+exports[`help > documents init 1`] = `
+"Writes better-supabase.config.ts, src/lib/supabase.ts and glue for the frameworks in package.json (better-supabase init v0.3.0)
+
+USAGE better-supabase init [OPTIONS] 
+
+OPTIONS
+
+    --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)          
+  --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, mcp, client, react
+                   --force    Overwrite files that exist                                                               
+                 --dry-run    Show what would be written                                                               
+               --cwd=<dir>    Project directory                                                                        
+           --config=<file>    Config file, relative to --cwd                                                           
+                    --json    Print one JSON document on stdout; errors as Problem Details                             
+                 -y, --yes    Ask nothing; use the flags and the defaults                                              
+"
+`;
+
+exports[`help > documents introspect 1`] = `
+"Saves the database schema as a snapshot for offline gen (better-supabase introspect v0.3.0)
+
+USAGE better-supabase introspect [OPTIONS] 
+
+OPTIONS
+
+                            --out=<file>    Defaults to supabase/snapshot.json, or supabase/generator-metadata.json     
+  --format=<snapshot|generator-metadata>    snapshot (the default) or generator-metadata (postgrest-typegen's input)    
+                                 --check    Fail when the file is out of date                                           
+                       --snapshot=<file>    Read a saved snapshot instead of the database                               
+                          --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config
+                     --project-ref=<ref>    Read a hosted project through the Management API                            
+                             --cwd=<dir>    Project directory                                                           
+                         --config=<file>    Config file, relative to --cwd                                              
+                                  --json    Print one JSON document on stdout; errors as Problem Details                
+                               -y, --yes    Ask nothing; use the flags and the defaults                                 
+"
+`;
+
+exports[`help > documents keys 1`] = `
+"Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones (better-supabase keys v0.3.0)
+
+USAGE better-supabase keys [OPTIONS] 
+
+OPTIONS
+
+     --out=<file>    Defaults to supabase/signing_keys.json                                  
+         --rotate    Put a new key first (it signs) and keep the old ones (they still verify)
+          --force    Replace the file                                                        
+      --cwd=<dir>    Project directory                                                       
+  --config=<file>    Config file, relative to --cwd                                          
+           --json    Print one JSON document on stdout; errors as Problem Details            
+        -y, --yes    Ask nothing; use the flags and the defaults                             
+"
+`;
+
+exports[`help > documents openapi 1`] = `
+"Writes the document your createOpenApi() module exports, so CI can check it for drift (better-supabase openapi v0.3.0)
+
+USAGE better-supabase openapi [OPTIONS] [ACTION]
+
+ARGUMENTS
+
+  ACTION    emit
+
+OPTIONS
+
+          --check    Fail when the file differs from the document                                                   
+   --entry=<file>    Defaults to openapi.entry. Exports \`openapi\` or default: a document or a function returning one
+     --out=<file>    Defaults to openapi.output                                                                     
+      --cwd=<dir>    Project directory                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                 
+           --json    Print one JSON document on stdout; errors as Problem Details                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                    
+"
+`;
+
+exports[`help > documents seed 1`] = `
+"Renders the fixtures from defineSeed() (better-supabase/testing) to SQL (better-supabase seed v0.3.0)
+
+USAGE better-supabase seed [OPTIONS] 
+
+OPTIONS
+
+          --check    Fail when the SQL file is out of date                                                     
+          --apply    Also insert the rows into the database ($DATABASE_URL, --db-url-stdin, or the local stack)
+   --entry=<file>    Defaults to seed.entry (supabase/seed.ts)                                                 
+     --out=<file>    Defaults to seed.output (supabase/seeds/000_better_supabase.sql)                          
+   --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config              
+      --cwd=<dir>    Project directory                                                                         
+  --config=<file>    Config file, relative to --cwd                                                            
+           --json    Print one JSON document on stdout; errors as Problem Details                              
+        -y, --yes    Ask nothing; use the flags and the defaults                                               
+"
+`;
+
+exports[`help > documents skills 1`] = `
+"Installs the Agent Skills that ship with this version of better-supabase (better-supabase skills v0.3.0)
+
+USAGE better-supabase skills [OPTIONS] [ACTION]
+
+ARGUMENTS
+
+  ACTION    list or install
+
+OPTIONS
+
+  --agent=<names>    cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to the agent folders the project has, else agents
+         --global    Install into your home directory instead of the project                                                                                
+          --check    Fail when installed skills differ from this version                                                                                    
+     --from=<dir>    Read skills from this folder instead of the package                                                                                    
+      --cwd=<dir>    Project directory                                                                                                                      
+  --config=<file>    Config file, relative to --cwd                                                                                                         
+           --json    Print one JSON document on stdout; errors as Problem Details                                                                           
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                                            
+"
+`;
+
+exports[`help > documents sql 1`] = `
+"Lists, adds, syncs and prints SQL kit modules (better-supabase sql v0.3.0)
+
+USAGE better-supabase sql [OPTIONS] [ACTION]
+
+ARGUMENTS
+
+  ACTION    list (modules and whether they are installed), add <module...>, sync or print <module>
+
+OPTIONS
+
+            --check    With sync: fail when a file is stale                        
+  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir       
+          --dry-run    Show what would be written                                  
+            --force    Write tenant even though a permdock.config.ts is present    
+        --cwd=<dir>    Project directory                                           
+    --config=<file>    Config file, relative to --cwd                              
+             --json    Print one JSON document on stdout; errors as Problem Details
+          -y, --yes    Ask nothing; use the flags and the defaults                 
+"
+`;
+
+exports[`help > lists the commands and the global options 1`] = `
+"Typed Supabase: codegen, doctor, the SQL kit and project setup (better-supabase v0.3.0)
+
+USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql
+
+OPTIONS
+
+      --cwd=<dir>    Project directory                                           
+  --config=<file>    Config file, relative to --cwd                              
+           --json    Print one JSON document on stdout; errors as Problem Details
+        -y, --yes    Ask nothing; use the flags and the defaults                 
+
+COMMANDS
+
+        init    Writes better-supabase.config.ts, src/lib/supabase.ts and glue for the frameworks in package.json     
+         add    Adds glue for an integration to an existing project                                                   
+         env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines  
+        keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
+      skills    Installs the Agent Skills that ship with this version of better-supabase                              
+         gen    Writes database.types.ts and generated.ts from the database                                           
+  introspect    Saves the database schema as a snapshot for offline gen                                               
+     openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                 
+        seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                               
+      doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict
+         sql    Lists, adds, syncs and prints SQL kit modules                                                         
+
+Use better-supabase <command> --help for more information about a command."
+`;

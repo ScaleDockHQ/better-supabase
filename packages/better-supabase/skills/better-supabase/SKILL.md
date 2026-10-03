@@ -23,7 +23,6 @@ security`, a policy per role and command the app uses, and an index on
    new tables get no Data API grants on their own.
 3. Apply it with `supabase db reset` (or `supabase migration up`).
 4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces.
-   The command comes from the `@better-supabase/cli` dev dependency.
 5. Run `pnpm better-supabase doctor` and fix every error it reports (RLS off,
    missing policies, missing grants, unindexed foreign keys, drift).
 6. Commit the generated files. CI runs `better-supabase gen --check`.
