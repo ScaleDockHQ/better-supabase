@@ -1062,7 +1062,7 @@ uri = "https://example.com/hook"
         text: "-- permdock:grants v1 schema=rbac\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
       };
       const message = async (
-        sqlFiles: DoctorContext["sqlFiles"],
+        sqlFiles: NonNullable<DoctorContext["sqlFiles"]>,
         configToml?: SupabaseToml,
       ) =>
         (
@@ -1108,7 +1108,7 @@ uri = "https://example.com/hook"
       });
 
       it("prints the same fixes in --fix-grants", () => {
-        const block = (sqlFiles: DoctorContext["sqlFiles"]) =>
+        const block = (sqlFiles: NonNullable<DoctorContext["sqlFiles"]>) =>
           hookGrantBlock(
             hookGrantProblems(
               hookContext(ungranted, { sqlFiles, configToml: PGDELTA }),
