@@ -131,6 +131,12 @@ function join(
       left = true;
       current.listeners.delete(listener);
       if (current.listeners.size > 0) return;
+      // A join in the same tick (React StrictMode remounts) keeps the channel:
+      // removing it first would hand the new listener a closing channel.
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+      if (current.listeners.size > 0 || byTopic.get(topic) !== current) return;
       byTopic.delete(topic);
       await client.removeChannel(current.channel);
     },

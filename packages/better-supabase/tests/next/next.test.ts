@@ -548,10 +548,10 @@ describe("createNext", () => {
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("never refreshes an expiring cookie session", async () => {
+  it("never refreshes an expiring cookie session, and keeps it valid until exp", async () => {
     const token = await signer.sign({ sub: USER });
     mocks.headers = new Headers({ cookie: cookieFor(token, "refresh-1") });
-    expect(await bs.session()).toEqual({ kind: "anon", reason: "expired" });
+    expect(await bs.session()).toMatchObject({ kind: "user" });
     expect(fresh).not.toHaveBeenCalled();
   });
 

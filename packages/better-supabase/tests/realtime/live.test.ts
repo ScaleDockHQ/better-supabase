@@ -271,6 +271,29 @@ describe("liveQuery", () => {
     expect(raw.removeChannel).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the channel when a subscriber re-joins in the same tick", async () => {
+    const { client, raw, emit } = fakeClient();
+    const first = liveQuery(betterSupabase, client, ["notes"], {
+      onChange: vi.fn(),
+    });
+    await first.ready;
+    const leaving = first.unsubscribe();
+    const onChange = vi.fn();
+    const second = liveQuery(betterSupabase, client, ["notes"], {
+      onChange,
+      debounceMs: 1,
+    });
+    await leaving;
+    expect(raw.removeChannel).not.toHaveBeenCalled();
+    expect(raw.channel).toHaveBeenCalledTimes(1);
+    await second.ready;
+    emit("bs:t:public.notes");
+    await wait(10);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    await second.unsubscribe();
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
   it("refetches once after the channel rejoins", async () => {
     const { client, status } = fakeClient();
     const onChange = vi.fn();

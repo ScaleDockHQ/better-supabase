@@ -435,6 +435,17 @@ describe("row caps and default order", () => {
     ]);
   });
 
+  it("orders by the database names of a camel-cased primary key", async () => {
+    const { client, last } = capturingClient();
+    const db = sbCamel.connect(client);
+    await db.customerTags.findMany({ select: ["customerId"] });
+    await db.customerTags.findMany({ select: ["customerId"] });
+    expect(query(last())).toEqual([
+      "select=customerId:customer_id",
+      "order=customer_id.asc,tag_id.asc",
+    ]);
+  });
+
   it("flags unbounded reads that hit maxRows and warns once per table", async () => {
     const rows = [{ id: "a" }, { id: "b" }];
     const { client } = capturingClient(() => ({ body: rows }));

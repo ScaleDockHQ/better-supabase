@@ -101,8 +101,13 @@ export interface ResolveAuthOptions {
   readonly env: BetterSupabaseEnv;
   /** Allow refreshing an expiring cookie session. Only where cookies can be written (proxy). */
   readonly refresh?: boolean;
-  /** Refresh when the token expires within this many seconds. Defaults to 60. */
+  /**
+   * With `refresh`, refresh when the token expires within this many seconds.
+   * Defaults to 60. Without `refresh` a token stays valid until its `exp`.
+   */
   readonly leeway?: number;
+  /** Milliseconds before a refresh counts as a network failure. Defaults to 5000. */
+  readonly refreshTimeoutMs?: number;
   /**
    * Accept `sb_secret_` keys (`apikey` header) as service callers: `true` for
    * any configured key, or the key names allowed (`['cron']`). Defaults to false.
@@ -503,7 +508,10 @@ export async function resolveAuth(
 
   const now = Math.floor((options.now ?? Date.now)() / 1000);
   const expiry = expiryOf(session);
-  const fresh = expiry !== undefined && expiry - (options.leeway ?? 60) > now;
+  // The leeway only decides when to refresh: where refreshing isn't allowed,
+  // a token in its last minute is still valid.
+  const leeway = options.refresh ? (options.leeway ?? 60) : 0;
+  const fresh = expiry !== undefined && expiry - leeway > now;
 
   if (fresh) {
     const state = await verify(
@@ -537,6 +545,9 @@ export async function resolveAuth(
     ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
     ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(options.now ? { now: options.now } : {}),
+    ...(options.refreshTimeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.refreshTimeoutMs }),
   });
   options.onRefresh?.({
     ok: outcome.ok,

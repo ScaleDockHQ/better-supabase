@@ -12,7 +12,7 @@ import { bs } from "./lib/supabase/server";
 const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname.startsWith("/api/")) return;
-  // Prefetches never refresh; let the page render its own signed-out state.
+  // Prefetches never refresh; an expired token renders the page signed out.
   if (auth.kind === "anon" && auth.reason === "expired") return;
   const session = toSession(auth);
   if (session.kind !== "user")

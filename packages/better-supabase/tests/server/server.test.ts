@@ -442,9 +442,8 @@ describe("createServer events", () => {
     const request = () =>
       new Request("https://app.test/", { headers: { cookie } });
 
-    expect((await server.context(request())).auth).toEqual({
-      kind: "anon",
-      reason: "expired",
+    expect((await server.context(request())).auth).toMatchObject({
+      kind: "user",
     });
     expect(onRefresh).not.toHaveBeenCalled();
     const refreshed = await server.context(request(), { refresh: true });
