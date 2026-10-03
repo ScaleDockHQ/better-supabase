@@ -9,7 +9,7 @@ import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
 import type { RefreshEvent } from "../core/events.ts";
 import type { Logger } from "../core/logger.ts";
-import type { Actor, RequestContext } from "../core/plugin.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
 
@@ -17,7 +17,7 @@ import { decodeJwtPayload } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
-import { impersonatorOf } from "./impersonation.ts";
+import { userContext } from "./impersonation.ts";
 import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
@@ -119,6 +119,12 @@ export interface ResolveAuthOptions {
     readonly name?: string;
     readonly options?: CookieOptions;
   };
+  /**
+   * Read the session cookie. Defaults to true. `false` suits endpoints only
+   * bearer clients call (MCP): a browser's cookie then can't authorize a
+   * request another site makes it send.
+   */
+  readonly cookies?: boolean;
   /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
   readonly jwks?: SupabaseEnv["jwks"];
   /**
@@ -586,6 +592,9 @@ export async function resolveAuth(
     );
   }
 
+  if (options.cookies === false) {
+    return resolution({ kind: "anon", reason: "none" }, cookies);
+  }
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
   const session = readSession(cookies(), name);
   if (!session) {
@@ -678,17 +687,8 @@ export async function resolveAuth(
 /** The repository context (`actor`, `claims`) for an auth state. */
 export function authContext(auth: AuthState): RequestContext {
   switch (auth.kind) {
-    case "user": {
-      const impersonator = impersonatorOf(auth.claims);
-      const actor: Actor = {
-        id: auth.user.id,
-        kind: "user",
-        ...(auth.user.role === undefined ? {} : { role: auth.user.role }),
-        ...(auth.user.email === undefined ? {} : { email: auth.user.email }),
-        ...(impersonator ? { impersonator: impersonator.id } : {}),
-      };
-      return { actor, claims: auth.claims };
-    }
+    case "user":
+      return userContext(auth.user, auth.claims);
     case "service":
       return {
         actor: {

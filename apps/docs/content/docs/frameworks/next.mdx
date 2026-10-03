@@ -100,11 +100,15 @@ export const GET = bs.route<{ id: string }>((request, { db, params }) =>
 
 - `allow` controls who gets in; the default is `['user']`. Use
   `['user', 'anon']` for public routes or `['service']` for machine callers.
+  Anonymous users (`signInAnonymously()`) get a 403 with
+  `code: "ANONYMOUS_USER"` unless `allow` also lists `'anonymous'` (or `'anon'`).
 - Return a `Result` or `AsyncResult` (as above, no `await` needed), a plain
   value, or a `Response`. Errors,
   thrown `DbException`s and rejected callers become
   [Problem Details](/docs/auth/problems) responses; a 401 carries a
-  `WWW-Authenticate` challenge.
+  `WWW-Authenticate` challenge. Any other thrown error is a 500 without
+  internal details (unless `exposeErrors`), while `redirect()` and
+  `notFound()` still reach Next.js.
 
 ## Bearer callers
 

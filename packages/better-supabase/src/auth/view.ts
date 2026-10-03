@@ -35,6 +35,11 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly profile?: P;
       /** `aal2` once the user verified a second factor in this session. */
       readonly aal: Aal;
+      /**
+       * Signed in with `signInAnonymously()` (the `is_anonymous` claim). Guards
+       * refuse these users unless `allow` lists `'anonymous'`.
+       */
+      readonly anonymous: boolean;
       /** How the user signed in (`password`, `totp`, `sso/saml`, ...). */
       readonly amr: readonly AmrEntry[];
       /** Set when an admin acts as this user (the `act` claim), for a banner. */
@@ -56,6 +61,11 @@ export type AuthSession<C = unknown, P = unknown> =
     };
 
 type AnonReason = Extract<AuthState, { kind: "anon" }>["reason"];
+
+/** Whether the token belongs to an anonymous user (`signInAnonymously()`). */
+export function isAnonymousUser(claims: Readonly<object>): boolean {
+  return "is_anonymous" in claims && claims.is_anonymous === true;
+}
 
 /** Drops the token from an `AuthState`, leaving only serializable fields. */
 export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
@@ -79,6 +89,7 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         expiresAt: auth.expiresAt,
         ...(auth.profile === undefined ? {} : { profile: auth.profile }),
         aal: aalOf(auth.claims),
+        anonymous: isAnonymousUser(auth.claims),
         amr: amrOf(auth.claims),
         ...(impersonator ? { impersonator } : {}),
         ...(actor ? { actor } : {}),

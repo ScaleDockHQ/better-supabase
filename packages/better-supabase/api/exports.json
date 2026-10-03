@@ -530,6 +530,8 @@
       "GuardOptions",
       "MiddlewareOptions",
       "OrpcContext",
+      "OrpcFetchHandler",
+      "OrpcFetchOptions",
       "OrpcMiddleware",
       "OrpcOptions",
       "OrpcRequestContext"

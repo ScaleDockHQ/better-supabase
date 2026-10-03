@@ -107,7 +107,7 @@ import { betterSupabase } from "../_shared/supabase.ts";
 const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "0.1.0",
-  scopes: ["openid", "crm.read"],
+  advertisedScopes: ["openid", "crm.read"],
   allowedOrigins: ["https://claude.ai"],
   allowedHosts: ["crm.example.com", "localhost"],
   resourceDocumentation: "https://crm.example.com/docs/mcp",
@@ -127,6 +127,8 @@ const bs = createMcp(betterSupabase, {
 Deno.serve(bs.fetch);
 ```
 
-Tools run as the calling user, so RLS applies to every tool call. `scopes`
-on `createMcp` only advertises scopes; `authorize` refuses the call. A
+Tools run as the calling user, so RLS applies to every tool call.
+`advertisedScopes` only advertises scopes; `requiredScopes` refuses delegated
+tokens that lack one, and `authorize` refuses a single call. The session comes
+from the `Authorization` header only, never from a cookie. A
 `delegation` that is unset means the user's own token, which no scope limits.

@@ -35,6 +35,18 @@ switch (auth.kind) {
 - A Bearer token that fails verification is `invalid`, never silently
   downgraded to anonymous.
 
+## Anonymous users
+
+A user from `signInAnonymously()` is a `user` with `is_anonymous: true` in
+the token, and `toSession(auth).anonymous` is `true`. Every adapter's guard
+refuses these users with a 403 (`code: "ANONYMOUS_USER"`) unless `allow` lists
+`'anonymous'` or `'anon'`, so a guest session never reaches a route meant for
+accounts. The `realtime-tables` SQL kit module sends them no change signals.
+
+```ts
+app.use("/cart/*", bs.middleware({ allow: ["user", "anonymous"] }));
+```
+
 <Callout title="Use asymmetric signing keys">
   Local verification needs asymmetric JWT signing keys (ES256 or RS256), whose
   public half is in the JWKS. Hosted projects use them by default; for the local

@@ -2,15 +2,22 @@ import type { AuthState } from "../auth/resolve.ts";
 
 import { actorOf, delegationOf } from "../auth/actor.ts";
 import { type Aal, checkAal } from "../auth/mfa.ts";
+import { isAnonymousUser } from "../auth/view.ts";
 import { type DbError, dbError, dbErrorOf, isDbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { toDbError } from "../core/result.ts";
 
 export type AuthKind = AuthState["kind"];
 
+/** An auth kind a guard lets through; `anonymous` admits `signInAnonymously()` users. */
+export type AllowedCaller = Exclude<AuthKind, "invalid"> | "anonymous";
+
 export interface GuardOptions {
-  /** Auth kinds allowed through. Defaults to `['user']`. */
-  readonly allow?: readonly Exclude<AuthKind, "invalid">[];
+  /**
+   * Callers allowed through. Defaults to `['user']`, which refuses anonymous
+   * users (`is_anonymous`); add `'anonymous'` (or `'anon'`) to admit them.
+   */
+  readonly allow?: readonly AllowedCaller[];
   /**
    * Assurance level user sessions need. `aal2` answers 403 with
    * `required: 'aal2'` until the user verifies a second factor.
@@ -46,7 +53,6 @@ function missingScopes(
 }
 
 /** `undefined` when `auth` may pass; otherwise the 401/403 error to send. */
-// SAFETY: includes only compares values, so any auth kind is safe to look up.
 export function guard(
   auth: AuthState,
   allow: GuardOptions["allow"] = ["user"],
@@ -54,9 +60,18 @@ export function guard(
   scopes: readonly string[] = [],
 ): DbError | undefined {
   if (auth.kind === "invalid") return auth.error;
-  if ((allow as readonly AuthKind[]).includes(auth.kind)) {
+  if (allow.includes(auth.kind)) {
     const denied = checkAal(auth, aal);
     if (denied || auth.kind !== "user") return denied;
+    if (
+      isAnonymousUser(auth.claims) &&
+      !allow.includes("anonymous") &&
+      !allow.includes("anon")
+    ) {
+      return dbError("forbidden", "Sign up to continue", {
+        code: "ANONYMOUS_USER",
+      });
+    }
     const missing = missingScopes(auth, scopes);
     return missing.length > 0
       ? dbError("forbidden", `The token lacks the scope ${missing.join(" ")}`, {

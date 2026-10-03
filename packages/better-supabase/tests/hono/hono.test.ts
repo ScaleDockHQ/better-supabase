@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
@@ -54,6 +55,9 @@ describe("createHono", () => {
     })
     .get("/api/crash", () => {
       throw new Error("secret detail");
+    })
+    .get("/api/teapot", () => {
+      throw new HTTPException(418, { message: "Short and stout" });
     });
 
   const call = async (path: string, token?: string) =>
@@ -89,6 +93,9 @@ describe("createHono", () => {
     const crash = await call("/api/crash", token);
     expect(crash.status).toBe(500);
     expect(JSON.stringify(await crash.json())).not.toContain("secret detail");
+    const teapot = await call("/api/teapot", token);
+    expect(teapot.status).toBe(418);
+    expect(await teapot.text()).toBe("Short and stout");
   });
 
   it("explains a missing middleware", async () => {

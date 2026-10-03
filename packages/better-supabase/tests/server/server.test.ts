@@ -65,6 +65,34 @@ describe("createServer headers", () => {
     ]);
     expect(sent[1]!.get("authorization")).toBe(`Bearer ${token}`);
   });
+
+  it("sends every client's requests through options.fetch", async () => {
+    const global = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", global);
+    const traced = vi.fn<typeof globalThis.fetch>(() =>
+      Promise.resolve(Response.json([])),
+    );
+    const server = createServer(defineSupabase(schema), {
+      env: { ...env, secretKey: "sb_secret_test" },
+      auth: { jwks: signer.jwks as never },
+      fetch: traced,
+    });
+    const token = await signer.sign({
+      sub: "11111111-1111-4111-8111-111111111111",
+    });
+    for (const headers of [{}, { authorization: `Bearer ${token}` }]) {
+      const ctx = await server.context(
+        new Request("https://api.test/", { headers }),
+      );
+      await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    }
+    await server
+      .admin()
+      .customers.findMany({ select: ["id"] })
+      .orThrow();
+    expect(traced).toHaveBeenCalledTimes(3);
+    expect(global).not.toHaveBeenCalled();
+  });
 });
 
 describe("createServer claims", () => {
@@ -461,11 +489,11 @@ describe("createServer events", () => {
       await server.resolve(new Request("https://api.test/", { headers }));
     }
     expect(events).toEqual([
-      { source: "bearer", ok: true, userId: USER },
-      { source: "cookie", ok: true, userId: USER },
+      { source: "bearer", ok: true, userId: USER, rawSource: "bearer" },
+      { source: "cookie", ok: true, userId: USER, rawSource: "cookie" },
       { source: "bearer", ok: true },
-      { source: "none", ok: true },
-      { source: "none", ok: false },
+      { source: "none", ok: true, reason: "none" },
+      { source: "none", ok: false, reason: "token" },
     ]);
   });
 

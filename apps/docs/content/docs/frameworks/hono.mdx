@@ -87,8 +87,9 @@ app.post(
 ```
 
 `bs.onError` handles errors thrown outside `bs.handler`. It sends a
-`DbException` as its Problem Details, and anything else as a 500 without
-internal details (unless `exposeErrors`).
+`DbException` as its Problem Details, returns the response of Hono's
+`HTTPException` unchanged, and sends anything else as a 500 without internal
+details (unless `exposeErrors`).
 
 ## Resources
 
@@ -101,7 +102,7 @@ import { defineListQuery } from "better-supabase/list";
 
 const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
-  facets: ["status"],
+  facets: { status: "status" },
   sorts: { name: { name: "asc" }, newest: { createdAt: "desc" } },
   defaultSort: "newest",
 });
@@ -128,6 +129,12 @@ Views get `list` and `get` only. Limit operations with `operations`; other
 methods answer `405` with an `Allow` header. Integer keys are parsed and
 validated. `input` schemas (any Standard Schema) validate bodies before they
 reach the repository.
+
+A cross-site browser request that writes without a bearer token and without
+`Content-Type: application/json` (a form post riding on the session cookie)
+gets a 403 with `code: "CROSS_SITE_REQUEST"`. JSON requests from other
+origins need a CORS preflight, so your CORS settings decide those. Malformed
+keys and bodies answer 400 `invalid_input` with the reason in `detail`.
 
 Pass the same `list` to `createOpenApi({ resources: { customers: { list: customerList } } })`
 and the document describes exactly these routes.

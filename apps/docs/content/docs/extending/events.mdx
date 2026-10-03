@@ -25,7 +25,7 @@ production, the logger warns once when one event has more than 50 handlers.
 | `query`    | `table`, `operation`, `ok`, `durationMs`, `rows`, `truncated` (an unbounded read hit [`maxRows`](/docs/repository/pagination#row-caps)) |
 | `mutation` | `table`, `kind` (`insert`, `upsert`, `update`, `delete`), `intent`, a copy of the app-cased `rows`, `keys`, `tenant`, `context`         |
 | `error`    | `table`, the `DbError`                                                                                                                  |
-| `auth`     | `source` (`bearer`, `cookie`, `none`), `ok`, `userId`                                                                                   |
+| `auth`     | `source` (`bearer`, `cookie`, `none`), `ok`, `userId`, `rawSource` (a custom resolver's name), `reason` (why there is no user)          |
 | `refresh`  | `ok`, `shared` (joined an in-flight refresh), `durationMs`                                                                              |
 
 `mutation` rows are a copy of what the database returned, so a listener

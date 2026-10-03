@@ -1,4 +1,5 @@
 import { call, ORPCError, os } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -82,6 +83,44 @@ describe("createOrpc", () => {
       code: "NOT_FOUND",
       data: { kind: "not_found", detail: "Gone" },
     });
+  });
+
+  it("serves a router and sets bs-primary-until after a write", async () => {
+    const pinned = createOrpc(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      readUrl: "https://replica.test/rest/v1",
+    });
+    const base = os.$context<OrpcRequestContext>().use(pinned.middleware());
+    const router = {
+      write: base.handler(({ context }) => {
+        context.bs.replica?.pin();
+        return { ok: true };
+      }),
+      read: base.handler(() => ({ ok: true })),
+    };
+    const fetch = pinned.fetchHandler(new RPCHandler(router), {
+      prefix: "/rpc",
+    });
+    const token = await signer.sign({ sub: USER });
+    const post = (path: string) =>
+      fetch(
+        new Request(`https://api.test/rpc/${path}`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({}),
+        }),
+      );
+    const wrote = await post("write");
+    expect(wrote.status).toBe(200);
+    expect(wrote.headers.get("set-cookie")).toMatch(/^bs-primary-until=\d+/);
+    const read = await post("read");
+    expect(read.status).toBe(200);
+    expect(read.headers.get("set-cookie")).toBeNull();
+    expect((await post("missing")).status).toBe(404);
   });
 
   it("derives codes from the error status", () => {

@@ -89,10 +89,12 @@ $$;
 
 
 -- Signed-in users receive unscoped topics, and topics of their active tenant.
+-- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
   using (
     realtime.messages.extension = 'broadcast'
     and (select realtime.topic()) like 'bs:t:%'
+    and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
       or split_part((select realtime.topic()), ':', 4) = coalesce(

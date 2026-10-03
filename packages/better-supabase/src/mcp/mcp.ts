@@ -19,7 +19,7 @@ import type {
 
 import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
-import { toProblem } from "../core/problem.ts";
+import { problemResponse, toProblem } from "../core/problem.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
@@ -172,7 +172,7 @@ export interface McpOptions<
   C = unknown,
   P = unknown,
 >
-  extends ServerOptions, GuardOptions {
+  extends ServerOptions, Omit<GuardOptions, "scopes"> {
   readonly name: string;
   readonly version: string;
   readonly title?: string;
@@ -193,7 +193,14 @@ export interface McpOptions<
    * `insufficient_scope` challenges. `offline_access` is left out: refresh
    * tokens are between the client and the authorization server.
    */
+  readonly advertisedScopes?: readonly string[];
+  /** @deprecated Use `advertisedScopes`; `requiredScopes` is what `guard` enforces. */
   readonly scopes?: readonly string[];
+  /**
+   * Scopes a delegated token (an OAuth client or an `act` chain) needs to call
+   * the server at all. A missing one answers 403 `insufficient_scope`.
+   */
+  readonly requiredScopes?: readonly string[];
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
   /**
@@ -708,9 +715,10 @@ export function createMcp<
       : outcome;
   };
 
-  const scopes = (options.scopes ?? []).filter(
-    (scope) => scope !== "offline_access",
-  );
+  const advertised =
+    // oxlint-disable-next-line typescript/no-deprecated -- `scopes` stays an alias of `advertisedScopes` until it is removed.
+    options.advertisedScopes ?? options.scopes ?? [];
+  const scopes = advertised.filter((scope) => scope !== "offline_access");
   const serverInfo = {
     name: options.name,
     version: options.version,
@@ -746,6 +754,14 @@ export function createMcp<
     const response = rpcError(id, INVALID_REQUEST, message, 403);
     response.headers.set("www-authenticate", challenge);
     return response;
+  };
+  /** A missing second factor is no scope problem, and an outage is not the caller's fault. */
+  const refuse = (request: Request, denied: DbError): Response => {
+    if (denied.kind === "unauthorized") return unauthorized(request);
+    if (denied.kind !== "forbidden") return problemResponse(denied, { expose });
+    return denied.code === "INSUFFICIENT_AAL"
+      ? rpcError(null, INVALID_REQUEST, denied.message, 403)
+      : forbidden(request, denied.message, denied.scopes);
   };
   const unsupportedVersion = (
     id: JsonRpcRequest["id"],
@@ -819,13 +835,14 @@ export function createMcp<
       return unsupportedVersion(null, header);
     }
 
-    const ctx = await server.context(request);
-    const denied = guard(ctx.auth, options.allow, options.aal);
-    if (denied) {
-      return denied.kind === "unauthorized"
-        ? unauthorized(request)
-        : forbidden(request, denied.message);
-    }
+    const ctx = await server.context(request, { cookies: false });
+    const denied = guard(
+      ctx.auth,
+      options.allow,
+      options.aal,
+      options.requiredScopes,
+    );
+    if (denied) return refuse(request, denied);
 
     let message: unknown;
     try {

@@ -120,6 +120,10 @@ describe("defineResource", () => {
       undefined,
     );
     expect(notJson.status).toBe(400);
+    expect(await notJson.json()).toMatchObject({
+      kind: "invalid_input",
+      detail: "The request body must be a JSON object",
+    });
     expect(
       (await customers.handle(request("/customers?size=999"), db, undefined))
         .status,
@@ -132,6 +136,38 @@ describe("defineResource", () => {
     expect(deleting.status).toBe(405);
     expect(deleting.headers.get("allow")).toBe("GET");
     expect(queries).toEqual([]);
+  });
+
+  it("refuses cross-site form posts that ride on the session cookie", async () => {
+    const { db, queries } = fakeDb();
+    const customers = defineResource(betterSupabase, "customers");
+    const post = (headers: Record<string, string>) =>
+      customers.handle(
+        request("/customers", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ name: "Acme", organizationId: "o1" }),
+        }),
+        db,
+        undefined,
+      );
+    const forged = await post({
+      origin: "https://evil.test",
+      "content-type": "text/plain",
+      cookie: "sb-session=x",
+    });
+    expect(forged.status).toBe(403);
+    expect(await forged.json()).toMatchObject({ code: "CROSS_SITE_REQUEST" });
+    expect(queries).toHaveLength(0);
+
+    for (const headers of [
+      { origin: "https://evil.test", "content-type": "application/json" },
+      { origin: "https://evil.test", authorization: "Bearer t" },
+      { origin: "https://api.test", "content-type": "text/plain" },
+      { "content-type": "text/plain" },
+    ]) {
+      expect((await post(headers)).status).toBe(201);
+    }
   });
 
   it("runs a list definition for GET collection requests", async () => {

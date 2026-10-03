@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { cacheLife, cacheTag, revalidateTag, updateTag } from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
+import { unstable_rethrow } from "next/navigation.js";
 import { type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 
@@ -25,7 +26,8 @@ import { EMPTY_STATS } from "../core/stats.ts";
 import {
   DEFAULT_PIN_MS,
   PRIMARY_COOKIE,
-  primaryCookie,
+  primaryCookieOptions,
+  withPrimaryPin,
 } from "../server/replicas.ts";
 import {
   defaultExpose,
@@ -469,7 +471,7 @@ export function createNext<
     const matches =
       ctx.auth.kind === "user"
         ? view.kind === "user" && view.user.id === ctx.auth.user.id
-        : view.kind !== "user";
+        : view.kind === ctx.auth.kind;
     if (matches) return ctx;
     return base.contextFor({
       kind: "invalid",
@@ -603,17 +605,26 @@ export function createNext<
         const instance = request.nextUrl.pathname;
         if (denied) return problemResponse(denied, { instance, expose });
         const params = await segment.params;
-        const response = await respond(
-          () => handler(request, withExtra(ctx, { params })),
-          { instance, expose },
-        );
-        if (ctx.replica?.wrote) {
-          try {
-            response.headers.append("set-cookie", primaryCookie(pinMs));
-          } catch {
-            // A handler returned a Response with immutable headers.
-          }
+        let response: Response;
+        try {
+          response = await respond(
+            () => handler(request, withExtra(ctx, { params })),
+            { instance, expose },
+          );
+        } catch (cause) {
+          // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
+          unstable_rethrow(cause);
+          response = problemResponse(
+            dbError(
+              "unexpected",
+              expose && cause instanceof Error
+                ? cause.message
+                : "Internal server error",
+            ),
+            { instance, expose },
+          );
         }
+        response = withPrimaryPin(response, ctx.replica, pinMs);
         if (collector) {
           try {
             response.headers.set(statsHeader, formatStats(ctx.stats()));
@@ -672,12 +683,11 @@ export function createNext<
         // action has no schema.
         const settled = await settle(() => fn(parsed as never, ctx));
         if (ctx.replica?.wrote) {
-          (await cookies()).set(PRIMARY_COOKIE, String(Date.now() + pinMs), {
-            path: "/",
-            maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
-            httpOnly: true,
-            sameSite: "lax",
-          });
+          (await cookies()).set(
+            PRIMARY_COOKIE,
+            String(Date.now() + pinMs),
+            primaryCookieOptions(pinMs),
+          );
         }
         // SAFETY: Out is the Result of the action's return type, which both branches build.
         return (

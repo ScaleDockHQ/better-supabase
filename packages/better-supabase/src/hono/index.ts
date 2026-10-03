@@ -1,6 +1,7 @@
 import type { Context, ErrorHandler, MiddlewareHandler } from "hono";
 
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { BetterSupabase } from "../core/define.ts";
@@ -67,7 +68,11 @@ export interface BetterHono<
     ) => unknown,
     options?: { readonly status?: number },
   ): (c: Context<HonoEnv<M, F, E, C, P>>) => Promise<Response>;
-  /** `app.onError(bs.onError)`: `DbException`s (and errors caused by a `DbError`) become Problem Details, others a 500. */
+  /**
+   * `app.onError(bs.onError)`: `DbException`s (and errors caused by a `DbError`)
+   * become Problem Details, Hono's `HTTPException`s keep their own response,
+   * and anything else is a 500.
+   */
   readonly onError: ErrorHandler<HonoEnv<M, F, E, C, P>>;
   /**
    * REST routes for a table matching `createOpenApi`. Mount with
@@ -108,6 +113,7 @@ export function createHono<
   const expose = options.exposeErrors ?? defaultExpose();
 
   const onError: ErrorHandler<HonoEnv<M, F, E, C, P>> = (cause, c) => {
+    if (cause instanceof HTTPException) return cause.getResponse();
     const instance = new URL(c.req.url).pathname;
     const thrown = dbErrorOf(cause);
     if (thrown) return problemResponse(thrown, { instance, expose });
@@ -145,7 +151,7 @@ export function createHono<
         c.set("db", ctx.db);
         c.set("auth", ctx.auth);
         await next();
-        c.res = ctx.resolution.apply(c.res);
+        c.res = ctx.apply(c.res);
         return;
       };
     },

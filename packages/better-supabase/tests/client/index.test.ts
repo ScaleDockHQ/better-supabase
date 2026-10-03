@@ -135,6 +135,16 @@ describe("createClient", () => {
     });
   });
 
+  it("carries the impersonator from the act claim", () => {
+    const { browser, emit } = setup();
+    emit(session(token({ act: { sub: "admin-1" } }), { id: "u1" }));
+    expect(browser.db.$context.actor).toEqual({
+      id: "u1",
+      kind: "user",
+      impersonator: "admin-1",
+    });
+  });
+
   it("notifies subscribers only when the user or the token expiry changes", () => {
     const { browser, emit } = setup();
     const listener = vi.fn();

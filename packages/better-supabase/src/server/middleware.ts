@@ -5,10 +5,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { defineMiddleware, type Middleware } from "@supabase/middleware";
 
 import type { BetterSupabase } from "../core/define.ts";
-import type { Actor, RequestContext } from "../core/plugin.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 
+import { userContext } from "../auth/impersonation.ts";
 import { postgresExecutor } from "../postgres/executor.ts";
 
 /** The `withSupabase` context keys `withBetterSupabase` reads. */
@@ -21,20 +22,9 @@ export interface SupabaseAuthContext {
 /** Repository context from a `@supabase/server` context. */
 export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
   switch (ctx.authMode) {
-    case "user": {
+    case "user":
       if (!ctx.userClaims) break;
-      const actor: Actor = {
-        id: ctx.userClaims.id,
-        kind: "user",
-        ...(ctx.userClaims.role === undefined
-          ? {}
-          : { role: ctx.userClaims.role }),
-        ...(ctx.userClaims.email === undefined
-          ? {}
-          : { email: ctx.userClaims.email }),
-      };
-      return { actor, claims: ctx.jwtClaims ?? {} };
-    }
+      return userContext(ctx.userClaims, ctx.jwtClaims ?? {});
     case "secret":
       return {
         actor: { id: "service", kind: "service", role: "service_role" },

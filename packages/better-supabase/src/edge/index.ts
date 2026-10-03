@@ -183,7 +183,7 @@ export function createEdge<
           { instance, expose },
         );
       }
-      response = ctx.resolution.apply(response);
+      response = ctx.apply(response);
       return extra ? withHeaders(response, extra) : response;
     };
   };
@@ -247,7 +247,7 @@ export function createEdge<
             id === undefined || id === "" ? undefined : decodeURIComponent(id);
         } catch {
           return problemResponse(
-            dbError("invalid_request", `Malformed id in ${pathname}`),
+            dbError("invalid_input", `Malformed id in ${pathname}`),
             { instance: pathname },
           );
         }

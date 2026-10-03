@@ -48,6 +48,20 @@ export interface AuthEvent {
   readonly source: "bearer" | "cookie" | "none";
   readonly ok: boolean;
   readonly userId?: string;
+  /**
+   * Why there is no user: the anon reason (`expired`, `signed_out`, ...) or
+   * the invalid reason (`token`, `claims`, `actor`).
+   */
+  readonly reason?:
+    | "none"
+    | "expired"
+    | "signed_out"
+    | "refresh_failed"
+    | "token"
+    | "claims"
+    | "actor";
+  /** The user's `source` as the resolver set it, e.g. a custom resolver's name. */
+  readonly rawSource?: string;
 }
 
 export interface RefreshEvent {

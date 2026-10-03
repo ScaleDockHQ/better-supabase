@@ -199,6 +199,22 @@ describe("cookie sessions", () => {
     expect(auth).toMatchObject({ kind: "user", source: "cookie" });
   });
 
+  it("ignores the session cookie with cookies: false", async () => {
+    const token = await signer.sign({ sub: USER });
+    const { auth } = await resolveAuth(
+      cookieRequest(
+        sessionCookie({
+          access_token: token,
+          refresh_token: "r",
+          token_type: "bearer",
+          user: { id: USER },
+        }),
+      ),
+      { ...options, cookies: false },
+    );
+    expect(auth).toEqual({ kind: "anon", reason: "none" });
+  });
+
   it("treats undecodable access tokens as expired", async () => {
     for (const access_token of [
       "opaque",

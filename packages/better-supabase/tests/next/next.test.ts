@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -341,6 +342,8 @@ describe("createNext", () => {
         throw new DbException(dbError("not_found", "No customer"));
       if (ctx.params.id === "result")
         return { ok: false, data: null, error: dbError("conflict", "Taken") };
+      if (ctx.params.id === "crash") throw new Error("secret detail");
+      if (ctx.params.id === "redirect") redirect("/login");
       return {
         id: ctx.params.id,
         user: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
@@ -375,6 +378,13 @@ describe("createNext", () => {
       instance: "/api/customers/missing",
     });
     expect((await call("result", token)).status).toBe(409);
+    const crash = await call("crash", token);
+    expect(crash.status).toBe(500);
+    expect(crash.headers.get("content-type")).toBe("application/problem+json");
+    expect(JSON.stringify(await crash.json())).not.toContain("secret detail");
+    await expect(call("redirect", token)).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_REDIRECT"),
+    });
   });
 
   it("unwraps AsyncResults returned without await", async () => {
