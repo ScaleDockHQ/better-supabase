@@ -131,8 +131,31 @@ describe("runSql", () => {
       join(root, "permdock.manifest.json"),
     );
     await expect(
-      sql(["list"], { entitlements: { permdock: { scope: "team" } } }),
+      sql(["print", "entitlements"], {
+        entitlements: { permdock: { scope: "team" } },
+      }),
     ).rejects.toThrow(/entitlements\.permdock\.scope is "team"/);
+    expect(
+      await sql(["list"], { entitlements: { permdock: { scope: "team" } } }),
+    ).toMatchObject({ code: 0 });
+    expect(
+      await sql(["print", "audit"], {
+        entitlements: { permdock: { scope: "team" } },
+      }),
+    ).toMatchObject({ code: 0 });
+  });
+
+  it("guards the tenant module when only PermDock's manifest is present", async () => {
+    await cp(
+      join(fixtures, "permdock.manifest.json"),
+      join(root, "permdock.manifest.json"),
+    );
+    expect(await sql(["add", "tenant"])).toMatchObject({
+      code: 1,
+      error: expect.stringContaining(
+        "permdock.manifest.json is present, so PermDock owns the access token hook",
+      ),
+    });
   });
 
   it("refuses to render entitlements for a scope id type it doesn't support", async () => {

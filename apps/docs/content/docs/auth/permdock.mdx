@@ -36,9 +36,10 @@ one `permitted_<scope>_ids(p_grant)` and one membership-only
 permdock rls generate --target sql --dialect supabase --out supabase/migrations/20260929_permdock_rls.sql
 ```
 
-The helpers live in PermDock's `rls.schema` (`public` by default). Buckets and
-topics in `permdock` mode call them, so their `schema` option must name the
-same schema.
+The helpers live in PermDock's `rls.schema` (`permdock` by default, a schema
+the Data API does not expose). Buckets and topics in `permdock` mode call them
+in `permdock` unless their `schema` option names another schema, and doctor
+(BS214) reports a `schema` that differs from the manifest's.
 
 </Step>
 
@@ -255,14 +256,34 @@ import { createMcp } from "better-supabase/mcp";
 import { createPermDock, isPermission, mayUse } from "permdock";
 import { subjectFromSupabaseSession } from "permdock/supabase";
 
-async function dockFor(ctx: { auth: { kind: string; claims?: unknown } }) {
-  return createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
+type Auth = { kind: string; claims?: unknown };
+type Dock = Awaited<ReturnType<typeof createPermDock>>;
+
+// One PermDock instance per request: `visible` runs once per tool.
+const docks = new WeakMap<Auth, Promise<Dock>>();
+function dockFor(ctx: { auth: Auth }): Promise<Dock> {
+  let dock = docks.get(ctx.auth);
+  if (!dock) {
+    dock = createPermDock(policy, subjectFromSupabaseSession(ctx.auth));
+    docks.set(ctx.auth, dock);
+  }
+  return dock;
 }
 
 const bs = createMcp(betterSupabase, {
   name: "crm",
   version: "1.0.0",
   scopes: ["openid"],
+  // Table tools carry a permission per operation; one without stays hidden.
+  resources: {
+    customers: {
+      operations: ["list", "get"],
+      meta: {
+        list: permissions.customers.read,
+        get: permissions.customers.read,
+      },
+    },
+  },
   authorize: async (ctx, tool) => {
     if (!isPermission(tool.meta))
       return { allowed: false, reason: "No PermDock permission in meta" };
@@ -279,6 +300,10 @@ const bs = createMcp(betterSupabase, {
   run: (_args, { db }) => db.customers.findMany(),
 });
 ```
+
+Table tools from `resources` take their permission from the resource's
+`meta`, keyed by operation (`list`, `get`, `create`, `update`, `delete`); an
+operation without one is hidden and refused like any other tool.
 
 To tell the client why PermDock refused, call `decide(tool.meta)` instead of
 `can`: the decision's `denials` carry the reason (such as `no-grant` or

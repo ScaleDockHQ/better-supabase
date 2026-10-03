@@ -1,6 +1,6 @@
 import type { AuthSession } from "better-supabase/react";
 
-import type { Claims, Role } from "@/lib/claims";
+import { type Claims, MEMBERSHIP_SCOPE, type Role } from "@/lib/claims";
 
 // A deliberately small, hand-written permission check that runs on the server
 // and the client, over PermDock's claim contract. A real app replaces this
@@ -42,17 +42,19 @@ const grants = {
 const isRole = (role: string): role is Role => Object.hasOwn(grants, role);
 
 /**
- * The global `user_role` the hook writes (top level, else `app_metadata`),
- * plus the roles of the membership in the active tenant (`tenant_id`).
- * Never `user_metadata`: users can edit that.
+ * The global `user_role` roles the hook writes (top level, else
+ * `app_metadata`), plus the roles of the membership in the active tenant
+ * (`tenant_id`). Never `user_metadata`: users can edit that.
  */
 export function rolesOf(claims: Claims): Role[] {
-  const global = claims.user_role ?? claims.app_metadata?.user_role;
+  const global = claims.user_role?.length
+    ? claims.user_role
+    : (claims.app_metadata?.user_role ?? []);
   const tenant = claims.tenant_id ?? claims.app_metadata?.tenant_id;
   const membership = claims.memberships?.find(
-    (entry) => entry.scope === "tenant" && entry.id === tenant,
+    (entry) => entry.scope === MEMBERSHIP_SCOPE && entry.id === tenant,
   );
-  const roles = new Set<Role>(global ? [global] : []);
+  const roles = new Set<Role>(global);
   for (const role of membership?.roles ?? []) {
     if (isRole(role)) roles.add(role);
   }

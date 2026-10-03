@@ -56,9 +56,26 @@ const PERMDOCK_HOOK = /'\{\s*(?:claims\s*,\s*)?memberships_truncated\s*\}'/i;
 const escapeRegExp = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** The claims PermDock's hook writes that a second writer would contradict. */
-function ownedClaims(tenant: string): readonly string[] {
-  return ["roles", "user_role", "memberships", tenant];
+/**
+ * The claims PermDock's hook writes that a second writer would contradict.
+ * The tenant claim is the manifest's when there is one, since that is the
+ * claim PermDock's hook really writes.
+ */
+function ownedClaims(context: DoctorContext): readonly string[] {
+  const manifest = context.permdock?.manifest;
+  const tenant =
+    manifest?.rls?.tenantClaim ??
+    manifest?.tenantClaim ??
+    context.config.claims.tenant;
+  return [
+    ...new Set([
+      "roles",
+      "user_role",
+      "memberships",
+      tenant,
+      context.config.claims.tenant,
+    ]),
+  ];
 }
 
 const quotedName = (schema: string, name: string): string =>
@@ -109,7 +126,7 @@ function registeredClaims(
   }
   if (claims.size > 0) return claims;
   const owned = new Set([
-    ...ownedClaims(context.config.claims.tenant),
+    ...ownedClaims(context),
     "memberships_truncated",
     "attrs",
     "authz_ver",
@@ -590,7 +607,7 @@ export const HOOK_RULES: readonly Rule[] = [
           const kit = KIT_MEMBERSHIPS.test(fn.source);
           const wrapper = wrapsPermdockHook(context, fn.source);
           const written = writtenClaims(fn.source, [
-            ...ownedClaims(context.config.claims.tenant),
+            ...ownedClaims(context),
             ...(wrapper ? registered.keys() : []),
           ]);
           if (!kit && written.length === 0) continue;

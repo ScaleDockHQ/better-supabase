@@ -34,8 +34,15 @@ the other.
   `better-supabase.config.ts` must also be PermDock's `rls.tenantClaim` and
   go to `subjectFromSupabase` or `subjectFromSupabaseSession` as `{ tenant }`.
 - Validate claims with PermDock's schema: `betterSupabase.claims(supabaseClaims().extend(appClaims))`.
-- The helpers live in PermDock's `rls.schema`, which must equal the `schema`
-  option of buckets and topics in `permdock` mode.
+- The helpers live in PermDock's `rls.schema` (`permdock` by default). Buckets
+  and topics in `permdock` mode call them in `permdock` unless their `schema`
+  option names another schema; it must equal `rls.schema`.
+- Use the scope names the manifest declares (`organization`, not PermDock's
+  `tenant` alias): the helpers are named after them, and doctor reports a
+  key checked at another scope than its catalog entry.
+- The entitlements module needs PermDock's hook to fill `claims.features`
+  from `better_supabase.feature_claims`
+  (`supabase.hook.claims: { features: 'better_supabase.feature_claims' }`).
 - The `permdock` policy mode checks role and scope only. Use it only for
   permissions whose `rowConditions` is `false` in `permissions.catalog.json`.
   A missing flag or a key the catalog doesn't list is unknown and refused;

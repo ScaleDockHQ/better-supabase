@@ -174,8 +174,11 @@ const bs = createMcp(betterSupabase, {
 ```
 
 `meta` is opaque data on a tool, for example a permission, that both hooks
-receive as `tool.meta`. It is never sent to clients. Table tools have no
-`meta`; use `tool.info.name` for them.
+receive as `tool.meta`. It is never sent to clients. Table tools take theirs
+from the resource's `meta`, keyed by operation:
+`resources: { customers: { meta: { delete: "admin" } } }` gives
+`customers_delete` the `meta` `"admin"`, and an operation without an entry
+gets `undefined`.
 
 - `authorize(ctx, tool, args)` runs on every `tools/call`, after the
   arguments are validated and before `run`. It returns `{ allowed: true }` or

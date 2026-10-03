@@ -245,7 +245,7 @@ describe("entitlements in PermDock mode", () => {
     expect(sql).not.toContain('"public"."contacts"');
   });
 
-  it.each(["uuid", "text", "bigint"] as const)(
+  it.each(["uuid", "text", "bigint", "integer"] as const)(
     "renders the %s scope id type in every tenant signature",
     (idType) => {
       const file = renderKit(["entitlements"], {

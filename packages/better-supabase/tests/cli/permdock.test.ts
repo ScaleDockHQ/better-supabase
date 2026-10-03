@@ -58,10 +58,18 @@ describe("PermDock manifest", () => {
     expect(() => parseManifest([])).toThrow(/not a JSON object/);
   });
 
+  it("reads rls.tenantClaim and refuses an unknown rls.mode", () => {
+    expect(parseManifest(manifest).rls?.tenantClaim).toBe("tenant_id");
+    expect(() =>
+      parseManifest({ ...manifest, rls: { ...manifest.rls, mode: "edge" } }),
+    ).toThrow(/rls\.mode "edge" is not supported/);
+  });
+
   it("keeps each catalog key's rowConditions flag, and drops one that isn't boolean", () => {
     const catalog = parseCatalog({
+      version: 1,
       permissions: [
-        { key: "a", rowConditions: true },
+        { key: "a", rowConditions: true, scope: "organization" },
         { key: "b", rowConditions: false },
         { key: "c" },
         { key: "d", rowConditions: "yes" },
@@ -69,7 +77,7 @@ describe("PermDock manifest", () => {
       ],
     });
     expect(catalog.permissions).toEqual([
-      { key: "a", rowConditions: true },
+      { key: "a", rowConditions: true, scope: "organization" },
       { key: "b", rowConditions: false },
       { key: "c" },
       { key: "d" },
@@ -84,6 +92,15 @@ describe("PermDock manifest", () => {
       "missing",
     ]);
     expect(() => parseCatalog({})).toThrow(/no permissions array/);
+  });
+
+  it("refuses a catalog that isn't version 1", () => {
+    expect(() => parseCatalog({ version: 2, permissions: [] })).toThrow(
+      /version 2 is not supported/,
+    );
+    expect(() => parseCatalog({ permissions: [] })).toThrow(
+      /version undefined is not supported/,
+    );
   });
 
   it("parses the hook and grants markers", () => {
@@ -189,10 +206,22 @@ describe("entitlementsMode", () => {
   });
 
   it("takes the scope's id type from the manifest", () => {
-    for (const type of ["uuid", "text", "bigint"])
+    for (const type of ["uuid", "text", "bigint", "integer"])
       expect(
         entitlementsMode(config(), withScopes([{ name: "tenant", type }])),
       ).toMatchObject({ kind: "permdock", permdock: { idType: type } });
+  });
+
+  it("normalises the case and aliases of the id type", () => {
+    for (const [type, idType] of [
+      ["UUID", "uuid"],
+      ["int8", "bigint"],
+      ["int4", "integer"],
+      ["character  varying", "text"],
+    ] as const)
+      expect(
+        entitlementsMode(config(), withScopes([{ name: "tenant", type }])),
+      ).toMatchObject({ kind: "permdock", permdock: { idType } });
   });
 
   it("refuses a missing or unsupported scope id type instead of guessing uuid", () => {
@@ -212,7 +241,7 @@ describe("entitlementsMode", () => {
     ).toEqual({
       kind: "invalid",
       problem: expect.stringMatching(
-        /scope "tenant" the type numeric.*uuid, text or bigint/,
+        /scope "tenant" the type numeric.*uuid, text, bigint or integer/,
       ),
     });
   });
@@ -233,14 +262,46 @@ describe("entitlementsMode", () => {
     });
   });
 
-  it("keeps the tenant module without a manifest or with permdock: false", () => {
-    const { manifest: _, ...withoutManifest } = project;
+  it("keeps the tenant module without PermDock or with permdock: false", () => {
     expect(entitlementsMode(config(), undefined)).toEqual({ kind: "tenant" });
-    expect(entitlementsMode(config(), withoutManifest)).toEqual({
-      kind: "tenant",
-    });
     expect(entitlementsMode(config({ permdock: false }), project)).toEqual({
       kind: "tenant",
+    });
+  });
+
+  it("refuses a PermDock project without a manifest or its rls block", () => {
+    const { manifest: _, ...withoutManifest } = project;
+    expect(
+      entitlementsMode(config(), {
+        ...withoutManifest,
+        config: "permdock.config.ts",
+      }),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringMatching(
+        /permdock\.config\.ts is a PermDock project, but there is no permdock\.manifest\.json.*permdock: false/,
+      ),
+    });
+    expect(
+      entitlementsMode(config(), {
+        ...withoutManifest,
+        problems: ["permdock.manifest.json: version 2 is not supported"],
+      }),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringContaining(
+        "Could not read PermDock's manifest: permdock.manifest.json: version 2",
+      ),
+    });
+    const { rls: _rls, ...withoutRls } = manifest;
+    expect(
+      entitlementsMode(config(), {
+        ...project,
+        manifest: parseManifest(withoutRls),
+      }),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringContaining("has no rls block"),
     });
   });
 
@@ -273,6 +334,7 @@ describe("readPermdock", () => {
     await writeFile(
       join(root, PATHS.catalog),
       JSON.stringify({
+        version: 1,
         permissions: [{ key: "docs.read", rowConditions: true }],
       }),
     );

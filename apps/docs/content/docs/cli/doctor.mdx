@@ -388,9 +388,18 @@ is a key the catalog doesn't list. Doctor reports both as errors and `gen`
 refuses them: regenerate the catalog with a current `permdock catalog`, which
 writes the flag for every permission.
 
-When the helpers are used but the catalog file is missing, doctor reports an
-info finding: run `permdock catalog` to write it. `defineBucket` and
+When the helpers are used but the catalog file is missing or can't be read,
+doctor reports an error and `gen` refuses the bucket policies, because whether
+their permissions have row conditions is unknown: run `permdock catalog` to
+write it. A catalog other than version 1 can't be read. `defineBucket` and
 `defineTopic` take the same catalog as `catalog` and throw for the same keys.
+
+With PermDock's manifest, doctor also reports a policy whose helpers are in
+another schema than the manifest's `rls.schema` (buckets default to
+`permdock`), a scope the manifest's `rls.scopes` doesn't declare (PermDock's
+`tenant` and `team` aliases name its first and second scope, but the helper
+is named after the scope itself), and a permission checked at another scope
+than the one its catalog entry declares.
 
 ### BS215
 
@@ -660,15 +669,25 @@ With a `permdock.manifest.json`, the [`entitlements` kit
 module](/docs/kits/entitlements#with-permdock) reads memberships from
 PermDock's `member_<scope>_ids()` in `has_entitlement`, which runs as
 `authenticated`, and `member_<scope>_ids_for(uuid)` in `feature_claims`, which
-PermDock's hook runs as `supabase_auth_admin`. When `entitlements` is in
-`sql.kit`, doctor checks exactly those two helpers for the chosen scope and
-warns when:
+PermDock's hook calls. When `entitlements` is in `sql.kit`, doctor checks
+exactly those two helpers for the chosen scope and warns when:
 
+- a `permdock.config.ts` is present but the manifest is missing, unreadable or
+  has no `rls` block. `sql add entitlements` refuses to fall back to the
+  tenant module then; set `entitlements.permdock: false` to use it on purpose;
 - `entitlements.permdock.scope` is not one of the manifest's scopes, or it is
   unset and the manifest has no single root scope;
-- the scope's `type` in `rls.scopes` is missing or is not `uuid`, `text` or
-  `bigint`. `sql add entitlements` refuses to render the module then, instead
-  of guessing `uuid`;
+- the scope's `type` in `rls.scopes` is missing or is not `uuid`, `text`,
+  `bigint` or `integer` (case and aliases such as `int8` are normalised).
+  `sql add entitlements` refuses to render the module then, instead of
+  guessing `uuid`;
+- the manifest has no `claims.features` claim filled by
+  `better_supabase.feature_claims`, so `hasEntitlement()` would never see the
+  plan features. The message names the `supabase.hook.claims` setting, or the
+  `claims.features` name to use when the function is registered under another
+  claim;
+- no membership source in the manifest covers the scope, so
+  `entitlement_members()` finds no users to sign out after a plan change;
 - the manifest's `rls.helpers` lacks `member_<scope>_ids`, or doesn't let
   `authenticated` execute it: run `permdock rls generate` with a current
   PermDock, then `permdock supabase inspect --out`;
@@ -676,12 +695,26 @@ warns when:
   a membership source, so add one in `permdock.config.ts`
   (`supabase.hook.memberships`, `rls.membershipSources` or a mapped
   `rls.memberships` table);
-- `supabase_auth_admin` may not execute `member_<scope>_ids_for`. PermDock
-  grants it only when the hook has claims, so add
-  `supabase.hook.claims: { features: 'better_supabase.feature_claims' }` and
-  run `permdock supabase hook generate` again;
+- `supabase_auth_admin` may not execute `member_<scope>_ids_for` (an info
+  finding: `feature_claims` is `security definer`, so it calls the helper as
+  its owner). PermDock grants it when the hook has claims;
 - the database lacks a helper the manifest lists: apply the migration
   `permdock rls generate` wrote before the kit's.
+
+### BS409
+
+**Warning: PermDock's manifest and the better-supabase config disagree.**
+PermDock's hook and helpers read the active tenant from the manifest's
+`rls.tenantClaim`. Doctor warns when `claims.tenant` names another claim,
+because the tenant plugin, the guards and the kit's RLS would then read a
+claim PermDock never writes, and BS407 checks the manifest's claim as one
+PermDock owns. Set `claims.tenant` to the manifest's claim, or change it in
+`permdock.config.ts`.
+
+It reports an error for a `-- permdock:hook` or `-- permdock:grants` marker
+other than `v1`, because doctor can't trust what an unknown version says about
+the hook, and an info finding when `claims.scope` resolves to another scope
+than the manifest's root scope (`tenant` stands for PermDock's first scope).
 
 ## Env files
 

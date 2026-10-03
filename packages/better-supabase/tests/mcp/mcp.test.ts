@@ -580,6 +580,47 @@ describe("createMcp", () => {
   });
 });
 
+describe("createMcp table tool meta", () => {
+  it("passes each operation's meta to visible and authorize", async () => {
+    const betterSupabase = defineSupabase(schema);
+    const seen: [string, unknown][] = [];
+    const mcp = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      resources: {
+        tags: {
+          operations: ["list", "delete"],
+          meta: { list: { permission: "tags.read" } },
+        },
+      },
+      visible: (_ctx, tool) => {
+        seen.push([tool.info.name, tool.meta]);
+        return tool.meta !== undefined;
+      },
+    });
+    const response = await mcp.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      }),
+    );
+    const { result } = (await response.json()) as {
+      result: { tools: { name: string }[] };
+    };
+    expect(result.tools.map((tool) => tool.name)).toEqual(["tags_list"]);
+    expect(seen).toEqual([
+      ["tags_list", { permission: "tags.read" }],
+      ["tags_delete", undefined],
+    ]);
+  });
+});
+
 describe("createMcp cursor lists", () => {
   it("describes cursor pagination in the list tool schemas", async () => {
     const betterSupabase = defineSupabase(schema);

@@ -110,7 +110,7 @@ export interface McpTool<
 /** What the `authorize` and `visible` hooks see of a tool. */
 export interface ToolRef {
   readonly info: ToolInfo;
-  /** The tool's `meta`, e.g. a PermDock permission. `undefined` for table tools. */
+  /** The tool's `meta`, e.g. a PermDock permission. For table tools, the resource's `meta` for that operation. */
   readonly meta: unknown;
 }
 
@@ -148,8 +148,21 @@ export interface ToolDefinition<
   run(args: I, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
+/** A table's tools: the REST resource options, plus `meta` per operation for `authorize` and `visible`. */
+export type ToolResourceOptions<
+  M extends AnyModels,
+  T extends TableKey<M>,
+> = ResourceRouteOptions<M, T> & {
+  /**
+   * Opaque data per operation, e.g. a PermDock permission, passed to
+   * `authorize` and `visible` as the table tool's `meta`. Never sent to
+   * clients. An operation without an entry gets `undefined`.
+   */
+  readonly meta?: { readonly [K in ResourceOperation]?: unknown };
+};
+
 export type ToolResources<M extends AnyModels> = {
-  readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
+  readonly [T in TableKey<M>]?: ToolResourceOptions<M, T> | true;
 };
 
 export interface McpOptions<
@@ -583,14 +596,14 @@ export function createMcp<
   for (const [table, raw] of Object.entries(options.resources ?? {})) {
     if (!raw) continue;
     // SAFETY: options.resources is keyed by table names of M, and
-    // Object.entries widens the keys.
-    const resource = defineResource(
-      betterSupabase,
-      table as TableKey<M>,
-      raw === true ? {} : (raw as ResourceRouteOptions<M, TableKey<M>>),
-    );
+    // Object.entries widens the keys and values.
+    const key = table as TableKey<M>;
+    // SAFETY: as above, `raw` is the options entry for `key`.
+    const entry = raw as ToolResourceOptions<M, TableKey<M>> | true;
+    const { meta, ...route } = entry === true ? {} : entry;
+    const resource = defineResource(betterSupabase, key, route);
     for (const { info, operation } of tableTools(resource, defs)) {
-      const ref: ToolRef = { info, meta: undefined };
+      const ref: ToolRef = { info, meta: meta?.[operation] };
       register({
         ...ref,
         async call(args, ctx) {

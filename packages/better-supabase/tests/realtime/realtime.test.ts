@@ -144,7 +144,7 @@ describe("defineTopic", () => {
       },
     }).sql();
     const ids = (key: string) =>
-      `split_part((select realtime.topic()), ':', 2) in (select t.id::text from "public"."permitted_organization_ids"('${key}') as t(id))`;
+      `split_part((select realtime.topic()), ':', 2) in (select t.id::text from "permdock"."permitted_organization_ids"('${key}') as t(id))`;
     expect(board).toContain(
       `for select to authenticated\n  using (\n    (select realtime.topic()) ~ '^org:[^:]+:board$'\n    and realtime.messages.extension in ('broadcast')\n    and ${ids("board.read")}\n  );`,
     );
@@ -157,7 +157,7 @@ describe("defineTopic", () => {
       permdock: { receive: "announcements.read", scope: "global" },
     }).sql();
     expect(receiveOnly).toContain(
-      `(select "public".permdock_has('announcements.read'))`,
+      `(select "permdock".permdock_has('announcements.read'))`,
     );
     expect(receiveOnly).not.toContain("for insert");
     expect(() =>

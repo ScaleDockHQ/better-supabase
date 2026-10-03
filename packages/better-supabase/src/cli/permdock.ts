@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../config/index.ts";
 import type { KitPermdock, PermdockCatalog } from "../sql/index.ts";
 
-import { isKitIdType, KIT_ID_TYPES } from "../sql/index.ts";
+import { KIT_ID_TYPES, kitIdType } from "../sql/index.ts";
 
 const PERMDOCK_CONFIGS = [
   "permdock.config.ts",
@@ -61,6 +61,8 @@ export interface PermdockManifest {
   readonly rls?: {
     readonly schema: string;
     readonly mode: "jwt" | "database";
+    /** The claim PermDock's helpers read the active tenant from. */
+    readonly tenantClaim?: string;
     readonly scopes: readonly {
       readonly name: string;
       /** The id's Postgres type; missing means unknown. */
@@ -143,6 +145,11 @@ export function parseManifest(json: unknown): PermdockManifest {
   }
   const hook = json["hook"];
   const rls = json["rls"];
+  if (isRecord(rls) && rls["mode"] !== "jwt" && rls["mode"] !== "database") {
+    throw new TypeError(
+      `rls.mode ${JSON.stringify(rls["mode"])} is not supported (this release reads "jwt" and "database")`,
+    );
+  }
   const budget = isRecord(json["budget"]) ? json["budget"]["bytes"] : undefined;
   return {
     version: 1,
@@ -171,6 +178,9 @@ export function parseManifest(json: unknown): PermdockManifest {
           rls: {
             schema: rls["schema"],
             mode: rls["mode"] === "jwt" ? "jwt" : "database",
+            ...(isString(rls["tenantClaim"])
+              ? { tenantClaim: rls["tenantClaim"] }
+              : {}),
             scopes: (Array.isArray(rls["scopes"]) ? rls["scopes"] : []).flatMap(
               (scope) =>
                 isRecord(scope) && isString(scope["name"])
@@ -213,21 +223,30 @@ export function parseManifest(json: unknown): PermdockManifest {
 }
 
 /**
- * The keys of a parsed `permissions.catalog.json`, each with its
- * `rowConditions` flag when it is a boolean. A non-boolean flag is dropped,
- * so `permdockKeyStatus` reads the key as unknown.
+ * The keys of a parsed `permissions.catalog.json`, each with its scope and
+ * its `rowConditions` flag when it is a boolean. A non-boolean flag is
+ * dropped, so `permdockKeyStatus` reads the key as unknown. Throws unless
+ * the catalog is version 1.
  */
 export function parseCatalog(json: unknown): PermdockCatalog {
   if (!isRecord(json) || !Array.isArray(json["permissions"]))
     throw new TypeError("has no permissions array");
+  if (json["version"] !== 1) {
+    throw new TypeError(
+      `version ${String(json["version"])} is not supported (this release reads version 1)`,
+    );
+  }
   return {
     permissions: json["permissions"].flatMap((permission) => {
       if (!isRecord(permission) || !isString(permission["key"])) return [];
       const flag = permission["rowConditions"];
+      const scope = permission["scope"];
       return [
-        typeof flag === "boolean"
-          ? { key: permission["key"], rowConditions: flag }
-          : { key: permission["key"] },
+        {
+          key: permission["key"],
+          ...(typeof flag === "boolean" ? { rowConditions: flag } : {}),
+          ...(isString(scope) ? { scope } : {}),
+        },
       ];
     }),
   };
@@ -350,21 +369,39 @@ export type EntitlementsMode =
   | { readonly kind: "invalid"; readonly problem: string };
 
 /**
- * PermDock mode, when the manifest has an `rls` block and
- * `entitlements.permdock` is not `false`. The scope is
- * `entitlements.permdock.scope`, which must be one of the manifest's
- * `rls.scopes`, else the one scope without `within`. No root scope, or more
- * than one, is invalid rather than a guess. Without a manifest the module
- * keeps using `tenant`.
+ * PermDock mode, when the project uses PermDock and `entitlements.permdock`
+ * is not `false`. The scope is `entitlements.permdock.scope`, which must be
+ * one of the manifest's `rls.scopes`, else the one scope without `within`.
+ * No root scope, or more than one, is invalid rather than a guess. A
+ * PermDock project without a readable manifest or without its `rls` block
+ * is invalid too, so the module never falls back to `tenant` on its own.
  */
 export function entitlementsMode(
   config: Pick<ResolvedConfig, "entitlements">,
   project: PermdockProject | undefined,
 ): EntitlementsMode {
   const setting = config.entitlements.permdock;
-  const rls = project?.manifest?.rls;
-  if (setting === false || !project?.manifest || !rls)
-    return { kind: "tenant" };
+  if (setting === false || !project) return { kind: "tenant" };
+  const optOut =
+    "or set entitlements.permdock: false to keep the tenant module's memberships.";
+  if (!project.manifest) {
+    const problem = project.problems.find((entry) =>
+      entry.startsWith(project.manifestPath),
+    );
+    return {
+      kind: "invalid",
+      problem: problem
+        ? `Could not read PermDock's manifest: ${problem}. Run \`permdock supabase inspect --out\` with a current PermDock, ${optOut}`
+        : `${permdockSource(project)} is a PermDock project, but there is no ${project.manifestPath}. Run \`permdock supabase inspect --out\`, ${optOut}`,
+    };
+  }
+  const rls = project.manifest.rls;
+  if (!rls) {
+    return {
+      kind: "invalid",
+      problem: `${project.manifestPath} has no rls block, so the entitlements module can't find PermDock's membership helpers. Run \`permdock rls generate\`, then \`permdock supabase inspect --out\`, ${optOut}`,
+    };
+  }
   const names = rls.scopes.map((scope) => scope.name).join(", ") || "none";
   let scope: string;
   if (setting.scope === undefined) {
@@ -385,17 +422,18 @@ export function entitlementsMode(
       };
     }
   }
-  const type = rls.scopes.find((entry) => entry.name === scope)?.type;
-  if (type === undefined) {
+  const declared = rls.scopes.find((entry) => entry.name === scope)?.type;
+  if (declared === undefined) {
     return {
       kind: "invalid",
       problem: `${project.manifestPath} gives scope "${scope}" no type, so the entitlements module can't tell its id type. Run \`permdock supabase inspect --out\` with a current PermDock.`,
     };
   }
-  if (!isKitIdType(type)) {
+  const type = kitIdType(declared);
+  if (type === undefined) {
     return {
       kind: "invalid",
-      problem: `${project.manifestPath} gives scope "${scope}" the type ${type}, but the entitlements module renders only ${KIT_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
+      problem: `${project.manifestPath} gives scope "${scope}" the type ${declared}, but the entitlements module renders only ${KIT_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
     };
   }
   return {

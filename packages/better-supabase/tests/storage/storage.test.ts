@@ -124,7 +124,7 @@ describe("defineBucket", () => {
     });
     const sql = files.sql();
     const ids = (key: string) =>
-      `split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('${key}') as t(id))`;
+      `split_part(name, '/', 1) in (select t.id::text from "permdock"."permitted_organization_ids"('${key}') as t(id))`;
     const listing =
       "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
     expect(sql).toContain(
@@ -408,7 +408,7 @@ describe("defineBucket options", () => {
       },
     }).sql();
     expect(sql).toContain(
-      `split_part(name, '/', 2) in (select t.id::text from "public"."permitted_team_ids"('f.read') as t(id))`,
+      `split_part(name, '/', 2) in (select t.id::text from "permdock"."permitted_team_ids"('f.read') as t(id))`,
     );
   });
 

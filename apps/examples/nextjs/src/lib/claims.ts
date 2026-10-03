@@ -8,6 +8,62 @@ const isEntitlement = (key: string): key is Entitlement =>
   v.is(Entitlement, key);
 
 /**
+ * The scope of the tenant entries in `memberships`: `claims.scope` in
+ * better-supabase.config.ts. PermDock's hook writes its declared scope
+ * names, so with PermDock this is the manifest's root scope.
+ */
+export const MEMBERSHIP_SCOPE = "tenant";
+
+/**
+ * A role name or a list of them (PermDock's contract allows both, and `null`
+ * for none). Unknown names are dropped instead of rejecting the token.
+ */
+const Roles = v.fallback(
+  v.optional(
+    v.pipe(
+      v.nullable(
+        v.union([
+          v.pipe(
+            v.string(),
+            v.transform((role) => [role]),
+          ),
+          v.array(v.string()),
+        ]),
+      ),
+      v.transform((roles) =>
+        (roles ?? []).filter((role): role is Role => v.is(Role, role)),
+      ),
+    ),
+  ),
+  undefined,
+);
+
+const Membership = v.looseObject({
+  scope: v.string(),
+  id: v.string(),
+  roles: v.optional(v.array(v.string()), []),
+});
+
+/**
+ * Each entry is parsed on its own: PermDock's `tenant`, `team` and `on`
+ * forms (no `scope` and `id`) are skipped instead of discarding the list.
+ */
+const Memberships = v.fallback(
+  v.optional(
+    v.pipe(
+      v.array(v.unknown()),
+      v.transform((entries) =>
+        entries.flatMap((entry) => {
+          const parsed = v.safeParse(Membership, entry);
+          return parsed.success ? [parsed.output] : [];
+        }),
+      ),
+    ),
+  ),
+  undefined,
+);
+
+/**
  * The claims the servers validate on every request (`betterSupabase.claims(Claims)`),
  * in PermDock's claim contract. `user_role` comes from the custom access
  * token hook (supabase/schemas/040_rbac.sql), `tenant_id` from the hook or
@@ -18,27 +74,16 @@ const isEntitlement = (key: string): key is Entitlement =>
  * `memberships_truncated`, `attrs`) reach PermDock unchanged.
  */
 export const Claims = v.looseObject({
-  user_role: v.fallback(v.optional(Role), undefined),
+  user_role: Roles,
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   app_metadata: v.optional(
     v.looseObject({
       tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
-      user_role: v.fallback(v.optional(Role), undefined),
+      user_role: Roles,
     }),
   ),
   // `better_supabase.membership_claims()` or PermDock's hook.
-  memberships: v.fallback(
-    v.optional(
-      v.array(
-        v.looseObject({
-          scope: v.string(),
-          id: v.string(),
-          roles: v.optional(v.array(v.string()), []),
-        }),
-      ),
-    ),
-    undefined,
-  ),
+  memberships: Memberships,
   // `better_supabase.feature_claims()` (entitlements kit module). Keys the
   // app doesn't sell yet are dropped instead of rejecting the token.
   features: v.fallback(

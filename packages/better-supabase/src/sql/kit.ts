@@ -1827,11 +1827,29 @@ export interface KitPermdock {
 }
 
 /** The scope id types the `entitlements` module renders in PermDock mode. */
-export const KIT_ID_TYPES = ["uuid", "text", "bigint"] as const;
+export const KIT_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
 export type KitIdType = (typeof KIT_ID_TYPES)[number];
 
 export const isKitIdType = (value: string): value is KitIdType =>
   KIT_ID_TYPES.some((type) => type === value);
+
+const ID_TYPE_ALIASES: Readonly<Record<string, KitIdType>> = {
+  int8: "bigint",
+  int4: "integer",
+  int: "integer",
+  varchar: "text",
+  "character varying": "text",
+};
+
+/**
+ * A Postgres type name as one of `KIT_ID_TYPES`: case and spacing are
+ * normalised and aliases such as `int8` resolved. `undefined` for any other
+ * type, so callers refuse it instead of guessing.
+ */
+export function kitIdType(value: string): KitIdType | undefined {
+  const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
+  return isKitIdType(name) ? name : ID_TYPE_ALIASES[name];
+}
 
 /** An embedding column `db.$search` can query. */
 interface VectorSearchTable {
