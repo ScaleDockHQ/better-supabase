@@ -861,6 +861,8 @@
     "values": [
       "compileReadSet",
       "compileReadSets",
+      "isKitIdType",
+      "KIT_ID_TYPES",
       "kitLayout",
       "permdockKeys",
       "permdockKeyStatus",
@@ -872,6 +874,7 @@
     "types": [
       "CompiledReadSet",
       "KitFile",
+      "KitIdType",
       "KitLayout",
       "KitPermdock",
       "PermdockCatalog",

@@ -180,7 +180,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "PermDock helpers the entitlements module calls are missing",
     description:
-      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when the scope is not one of the manifest's scopes or can't be chosen, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
+      "With a PermDock manifest, the `entitlements` kit module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text` or `bigint`, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
     check: (context) => {
       if (!context.config.sql.kit.includes("entitlements")) return [];
       const mode = entitlementsMode(context.config, context.permdock);

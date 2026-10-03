@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../config/index.ts";
 import type { KitPermdock, PermdockCatalog } from "../sql/index.ts";
 
+import { isKitIdType, KIT_ID_TYPES } from "../sql/index.ts";
+
 const PERMDOCK_CONFIGS = [
   "permdock.config.ts",
   "permdock.config.mts",
@@ -383,11 +385,25 @@ export function entitlementsMode(
       };
     }
   }
+  const type = rls.scopes.find((entry) => entry.name === scope)?.type;
+  if (type === undefined) {
+    return {
+      kind: "invalid",
+      problem: `${project.manifestPath} gives scope "${scope}" no type, so the entitlements module can't tell its id type. Run \`permdock supabase inspect --out\` with a current PermDock.`,
+    };
+  }
+  if (!isKitIdType(type)) {
+    return {
+      kind: "invalid",
+      problem: `${project.manifestPath} gives scope "${scope}" the type ${type}, but the entitlements module renders only ${KIT_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
+    };
+  }
   return {
     kind: "permdock",
     permdock: {
       schema: rls.schema,
       scope,
+      idType: type,
       memberships: project.manifest.memberships.map((source) => ({
         table: source.table,
         userColumn: source.user.column,

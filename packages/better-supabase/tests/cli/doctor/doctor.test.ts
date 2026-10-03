@@ -1600,6 +1600,25 @@ uri = "https://example.com/hook"
       ).toEqual([]);
     });
 
+    it("reports a scope id type the module can't render", async () => {
+      const untyped: PermdockProject = {
+        ...project,
+        manifest: {
+          ...project.manifest!,
+          rls: {
+            ...project.manifest!.rls!,
+            scopes: [{ name: "organization", type: "numeric" }],
+          },
+        },
+      };
+      expect(await check({ permdock: untyped })).toMatchObject([
+        {
+          target: "entitlements.permdock",
+          message: expect.stringContaining("uuid, text or bigint"),
+        },
+      ]);
+    });
+
     it("reports a scope the manifest doesn't have", async () => {
       expect(
         await check(

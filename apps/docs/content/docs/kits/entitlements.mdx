@@ -158,6 +158,11 @@ export default defineConfig({
 });
 ```
 
+The tenant argument of `has_entitlement`, `tenant_entitlements` and
+`tenant_stripe_customer` takes the scope's `type` from the manifest's
+`rls.scopes`: `uuid`, `text` or `bigint`. With another type, or none, `sql
+add entitlements` stops and doctor reports BS408.
+
 `permdock: false` keeps the `tenant` module's `better_supabase.memberships`
 even when the manifest is there. Without a manifest the module also uses
 `tenant`; keep memberships in that table and list it as a PermDock

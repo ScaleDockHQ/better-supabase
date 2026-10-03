@@ -122,6 +122,7 @@ describe("entitlementsMode", () => {
       permdock: {
         schema: "public",
         scope: "organization",
+        idType: "uuid",
         memberships: [
           {
             table: "public.memberships",
@@ -183,6 +184,35 @@ describe("entitlementsMode", () => {
       kind: "invalid",
       problem: expect.stringContaining(
         'entitlements.permdock.scope is "organization", but permdock.manifest.json has the scopes tenant, team',
+      ),
+    });
+  });
+
+  it("takes the scope's id type from the manifest", () => {
+    for (const type of ["uuid", "text", "bigint"])
+      expect(
+        entitlementsMode(config(), withScopes([{ name: "tenant", type }])),
+      ).toMatchObject({ kind: "permdock", permdock: { idType: type } });
+  });
+
+  it("refuses a missing or unsupported scope id type instead of guessing uuid", () => {
+    expect(
+      entitlementsMode(config(), withScopes([{ name: "tenant" }])),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringContaining(
+        'permdock.manifest.json gives scope "tenant" no type',
+      ),
+    });
+    expect(
+      entitlementsMode(
+        config(),
+        withScopes([{ name: "tenant", type: "numeric" }]),
+      ),
+    ).toEqual({
+      kind: "invalid",
+      problem: expect.stringMatching(
+        /scope "tenant" the type numeric.*uuid, text or bigint/,
       ),
     });
   });

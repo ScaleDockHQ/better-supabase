@@ -657,6 +657,9 @@ warns when:
 
 - `entitlements.permdock.scope` is not one of the manifest's scopes, or it is
   unset and the manifest has no single root scope;
+- the scope's `type` in `rls.scopes` is missing or is not `uuid`, `text` or
+  `bigint`. `sql add entitlements` refuses to render the module then, instead
+  of guessing `uuid`;
 - the manifest's `rls.helpers` lacks `member_<scope>_ids`, or doesn't let
   `authenticated` execute it: run `permdock rls generate` with a current
   PermDock, then `permdock supabase inspect --out`;
