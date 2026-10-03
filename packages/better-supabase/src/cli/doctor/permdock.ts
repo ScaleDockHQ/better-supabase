@@ -111,7 +111,7 @@ export function configuredPermdockKeys(
 }
 
 /** A scope name or PermDock's alias for it (`tenant` is the first scope, `team` the second), resolved against the manifest. */
-export function resolveManifestScope(
+function resolveManifestScope(
   manifest: PermdockManifest | undefined,
   name: string,
 ): string | undefined {

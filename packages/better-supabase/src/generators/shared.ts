@@ -60,7 +60,7 @@ export interface FieldPlan {
 }
 
 /** App names of the columns that plugins fill from the table's flags. */
-export function managedColumns(table: TableMeta): ReadonlySet<string> {
+function managedColumns(table: TableMeta): ReadonlySet<string> {
   const { timestamps, actor, softDelete } = table.flags;
   return new Set(
     [

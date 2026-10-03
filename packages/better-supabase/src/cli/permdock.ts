@@ -15,7 +15,7 @@ const PERMDOCK_CONFIGS = [
 ] as const;
 
 /** The PermDock config file in `root`, if there is one. */
-export function permdockConfig(root: string): string | undefined {
+function permdockConfig(root: string): string | undefined {
   return PERMDOCK_CONFIGS.find((file) => existsSync(resolve(root, file)));
 }
 
