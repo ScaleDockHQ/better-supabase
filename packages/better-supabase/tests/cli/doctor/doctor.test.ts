@@ -1807,6 +1807,15 @@ describe("doctor formats", () => {
       "No problems found.",
     );
   });
+
+  it("lists text findings by severity, then code", () => {
+    const lines = formatReport([...findings].reverse(), {
+      ...options,
+      format: "text",
+    }).split("\n");
+    expect(lines[0]).toMatch(/^error\s+BS103 /);
+    expect(lines[3]).toMatch(/^info\s+BS403 /);
+  });
 });
 
 describe("doctor command", () => {

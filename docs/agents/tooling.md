@@ -24,8 +24,15 @@
   network gets a fake from `tests/fixtures` (`fake-sql`, `fake-pg-pool`,
   `fake-fetch`, `fake-storage`, `fake-connect`) or an injectable seam with a
   default, such as `connect(url, load)` or `createPostgres({ pool })`.
-- `thresholds.autoUpdate` rewrites `vitest.config.ts` when coverage grows.
-  Commit that change; never lower a threshold to make a run pass.
+- The package's `test` script runs only the `unit` project, so a running
+  local stack does not add integration coverage that CI never sees. Check
+  coverage with `pnpm --filter better-supabase test`, not a bare
+  `vitest run --coverage`.
+- `thresholds.autoUpdate` rewrites `vitest.config.ts` when coverage grows
+  (not in CI). Commit that change; never lower a threshold to make a run pass.
+- `tests/types/perf` gates check time against a calibration program it
+  checks first, so the baseline holds on machines of any speed. A check-time
+  failure in CI is a real slowdown, not a slow runner.
 - The CLI tests read the library's fixtures through
   `tests/cli/fixtures/library.ts`. The CLI imports the library only through
   its entry files (`src/sql/index.ts`, not `src/sql/kit.ts`), which the CLI
