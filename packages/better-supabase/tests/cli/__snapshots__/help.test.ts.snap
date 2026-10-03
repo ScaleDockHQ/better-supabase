@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`help > documents add 1`] = `
-"Adds glue for an integration to an existing project (better-supabase add v0.3.0)
+"Adds glue for an integration to an existing project (better-supabase add v<version>)
 
 USAGE better-supabase add [OPTIONS] [INTEGRATION]
 
@@ -21,7 +21,7 @@ OPTIONS
 `;
 
 exports[`help > documents doctor 1`] = `
-"Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict (better-supabase doctor v0.3.0)
+"Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict (better-supabase doctor v<version>)
 
 USAGE better-supabase doctor [OPTIONS] 
 
@@ -48,7 +48,7 @@ OPTIONS
 `;
 
 exports[`help > documents env 1`] = `
-"Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines (better-supabase env v0.3.0)
+"Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines (better-supabase env v<version>)
 
 USAGE better-supabase env [OPTIONS] 
 
@@ -66,7 +66,7 @@ OPTIONS
 `;
 
 exports[`help > documents gen 1`] = `
-"Writes database.types.ts, generated.ts and its metadata module from the database (better-supabase gen v0.3.0)
+"Writes database.types.ts, generated.ts and its metadata module from the database (better-supabase gen v<version>)
 
 USAGE better-supabase gen [OPTIONS] 
 
@@ -86,7 +86,7 @@ OPTIONS
 `;
 
 exports[`help > documents init 1`] = `
-"Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json (better-supabase init v0.3.0)
+"Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json (better-supabase init v<version>)
 
 USAGE better-supabase init [OPTIONS] 
 
@@ -104,7 +104,7 @@ OPTIONS
 `;
 
 exports[`help > documents introspect 1`] = `
-"Saves the database schema as a snapshot for offline gen (better-supabase introspect v0.3.0)
+"Saves the database schema as a snapshot for offline gen (better-supabase introspect v<version>)
 
 USAGE better-supabase introspect [OPTIONS] 
 
@@ -124,7 +124,7 @@ OPTIONS
 `;
 
 exports[`help > documents keys 1`] = `
-"Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones (better-supabase keys v0.3.0)
+"Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones (better-supabase keys v<version>)
 
 USAGE better-supabase keys [OPTIONS] 
 
@@ -141,7 +141,7 @@ OPTIONS
 `;
 
 exports[`help > documents openapi 1`] = `
-"Writes the document your createOpenApi() module exports, so CI can check it for drift (better-supabase openapi v0.3.0)
+"Writes the document your createOpenApi() module exports, so CI can check it for drift (better-supabase openapi v<version>)
 
 USAGE better-supabase openapi [OPTIONS] [ACTION]
 
@@ -162,7 +162,7 @@ OPTIONS
 `;
 
 exports[`help > documents seed 1`] = `
-"Renders the fixtures from defineSeed() (better-supabase/testing) to SQL (better-supabase seed v0.3.0)
+"Renders the fixtures from defineSeed() (better-supabase/testing) to SQL (better-supabase seed v<version>)
 
 USAGE better-supabase seed [OPTIONS] 
 
@@ -181,7 +181,7 @@ OPTIONS
 `;
 
 exports[`help > documents skills 1`] = `
-"Installs the Agent Skills that ship with this version of better-supabase (better-supabase skills v0.3.0)
+"Installs the Agent Skills that ship with this version of better-supabase (better-supabase skills v<version>)
 
 USAGE better-supabase skills [OPTIONS] [ACTION]
 
@@ -203,7 +203,7 @@ OPTIONS
 `;
 
 exports[`help > documents sql 1`] = `
-"Lists, adds, syncs and prints SQL kit modules (better-supabase sql v0.3.0)
+"Lists, adds, syncs and prints SQL kit modules (better-supabase sql v<version>)
 
 USAGE better-supabase sql [OPTIONS] [ACTION]
 
@@ -225,7 +225,7 @@ OPTIONS
 `;
 
 exports[`help > lists the commands and the global options 1`] = `
-"Typed Supabase: codegen, doctor, the SQL kit and project setup (better-supabase v0.3.0)
+"Typed Supabase: codegen, doctor, the SQL kit and project setup (better-supabase v<version>)
 
 USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql
 
