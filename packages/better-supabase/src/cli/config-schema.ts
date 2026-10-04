@@ -153,7 +153,12 @@ const ConfigSchema = v.strictObject({
   ),
   buckets: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
   topics: v.optional(stringRecord),
-  realtime: v.optional(v.strictObject({ tables: v.optional(strings) })),
+  realtime: v.optional(
+    v.strictObject({
+      tables: v.optional(strings),
+      global: v.optional(strings),
+    }),
+  ),
   entitlements: v.optional(
     v.strictObject({
       customer: v.optional(v.string()),

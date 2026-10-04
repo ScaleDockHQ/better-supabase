@@ -79,11 +79,26 @@ export async function inviteMember(organizationId: string, email: string) {
 }
 ```
 
-`rpcTransport(ctx.supabase)` calls them over the Data API instead. The
-default `better_supabase` schema is not exposed, so use it after you add the
-schema to `[api] schemas` in `config.toml`, or set `kits.<module>.schema` to
-an exposed schema. With modules in different schemas, pass
-`schema: { organizations: "public", invitations: "app" }`.
+`rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
+`better_supabase` or a `kits.<module>.schema` to `[api] schemas`: those
+schemas hold internal helpers that policies call, and doctor reports exposing
+them as BS312. Create a separate API schema, such as `api`, that holds only the
+RPC entry points: one `security invoker` function per kit function you call,
+with the same name and arguments, that calls the kit function. Add that schema
+to `[api] schemas` and pass `schema: "api"` to `createOrgs`. With entry points
+in different schemas, pass `schema: { organizations: "api", invitations: "app_api" }`.
+
+```sql title="supabase/schemas/200_api.sql"
+create schema if not exists api;
+grant usage on schema api to authenticated;
+
+create function api.create_organization(attrs jsonb)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select better_supabase.create_organization(attrs) $$;
+```
 
 Each method returns an `AsyncResult`. Errors the kit raises are `DbError`s
 whose `hint` is a stable code, so a form can show the right message:

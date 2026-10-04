@@ -1318,6 +1318,42 @@ describe("createIdempotency", () => {
     ]);
   });
 
+  it("scopes keys to the caller's credentials by default", async () => {
+    const fake = fakeSql([
+      [
+        "begin_idempotent",
+        () => [{ state: "started", status_code: null, response: null }],
+      ],
+    ]);
+    const idempotency = createIdempotency(fake.sql);
+    const send = (headers: Record<string, string>) =>
+      idempotency.handle(
+        new Request("https://api.test/payments", {
+          method: "POST",
+          headers: { "idempotency-key": "k1", ...headers },
+          body: "{}",
+        }),
+        () => new Response("ok"),
+      );
+    await send({ authorization: "Bearer alice" });
+    await send({ authorization: "Bearer bob" });
+    await send({
+      cookie: "theme=dark; sb-ref-auth-token.0=a; sb-ref-auth-token.1=b",
+    });
+    await send({
+      cookie: "sb-ref-auth-token.1=b; theme=light; sb-ref-auth-token.0=a",
+    });
+    await send({});
+    const scopes = fake.calls
+      .filter((call) => call.text.includes("begin_idempotent"))
+      .map((call) => call.values[0]);
+    expect(scopes[0]).toMatch(/^caller:[0-9a-f]{64}$/);
+    expect(scopes[1]).not.toBe(scopes[0]);
+    expect(scopes[2]).toMatch(/^caller:/);
+    expect(scopes[3]).toBe(scopes[2]);
+    expect(scopes[4]).toBe("");
+  });
+
   it("fingerprints the method, path and body, with a fixed scope", async () => {
     const fake = fakeSql([
       [

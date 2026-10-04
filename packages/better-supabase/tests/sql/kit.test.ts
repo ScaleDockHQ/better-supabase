@@ -99,15 +99,20 @@ describe("sameKitFile", () => {
 
   it("registers realtime tables with the tenant column", () => {
     const [file] = renderKit(["realtime-tables"], {
-      realtimeTables: ["customers", "billing.invoices"],
+      realtimeTables: ["customers", "billing.invoices", "plans"],
+      realtimeGlobal: ["public.plans"],
       tenantColumn: "organization_id",
     });
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.customers', 'organization_id');",
+      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('billing.invoices', 'organization_id');",
+      "select better_supabase.track_realtime('billing.invoices', tenant_column => 'organization_id');",
     );
+    expect(file!.contents).toContain(
+      "select better_supabase.track_realtime('public.plans', tenant_column => null);",
+    );
+    expect(file!.contents).toContain("raise exception '% has no column %'");
     expect(renderKit(["realtime-tables"])[0]!.contents).not.toContain(
       "config.realtime.tables",
     );

@@ -204,6 +204,27 @@ describe.skipIf(!live)("webhooks-out", () => {
           billing,
         ]),
       ).toEqual([rotated, billingSecret]);
+      expect(Buffer.from(rotated.slice(6), "base64")).toHaveLength(32);
+
+      // Deleting a destination deletes its Vault secrets.
+      const doomed = await destination("https://gone.example.com/hook", ["*"]);
+      await client.query("select better_supabase.rotate_webhook_secret($1)", [
+        doomed,
+      ]);
+      const vaultIds = async () =>
+        (
+          await client.query<{ n: number }>(
+            `select count(*)::int as n from vault.secrets
+             where name like 'webhook:' || $1::text || ':%'`,
+            [doomed],
+          )
+        ).rows[0]!.n;
+      expect(await vaultIds()).toBe(1);
+      await client.query(
+        "delete from better_supabase.webhook_destinations where id = $1",
+        [doomed],
+      );
+      expect(await vaultIds()).toBe(0);
 
       const { http, sent } = fakeHttp({
         "https://billing.example.com/hook": [500],

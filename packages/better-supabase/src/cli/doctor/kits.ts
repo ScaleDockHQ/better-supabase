@@ -14,6 +14,7 @@ import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
 import {
   catalogOf,
+  exposedSchemas,
   lineOf,
   policyObject,
   qualified,
@@ -301,6 +302,21 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
   );
 }
 
+/** `better_supabase` and every `kits.*.schema` that `[api] schemas` serves through the Data API. */
+function exposedKitSchemas(context: DoctorContext): FindingInput[] {
+  if (context.config.sql.kit.length === 0) return [];
+  const kitSchemas = new Set<string>(["better_supabase"]);
+  for (const module of Object.values(context.config.kits)) {
+    if (module?.schema !== undefined) kitSchemas.add(module.schema);
+  }
+  return exposedSchemas(context)
+    .filter((schema) => kitSchemas.has(schema))
+    .map((schema) => ({
+      message: `The Data API serves the kit schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), and call the kit functions through a wrapper in an exposed schema.`,
+      target: schema,
+    }));
+}
+
 export const KIT_RULES: readonly Rule[] = [
   {
     code: "BS307",
@@ -333,5 +349,13 @@ export const KIT_RULES: readonly Rule[] = [
     description:
       "A table has a kit trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
     check: duplicateTriggers,
+  },
+  {
+    code: "BS312",
+    severity: "error",
+    title: "Kit schema exposed through the Data API",
+    description:
+      "`[api] schemas` in `config.toml` lists `better_supabase` or a `kits.*.schema`. The kit schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
+    check: exposedKitSchemas,
   },
 ];

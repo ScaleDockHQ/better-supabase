@@ -93,6 +93,17 @@ describe("profiles module", () => {
     expect(sql).toContain(
       '"id" in (select "better_supabase"."profile_peer_ids"())',
     );
+    expect(sql).toContain(
+      'revoke select on "better_supabase"."profiles" from authenticated;',
+    );
+    const grant =
+      /grant select \(([^)]*)\) on "better_supabase"\."profiles"/.exec(
+        sql,
+      )?.[1];
+    expect(grant).toContain('"username"');
+    expect(grant).toContain('"locale"');
+    expect(grant).not.toContain('"email"');
+    expect(sql).toContain('"better_supabase"."my_profile"()');
   });
 
   it("honours updatable, serviceColumns and turning features off", () => {

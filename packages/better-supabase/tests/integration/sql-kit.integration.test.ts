@@ -26,6 +26,7 @@ import { testQueueBackend } from "../../src/testing/conformance.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { signWebhook } from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { deleteAudit } from "./audit-cleanup.ts";
 import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 
 const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
@@ -288,7 +289,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         `update ${table} set name = 'Own' where id = $1 returning impersonated_by`,
         [row!.id],
       );
-    expect(own!.impersonated_by).toBeNull();
+    expect(own!.impersonated_by).toBe(admin);
     const log = await pool.query(
       `select impersonated_by, impersonation_reason from better_supabase.audit_log
        where table_name = $1 and record_id = $2 order by id`,
@@ -394,7 +395,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       expect(triggerUpdate).toEqual({
         created_by: user,
         updated_by: user,
-        impersonated_by: null,
+        impersonated_by: admin,
       });
     } finally {
       await pool.query(`drop table if exists public.${plain}`);
@@ -417,10 +418,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     } finally {
       await pool.query(`select better_supabase.unaudit('${composite}')`);
       await pool.query(`drop table if exists ${composite}`);
-      await pool.query(
-        `delete from better_supabase.audit_log where table_name = $1`,
-        [composite],
-      );
+      await pool.query(deleteAudit(`table_name = $1`), [composite]);
     }
   });
 
@@ -1233,10 +1231,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         [`purge_${RUN}`],
       ),
     ).toBe(1);
-    await pool.query(
-      "delete from better_supabase.audit_log where table_name = $1",
-      [`purge_${RUN}`],
-    );
+    await pool.query(deleteAudit("table_name = $1"), [`purge_${RUN}`]);
 
     await pool.query(
       `insert into better_supabase.webhook_inbox (source, message_id, payload, status, processed_at, received_at)
@@ -1346,17 +1341,11 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         source: "app",
         metadata: { invoice: 7 },
       });
-      await pool.query(
-        "delete from better_supabase.audit_log where id = $1::bigint",
-        [first],
-      );
+      await pool.query(deleteAudit("id = $1::bigint"), [first]);
     } finally {
       await pool.query(`select better_supabase.unaudit('${name}')`);
       await pool.query(`drop table if exists ${name}`);
-      await pool.query(
-        "delete from better_supabase.audit_log where table_name = $1",
-        [name],
-      );
+      await pool.query(deleteAudit("table_name = $1"), [name]);
     }
   });
 
@@ -1407,6 +1396,31 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
           [name],
         ),
       ).rejects.toThrow(/append-only/);
+      const writer = await pool.connect();
+      try {
+        await writer.query("begin");
+        await writer.query(
+          "grant delete on better_supabase.audit_log to service_role",
+        );
+        await writer.query("set local role service_role");
+        await writer.query(
+          "select set_config('better_supabase.audit_purge', 'on', true)",
+        );
+        await expect(
+          writer.query(
+            "delete from better_supabase.audit_log where table_name = $1",
+            [name],
+          ),
+        ).rejects.toThrow(/append-only/);
+        await writer.query("rollback");
+        await writer.query("begin");
+        await expect(
+          writer.query("truncate better_supabase.audit_log cascade"),
+        ).rejects.toThrow(/append-only/);
+      } finally {
+        await writer.query("rollback");
+        writer.release();
+      }
 
       const privileges = await pool.query<{ column: string; allowed: boolean }>(
         `select c as column, has_column_privilege('authenticated', 'better_supabase.audit_log', c, 'select') as allowed
@@ -1463,10 +1477,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       await pool.query(`select better_supabase.unaudit('${name}')`);
       await pool.query(`drop table if exists ${name}`);
       await pool.query(SQL_MODULES["audit"]!.sql);
-      await pool.query(
-        "delete from better_supabase.audit_log where table_name like $1",
-        [`${name}%`],
-      );
+      await pool.query(deleteAudit("table_name like $1"), [`${name}%`]);
       await pool.query(
         "drop policy if exists bs_audit_read on better_supabase.audit_log",
       );
@@ -1514,6 +1525,15 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       await expect(
         client.query(`select tests.create_user($1)`, [
           `anon-${RUN}@example.com`,
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+      await client.query("rollback to savepoint as_anon");
+      await client.query("select tests.authenticate_as($1)", [
+        user.rows[0]!.id,
+      ]);
+      await expect(
+        client.query(`select tests.create_user($1)`, [
+          `member-${RUN}@example.com`,
         ]),
       ).rejects.toMatchObject({ code: "42501" });
       await client.query("rollback to savepoint as_anon");

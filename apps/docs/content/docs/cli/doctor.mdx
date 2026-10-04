@@ -573,6 +573,17 @@ records an older version than this release ships. Run `better-supabase sql
 upgrade`, which writes the forward steps into a migration and rewrites the
 files, then create the schema migration. BS304 skips files this check reports.
 
+### BS312
+
+**Error: kit schema exposed through the Data API.** `[api] schemas` in
+`supabase/config.toml` lists `better_supabase` or a schema a module in `kits`
+sets. Kit schemas hold internal tables and helpers that `authenticated` can
+execute so policies can call them; exposing the schema makes them callable over
+REST and RPC as well. Remove the schema from `[api] schemas` and from the
+exposed schemas in the dashboard, and call kit functions through wrappers in an
+exposed schema. Doctor reads `[api] schemas` for every exposure check and falls
+back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
+
 ## Auth config
 
 ### BS401

@@ -191,12 +191,12 @@ only call it after your own admin check.
 
 ## What gets recorded
 
-| Where              | What                                                                                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `audit` kit module | `audit_log.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                       |
-| `actor` kit module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write, and clears it on the user's own writes |
-| Repository context | `context.actor.impersonator`, for plugins                                                                                         |
-| In SQL             | `auth.jwt() -> 'act' ->> 'sub'` and `auth.jwt() -> 'act' ->> 'session_id'`, for your own triggers and policies                    |
+| Where              | What                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `audit` kit module | `audit_log.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                      |
+| `actor` kit module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write; the user's own writes cannot clear it |
+| Repository context | `context.actor.impersonator`, for plugins                                                                                        |
+| In SQL             | `auth.jwt() -> 'act' ->> 'sub'` and `auth.jwt() -> 'act' ->> 'session_id'`, for your own triggers and policies                   |
 
 A policy can also refuse impersonated writes where they make no sense:
 

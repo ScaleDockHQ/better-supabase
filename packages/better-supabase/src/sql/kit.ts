@@ -170,14 +170,16 @@ begin
     column_name
   );
 end;
-$$;`,
+$$;
+
+revoke execute on function better_supabase.track_updated_at(regclass, text, boolean) from public, anon, authenticated;`,
 };
 
 const ACTOR: SqlModule = {
   name: "actor",
   title: "Actor stamping",
   description:
-    "Sets created_by on insert and updated_by on update from auth.uid(). Service writes keep the values they send.",
+    "Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.",
   requires: [],
   target: "schema",
   sql: `${SCHEMA}
@@ -193,15 +195,26 @@ begin
   if actor is null then
     return new;
   end if;
-  if tg_op = 'INSERT' and tg_argv[0] <> '' then
-    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[0], actor));
+  if tg_argv[0] <> '' then
+    new := jsonb_populate_record(new, jsonb_build_object(
+      tg_argv[0],
+      case when tg_op = 'INSERT' then to_jsonb(actor) else to_jsonb(old) -> tg_argv[0] end
+    ));
   end if;
   if tg_argv[1] <> '' then
     new := jsonb_populate_record(new, jsonb_build_object(tg_argv[1], actor));
   end if;
-  -- The admin behind an impersonated write (the act claim), null otherwise.
+  -- The admin behind an impersonated write (the act claim). A user's own
+  -- update keeps the stamp, so it cannot clear the record of an earlier one.
   if tg_nargs > 2 and tg_argv[2] <> '' then
-    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[2], auth.jwt() -> 'act' ->> 'sub'));
+    new := jsonb_populate_record(new, jsonb_build_object(
+      tg_argv[2],
+      case
+        when auth.jwt() -> 'act' ->> 'sub' is not null then to_jsonb(auth.jwt() -> 'act' ->> 'sub')
+        when tg_op = 'INSERT' then 'null'::jsonb
+        else to_jsonb(old) -> tg_argv[2]
+      end
+    ));
   end if;
   return new;
 end;
@@ -231,7 +244,9 @@ begin
     coalesce(impersonated_by, '')
   );
 end;
-$$;`,
+$$;
+
+revoke execute on function better_supabase.track_actor(regclass, text, text, text) from public, anon, authenticated;`,
 };
 
 const MFA: SqlModule = {
@@ -480,7 +495,12 @@ begin
     column_name
   );
 end;
-$$;`,
+$$;
+
+-- enforce_slug runs as the writer, so the check stays callable by authenticated.
+revoke execute on function better_supabase.slug_problem(text) from public, anon;
+grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
+revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;`,
 };
 
 const IDEMPOTENCY: SqlModule = {
@@ -813,7 +833,8 @@ end;
 $$;
 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
--- A tenant column the table lacks is ignored: the table broadcasts on one topic.
+-- tenant_column => null broadcasts on one topic every signed-in user receives;
+-- a tenant column the table lacks is an error, so no tenant table goes global.
 create or replace function better_supabase.track_realtime(target regclass, tenant_column text default null)
 returns void
 language plpgsql
@@ -824,7 +845,9 @@ begin
     select 1 from pg_catalog.pg_attribute a
     where a.attrelid = target and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped
   ) then
-    tenant_column := null;
+    raise exception '% has no column %', target, tenant_column
+      using errcode = '42703',
+        hint = 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user';
   end if;
   execute format('drop trigger if exists bs_realtime on %s', target);
   execute format('drop trigger if exists bs_realtime_insert on %s', target);
@@ -1002,9 +1025,10 @@ as $$
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated, service_role;
--- create_user writes auth.users as its definer; anon tests must not mint users.
-revoke execute on function tests.create_user(text, jsonb, jsonb) from public, anon;
-grant execute on function tests.create_user(text, jsonb, jsonb) to authenticated, service_role;
+-- create_user writes auth.users as its definer; tests call it as postgres
+-- before switching roles, so no API role can mint users.
+revoke execute on function tests.create_user(text, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function tests.create_user(text, jsonb, jsonb) to postgres, service_role;
 
 select extensions.plan(1);
 select extensions.pass('better-supabase test helpers installed');
@@ -1044,7 +1068,8 @@ const RATE_LIMIT: SqlModule = {
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
--- counted by; callers without it are counted by their first x-forwarded-for hop.
+-- counted by; callers without it are counted by the right-most x-forwarded-for
+-- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists better_supabase.rate_limit_rules (
   scope text primary key,
   max_requests integer not null check (max_requests > 0),
@@ -1125,7 +1150,7 @@ begin
   loop
     caller := coalesce(
       claims ->> rule.key_claim,
-      'ip:' || coalesce(nullif(trim(split_part(headers ->> 'x-forwarded-for', ',', 1)), ''), 'unknown')
+      'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
     insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
     values (rule.scope, caller, now(), 1)
@@ -1264,7 +1289,9 @@ export interface KitLayout {
   readonly version?: string;
   /** `config.realtime.tables`: registered at the end of the `realtime-tables` module. */
   readonly realtimeTables?: readonly string[];
-  /** Tenant column passed to `track_realtime`; tables without it broadcast unscoped. */
+  /** `config.realtime.global`: tables registered with `tenant_column => null`. */
+  readonly realtimeGlobal?: readonly string[];
+  /** Tenant column passed to `track_realtime` for the other tables. */
   readonly tenantColumn?: string;
   /** Check constraints for the `jsonb-schemas` module. */
   readonly jsonSchemas?: readonly JsonSchemaCheck[];
@@ -1497,6 +1524,7 @@ function moduleExtras(module: SqlModule, layout: KitLayout): string {
   if (module.name === "realtime-tables")
     return realtimeRegistrations(
       layout.realtimeTables ?? [],
+      layout.realtimeGlobal ?? [],
       layout.tenantColumn,
     );
   if (module.name === "jsonb-schemas")
@@ -1774,13 +1802,18 @@ export function customContracts(
 
 function realtimeRegistrations(
   tables: readonly string[],
+  global: readonly string[],
   tenantColumn: string | undefined,
 ): string {
   if (tables.length === 0) return "";
-  const tenant = tenantColumn ? `, ${sqlString(tenantColumn)}` : "";
+  const qualify = (table: string): string =>
+    table.includes(".") ? table : `public.${table}`;
+  const unscoped = new Set(global.map(qualify));
   const lines = tables.map((table) => {
-    const target = table.includes(".") ? table : `public.${table}`;
-    return `select better_supabase.track_realtime(${sqlString(target)}${tenant});`;
+    const target = qualify(table);
+    const tenant =
+      tenantColumn && !unscoped.has(target) ? sqlString(tenantColumn) : "null";
+    return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => ${tenant});`;
   });
   return `\n-- config.realtime.tables\n${lines.join("\n")}\n`;
 }

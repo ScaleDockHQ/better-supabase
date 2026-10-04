@@ -245,12 +245,36 @@ create trigger ${trigger} before update of ${d("enabled")} on ${n.table("destina
   for each row execute function ${ctx.fn("reset_webhook_destination")}();`;
 }
 
+/** Deleting a secret row (or its destination) deletes its Vault secret. */
+function vaultCleanup(ctx: KitContext, n: HookNames): string {
+  const t = n.table("secrets");
+  const trigger = ctx.trigger("webhook_secret_vault");
+  if (!n.vault) return `drop trigger if exists ${trigger} on ${t};`;
+  return `
+create or replace function ${ctx.fn("drop_webhook_vault_secret")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from vault.secrets vs where vs.id = old.${n.col("secrets", "vaultId")};
+  return null;
+end;
+$$;
+revoke execute on function ${ctx.fn("drop_webhook_vault_secret")}() from public, anon, authenticated;
+drop trigger if exists ${trigger} on ${t};
+create trigger ${trigger} after delete on ${t}
+  for each row execute function ${ctx.fn("drop_webhook_vault_secret")}();`;
+}
+
 function build(ctx: KitContext): string {
   if (ctx.mode === "custom") return "";
   const n = hookNames(ctx);
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
     reenable(ctx, n),
+    vaultCleanup(ctx, n),
     functions(ctx, n),
   ].join("\n");
 }

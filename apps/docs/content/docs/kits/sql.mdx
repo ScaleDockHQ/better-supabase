@@ -192,16 +192,16 @@ select better_supabase.audit_event(
 
 The module options (`kits.audit.options`):
 
-| Option          | Default            | What it does                                                                                                                                  |
-| --------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`   | the tenant column of audited tables                                                                                                           |
-| `appendOnly`    | `false`            | a trigger rejects updates and deletes; only the purge functions delete                                                                        |
-| `readPolicy`    | `false`            | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
-| `impersonators` | `show`             | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
-| `restricted`    | `false`            | old and new records, IP address, user agent and metadata go to a separate `audit_log_restricted` table that only `service_role` reads         |
-| `eventRoles`    | `['service_role']` | the roles that can call `audit_event`                                                                                                         |
-| `eventCategory` | `system`           | the category of an `audit_event` call without one                                                                                             |
-| `eventSource`   | `app`              | the source of an `audit_event` call without one                                                                                               |
+| Option          | Default             | What it does                                                                                                                                  |
+| --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                           |
+| `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                          |
+| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
+| `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
+| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_log_restricted` table that only `service_role` reads         |
+| `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                         |
+| `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                             |
+| `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                               |
 
 An app with its own audit table adopts it: map `kits.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
@@ -329,8 +329,9 @@ select better_supabase.set_rate_limit('/customers', null);
   both apply.
 - Only `POST`, `PATCH`, `PUT` and `DELETE` count. GET and HEAD run read-only
   and may be served by a [read replica](/docs/guides/read-replicas).
-- Callers without the claim (anonymous) are counted by their first
-  `x-forwarded-for` hop. The service role is never limited.
+- Callers without the claim (anonymous) are counted by the right-most
+  `x-forwarded-for` hop, the one the API gateway appends; clients can forge
+  the hops before it. The service role is never limited.
 - Counters live in an unlogged table: fast, and reset after a crash.
 - A write over the limit fails with HTTP 429 and a `Retry-After` header. The
   repository returns it as a `rate_limited` [`DbError`](/docs/concepts/results)

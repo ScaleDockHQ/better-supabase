@@ -42,10 +42,15 @@ that hang off the profile. After installing on a project with users, run
 
 | Rule              | Default                                                                                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read              | your own profile; with `readPolicy: 'members'`, everyone who shares an organization with you                                                        |
+| Read              | your own profile; with `readPolicy: 'members'`, the public columns of everyone who shares an organization with you                                  |
 | Update            | your own row, only the columns in `updatable`                                                                                                       |
 | Service columns   | `email`, `disabled_at`, the active organization and team, `created_at`; a trigger refuses changes from the API roles with `PROFILE_COLUMN_READONLY` |
 | Insert and delete | the service role and `auth.users` (rows are deleted with their user)                                                                                |
+
+With `readPolicy: 'members'`, `authenticated` gets `select` on the public
+columns only, so select them by name instead of `*`. `email`, the active
+organization and team and `onboarding` stay private: read your own through
+`better_supabase.my_profile()`, which returns your full row.
 
 Security definer functions, such as `switch_organization` from the
 [organizations](/docs/kits/orgs) module and the email mirror, write the

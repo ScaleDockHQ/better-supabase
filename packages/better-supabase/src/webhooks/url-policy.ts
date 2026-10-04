@@ -93,8 +93,17 @@ function publicV6(groups: readonly number[]): boolean {
   if (zeros(0, 5) && groups[5] === 0xff_ff) return publicV4(embedded);
   if (first === 0x00_64 && groups[1] === 0xff_9b && zeros(2, 6))
     return publicV4(embedded);
+  // IPv4-compatible (::a.b.c.d, deprecated) and local-use NAT64 (64:ff9b:1::/48).
+  if (zeros(0, 6)) return false;
+  if (first === 0x00_64 && groups[1] === 0xff_9b && groups[2] === 1)
+    return false;
+  // 6to4 (2002::/16) carries an IPv4 address in its next 32 bits.
+  if (first === 0x20_02) return publicV4(groups[1]! * 65_536 + groups[2]!);
+  // Teredo (2001::/32) hides its IPv4 server and client addresses.
+  if (first === 0x20_01 && groups[1] === 0) return false;
   if ((first & 0xfe_00) === 0xfc_00) return false;
   if ((first & 0xff_c0) === 0xfe_80) return false;
+  if ((first & 0xff_c0) === 0xfe_c0) return false;
   if ((first & 0xff_00) === 0xff_00) return false;
   if (first === 0x20_01 && groups[1] === 0x0d_b8) return false;
   if (first === 0x01_00 && zeros(1, 4)) return false;

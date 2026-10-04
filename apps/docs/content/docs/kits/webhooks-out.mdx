@@ -133,11 +133,21 @@ it in your settings page with a plain query.
 The default `allowUrl` is `publicUrl()`: HTTPS only, no credentials in the
 URL, no local host names, and every address the host resolves to must be
 public (not loopback, private, link-local or reserved, so cloud metadata
-endpoints are out). `fetchTransport` checks it again before following each
-redirect. It resolves with `node:dns` where the runtime has it; pass
-`resolve` on other runtimes. Use `allowHosts` for a receiver you trust, and
-route webhooks through an egress proxy when DNS can change between the check
-and the connection.
+endpoints are out). IPv6 addresses that carry an IPv4 address (mapped,
+IPv4-compatible, NAT64, 6to4 and Teredo) are checked by that address or
+refused. It resolves with `node:dns` where the runtime has it; pass
+`resolve` on other runtimes. Use `allowHosts` for a receiver you trust.
+
+`fetchTransport` follows no redirects by default (`maxRedirects: 0`), so a
+redirect dead-letters the delivery; each hop you allow is checked with
+`allowUrl` first. It reads at most `maxResponseBytes` (64 KiB) of a response
+body. The check and the connection resolve the host separately, so a host
+whose DNS changes in between (DNS rebinding) can still reach an internal
+address. When that matters, send webhooks through an egress proxy that
+refuses private addresses, with a custom `http` transport.
+
+Signing secrets are 32 random bytes (`whsec_` and base64). With Vault
+storage, deleting a secret row or its destination deletes the Vault secret.
 
 ```ts
 createWebhooks({

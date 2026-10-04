@@ -11,7 +11,12 @@ import { errorText, run, seconds, toInstant, workerId } from "./shared.ts";
 // Idempotency keys (SQL kit module `idempotency`)
 
 export interface IdempotencyOptions {
-  /** Separates keys of different endpoints or tenants. Defaults to `''`. */
+  /**
+   * Separates keys of different callers, endpoints or tenants. Defaults to a
+   * hash of the caller's credentials (the `Authorization` header or the
+   * Supabase auth cookies), so one caller never replays another's response.
+   * Pass the verified user id to keep keys across token refreshes.
+   */
   readonly scope?: string | ((request: Request) => string);
   /** How long a completed response is replayed. Defaults to `24 hours`. */
   readonly ttl?: number | string;
@@ -61,6 +66,20 @@ async function sha256(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+}
+
+const AUTH_COOKIE = /^sb-.+-auth-token(?:\.\d+)?$/;
+
+/** A hash of the credentials the request carries, or `''` without any. */
+async function callerScope(request: Request): Promise<string> {
+  const authorization = request.headers.get("authorization");
+  const cookies = (request.headers.get("cookie") ?? "")
+    .split(";")
+    .map((pair) => pair.trim())
+    .filter((pair) => AUTH_COOKIE.test(pair.split("=", 1)[0] ?? ""))
+    .sort();
+  const credential = authorization ?? cookies.join(";");
+  return credential === "" ? "" : `caller:${await sha256(credential)}`;
 }
 
 interface StoredResponse {
@@ -140,7 +159,7 @@ export function createIdempotency(
       const scope =
         typeof options.scope === "function"
           ? options.scope(request)
-          : (options.scope ?? "");
+          : (options.scope ?? (await callerScope(request)));
       const body = await request.clone().text();
       const fingerprint = await sha256(
         `${request.method} ${instance}\n${body}`,

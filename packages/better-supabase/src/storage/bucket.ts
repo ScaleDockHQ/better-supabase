@@ -56,7 +56,9 @@ export interface BucketConfig<
   readonly public?: boolean;
   /**
    * Generated `storage.objects` policies. `tenant` and `owner` match a path
-   * segment against the JWT; `public` allows reads; `none` leaves access to
+   * segment against the JWT; `public` allows reads (on a `public: true`
+   * bucket the public URLs need no policy, so none is written and nobody can
+   * list the objects); `none` leaves access to
    * the secret key; `{ permdock, scope }` calls PermDock's SQL helpers;
    * `{ access }` calls the SQL kit's access contract (`tenant_ids_with`).
    * Defaults to `none`.
@@ -635,6 +637,10 @@ export function defineBucket<
           ["insert", "insert", "authenticated", undefined, write],
           ["update", "update", "authenticated", using, write],
           ["delete", "delete", "authenticated", using, undefined],
+        );
+      } else if (policy === "public" && bucket.public) {
+        lines.push(
+          "-- Public URLs serve objects without a policy; a select policy would also let anyone list them.",
         );
       } else if (policy === "public") {
         policies.push([

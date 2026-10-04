@@ -629,6 +629,53 @@ describe("kit upgrades (BS309, BS310)", () => {
   });
 });
 
+describe("exposed kit schemas (BS312)", () => {
+  const api = toml('[api]\nschemas = ["public", "better_supabase", "crm"]\n');
+
+  it("reports better_supabase and kits.*.schema in [api] schemas", async () => {
+    const findings = await run(
+      "BS312",
+      context(
+        base,
+        { configToml: api },
+        {
+          sql: { kit: ["tenant", "audit"] },
+          kits: { audit: { schema: "crm" } },
+        },
+      ),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "better_supabase",
+      "crm",
+    ]);
+    expect(findings[0]!.severity).toBe("error");
+  });
+
+  it("skips projects without kit modules or exposed kit schemas", async () => {
+    expect(await run("BS312", context(base, { configToml: api }))).toEqual([]);
+    expect(
+      await run(
+        "BS312",
+        context(
+          base,
+          { configToml: toml('[api]\nschemas = ["public"]\n') },
+          { sql: { kit: ["tenant"] }, schemas: ["public", "better_supabase"] },
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS312",
+        context(
+          base,
+          {},
+          { sql: { kit: ["tenant"] }, schemas: ["public", "better_supabase"] },
+        ),
+      ),
+    ).toHaveLength(1);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {

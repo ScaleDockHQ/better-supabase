@@ -155,6 +155,19 @@ describe.skipIf(!live)("profiles", () => {
       );
       expect(await visible("ada")).toEqual([USERS.ada, USERS.bob].toSorted());
       expect(await visible("eve")).toEqual([USERS.eve]);
+      const peerEmail = await as(
+        client,
+        "ada",
+        `select email from ${PROFILES} where id = $1`,
+        [USERS.bob],
+      );
+      expect(peerEmail.error?.code).toBe("42501");
+      const own = await as<{ email: string }>(
+        client,
+        "ada",
+        `select email from ${SCHEMA}.my_profile()`,
+      );
+      expect(own.rows).toEqual([{ email: "ada@new.test" }]);
 
       const removed = await client.query(
         `delete from ${PROFILES} where id = $1 returning id`,

@@ -170,6 +170,14 @@ function syncValues(ctx: KitContext): Map<string, string> {
   return values;
 }
 
+/** Columns only the profile's own user reads under `readPolicy: 'members'`. */
+const PRIVATE_COLUMNS: ReadonlySet<string> = new Set([
+  "email",
+  "activeTenant",
+  "activeTeam",
+  "onboarding",
+]);
+
 function table(ctx: KitContext): string {
   if (!ctx.manages) return "";
   const t = ctx.table("profiles");
@@ -197,10 +205,38 @@ function table(ctx: KitContext): string {
   const username = ctx.has("profiles", "username")
     ? `\ncreate unique index if not exists profiles_username_idx on ${t} (lower(${c("username")}));`
     : "";
-  const read =
-    ctx.text("readPolicy", "self") === "members"
-      ? membersRead(ctx)
-      : `${c("key")} = (select auth.uid())`;
+  const members = ctx.text("readPolicy", "self") === "members";
+  const read = members ? membersRead(ctx) : `${c("key")} = (select auth.uid())`;
+  const visible = [
+    ...definitions
+      .map(([logical]) => logical)
+      .filter(
+        (logical) =>
+          ctx.has("profiles", logical) && !PRIVATE_COLUMNS.has(logical),
+      )
+      .map(c),
+    ...extra.map(([name]) => name),
+  ];
+  const selectGrant = members
+    ? `-- Peers see the public columns; the caller reads the private ones
+-- (${[...PRIVATE_COLUMNS]
+        .filter((logical) => ctx.has("profiles", logical))
+        .map(c)
+        .join(", ")}) through ${ctx.fn("my_profile")}().
+revoke select on ${t} from authenticated;
+grant select (${visible.join(", ")}) on ${t} to authenticated;
+create or replace function ${ctx.fn("my_profile")}()
+returns setof ${t}
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select * from ${t} p where p.${c("key")} = auth.uid()
+$$;
+revoke execute on function ${ctx.fn("my_profile")}() from public, anon;
+grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_role;`
+    : `grant select on ${t} to authenticated;`;
   return `
 create table if not exists ${t} (
   ${columns.join(",\n  ")}
@@ -214,7 +250,7 @@ drop policy if exists bs_profiles_update on ${t};
 create policy bs_profiles_update on ${t} for update to authenticated
   using (${c("key")} = (select auth.uid()))
   with check (${c("key")} = (select auth.uid()));
-grant select on ${t} to authenticated;
+${selectGrant}
 grant all on ${t} to service_role;
 `;
 }

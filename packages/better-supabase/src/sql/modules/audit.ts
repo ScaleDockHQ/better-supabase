@@ -190,7 +190,8 @@ alter table better_supabase.audited_tables add column if not exists tenant_colum
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
--- The client address PostgREST forwards, or null.
+-- The client address the API gateway appended to x-forwarded-for (the
+-- right-most hop; clients can forge the ones before it), or null.
 create or replace function better_supabase.request_ip()
 returns inet
 language plpgsql
@@ -198,7 +199,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return nullif(trim(split_part(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ',', 1)), '')::inet;
+  return nullif(trim(reverse(split_part(reverse(current_setting('request.headers', true)::json ->> 'x-forwarded-for'), ',', 1))), '')::inet;
 exception when others then
   return null;
 end;
@@ -414,27 +415,44 @@ grant execute on function better_supabase.audit_event(text, text, text, text, te
 function appendOnly(ctx: KitContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_append_only");
-  if (!ctx.flag("appendOnly", false)) {
-    return `drop trigger if exists ${trigger} on ${log};`;
+  const truncate = ctx.trigger("audit_no_truncate");
+  if (!ctx.flag("appendOnly", ctx.manages)) {
+    return `drop trigger if exists ${trigger} on ${log};
+drop trigger if exists ${truncate} on ${log};`;
   }
-  return `-- Entries are append-only; purge_audit_log sets better_supabase.audit_purge
--- for its own transaction to delete old ones.
+  const purge = sqlString(
+    `better_supabase.purge_audit_log(interval, integer, ${ctx.idType}, boolean)`,
+  );
+  return `-- Entries are append-only. purge_audit_log deletes old ones: it runs as its
+-- owner and sets better_supabase.audit_purge, and a role that only sets the
+-- setting is not the owner.
 create or replace function better_supabase.audit_append_only()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if tg_op = 'DELETE' and current_setting('better_supabase.audit_purge', true) = 'on' then
+  if tg_op = 'DELETE'
+    and current_setting('better_supabase.audit_purge', true) = 'on'
+    and current_user = (
+      select r.rolname from pg_catalog.pg_proc p
+      join pg_catalog.pg_roles r on r.oid = p.proowner
+      where p.oid = to_regprocedure(${purge})
+    )
+  then
     return old;
   end if;
   raise exception 'audit log entries are append-only'
     using errcode = '42501', hint = 'Delete old entries with better_supabase.purge_audit_log()';
 end;
 $$;
+revoke execute on function better_supabase.audit_append_only() from public, anon, authenticated;
 drop trigger if exists ${trigger} on ${log};
 create trigger ${trigger} before update or delete on ${log}
-  for each row execute function better_supabase.audit_append_only();`;
+  for each row execute function better_supabase.audit_append_only();
+drop trigger if exists ${truncate} on ${log};
+create trigger ${truncate} before truncate on ${log}
+  for each statement execute function better_supabase.audit_append_only();`;
 }
 
 function readPolicy(ctx: KitContext): string {
@@ -606,7 +624,10 @@ begin
   execute format('drop trigger if exists bs_audit on %s', target);
   delete from better_supabase.audited_tables a where a.target = unaudit.target;
 end;
-$$;`;
+$$;
+
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text) from public, anon, authenticated;
+revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;`;
 
 function auditSql(ctx: KitContext, layout: KitLayout): string {
   const restricted = restrictedOn(ctx);

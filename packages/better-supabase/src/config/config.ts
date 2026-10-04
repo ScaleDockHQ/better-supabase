@@ -249,6 +249,12 @@ export interface RealtimeConfig {
    * triggers with `better-supabase sql add realtime-tables`.
    */
   readonly tables?: readonly string[];
+  /**
+   * Tables in `tables` without a tenant column. They broadcast on one topic
+   * every signed-in user receives. With the `tenant` plugin, a table that
+   * lacks the tenant column and is not listed here fails to install.
+   */
+  readonly global?: readonly string[];
 }
 
 export interface EntitlementsConfig {
@@ -537,7 +543,10 @@ export function resolveConfig(
     claims: { ...DEFAULT_CLAIMS, ...config.claims },
     buckets: config.buckets ?? {},
     topics: config.topics ?? {},
-    realtime: { tables: config.realtime?.tables ?? [] },
+    realtime: {
+      tables: config.realtime?.tables ?? [],
+      global: config.realtime?.global ?? [],
+    },
     entitlements: entitlementsOf(config.entitlements),
     permdock: {
       manifest: config.permdock?.manifest ?? "permdock.manifest.json",

@@ -498,7 +498,7 @@ declare
   v_enabled boolean;
   v_secret text := coalesce(
     rotate_webhook_secret.secret,
-    'whsec_' || encode(decode(replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), 'hex'), 'base64')
+    'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
   );${n.vault ? "\n  v_vault uuid;" : ""}
 begin
   ${destinationTenant(n, "rotate_webhook_secret.destination")}

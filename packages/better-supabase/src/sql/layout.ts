@@ -19,6 +19,7 @@ export function kitLayout(
     version: VERSION,
     readSets,
     realtimeTables: config.realtime.tables,
+    realtimeGlobal: config.realtime.global,
     entitlements: config.entitlements,
     claims: config.claims,
     kits: config.kits,
