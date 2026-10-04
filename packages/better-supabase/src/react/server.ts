@@ -1,3 +1,4 @@
+import type { SupportView } from "../auth/support-view.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
@@ -7,6 +8,10 @@ import type {
   LiveCount,
   LiveCountHookOptions,
 } from "./index.ts";
+import type {
+  NotificationsState,
+  UseNotificationsOptions,
+} from "./notifications.ts";
 
 export {
   BetterSupabaseProvider,
@@ -29,8 +34,15 @@ export type {
   LiveQueryHookOptions,
   ProfileOf,
 } from "./index.ts";
+export type {
+  NotificationSource,
+  NotificationsState,
+  UseNotificationsOptions,
+} from "./notifications.ts";
 export type { SessionProviderProps } from "./session.ts";
 export type { AuthSession } from "../auth/view.ts";
+export type { SupportView } from "../auth/support-view.ts";
+export { supportOf } from "../auth/support-view.ts";
 export type { Impersonator } from "../auth/impersonation.ts";
 export { hasEntitlement } from "../auth/entitlements.ts";
 export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";
@@ -48,11 +60,20 @@ function clientOnly(name: string): () => never {
 export const useSession: <C = unknown, P = unknown>() => AuthSession<C, P> =
   clientOnly("useSession");
 
+/** The `react-server` build of `useSupportSession`: use `supportOf(await bs.session())` instead. */
+export const useSupportSession: () => SupportView | undefined =
+  clientOnly("useSupportSession");
+
 /** The `react-server` build of `useLiveCount`: render the `bs.liveCount()` seed instead. */
 export const useLiveCount: (
   source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options?: LiveCountHookOptions,
 ) => LiveCount = clientOnly("useLiveCount");
+
+/** The `react-server` build of `useNotifications`: call `notifications.list()` instead. */
+export const useNotifications: <T>(
+  options: UseNotificationsOptions<T>,
+) => NotificationsState<T> = clientOnly("useNotifications");
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates

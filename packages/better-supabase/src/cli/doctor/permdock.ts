@@ -97,7 +97,9 @@ export function configuredPermdockKeys(
   readonly schema: string;
 }[] {
   return Object.entries(context.config.buckets).flatMap(([bucket, config]) =>
-    config.policy !== undefined && typeof config.policy !== "string"
+    config.policy !== undefined &&
+    typeof config.policy !== "string" &&
+    "permdock" in config.policy
       ? [
           {
             bucket,

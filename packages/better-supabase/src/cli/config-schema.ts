@@ -22,6 +22,68 @@ const isGenerator = (value: unknown): boolean =>
  * checks the leaves a typo or an old value breaks; nested objects the
  * library reads loosely stay loose.
  */
+const kitModuleEntries = {
+  mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
+  schema: v.optional(v.string()),
+  tables: v.optional(v.record(v.string(), v.nullable(v.string()))),
+  columns: v.optional(
+    v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
+  ),
+  idType: v.optional(v.string()),
+  triggerPrefix: v.optional(v.string()),
+  permissions: v.optional(stringRecord),
+  options: v.optional(v.record(v.string(), v.unknown())),
+  hooks: v.optional(
+    v.strictObject({
+      schema: v.optional(v.string()),
+      functions: v.optional(stringRecord),
+    }),
+  ),
+  events: v.optional(v.boolean()),
+};
+
+const accessKit = v.strictObject({
+  ...kitModuleEntries,
+  model: v.optional(v.picklist(["roles", "catalog", "permdock", "custom"])),
+  roles: v.optional(v.record(v.string(), strings)),
+  functions: v.optional(
+    v.strictObject({
+      can: v.optional(v.string()),
+      tenantIdsWith: v.optional(v.string()),
+      isPlatform: v.optional(v.string()),
+      canUser: v.optional(v.string()),
+      canAssign: v.optional(v.string()),
+      permissionClaims: v.optional(v.string()),
+    }),
+  ),
+  platformClaim: v.optional(v.string()),
+  disabled: v.optional(
+    v.strictObject({
+      tenant: v.optional(v.string()),
+      tenantKey: v.optional(v.string()),
+      user: v.optional(v.string()),
+      userKey: v.optional(v.string()),
+    }),
+  ),
+  activeTenant: v.optional(
+    v.union([
+      v.picklist(["claim", "resolver"]),
+      v.strictObject({
+        profileColumn: v.string(),
+        key: v.optional(v.string()),
+      }),
+    ]),
+  ),
+  permdock: v.optional(
+    v.strictObject({
+      schema: v.optional(v.string()),
+      scope: v.optional(v.string()),
+    }),
+  ),
+});
+
+const kitModule = v.union([v.strictObject(kitModuleEntries), accessKit]);
+
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
   source: v.optional(
@@ -129,6 +191,12 @@ const ConfigSchema = v.strictObject({
       testsDir: v.optional(v.string()),
       kit: v.optional(strings),
     }),
+  ),
+  kits: v.optional(
+    v.intersect([
+      v.object({ access: v.optional(accessKit) }),
+      v.record(v.string(), kitModule),
+    ]),
   ),
   seed: v.optional(
     v.strictObject({

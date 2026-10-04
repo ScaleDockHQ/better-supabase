@@ -1,0 +1,177 @@
+---
+title: Outbox
+description: Events written in the same transaction as the change, read by named consumers with their own cursor and relayed as CloudEvents.
+---
+
+The `outbox` [SQL kit](/docs/kits/sql) module stores events in a table in
+the same transaction as the change that caused them. An event exists only
+if that transaction commits, so a rolled-back write never notifies anyone
+and a committed one is never lost. Named consumers read the events in order,
+each with its own cursor, and `createOutbox` from `better-supabase/jobs`
+relays them to any `EventSink` (an HTTP endpoint, a queue, a bus).
+
+```bash
+pnpm better-supabase sql add outbox
+```
+
+Once the module is installed, the other kit modules write their events to
+it: `organizations` emits `org.created`, `org.switched` and the member
+events, and `support-sessions` emits `support.started` and
+`support.ended`. Set
+`kits.<module>.events` to `false` to keep one module out of the outbox.
+
+## Emitting from SQL
+
+`emit_event(type, payload, subject, tenant, key, source)` appends an event
+and returns its position. Call it from your own functions and triggers:
+
+```sql
+perform better_supabase.emit_event(
+  'invoice.paid',
+  jsonb_build_object('invoice_id', new.id, 'amount', new.amount),
+  subject => 'invoices/' || new.id,
+  tenant => new.organization_id::text,
+  key => 'invoice-paid-' || new.id
+);
+```
+
+| Argument  | Meaning                                                                                        |
+| --------- | ---------------------------------------------------------------------------------------------- |
+| `type`    | Any string, usually `noun.verb`. Consumers filter on it                                        |
+| `payload` | The event data. `subject` defaults to `payload ->> 'subject'`                                  |
+| `tenant`  | The organization the event belongs to, relayed as the `partitionkey` extension                 |
+| `key`     | With a key, emitting the same key again for the same tenant returns the first event's position |
+| `source`  | The module or function that wrote it, relayed as the `producer` extension                      |
+
+The signed-in user (`auth.uid()`) is stored as the actor. Only
+`service_role` can call `emit_event` directly; the kit's own functions are
+`security definer` and call it for the user. Add roles with
+`kits.outbox.options.emitRoles`.
+
+`track_events(table, type_prefix, tenant_column)` adds a row trigger that
+emits `<prefix>.created`, `.updated` and `.deleted` with the row as payload
+and `<table>/<id>` as subject:
+
+```sql
+select better_supabase.track_events('public.invoices', 'invoice', 'organization_id');
+```
+
+## Relaying events
+
+Create the outbox client on a server connection, register each consumer
+once, then relay it from a cron route or a worker:
+
+```ts title="lib/outbox.ts"
+import { createOutbox } from "better-supabase/jobs";
+
+export const outbox = createOutbox(postgres.admin, {
+  source: "https://crm.example.com",
+  typePrefix: "com.example.crm",
+});
+
+await outbox.register("billing", { types: ["invoice.*", "org.created"] });
+```
+
+```ts title="app/api/outbox/route.ts"
+import "server-only";
+
+import { httpSink } from "better-supabase/events";
+
+import { outbox } from "@/lib/outbox";
+
+export const GET = outbox.relayRoute({
+  secret: process.env.CRON_SECRET,
+  consumers: {
+    billing: httpSink(process.env.BILLING_EVENTS_URL!),
+  },
+  onError: (error, consumer) => console.error(consumer, error.message),
+});
+```
+
+`relay(consumer, sink)` claims up to `batch` events (100 by default), sends
+them as one `sink.send` call and moves the cursor past them, until none are
+left or `budgetMs` runs out. When the sink throws, the cursor stays where it
+was and the next run sends the same batch again, so delivery is at least
+once. The CloudEvent `id` is the row id, so a receiver can drop repeats.
+
+A claim leases the consumer to one worker for `lease` (one minute by
+default), so two cron runs never send the same batch at the same time.
+`relayRoute` checks the bearer secret and relays each consumer in turn
+within its budget, the same way the [jobs drain route](/docs/kits/jobs)
+does.
+
+### Ordering and open transactions
+
+Positions come from an identity column, which hands out numbers before
+commit. A transaction that started first can commit after a later one. The
+claim therefore skips every event whose transaction id is not older than
+the oldest running transaction (`pg_snapshot_xmin`), so a slow commit is
+delayed, never skipped. A long-running transaction delays all consumers
+until it ends.
+
+### Into a queue
+
+To process events with retries, relay them into a [job queue](/docs/kits/jobs)
+with the event id as the dedupe key:
+
+```ts
+const toJobs = {
+  send: async (events: readonly CloudEvent[]) => {
+    for (const event of events) {
+      await jobs.enqueue("events", event, { dedupeKey: event.id }).orThrow();
+    }
+  },
+};
+await outbox.relay("jobs", toJobs);
+```
+
+## History and retention
+
+`outbox.history({ subject: 'invoices/42' })` returns the kept events for one
+subject, oldest first, for an activity feed or a debugging view. Filter by
+`type` and page with `after` (a position) and `limit`.
+
+`outbox.purge()` (SQL `purge_outbox(older_than)`) deletes events older than
+`kits.outbox.options.retention` (`30 days` by default), but never one that a
+registered consumer hasn't passed. Schedule it with the jobs schedules or
+pg_cron.
+
+## Existing tables
+
+Adopt an events table you already have and rename its columns. Columns you
+don't have map to `null`; without the `xid` column the claim waits
+`settle` (5 seconds by default) after an event's `created_at` instead.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  kits: {
+    outbox: {
+      mode: "adopt",
+      tables: { events: "public.domain_events" },
+      columns: {
+        events: { type: "kind", position: "seq", xid: null, key: null },
+      },
+      options: { tenantType: "uuid", settle: "2 seconds" },
+    },
+  },
+});
+```
+
+`position` must be a `bigint` that only grows. It is the `id` column on a
+managed table; map it to another column when your ids are UUIDs.
+
+| Option          | Default                    | Meaning                                                              |
+| --------------- | -------------------------- | -------------------------------------------------------------------- |
+| `retention`     | `30 days`                  | Default age for `purge_outbox`                                       |
+| `emitRoles`     | `["service_role"]`         | Roles allowed to call `emit_event` directly                          |
+| `tenantType`    | `text`                     | The type of the tenant column                                        |
+| `settle`        | `5 seconds`                | The wait before a claim reads an event, without `xid`                |
+| `defaultSource` | none                       | The source `emit_event` stores when the caller passes none           |
+| `kitSource`     | `better-supabase/{module}` | The source of events from kit modules; `{module}` is the module name |
+
+## Error codes
+
+| `hint`                    | When                                          |
+| ------------------------- | --------------------------------------------- |
+| `OUTBOX_TYPE_REQUIRED`    | `emit_event` without a type                   |
+| `OUTBOX_UNKNOWN_CONSUMER` | Claiming for a consumer that isn't registered |

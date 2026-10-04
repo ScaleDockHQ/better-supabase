@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { AuthEvent, RefreshEvent } from "../../src/core/events.ts";
-import type { BetterPostgres, SqlClaims } from "../../src/postgres/pool.ts";
+import type {
+  BetterPostgres,
+  SessionOptions,
+  SqlClaims,
+} from "../../src/postgres/pool.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
-import { createServer } from "../../src/server/server.ts";
+import { createServer, TENANT_HEADER } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -233,16 +237,18 @@ function stubFetch() {
 function fakePostgres() {
   const fake = fakeSql();
   const claims: SqlClaims[] = [];
+  const sessions: (SessionOptions | undefined)[] = [];
   // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
   const postgres = {
     admin: fake.sql,
     anon: fake.sql,
-    executorFor: (value: SqlClaims) => {
+    executorFor: (value: SqlClaims, session?: SessionOptions) => {
       claims.push(value);
+      sessions.push(session);
       return postgresExecutor(fake.sql);
     },
   } as unknown as BetterPostgres;
-  return { postgres, claims, fake };
+  return { postgres, claims, sessions, fake };
 }
 
 const service: AuthState = { kind: "service", keyName: "default" };
@@ -418,6 +424,72 @@ describe("createServer contextFor", () => {
       { sub: USER, role: "authenticated" },
       { role: "anon" },
     ]);
+  });
+});
+
+describe("createServer tenant", () => {
+  const TENANT = "33333333-3333-4333-8333-333333333333";
+
+  it("sends the resolved tenant as context, setting and header", async () => {
+    const { sent } = stubFetch();
+    const { postgres, sessions } = fakePostgres();
+    const resolver = vi.fn(
+      async (request: Request) =>
+        new URL(request.url).searchParams.get("org") ?? undefined,
+    );
+    const server = createServer(defineSupabase(schema), {
+      env,
+      postgres,
+      tenant: resolver,
+    });
+    const ctx = await server.context(
+      new Request(`https://app.test/?org=${TENANT}`),
+    );
+    expect(resolver).toHaveBeenCalledWith(expect.any(Request), ctx.auth);
+    expect(ctx.db.$context.tenant).toBe(TENANT);
+    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sent(0).headers.get(TENANT_HEADER)).toBe(TENANT);
+    await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sessions).toEqual([
+      { settings: { "better_supabase.tenant": TENANT } },
+    ]);
+
+    const none = await server.context(new Request("https://app.test/"));
+    expect(none.db.$context.tenant).toBeUndefined();
+    await none.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]).toBeUndefined();
+  });
+
+  it("prefers options.tenant, and needs it for async resolvers without context()", async () => {
+    const server = createServer(defineSupabase(schema), {
+      env,
+      tenant: async () => "from-resolver",
+    });
+    const request = new Request("https://app.test/");
+    const resolution = await server.resolve(request);
+    expect(() => server.contextFromResolution(resolution, request)).toThrow(
+      "ServerOptions.tenant returned a promise",
+    );
+    expect(
+      server.contextFromResolution(resolution, request, { tenant: TENANT }).db
+        .$context.tenant,
+    ).toBe(TENANT);
+    expect(
+      (await server.context(request, { tenant: "explicit" })).db.$context
+        .tenant,
+    ).toBe("explicit");
+    expect(server.contextFor(anon, { tenant: TENANT }).db.$context.tenant).toBe(
+      TENANT,
+    );
+
+    const sync = createServer(defineSupabase(schema), {
+      env,
+      tenant: () => "sync",
+    });
+    expect(
+      sync.contextFromResolution(resolution, request).db.$context.tenant,
+    ).toBe("sync");
   });
 });
 

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["test"],
+  "tasks": {
+    "test": {
+      "passThroughEnv": ["SUPABASE_DB_URL"]
+    }
+  }
+}

@@ -110,6 +110,9 @@
       "HookArgs",
       "InferReadSetParams",
       "InferResult",
+      "KitEvent",
+      "KitEventMap",
+      "KitEventType",
       "LogFields",
       "Logger",
       "MemoryCache",
@@ -126,6 +129,8 @@
       "PlanLimit",
       "PlanOrder",
       "Plugin",
+      "Policy",
+      "PolicyDecision",
       "PostgrestClientLike",
       "PostgrestPlan",
       "ProblemDetails",
@@ -184,6 +189,8 @@
     ],
     "types": [
       "* from ./snapshot.ts",
+      "AccessKitConfig",
+      "ActiveTenantSource",
       "ActorConfig",
       "BetterSupabaseConfig",
       "BucketConfig",
@@ -199,6 +206,9 @@
       "JsonSchemaGeneratorOptions",
       "JsonSchemaSource",
       "JsonTypeConfig",
+      "KitMode",
+      "KitModuleConfig",
+      "KitsConfig",
       "OpenApiConfig",
       "PermdockPathsConfig",
       "PluginFlagsConfig",
@@ -286,12 +296,15 @@
       "createHooks",
       "hasEntitlement",
       "SessionProvider",
+      "supportOf",
       "useAuth",
       "useBroadcast",
       "useLiveCount",
       "useLiveQuery",
+      "useNotifications",
       "useSession",
-      "useSupabase"
+      "useSupabase",
+      "useSupportSession"
     ],
     "types": [
       "AuthSession",
@@ -307,8 +320,12 @@
       "LiveCountSeed",
       "LiveQueryHookOptions",
       "MembershipClaim",
+      "NotificationSource",
+      "NotificationsState",
       "ProfileOf",
-      "SessionProviderProps"
+      "SessionProviderProps",
+      "SupportView",
+      "UseNotificationsOptions"
     ]
   },
   "./query": {
@@ -340,6 +357,7 @@
       "authContext",
       "checkAal",
       "checkSession",
+      "clearSupportCookie",
       "clientIp",
       "contextFromSupabase",
       "createServer",
@@ -359,6 +377,14 @@
       "respond",
       "sessionCookieName",
       "settle",
+      "sqlSupportStore",
+      "SUPPORT_COOKIE",
+      "supportClaims",
+      "supportCookie",
+      "supportCookieValue",
+      "supportOf",
+      "supportSessions",
+      "TENANT_HEADER",
       "toProblem",
       "toSession",
       "withBetterPostgres",
@@ -368,6 +394,7 @@
     "types": [
       "Aal",
       "ActClaim",
+      "ActiveSupport",
       "AmrEntry",
       "AuthKind",
       "AuthResolution",
@@ -405,8 +432,22 @@
       "SessionDelegation",
       "SessionLookup",
       "Settled",
+      "SqlSupportStoreOptions",
       "StoredSession",
-      "SupabaseAuthContext"
+      "SupabaseAuthContext",
+      "SupportApi",
+      "SupportAuthorizeInput",
+      "SupportCookieOptions",
+      "SupportEndedBy",
+      "SupportListFilter",
+      "SupportOptions",
+      "SupportPolicy",
+      "SupportSession",
+      "SupportSessions",
+      "SupportSessionStore",
+      "SupportStartInput",
+      "SupportStartRequest",
+      "SupportView"
     ]
   },
   "./postgres": {
@@ -424,6 +465,7 @@
       "PgPoolClient",
       "PostgresOptions",
       "PostgresTimeouts",
+      "SessionOptions",
       "SqlClaims",
       "SqlClient",
       "SqlPlan",
@@ -472,6 +514,9 @@
       "sessionTag",
       "shouldRefresh",
       "STATS_URL_HEADER",
+      "supportOf",
+      "supportSessions",
+      "supportTag",
       "tagFor",
       "toSession"
     ],
@@ -479,6 +524,7 @@
       "Aal",
       "ActionOptions",
       "ActionResult",
+      "ActiveSupport",
       "AmrEntry",
       "AuthKind",
       "AuthSession",
@@ -496,7 +542,13 @@
       "NextOptions",
       "ProxyOptions",
       "RequireAalOptions",
-      "SessionStaleOptions"
+      "SessionStaleOptions",
+      "SupportOptions",
+      "SupportPolicy",
+      "SupportSessions",
+      "SupportStarted",
+      "SupportStartRequest",
+      "SupportView"
     ]
   },
   "./next/image": {
@@ -582,17 +634,30 @@
   },
   "./jobs": {
     "values": [
+      "assertCron",
       "createIdempotency",
       "createInbox",
       "createJobs",
+      "createOutbox",
       "entitlementMembers",
-      "ENTITLEMENTS_UPDATED"
+      "ENTITLEMENTS_UPDATED",
+      "nextCronRun",
+      "outboxCloudEvent",
+      "pgmqPublicBackend",
+      "purgeAuditLog",
+      "sqlQueueBackend"
     ],
     "types": [
       "ClaimOptions",
+      "DrainOptions",
       "DrainResult",
+      "DrainRouteOptions",
+      "DrainRouteResult",
+      "DueSchedule",
+      "EmitOptions",
       "EnqueueOptions",
       "FailOptions",
+      "HistoryFilter",
       "Idempotency",
       "IdempotencyOptions",
       "IdempotencyState",
@@ -603,11 +668,73 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "Outbox",
+      "OutboxEvent",
+      "OutboxOptions",
+      "OutboxRouteOptions",
+      "OutboxRouteResult",
+      "PurgeAuditLogOptions",
+      "QueueBackend",
+      "QueueMessageBody",
+      "QueueMessageRow",
       "QueueRpcClient",
       "QueueSchemas",
+      "RegisterOptions",
+      "RelayOptions",
+      "RelayResult",
+      "RunSchedulesOptions",
       "ScheduleOptions",
       "SqlClient",
       "WorkOptions"
+    ]
+  },
+  "./orgs": {
+    "values": [
+      "createOrgs",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "CreateOrgOptions",
+      "Invitation",
+      "InvitationPreview",
+      "InvitationSent",
+      "InvitationStatus",
+      "InviteRequest",
+      "KitTransport",
+      "OrgAttributes",
+      "Orgs",
+      "OrgsOptions",
+      "RpcClient",
+      "SlugProblem",
+      "SwitchResult"
+    ]
+  },
+  "./notifications": {
+    "values": [
+      "createNotifications",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "DeliverOptions",
+      "DeliverResult",
+      "KitTransport",
+      "ListOptions",
+      "NotificationChannel",
+      "NotificationCounts",
+      "NotificationItem",
+      "NotificationKinds",
+      "NotificationMessage",
+      "Notifications",
+      "NotificationSendResult",
+      "NotificationsOptions",
+      "NotificationSubject",
+      "Rendered",
+      "RenderedText",
+      "RpcClient",
+      "SendInput",
+      "SubscriptionLevel"
     ]
   },
   "./env": {
@@ -654,20 +781,27 @@
   },
   "./storage": {
     "values": [
+      "avatarBucket",
       "defineBucket",
       "fromStorageError",
+      "IMAGE_TYPES",
+      "orgLogoBucket",
       "parseSize",
       "TTL"
     ],
     "types": [
+      "AccessBucketPolicy",
       "ActualBucket",
+      "AvatarBucketOptions",
       "Bucket",
       "BucketClient",
       "BucketConfig",
       "BucketConnectOptions",
       "BucketDrift",
       "BucketPolicy",
+      "ImageBucketOptions",
       "ObjectTarget",
+      "OrgLogoBucketOptions",
       "PathIn",
       "PermdockBucketPolicy",
       "PermdockCatalog",
@@ -724,10 +858,15 @@
   },
   "./events": {
     "values": [
+      "forwardKitEvents",
       "forwardMutations",
       "fromHttp",
       "httpSink",
       "isCloudEvent",
+      "KIT_ATTRIBUTES",
+      "kitCloudEvent",
+      "kitEventAttributes",
+      "onKitEvent",
       "ROW_EVENT_TYPES",
       "toCloudEvents",
       "toHttp"
@@ -736,32 +875,78 @@
       "CloudEvent",
       "CloudEventOptions",
       "EventSink",
+      "ForwardKitOptions",
       "ForwardOptions",
       "HttpMode",
       "HttpSinkOptions",
-      "RowEventData"
+      "InvitationEventData",
+      "KitEvent",
+      "KitEventMap",
+      "KitEventMeta",
+      "KitEventPattern",
+      "KitEventsMatching",
+      "KitEventType",
+      "NotificationEventData",
+      "OrgEventData",
+      "RowEventData",
+      "SupportEventData",
+      "WebhookEventData"
     ]
   },
   "./webhooks": {
     "values": [
       "authHook",
+      "createWebhooks",
       "databaseChange",
+      "fetchTransport",
+      "hmacSigner",
       "hookError",
       "isDatabaseWebhook",
+      "isPublicAddress",
+      "publicUrl",
+      "rpcTransport",
       "signWebhook",
+      "sqlSecretStore",
+      "sqlTransport",
+      "standardWebhooks",
       "timingSafeEqual",
       "verifySharedSecret",
-      "verifyWebhook"
+      "verifyWebhook",
+      "WebhookPolicyError"
     ],
     "types": [
+      "AllowUrl",
       "AuthHookError",
       "AuthHookKind",
       "AuthHooks",
       "DatabaseChange",
       "DatabaseWebhookPayload",
+      "DeliverWebhooksOptions",
+      "DeliverWebhooksResult",
+      "DispatchInput",
+      "FetchTransportOptions",
+      "HmacSignerOptions",
+      "KitTransport",
+      "PublicUrlOptions",
+      "PublishInput",
+      "ResolveHost",
+      "RetryPolicy",
+      "RotateSecretOptions",
+      "RpcClient",
+      "StandardWebhooksOptions",
       "VerifiedWebhook",
       "VerifyOptions",
-      "WebhookInput"
+      "WebhookDelivery",
+      "WebhookInput",
+      "WebhookRequest",
+      "WebhookResponse",
+      "Webhooks",
+      "WebhookSecretStore",
+      "WebhookSigner",
+      "WebhookSignInput",
+      "WebhooksOptions",
+      "WebhooksRouteOptions",
+      "WebhookTransport"
     ]
   },
   "./openapi": {
@@ -782,7 +967,8 @@
       "otel",
       "SEMCONV_VERSION",
       "traceAuth",
-      "tracedFetch"
+      "tracedFetch",
+      "traceKitEvents"
     ],
     "types": [
       "OtelOptions"
@@ -871,24 +1057,39 @@
     "values": [
       "compileReadSet",
       "compileReadSets",
+      "contractSignature",
+      "customContracts",
       "isKitIdType",
       "KIT_ID_TYPES",
+      "kitDeprecations",
+      "kitFileVersion",
       "kitIdType",
       "kitLayout",
+      "moduleBody",
+      "moduleVersion",
       "PERMDOCK_SCHEMA",
       "permdockKeys",
       "permdockKeyStatus",
       "renderKit",
       "resolveModules",
       "sameKitFile",
-      "SQL_MODULES"
+      "SQL_MODULES",
+      "upgradePlan"
     ],
     "types": [
       "CompiledReadSet",
+      "InstalledKitModule",
+      "KitContext",
+      "KitContractFunction",
+      "KitDeprecation",
       "KitFile",
       "KitIdType",
       "KitLayout",
+      "KitNames",
       "KitPermdock",
+      "KitTableSpec",
+      "KitUpgrade",
+      "KitUpgradePlan",
       "PermdockCatalog",
       "PermdockKeyStatus",
       "SqlModule"
@@ -914,7 +1115,13 @@
       "testEventSink",
       "testExecutor",
       "testGenerator",
-      "testPlugin"
+      "testNotificationChannel",
+      "testPlugin",
+      "testQueueBackend",
+      "testSupportSessionStore",
+      "testWebhookSecretStore",
+      "testWebhookSigner",
+      "testWebhookTransport"
     ],
     "types": [
       "BudgetPage",
@@ -937,9 +1144,15 @@
       "TestExecutorOptions",
       "TestGeneratorOptions",
       "TestJwtClaims",
+      "TestNotificationChannelOptions",
       "TestPluginOptions",
+      "TestQueueBackendOptions",
       "TestSigner",
-      "TestUser"
+      "TestSupportSessionStoreOptions",
+      "TestUser",
+      "TestWebhookSecretStoreOptions",
+      "TestWebhookSignerOptions",
+      "TestWebhookTransportOptions"
     ]
   }
 }

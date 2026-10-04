@@ -7,6 +7,7 @@ export type {
   BetterPostgres,
   PostgresOptions,
   PostgresTimeouts,
+  SessionOptions,
   SqlClaims,
 } from "./pool.ts";
 export { compileSql, quoteIdent } from "../compile/sql.ts";

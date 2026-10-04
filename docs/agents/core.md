@@ -42,3 +42,23 @@ Skipping the tenant scope for a whole connection goes through
 symbol that JSON can't produce and `$with` copies. `tenant()` and tenant
 buckets check it with `spansAllTenants`; per-call opt-outs stay
 `{ allTenants: true }` in the call options.
+
+## Kit extension points
+
+Every kit uses the same four extension points, so a new kit adds entries
+instead of a new mechanism:
+
+- **Events.** Add the type to `KitEventMap` (`src/core/kit-events.ts`) and
+  call `emitKitEvent` after the work succeeds or is refused. The data never
+  holds secrets (invitation tokens, webhook secrets), and handlers only
+  observe.
+- **Policies.** A decision the app can make is a `Policy` run through
+  `decide()` (`src/core/policy.ts`), which fails closed. Never call the
+  callback directly; a throw must deny, not escape.
+- **SQL hooks.** List the hook in the module's `names.hooks` and render it
+  with `ctx.hook(name, args)`; `ctx.emit(...)` writes the outbox event and
+  renders nothing without the outbox.
+- **Swappable parts.** An interface the app can replace carries
+  `apiVersion: 1`, a conformance kit in `src/testing/conformance.ts`, an
+  entry in `tests/core/extensibility.test-d.ts` and a row on the interfaces
+  page.

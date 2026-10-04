@@ -5,7 +5,13 @@
     "storage",
     "realtime",
     "sql",
+    "access",
+    "orgs",
+    "profiles",
     "jobs",
+    "outbox",
+    "notifications",
+    "webhooks-out",
     "entitlements",
     "vector-search"
   ]

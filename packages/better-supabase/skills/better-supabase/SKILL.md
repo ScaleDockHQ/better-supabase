@@ -53,16 +53,19 @@ stay hidden.
 
 ## Workflow: after upgrading better-supabase
 
-1. Rerun `pnpm better-supabase sql add` with the kit modules the project
-   installed, so their SQL gets the release's fixes, then write a migration
-   from the changed files.
-2. Run `pnpm better-supabase gen` and commit the result. Since 0.3, a
+1. Run `pnpm better-supabase codemod <version> --dry-run` for each minor
+   version you crossed (`codemod` without a name lists them), then without
+   `--dry-run`, and fix the lines it lists for review.
+2. Run `pnpm better-supabase sql upgrade`, so the kit modules get the
+   release's SQL and any forward steps land in a migration, then write a
+   migration from the changed files.
+3. Run `pnpm better-supabase gen` and commit the result. Since 0.3, a
    composite foreign key such as `(customer_id, organization_id)` is named
    after the remaining column (`customer`); set `tables.<name>.relations` in
    the config to keep an old relation name.
-3. Run `pnpm better-supabase skills install --check` and reinstall the skills
+4. Run `pnpm better-supabase skills install --check` and reinstall the skills
    when it reports them stale.
-4. Read the release's breaking changes in
+5. Read the release's breaking changes in
    https://github.com/ScaleDockHQ/better-supabase/blob/main/CHANGELOG.md
    (guides live under https://bettersupabase.com/docs/migration). For 0.3: time values are
    `Temporal` (see below), `--db-url` is gone, `doctor --format json` is

@@ -4,6 +4,10 @@ import type { Actor, RequestContext } from "../core/plugin.ts";
 export interface Impersonator {
   readonly id: string;
   readonly reason?: string;
+  /** The support session, when the admin started one (`act.session_id`). */
+  readonly sessionId?: string;
+  /** Whether the support session blocks writes (`act.read_only`). */
+  readonly readOnly?: boolean;
 }
 
 /** `actingAs(userId, claims, { actor, reason })`: who acts, and why (recorded by the audit module). */
@@ -27,9 +31,14 @@ export function impersonatorOf(
   const act = claims["act"];
   if (typeof act !== "object" || act === null) return undefined;
   // SAFETY: the check above narrows act to a non-null object; each field is checked below.
-  const { sub, reason } = act as Record<string, unknown>;
+  const { sub, reason, session_id, read_only } = act as Record<string, unknown>;
   if (typeof sub !== "string" || sub === "") return undefined;
-  return typeof reason === "string" ? { id: sub, reason } : { id: sub };
+  return {
+    id: sub,
+    ...(typeof reason === "string" ? { reason } : {}),
+    ...(typeof session_id === "string" ? { sessionId: session_id } : {}),
+    ...(typeof read_only === "boolean" ? { readOnly: read_only } : {}),
+  };
 }
 
 /**

@@ -169,14 +169,14 @@ function writtenClaims(source: string, claims: readonly string[]): string[] {
 
 const API_ROLES = ["authenticated", "anon"] as const;
 
-interface ConfiguredHook {
+export interface ConfiguredHook {
   readonly config: PgFunctionHook;
   /** Absent when the snapshot predates the hook (or `hooks` introspection). */
   readonly extras: ExtrasHook | undefined;
 }
 
 /** Hooks enabled in `config.toml`, matched with their introspected functions. */
-function configuredHooks(context: DoctorContext): ConfiguredHook[] {
+export function configuredHooks(context: DoctorContext): ConfiguredHook[] {
   if (!context.configToml) return [];
   const introspected = context.snapshot.extras.hooks ?? [];
   return pgFunctionHooks(context.configToml.document).map((config) => ({
@@ -202,7 +202,7 @@ function hookLocation(
   return line ? { file: context.configToml.path, line } : undefined;
 }
 
-const signatureOf = (fn: ExtrasHookFunction): string =>
+export const signatureOf = (fn: ExtrasHookFunction): string =>
   `${fn.schema}.${fn.name}(${fn.signature})`;
 
 /** What is wrong with who may call a hook function, and the SQL that fixes it. */
@@ -382,10 +382,6 @@ const emptySearchPath = (fn: ExtrasHookFunction): boolean => {
   return value === "" || value === '""' || value === "''";
 };
 
-/**
- * Runs the hook as Auth does for `userId` (as `supabase_auth_admin` when the
- * connecting role may switch to it), in a transaction that is rolled back.
- */
 interface ClaimsSize {
   readonly bytes: number;
   readonly memberships: number;
@@ -397,12 +393,16 @@ interface ClaimsSize {
 /** Auth's issuer shape (`{url}/auth/v1`); doctor has no project URL to put in it. */
 const DOCTOR_ISSUER = "https://doctor.invalid/auth/v1";
 
-async function hookClaimsSize(
+/**
+ * Runs the hook as Auth does for `userId` (as `supabase_auth_admin` when the
+ * connecting role may switch to it), in a transaction that is rolled back.
+ * Undefined when `auth.users` has no such user.
+ */
+async function withHookEvent<T>(
   db: LiveDatabase,
-  fn: ExtrasHookFunction,
   userId: string,
-): Promise<ClaimsSize | undefined> {
-  const call = `${ident(fn.schema)}.${ident(fn.name)}`;
+  run: () => Promise<T>,
+): Promise<T | undefined> {
   await db.query("begin");
   try {
     await db.query(`set local statement_timeout = '10s'`);
@@ -434,6 +434,42 @@ async function hookClaimsSize(
         then pg_has_role('supabase_auth_admin', 'member') else false end as member`,
     );
     if (role?.member) await db.query("set local role supabase_auth_admin");
+    return await run();
+  } finally {
+    await db.query("rollback");
+  }
+}
+
+export const isRecord = (
+  value: unknown,
+): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const hookCall = (fn: ExtrasHookFunction): string =>
+  `${ident(fn.schema)}.${ident(fn.name)}(current_setting('better_supabase.hook_event')::jsonb) -> 'claims'`;
+
+/** The claims the hook returns for `userId`, or undefined without that user. */
+export async function hookClaims(
+  db: LiveDatabase,
+  fn: ExtrasHookFunction,
+  userId: string,
+): Promise<Readonly<Record<string, unknown>> | undefined> {
+  return withHookEvent(db, userId, async () => {
+    const [row] = await db.query<{ claims: unknown }>(
+      `select ${hookCall(fn)} as claims`,
+    );
+    const claims: unknown =
+      typeof row?.claims === "string" ? JSON.parse(row.claims) : row?.claims;
+    return isRecord(claims) ? claims : {};
+  });
+}
+
+async function hookClaimsSize(
+  db: LiveDatabase,
+  fn: ExtrasHookFunction,
+  userId: string,
+): Promise<ClaimsSize | undefined> {
+  return withHookEvent(db, userId, async () => {
     const [row] = await db.query<{
       bytes: number | string | null;
       memberships: number | string | null;
@@ -444,7 +480,7 @@ async function hookClaimsSize(
         octet_length((c -> 'memberships')::text) as memberships,
         octet_length((c -> 'attrs')::text) as attrs,
         c ->> 'memberships_truncated' = 'true' as truncated
-      from (select ${call}(current_setting('better_supabase.hook_event')::jsonb) -> 'claims' as c) h`,
+      from (select ${hookCall(fn)} as c) h`,
     );
     const memberships = Number(row?.memberships ?? 0);
     return {
@@ -453,9 +489,7 @@ async function hookClaimsSize(
       budget: memberships + Number(row?.attrs ?? 0),
       truncated: row?.truncated === true,
     };
-  } finally {
-    await db.query("rollback");
-  }
+  });
 }
 
 const LOCAL_HOSTS = new Set([

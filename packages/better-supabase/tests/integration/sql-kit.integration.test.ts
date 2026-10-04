@@ -13,13 +13,16 @@ import {
   createJobs,
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
+  sqlQueueBackend,
 } from "../../src/jobs/index.ts";
+import { purgeAuditLog } from "../../src/jobs/jobs.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
-import { renderKit, SQL_MODULES } from "../../src/sql/kit.ts";
+import { moduleBody, renderKit, SQL_MODULES } from "../../src/sql/kit.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { asUser } from "../../src/testing/as-user.ts";
+import { testQueueBackend } from "../../src/testing/conformance.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { signWebhook } from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -125,6 +128,40 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   it("is idempotent", async () => {
     for (const module of Object.values(SQL_MODULES)) {
       if (module.target === "schema") await pool.query(module.sql);
+    }
+  });
+
+  it("warns about equivalent triggers and replaces them on request", async () => {
+    const name = `public.bs_dup_${RUN}`;
+    const notices: string[] = [];
+    const client = await pool.connect();
+    client.on("notice", (notice) => notices.push(notice.message ?? ""));
+    try {
+      await client.query(`
+        create table ${name} (id int primary key, updated_at timestamptz);
+        create function public.touch_${RUN}() returns trigger language plpgsql as $$
+        begin new.updated_at := now(); return new; end $$;
+        create trigger touch_row before update on ${name}
+          for each row execute function public.touch_${RUN}();
+      `);
+      await client.query(`select better_supabase.track_updated_at('${name}')`);
+      expect(notices.join("\n")).toContain("touch_row");
+      const triggers = async () =>
+        (
+          await client.query<{ tgname: string }>(
+            `select tgname from pg_trigger where tgrelid = $1::regclass and not tgisinternal order by 1`,
+            [name],
+          )
+        ).rows.map((row) => row.tgname);
+      expect(await triggers()).toEqual(["bs_updated_at", "touch_row"]);
+      await client.query(
+        `select better_supabase.track_updated_at('${name}', replace_trigger => true)`,
+      );
+      expect(await triggers()).toEqual(["bs_updated_at"]);
+    } finally {
+      await client.query(`drop table if exists ${name}`);
+      await client.query(`drop function if exists public.touch_${RUN}()`);
+      client.release();
     }
   });
 
@@ -953,6 +990,127 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     expect(result).toEqual({ succeeded: 4, failed: 0 });
   });
 
+  it("passes the queue backend conformance kit on pgmq", async () => {
+    await testQueueBackend(sqlQueueBackend(postgres.admin), {
+      queue: `kit_${RUN}_conf`,
+    });
+  });
+
+  it("runs jobs and time-zone schedules on the table backend", async () => {
+    const queue = `kit_${RUN}_table`;
+    const name = `bs-kit-table-${RUN}`;
+    await pool.query(
+      moduleBody("jobs", {
+        kits: { jobs: { options: { backend: "table", scheduler: "drain" } } },
+      })!,
+    );
+    try {
+      await testQueueBackend(sqlQueueBackend(postgres.admin), {
+        queue: `${queue}_conf`,
+      });
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ to: v.string() }),
+      });
+      const first = await jobs
+        .enqueue(queue, { to: "a" }, { dedupeKey: "a" })
+        .orThrow();
+      expect(
+        await jobs.enqueue(queue, { to: "a" }, { dedupeKey: "a" }).orThrow(),
+      ).toBe(first);
+      await jobs.enqueue(queue, { to: "b" }, { maxAttempts: 1 }).orThrow();
+
+      const other = createJobs(postgres.admin, {
+        [queue]: v.object({ to: v.string() }),
+      });
+      const [mine, theirs] = await Promise.all([
+        jobs.claim(queue).orThrow(),
+        other.claim(queue).orThrow(),
+      ]);
+      expect(mine[0]!.id).not.toBe(theirs[0]!.id);
+      expect(await jobs.complete({ ...mine[0]!, attempts: 99 }).orThrow()).toBe(
+        false,
+      );
+      const states = await Promise.all(
+        [...mine, ...theirs].map((job) =>
+          jobs.fail(job, "boom", { retryIn: 0 }).orThrow(),
+        ),
+      );
+      expect(
+        states.toSorted((a, b) => String(a).localeCompare(String(b))),
+      ).toEqual(["dead", "queued"]);
+      expect(await jobs.drain(queue, () => undefined)).toEqual({
+        succeeded: 1,
+        failed: 0,
+      });
+      const rows = await pool.query<{ dead: boolean; archived: boolean }>(
+        `select dead, archived_at is not null as archived
+         from better_supabase.job_messages where queue = $1 order by id`,
+        [queue],
+      );
+      expect(rows.rows).toEqual([
+        { dead: false, archived: true },
+        { dead: true, archived: true },
+      ]);
+
+      await jobs
+        .schedule(
+          name,
+          "0 9 * * *",
+          queue,
+          { to: "digest" },
+          {
+            timeZone: "Europe/Amsterdam",
+          },
+        )
+        .orThrow();
+      const stored = await pool.query<{ timezone: string; local: string }>(
+        `select timezone, to_char(next_run at time zone timezone, 'HH24:MI') as local
+         from better_supabase.job_schedules where job_name = $1`,
+        [name],
+      );
+      expect(stored.rows[0]).toEqual({
+        timezone: "Europe/Amsterdam",
+        local: "09:00",
+      });
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name = $1`,
+        [name],
+      );
+      const route = jobs.drainRoute({
+        secret: "s3cret",
+        handlers: { [queue]: () => undefined },
+      });
+      const response = await route(
+        new Request("https://app.test/api/jobs/drain", {
+          headers: { authorization: "Bearer s3cret" },
+        }),
+      );
+      expect(await response.json()).toMatchObject({
+        schedules: 1,
+        queues: { [queue]: { succeeded: 1, failed: 0 } },
+      });
+      const moved = await pool.query<{ due: boolean }>(
+        "select next_run > now() as due from better_supabase.job_schedules where job_name = $1",
+        [name],
+      );
+      expect(moved.rows[0]!.due).toBe(true);
+      await expect(
+        pool.query(
+          "select better_supabase.schedule_job('x', '* * * * *', 'q', '{}', 'Mars/Base')",
+        ),
+      ).rejects.toThrow(/Unknown time zone/);
+      expect(await jobs.unschedule(name).orThrow()).toBe(true);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue like $1",
+        [`${queue}%`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency(postgres.admin, { scope: RUN });
     let runs = 0;
@@ -1109,13 +1267,199 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       `select r.role, has_function_privilege(r.role, f.fn, 'execute') as allowed
        from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
             unnest(array[
-              'better_supabase.purge_audit_log(interval, integer)',
+              'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
+              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid)',
               'better_supabase.purge_webhooks(interval, boolean, integer)',
               'better_supabase.purge_job_archive(text, interval, integer)'
             ]) as f(fn)`,
     );
     for (const row of executable.rows)
       expect(row.allowed).toBe(row.role === "service_role");
+  });
+
+  it("redacts columns, names events and records idempotent semantic events", async () => {
+    const name = `public.bs_audit_${RUN}`;
+    await pool.query(`
+      create table ${name} (id int primary key, organization_id uuid, api_key text, note text);
+      select better_supabase.audit('${name}', redact => '{api_key}', event_prefix => 'secret',
+        category => 'security', target_type => 'secret');
+      insert into ${name} values (1, '${ACME}', 'sk_live', 'a');
+      update ${name} set api_key = 'sk_new' where id = 1;
+    `);
+    try {
+      const { rows } = await pool.query<{
+        event_type: string;
+        category: string;
+        target_type: string;
+        new_record: { api_key: string };
+        changed: string[] | null;
+        org_id: string;
+      }>(
+        `select event_type, category, target_type, new_record, changed, org_id
+         from better_supabase.audit_log where table_name = $1 order by id`,
+        [name],
+      );
+      expect(rows.map((row) => row.event_type)).toEqual([
+        "secret.created",
+        "secret.updated",
+      ]);
+      expect(rows[1]).toMatchObject({
+        category: "security",
+        target_type: "secret",
+        new_record: { api_key: "[redacted]" },
+        changed: ["api_key"],
+        org_id: ACME,
+      });
+
+      const event = (key: string) =>
+        pool.query<{ id: string }>(
+          `select better_supabase.audit_event('invoice.sent', category => 'billing',
+             tenant => $1, metadata => '{"invoice": 7}', idempotency_key => $2) as id`,
+          [ACME, key],
+        );
+      const first = (await event(`k_${RUN}`)).rows[0]!.id;
+      expect((await event(`k_${RUN}`)).rows[0]!.id).toBe(first);
+      const stored = await pool.query(
+        `select op, event_type, category, outcome, source, metadata
+         from better_supabase.audit_log where id = $1::bigint`,
+        [first],
+      );
+      expect(stored.rows[0]).toEqual({
+        op: "event",
+        event_type: "invoice.sent",
+        category: "billing",
+        outcome: "success",
+        source: "app",
+        metadata: { invoice: 7 },
+      });
+      await pool.query(
+        "delete from better_supabase.audit_log where id = $1::bigint",
+        [first],
+      );
+    } finally {
+      await pool.query(`select better_supabase.unaudit('${name}')`);
+      await pool.query(`drop table if exists ${name}`);
+      await pool.query(
+        "delete from better_supabase.audit_log where table_name = $1",
+        [name],
+      );
+    }
+  });
+
+  it("guards, scopes, splits and retains audit entries by option", async () => {
+    const name = `public.bs_audit_opt_${RUN}`;
+    const other = "00000000-0000-4000-8000-0000000000aa";
+    const hook = "public.audit_retention";
+    await pool.query(
+      moduleBody("audit", {
+        kits: {
+          audit: {
+            options: {
+              appendOnly: true,
+              readPolicy: true,
+              impersonators: "hide",
+              restricted: true,
+            },
+          },
+        },
+      })!,
+    );
+    try {
+      await pool.query(`
+        create table ${name} (id int primary key, organization_id uuid, note text);
+        select better_supabase.audit('${name}');
+        insert into ${name} values (1, '${ACME}', 'a');
+      `);
+      const entry = await pool.query<{ id: string; new_record: unknown }>(
+        "select id, new_record from better_supabase.audit_log where table_name = $1",
+        [name],
+      );
+      expect(entry.rows[0]!.new_record).toBeNull();
+      const details = await pool.query<{ new_record: { note: string } }>(
+        "select new_record from better_supabase.audit_log_restricted where entry_id = $1",
+        [entry.rows[0]!.id],
+      );
+      expect(details.rows[0]!.new_record.note).toBe("a");
+
+      await expect(
+        pool.query(
+          "update better_supabase.audit_log set op = 'x' where table_name = $1",
+          [name],
+        ),
+      ).rejects.toThrow(/append-only/);
+      await expect(
+        pool.query(
+          "delete from better_supabase.audit_log where table_name = $1",
+          [name],
+        ),
+      ).rejects.toThrow(/append-only/);
+
+      const privileges = await pool.query<{ column: string; allowed: boolean }>(
+        `select c as column, has_column_privilege('authenticated', 'better_supabase.audit_log', c, 'select') as allowed
+         from unnest(array['actor_id', 'impersonated_by']) c`,
+      );
+      expect(privileges.rows).toEqual([
+        { column: "actor_id", allowed: true },
+        { column: "impersonated_by", allowed: false },
+      ]);
+      const policy = await pool.query(
+        "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_log' and policyname = 'bs_audit_read'",
+      );
+      expect(policy.rowCount).toBe(1);
+
+      await pool.query(
+        `insert into better_supabase.audit_log (table_name, op, org_id, at)
+         values ($1, 'insert', $2, now() - interval '40 days'),
+                ($1, 'insert', $3, now() - interval '40 days')`,
+        [`${name}_old`, ACME, other],
+      );
+      await pool.query(`
+        create function ${hook}(tenant uuid) returns interval language sql stable as $$
+          select case when tenant = '${ACME}' then interval '30 days' end
+        $$;
+      `);
+      const purged = await pool.query<{ n: number }>(
+        "select better_supabase.purge_audit_log('10 years') as n",
+      );
+      expect(purged.rows[0]!.n).toBe(1);
+      const left = await pool.query<{ org_id: string }>(
+        "select org_id from better_supabase.audit_log where table_name = $1",
+        [`${name}_old`],
+      );
+      expect(left.rows).toEqual([{ org_id: other }]);
+
+      await pool.query(`drop function ${hook}(uuid)`);
+      await pool.query(
+        `insert into better_supabase.audit_log (table_name, op, at)
+         values ($1, 'insert', now() - interval '40 days')`,
+        [`${name}_old`],
+      );
+      const retained = await purgeAuditLog(postgres.admin, {
+        olderThan: "10 years",
+        retention: (tenant) => (tenant === ACME ? undefined : 30),
+      });
+      expect(retained.data).toBe(2);
+      const none = await pool.query(
+        "select 1 from better_supabase.audit_log where table_name = $1",
+        [`${name}_old`],
+      );
+      expect(none.rowCount).toBe(0);
+    } finally {
+      await pool.query(`drop function if exists ${hook}(uuid)`);
+      await pool.query(`select better_supabase.unaudit('${name}')`);
+      await pool.query(`drop table if exists ${name}`);
+      await pool.query(SQL_MODULES["audit"]!.sql);
+      await pool.query(
+        "delete from better_supabase.audit_log where table_name like $1",
+        [`${name}%`],
+      );
+      await pool.query(
+        "drop policy if exists bs_audit_read on better_supabase.audit_log",
+      );
+      await pool.query(
+        "revoke all on better_supabase.audit_log from authenticated",
+      );
+    }
   });
 
   it("pgTAP helpers authenticate as a user under RLS", async () => {

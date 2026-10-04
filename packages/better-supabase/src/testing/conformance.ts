@@ -1,10 +1,12 @@
 import type { AuthResolver, AuthState } from "../auth/resolve.ts";
+import type { SupportSessionStore } from "../auth/support.ts";
 import type { CacheAdapter, CacheTarget } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ExecuteContext, Executor } from "../core/executor.ts";
 import type { AnyPlugin, HookArgs, RequestContext } from "../core/plugin.ts";
 import type { CloudEvent, EventSink } from "../events/index.ts";
 import type { Operation } from "../ir/types.ts";
+import type { Job, QueueBackend, QueueMessageRow } from "../jobs/queue.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
 import {
@@ -453,6 +455,245 @@ export function testEventSink(
         expect(
           missing.length === 0,
           `${missing.length} of ${events.length} events were not delivered`,
+        );
+      },
+    ],
+  ]);
+}
+
+export interface TestQueueBackendOptions {
+  /** A queue the kit may fill and drain; use a fresh name per run. */
+  readonly queue: string;
+  /** Check that a repeated dedupe key returns the first id. Defaults to `backend.leases`. */
+  readonly dedupe?: boolean;
+}
+
+function claimedJob(queue: string, row: QueueMessageRow): Job {
+  const instant = temporal().Instant.fromEpochMilliseconds(0);
+  return {
+    id: Number(row.id),
+    queue,
+    payload: row.message?.payload,
+    attempts: row.attempts,
+    maxAttempts: row.message?.max_attempts ?? 5,
+    enqueuedAt: instant,
+    visibleUntil: instant,
+    lastError: row.message?.last_error ?? null,
+    context: {},
+  };
+}
+
+/**
+ * Proves a `QueueBackend` round-trips payloads, hides claimed messages for
+ * their lease, counts attempts, retries and dead-letters on `fail`, and
+ * (when it has `leases`) rejects a stale attempt and extends a lease. It
+ * writes to `options.queue` on the backend's real store.
+ */
+export function testQueueBackend(
+  backend: QueueBackend,
+  options: TestQueueBackendOptions,
+): Promise<ConformanceReport> {
+  const { queue } = options;
+  const claimOne = async (): Promise<Job | undefined> => {
+    const [row] = await backend.read(queue, 30, 1);
+    return row && claimedJob(queue, row);
+  };
+  return conform(`QueueBackend "${backend.name}"`, [
+    hasName(backend),
+    [
+      "has apiVersion 1",
+      () => {
+        const version: unknown = backend.apiVersion;
+        expect(version === 1, "apiVersion must be 1");
+      },
+    ],
+    [
+      "round-trips a payload and leases it",
+      async () => {
+        const id = await backend.send(queue, { n: 1 }, 0, 3, undefined);
+        expect(Number.isFinite(id), "send must return a numeric id");
+        const job = await claimOne();
+        expect(job?.id === id, "read must return the sent message");
+        expect(same(job.payload, { n: 1 }), "the payload must round-trip");
+        expect(job.attempts === 1, "the first claim must be attempt 1");
+        expect(job.maxAttempts === 3, "max_attempts must round-trip");
+        expect(
+          (await claimOne()) === undefined,
+          "a leased message must stay hidden from other reads",
+        );
+        expect(await backend.complete(job), "complete must return true");
+      },
+    ],
+    backend.leases && [
+      "rejects a stale attempt and extends a lease",
+      async () => {
+        await backend.send(queue, { n: 2 }, 0, 3, undefined);
+        const job = await claimOne();
+        expect(job, "read must return the sent message");
+        expect(
+          !(await backend.complete({ ...job, attempts: job.attempts + 1 })),
+          "complete with another attempt must return false",
+        );
+        expect(await backend.extend(job, 60), "extend must return true");
+        expect(await backend.complete(job), "complete must return true");
+      },
+    ],
+    [
+      "retries, then dead-letters at max attempts",
+      async () => {
+        await backend.send(queue, { n: 3 }, 0, 2, undefined);
+        const first = await claimOne();
+        expect(first, "read must return the sent message");
+        expect(
+          (await backend.fail(first, "boom", 0)) === "queued",
+          "fail before max_attempts must return queued",
+        );
+        const second = await claimOne();
+        expect(second?.attempts === 2, "a retried message must be attempt 2");
+        expect(
+          (await backend.fail(second, "boom", 0)) === "dead",
+          "fail at max_attempts must return dead",
+        );
+        expect(
+          (await claimOne()) === undefined,
+          "a dead message must not be claimed again",
+        );
+      },
+    ],
+    (options.dedupe ?? backend.leases) && [
+      "returns the first id for a repeated dedupe key",
+      async () => {
+        const first = await backend.send(queue, { n: 4 }, 0, 3, "same");
+        const again = await backend.send(queue, { n: 4 }, 0, 3, "same");
+        expect(first === again, "a waiting dedupe key must return its id");
+        const job = await claimOne();
+        expect(job, "read must return the sent message");
+        await backend.complete(job);
+      },
+    ],
+  ]);
+}
+
+export interface TestSupportSessionStoreOptions {
+  /** A user who may start support sessions in the store. */
+  readonly admin: {
+    readonly id: string;
+    readonly claims: Readonly<Record<string, unknown>>;
+  };
+  /** Two other users the admin may view the app as. */
+  readonly targets: readonly [string, string];
+}
+
+/**
+ * Proves a `SupportSessionStore` starts sessions with the input it was
+ * given, shows a running session only to its admin, ends the admin's
+ * previous session on start, ends a session once, and lists sessions.
+ * It writes sessions to the store; they are all ended when it returns.
+ */
+export function testSupportSessionStore(
+  store: SupportSessionStore,
+  options: TestSupportSessionStoreOptions,
+): Promise<ConformanceReport> {
+  const { admin } = options;
+  const [first, second] = options.targets;
+  const start = (targetUserId: string) =>
+    store.start({
+      adminId: admin.id,
+      adminClaims: admin.claims,
+      targetUserId,
+      reason: "conformance",
+      ttlSeconds: 600,
+      readOnly: true,
+      metadata: { ticket: "T-1" },
+    });
+  return conform(`SupportSessionStore "${store.name}"`, [
+    hasName(store),
+    [
+      "has apiVersion 1",
+      () => {
+        const version: unknown = store.apiVersion;
+        expect(version === 1, "apiVersion must be 1");
+      },
+    ],
+    [
+      "starts a session with its input and shows it to its admin only",
+      async () => {
+        const session = await start(first);
+        try {
+          expect(session.id.length > 0, "start must return an id");
+          expect(session.adminId === admin.id, "adminId must round-trip");
+          expect(
+            session.targetUserId === first,
+            "targetUserId must round-trip",
+          );
+          expect(session.reason === "conformance", "reason must round-trip");
+          expect(session.readOnly, "readOnly must round-trip");
+          expect(
+            same(session.metadata, { ticket: "T-1" }),
+            "metadata must round-trip",
+          );
+          const seconds =
+            (session.expiresAt.epochMilliseconds -
+              session.startedAt.epochMilliseconds) /
+            1000;
+          expect(
+            Math.abs(seconds - 600) < 5,
+            "expiresAt must be ttlSeconds after startedAt",
+          );
+          const found = await store.get(session.id, admin.id);
+          expect(
+            found?.id === session.id,
+            "get must return the running session",
+          );
+          expect(
+            (await store.get(session.id, first)) === undefined,
+            "get must hide a session from anyone but its admin",
+          );
+        } finally {
+          await store.end(session.id, "admin");
+        }
+      },
+    ],
+    [
+      "ends the admin's previous session on start",
+      async () => {
+        const older = await start(first);
+        const newer = await start(second);
+        try {
+          expect(
+            (await store.get(older.id, admin.id)) === undefined,
+            "starting a session must end the admin's previous one",
+          );
+          expect(
+            (await store.get(newer.id, admin.id))?.id === newer.id,
+            "the new session must be running",
+          );
+        } finally {
+          await store.end(newer.id, "admin");
+        }
+      },
+    ],
+    [
+      "ends a session once and lists it",
+      async () => {
+        const session = await start(first);
+        expect(await store.end(session.id, "admin"), "end must return true");
+        expect(
+          !(await store.end(session.id, "admin")),
+          "ending an ended session must return false",
+        );
+        expect(
+          (await store.get(session.id, admin.id)) === undefined,
+          "get must not return an ended session",
+        );
+        const listed = await store.list({ adminId: admin.id, active: false });
+        const entry = listed.find((item) => item.id === session.id);
+        expect(entry, "list must include the ended session");
+        expect(entry.endedAt !== undefined, "an ended session has endedAt");
+        const running = await store.list({ adminId: admin.id, active: true });
+        expect(
+          running.every((item) => item.id !== session.id),
+          "list({ active: true }) must leave out ended sessions",
         );
       },
     ],

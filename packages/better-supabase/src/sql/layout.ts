@@ -21,6 +21,7 @@ export function kitLayout(
     realtimeTables: config.realtime.tables,
     entitlements: config.entitlements,
     claims: config.claims,
+    kits: config.kits,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: "anon" as const, privileges: roles.anon },

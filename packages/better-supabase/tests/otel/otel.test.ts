@@ -10,12 +10,18 @@ import {
   trace,
   type Tracer,
 } from "@opentelemetry/api";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { EventHub } from "../../src/core/events.ts";
+import { emitKitEvent } from "../../src/core/kit-events.ts";
 import { ok } from "../../src/core/result.ts";
-import { otel, traceAuth, tracedFetch } from "../../src/otel/index.ts";
+import {
+  otel,
+  traceAuth,
+  tracedFetch,
+  traceKitEvents,
+} from "../../src/otel/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -208,6 +214,50 @@ describe("otel", () => {
       "enduser.id": "u1",
       "better_supabase.auth.source": "cookie",
     });
+  });
+
+  it("traces kit events as spans or as events on the active span", () => {
+    const { tracer, spans } = memoryTracer();
+    const events = new EventHub();
+    const stop = traceKitEvents({ events }, { tracer });
+    emitKitEvent(
+      events,
+      "support.denied",
+      { adminId: "a1", targetUserId: "u1", denial: "permission" },
+      { tenant: "t1", actorId: "a1" },
+    );
+    emitKitEvent(events, "org.created", { organizationId: "o1" });
+    const added: [string, Attributes | undefined][] = [];
+    const active = vi.spyOn(trace, "getActiveSpan").mockReturnValue({
+      addEvent: (name: string, attributes?: Attributes) => {
+        added.push([name, attributes]);
+      },
+    } as unknown as Span);
+    emitKitEvent(events, "webhook.failed", { endpointId: "e1" });
+    active.mockRestore();
+    stop();
+    emitKitEvent(events, "org.created", { organizationId: "o2" });
+    expect(spans.map((span) => [span.name, span.status?.code])).toEqual([
+      ["kit support.denied", SpanStatusCode.ERROR],
+      ["kit org.created", undefined],
+    ]);
+    expect(spans[0]?.attributes).toEqual({
+      "better_supabase.kit.event": "support.denied",
+      "better_supabase.tenant": "t1",
+      "better_supabase.actor.id": "a1",
+    });
+    expect(spans[1]?.attributes).toMatchObject({
+      "better_supabase.org.id": "o1",
+    });
+    expect(added).toEqual([
+      [
+        "webhook.failed",
+        {
+          "better_supabase.kit.event": "webhook.failed",
+          "better_supabase.webhook.endpoint_id": "e1",
+        },
+      ],
+    ]);
   });
 
   it("propagates traceparent through fetch", async () => {

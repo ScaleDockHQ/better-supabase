@@ -116,7 +116,15 @@ const COMMANDS = new Map<string, Entry>([
     "sql",
     {
       load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
-      description: "Lists, adds, syncs and prints SQL kit modules",
+      description: "Lists, adds, syncs, upgrades and prints SQL kit modules",
+    },
+  ],
+  [
+    "codemod",
+    {
+      load: () => import("./commands/codemod.ts").then((m) => m.codemodCommand),
+      description:
+        "Rewrites imports and calls for renamed better-supabase APIs",
     },
   ],
 ]);

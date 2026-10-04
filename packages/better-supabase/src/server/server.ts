@@ -1,3 +1,5 @@
+import type { JWTClaims, UserClaims } from "@supabase/server";
+
 import { PostgrestClient } from "@supabase/postgrest-js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -5,10 +7,19 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
-import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
+import type {
+  BetterPostgres,
+  SessionOptions,
+  SqlClaims,
+} from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 
-import { actClaim, type ImpersonationOptions } from "../auth/impersonation.ts";
+import {
+  actClaim,
+  type ImpersonationOptions,
+  userContext,
+} from "../auth/impersonation.ts";
 import {
   type AuthResolution,
   type AuthState,
@@ -38,6 +49,7 @@ import {
   withPrimaryPin,
 } from "./replicas.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
+import { supportOff } from "./support-off.ts";
 
 export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
@@ -71,7 +83,29 @@ export interface ServerOptions {
     /** How long the next requests read from the primary after a write. Defaults to 5 s. */
     readonly pinMs?: number;
   };
+  /**
+   * The active tenant of a request when it doesn't come from a claim, e.g.
+   * from a URL slug (`kits.access.activeTenant: 'resolver'`). It becomes
+   * `context.tenant` for the `tenant()` plugin, the `better_supabase.tenant`
+   * setting over Postgres and the `x-bs-tenant` header over PostgREST, which
+   * `current_tenant_id()` reads only while the caller is a member. Async
+   * resolvers need `context(request)`; `contextFromResolution` takes
+   * `options.tenant` instead.
+   */
+  readonly tenant?: (
+    request: Request,
+    auth: AuthState,
+  ) => string | undefined | PromiseLike<string | undefined>;
+  /**
+   * Support sessions ("view as user") from `supportSessions(options)`: a platform admin's requests that carry
+   * the support cookie run as the target user, read-only by default. Needs
+   * `postgres`, since the target's queries run over direct Postgres.
+   */
+  readonly support?: SupportSessions;
 }
+
+/** The header `current_tenant_id()` reads over the Data API. */
+export const TENANT_HEADER = "x-bs-tenant";
 
 export interface ServerContext<
   M extends AnyModels,
@@ -82,7 +116,10 @@ export interface ServerContext<
 > {
   readonly auth: AuthState<C, P>;
   readonly resolution: AuthResolution<C, P>;
-  /** supabase-js client scoped to the caller (RLS applies). */
+  /**
+   * supabase-js client scoped to the caller (RLS applies). Throws in a
+   * support session: Realtime, Storage and Auth would act as the admin.
+   */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the caller. */
   readonly db: Db<M, F, E, SupabaseClient>;
@@ -97,6 +134,11 @@ export interface ServerContext<
    * (`resolution.apply`) and, after a write, `bs-primary-until`.
    */
   apply(response: Response): Response;
+  /**
+   * Set while an admin views the app as another user: `auth`, `db` and
+   * `sql` are the target's, and `resolution` stays the admin's.
+   */
+  readonly support?: ActiveSupport;
 }
 
 export interface ContextOptions {
@@ -107,6 +149,13 @@ export interface ContextOptions {
   readonly pinnedUntil?: number;
   /** Also records this context's calls into a request-wide recorder. */
   readonly stats?: StatsRecorder;
+  /** The active tenant, instead of `ServerOptions.tenant`. */
+  readonly tenant?: string;
+  /**
+   * The request's support session, from `support.current()`. `context()`
+   * looks it up itself; `contextFromResolution` only uses this.
+   */
+  readonly support?: ActiveSupport;
 }
 
 export interface BetterServer<
@@ -171,6 +220,8 @@ export interface BetterServer<
     claims?: Omit<SqlClaims, "sub" | "act">,
     impersonation?: ImpersonationOptions,
   ): Db<M, F, E, undefined>;
+  /** Support sessions; every method fails without `ServerOptions.support`. */
+  readonly support: SupportApi;
 }
 
 const STATELESS = {
@@ -367,6 +418,7 @@ export function createServer<
     claims: SqlClaims,
     context: RequestContext,
     stats?: StatsRecorder,
+    session?: SessionOptions,
   ): Db<M, F, E, undefined> => {
     if (!options.postgres) {
       throw new TypeError(
@@ -374,23 +426,153 @@ export function createServer<
       );
     }
     return betterSupabase.connect(
-      options.postgres.executorFor(claims),
+      session
+        ? options.postgres.executorFor(claims, session)
+        : options.postgres.executorFor(claims),
       context,
       stats ? { stats } : {},
     );
   };
 
+  /** `ServerOptions.tenant` outside `context()`, where it can't be awaited. */
+  const syncTenant = (
+    request: Request,
+    auth: AuthState,
+  ): string | undefined => {
+    const tenant = options.tenant?.(request, auth);
+    if (tenant !== undefined && typeof tenant !== "string") {
+      throw new TypeError(
+        "ServerOptions.tenant returned a promise: use context(request), or pass { tenant } to contextFromResolution",
+      );
+    }
+    return tenant;
+  };
+
   const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
+
+  if (options.support && !options.postgres) {
+    throw new TypeError(
+      "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
+    );
+  }
+  const support = options.support
+    ? options.support.create(
+        betterSupabase.events,
+        options.auth?.claims ?? betterSupabase.claimsSchema,
+      )
+    : supportOff;
+
+  /**
+   * The target's context in a support session. Queries run over direct
+   * Postgres with the target's claims plus `act`, read-only unless the
+   * session allows writes; nothing reaches Supabase with the admin's token.
+   */
+  const supportContextFor = (
+    resolution: AuthResolution<C, P>,
+    active: ActiveSupport,
+    parent: StatsRecorder | undefined,
+    tenant: string | undefined,
+  ): ServerContext<M, F, E, C, P> => {
+    const { session, claims } = active;
+    const record = (key: string): Record<string, unknown> | undefined => {
+      const value = claims[key];
+      return typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value))
+        : undefined;
+    };
+    const appMetadata = record("app_metadata");
+    const userMetadata = record("user_metadata");
+    const user: UserClaims = {
+      id: session.targetUserId,
+      role:
+        typeof claims["role"] === "string" ? claims["role"] : "authenticated",
+      ...(typeof claims["email"] === "string"
+        ? { email: claims["email"] }
+        : {}),
+      ...(appMetadata ? { appMetadata } : {}),
+      ...(userMetadata ? { userMetadata } : {}),
+    };
+    const auth: AuthState<C, P> = {
+      kind: "user",
+      token: "",
+      // SAFETY: support.current() ran the claims schema over these claims.
+      claims: claims as JWTClaims & C,
+      user,
+      source: "support",
+      expiresAt: Math.floor(session.expiresAt.epochMilliseconds / 1000),
+    };
+    const scope = tenant ?? session.tenant;
+    const base = userContext(user, claims);
+    const context: RequestContext =
+      scope === undefined ? base : { ...base, tenant: scope };
+    const sessionOptions: SessionOptions = {
+      ...(session.readOnly ? { readOnly: true } : {}),
+      ...(scope === undefined
+        ? {}
+        : { settings: { "better_supabase.tenant": scope } }),
+    };
+    const recorder = new StatsRecorder(parent);
+    // SAFETY: SqlClaims is the JWT payload; claims holds the target's.
+    const sqlClaims = claims as SqlClaims;
+    const unavailable = (): never => {
+      throw new TypeError(
+        "ctx.supabase and ctx.db.$client are not available in a support session; ctx.db and ctx.sql run as the target",
+      );
+    };
+    let db: Db<M, F, E, SupabaseClient> | undefined;
+    let sql: Db<M, F, E, undefined> | undefined;
+    return {
+      auth,
+      resolution,
+      support: active,
+      get supabase(): SupabaseClient {
+        return unavailable();
+      },
+      get db() {
+        // SAFETY: `$client` is redefined to throw, so no caller gets a client.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the repositories are the same; only `$client`'s type differs, and it throws.
+        db ??= Object.defineProperty(
+          sqlFor(sqlClaims, context, recorder, sessionOptions),
+          "$client",
+          { get: unavailable, enumerable: true, configurable: true },
+        ) as unknown as Db<M, F, E, SupabaseClient>;
+        return db;
+      },
+      get sql() {
+        sql ??= sqlFor(sqlClaims, context, recorder, sessionOptions);
+        return sql;
+      },
+      replica: undefined,
+      stats: () => recorder.snapshot(),
+      apply: (response) => resolution.apply(response),
+    };
+  };
 
   /** Clients and repositories are built on first access: most scopes use one of them. */
   const contextFor = (
     resolution: AuthResolution<C, P>,
-    headers: Readonly<Record<string, string>>,
+    requestHeaders: Readonly<Record<string, string>>,
     parent: StatsRecorder | undefined,
     until = 0,
+    tenant?: string,
+    active?: ActiveSupport,
   ): ServerContext<M, F, E, C, P> => {
+    if (active) return supportContextFor(resolution, active, parent, tenant);
     const { auth } = resolution;
-    const context = authContext(auth);
+    const context: RequestContext =
+      tenant === undefined
+        ? authContext(auth)
+        : { ...authContext(auth), tenant };
+    const headers =
+      tenant === undefined
+        ? requestHeaders
+        : { ...requestHeaders, [TENANT_HEADER]: tenant };
+    const session: SessionOptions | undefined =
+      tenant === undefined
+        ? undefined
+        : { settings: { "better_supabase.tenant": tenant } };
     const recorder = new StatsRecorder(parent);
     let supabase: SupabaseClient | undefined;
     let db: Db<M, F, E, SupabaseClient> | undefined;
@@ -442,7 +624,7 @@ export function createServer<
       },
       get sql() {
         if (!options.postgres || !sqlClaims) return;
-        sql ??= sqlFor(sqlClaims, context, recorder);
+        sql ??= sqlFor(sqlClaims, context, recorder, session);
         return sql;
       },
       stats: () => recorder.snapshot(),
@@ -455,6 +637,7 @@ export function createServer<
     resolution: AuthResolution<C, P>,
     request: Request,
     contextOptions: ContextOptions,
+    tenant: string | undefined,
   ): ServerContext<M, F, E, C, P> =>
     contextFor(
       resolution,
@@ -462,6 +645,8 @@ export function createServer<
       contextOptions.stats,
       contextOptions.pinnedUntil ??
         (readUrl() ? pinnedUntil(resolution.requestCookies) : 0),
+      tenant,
+      contextOptions.support,
     );
 
   const resolve = async (
@@ -537,6 +722,8 @@ export function createServer<
         {},
         contextOptions.stats,
         contextOptions.pinnedUntil,
+        contextOptions.tenant,
+        contextOptions.support,
       ),
     async context(request, contextOptions = {}) {
       const resolution = await resolve(request, {
@@ -545,16 +732,31 @@ export function createServer<
           ? {}
           : { cookies: contextOptions.cookies }),
       });
-      return fromResolution(resolution, request, contextOptions);
+      const [tenant, active] = await Promise.all([
+        contextOptions.tenant ?? options.tenant?.(request, resolution.auth),
+        contextOptions.support ?? support.current(request, resolution.auth),
+      ]);
+      return fromResolution(
+        resolution,
+        request,
+        active ? { ...contextOptions, support: active } : contextOptions,
+        tenant,
+      );
     },
     contextFromResolution: (resolution, request, contextOptions = {}) =>
-      fromResolution(resolution, request, contextOptions),
+      fromResolution(
+        resolution,
+        request,
+        contextOptions,
+        contextOptions.tenant ?? syncTenant(request, resolution.auth),
+      ),
     admin: (context = {}) =>
       betterSupabase.connect(serviceClient(), {
         actor: { id: "service", kind: "service", role: "service_role" },
         claims: { role: "service_role" },
         ...context,
       }),
+    support,
     deleteAccount: (userId, deleteOptions) =>
       deleteAccount(betterSupabase, serviceClient, userId, deleteOptions),
     actingAs: (userId, claims = {}, impersonation) => {

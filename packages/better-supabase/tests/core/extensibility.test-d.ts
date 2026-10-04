@@ -17,6 +17,14 @@ import type {
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
+import type { QueueBackend } from "../../src/jobs/index.ts";
+import type { NotificationChannel } from "../../src/notifications/index.ts";
+import type { SupportSessionStore } from "../../src/server/index.ts";
+import type {
+  WebhookSecretStore,
+  WebhookSigner,
+  WebhookTransport,
+} from "../../src/webhooks/index.ts";
 
 import { jsonSchema } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
@@ -28,12 +36,20 @@ import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { httpSink } from "../../src/events/index.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
+import { pgmqPublicBackend, sqlQueueBackend } from "../../src/jobs/index.ts";
 import { nextCache } from "../../src/next/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
+import { sqlSupportStore } from "../../src/server/index.ts";
+import {
+  fetchTransport,
+  hmacSigner,
+  sqlSecretStore,
+  standardWebhooks,
+} from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -49,6 +65,19 @@ describe("extension interfaces", () => {
     expectTypeOf(nextCache()).toExtend<CacheAdapter>();
     expectTypeOf(queryCache(queryClient)).toExtend<CacheAdapter>();
     expectTypeOf(httpSink).returns.toExtend<EventSink>();
+    expectTypeOf(sqlQueueBackend).returns.toExtend<QueueBackend>();
+    expectTypeOf(pgmqPublicBackend).returns.toExtend<QueueBackend>();
+    expectTypeOf<QueueBackend["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
+    expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
+    expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
+    expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();
+    expectTypeOf(sqlSecretStore).returns.toExtend<WebhookSecretStore>();
+    expectTypeOf<WebhookSigner["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<WebhookTransport["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<WebhookSecretStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(consoleLogger).toExtend<Logger>();
     expectTypeOf(silentLogger).toExtend<Logger>();
     expectTypeOf(zod()).toExtend<Generator>();

@@ -1,0 +1,24 @@
+{
+  "name": "@better-supabase/validation-centrakit",
+  "private": true,
+  "description": "CentraKit's schema adopting every SaaS kit module, against the local stack.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "pg": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -20,6 +20,25 @@ OPTIONS
 "
 `;
 
+exports[`help > documents codemod 1`] = `
+"Rewrites imports and calls for renamed better-supabase APIs (better-supabase codemod v<version>)
+
+USAGE better-supabase codemod [OPTIONS] [NAME]
+
+ARGUMENTS
+
+  NAME    The codemod (0.4 or 0.5), then the files or directories to rewrite (default: the project)
+
+OPTIONS
+
+        --dry-run    Show the changes without writing them                       
+      --cwd=<dir>    Project directory                                           
+  --config=<file>    Config file, relative to --cwd                              
+           --json    Print one JSON document on stdout; errors as Problem Details
+        -y, --yes    Ask nothing; use the flags and the defaults                 
+"
+`;
+
 exports[`help > documents doctor 1`] = `
 "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict (better-supabase doctor v<version>)
 
@@ -203,31 +222,31 @@ OPTIONS
 `;
 
 exports[`help > documents sql 1`] = `
-"Lists, adds, syncs and prints SQL kit modules (better-supabase sql v<version>)
+"Lists, adds, syncs, upgrades and prints SQL kit modules (better-supabase sql v<version>)
 
 USAGE better-supabase sql [OPTIONS] [ACTION]
 
 ARGUMENTS
 
-  ACTION    list (modules and whether they are installed), add <module...>, sync or print <module>
+  ACTION    list (modules and whether they are installed), add <module...>, sync, upgrade or print <module>
 
 OPTIONS
 
-            --check    With sync: fail when a file is stale                        
-  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir       
-          --dry-run    Show what would be written                                  
-            --force    Write tenant even though a permdock.config.ts is present    
-        --cwd=<dir>    Project directory                                           
-    --config=<file>    Config file, relative to --cwd                              
-             --json    Print one JSON document on stdout; errors as Problem Details
-          -y, --yes    Ask nothing; use the flags and the defaults                 
+            --check    With sync: fail when a file is stale. With upgrade: fail when a module is behind
+  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir                           
+          --dry-run    Show what would be written                                                      
+            --force    Write tenant even though a permdock.config.ts is present                        
+        --cwd=<dir>    Project directory                                                               
+    --config=<file>    Config file, relative to --cwd                                                  
+             --json    Print one JSON document on stdout; errors as Problem Details                    
+          -y, --yes    Ask nothing; use the flags and the defaults                                     
 "
 `;
 
 exports[`help > lists the commands and the global options 1`] = `
 "Typed Supabase: codegen, doctor, the SQL kit and project setup (better-supabase v<version>)
 
-USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql
+USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql|codemod
 
 OPTIONS
 
@@ -248,7 +267,8 @@ COMMANDS
      openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                  
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict 
-         sql    Lists, adds, syncs and prints SQL kit modules                                                          
+         sql    Lists, adds, syncs, upgrades and prints SQL kit modules                                                
+     codemod    Rewrites imports and calls for renamed better-supabase APIs                                            
 
 Use better-supabase <command> --help for more information about a command."
 `;
