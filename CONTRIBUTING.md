@@ -6,7 +6,7 @@ Thanks for contributing to better-supabase. This repository is a pnpm and Turbor
 
 - Node.js 24 or later (CI runs 24 LTS)
 - pnpm 12.8.1, the version pinned in `packageManager`
-- Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), for the integration and end-to-end suites
+- Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), for the integration suites
 
 npm and Yarn are not supported. Any pnpm 11 or later switches to the pinned version on its own. Install pnpm with its [standalone installer](https://pnpm.io/installation) rather than Corepack, because pnpm does not switch versions when Corepack runs it.
 
@@ -28,7 +28,6 @@ pnpm run verify
 | `pnpm typecheck:perf`    | Type-instantiation benchmark on 150- and 250-table schemas                |
 | `pnpm size`              | Bundle size baselines and the WinterTC import check                       |
 | `pnpm test:integration`  | Integration tests against a running `supabase start` stack                |
-| `pnpm test:e2e`          | The example apps against a running `supabase start` stack                 |
 | `pnpm run check:publish` | publint and arethetypeswrong on the packed tarball                        |
 | `pnpm run format`        | Format with Oxfmt                                                         |
 | `pnpm changeset`         | Add a changeset for a user-visible change                                 |

@@ -17,7 +17,7 @@ package, from `src/cli`, with its dependencies inlined at build time. Docs live 
 packages/
   better-supabase/     the published library and its CLI (src/cli, tests/cli, bin/), skills/, schemas/, api/exports.json
   next-config/         createNextConfig() and the security headers for docs and marketing
-  ox-config/           Oxlint presets (core, react, node, library, test, playwright), Oxfmt, anti-slop
+  ox-config/           Oxlint presets (core, react, node, library, test), Oxfmt, anti-slop
   typescript-config/   tsconfig presets (base, library, react-library, next)
 apps/
   docs/                Fumadocs site at /docs, plus /llms.txt, /llms-full.txt and /mcp
@@ -26,8 +26,7 @@ apps/
 tests/
   bundle/              size baselines, export snapshot, WinterTC import check
   types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark
-  e2e/                 the examples against a running stack
-  validation-*/        code from two production apps ported to better-supabase
+   validation-*/        code from two production apps ported to better-supabase
 supabase/              the local stack every example and integration test uses
   schemas/             the declarative schema; pg-delta orders the files by dependency
   migrations/          migrations generated from schemas/ and reviewed
@@ -64,7 +63,6 @@ docs/
 - `pnpm size`: gzip size baselines per entry, min+gzip baselines for three app-shaped consumers (`CONSUMERS` in `tests/bundle/bundle.test.ts`), and the WinterTC import check.
 - `pnpm test:integration`: integration suite against a running `supabase start` stack (API on 55421, Postgres on 55422; override with `SUPABASE_URL` and `SUPABASE_DB_URL`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time doubles (`update` rewrites the baseline).
-- `pnpm test:e2e`: the `apps/examples` apps against a running `supabase start` stack.
 - `tests/validation-*`: code from two production apps (a CRM and a request-context package) ported to better-supabase; run with `pnpm test`.
 - `pnpm version-packages`: the root `CHANGELOG.md` section, `changeset version`, then `scripts/sync-versions.ts` (the `VERSION` constant, plugin manifests and `server.json`). The release workflow runs it.
 

@@ -178,7 +178,6 @@ The seed creates two users in the Acme organization, both with the password
 | `pnpm build`            | Builds every package and app                                                                          |
 | `pnpm test`             | Unit and type tests                                                                                   |
 | `pnpm test:integration` | Integration tests against the local stack                                                             |
-| `pnpm test:e2e`         | The example apps against the local stack                                                              |
 | `pnpm typecheck:matrix` | The published types against TypeScript 6 and 7                                                        |
 | `pnpm size`             | Bundle size baselines and the WinterTC import check                                                   |
 | `pnpm supabase:reset`   | Rebuilds the local database from the migrations and the seed                                          |
@@ -196,7 +195,7 @@ packages/typescript-config tsconfig presets
 apps/docs                  bettersupabase.com/docs (Fumadocs)
 apps/marketing             bettersupabase.com
 apps/examples/*            one runnable app per adapter
-tests/*                    bundle size, the TypeScript matrix, e2e and validation ports
+tests/*                    bundle size, the TypeScript matrix and validation ports
 supabase/                  the local stack: schemas, migrations, seed and pgTAP tests
 docs/                      agent notes and architecture decision records
 ```

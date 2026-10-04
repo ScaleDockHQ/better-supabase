@@ -1,8 +1,0 @@
-{
-  "extends": "@better-supabase/typescript-config/base.json",
-  "compilerOptions": {
-    "lib": ["ES2025", "ESNext.Disposable", "DOM"],
-    "types": ["node"]
-  },
-  "include": ["src", "vitest.config.ts"]
-}

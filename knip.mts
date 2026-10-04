@@ -58,11 +58,7 @@ const config: KnipConfig = {
     },
     "packages/ox-config": {
       // JS plugins are loaded by specifier through import.meta.resolve.
-      ignoreDependencies: [
-        "@shadcn/lint",
-        "eslint-plugin-playwright",
-        "oxlint-plugin-react-doctor",
-      ],
+      ignoreDependencies: ["@shadcn/lint", "oxlint-plugin-react-doctor"],
     },
     "packages/typescript-config": {},
     "packages/next-config": {},
@@ -83,9 +79,6 @@ const config: KnipConfig = {
       // The size checks read the built packages from disk; the dependencies
       // make Turbo build them first.
       ignoreDependencies: ["better-supabase"],
-    },
-    "tests/e2e": {
-      ignoreBinaries: ["next"],
     },
     "tests/types/shared": {
       entry: ["*.ts"],

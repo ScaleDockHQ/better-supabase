@@ -9,10 +9,6 @@ const config: NextConfig = {
   // `pnpm dev:portless` serves the example at https://example.localhost.
   allowedDevOrigins: ["127.0.0.1", "*.localhost"],
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
-  experimental: {
-    // `@next/playwright`'s `instant()` against `next start` (tests/e2e only).
-    exposeTestingApiInProductionBuild: process.env["NEXT_E2E"] === "1",
-  },
 };
 
 export default config;

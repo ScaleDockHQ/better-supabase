@@ -443,22 +443,3 @@ export const test: OxlintConfig = defineConfig({
     },
   ],
 });
-
-/** Playwright suites. */
-export const playwright: OxlintConfig = defineConfig({
-  jsPlugins: [
-    { name: "playwright", specifier: plugin("eslint-plugin-playwright") },
-  ],
-  overrides: [
-    {
-      files: testFiles,
-      rules: {
-        "playwright/no-focused-test": "error",
-        "playwright/no-skipped-test": "error",
-        "playwright/no-wait-for-timeout": "error",
-        "playwright/no-page-pause": "error",
-        "playwright/missing-playwright-await": "error",
-      },
-    },
-  ],
-});
