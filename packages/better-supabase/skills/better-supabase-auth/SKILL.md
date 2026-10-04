@@ -106,6 +106,9 @@ membership lasts until the next refresh. When that window matters:
 - Write policies that read the source of truth, for example
   `organization_id in (select better_supabase.member_org_ids())`, instead of
   the claim.
+- For signed-out, banned or deleted users, add the `sessions` SQL module and a
+  restrictive policy with `using ((select better_supabase.session_active()))`
+  on the tables that guard sensitive data.
 - After a change the user made themselves (joining an organization), call
   `supabase.auth.refreshSession()` in the browser.
 - In Next.js, drop the user's cached views with

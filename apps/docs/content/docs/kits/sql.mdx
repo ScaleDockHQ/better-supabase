@@ -71,8 +71,9 @@ their functions.
 | `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/kits/webhooks-out) |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
-pulls those in as well. They read the active tenant from the claim named by `claims.tenant` in the config
-(`tenant_id` by default), or from the source in `kits.access.activeTenant`.
+pulls those in as well. They read the active tenant from the source in
+`kits.access.activeTenant`: by default the tenant the server resolved for the
+request, then the claim named by `claims.tenant` (`tenant_id` by default).
 The roles come from `kits.access.roles`. Change modules through `kits` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `sql sync` rewrites them, and doctor reports a hand edit.

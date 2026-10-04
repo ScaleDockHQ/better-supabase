@@ -539,12 +539,12 @@ print <module>` lists the signatures.
 ### BS308
 
 **Warning: tenant claim the hook does not write.** With the `tenant` module and
-`kits.access.activeTenant: 'claim'` (the default), `current_tenant_id()` and the
+`kits.access.activeTenant: 'claim'`, `current_tenant_id()` and the
 `tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
 returns. Write the claim in the hook, or, for apps that pick the tenant from
-the URL or a profile, set `activeTenant` to `'resolver'` (with
+the URL or a profile, use the default `'resolver'` (with
 `ServerOptions.tenant`) or `{ profileColumn }`.
 
 ### BS309

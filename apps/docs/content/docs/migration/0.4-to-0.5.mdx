@@ -1,0 +1,117 @@
+---
+title: From 0.4 to 0.5
+description: What to change when upgrading to better-supabase 0.5, which renames SQL kit objects to the repo standard and makes the kit fail closed.
+---
+
+0.5 renames the SQL kit's tables and columns to one standard, makes the tenant
+checks fail closed and moves the kit's rows out of the schema diff. Most of it
+is a migration the CLI writes. The steps below follow the order to run them
+in. Modules that are new in 0.5 (`access`, `organizations`, `profiles`,
+`outbox`, `webhooks-out`, `notifications`, `support` and `sessions`) need no
+upgrade.
+
+## Upgrade the kit files
+
+Update the package, then let the CLI write the forward steps and the new
+module files:
+
+```bash
+better-supabase sql upgrade
+better-supabase sql sync
+better-supabase sql data
+```
+
+`sql upgrade` writes `<timestamp>_better_supabase_kit_upgrade.sql` into the
+`migrations` folder next to `config.toml`. Create the schema migration after
+it (for example `supabase db diff -f kit_0_5`), so the renames run before the
+new definitions. `sql data` is new: it
+writes the kit's rows and role settings, which a schema diff can't capture,
+into a migration stamped after the newest one. See
+[Upgrading modules](/docs/kits/sql#upgrading-modules).
+
+The forward steps rename these objects:
+
+| Module        | 0.4                         | 0.5                            |
+| ------------- | --------------------------- | ------------------------------ |
+| `tenant`      | `memberships.org_id`        | `memberships.organization_id`  |
+| `invitations` | `invitations.org_id`        | `invitations.organization_id`  |
+| `audit`       | `better_supabase.audit_log` | `better_supabase.audit_events` |
+| `audit`       | `audit_log.at`              | `audit_events.occurred_at`     |
+| `audit`       | `audit_log.org_id`          | `audit_events.organization_id` |
+| `audit`       | `audit_trigger()`           | `audit_row_change()`           |
+
+`better_supabase.audit_log` stays as a read-only view with the old column
+names until 0.6. A renamed column has no wrapper, so update your own policies,
+views and functions that name `org_id` or `at`. Doctor reports them (BS309),
+also when the column appears unqualified next to its table.
+
+`audit()`, `purge_audit_log()`, `schedule_job()` and `purge_job_archive()`
+gain parameters with defaults, and the forward steps drop the old overloads.
+Existing calls keep working; a `grant` or `revoke` that names the old argument
+list needs the new one.
+
+## The active tenant
+
+`current_tenant_id()` used to return the `tenant_id` claim as is. It now
+returns a tenant only while the caller is a member of it, and takes it from
+the source in `kits.access.activeTenant`, which defaults to `'resolver'`: the
+tenant the server resolved for the request (`ServerOptions.tenant`), then the
+claim. Apps that only write the claim keep working. To read only the claim,
+set it explicitly:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  kits: { access: { activeTenant: "claim" } },
+});
+```
+
+See [The active tenant](/docs/kits/access#the-active-tenant).
+
+## Entitlements
+
+The `entitlements` module no longer assumes
+`organizations.stripe_customer_id`. With the managed `organizations` module it
+reads `better_supabase.organizations.stripe_customer_id`. Otherwise `sql add`
+stops until you name the column:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  entitlements: { customer: "organizations.stripe_customer_id" },
+});
+```
+
+## Rate limits and other kit rows
+
+`rate-limit` now sets `pgrst.db_pre_request` for the `authenticator` role in
+the migration `sql data` writes, when no other pre-request function is set.
+Doctor warns (BS313) when the live database doesn't call `check_request()`.
+Schedule the new `purge_rate_limits()` next to the other purges (see
+[Retention](/docs/kits/sql#retention)).
+
+## Behavior that changed
+
+- `idempotency` scopes keys to the caller, so two users can no longer replay
+  each other's responses.
+- `track_realtime` refuses a table without the tenant column. List tables
+  that have no tenant in `realtime.global`.
+- `jsonb-schemas` adds each check `not valid` and validates it in a second
+  statement, so checking existing rows doesn't block writes to the table.
+- The rate limit and `request_ip()` use the right-most forwarded hop.
+- `jobs` archives a message whose worker died on its last attempt, and dead
+  letters get their own retention and `replay_dead_job()`.
+
+## CloudEvents
+
+`toCloudEvents` and `kitCloudEvent` no longer set the `actorid` context
+attribute, which kept a user id in headers that brokers log. The actor is in
+`data.actorId` instead:
+
+```ts
+const actor = event.data.actorId; // was event.actorid
+```
+
+## New doctor checks
+
+BS312 reports a kit schema exposed through the Data API, BS313 rate limits
+not wired to PostgREST, and BS314 a migration-only kit option. See
+[doctor](/docs/cli/doctor).

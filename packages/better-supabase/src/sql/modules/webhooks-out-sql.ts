@@ -42,7 +42,7 @@ const isStatus = (value: string): value is WebhookStatus =>
   WEBHOOK_STATUSES.some((status) => status === value);
 
 /** `kits.webhooks-out.options.statuses`: the values an adopted table stores. */
-export function statusValues(
+function statusValues(
   ctx: KitContext,
 ): Readonly<Record<WebhookStatus, string>> {
   const configured = ctx.option("statuses") ?? {};

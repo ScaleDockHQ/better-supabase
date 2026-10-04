@@ -207,8 +207,8 @@ from.
 
 | Source                   | Reads                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------- |
-| `'claim'` (default)      | the `claims.tenant` claim, at the top level or in `app_metadata`                  |
-| `'resolver'`             | the tenant the server resolved for the request, then the claim                    |
+| `'claim'`                | the `claims.tenant` claim, at the top level or in `app_metadata`                  |
+| `'resolver'` (default)   | the tenant the server resolved for the request, then the claim                    |
 | `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
 
 With `'resolver'`, pass `tenant` to the server. It runs once per request, and

@@ -71,8 +71,11 @@ rename breaks the database, not the build. They follow these rules:
    (BS309), and a module behind its version (BS311).
 4. A removal is listed in the changelog with the replacement.
 
-Names you map in `kits.<module>` (tables, columns, the trigger prefix) and
-claim names you set in `claims` are yours: the kit never renames them.
+Names you map in `kits.<module>` (tables, columns, statuses) and claim names
+you set in `claims` are yours: the kit never renames them. Options that only
+match an existing schema are accepted in adopt mode only, and doctor warns
+about them (BS314); a later release can drop one after a deprecation in the
+changelog.
 
 ## Subpaths
 
