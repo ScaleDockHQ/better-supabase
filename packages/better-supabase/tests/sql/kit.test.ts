@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import {
+  kitPermissionKeys,
   renderKit,
   resolveModules,
   sameKitFile,
@@ -353,5 +354,60 @@ describe("entitlements in PermDock mode", () => {
         (file) => file.module === "organizations",
       )!.contents,
     ).not.toContain("stripe_customer_id");
+  });
+});
+
+describe("kitPermissionKeys", () => {
+  it("lists every key the installed modules check, with its scope", () => {
+    const keys = kitPermissionKeys({}, ["organizations", "support-sessions"]);
+    expect(keys).toContainEqual({
+      module: "organizations",
+      action: "update",
+      key: "organization.update",
+      scope: "tenant",
+    });
+    expect(keys).toContainEqual({
+      module: "support-sessions",
+      action: "start",
+      key: "support.start",
+      scope: "platform",
+    });
+    expect(keys.map((entry) => entry.module)).not.toContain("notifications");
+  });
+
+  it("applies kits.<module>.permissions and skips custom modules", () => {
+    expect(
+      kitPermissionKeys(
+        { notifications: { permissions: { send: "alerts.send" } } },
+        ["notifications"],
+      ).filter((entry) => entry.module === "notifications"),
+    ).toEqual([
+      {
+        module: "notifications",
+        action: "send",
+        key: "alerts.send",
+        scope: "tenant",
+      },
+      {
+        module: "notifications",
+        action: "read",
+        key: "notifications.read",
+        scope: "tenant",
+      },
+    ]);
+    expect(
+      kitPermissionKeys({ "webhooks-out": { mode: "custom" } }, [
+        "webhooks-out",
+      ]).filter((entry) => entry.module === "webhooks-out"),
+    ).toEqual([]);
+  });
+
+  it("lists invitations.invitePlatform only with platform roles", () => {
+    const platform = (kits: Parameters<typeof kitPermissionKeys>[0]) =>
+      kitPermissionKeys(kits, ["invitations"]).some(
+        (entry) => entry.action === "invitePlatform",
+      );
+    expect(platform({ access: { model: "permdock" } })).toBe(false);
+    expect(platform({ access: { model: "catalog" } })).toBe(true);
   });
 });

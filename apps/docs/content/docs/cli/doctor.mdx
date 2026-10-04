@@ -767,8 +767,12 @@ exactly those two helpers for the chosen scope and warns when:
   plan features. The message names the `supabase.hook.claims` setting, or the
   `claims.features` name to use when the function is registered under another
   claim;
-- no membership source in the manifest covers the scope, so
-  `entitlement_members()` finds no users to sign out after a plan change;
+- the manifest's `rls.memberships`, the tables PermDock's
+  `member_<scope>_ids_for` reads, maps no table to the scope, so
+  `entitlement_members()` finds no users to sign out after a plan change. A
+  manifest from a PermDock without `rls.memberships` falls back to the hook's
+  membership sources, with an info finding, because they can differ from the
+  tables the helpers read;
 - the manifest's `rls.helpers` lacks `member_<scope>_ids`, or doesn't let
   `authenticated` execute it: run `permdock rls generate` with a current
   PermDock, then `permdock supabase inspect --out`;
@@ -813,6 +817,37 @@ finding; verify the request there with `authHook` from
   `secrets = "env(AUTH_HOOK_SECRET)"`. A value read from `env()` is checked
   only when `@supabase/config` interpolated it;
 - a warning when a non-local endpoint uses plain `http`.
+
+### BS411
+
+**Error: the permdock access model doesn't match PermDock's manifest.** With
+`kits.access.model: 'permdock'`, `can()` and the kit modules call PermDock's
+`<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and
+`<rls.schema>.permdock_has(permission)` for platform checks. The schema,
+scope and id type come from `permdock.manifest.json`, whatever
+`entitlements.permdock` says: `rls.schema`, the root scope (the `rls.scopes`
+entry without `within`) unless `kits.access.permdock.scope` names another,
+and that scope's `type`. Doctor reports, and `sql add` refuses:
+
+- no PermDock project, a missing or unreadable manifest, or no `rls` block;
+- no single root scope, or a `kits.access.permdock.scope`,
+  `kits.access.permdock.schema` or `kits.access.idType` the manifest doesn't
+  declare;
+- a scope `type` other than `uuid`, `text`, `bigint` or `integer`;
+- a helper the manifest's `rls.helpers` doesn't list, doesn't let
+  `authenticated` execute, or the database lacks;
+- a permission key a kit module checks (`kitPermissionKeys` from
+  `better-supabase/sql` lists them) whose `permissions.catalog.json` entry
+  isn't `rowConditions: false`. PermDock's helpers check role and scope only,
+  so a key with row conditions would be granted everywhere in the scope. A key
+  without the flag, a key the catalog doesn't list and a missing catalog are
+  reported too. Map the action to another key in
+  `kits.<module>.permissions`, or regenerate the catalog with `permdock catalog`.
+
+It warns when `kits.access.functions.canAssign` is not set, because only the
+service role then assigns roles, and notes a `permdock_can_assign` template
+the manifest doesn't list (PermDock writes it only when a role declares
+`assigns`). See [the access kit](/docs/kits/access#permdock) for the recipe.
 
 ## Env files
 

@@ -504,3 +504,29 @@ functions that `better-supabase gen` writes. `moduleBody(name, layout)`
 returns one module's SQL without its header, `customContracts` the functions
 custom-mode modules must provide, and `kitFileVersion(contents)` the version
 and mode in a file's header.
+
+`kitFilePaths(names, layout)` maps each module a set of names pulls in to its
+schema and test paths without rendering it. `kitPermissionKeys(kits, names)`
+lists the permission keys those modules check, with the action, the key after
+`kits.<module>.permissions` and whether a tenant or a platform check asks for
+it. Under `kits.access.model: 'permdock'`, `sql add` and doctor (BS411) check
+each key against `permissions.catalog.json`; a script can do the same:
+
+```ts title="scripts/check-kit-keys.ts"
+import { kitPermissionKeys } from "better-supabase/sql";
+
+import config from "../better-supabase.config.ts";
+import catalog from "../permissions.catalog.json" with { type: "json" };
+
+const scopeOnly = new Set(
+  catalog.permissions
+    .filter((entry) => entry.rowConditions === false)
+    .map((entry) => entry.key),
+);
+for (const { module, action, key } of kitPermissionKeys(config.kits ?? {}, [
+  "organizations",
+  "invitations",
+])) {
+  if (!scopeOnly.has(key)) console.error(`${module}.${action}: ${key}`);
+}
+```

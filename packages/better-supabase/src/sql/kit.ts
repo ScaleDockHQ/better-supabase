@@ -11,6 +11,11 @@ import {
   type KitNames,
 } from "./context.ts";
 import { migrationOptionUses } from "./migration-options.ts";
+import {
+  hasPlatformRoles,
+  KIT_PERMISSION_SCOPES,
+  KIT_PERMISSIONS,
+} from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
@@ -1461,6 +1466,8 @@ export interface KitLayout {
   readonly claims?: ClaimsMeta;
   /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
   readonly permdock?: KitPermdock;
+  /** PermDock's permission helpers for the `access` module's `permdock` model, from its manifest. */
+  readonly accessPermdock?: KitAccessPermdock;
   /** `config.kits`: modes, names and permission keys per module. */
   readonly kits?: KitsConfig;
 }
@@ -1483,6 +1490,16 @@ export interface KitPermdock {
   /** The scope's id type, from the manifest's `rls.scopes[].type`. */
   readonly idType: KitIdType;
   readonly memberships: readonly KitMembershipSource[];
+}
+
+/** Where the `permdock` access model finds `permitted_<scope>_ids` and `permdock_has`. */
+export interface KitAccessPermdock {
+  /** PermDock's `rls.schema`. */
+  readonly schema: string;
+  /** The PermDock scope tenants are: the manifest's root scope unless set. */
+  readonly scope: string;
+  /** The scope's id type, from the manifest's `rls.scopes[].type`. */
+  readonly idType: KitIdType;
 }
 
 /** An embedding column `db.$search` can query. */
@@ -1781,8 +1798,14 @@ export function kitContext(
     ...(layout.kits ? { kits: layout.kits } : {}),
     ...(layout.claims ? { claims: layout.claims } : {}),
     ...(installed ? { installed } : {}),
-    ...(layout.permdock ? { permdockIdType: layout.permdock.idType } : {}),
+    ...permdockIdType(layout),
   });
+}
+
+/** The tenant id type PermDock's manifest gives, preferring the access model's scope. */
+function permdockIdType(layout: KitLayout): { permdockIdType?: KitIdType } {
+  const idType = layout.accessPermdock?.idType ?? layout.permdock?.idType;
+  return idType ? { permdockIdType: idType } : {};
 }
 
 /** Throws on a `kits` key that names no module, or a mode a module doesn't support. */
@@ -1859,6 +1882,81 @@ function kitPath(module: SqlModule, layout: KitLayout): string {
   return module.target === "test"
     ? `${testsDir}/000_better_supabase_${slug}.test.sql`
     : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
+}
+
+/**
+ * The schema or test file `renderKit` writes for each of `names` and the
+ * modules they pull in, without rendering: modules in custom mode have none.
+ */
+export function kitFilePaths(
+  names: readonly string[],
+  layout: KitLayout = {},
+): ReadonlyMap<string, string> {
+  checkKits(layout.kits);
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return new Map(
+    modules
+      .filter(
+        (module) =>
+          kitContext(module.name, layout, installed).mode !== "custom",
+      )
+      .map((module) => [module.name, kitPath(module, layout)]),
+  );
+}
+
+/** A permission key a kit module checks, from `kitPermissionKeys`. */
+export interface KitPermissionKey {
+  readonly module: string;
+  /** The action in `kits.<module>.permissions` that overrides the key. */
+  readonly action: string;
+  readonly key: string;
+  /**
+   * `tenant` for keys checked in a tenant (`member_can`, `can`,
+   * `tenant_ids_with`), `platform` for `is_platform` and `platform_can`.
+   */
+  readonly scope: "tenant" | "platform";
+}
+
+const isPermissionModule = (
+  name: string,
+): name is keyof typeof KIT_PERMISSIONS => Object.hasOwn(KIT_PERMISSIONS, name);
+
+/**
+ * Every permission key the modules `names` install (with what they pull
+ * in) check, after `kits.<module>.permissions` overrides. Modules in custom
+ * mode are skipped, and so is `invitations.invitePlatform` without platform
+ * roles. PermDock's doctor runs the same catalog check from its side.
+ */
+export function kitPermissionKeys(
+  kits: KitsConfig,
+  names: readonly string[],
+): KitPermissionKey[] {
+  const layout: KitLayout = { kits };
+  checkKits(kits);
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module): KitPermissionKey[] => {
+    const name = module.name;
+    if (!isPermissionModule(name)) return [];
+    const ctx = kitContext(name, layout, installed);
+    if (ctx.mode === "custom") return [];
+    const scopes: Readonly<Record<string, "tenant" | "platform">> =
+      KIT_PERMISSION_SCOPES[name];
+    return Object.entries(KIT_PERMISSIONS[name]).flatMap(
+      ([action, fallback]): KitPermissionKey[] =>
+        action === "invitePlatform" && !hasPlatformRoles(ctx)
+          ? []
+          : [
+              {
+                module: name,
+                action,
+                key: ctx.permissionKey(action, fallback),
+                scope: scopes[action]!,
+              },
+            ],
+    );
+  });
 }
 
 /** The table `kitModuleRow` writes to, created by every schema module's file. */
@@ -2028,7 +2126,7 @@ export function upgradePlan(
       ...(layout.kits ? { kits: layout.kits } : {}),
       ...(layout.claims ? { claims: layout.claims } : {}),
       installed: names,
-      ...(layout.permdock ? { permdockIdType: layout.permdock.idType } : {}),
+      ...permdockIdType(layout),
     });
     if (ctx.mode === "custom") return [];
     const steps = (module.upgrades ?? [])

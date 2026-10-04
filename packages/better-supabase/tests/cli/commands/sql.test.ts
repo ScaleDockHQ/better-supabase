@@ -15,7 +15,11 @@ import {
   type BetterSupabaseConfig,
   resolveConfig,
 } from "../../../src/config/index.ts";
-import { renderKit, SQL_MODULES } from "../../../src/sql/index.ts";
+import {
+  kitPermissionKeys,
+  renderKit,
+  SQL_MODULES,
+} from "../../../src/sql/index.ts";
 import { kitLayout } from "../../../src/sql/index.ts";
 
 const fixtures = resolve(import.meta.dirname, "../fixtures");
@@ -293,6 +297,89 @@ describe("runSql", () => {
       error: expect.stringContaining(
         "permdock.manifest.json is present, so PermDock owns the access token hook",
       ),
+    });
+  });
+
+  describe("the permdock access model", () => {
+    const writeProject = async (
+      edit: (manifest: { rls: { scopes: unknown[] } }) => void = () => {},
+      permissions?: readonly { key: string; rowConditions?: boolean }[],
+    ) => {
+      const manifest = JSON.parse(
+        await readFile(join(fixtures, "permdock.manifest.json"), "utf8"),
+      );
+      manifest.rls.schema = "authz";
+      manifest.rls.scopes = [
+        { name: "tenant", type: "uuid" },
+        { name: "team", type: "uuid", within: "tenant" },
+      ];
+      edit(manifest);
+      await writeFile(
+        join(root, "permdock.manifest.json"),
+        JSON.stringify(manifest),
+      );
+      const keys = kitPermissionKeys(
+        { access: { model: "permdock" } },
+        Object.keys(SQL_MODULES),
+      ).map((entry) => ({ key: entry.key, rowConditions: false }));
+      await writeFile(
+        join(root, "permissions.catalog.json"),
+        JSON.stringify({ version: 1, permissions: permissions ?? keys }),
+      );
+    };
+    const permdock = (
+      extra: BetterSupabaseConfig = {},
+    ): BetterSupabaseConfig => ({
+      kits: { access: { model: "permdock" } },
+      ...extra,
+    });
+
+    it("renders the manifest's schema and root scope, whatever entitlements says", async () => {
+      await writeProject();
+      for (const config of [
+        permdock(),
+        permdock({ entitlements: { permdock: false } }),
+      ]) {
+        const printed = await sql(["print", "access"], config);
+        expect(printed.output).toContain('"authz"."permitted_tenant_ids"');
+        expect(printed.output).not.toContain("permitted_organization_ids");
+      }
+    });
+
+    it("stops on a manifest it can't read a root scope from", async () => {
+      await writeProject((manifest) => {
+        manifest.rls.scopes = [
+          { name: "tenant", type: "uuid" },
+          { name: "workspace", type: "uuid" },
+        ];
+      });
+      await expect(sql(["print", "access"], permdock())).rejects.toThrow(
+        /no single root scope \(tenant, workspace\)/,
+      );
+      await expect(
+        sql(["add", "organizations", "--dry-run"], permdock()),
+      ).rejects.toThrow(/no single root scope/);
+      expect(await sql(["list"], permdock())).toMatchObject({ code: 0 });
+      expect(await sql(["print", "audit"], permdock())).toMatchObject({
+        code: 0,
+      });
+    });
+
+    it("stops without a PermDock project", async () => {
+      await expect(sql(["print", "access"], permdock())).rejects.toThrow(
+        /no PermDock project here/,
+      );
+    });
+
+    it("stops on a kit permission key the catalog doesn't mark scope-only", async () => {
+      await writeProject(undefined, [
+        { key: "organization.update", rowConditions: true },
+      ]);
+      await expect(
+        sql(["add", "organizations", "--dry-run"], permdock()),
+      ).rejects.toThrow(
+        /checks "organization\.update" \(update\) with authz\.permitted_tenant_ids, but it has row conditions[\s\S]*"organization\.delete" \(delete\).*is not in permissions\.catalog\.json/,
+      );
     });
   });
 

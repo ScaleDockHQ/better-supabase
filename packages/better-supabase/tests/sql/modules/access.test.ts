@@ -87,17 +87,46 @@ describe("access module", () => {
   });
 
   it("maps the permdock model onto PermDock's helpers", () => {
-    const sql = access({ model: "permdock", permdock: { scope: "team" } });
+    const sql = access({
+      model: "permdock",
+      permdock: { schema: "permdock", scope: "team" },
+    });
     expect(sql).toContain('"permdock"."permitted_team_ids"(permission)');
     expect(sql).toContain('"permdock".permdock_has(permission)');
     const custom = access({
       model: "permdock",
-      permdock: { schema: "authz" },
+      permdock: { schema: "authz", scope: "organization" },
       functions: { canAssign: "public.may_assign({tenant}, {role})" },
     });
     expect(custom).toContain('"authz"."permitted_organization_ids"');
     expect(custom).toContain(
       "public.may_assign(can_assign.tenant, can_assign.role)",
+    );
+  });
+
+  it("takes the permdock model's schema, scope and id type from the manifest", () => {
+    const sql = moduleBody("access", {
+      kits: { access: { model: "permdock" } },
+      accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
+    })!;
+    expect(sql).toContain('"authz"."permitted_tenant_ids"(permission)');
+    expect(sql).toContain('"authz".permdock_has(permission)');
+    expect(sql).toContain("can(scope text, scope_id text, permission text)");
+    expect(sql).not.toContain("permitted_organization_ids");
+  });
+
+  it("never guesses the permdock model's helpers", () => {
+    for (const permdock of [undefined, { scope: "team" }, { schema: "authz" }])
+      expect(() =>
+        access({ model: "permdock", ...(permdock ? { permdock } : {}) }),
+      ).toThrow(/needs PermDock's manifest/);
+    expect(() =>
+      moduleBody("access", {
+        kits: { access: { model: "permdock", idType: "uuid" } },
+        accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
+      }),
+    ).toThrow(
+      /gives scope "tenant" the type text, but the access module renders uuid ids/,
     );
   });
 
@@ -139,10 +168,11 @@ describe("access module", () => {
   });
 
   it("fails closed when the permdock model has no assignment rule", () => {
-    const alone = access({ model: "permdock" });
+    const permdock = { schema: "permdock", scope: "organization" };
+    const alone = access({ model: "permdock", permdock });
     expect(alone).toMatch(/or coalesce\(\(false\), false\)/);
     const withTenant = renderKit(["tenant", "access"], {
-      kits: { access: { model: "permdock" } },
+      kits: { access: { model: "permdock", permdock } },
     })
       .map((file) => file.contents)
       .join("\n");

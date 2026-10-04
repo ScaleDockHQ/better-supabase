@@ -39,6 +39,7 @@ import {
   type SupabaseToml,
 } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import { kitPermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
 import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
@@ -1606,24 +1607,61 @@ uri = "https://example.com/hook"
       ]);
     });
 
-    it("warns when no membership source covers the scope", async () => {
+    it("warns when rls.memberships maps no table to the scope", async () => {
+      const rls = project.manifest!.rls!;
       expect(
         await messages({
           ...project,
           manifest: {
             ...project.manifest!,
-            memberships: project.manifest!.memberships.filter(
-              (source) => "value" in source.scope,
-            ),
+            rls: {
+              ...rls,
+              memberships: rls.memberships!.filter(
+                (source) => "value" in source.scope,
+              ),
+            },
           },
         }),
       ).toEqual([
         [
           "entitlements.permdock.organization",
           expect.stringContaining(
-            'No membership source in permdock.manifest.json covers scope "organization"',
+            'permdock.manifest.json maps no rls.memberships table to scope "organization"',
           ),
         ],
+      ]);
+    });
+
+    it("falls back to the hook's sources without rls.memberships", async () => {
+      const { memberships: _, ...rls } = project.manifest!.rls!;
+      const older = (
+        memberships: NonNullable<PermdockProject["manifest"]>["memberships"],
+      ) =>
+        messages({
+          ...project,
+          manifest: { ...project.manifest!, memberships, rls },
+        });
+      expect(await older(project.manifest!.memberships)).toEqual([
+        [
+          "entitlements.permdock.organization",
+          expect.stringContaining(
+            "has no rls.memberships, so entitlement_members() reads the hook's membership sources",
+          ),
+        ],
+      ]);
+      expect(
+        await older(
+          project.manifest!.memberships.filter(
+            (source) => "value" in source.scope,
+          ),
+        ),
+      ).toMatchObject([
+        { 0: "entitlements.permdock.organization" },
+        {
+          1: expect.stringContaining(
+            'No membership source in permdock.manifest.json covers scope "organization"',
+          ),
+        },
       ]);
     });
 
@@ -2065,6 +2103,176 @@ uri = "https://example.com/hook"
           ),
         },
       ]);
+    });
+  });
+
+  describe("PermDock access model (BS411)", () => {
+    const only = RULES.filter((rule) => rule.code === "BS411");
+    const allScopeOnly = (): PermdockProject["catalog"] => ({
+      permissions: kitPermissionKeys(
+        { access: { model: "permdock" } },
+        Object.keys(SQL_MODULES),
+      ).map((entry) => ({ key: entry.key, rowConditions: false })),
+    });
+    const project: PermdockProject = {
+      ...PERMDOCK,
+      manifest: parseManifest(manifest),
+      catalog: allScopeOnly()!,
+    };
+    const withHelpers = snapshot((_tables, functions) => {
+      for (const name of ["permitted_organization_ids", "permdock_has"])
+        functions.push({ ...functions[0]!, schema: "public", name });
+    });
+    const run = async (
+      access: object = {},
+      extra: Partial<DoctorContext> = {},
+      kit: string[] = ["access", "organizations"],
+    ) =>
+      runRules(
+        context(withHelpers, {
+          permdock: project,
+          config: resolveConfig(
+            {
+              sql: { kit },
+              kits: {
+                access: {
+                  model: "permdock",
+                  functions: {
+                    canAssign:
+                      "public.permdock_can_assign({role}, {tenant}::text)",
+                  },
+                  ...access,
+                },
+              },
+            },
+            "/project",
+          ),
+          ...extra,
+        }),
+        only,
+      );
+
+    it("passes when the manifest, the catalog and the database back the model", async () => {
+      expect(await run()).toMatchObject([
+        {
+          severity: "info",
+          message: expect.stringContaining(
+            "doesn't list public.permdock_can_assign",
+          ),
+        },
+      ]);
+      expect(
+        await run({ model: "roles" }, {}, ["access", "organizations"]),
+      ).toEqual([]);
+      expect(await run({}, {}, ["profiles"])).toEqual([]);
+    });
+
+    it("reports a manifest that can't back the model", async () => {
+      expect(await run({}, { permdock: PERMDOCK })).toMatchObject([
+        {
+          target: "kits.access.permdock",
+          message: expect.stringContaining("has no rls block"),
+        },
+      ]);
+      expect(await run({ permdock: { scope: "tenant" } })).toMatchObject([
+        {
+          target: "kits.access.permdock",
+          message: expect.stringContaining(
+            'kits.access.permdock.scope is "tenant"',
+          ),
+        },
+      ]);
+    });
+
+    it("reports helpers the manifest or the database lacks", async () => {
+      const rls = project.manifest!.rls!;
+      const older: PermdockProject = {
+        ...project,
+        manifest: {
+          ...project.manifest!,
+          rls: {
+            ...rls,
+            helpers: rls.helpers
+              .filter((helper) => helper.name !== "permdock_has")
+              .map((helper) =>
+                helper.name === "permitted_organization_ids"
+                  ? { ...helper, execute: [] }
+                  : helper,
+              ),
+          },
+        },
+      };
+      const findings = await run({}, { permdock: older });
+      expect(
+        findings.filter((finding) => finding.severity === "error"),
+      ).toMatchObject([
+        {
+          target: "public.permitted_organization_ids",
+          message: expect.stringContaining(
+            "authenticated may not execute public.permitted_organization_ids",
+          ),
+        },
+        {
+          target: "public.permdock_has",
+          message: expect.stringContaining("lists no public.permdock_has"),
+        },
+      ]);
+      expect(await run({}, { snapshot: base })).toMatchObject([
+        {
+          target: "public.permitted_organization_ids",
+          message: expect.stringContaining("not in the database"),
+        },
+        {
+          target: "public.permdock_has",
+          message: expect.stringContaining("not in the database"),
+        },
+        { severity: "info" },
+      ]);
+    });
+
+    it("reports kit permission keys the catalog doesn't mark scope-only", async () => {
+      const findings = await run(
+        {},
+        {
+          permdock: {
+            ...project,
+            catalog: {
+              permissions: [
+                { key: "organization.update", rowConditions: true },
+              ],
+            },
+          },
+        },
+      );
+      expect(findings).toContainEqual(
+        expect.objectContaining({
+          severity: "error",
+          target: "kits.organizations.permissions.update",
+          message: expect.stringContaining("has row conditions"),
+        }),
+      );
+      expect(findings).toContainEqual(
+        expect.objectContaining({
+          target: "kits.organizations.permissions.delete",
+          message: expect.stringContaining(
+            "is not in permissions.catalog.json",
+          ),
+        }),
+      );
+    });
+
+    it("warns without canAssign and recommends permdock_can_assign", async () => {
+      const findings = await run({ functions: {} });
+      expect(findings).toMatchObject([
+        {
+          severity: "warning",
+          target: "kits.access.functions.canAssign",
+          message: expect.stringContaining(
+            'Set canAssign: "public.permdock_can_assign({role}, {tenant}::text)"',
+          ),
+        },
+      ]);
+      expect(findings[0]!.message).toContain("PermDock projects don't install");
     });
   });
 

@@ -10,11 +10,14 @@ import {
   contractSignature,
   customContracts,
   type InstalledKitModule,
+  type KitAccessPermdock,
   type KitFile,
   kitFileVersion,
   type KitLayout,
   type KitPermdock,
+  kitFilePaths,
   kitLayout,
+  kitPermissionKeys,
   moduleBody,
   renderKit,
   resolveModules,
@@ -25,7 +28,13 @@ import {
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { display, writeIfChanged } from "../io.ts";
-import { entitlementsMode, permdockSource, readPermdock } from "../permdock.ts";
+import {
+  accessPermdockMode,
+  entitlementsMode,
+  kitKeyProblems,
+  permdockSource,
+  readPermdock,
+} from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
 import {
@@ -100,6 +109,49 @@ async function permdockFor(
   }
 }
 
+/**
+ * PermDock's helpers for the `access` module's `permdock` model, read from
+ * the manifest whatever `entitlements` says. When `names` resolve to
+ * `access`, an invalid mode throws, and so does a kit permission key the
+ * catalog doesn't mark `rowConditions: false`. `sql list` (no `names`)
+ * doesn't render, so it doesn't throw.
+ */
+async function accessPermdockFor(
+  config: ResolvedConfig,
+  names?: readonly string[],
+): Promise<KitAccessPermdock | undefined> {
+  const project = await readPermdock(config.root, config.permdock);
+  const mode = accessPermdockMode(config, project);
+  const renders =
+    names !== undefined &&
+    resolveModules(names, {}).some((module) => module.name === "access");
+  switch (mode.kind) {
+    case "off":
+      return undefined;
+    case "permdock": {
+      if (!renders || !project) return mode.access;
+      const problems = kitKeyProblems(
+        project,
+        kitPermissionKeys(config.kits, names),
+        mode.access,
+      );
+      if (problems.length > 0) {
+        throw new TypeError(
+          problems.map((problem) => problem.message).join("\n"),
+        );
+      }
+      return mode.access;
+    }
+    case "invalid":
+      if (!renders) return undefined;
+      throw new TypeError(mode.problem);
+    default: {
+      const unreachable: never = mode;
+      return unreachable;
+    }
+  }
+}
+
 async function layout(
   config: ResolvedConfig,
   args: SqlArgs,
@@ -110,6 +162,7 @@ async function layout(
     args["tests-dir"],
     [],
     await permdockFor(config, names),
+    await accessPermdockFor(config, names),
   );
 }
 
@@ -128,6 +181,7 @@ async function layoutFor(
     args["tests-dir"],
     needsReadSets ? await compiledReadSets(config) : [],
     permdock,
+    await accessPermdockFor(config, names),
   );
 }
 
@@ -396,11 +450,7 @@ export async function runSql(
   switch (action) {
     case "list": {
       const kit = await layout(config, args);
-      const files = new Map(
-        renderKit(Object.keys(SQL_MODULES), kit)
-          .filter((file) => file.kind !== "data")
-          .map((file) => [file.module, file.path]),
-      );
+      const files = kitFilePaths(Object.keys(SQL_MODULES), kit);
       const lines = Object.values(SQL_MODULES).map((module) => {
         const path = files.get(module.name);
         const installed =

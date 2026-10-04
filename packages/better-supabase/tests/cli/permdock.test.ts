@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  accessPermdockMode,
   entitlementsMode,
+  kitKeyProblems,
   parseGrantsMarker,
   parseHookMarker,
   parseManifest,
@@ -147,18 +149,60 @@ describe("entitlementsMode", () => {
             scope: { column: "scope" },
             idColumn: "scope_id",
           },
-          {
-            table: "public.contacts",
-            userColumn: "user_id",
-            scope: { value: "customer" },
-            idColumn: "customer_id",
-          },
         ],
       },
     });
     expect(
       entitlementsMode(config({ permdock: { scope: "customer" } }), project),
-    ).toMatchObject({ kind: "permdock", permdock: { scope: "customer" } });
+    ).toMatchObject({
+      kind: "permdock",
+      permdock: {
+        scope: "customer",
+        memberships: [
+          { table: "public.memberships" },
+          { table: "public.contacts" },
+        ],
+      },
+    });
+  });
+
+  it("reads memberships from rls.memberships, the tables PermDock's helpers read", () => {
+    const helperTable = {
+      table: "public.org_members",
+      user: { column: "member_id" },
+      scope: { value: "organization" },
+      id: { column: "org_id" },
+      columns: ["member_id", "org_id"],
+    };
+    const differing = {
+      ...project,
+      manifest: parseManifest({
+        ...manifest,
+        rls: { ...manifest.rls, memberships: [helperTable] },
+      }),
+    };
+    expect(entitlementsMode(config(), differing)).toMatchObject({
+      kind: "permdock",
+      permdock: {
+        memberships: [
+          {
+            table: "public.org_members",
+            userColumn: "member_id",
+            idColumn: "org_id",
+          },
+        ],
+      },
+    });
+    const { memberships: _, ...olderRls } = manifest.rls;
+    const older = {
+      ...project,
+      manifest: parseManifest({ ...manifest, rls: olderRls }),
+    };
+    expect(older.manifest.rls?.memberships).toBeUndefined();
+    expect(entitlementsMode(config(), older)).toMatchObject({
+      kind: "permdock",
+      permdock: { memberships: [{ table: "public.memberships" }] },
+    });
   });
 
   const withScopes = (
@@ -312,6 +356,234 @@ describe("entitlementsMode", () => {
       kind: "invalid",
       problem: expect.stringContaining('"team"'),
     });
+  });
+});
+
+describe("accessPermdockMode", () => {
+  const project = {
+    manifestPath: "permdock.manifest.json",
+    manifest: parseManifest(manifest),
+    catalogPath: "permissions.catalog.json",
+    problems: [],
+  };
+  const authz = {
+    ...project,
+    manifest: parseManifest({
+      ...manifest,
+      rls: {
+        ...manifest.rls,
+        schema: "authz",
+        scopes: [
+          { name: "tenant", type: "text" },
+          { name: "team", type: "text", within: "tenant" },
+        ],
+      },
+    }),
+  };
+  const config = (
+    access: object = {},
+    extra: Parameters<typeof resolveConfig>[0] = {},
+  ) =>
+    resolveConfig(
+      { kits: { access: { model: "permdock", ...access } }, ...extra },
+      "/project",
+    );
+
+  it("reads the root scope, rls.schema and the scope's id type", () => {
+    expect(accessPermdockMode(config(), authz)).toEqual({
+      kind: "permdock",
+      access: { schema: "authz", scope: "tenant", idType: "text" },
+    });
+    expect(
+      accessPermdockMode(config({ permdock: { scope: "team" } }), authz),
+    ).toMatchObject({ kind: "permdock", access: { scope: "team" } });
+  });
+
+  it("doesn't depend on the entitlements setting", () => {
+    expect(
+      accessPermdockMode(
+        config({}, { entitlements: { permdock: false } }),
+        authz,
+      ),
+    ).toEqual(accessPermdockMode(config(), authz));
+  });
+
+  it("is off for the other models", () => {
+    expect(
+      accessPermdockMode(
+        resolveConfig({ kits: { access: { model: "roles" } } }, "/project"),
+        authz,
+      ),
+    ).toEqual({ kind: "off" });
+  });
+
+  it("refuses what the manifest doesn't back", () => {
+    const invalid = (problem: RegExp) => ({
+      kind: "invalid",
+      problem: expect.stringMatching(problem),
+    });
+    expect(accessPermdockMode(config(), undefined)).toEqual(
+      invalid(/no PermDock project here/),
+    );
+    const { manifest: _, ...withoutManifest } = project;
+    expect(
+      accessPermdockMode(config(), {
+        ...withoutManifest,
+        config: "permdock.config.ts",
+      }),
+    ).toEqual(
+      invalid(/there is no permdock\.manifest\.json.*kits\.access\.model/),
+    );
+    const { rls: _rls, ...withoutRls } = manifest;
+    expect(
+      accessPermdockMode(config(), {
+        ...project,
+        manifest: parseManifest(withoutRls),
+      }),
+    ).toEqual(invalid(/has no rls block, so the permdock access model/));
+    const twoRoots = {
+      ...project,
+      manifest: parseManifest({
+        ...manifest,
+        rls: {
+          ...manifest.rls,
+          scopes: [
+            { name: "tenant", type: "uuid" },
+            { name: "workspace", type: "uuid" },
+          ],
+        },
+      }),
+    };
+    expect(accessPermdockMode(config(), twoRoots)).toEqual(
+      invalid(
+        /no single root scope \(tenant, workspace\).*kits\.access\.permdock: \{ scope \}/,
+      ),
+    );
+    expect(
+      accessPermdockMode(
+        config({ permdock: { scope: "organization" } }),
+        authz,
+      ),
+    ).toEqual(
+      invalid(
+        /kits\.access\.permdock\.scope is "organization", but .* tenant, team/,
+      ),
+    );
+    expect(
+      accessPermdockMode(config({ permdock: { schema: "permdock" } }), authz),
+    ).toEqual(
+      invalid(
+        /schema is "permdock", but .* puts PermDock's helpers in "authz"/,
+      ),
+    );
+    expect(accessPermdockMode(config({ idType: "uuid" }), authz)).toEqual(
+      invalid(/kits\.access\.idType is "uuid", but .* the type text/),
+    );
+    const untyped = {
+      ...project,
+      manifest: parseManifest({
+        ...manifest,
+        rls: { ...manifest.rls, scopes: [{ name: "tenant", type: "numeric" }] },
+      }),
+    };
+    expect(accessPermdockMode(config(), untyped)).toEqual(
+      invalid(/type numeric, but the permdock access model renders only/),
+    );
+  });
+});
+
+describe("kitKeyProblems", () => {
+  const access = { schema: "authz", scope: "tenant", idType: "uuid" } as const;
+  const catalog = parseCatalog({
+    version: 1,
+    permissions: [
+      { key: "organization.update", rowConditions: false },
+      { key: "members.invite", rowConditions: true },
+      { key: "support.start" },
+    ],
+  });
+  const project = {
+    manifestPath: "permdock.manifest.json",
+    catalogPath: "permissions.catalog.json",
+    catalog,
+    problems: [],
+  };
+  const keys = [
+    {
+      module: "organizations",
+      action: "update",
+      key: "organization.update",
+      scope: "tenant",
+    },
+    {
+      module: "invitations",
+      action: "invite",
+      key: "members.invite",
+      scope: "tenant",
+    },
+    {
+      module: "support-sessions",
+      action: "start",
+      key: "support.start",
+      scope: "platform",
+    },
+    {
+      module: "notifications",
+      action: "send",
+      key: "notifications.send",
+      scope: "tenant",
+    },
+  ] as const;
+
+  it("passes scope-only keys and refuses the other statuses", () => {
+    expect(kitKeyProblems(project, keys, access)).toEqual([
+      {
+        target: "kits.invitations.permissions.invite",
+        message: expect.stringMatching(
+          /checks "members\.invite" \(invite\) with authz\.permitted_tenant_ids, but it has row conditions.*rowConditions: false/,
+        ),
+      },
+      {
+        target: "kits.support-sessions.permissions.start",
+        message: expect.stringMatching(
+          /checks "support\.start" \(start\) with authz\.permdock_has, but it has no rowConditions flag.*permdock catalog/,
+        ),
+      },
+      {
+        target: "kits.notifications.permissions.send",
+        message: expect.stringMatching(
+          /"notifications\.send".*is not in permissions\.catalog\.json.*permdock catalog.*a key the catalog lists/,
+        ),
+      },
+    ]);
+  });
+
+  it("refuses every key without a readable catalog", () => {
+    const { catalog: _, ...withoutCatalog } = project;
+    expect(kitKeyProblems(withoutCatalog, keys, access)).toEqual([
+      {
+        target: "permissions.catalog.json",
+        message: expect.stringContaining(
+          "there is no permissions.catalog.json",
+        ),
+      },
+    ]);
+    expect(
+      kitKeyProblems(
+        {
+          ...withoutCatalog,
+          problems: ["permissions.catalog.json: version 2 is not supported"],
+        },
+        keys,
+        access,
+      ),
+    ).toEqual([
+      {
+        target: "permissions.catalog.json",
+        message: expect.stringContaining("Could not read PermDock's catalog"),
+      },
+    ]);
+    expect(kitKeyProblems(withoutCatalog, [], access)).toEqual([]);
   });
 });
 

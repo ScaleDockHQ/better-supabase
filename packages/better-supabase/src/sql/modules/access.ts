@@ -1,7 +1,6 @@
 import type { KitContext } from "../context.ts";
 import type { KitLayout, KitModuleDefinition } from "../kit.ts";
 
-import { PERMDOCK_SCHEMA } from "../../core/permdock-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addForeignKey,
@@ -429,14 +428,39 @@ function permdockCanAssign(ctx: KitContext): string {
   return `can_assign.role <> ${owner} or better_supabase.has_org_role(can_assign.tenant, array[${owner}])`;
 }
 
+/**
+ * PermDock's schema and scope for the `permdock` model: from the manifest
+ * (`layout.accessPermdock`, which `sql add` reads), else both set in
+ * `kits.access.permdock`. Never a default, so a project whose helpers live
+ * elsewhere never gets functions that call helpers that don't exist.
+ */
+function permdockTarget(
+  ctx: KitContext,
+  layout: KitLayout,
+): { readonly schema: string; readonly scope: string } {
+  const configured = ctx.kits.access?.permdock;
+  const manifest = layout.accessPermdock;
+  if (manifest) {
+    if (manifest.idType !== ctx.idType) {
+      throw new TypeError(
+        `kits.access: PermDock's manifest gives scope "${manifest.scope}" the type ${manifest.idType}, but the access module renders ${ctx.idType} ids. Set kits.access.idType to "${manifest.idType}".`,
+      );
+    }
+    return { schema: manifest.schema, scope: manifest.scope };
+  }
+  if (configured?.schema === undefined || configured.scope === undefined) {
+    throw new TypeError(
+      "kits.access.model 'permdock' needs PermDock's manifest (`permdock supabase inspect --out`), which `better-supabase sql add` reads, or both kits.access.permdock.schema and kits.access.permdock.scope.",
+    );
+  }
+  return { schema: configured.schema, scope: configured.scope };
+}
+
 function permdockFunctions(ctx: KitContext, layout: KitLayout): string {
   const id = ctx.idType;
-  const permdock = ctx.kits.access?.permdock ?? {};
-  const schema = sqlIdent(
-    permdock.schema ?? layout.permdock?.schema ?? PERMDOCK_SCHEMA,
-  );
-  const scope = permdock.scope ?? layout.permdock?.scope ?? "organization";
-  const permitted = `${schema}.${sqlIdent(`permitted_${scope}_ids`)}`;
+  const target = permdockTarget(ctx, layout);
+  const schema = sqlIdent(target.schema);
+  const permitted = `${schema}.${sqlIdent(`permitted_${target.scope}_ids`)}`;
   return `
 -- The permdock model: PermDock's ${permitted}() and ${schema}.permdock_has(),
 -- from \`permdock rls generate\`. They answer for the caller only.

@@ -42,7 +42,10 @@ a passing run report findings: BS205 to BS209, BS211 and BS212 (RLS
 performance, statistics and plans) arrived that way, and so did BS213
 (API roles that can write the columns granting access), BS214 (PermDock row conditions in Storage and Realtime policies), BS407 (two
 authorization hooks), BS408 (PermDock helpers for entitlements) and BS409
-(PermDock's manifest and the config disagree), BS410 (HTTP auth hooks), and
+(PermDock's manifest and the config disagree), BS410 (HTTP auth hooks), BS411
+(the permdock access model and PermDock's manifest disagree, in 0.5.1, because
+the configurations it reports rendered functions that call helpers PermDock
+never wrote), and
 BS307 to BS314 (custom kit contracts, the tenant claim, deprecated kit
 symbols, duplicate kit triggers, kit modules behind their version, exposed
 kit schemas, rate limits not wired to PostgREST and migration-only kit

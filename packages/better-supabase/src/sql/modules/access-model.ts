@@ -54,6 +54,39 @@ export const KIT_PERMISSIONS = {
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
 } as const;
 
+/**
+ * Where each kit action checks its key: `tenant` through `member_can`,
+ * `can` or `tenant_ids_with` (PermDock's `permitted_<scope>_ids`), and
+ * `platform` through `is_platform` or `platform_can` (`permdock_has`).
+ */
+export const KIT_PERMISSION_SCOPES: {
+  readonly [M in keyof typeof KIT_PERMISSIONS]: {
+    readonly [A in keyof (typeof KIT_PERMISSIONS)[M]]: "tenant" | "platform";
+  };
+} = {
+  organizations: {
+    update: "tenant",
+    delete: "tenant",
+    removeMember: "tenant",
+    updateRole: "tenant",
+    transferOwnership: "tenant",
+  },
+  invitations: {
+    invite: "tenant",
+    revoke: "tenant",
+    view: "tenant",
+    invitePlatform: "platform",
+  },
+  audit: { view: "tenant", viewAll: "platform" },
+  "support-sessions": {
+    start: "platform",
+    view: "platform",
+    revoke: "platform",
+  },
+  notifications: { send: "tenant", read: "tenant" },
+  "webhooks-out": { manage: "tenant", view: "tenant" },
+};
+
 export function accessModel(ctx: KitContext): AccessModel {
   return ctx.kits.access?.model ?? "roles";
 }

@@ -25,7 +25,7 @@ import { migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { KIT_RULES } from "./kits.ts";
 import { LIVE_RULES } from "./live.ts";
-import { entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
+import { accessKit, entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES, unindexedForeignKeys } from "./schema-design.ts";
@@ -146,6 +146,10 @@ interface KitFileState {
 /** The `sql.kit` files as this release renders them, next to what is on disk. */
 async function kitFiles(context: DoctorContext): Promise<KitFileState[]> {
   if (context.config.sql.kit.length === 0) return [];
+  // BS411 reports a permdock access model the manifest can't back; the kit
+  // can't render without it, so there is nothing to compare.
+  const access = accessKit(context);
+  if (access.kind === "invalid") return [];
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
   const files = renderKit(
@@ -155,6 +159,7 @@ async function kitFiles(context: DoctorContext): Promise<KitFileState[]> {
       context.config.sql.testsDir,
       skipped ? [] : readSets,
       entitlementsKit(context),
+      access.kind === "permdock" ? access.access : undefined,
     ),
   ).filter((file) => !(skipped && file.module === "read-sets"));
   return Promise.all(

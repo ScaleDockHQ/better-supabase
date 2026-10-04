@@ -2,16 +2,23 @@ import type { KitPermdock, PermdockCatalog } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import {
+  kitPermissionKeys,
   PERMDOCK_SCHEMA,
   permdockKeys,
-  permdockKeyStatus,
+  resolveModules,
 } from "../../sql/index.ts";
 import {
+  accessPermdockMode,
+  type AccessPermdockMode,
+  accessRequirements,
   entitlementRequirements,
   entitlementsMode,
+  kitKeyProblems,
   parseGrantsMarker,
   parseHookMarker,
   type PermdockManifest,
+  scopeMemberships,
+  unsafeKey,
 } from "../permdock.ts";
 import { catalogOf } from "./shared.ts";
 
@@ -164,50 +171,25 @@ function placementProblems(
   return problems;
 }
 
-const ROW_CONDITIONS_FIX =
-  "Use the policies `permdock rls generate` writes for it, or a permission whose catalog entry has rowConditions: false.";
-const REGENERATE_FIX =
-  "Regenerate it with a current `permdock catalog`, which writes rowConditions for every permission.";
-
-/**
- * Why the SQL helpers can't be trusted with `key`, or `undefined` when the
- * catalog marks it `rowConditions: false`. An entry without the flag and a
- * key the catalog doesn't list are unknown, so they count as unsafe.
- */
-export function unsafeKey(
-  catalog: PermdockCatalog,
-  key: string,
-  catalogPath: string,
-): { readonly reason: string; readonly fix: string } | undefined {
-  const status = permdockKeyStatus(catalog, key);
-  switch (status) {
-    case "scope-only":
-      return undefined;
-    case "row-conditions":
-      return {
-        reason: `has row conditions in ${catalogPath}`,
-        fix: ROW_CONDITIONS_FIX,
-      };
-    case "no-flag":
-      return {
-        reason: `has no rowConditions flag in ${catalogPath}, so whether it has row conditions is unknown`,
-        fix: REGENERATE_FIX,
-      };
-    case "missing":
-      return { reason: `is not in ${catalogPath}`, fix: REGENERATE_FIX };
-    default: {
-      const unreachable: never = status;
-      return unreachable;
-    }
-  }
-}
-
 /** PermDock's helpers for the `entitlements` kit module, when the manifest allows PermDock mode. */
 export function entitlementsKit(
   context: Pick<DoctorContext, "config" | "permdock">,
 ): KitPermdock | undefined {
   const mode = entitlementsMode(context.config, context.permdock);
   return mode.kind === "permdock" ? mode.permdock : undefined;
+}
+
+/** PermDock's helpers for the `permdock` access model, when `sql.kit` installs `access`. */
+export function accessKit(
+  context: Pick<DoctorContext, "config" | "permdock">,
+): AccessPermdockMode {
+  if (
+    !resolveModules(context.config.sql.kit, {}).some(
+      (module) => module.name === "access",
+    )
+  )
+    return { kind: "off" };
+  return accessPermdockMode(context.config, context.permdock);
 }
 
 export const PERMDOCK_RULES: readonly Rule[] = [
@@ -332,12 +314,22 @@ export const PERMDOCK_RULES: readonly Rule[] = [
         });
       }
       const scope = mode.permdock.scope;
-      const covered = mode.permdock.memberships.some(
-        (source) => !("value" in source.scope) || source.scope.value === scope,
-      );
-      if (!covered) {
+      const memberships = project?.manifest
+        ? scopeMemberships(project.manifest, scope)
+        : { sources: [], from: "hook" as const };
+      if (memberships.from === "hook") {
         findings.push({
-          message: `No membership source in ${manifest} covers scope "${scope}", so entitlement_members() finds no users and plan changes never invalidate sessions. Add a source for "${scope}" (\`supabase.hook.memberships\` in permdock.config.ts), ${regenerate}`,
+          severity: "info",
+          message: `${manifest} has no rls.memberships, so entitlement_members() reads the hook's membership sources, which can differ from the tables member_${scope}_ids_for reads. Run \`permdock supabase inspect --out\` with a current PermDock.`,
+          target: `entitlements.permdock.${scope}`,
+        });
+      }
+      if (memberships.sources.length === 0) {
+        findings.push({
+          message:
+            memberships.from === "rls"
+              ? `${manifest} maps no rls.memberships table to scope "${scope}", so entitlement_members() finds no users and plan changes never invalidate sessions. Map a table for "${scope}" (\`rls.memberships\` or \`rls.membershipSources\` in permdock.config.ts), ${regenerate}`
+              : `No membership source in ${manifest} covers scope "${scope}", so entitlement_members() finds no users and plan changes never invalidate sessions. Add a source for "${scope}" (\`supabase.hook.memberships\` in permdock.config.ts), ${regenerate}`,
           target: `entitlements.permdock.${scope}`,
         });
       }
@@ -427,6 +419,79 @@ export const PERMDOCK_RULES: readonly Rule[] = [
           severity: "info",
           message: `claims.scope is "${scope}", which ${resolved ? `stands for "${resolved}"` : "is not a scope"} in ${project.manifestPath}, whose root scope is "${root}". The tenant module's membership claims then use another scope than PermDock's. Set claims.scope to "${root}" (or "tenant").`,
           target: "claims.scope",
+        });
+      }
+      return findings;
+    },
+  },
+  {
+    code: "BS411",
+    severity: "error",
+    title: "The permdock access model doesn't match PermDock's manifest",
+    description:
+      "With `kits.access.model: 'permdock'`, the `access` module calls PermDock's `<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and `<rls.schema>.permdock_has(permission)` for platform checks, with the manifest's root scope unless `kits.access.permdock.scope` names another. Doctor reports a project without a readable manifest or `rls` block, no single root scope, a scope, schema or id type the manifest doesn't declare, a helper the manifest doesn't list, doesn't let `authenticated` execute or the database lacks, and every kit permission key (from `kitPermissionKeys`) whose catalog entry isn't `rowConditions: false`, since the helpers check role and scope only. It warns when `kits.access.functions.canAssign` is not set, because only the service role then assigns roles, and notes a `permdock_can_assign` template the manifest's helpers lack.",
+    check: (context) => {
+      const mode = accessKit(context);
+      if (mode.kind === "off") return [];
+      if (mode.kind === "invalid")
+        return [{ message: mode.problem, target: "kits.access.permdock" }];
+      const project = context.permdock;
+      const manifest = context.config.permdock.manifest;
+      const findings: FindingInput[] = [];
+      const listed = new Map(
+        (project?.manifest?.rls?.helpers ?? []).map((helper) => [
+          `${mode.access.schema}.${helper.name}`,
+          helper,
+        ]),
+      );
+      const read = context.snapshot.schemas.includes(mode.access.schema);
+      const present = new Set(
+        catalogOf(context).functions.map((fn) => `${fn.schema}.${fn.name}`),
+      );
+      for (const { helper, role } of accessRequirements(mode.access)) {
+        const entry = listed.get(helper);
+        if (!entry) {
+          findings.push({
+            message: `${manifest} lists no ${helper}, but the permdock access model calls it from can() and the kit modules. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`,
+            target: helper,
+          });
+        } else if (!entry.execute.includes(role)) {
+          findings.push({
+            message: `${manifest} says ${role} may not execute ${helper}, but the permdock access model calls it as ${role}. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`,
+            target: helper,
+          });
+        } else if (read && !present.has(helper)) {
+          findings.push({
+            message: `${helper} is in ${manifest} but not in the database. Apply the migration \`permdock rls generate\` wrote before the access module.`,
+            target: helper,
+          });
+        }
+      }
+      if (project) {
+        findings.push(
+          ...kitKeyProblems(
+            project,
+            kitPermissionKeys(context.config.kits, context.config.sql.kit),
+            mode.access,
+          ),
+        );
+      }
+      const canAssign = context.config.kits.access?.functions?.canAssign;
+      const recipe = `${mode.access.schema}.permdock_can_assign({role}, {tenant}::text)`;
+      if (canAssign === undefined) {
+        findings.push({
+          severity: "warning",
+          message: `kits.access.functions.canAssign is not set, so under the permdock model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes${context.config.sql.kit.includes("tenant") ? "" : " (the owner-role fallback needs the tenant module, which PermDock projects don't install)"}. Set canAssign: "${recipe}", which PermDock writes when a role declares \`assigns\`.`,
+          target: "kits.access.functions.canAssign",
+        });
+      } else if (
+        canAssign.includes("permdock_can_assign") &&
+        !listed.has(`${mode.access.schema}.permdock_can_assign`)
+      ) {
+        findings.push({
+          severity: "info",
+          message: `kits.access.functions.canAssign calls permdock_can_assign, but ${manifest} doesn't list ${mode.access.schema}.permdock_can_assign. PermDock writes it only when a role in permdock.config.ts declares \`assigns\`; add one, then run \`permdock rls generate\` and \`permdock supabase inspect --out\`.`,
+          target: "kits.access.functions.canAssign",
         });
       }
       return findings;

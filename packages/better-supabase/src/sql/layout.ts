@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../config/config.ts";
-import type { KitLayout, KitPermdock } from "./kit.ts";
+import type { KitAccessPermdock, KitLayout, KitPermdock } from "./kit.ts";
 
 import { resolveJsonSchema } from "../config/config.ts";
 import { VERSION } from "../core/version.ts";
@@ -10,9 +10,11 @@ export function kitLayout(
   testsDir: string = config.sql.testsDir,
   readSets: KitLayout["readSets"] = [],
   permdock?: KitPermdock,
+  accessPermdock?: KitAccessPermdock,
 ): KitLayout {
   return {
     ...(permdock ? { permdock } : {}),
+    ...(accessPermdock ? { accessPermdock } : {}),
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,

@@ -18,7 +18,7 @@ import {
 import { defineCliCommand } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
-import { configuredPermdockKeys, unsafeKey } from "../doctor/permdock.ts";
+import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel } from "../gen/model.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
@@ -33,7 +33,7 @@ import {
   importPath,
   writeIfChanged,
 } from "../io.ts";
-import { readPermdock } from "../permdock.ts";
+import { readPermdock, unsafeKey } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
