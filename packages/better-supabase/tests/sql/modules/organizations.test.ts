@@ -59,7 +59,10 @@ describe("organizations module", () => {
     const sql = body(CENTRAKIT);
     expect(sql).not.toContain("create table if not exists");
     expect(sql).toContain(
-      'insert into "public"."organizations" ("name", "slug", "website", "default_currency")',
+      `'insert into "public"."organizations" ("name", "slug"%s) select r."name", r."slug"%s from`,
+    );
+    expect(sql).toContain(
+      "from unnest(array['website', 'default_currency']) c\n  where attrs ? c;",
     );
     expect(sql).toContain(
       'select r."id" from "better_supabase"."roles" r where r."id"::text = (\'owner\')::text',

@@ -361,14 +361,20 @@ export function createKitContext(
     hookTarget,
     emit(event) {
       if (!config.events || !installed.has("outbox")) return "";
-      const outbox = sqlIdent(resolveKitModule(kits["outbox"]).schema);
+      const outboxConfig = resolveKitModule(kits["outbox"]);
+      const outbox = sqlIdent(outboxConfig.schema);
+      const template =
+        outboxConfig.options["kitSource"] ?? "better-supabase/{module}";
+      if (typeof template !== "string") {
+        throw new TypeError("kits.outbox.options.kitSource must be a string");
+      }
       return `perform ${outbox}.emit_event(${[
         sqlString(event.type),
         event.payload,
         event.subject ?? "null",
         event.tenant === undefined ? "null" : `(${event.tenant})::text`,
         event.key ?? "null",
-        sqlString(`better-supabase/${module}`),
+        sqlString(template.replaceAll("{module}", module)),
       ].join(", ")});`;
     },
   };

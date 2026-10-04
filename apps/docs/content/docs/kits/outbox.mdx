@@ -160,12 +160,14 @@ export default defineConfig({
 `position` must be a `bigint` that only grows. It is the `id` column on a
 managed table; map it to another column when your ids are UUIDs.
 
-| Option       | Default            | Meaning                                               |
-| ------------ | ------------------ | ----------------------------------------------------- |
-| `retention`  | `30 days`          | Default age for `purge_outbox`                        |
-| `emitRoles`  | `["service_role"]` | Roles allowed to call `emit_event` directly           |
-| `tenantType` | `text`             | The type of the tenant column                         |
-| `settle`     | `5 seconds`        | The wait before a claim reads an event, without `xid` |
+| Option          | Default                    | Meaning                                                              |
+| --------------- | -------------------------- | -------------------------------------------------------------------- |
+| `retention`     | `30 days`                  | Default age for `purge_outbox`                                       |
+| `emitRoles`     | `["service_role"]`         | Roles allowed to call `emit_event` directly                          |
+| `tenantType`    | `text`                     | The type of the tenant column                                        |
+| `settle`        | `5 seconds`                | The wait before a claim reads an event, without `xid`                |
+| `defaultSource` | none                       | The source `emit_event` stores when the caller passes none           |
+| `kitSource`     | `better-supabase/{module}` | The source of events from kit modules; `{module}` is the module name |
 
 ## Error codes
 

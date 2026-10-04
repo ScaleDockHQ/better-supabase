@@ -68,8 +68,26 @@ function tenantType(ctx: KitContext): string {
   return type;
 }
 
+// Cursors are kit state no app has yet, so adopt mode still creates them.
+function consumersTable(n: Names): string {
+  return `
+create table if not exists ${n.c} (
+  ${n.k("name")} text primary key,
+  ${n.k("cursor")} bigint not null default 0,
+  -- Type patterns ('org.*', 'invoice.paid'); null takes every event.
+  ${n.k("types")} text[],
+  ${n.k("leaseOwner")} text,
+  ${n.k("leaseUntil")} timestamptz,
+  ${n.k("updatedAt")} timestamptz not null default now()
+);
+alter table ${n.c} enable row level security;
+revoke all on ${n.c} from anon, authenticated;
+grant all on ${n.c} to service_role;
+`;
+}
+
 function tables(ctx: KitContext, n: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) return consumersTable(n);
   const samePosition = n.e("position") === n.e("id");
   const columns = [
     `${n.e("id")} bigint generated always as identity primary key`,
@@ -105,20 +123,7 @@ create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt
 alter table ${n.t} enable row level security;
 revoke all on ${n.t} from anon, authenticated;
 grant all on ${n.t} to service_role;
-
-create table if not exists ${n.c} (
-  ${n.k("name")} text primary key,
-  ${n.k("cursor")} bigint not null default 0,
-  -- Type patterns ('org.*', 'invoice.paid'); null takes every event.
-  ${n.k("types")} text[],
-  ${n.k("leaseOwner")} text,
-  ${n.k("leaseUntil")} timestamptz,
-  ${n.k("updatedAt")} timestamptz not null default now()
-);
-alter table ${n.c} enable row level security;
-revoke all on ${n.c} from anon, authenticated;
-grant all on ${n.c} to service_role;
-`;
+${consumersTable(n)}`;
 }
 
 function eventJson(n: Names, row: string): string {
@@ -138,7 +143,13 @@ function emit(ctx: KitContext, n: Names): string {
     [n.e("type"), "event_type"],
     [n.e("payload"), "coalesce(payload, '{}')"],
   ];
-  if (n.has("source")) insert.push([n.e("source"), "source"]);
+  if (n.has("source")) {
+    const fallback = ctx.text("defaultSource", "");
+    insert.push([
+      n.e("source"),
+      fallback ? `coalesce(source, ${sqlString(fallback)})` : "source",
+    ]);
+  }
   if (n.has("subject"))
     insert.push([n.e("subject"), "coalesce(subject, payload ->> 'subject')"]);
   if (n.has("tenant"))

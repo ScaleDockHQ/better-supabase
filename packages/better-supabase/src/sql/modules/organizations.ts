@@ -237,16 +237,37 @@ const event = (org: string, user: string, extra = ""): string =>
 function create(ctx: KitContext, n: OrgNames): string {
   const id = ctx.idType;
   const columns = attributeColumns(ctx);
-  const insertColumns = [
-    ...columns,
-    ...(ctx.has("organizations", "createdBy")
-      ? [ctx.col("organizations", "createdBy")]
-      : []),
-  ];
-  const values = [
-    ...columns.map((column) => `r.${column}`),
-    ...(ctx.has("organizations", "createdBy") ? ["owner"] : []),
-  ];
+  const fixed = ctx.has("organizations", "slug") ? 2 : 1;
+  const createdBy = ctx.has("organizations", "createdBy");
+  const required = [
+    ...columns.slice(0, fixed),
+    ...(createdBy ? [ctx.col("organizations", "createdBy")] : []),
+  ].join(", ");
+  const values = (owner: string) =>
+    [
+      ...columns.slice(0, fixed).map((column) => `r.${column}`),
+      ...(createdBy ? [owner] : []),
+    ].join(", ");
+  const optional = columns
+    .slice(fixed)
+    .map((column) => sqlString(unquoted(column)));
+  const literal = (sql: string) => sql.replaceAll("'", "''");
+  // Attributes missing from attrs keep their column default.
+  const insert =
+    optional.length === 0
+      ? `insert into ${n.org} (${required})
+  select ${values("owner")}
+  from jsonb_populate_record(null::${n.org}, attrs) r
+  returning ${n.id} into org;`
+      : `select coalesce(string_agg(format(', %I', c), ''), ''), coalesce(string_agg(format(', r.%I', c), ''), '')
+  into extra_columns, extra_values
+  from unnest(array[${optional.join(", ")}]) c
+  where attrs ? c;
+  execute format(
+    'insert into ${literal(n.org)} (${literal(required)}%s) select ${literal(values("$2"))}%s from jsonb_populate_record(null::${literal(n.org)}, $1) r returning ${literal(n.id)}',
+    extra_columns,
+    extra_values
+  ) into org using attrs, owner;`;
   const permission = ctx.permissionKey("create", "");
   const createCheck =
     permission === ""
@@ -272,7 +293,7 @@ as $$
 declare
   service boolean := ${SERVICE_CALLER};
   owner uuid := case when service then nullif(attrs ->> 'owner_id', '')::uuid else auth.uid() end;
-  org ${id};
+  org ${id};${optional.length === 0 ? "" : "\n  extra_columns text;\n  extra_values text;"}
 begin
   if owner is null then
     raise exception 'An organization needs an owner' using errcode = '42501', hint = 'ORG_FORBIDDEN';
@@ -284,10 +305,7 @@ begin
     ["jsonb", "attrs"],
     ["uuid", "owner"],
   ])}
-  insert into ${n.org} (${insertColumns.join(", ")})
-  select ${values.join(", ")}
-  from jsonb_populate_record(null::${n.org}, attrs) r
-  returning ${n.id} into org;
+  ${insert}
   ${trust(true)}
   insert into ${n.m} (${n.tenant}, ${n.user}, ${n.role})
   values (org, owner, ${roleValue(ctx, sqlString(n.ownerRole))});

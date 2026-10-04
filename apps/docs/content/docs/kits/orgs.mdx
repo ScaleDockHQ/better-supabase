@@ -127,19 +127,19 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 `kits.organizations.options`:
 
-| Option              | Default                             | What it does                                                                                 |
-| ------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| `attributes`        | `[]`                                | extra columns `create_organization` and `update_organization` accept                         |
-| `ownerRole`         | `owner`                             | the creator's role                                                                           |
-| `formerOwnerRole`   | `admin`                             | the previous owner's role after a transfer                                                   |
-| `deleteMode`        | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                           |
-| `ownerInvariant`    | `true`                              | an organization always keeps an owner                                                        |
-| `assignmentCeiling` | `true`                              | members can't raise their own role or assign one above it                                    |
-| `slugPattern`       | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                              |
-| `slugMinLength`     | `2`                                 | the shortest slug                                                                            |
-| `slugMaxLength`     | `48`                                | the longest slug                                                                             |
-| `reservedSlugs`     | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed |
-| `slugCitext`        | `false`                             | a `citext` slug column on a managed table                                                    |
+| Option              | Default                             | What it does                                                                                                 |
+| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `attributes`        | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
+| `ownerRole`         | `owner`                             | the creator's role                                                                                           |
+| `formerOwnerRole`   | `admin`                             | the previous owner's role after a transfer                                                                   |
+| `deleteMode`        | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
+| `ownerInvariant`    | `true`                              | an organization always keeps an owner                                                                        |
+| `assignmentCeiling` | `true`                              | members can't raise their own role or assign one above it                                                    |
+| `slugPattern`       | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
+| `slugMinLength`     | `2`                                 | the shortest slug                                                                                            |
+| `slugMaxLength`     | `48`                                | the longest slug                                                                                             |
+| `reservedSlugs`     | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
+| `slugCitext`        | `false`                             | a `citext` slug column on a managed table                                                                    |
 
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.

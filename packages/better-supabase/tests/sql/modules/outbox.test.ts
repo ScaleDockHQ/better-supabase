@@ -34,10 +34,17 @@ describe("outbox module", () => {
           tenantType: "uuid",
           settle: "2 seconds",
           emitRoles: ["authenticated"],
+          defaultSource: "domain",
         },
       },
     });
-    expect(sql).not.toContain("create table if not exists");
+    expect(sql).not.toContain(
+      "create table if not exists public.domain_events",
+    );
+    expect(sql).toContain("coalesce(source, 'domain')");
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."outbox_consumers"',
+    );
     expect(sql).toContain('insert into "public"."domain_events" ("kind"');
     expect(sql).toContain("tenant::uuid");
     expect(sql).toContain("now() - '2 seconds'::interval");

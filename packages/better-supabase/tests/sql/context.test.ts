@@ -212,6 +212,19 @@ describe("hooks and events", () => {
         kits: { demo: { events: false } },
       }).emit(event),
     ).toBe("");
+    const sourced = createKitContext("demo", () => names, {
+      installed: ["demo", "outbox"],
+      kits: { outbox: { options: { kitSource: "app/{module}" } } },
+    });
+    expect(sourced.emit({ type: "x", payload: "'{}'" })).toContain(
+      "'app/demo');",
+    );
+    expect(() =>
+      createKitContext("demo", () => names, {
+        installed: ["demo", "outbox"],
+        kits: { outbox: { options: { kitSource: 1 } } },
+      }).emit(event),
+    ).toThrow("kitSource must be a string");
   });
 });
 

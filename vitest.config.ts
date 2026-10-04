@@ -9,6 +9,7 @@ export default defineConfig({
       "apps/docs",
       "apps/marketing",
       "tests/bundle",
+      "tests/validation-centrakit",
       "tests/validation-crm",
       "tests/validation-monorepo",
       "tests/validation-request-context",
