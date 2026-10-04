@@ -1,6 +1,8 @@
 -- better-supabase SQL kit: realtime-tables (0.4.0)
+-- @bs-kit realtime-tables@1 managed
 -- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -110,3 +112,19 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
 
 -- config.realtime.tables
 select better_supabase.track_realtime('public.notifications', 'organization_id');
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.kit_modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.kit_modules enable row level security;
+revoke all on better_supabase.kit_modules from anon, authenticated;
+grant select on better_supabase.kit_modules to service_role;
+insert into better_supabase.kit_modules (name, version, mode)
+values ('realtime-tables', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

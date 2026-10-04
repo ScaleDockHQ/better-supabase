@@ -1,6 +1,8 @@
 -- better-supabase SQL kit: vector-search (0.4.0)
+-- @bs-kit vector-search@1 managed
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists vector with schema extensions;
 
@@ -27,3 +29,19 @@ $$;
 
 revoke execute on function "public"."search_notes"(extensions.vector, integer) from public, anon;
 grant execute on function "public"."search_notes"(extensions.vector, integer) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.kit_modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.kit_modules enable row level security;
+revoke all on better_supabase.kit_modules from anon, authenticated;
+grant select on better_supabase.kit_modules to service_role;
+insert into better_supabase.kit_modules (name, version, mode)
+values ('vector-search', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
