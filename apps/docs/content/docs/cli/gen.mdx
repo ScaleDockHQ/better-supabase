@@ -11,8 +11,9 @@ better-supabase gen [--check] [--watch] [--snapshot <file>] [--db-url-stdin | --
 [`@supabase/postgrest-typegen`](https://github.com/supabase/postgrest-typegen),
 the same generator behind `supabase gen types typescript`, and writes:
 
-1. `database.types.ts`, byte for byte what `supabase gen types` prints for the
-   same schema (CI checks this against the Supabase CLI), so
+1. `database.types.ts`, what `supabase gen types` prints for the same schema
+   (CI checks this against the Supabase CLI), plus a `ComputedFields` key on
+   each table and view that names its computed fields, so
    `createClient<Database>()` works as usual;
 2. the main module (`output`), with models in your casing, enum and CHECK
    constants, typed constraint names, and the `schema` object;
@@ -34,7 +35,7 @@ don't rebuild for nothing.
 an optional peer. Without it, `gen` writes the file unformatted and says so;
 install it with `pnpm add -D oxfmt`. better-supabase accepts any oxfmt from
 0.66.0 up to, but not including, 1.0. `@supabase/postgrest-typegen` pins exactly 0.66.0 as its
-peer, the version that matches `supabase gen types` byte for byte, so pnpm
+peer, the version that formats like `supabase gen types`, so pnpm
 warns about a newer oxfmt until you allow it in `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"

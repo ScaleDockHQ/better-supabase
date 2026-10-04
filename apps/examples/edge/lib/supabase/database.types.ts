@@ -23,6 +23,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email: string
@@ -56,6 +57,7 @@ export type Database = {
           organization_id: string
           tag_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_id: string
@@ -108,6 +110,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           created_at?: string
@@ -166,6 +169,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           city?: string | null
           created_at?: string
@@ -215,6 +219,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           attachments?: Json | null
           body: string
@@ -264,6 +269,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: never
@@ -300,6 +306,7 @@ export type Database = {
           slug: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -325,6 +332,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           color?: string
           created_at?: string

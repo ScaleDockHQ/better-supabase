@@ -36,7 +36,9 @@ const live = await reachable();
  * the CLI prints the typegen output unformatted, so both sides go through
  * the typegen's formatter settings first. Older CLIs bundle an older
  * postgres-meta: `--local` omits `__InternalSupabase`, newer typegen writes
- * `NonNullable<Json>` for non-null json columns.
+ * `NonNullable<Json>` for non-null json columns. Supabase CLI 2.119 bundles
+ * a typegen without `ComputedFields`, which 0.4.0 writes on every table and
+ * view and subtracts from row-typed function arguments.
  */
 async function normalize(source: string): Promise<string> {
   const { code, errors } = await format("database.types.ts", source, {
@@ -50,6 +52,8 @@ async function normalize(source: string): Promise<string> {
       "\n",
     )
     .replaceAll("NonNullable<Json>", "Json")
+    .replaceAll(/\n *ComputedFields: [^\n]*/g, "")
+    .replaceAll(/Omit<([^<>]*\["Row"\]), [^<>]*\["ComputedFields"\]>/g, "$1")
     .trimEnd();
 }
 

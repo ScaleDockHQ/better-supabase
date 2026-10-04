@@ -24,6 +24,7 @@ export type Database = {
           provider: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           connection_id: string
           created_at?: string
@@ -72,6 +73,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -118,6 +120,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_collection_id: string
           created_at?: string
@@ -177,6 +180,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           agenda_collection_id: string
           created_at?: string
@@ -244,6 +248,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_collection_id: string
           created_at?: string
@@ -305,6 +310,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_collection_id: string
           created_at?: string
@@ -367,6 +373,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_collection_id: string
           created_at?: string
@@ -428,6 +435,7 @@ export type Database = {
           updated_at: string
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           color: string
           created_at?: string
@@ -510,6 +518,7 @@ export type Database = {
           updated_at: string
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           access_role?: string | null
           color?: string | null
@@ -580,6 +589,7 @@ export type Database = {
           status: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -641,6 +651,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -720,6 +731,7 @@ export type Database = {
           occurs_at: string
           organization_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -768,6 +780,7 @@ export type Database = {
           updated_at: string
           week_days: string[]
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           count?: number | null
@@ -823,6 +836,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -865,6 +879,7 @@ export type Database = {
           organization_id: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -937,6 +952,7 @@ export type Database = {
           updated_at: string
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           agenda_collection_id: string
           created_at?: string
@@ -1059,6 +1075,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           decision: string
@@ -1110,6 +1127,7 @@ export type Database = {
           task_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -1155,6 +1173,7 @@ export type Database = {
           organization_id: string
           time_off_request_id: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id: string
           created_at?: string
@@ -1203,6 +1222,7 @@ export type Database = {
           status: string
           thread_id: string
         }
+        ComputedFields: never
         Insert: {
           active_stream_id: string
           actor_user_id: string
@@ -1260,6 +1280,7 @@ export type Database = {
           thread_id: string | null
           title: string | null
         }
+        ComputedFields: never
         Insert: {
           approval_id?: string | null
           created_at?: string
@@ -1352,6 +1373,7 @@ export type Database = {
           status: string
           thread_id: string | null
         }
+        ComputedFields: never
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
@@ -1447,6 +1469,7 @@ export type Database = {
           tool_name: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           attempt?: number
           check_result?: Json | null
@@ -1550,6 +1573,7 @@ export type Database = {
           updated_at: string
           workflow_run_id: string | null
         }
+        ComputedFields: never
         Insert: {
           active_stream_id?: string | null
           completed_at?: string | null
@@ -1629,6 +1653,7 @@ export type Database = {
           status: string
           tool_name: string
         }
+        ComputedFields: never
         Insert: {
           call_key: string
           completed_at?: string | null
@@ -1674,6 +1699,7 @@ export type Database = {
           organization_id: string
           payload_summary: string | null
         }
+        ComputedFields: never
         Insert: {
           actor_user_id?: string | null
           artifact_id: string
@@ -1747,6 +1773,7 @@ export type Database = {
           thread_visibility: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           action_id: string
           action_version: string
@@ -1860,6 +1887,7 @@ export type Database = {
           timeout_ms: number | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           function_key: string
@@ -1910,6 +1938,7 @@ export type Database = {
           user_id: string | null
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           confidence?: number
           content: string
@@ -1984,6 +2013,7 @@ export type Database = {
           model_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           enabled?: boolean
@@ -2005,6 +2035,7 @@ export type Database = {
           updated_at: string
           use_case: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           model_id: string
@@ -2050,6 +2081,7 @@ export type Database = {
           user_id: string | null
           workflow_run_id: string | null
         }
+        ComputedFields: never
         Insert: {
           cost_micros?: number | null
           created_at?: string
@@ -2123,6 +2155,7 @@ export type Database = {
           request_id: string
           step: number
         }
+        ComputedFields: never
         Insert: {
           comment?: string | null
           created_at?: string
@@ -2176,6 +2209,7 @@ export type Database = {
             | Database["public"]["Enums"]["hr_approval_subject"]
             | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -2236,6 +2270,7 @@ export type Database = {
           organization_id: string | null
           request_id: string
         }
+        ComputedFields: never
         Insert: {
           actor_user_id?: string | null
           created_at?: string
@@ -2296,6 +2331,7 @@ export type Database = {
           requirement: Database["public"]["Enums"]["approval_requirement"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           action_key?: string | null
           actor_kinds?: Database["public"]["Enums"]["approval_actor_kind"][]
@@ -2412,6 +2448,10 @@ export type Database = {
           is_approval_approver: boolean | null
           is_approval_requester: boolean | null
         }
+        ComputedFields:
+          | "can_decide_approval_request"
+          | "is_approval_approver"
+          | "is_approval_requester"
         Insert: {
           action_key: string
           agent_run_id?: string | null
@@ -2597,6 +2637,7 @@ export type Database = {
           url_value: string | null
           value_type: Database["public"]["Enums"]["asset_attribute_value_type"]
         }
+        ComputedFields: never
         Insert: {
           boolean_value?: boolean | null
           created_at?: string
@@ -2666,6 +2707,7 @@ export type Database = {
           storage_path: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           alt_text?: string | null
           created_at?: string
@@ -2712,6 +2754,7 @@ export type Database = {
           product_id: string | null
           tag_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_asset_id?: number | null
@@ -2774,6 +2817,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           auto_closed_at?: string | null
           break_minutes?: number
@@ -2838,6 +2882,7 @@ export type Database = {
           updated_at: string
           workflow_run_id: string | null
         }
+        ComputedFields: never
         Insert: {
           completed_at?: string | null
           downloaded_at?: string | null
@@ -2885,6 +2930,7 @@ export type Database = {
           session_id: string | null
           user_agent: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           event_id: string
@@ -2914,6 +2960,7 @@ export type Database = {
           target_id_column: string
           target_type: string
         }
+        ComputedFields: never
         Insert: {
           capture_enabled?: boolean
           category?: string
@@ -2961,6 +3008,7 @@ export type Database = {
           target_id: string | null
           target_type: string | null
         }
+        ComputedFields: never
         Insert: {
           actor_display_name?: string | null
           actor_id?: string | null
@@ -3025,6 +3073,7 @@ export type Database = {
           source_period_start: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           credit_package_key: string
@@ -3073,6 +3122,7 @@ export type Database = {
           selectable: boolean
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           display_order?: number
@@ -3118,6 +3168,7 @@ export type Database = {
           plan_key: Database["public"]["Enums"]["billing_plan_key"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           category?: string
           created_at?: string
@@ -3168,6 +3219,7 @@ export type Database = {
           stripe_product_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount?: number
           annual_discount_bps?: number
@@ -3225,6 +3277,7 @@ export type Database = {
           reset_interval: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           base_cost_unit_price_micros?: number | null
           created_at?: string
@@ -3281,6 +3334,7 @@ export type Database = {
           updated_at: string
           visible: boolean
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           currency?: string
@@ -3323,6 +3377,7 @@ export type Database = {
           unit: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           billable?: boolean
           category: string
@@ -3362,6 +3417,7 @@ export type Database = {
           storage_path: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           alt_text?: string | null
           brand_id: string
@@ -3407,6 +3463,7 @@ export type Database = {
           organization_id: string
           tag_id: string
         }
+        ComputedFields: never
         Insert: {
           brand_id: string
           created_at?: string
@@ -3457,6 +3514,7 @@ export type Database = {
           updated_at: string
           website: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -3505,6 +3563,7 @@ export type Database = {
           status: string
           thread_id: string
         }
+        ComputedFields: never
         Insert: {
           bucket: string
           byte_size?: number
@@ -3570,6 +3629,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           message_id: string
@@ -3630,6 +3690,7 @@ export type Database = {
           status: string
           thread_id: string
         }
+        ComputedFields: never
         Insert: {
           client_message_id?: string | null
           created_at?: string
@@ -3685,6 +3746,7 @@ export type Database = {
           snapshot: NonNullable<Json>
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -3721,6 +3783,7 @@ export type Database = {
           thread_id: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           channel_connection_id?: string | null
           created_at?: string
@@ -3778,6 +3841,7 @@ export type Database = {
           thread_id: string
           token_hash: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by: string
@@ -3832,6 +3896,7 @@ export type Database = {
           updated_at: string
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           active_stream_id?: string | null
           active_workflow_run_id?: string | null
@@ -3887,6 +3952,7 @@ export type Database = {
           subject_type: string
           task_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_asset_id?: number | null
@@ -3968,6 +4034,7 @@ export type Database = {
           thread_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           author_id?: string | null
           content_doc: NonNullable<Json>
@@ -4027,6 +4094,7 @@ export type Database = {
           value: string
           verified_at: string | null
         }
+        ComputedFields: never
         Insert: {
           contact_profile_id: string
           created_at?: string
@@ -4072,6 +4140,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           avatar_path?: string | null
           created_at?: string
@@ -4102,6 +4171,7 @@ export type Database = {
           symbol: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           code: string
           created_at?: string
@@ -4133,6 +4203,7 @@ export type Database = {
           storage_path: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           alt_text?: string | null
           byte_size: number
@@ -4207,6 +4278,7 @@ export type Database = {
           warranty_provider: string | null
           warranty_reference: string | null
         }
+        ComputedFields: never
         Insert: {
           asset_tag?: string | null
           barcode?: string | null
@@ -4336,6 +4408,7 @@ export type Database = {
           organization_id: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_id: number
@@ -4391,6 +4464,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           contact_profile_id: string
           created_at?: string
@@ -4453,6 +4527,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           address_city?: string | null
           address_country?: string | null
@@ -4514,6 +4589,7 @@ export type Database = {
           organization_id: string
           tag_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_id: number
@@ -4574,6 +4650,7 @@ export type Database = {
           updated_by: string | null
           website: string | null
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           archived_reason?: string | null
@@ -4642,6 +4719,7 @@ export type Database = {
           view_count: number
           viewer_kind: Database["public"]["Enums"]["document_viewer_kind"]
         }
+        ComputedFields: never
         Insert: {
           first_viewed_at?: string
           id?: string
@@ -4695,6 +4773,7 @@ export type Database = {
           transport: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           entity_id?: string | null
@@ -4758,6 +4837,7 @@ export type Database = {
           position: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount?: number | null
           contract_id: string
@@ -4827,6 +4907,7 @@ export type Database = {
           type: Database["public"]["Enums"]["employee_contract_type"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -4918,6 +4999,7 @@ export type Database = {
           updated_at: string
           uploaded_via_preboarding: boolean
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -4985,6 +5067,7 @@ export type Database = {
           type: Database["public"]["Enums"]["employee_field_type"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -5025,6 +5108,7 @@ export type Database = {
           organization_id: string
           position: number
         }
+        ComputedFields: never
         Insert: {
           definition_id: string
           id?: string
@@ -5069,6 +5153,7 @@ export type Database = {
           value_number: number | null
           value_text: string | null
         }
+        ComputedFields: never
         Insert: {
           definition_id: string
           employee_id: string
@@ -5143,6 +5228,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           assignee_role?: Database["public"]["Enums"]["journey_assignee_role"]
           assignee_user_id?: string | null
@@ -5227,6 +5313,7 @@ export type Database = {
           template_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           anchor_date: string
           buddy_employee_id?: string | null
@@ -5309,6 +5396,7 @@ export type Database = {
           phone: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           anonymized_at?: string | null
           birth_date?: string | null
@@ -5375,6 +5463,7 @@ export type Database = {
           skill_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           certified_on?: string | null
           created_at?: string
@@ -5440,6 +5529,7 @@ export type Database = {
           policy_id: string
           starts_on: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           employee_id: string
@@ -5493,6 +5583,7 @@ export type Database = {
           starts_at: string
           weekday: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           cycle_week?: number
@@ -5558,6 +5649,7 @@ export type Database = {
           vat_id: string | null
           work_email: string | null
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           company_name?: string | null
@@ -5652,6 +5744,7 @@ export type Database = {
           returned_on: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           acknowledged_at?: string | null
           assigned_by?: string | null
@@ -5725,6 +5818,7 @@ export type Database = {
           updated_at: string
           warranty_ends_on: string | null
         }
+        ComputedFields: never
         Insert: {
           asset_tag?: string | null
           category?: string | null
@@ -5792,6 +5886,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -5858,6 +5953,7 @@ export type Database = {
           rotated_at: string | null
           token: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           employee_id: string
@@ -5904,6 +6000,7 @@ export type Database = {
           position: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           created_at?: string
@@ -5950,6 +6047,7 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           expense_id: string
@@ -6010,6 +6108,7 @@ export type Database = {
           receipt_required_above: number | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           category_id?: string | null
@@ -6066,6 +6165,7 @@ export type Database = {
           starts_on: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_id?: number | null
@@ -6162,6 +6262,7 @@ export type Database = {
           vat_amount: number | null
           vat_rate: number | null
         }
+        ComputedFields: never
         Insert: {
           amount: number
           amount_base?: number
@@ -6319,6 +6420,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           body: string
           created_at?: string
@@ -6378,6 +6480,7 @@ export type Database = {
           target_version_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           error_message?: string | null
@@ -6456,6 +6559,7 @@ export type Database = {
           total_items: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           completed_at?: string | null
           completed_items?: number
@@ -6548,6 +6652,7 @@ export type Database = {
           team_id: number | null
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -6629,6 +6734,7 @@ export type Database = {
           trashed_at: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           created_at?: string
@@ -6687,6 +6793,7 @@ export type Database = {
           team_id: number | null
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -6761,6 +6868,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           last_opened_at?: string | null
           node_id: string
@@ -6830,6 +6938,7 @@ export type Database = {
           source: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -6936,6 +7045,7 @@ export type Database = {
           role: string
           token: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -6990,6 +7100,7 @@ export type Database = {
           quota_bytes: number | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           enterprise_retention_days?: number | null
@@ -7038,6 +7149,7 @@ export type Database = {
           storage_path: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           actual_bytes?: number | null
           checksum?: string | null
@@ -7169,6 +7281,7 @@ export type Database = {
           storage_path: string
           version_number: number
         }
+        ComputedFields: never
         Insert: {
           byte_size: number
           checksum?: string | null
@@ -7257,6 +7370,7 @@ export type Database = {
           storage_path: string | null
           version_id: string | null
         }
+        ComputedFields: never
         Insert: {
           archive_path: string
           byte_size?: number
@@ -7322,6 +7436,7 @@ export type Database = {
           total_items: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           artifact_expires_at?: string | null
           artifact_storage_bucket?: string | null
@@ -7398,6 +7513,7 @@ export type Database = {
           status: Database["public"]["Enums"]["hiring_application_status"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           candidate_id: string
           cover_letter?: string | null
@@ -7483,6 +7599,7 @@ export type Database = {
           talent_pool_consent_until: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           anonymized_at?: string | null
           consent_given_at?: string | null
@@ -7553,6 +7670,7 @@ export type Database = {
           subject: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           body: string
           created_at?: string
@@ -7596,6 +7714,7 @@ export type Database = {
           organization_id: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           interview_id: string
           organization_id: string
@@ -7636,6 +7755,7 @@ export type Database = {
           starts_at: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id?: string | null
           application_id: string
@@ -7710,6 +7830,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           closed_at?: string | null
           contract_type?:
@@ -7791,6 +7912,7 @@ export type Database = {
           score: number
           scorecard_id: string
         }
+        ComputedFields: never
         Insert: {
           criterion_id: string
           organization_id: string
@@ -7839,6 +7961,7 @@ export type Database = {
           stage_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           application_id: string
           created_at?: string
@@ -7895,6 +8018,7 @@ export type Database = {
           required: boolean
           stage_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -7941,6 +8065,7 @@ export type Database = {
           position: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -7988,6 +8113,7 @@ export type Database = {
           starts_at: string
           weekday: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           cycle_week?: number
@@ -8048,6 +8174,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
         }
+        ComputedFields: never
         Insert: {
           allow_negative_balance_hours?: number
           attendance_enabled?: boolean
@@ -8142,6 +8269,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           channel_thread_id: string
           completed_at?: string | null
@@ -8204,6 +8332,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           connection_id: string
           created_at?: string
@@ -8257,6 +8386,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           config?: NonNullable<Json>
           consecutive_failures?: number
@@ -8319,6 +8449,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           canceled_at?: string | null
           chat_message_id?: string | null
@@ -8392,6 +8523,7 @@ export type Database = {
           started_at: string
           status: string
         }
+        ComputedFields: never
         Insert: {
           attempt: number
           completed_at?: string | null
@@ -8455,6 +8587,7 @@ export type Database = {
           text: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           channel_thread_id: string
           confidence?: number | null
@@ -8530,6 +8663,7 @@ export type Database = {
           user_id: string | null
           verified_at: string | null
         }
+        ComputedFields: never
         Insert: {
           connection_id: string
           contact_profile_id?: string | null
@@ -8606,6 +8740,7 @@ export type Database = {
           takeover_status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           assigned_team_id?: number | null
           assigned_user_id?: string | null
@@ -8701,6 +8836,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           available_at?: string
           connection_id: string
@@ -8764,6 +8900,7 @@ export type Database = {
           slug: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -8790,6 +8927,7 @@ export type Database = {
           created_at: string
           definition_id: string
         }
+        ComputedFields: never
         Insert: {
           category_id: string
           created_at?: string
@@ -8844,6 +8982,7 @@ export type Database = {
           usage_count: number
           website_url: string | null
         }
+        ComputedFields: never
         Insert: {
           allow_multiple?: boolean
           created_at?: string
@@ -8908,6 +9047,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           auth_header_name?: string | null
           auth_header_value?: string | null
@@ -8959,6 +9099,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -9027,6 +9168,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           definition_id?: string | null
@@ -9092,6 +9234,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           authorized_at?: string
           created_at?: string
@@ -9168,6 +9311,7 @@ export type Database = {
           updated_at: string
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           consumed_at?: string | null
           created_at?: string
@@ -9268,6 +9412,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -9320,6 +9465,7 @@ export type Database = {
           task_material_id: string | null
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           allocated_after: number
           allocated_delta?: number
@@ -9492,6 +9638,7 @@ export type Database = {
           updated_at: string
           variant_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -9579,6 +9726,7 @@ export type Database = {
           updated_by: string | null
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           allocated_quantity?: number
           bin_location?: string | null
@@ -9689,6 +9837,7 @@ export type Database = {
           reason: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount_cents: number
           created_at?: string
@@ -9775,6 +9924,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -9934,6 +10084,7 @@ export type Database = {
           stripe_payment_intent_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount_cents?: number
           amount_total: number
@@ -10020,6 +10171,7 @@ export type Database = {
           reason: string | null
           to_status: Database["public"]["Enums"]["invoice_status"]
         }
+        ComputedFields: never
         Insert: {
           actor_user_id?: string | null
           created_at?: string
@@ -10065,6 +10217,7 @@ export type Database = {
           position: number
           task_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           invoice_id: string
@@ -10177,6 +10330,7 @@ export type Database = {
           vat_regime: Database["public"]["Enums"]["document_vat_regime"]
           vat_total: number
         }
+        ComputedFields: never
         Insert: {
           amount_due_cents?: number
           amount_paid_cents?: number
@@ -10411,6 +10565,7 @@ export type Database = {
           position: number
           token_count: number | null
         }
+        ComputedFields: never
         Insert: {
           collection_id: string
           content: string
@@ -10473,6 +10628,7 @@ export type Database = {
           team_id: number | null
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           collection_id: string
           created_at?: string
@@ -10529,6 +10685,7 @@ export type Database = {
           updated_at: string
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -10586,6 +10743,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           byte_size?: number | null
           checksum?: string | null
@@ -10664,6 +10822,7 @@ export type Database = {
           recipient_id: string
           status: string
         }
+        ComputedFields: never
         Insert: {
           attempted_at?: string | null
           channel: string
@@ -10723,6 +10882,7 @@ export type Database = {
           summary: string | null
           type: string
         }
+        ComputedFields: never
         Insert: {
           action_path?: string | null
           actor_user_id?: string | null
@@ -10773,6 +10933,7 @@ export type Database = {
           type: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           channel: string
           created_at?: string
@@ -10813,6 +10974,7 @@ export type Database = {
           recipient_user_id: string
           resolved_at: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           delivered_at?: string
@@ -10869,6 +11031,7 @@ export type Database = {
           subject_type: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -10916,6 +11079,7 @@ export type Database = {
           organization_id: string
           revoked_at: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           digital_file_id?: string | null
@@ -10992,6 +11156,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -11137,6 +11302,7 @@ export type Database = {
           vat_regime: Database["public"]["Enums"]["document_vat_regime"]
           vat_total: number
         }
+        ComputedFields: never
         Insert: {
           buyer_address_city?: string | null
           buyer_address_country?: string | null
@@ -11311,6 +11477,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
         }
+        ComputedFields: never
         Insert: {
           action_id: string
           created_at?: string
@@ -11359,6 +11526,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
         }
+        ComputedFields: never
         Insert: {
           approval_risk_threshold?: string
           background_actions_enabled?: boolean
@@ -11417,6 +11585,7 @@ export type Database = {
           stripe_customer_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           address_city?: string | null
           address_country?: string | null
@@ -11470,6 +11639,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           auto_top_up_enabled?: boolean
           created_at?: string
@@ -11507,6 +11677,7 @@ export type Database = {
           position: number
           width: number
         }
+        ComputedFields: never
         Insert: {
           byte_size: number
           created_at?: string
@@ -11552,6 +11723,7 @@ export type Database = {
           token: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           accepted_at?: string | null
           created_at?: string
@@ -11605,6 +11777,7 @@ export type Database = {
           organization_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email: string
@@ -11653,6 +11826,7 @@ export type Database = {
           stripe_subscription_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount_due?: number
           amount_paid?: number
@@ -11723,6 +11897,7 @@ export type Database = {
           organization_id: string
           period: string
         }
+        ComputedFields: never
         Insert: {
           entity: string
           last_number?: number
@@ -11763,6 +11938,7 @@ export type Database = {
           stripe_account_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           charges_enabled?: boolean
           country?: string | null
@@ -11824,6 +12000,7 @@ export type Database = {
           type: Database["public"]["Enums"]["billing_payment_method_type"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           billing_customer_id: string
           billing_name?: string | null
@@ -11882,6 +12059,7 @@ export type Database = {
           role_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           granted: boolean
@@ -11946,6 +12124,7 @@ export type Database = {
           stripe_subscription_id: string | null
           trial_end: string | null
         }
+        ComputedFields: never
         Insert: {
           cancel_at?: string | null
           cancel_at_period_end: boolean
@@ -12034,6 +12213,7 @@ export type Database = {
           trial_end: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           audit_log_retention_days?: number | null
           billing_customer_id: string
@@ -12112,6 +12292,7 @@ export type Database = {
           slug: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           color?: string | null
           created_at?: string
@@ -12158,6 +12339,7 @@ export type Database = {
           value: string
           verification_status: string | null
         }
+        ComputedFields: never
         Insert: {
           billing_customer_id?: string | null
           created_at?: string
@@ -12213,6 +12395,7 @@ export type Database = {
           source_id: string | null
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           billable?: boolean
           created_at?: string
@@ -12279,6 +12462,7 @@ export type Database = {
           stripe_synced_at: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -12341,6 +12525,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           last_used_at?: string
@@ -12384,6 +12569,7 @@ export type Database = {
           rate: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -12459,6 +12645,7 @@ export type Database = {
           updated_at: string
           website: string | null
         }
+        ComputedFields: never
         Insert: {
           address_city?: string | null
           address_country?: string | null
@@ -12566,6 +12753,7 @@ export type Database = {
           status: Database["public"]["Enums"]["payroll_period_status"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           exported_at?: string | null
@@ -12609,6 +12797,7 @@ export type Database = {
           name: string
           scope: Database["public"]["Enums"]["scope_type"]
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -12634,6 +12823,7 @@ export type Database = {
           updated_by: string | null
           value: NonNullable<Json>
         }
+        ComputedFields: never
         Insert: {
           key: string
           updated_at?: string
@@ -12661,6 +12851,7 @@ export type Database = {
           slug: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -12710,6 +12901,7 @@ export type Database = {
           organization_id: string
           product_id: string
         }
+        ComputedFields: never
         Insert: {
           category_id: string
           created_at?: string
@@ -12776,6 +12968,7 @@ export type Database = {
           storage_path: string
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           byte_size?: number | null
           content_type?: string | null
@@ -12838,6 +13031,7 @@ export type Database = {
           revoked_at: string | null
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           assigned_at?: string | null
           created_at?: string
@@ -12900,6 +13094,7 @@ export type Database = {
           position: number
           value: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -12943,6 +13138,7 @@ export type Database = {
           product_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -12996,6 +13192,7 @@ export type Database = {
           updated_at: string
           workflow_run_id: string | null
         }
+        ComputedFields: never
         Insert: {
           completed_at?: string | null
           context?: NonNullable<Json>
@@ -13060,6 +13257,7 @@ export type Database = {
           updated_at: string
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           currency?: string | null
@@ -13142,6 +13340,7 @@ export type Database = {
           organization_id: string
           variant_id: string
         }
+        ComputedFields: never
         Insert: {
           option_value_id: string
           organization_id: string
@@ -13197,6 +13396,7 @@ export type Database = {
           updated_at: string
           weight_grams: number | null
         }
+        ComputedFields: never
         Insert: {
           allow_backorder?: boolean
           average_cost?: number | null
@@ -13286,6 +13486,7 @@ export type Database = {
           vat_percentage: number | null
           weight_grams: number | null
         }
+        ComputedFields: never
         Insert: {
           brand_id?: string | null
           country_of_origin?: string | null
@@ -13391,6 +13592,7 @@ export type Database = {
           username: string
           week_start: string
         }
+        ComputedFields: never
         Insert: {
           active_organization_id?: string | null
           active_team_id?: number | null
@@ -13453,6 +13655,7 @@ export type Database = {
           promotion_id: string
           tag_id: string | null
         }
+        ComputedFields: never
         Insert: {
           customer_id?: number | null
           id?: string
@@ -13515,6 +13718,7 @@ export type Database = {
           subject_type: Database["public"]["Enums"]["promotion_subject_type"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount?: number
           committed_at?: string | null
@@ -13577,6 +13781,7 @@ export type Database = {
           promotion_id: string
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           category_id?: string | null
           id?: string
@@ -13657,6 +13862,7 @@ export type Database = {
           usage_limit_total: number | null
           value: number
         }
+        ComputedFields: never
         Insert: {
           applies_to?: Database["public"]["Enums"]["promotion_applies_to"]
           code?: string | null
@@ -13721,6 +13927,7 @@ export type Database = {
           name: string
           organization_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           holiday_date: string
@@ -13765,6 +13972,7 @@ export type Database = {
           variant_id: string
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           expected_at?: string | null
@@ -13869,6 +14077,7 @@ export type Database = {
           updated_by: string | null
           vat_total: number
         }
+        ComputedFields: never
         Insert: {
           cancelled_at?: string | null
           closed_at?: string | null
@@ -13962,6 +14171,7 @@ export type Database = {
           position: number
           quote_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_asset_id: number
@@ -14013,6 +14223,7 @@ export type Database = {
           user_agent: string | null
           version: number
         }
+        ComputedFields: never
         Insert: {
           comment: string
           created_at?: string
@@ -14084,6 +14295,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -14202,6 +14414,7 @@ export type Database = {
           to_status: Database["public"]["Enums"]["quote_status"]
           user_agent: string | null
         }
+        ComputedFields: never
         Insert: {
           actor_customer_email?: string | null
           actor_customer_name?: string | null
@@ -14255,6 +14468,7 @@ export type Database = {
           quote_id: string
           task_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -14322,6 +14536,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -14469,6 +14684,7 @@ export type Database = {
           vat_total: number
           version: number
         }
+        ComputedFields: never
         Insert: {
           buyer_address_city?: string | null
           buyer_address_country?: string | null
@@ -14681,6 +14897,7 @@ export type Database = {
           version: number
           withdrawn_at: string | null
         }
+        ComputedFields: never
         Insert: {
           accepted_at?: string | null
           accepted_by_email?: string | null
@@ -14897,6 +15114,7 @@ export type Database = {
           permission_id: string
           role_id: string
         }
+        ComputedFields: never
         Insert: {
           permission_id: string
           role_id: string
@@ -14933,6 +15151,7 @@ export type Database = {
           scope: Database["public"]["Enums"]["scope_type"]
           system: boolean
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -14982,6 +15201,7 @@ export type Database = {
           shipment_id: string
           variant_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           expires_on?: string | null
@@ -15083,6 +15303,7 @@ export type Database = {
           updated_at: string
           weight_grams: number | null
         }
+        ComputedFields: never
         Insert: {
           address_city?: string | null
           address_country?: string | null
@@ -15203,6 +15424,7 @@ export type Database = {
           time_off_request_id: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           actual_return_on?: string | null
           created_at?: string
@@ -15271,6 +15493,7 @@ export type Database = {
           requires_document: boolean
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           color?: string | null
           created_at?: string
@@ -15323,6 +15546,7 @@ export type Database = {
           type: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           error_message?: string | null
@@ -15386,6 +15610,7 @@ export type Database = {
           updated_at: string
           website: string | null
         }
+        ComputedFields: never
         Insert: {
           account_number?: string | null
           address_city?: string | null
@@ -15477,6 +15702,7 @@ export type Database = {
           task_id: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -15523,6 +15749,7 @@ export type Database = {
           system_key: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -15574,6 +15801,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           billable?: boolean
           consumed_at?: string | null
@@ -15670,6 +15898,7 @@ export type Database = {
           skill_id: string
           task_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -15713,6 +15942,7 @@ export type Database = {
           tag_id: string
           task_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -15776,6 +16006,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           budget_hours?: number | null
@@ -15881,6 +16112,7 @@ export type Database = {
           updated_at: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -15933,6 +16165,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -15991,6 +16224,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -16081,6 +16315,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           assignee_role?: Database["public"]["Enums"]["journey_assignee_role"]
           assignee_user_id?: string | null
@@ -16157,6 +16392,7 @@ export type Database = {
           variant_id: string | null
           vat_rate: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           description?: string | null
@@ -16247,6 +16483,7 @@ export type Database = {
           template_id: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -16296,6 +16533,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           customer_asset_id?: number | null
@@ -16363,6 +16601,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -16409,6 +16648,7 @@ export type Database = {
           tag_id: string
           template_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           organization_id: string
@@ -16458,6 +16698,7 @@ export type Database = {
           template_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -16535,6 +16776,7 @@ export type Database = {
           vat_inclusive: boolean
           vat_regime: Database["public"]["Enums"]["document_vat_regime"]
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           created_at?: string
@@ -16650,6 +16892,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           agenda_item_id?: string | null
           bill_rate?: number | null
@@ -16749,6 +16992,7 @@ export type Database = {
           organization_id: string
           signal_key: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           employee_id: string
@@ -16790,6 +17034,7 @@ export type Database = {
           starts_on: string
           team_id: number | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -16839,6 +17084,7 @@ export type Database = {
           token: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -16889,6 +17135,7 @@ export type Database = {
           time_off_request_id: string | null
           time_off_type_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -16963,6 +17210,7 @@ export type Database = {
           time_off_type_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           accrual_method?: Database["public"]["Enums"]["time_off_accrual_method"]
           annual_hours?: number
@@ -17032,6 +17280,7 @@ export type Database = {
           time_off_type_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           attachment_storage_path?: string | null
           cancelled_at?: string | null
@@ -17121,6 +17370,7 @@ export type Database = {
           requires_attachment: boolean
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           allow_half_days?: boolean
           allow_hours?: boolean
@@ -17181,6 +17431,7 @@ export type Database = {
           updated_at: string
           week_start: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           decided_at?: string | null
@@ -17230,6 +17481,7 @@ export type Database = {
           role_id: string
           user_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           role_id: string
@@ -17271,6 +17523,7 @@ export type Database = {
           updated_at: string
           workflow_run_id: string | null
         }
+        ComputedFields: never
         Insert: {
           attempt?: number
           available_at?: string
@@ -17351,6 +17604,7 @@ export type Database = {
           secret: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           destination_id: string
@@ -17396,6 +17650,7 @@ export type Database = {
           updated_at: string
           url: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -17437,6 +17692,7 @@ export type Database = {
           secret: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           endpoint_id: string
@@ -17485,6 +17741,7 @@ export type Database = {
           updated_at: string
           workflow_definition_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -17554,6 +17811,7 @@ export type Database = {
           version: number
           visibility: string
         }
+        ComputedFields: never
         Insert: {
           archived_at?: string | null
           created_at?: string
@@ -17627,6 +17885,7 @@ export type Database = {
           payload: NonNullable<Json>
           source: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -17665,6 +17924,7 @@ export type Database = {
           team_id: number | null
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -17724,6 +17984,7 @@ export type Database = {
           source_run_id: string | null
           stage_key: string
         }
+        ComputedFields: never
         Insert: {
           actor_customer_contact_id?: string | null
           actor_user_id?: string | null
@@ -17813,6 +18074,7 @@ export type Database = {
           subject_type: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           current_stage_key?: string | null
@@ -17880,6 +18142,7 @@ export type Database = {
           definition_key: string
           organization_id: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -17919,6 +18182,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           attempt?: number
           completed_at?: string | null
@@ -17991,6 +18255,7 @@ export type Database = {
           updated_at: string
           workflow_run_id: string | null
         }
+        ComputedFields: never
         Insert: {
           completed_at?: string | null
           created_at?: string
@@ -18073,6 +18338,7 @@ export type Database = {
           timezone: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           cron: string
@@ -18320,7 +18586,10 @@ export type Database = {
       }
       can_decide_approval_request: {
         Args: {
-          p_request: Database["public"]["Tables"]["approval_requests"]["Row"]
+          p_request: Omit<
+            Database["public"]["Tables"]["approval_requests"]["Row"],
+            Database["public"]["Tables"]["approval_requests"]["ComputedFields"]
+          >
         }
         Returns: boolean
       }
@@ -19506,13 +19775,19 @@ export type Database = {
       }
       is_approval_approver: {
         Args: {
-          p_request: Database["public"]["Tables"]["approval_requests"]["Row"]
+          p_request: Omit<
+            Database["public"]["Tables"]["approval_requests"]["Row"],
+            Database["public"]["Tables"]["approval_requests"]["ComputedFields"]
+          >
         }
         Returns: boolean
       }
       is_approval_requester: {
         Args: {
-          p_request: Database["public"]["Tables"]["approval_requests"]["Row"]
+          p_request: Omit<
+            Database["public"]["Tables"]["approval_requests"]["Row"],
+            Database["public"]["Tables"]["approval_requests"]["ComputedFields"]
+          >
         }
         Returns: boolean
       }

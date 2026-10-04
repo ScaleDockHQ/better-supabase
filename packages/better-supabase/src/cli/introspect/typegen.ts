@@ -238,8 +238,8 @@ async function formatTypes(code: string): Promise<string> {
 }
 
 /**
- * Renders `database.types.ts`, byte for byte what `supabase gen types` prints
- * when oxfmt is installed.
+ * Renders `database.types.ts` as `supabase gen types` prints it when oxfmt is
+ * installed, plus the `ComputedFields` keys Supabase CLI 2.119 doesn't write.
  */
 export function generateDatabaseTypes(
   metadata: GeneratorMetadata,
