@@ -182,6 +182,16 @@ describe("runSql", () => {
     });
   });
 
+  it("prints the contract of a custom-mode module", async () => {
+    const printed = await sql(["print", "tenant"], {
+      kits: { tenant: { mode: "custom", schema: "app" } },
+    });
+    expect(printed.code).toBe(0);
+    expect(printed.output).toMatch(
+      /^-- kits\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
+    );
+  });
+
   it("stops on an entitlements scope the manifest lacks", async () => {
     await writeFile(join(root, "permdock.config.ts"), "export default {};\n");
     await cp(

@@ -259,6 +259,45 @@ describe("createOrgs", () => {
     ]);
   });
 
+  it("removes members, leaves, marks use and declines invitations", async () => {
+    const { transport, calls } = fake({
+      remove_member: true,
+      leave_organization: true,
+      mark_used: true,
+      decline_invitation: true,
+      invitation_preview: null,
+    });
+    const events = new EventHub();
+    const seen: string[] = [];
+    events.on("kit", (event) => seen.push(event.type));
+    const orgs = createOrgs({ transport, events, actorId: "user-1" });
+    expect(await orgs.removeMember("org-1", "user-2")).toMatchObject({
+      ok: true,
+      data: true,
+    });
+    expect(await orgs.leave("org-1")).toMatchObject({ ok: true, data: true });
+    expect(await orgs.markUsed("org-1")).toMatchObject({
+      ok: true,
+      data: true,
+    });
+    expect(await orgs.declineInvitation("token")).toMatchObject({
+      ok: true,
+      data: true,
+    });
+    expect(await orgs.previewInvitation("token")).toMatchObject({
+      ok: true,
+      data: undefined,
+    });
+    expect(seen).toEqual(["org.member_removed", "org.member_left"]);
+    expect(calls.map((call) => call.fn)).toEqual([
+      "remove_member",
+      "leave_organization",
+      "mark_used",
+      "decline_invitation",
+      "invitation_preview",
+    ]);
+  });
+
   it("reads slug problems and previews", async () => {
     const { transport } = fake({
       organization_slug_problem: "taken",
