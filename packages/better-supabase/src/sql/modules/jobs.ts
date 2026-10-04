@@ -7,7 +7,7 @@ export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
 
 /** `kits.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
-export function jobsBackend(ctx: KitContext): JobsBackend {
+function jobsBackend(ctx: KitContext): JobsBackend {
   const backend = ctx.text("backend", "pgmq");
   if (backend !== "pgmq" && backend !== "table") {
     throw new TypeError(
@@ -18,7 +18,7 @@ export function jobsBackend(ctx: KitContext): JobsBackend {
 }
 
 /** `kits.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
-export function jobsScheduler(ctx: KitContext): JobsScheduler {
+function jobsScheduler(ctx: KitContext): JobsScheduler {
   const scheduler = ctx.text("scheduler", "pg_cron");
   if (scheduler !== "pg_cron" && scheduler !== "drain") {
     throw new TypeError(

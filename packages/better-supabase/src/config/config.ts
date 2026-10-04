@@ -11,13 +11,6 @@ import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 
 export type { Casing };
-export type {
-  AccessKitConfig,
-  ActiveTenantSource,
-  KitMode,
-  KitModuleConfig,
-  KitsConfig,
-} from "./kits.ts";
 
 /**
  * Where codegen reads the database from. Without any of these, `$DATABASE_URL`

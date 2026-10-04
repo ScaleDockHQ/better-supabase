@@ -44,7 +44,7 @@ const NAMES: KitNames = {
 };
 
 /** Every error the module raises: its hint code and default SQLSTATE. */
-export const INVITATION_ERRORS = {
+const INVITATION_ERRORS = {
   INVITATION_FORBIDDEN: "42501",
   INVITATION_ROLE_FORBIDDEN: "42501",
   INVITATION_ROLE_UNKNOWN: "23514",

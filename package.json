@@ -14,7 +14,7 @@
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
-    "db:gen": "for p in apps/examples/* tests/validation-*; do [ \"$p\" = tests/validation-centrakit ] && continue; better-supabase gen --cwd \"$p\" || exit 1; done",
+    "db:gen": "for p in apps/examples/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ]; then better-supabase gen --cwd \"$p\" || exit 1; fi; done",
     "dev": "turbo run dev",
     "dev:cleanup": "portless prune",
     "dev:docs": "dotenv -e .env.development.local -e .env.local -- turbo run dev:portless --filter=docs",

@@ -189,6 +189,8 @@
     ],
     "types": [
       "* from ./snapshot.ts",
+      "AccessKitConfig",
+      "ActiveTenantSource",
       "ActorConfig",
       "BetterSupabaseConfig",
       "BucketConfig",
@@ -204,6 +206,9 @@
       "JsonSchemaGeneratorOptions",
       "JsonSchemaSource",
       "JsonTypeConfig",
+      "KitMode",
+      "KitModuleConfig",
+      "KitsConfig",
       "OpenApiConfig",
       "PermdockPathsConfig",
       "PluginFlagsConfig",

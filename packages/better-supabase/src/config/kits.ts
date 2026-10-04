@@ -13,8 +13,6 @@
  */
 export type KitMode = "managed" | "adopt" | "custom";
 
-export const KIT_MODES: readonly KitMode[] = ["managed", "adopt", "custom"];
-
 /** Options every module takes. */
 export interface KitModuleConfig {
   readonly mode?: KitMode;
@@ -156,7 +154,7 @@ export interface ResolvedKitModule {
   readonly events: boolean;
 }
 
-export const KIT_SCHEMA = "better_supabase";
+const KIT_SCHEMA = "better_supabase";
 
 export function resolveKitModule(
   config: KitModuleConfig = {},

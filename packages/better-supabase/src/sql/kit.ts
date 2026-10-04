@@ -1563,8 +1563,7 @@ export function checkKits(
 }
 
 /** The `@bs-kit` line: module, version and mode, read by `sql upgrade`. */
-export const KIT_MARKER: RegExp =
-  /^-- @bs-kit ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
+const KIT_MARKER: RegExp = /^-- @bs-kit ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
 
 /** The installed version of a kit file, from its `@bs-kit` line. */
 export function kitFileVersion(

@@ -89,22 +89,6 @@ grant execute on function better_supabase.user_disabled(uuid) to authenticated, 
 }
 
 /**
- * Calls the app's `<schema>.<name>(args)` when it exists, so modules expose
- * `before_*` and `after_*` hooks without the app having to define them.
- * `args` are SQL expressions; `types` their types, for the lookup.
- */
-export function sqlHook(
-  ctx: KitContext,
-  name: string,
-  args: readonly { readonly sql: string; readonly type: string }[],
-): string {
-  const signature = `${ctx.schemaName}.${name}(${args.map((arg) => arg.type).join(", ")})`;
-  return `if to_regprocedure(${sqlString(signature)}) is not null then
-    execute format('select %s(${args.map((_, index) => `$${String(index + 1)}`).join(", ")})', ${sqlString(`${ctx.schema}.${sqlIdent(name)}`)})${args.length > 0 ? ` using ${args.map((arg) => arg.sql).join(", ")}` : ""};
-  end if;`;
-}
-
-/**
  * Another row trigger on `target` whose function name matches `pattern` does
  * the kit trigger's job twice. `track_*` warns about it, or drops it with
  * `replace_trigger => true`.
