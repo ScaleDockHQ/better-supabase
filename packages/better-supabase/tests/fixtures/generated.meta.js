@@ -122,6 +122,12 @@ export default {
           "type": "uuid",
           "nullable": false,
           "hasDefault": false
+        },
+        "created_at": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
         }
       },
       "primaryKey": [
@@ -178,6 +184,9 @@ export default {
         }
       },
       "flags": {
+        "timestamps": {
+          "createdAt": "created_at"
+        },
         "tenant": "organization_id"
       }
     },
@@ -634,6 +643,12 @@ export default {
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "updated_at": {
+          "db": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
         }
       },
       "primaryKey": [
@@ -658,7 +673,8 @@ export default {
       },
       "flags": {
         "timestamps": {
-          "createdAt": "created_at"
+          "createdAt": "created_at",
+          "updatedAt": "updated_at"
         },
         "tenant": "organization_id"
       }
@@ -850,6 +866,18 @@ export default {
             "green",
             "blue"
           ]
+        },
+        "created_at": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
+        },
+        "updated_at": {
+          "db": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
         }
       },
       "primaryKey": [
@@ -898,6 +926,10 @@ export default {
         }
       },
       "flags": {
+        "timestamps": {
+          "createdAt": "created_at",
+          "updatedAt": "updated_at"
+        },
         "tenant": "organization_id"
       }
     }

@@ -3,9 +3,14 @@ create table public.tags (
   organization_id uuid not null references public.organizations (id) on delete cascade,
   name text not null,
   color text not null default 'gray' check (color in ('gray', 'red', 'green', 'blue')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   constraint tags_organization_id_name_key unique (organization_id, name),
   constraint tags_id_organization_id_key unique (id, organization_id)
 );
+
+create trigger tags_set_updated_at before update on public.tags
+  for each row execute function better_supabase.set_updated_at();
 
 alter table public.tags enable row level security;
 
@@ -18,6 +23,7 @@ create table public.customer_tags (
   customer_id uuid not null,
   tag_id uuid not null,
   organization_id uuid not null references public.organizations (id) on delete cascade,
+  created_at timestamptz not null default now(),
   primary key (customer_id, tag_id),
   constraint customer_tags_customer_id_fkey foreign key (customer_id, organization_id)
     references public.customers (id, organization_id) on delete cascade,

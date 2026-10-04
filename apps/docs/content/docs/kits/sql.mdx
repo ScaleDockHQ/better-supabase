@@ -59,6 +59,7 @@ their functions.
 | `grants`           | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                                                                |
 | `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                                                            |
 | `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                                                        |
+| `sessions`         | `session_active()` for restrictive policies that reject tokens whose session was signed out or expired, or whose user was banned or deleted. See [Ended sessions](/docs/auth/account-deletion#ended-sessions)                                                  |
 | `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)                                                                                              |
 | `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                                                        |
 | `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                      |
@@ -106,6 +107,11 @@ moving a row into an organization the user can't manage.
 Admins can invite members, viewers and other admins. Only an owner, or the
 service role, can invite an owner, and the invitee has to confirm their email
 address before `accept_invitation` adds them.
+
+Kit tables use `gen_random_uuid()` keys. Postgres 18's `uuidv7()` gives
+time-ordered keys that keep indexes compact, and the kit moves to it once
+hosted Supabase runs Postgres 18
+([supabase/postgres#2051](https://github.com/supabase/postgres/pull/2051)).
 
 Errors raised by the kit carry a stable code in the `hint` field, for example
 `SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
@@ -223,11 +229,10 @@ creates it.
 
 ## Retention
 
-The audit log, the webhook inbox and the job archives only grow. Each module
-has a purge function that deletes rows older than an interval, at most `batch`
-rows per call (10,000 by default), and returns how many it deleted. They
-delete in primary-key order, so they find the oldest rows through the primary
-key index without a full scan. Only `service_role` can call them.
+The audit log, the webhook inbox and delivery log, the rate-limit counters
+and the job archives only grow. Each module has a purge function that deletes
+rows older than an interval, at most `batch` rows per call (10,000 by
+default), and returns how many it deleted. Only `service_role` can call them.
 
 | Function                                                                         | Deletes                                                                                                            |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -235,6 +240,8 @@ key index without a full scan. Only `service_role` can call them.
 | `purge_webhooks(older_than => '30 days')`                                        | processed messages; `include_dead => true` also deletes dead ones                                                  |
 | `purge_job_archive(queue, older_than => '7 days', dead_older_than => '30 days')` | completed jobs, and dead jobs after their own retention (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
 | `purge_idempotency_keys()`                                                       | expired idempotency keys                                                                                           |
+| `purge_webhook_deliveries(older_than => '30 days')`                              | succeeded and canceled outgoing deliveries; `include_dead => true` also deletes dead ones                          |
+| `purge_rate_limits()`                                                            | counters whose window has ended or whose rule was removed                                                          |
 
 Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
 hour. Enable the extension once (`create extension pg_cron with schema
@@ -245,6 +252,8 @@ select cron.schedule('purge-audit-log', '15 3 * * *', $$select better_supabase.p
 select cron.schedule('purge-webhooks', '30 3 * * *', $$select better_supabase.purge_webhooks()$$);
 select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
 select cron.schedule('purge-idempotency-keys', '0 4 * * *', $$select better_supabase.purge_idempotency_keys()$$);
+select cron.schedule('purge-webhook-deliveries', '45 3 * * *', $$select better_supabase.purge_webhook_deliveries()$$);
+select cron.schedule('purge-rate-limits', '*/15 * * * *', $$select better_supabase.purge_rate_limits()$$);
 ```
 
 Tenants can keep entries for different periods, a plan's retention for
@@ -400,8 +409,11 @@ export default defineConfig({
 });
 ```
 
-The constraint is validated when it is added, so existing rows that don't
-match make the migration fail. Fix those rows first. Re-run `sql add` after
+Each constraint is added `not valid` and then validated in its own
+statement, so existing rows that don't match make the migration fail. Fix
+those rows first. On a large table, move the `validate constraint` statement
+to a later migration: adding a `not valid` check blocks writes only briefly,
+and validating takes a lock that lets writes continue. Re-run `sql add` after
 you change a schema.
 
 ## Keeping files current

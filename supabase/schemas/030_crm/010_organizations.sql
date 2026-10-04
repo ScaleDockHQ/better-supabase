@@ -7,7 +7,7 @@ create table public.organizations (
 );
 
 create trigger organizations_set_updated_at before update on public.organizations
-  for each row execute function public.set_updated_at();
+  for each row execute function better_supabase.set_updated_at();
 
 alter table public.organizations enable row level security;
 

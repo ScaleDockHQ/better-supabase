@@ -51,16 +51,19 @@ export type Database = {
       }
       customer_tags: {
         Row: {
+          created_at: string
           customer_id: string
           organization_id: string
           tag_id: string
         }
         Insert: {
+          created_at?: string
           customer_id: string
           organization_id: string
           tag_id: string
         }
         Update: {
+          created_at?: string
           customer_id?: string
           organization_id?: string
           tag_id?: string
@@ -258,6 +261,7 @@ export type Database = {
           organization_id: string
           read_at: string | null
           title: string
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -266,6 +270,7 @@ export type Database = {
           organization_id: string
           read_at?: string | null
           title: string
+          updated_at?: string
           user_id?: string
         }
         Update: {
@@ -274,6 +279,7 @@ export type Database = {
           organization_id?: string
           read_at?: string | null
           title?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -313,21 +319,27 @@ export type Database = {
       tags: {
         Row: {
           color: string
+          created_at: string
           id: string
           name: string
           organization_id: string
+          updated_at: string
         }
         Insert: {
           color?: string
+          created_at?: string
           id?: string
           name: string
           organization_id: string
+          updated_at?: string
         }
         Update: {
           color?: string
+          created_at?: string
           id?: string
           name?: string
           organization_id?: string
+          updated_at?: string
         }
         Relationships: [
           {

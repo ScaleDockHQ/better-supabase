@@ -95,6 +95,19 @@ defineTopic("org:{orgId}:board", {
 in your SQL files that names such a key, and `permdock doctor` reports PD037
 for any topic policy that calls a helper for one.
 
+## Before production
+
+- **Turn off public access.** The policies only apply to private channels. In
+  the dashboard's Realtime settings, turn off "Allow public access" so a
+  client can't join the same topic as a public channel and skip them.
+- **Policies are cached per connection.** Realtime checks them when a client
+  joins and keeps the result until the client's access token refreshes or it
+  rejoins. A member you remove keeps receiving until then, up to the token's
+  expiry.
+- **`realtime.messages` is not a history.** Database broadcasts are rows in
+  `realtime.messages`, which is partitioned by day and pruned after a few
+  days. Clients that reconnect should refetch from your tables.
+
 ## Row changes
 
 `triggerSql` writes a trigger that sends row changes with

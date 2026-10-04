@@ -41,6 +41,14 @@ turns them into a migration stamped after the newest one.
 module through the sync on a second stack (ports 56420 to 56422) when the
 Supabase CLI and Docker are available.
 
+The `900_better_supabase_*` files in `supabase/schemas` and
+`supabase/better-supabase-data` are kit modules that `better-supabase sql sync`
+writes from `apps/examples/nextjs` (its `sql.dir` points at the fixture). Never
+edit them by hand. When a change touches one of those modules, run
+`pnpm --filter @better-supabase/example-nextjs exec better-supabase sql sync`,
+then `pnpm supabase:sync <name>`, and `sql data` from the same folder when the
+data files changed. The example's `gen:check` fails while they are stale.
+
 Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend; `090_grants.sql` is
 where the fixture's grants live.

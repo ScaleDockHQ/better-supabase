@@ -50,3 +50,16 @@ native stack when a CLI release passes `pnpm test:integration` with
 `SUPABASE_EXPERIMENTAL_STACK=1`; then commit `stack = true` and switch CI and
 `scripts/env-local.ts` to `supabase status --env`, which the Docker backend
 rejects.
+
+## File layout (2026-10-04)
+
+`supabase/schemas` keeps its numbered layout (`010_extensions.sql`,
+`030_crm/020_contacts.sql`, ...) instead of the per-schema layout that
+`supabase db schema declarative generate` writes (`schemas/public/tables/...`).
+pg-delta orders files by dependency, so the numbers only group related files
+for readers, and the SQL kit's `900_better_supabase_*` files sort after the
+fixture's own. The Next.js example's `sql.dir` points at `supabase/schemas`,
+so the kit files the examples rely on are the ones the stack runs, and
+`supabase/better-supabase-data` holds their data statements. Moving to the
+per-schema layout would rename every fixture file without changing a
+migration; revisit it if pg-delta starts requiring that layout.

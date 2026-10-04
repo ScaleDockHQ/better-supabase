@@ -10,9 +10,11 @@ create table public.contacts (
 );
 
 create index contacts_organization_id_idx on public.contacts (organization_id);
+-- Lookups by email ignore case.
+create index contacts_organization_id_email_idx on public.contacts (organization_id, lower(email));
 
 create trigger contacts_set_updated_at before update on public.contacts
-  for each row execute function public.set_updated_at();
+  for each row execute function better_supabase.set_updated_at();
 
 alter table public.contacts enable row level security;
 

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
@@ -133,16 +133,21 @@ async function layoutFor(
 
 /**
  * The migrations folder next to the `config.toml` found walking up from
- * `sql.dir`, relative to the root; `supabase/migrations` without one.
+ * `sql.dir`, relative to the root; `supabase/migrations` without one. The
+ * walk stops where `sql.dir` and the root meet, so a `sql.dir` outside the
+ * project (a shared stack in a monorepo) finds that stack's folder.
  */
 export function migrationsDir(config: ResolvedConfig): string {
   const root = resolve(config.root);
   let dir = resolve(root, config.sql.dir);
-  while (dir.startsWith(root)) {
+  let stop = root;
+  while (dir !== stop && !dir.startsWith(stop + sep) && dirname(stop) !== stop)
+    stop = dirname(stop);
+  for (;;) {
     if (existsSync(join(dir, "config.toml"))) {
       return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
     }
-    if (dir === root) break;
+    if (dir === stop || dirname(dir) === dir) break;
     dir = dirname(dir);
   }
   return "supabase/migrations";

@@ -59,6 +59,22 @@ pass `createPostgres().admin` or another connection as `postgres`. Service and
 anonymous callers pass through. Nothing calls it on its own: every other
 request keeps verifying the token without a database or Auth round trip.
 
+To enforce the same check in the database, add the `sessions` kit module
+(`better-supabase sql add sessions`) and a restrictive policy on the tables
+that matter. `session_active()` is false once the session is gone or
+expired, or the user is banned or deleted. Wrapped in `(select ...)`, it costs
+one indexed lookup per statement:
+
+```sql
+create policy session_required on public.invoices as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));
+```
+
+Tokens without a `session_id` claim (signed by your app) and support tokens
+(with an `act` claim, which the support kit ends) pass.
+
 ## What it does
 
 1. **Storage.** For each bucket in `buckets` with an owner placeholder, it
@@ -110,8 +126,9 @@ Deleting the Auth user revokes their refresh tokens, but access tokens are
 verified locally and stay valid until `exp`, one hour by default. Requests in
 that window still carry the old `sub`. RLS policies on rows that were
 cascaded find nothing, and a policy that joins `auth.users` or a profile
-table denies them. If that window matters, shorten `jwt_expiry` or check the
-user in the policies that guard sensitive writes.
+table denies them. If that window matters, shorten `jwt_expiry` or add the
+`session_active()` policy from [Ended sessions](#ended-sessions) to the tables
+that guard sensitive writes.
 
 In the browser, sign out locally after the action succeeds. A normal
 `signOut()` would call Auth for a user that no longer exists:

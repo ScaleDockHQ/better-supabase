@@ -599,6 +599,61 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     }
   });
 
+  it("session_active rejects tokens whose session was revoked", async () => {
+    const user = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
+      [`session-${RUN}@example.com`],
+    );
+    const sub = user.rows[0]!.id;
+    const session = crypto.randomUUID();
+    await pool.query(
+      `insert into auth.sessions (id, user_id, created_at, updated_at) values ($1, $2, now(), now())`,
+      [session, sub],
+    );
+    const active = async (
+      claims: Record<string, unknown>,
+    ): Promise<boolean> => {
+      const [row] = await postgres
+        .asUser({ sub, ...claims })
+        .queryRaw<{ ok: boolean }>(
+          "select better_supabase.session_active() as ok",
+        );
+      return row!.ok;
+    };
+    try {
+      expect(await active({ session_id: session })).toBe(true);
+      expect(await active({ session_id: crypto.randomUUID() })).toBe(false);
+      expect(await active({ session_id: "not-a-uuid" })).toBe(false);
+      expect(await active({})).toBe(true);
+      expect(
+        await active({
+          session_id: crypto.randomUUID(),
+          act: { sub: crypto.randomUUID() },
+        }),
+      ).toBe(true);
+
+      await pool.query(
+        "update auth.users set banned_until = now() + interval '1 day' where id = $1",
+        [sub],
+      );
+      expect(await active({ session_id: session })).toBe(false);
+      await pool.query(
+        "update auth.users set banned_until = null where id = $1",
+        [sub],
+      );
+      await pool.query("delete from auth.sessions where id = $1", [session]);
+      expect(await active({ session_id: session })).toBe(false);
+
+      await expect(
+        postgres
+          .asUser({ sub, role: "anon" })
+          .queryRaw("select better_supabase.session_active()"),
+      ).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await pool.query("delete from auth.users where id = $1", [sub]);
+    }
+  });
+
   it("puts memberships and Stripe features in separate claims and RLS", async () => {
     const billing = `bs_billing_${RUN}`;
     const hook = `public.bs_hook_${RUN}`;

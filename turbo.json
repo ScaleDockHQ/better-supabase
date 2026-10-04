@@ -114,7 +114,12 @@
     },
     "gen:check": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/supabase/snapshot.json"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/snapshot.json",
+        "$TURBO_ROOT$/supabase/schemas/**",
+        "$TURBO_ROOT$/supabase/better-supabase-data/**"
+      ]
     },
     "doctor": {
       "dependsOn": ["^build"],

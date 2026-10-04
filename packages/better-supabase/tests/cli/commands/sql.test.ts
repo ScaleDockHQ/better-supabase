@@ -169,6 +169,18 @@ describe("runSql", () => {
     expect(migrationsDir(resolveConfig({}, root))).toBe("supabase/migrations");
   });
 
+  it("finds a shared stack's migrations when sql.dir is outside the project", async () => {
+    const app = join(root, "apps/web");
+    await mkdir(app, { recursive: true });
+    await mkdir(join(root, "stack/supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "stack/supabase/config.toml"), "");
+    const config = resolveConfig(
+      { sql: { dir: "../../stack/supabase/schemas" } },
+      app,
+    );
+    expect(migrationsDir(config)).toBe("../../stack/supabase/migrations");
+  });
+
   it("upgrades modules installed before versioned headers", async () => {
     const config: BetterSupabaseConfig = { sql: { kit: ["tenant"] } };
     expect(await sql(["upgrade"])).toEqual({

@@ -121,6 +121,32 @@ $$;
 revoke execute on function better_supabase.check_request() from public;
 grant execute on function better_supabase.check_request() to anon, authenticated, service_role;
 
+-- Deletes up to batch counters whose window has ended or whose rule is gone.
+-- Every caller keeps a row until then, so schedule it with pg_cron:
+-- select cron.schedule('purge-rate-limits', '*/15 * * * *', 'select better_supabase.purge_rate_limits()');
+create or replace function better_supabase.purge_rate_limits(batch integer default 10000)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with expired as (
+    select l.scope, l.key from better_supabase.rate_limits l
+    left join better_supabase.rate_limit_rules r on r.scope = l.scope
+    where r.scope is null or l.window_start + r.period <= now()
+    limit batch
+  ),
+  purged as (
+    delete from better_supabase.rate_limits l
+    using expired e
+    where l.scope = e.scope and l.key = e.key
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+
+revoke execute on function better_supabase.purge_rate_limits(integer) from public, anon, authenticated;
+grant execute on function better_supabase.purge_rate_limits(integer) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.kit_modules (
   name text primary key,

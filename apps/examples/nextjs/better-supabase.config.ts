@@ -37,5 +37,15 @@ export default defineConfig({
   readSets: ["src/lib/read-sets.ts"],
   // `search_notes(query, k)` for `db.$search('notes', …)`.
   vectorSearch: { notes: "embedding" },
-  sql: { kit: ["read-sets", "realtime-tables", "rate-limit", "vector-search"] },
+  // The kit files live in the repo's fixture, so the stack runs them.
+  sql: {
+    dir: "../../../supabase/schemas",
+    kit: [
+      "updated-at",
+      "read-sets",
+      "realtime-tables",
+      "rate-limit",
+      "vector-search",
+    ],
+  },
 });

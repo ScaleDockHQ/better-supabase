@@ -73,16 +73,19 @@ export type Models = {
       customerId: string;
       tagId: string;
       organizationId: string;
+      createdAt: string;
     };
     Insert: {
       customerId: string;
       tagId: string;
       organizationId: string;
+      createdAt?: string;
     };
     Update: {
       customerId?: string;
       tagId?: string;
       organizationId?: string;
+      createdAt?: string;
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -250,6 +253,7 @@ export type Models = {
       title: string;
       readAt: string | null;
       createdAt: string;
+      updatedAt: string;
     };
     Insert: {
       id?: never;
@@ -258,6 +262,7 @@ export type Models = {
       title: string;
       readAt?: string | null;
       createdAt?: string;
+      updatedAt?: string;
     };
     Update: {
       id?: never;
@@ -266,6 +271,7 @@ export type Models = {
       title?: string;
       readAt?: string | null;
       createdAt?: string;
+      updatedAt?: string;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -321,18 +327,24 @@ export type Models = {
       organizationId: string;
       name: string;
       color: "gray" | "red" | "green" | "blue";
+      createdAt: string;
+      updatedAt: string;
     };
     Insert: {
       id?: string;
       organizationId: string;
       name: string;
       color?: "gray" | "red" | "green" | "blue";
+      createdAt?: string;
+      updatedAt?: string;
     };
     Update: {
       id?: string;
       organizationId?: string;
       name?: string;
       color?: "gray" | "red" | "green" | "blue";
+      createdAt?: string;
+      updatedAt?: string;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
