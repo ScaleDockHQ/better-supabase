@@ -472,6 +472,97 @@ PermDock:
 tenant's `features` into the subject's `principal.plans`, so PermDock
 policies can grant by plan.
 
+With `rls.memberships` in the manifest (the tables PermDock's
+`member_<scope>_ids_for` reads), `entitlement_members()` reads the entries
+for the module's scope from there, and falls back to the hook's membership
+sources only for a manifest without it. Doctor (BS408) reports a scope with
+no `rls.memberships` entry.
+
+## The access kit with PermDock
+
+Set `kits.access.model: 'permdock'` and the SQL kit's `can()`, the
+organizations, invitations, audit, support-sessions, notifications and
+webhooks modules check permissions through PermDock's helpers instead of a
+role catalog of their own:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["access", "organizations", "invitations", "audit"] },
+  kits: {
+    access: {
+      model: "permdock",
+      functions: {
+        canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
+      },
+    },
+  },
+});
+```
+
+Then run `permdock supabase inspect --out` and `better-supabase sql add`.
+The kit reads `permdock.manifest.json` whether or not the entitlements
+module uses PermDock:
+
+- the schema is `rls.schema` (write it in `canAssign` too), the scope is the
+  root scope (the `rls.scopes` entry without `within`) and the id type is
+  that scope's `type`. A manifest with `rls.schema: "authz"` and a root scope
+  `tenant` gets `authz.permitted_tenant_ids`;
+- `sql add` stops on a missing manifest, no single root scope, a
+  `kits.access.permdock.scope` the manifest doesn't declare, or a schema or
+  `kits.access.idType` that disagrees with it;
+- every permission key the kit modules check must be `rowConditions: false`
+  in `permissions.catalog.json`, because the helpers check role and scope
+  only. `kitPermissionKeys` from `better-supabase/sql` lists the keys; map
+  one to another key with `kits.<module>.permissions`;
+- `canAssign` names PermDock's assignment rule, `permdock_can_assign`, which
+  PermDock writes when a role declares `assigns`. Without it only the
+  service role assigns roles.
+
+[Doctor](/docs/cli/doctor#bs411) (BS411) reports the same problems and checks
+that the database has the helpers. PermDock's helpers read `auth.uid()`, so
+`can_user()` and `member_can()` answer for the caller only and raise SQLSTATE
+`0A000` for anyone else. The invitations module therefore doesn't check the
+inviter's permission again when an invitation is accepted, and the
+notifications module doesn't filter recipients by their read permission. See
+[the access kit](/docs/kits/access#permdock) for the details.
+
+## Support sessions and other actors
+
+The `act` claim is part of the claim contract both packages read. A support
+session marks it `kind: "support"` and `actingAs` marks it
+`kind: "impersonation"`; an `act` without `kind` is an OAuth client or an
+agent chain:
+
+| `act`                                                     | `session.actor`                                | `session.impersonator` | `scopes` guard     |
+| --------------------------------------------------------- | ---------------------------------------------- | ---------------------- | ------------------ |
+| `{ kind: "support", sub, reason, session_id, read_only }` | `{ kind: "support", id, sessionId, readOnly }` | set                    | not limited        |
+| `{ kind: "impersonation", sub, reason }`                  | `{ kind: "impersonation", id, reason }`        | set                    | not limited        |
+| no `kind` (an OAuth client or agent chain)                | `{ kind: "oauth-client", id, chain }`          | not set                | limited to `scope` |
+
+Another `kind` makes the session invalid. A support token minted by 0.5.0
+(`session_id` without `kind`) still counts as a support session until 0.6.
+`supabaseClaimFixtures` from `better-supabase/testing` has one token of each
+kind, in the shape of PermDock's fixtures, so tests on both sides read the
+same claims.
+
+## Anonymous sign-ins
+
+Users from `signInAnonymously()` pass a guard only when `allow` lists
+`'anonymous'`; `'anon'` means a caller without a session and never admits
+them (see [anonymous users](/docs/auth#anonymous-users)). On the PermDock
+side, `rls.anonymousSignIns: 'deny'` in `permdock.config.ts` keeps an
+`is_anonymous` token out of every policy branch except `anyone()`'s. Use the
+two together, so neither the routes nor the policies serve a guest session:
+
+```ts title="permdock.config.ts"
+export default {
+  rls: { anonymousSignIns: "deny" },
+};
+```
+
+Routes then keep the default `allow: ['user']`, or `['user', 'anon']` for
+public ones; neither admits an anonymous sign-in.
+
 ## What neither package does
 
 - Read roles, memberships, the tenant or entitlements from `user_metadata`.

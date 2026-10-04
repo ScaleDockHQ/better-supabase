@@ -96,5 +96,27 @@ the other.
 
 - Doctor BS405 measures `memberships` plus `attrs` against PermDock's 1 KB
   budget and the whole token against 2 KB; run `doctor --as <user id>`.
+- For the SQL kit, set `kits.access.model: 'permdock'` and
+  `kits.access.functions.canAssign: 'permdock.permdock_can_assign({role}, {tenant}::text)'`
+  (use the manifest's `rls.schema`), then run `permdock supabase inspect --out`
+  before `sql add`. The kit reads the schema, the root scope and its id type
+  from `permdock.manifest.json`, and `sql add` stops instead of guessing when
+  the manifest can't give them. Every permission key the kit modules check
+  (`kitPermissionKeys` from `better-supabase/sql`) must be
+  `rowConditions: false` in `permissions.catalog.json`; map others with
+  `kits.<module>.permissions`. Doctor reports BS411.
+- Under that model `can_user()` and `member_can()` answer for the caller only
+  and raise SQLSTATE `0A000` for another user. Invitations skip the inviter
+  re-check at accept time and notifications don't filter recipients by read
+  permission; check both in the app when they matter.
+- The `act` claim says who acts: `kind: "support"` (support sessions,
+  `session.actor.kind === 'support'` with `sessionId` and `readOnly`),
+  `kind: "impersonation"` (`actingAs`), or no `kind` for an OAuth client or
+  agent chain (`oauth-client`, limited by `scopes`). Another `kind` makes the
+  session invalid. `session.impersonator` is set for the first two only.
+  `supabaseClaimFixtures` in `better-supabase/testing` has one token of each.
+- Only `allow: ['anonymous']` admits `signInAnonymously()` users; `'anon'`
+  means no session. Pair the default `allow` with PermDock's
+  `rls: { anonymousSignIns: 'deny' }` in `permdock.config.ts`.
 
 Docs: https://bettersupabase.com/docs/auth/permdock.md

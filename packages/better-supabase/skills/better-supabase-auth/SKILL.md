@@ -61,16 +61,22 @@ A token from the Supabase OAuth server carries `client_id` and `scope`; a
 token exchanged for an agent carries an RFC 8693 `act` chain. The session
 names who acts for the user:
 
-| Token                                           | `session.actor`                      | `session.delegation` |
-| ----------------------------------------------- | ------------------------------------ | -------------------- |
-| The user's own                                  | not set                              | not set              |
-| `client_id: "c1"`, `scope: "openid crm.read"`   | `{ id: "c1", kind: "oauth-client" }` | `{ scopes: [...] }`  |
-| `act: { sub: "agent", act: { sub: "mcp-42" } }` | `{ id: "agent", chain, ... }`        | `{ scopes, chain }`  |
+| Token                                            | `session.actor`                                | `session.delegation` |
+| ------------------------------------------------ | ---------------------------------------------- | -------------------- |
+| The user's own                                   | not set                                        | not set              |
+| `client_id: "c1"`, `scope: "openid crm.read"`    | `{ id: "c1", kind: "oauth-client" }`           | `{ scopes: [...] }`  |
+| `act: { sub: "agent", act: { sub: "mcp-42" } }`  | `{ id: "agent", chain, ... }`                  | `{ scopes, chain }`  |
+| `act: { kind: "support", sub, session_id, ... }` | `{ kind: "support", id, sessionId, readOnly }` | not set              |
+| `act: { kind: "impersonation", sub, reason }`    | `{ kind: "impersonation", id, reason }`        | not set              |
 
 - Limit what delegated tokens may do with the `scopes` guard option on
   `bs.route`, `bs.action`, `bs.handler` and `bs.middleware`. A missing
-  scope answers 403 with an `insufficient_scope` challenge. The user's own
-  token is never limited by scopes.
+  scope answers 403 with an `insufficient_scope` challenge. Only an
+  `oauth-client` actor is limited: the user's own token, a support session
+  and an impersonated session are not.
+- Switch on `session.actor.kind` with a `never` default: it is
+  `oauth-client`, `support` or `impersonation`. An `act` with another `kind`
+  resolves to `invalid` with reason `actor`.
 - In MCP servers, refuse calls in `authorize` by reading
   `toSession(ctx.auth).delegation?.scopes` (the `better-supabase-api` skill).
 - RLS still decides the rows: `sub` is the user, so a client sees at most
@@ -139,6 +145,8 @@ claims, tenant or entitlements.
 - Don't downgrade an `invalid` caller to `anon`.
 - Don't build 401 or 403 JSON by hand; return the `DbError` or use `allow`
   and `scopes`.
+- Don't use `allow: ['anon']` for users from `signInAnonymously()`: `'anon'`
+  means no session, and only `'anonymous'` admits anonymous sign-ins.
 
 ## Docs
 
