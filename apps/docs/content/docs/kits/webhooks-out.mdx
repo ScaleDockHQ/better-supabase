@@ -4,8 +4,8 @@ description: Signed webhooks to your customers' endpoints, with event subscripti
 ---
 
 The `webhooks-out` [SQL kit](/docs/kits/sql) module stores the endpoints
-your customers register (destinations), their signing secrets and one
-delivery row per event and destination. `createWebhooks` from
+your customers register, their signing secrets and one delivery row per
+event and endpoint. `createWebhooks` from
 `better-supabase/webhooks` queues events, signs and sends the deliveries,
 retries failures and keeps the log.
 
@@ -16,14 +16,14 @@ pnpm better-supabase sql add webhooks-out
 Secrets live in [Supabase Vault](https://supabase.com/docs/guides/database/vault)
 by default and clients can never read them. With the
 [access contract](/docs/kits/access) installed, members with
-`webhooks.view` read the destinations and the delivery log of their
+`webhooks.read` read the endpoints and the delivery log of their
 organization through RLS, and `webhooks.manage` adds, changes, rotates and
 redelivers. Without it, only the service role has access.
 
-## Destinations
+## Endpoints
 
-A destination is a row with a `url` (HTTPS unless `options.allowHttp`),
-`event_kinds` and `enabled`. Event kinds match exactly, with `*` for every
+An endpoint is a row with a `url` (HTTPS unless `options.allowHttp`),
+`event_types` and `enabled`. Event types match exactly, with `*` for every
 event, or by prefix with `invoice.*`. Create the first secret with
 `rotateSecret` and show it to the user once:
 
@@ -32,19 +32,19 @@ event, or by prefix with `invoice.*`. Create the first secret with
 
 import { createWebhooks, sqlTransport } from "better-supabase/webhooks";
 
-export async function addDestination(
+export async function addEndpoint(
   orgId: string,
   input: { url: string; events: string[] },
 ) {
   const ctx = await bs.context();
   const db = postgres.asUser(ctx.auth.claims);
-  const [destination] = await db.queryRaw<{ id: string }>(
-    `insert into better_supabase.webhook_destinations (organization_id, name, url, event_kinds)
+  const [endpoint] = await db.queryRaw<{ id: string }>(
+    `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
      values ($1, $2, $3, $4) returning id`,
     [orgId, new URL(input.url).host, input.url, input.events],
   );
   const webhooks = createWebhooks({ transport: sqlTransport(db) });
-  return webhooks.rotateSecret(destination!.id).orThrow();
+  return webhooks.rotateSecret(endpoint!.id).orThrow();
 }
 ```
 
@@ -55,7 +55,7 @@ migrate from another system.
 
 ## Publishing events
 
-`publish` queues the event for every enabled destination in the organization
+`publish` queues the event for every enabled endpoint in the organization
 that subscribes to its type, and returns how many deliveries it queued.
 Publish from a service connection:
 
@@ -82,14 +82,17 @@ await webhooks
 ```
 
 With an `id`, publishing the same event again queues nothing, so a retried
-request never sends twice. `dispatch({ destinationId, type, data, runId?,
-eventId? })` sends to one destination outside its subscriptions, for example
+request never sends twice. `dispatch({ endpointId, type, data, runId?,
+eventId? })` sends to one endpoint outside its subscriptions, for example
 from a workflow step, and returns the delivery id. A member with
 `webhooks.manage` may call it too.
 
 To publish from the [outbox](/docs/kits/outbox), pass `webhooks.sink()` to
 the relay. It publishes each CloudEvent with its `partitionkey` as the
-organization and its `id` as the event id.
+organization and its `id` as the event id, and removes the relay's type
+prefix so endpoints subscribe to `invoice.paid` rather than
+`dev.better-supabase.invoice.paid`. Pass `sink({ typePrefix })` when the relay
+uses its own prefix.
 
 ## Delivering
 
@@ -114,20 +117,24 @@ Each request carries the Standard Webhooks headers (`webhook-id`,
 [`verifyWebhook`](/docs/standards/webhooks) or any Standard Webhooks library.
 The delivery id is the `webhook-id`, the same on every retry.
 
-| Response                       | Result                                     |
-| ------------------------------ | ------------------------------------------ |
-| 2xx                            | `completed`                                |
-| 408, 429, 5xx, a network error | `failed`, retried on the schedule below    |
-| Any other status               | `dead_lettered`                            |
-| A URL `allowUrl` rejects       | `dead_lettered`, never sent                |
-| The last of `maxAttempts` (8)  | `dead_lettered`, also when the worker died |
+| Response                       | Result                            |
+| ------------------------------ | --------------------------------- |
+| 2xx                            | `succeeded`                       |
+| 408, 429, 5xx, a network error | `retrying`, on the schedule below |
+| Any other status               | `dead`                            |
+| A URL `allowUrl` rejects       | `dead`, never sent                |
+| The last of `maxAttempts` (8)  | `dead`, also when the worker died |
+
+A delivery is `pending` until a worker claims it and `delivering` while the
+lease holds it. `shouldDeliver` returning `false` and disabling the endpoint
+leave it `canceled`.
 
 Retries follow the Svix schedule: 5 seconds, 5 minutes, 30 minutes, 2
 hours, 5 hours, then 10 hours, each with full jitter (a random wait up to
 that long) so failed receivers aren't hit in bursts. A `Retry-After` header
 on the response wins when it asks for longer, up to a day.
 
-A destination whose deliveries keep failing for `disableAfter` (5 days)
+An endpoint whose deliveries keep failing for `disableAfter` (5 days)
 without a success in between is disabled, its pending deliveries are
 canceled and the outbox gets `webhook.disabled`. Setting `enabled` back to
 `true` clears `failing_since`.
@@ -157,7 +164,7 @@ address. When that matters, send webhooks through an egress proxy that
 refuses private addresses, with a custom `http` transport.
 
 Signing secrets are 32 random bytes (`whsec_` and base64). With Vault
-storage, deleting a secret row or its destination deletes the Vault secret.
+storage, deleting a secret row or its endpoint deletes the Vault secret.
 
 ```ts
 createWebhooks({
@@ -187,11 +194,12 @@ contract.
 
 ## Existing tables
 
-The default names match a common layout (`webhook_destinations` with
-`event_kinds`, `webhook_destination_secrets` and `webhook_deliveries` with
-`event_kind`, keyed on `organization_id`). Adopt yours, rename what differs
-and map what you don't have to `null`. This keeps secrets in a column,
-stores uuid event and run ids and signs with an existing HMAC format:
+The managed tables are `webhook_endpoints` with `event_types`,
+`webhook_endpoint_secrets` and `webhook_deliveries` with `event_type`, keyed
+on `organization_id`. Adopt yours, rename what differs and map what you
+don't have to `null`. This adopts a `webhook_destinations` table with
+`event_kinds`, keeps secrets in a column, stores uuid event and run ids,
+maps the stored statuses and signs with an existing HMAC format:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -200,19 +208,38 @@ export default defineConfig({
       mode: "adopt",
       schema: "public",
       idType: "uuid",
+      tables: {
+        endpoints: "public.webhook_destinations",
+        secrets: "public.webhook_destination_secrets",
+      },
       columns: {
-        destinations: {
+        endpoints: {
+          eventTypes: "event_kinds",
           failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },
-        secrets: { vaultId: null, expiresAt: null },
-        deliveries: { run: "workflow_run_id" },
+        secrets: {
+          endpoint: "destination_id",
+          vaultId: null,
+          expiresAt: null,
+        },
+        deliveries: {
+          endpoint: "destination_id",
+          type: "event_kind",
+          run: "workflow_run_id",
+        },
       },
       options: {
         secretStorage: "column",
         eventIdType: "uuid",
         runIdType: "uuid",
+        statuses: {
+          delivering: "processing",
+          succeeded: "completed",
+          retrying: "failed",
+          dead: "dead_lettered",
+        },
       },
     },
   },
@@ -229,29 +256,31 @@ createWebhooks({
 });
 ```
 
-Without `failingSince`, destinations are never disabled automatically.
+Without `failingSince`, endpoints are never disabled automatically.
 Without `expiresAt`, rotating replaces the secret at once instead of
 overlapping. With `secretStorage: "column"` the secret is stored as plain
-text in a table no client can read.
+text in a table no client can read. `statuses` maps each status to the value
+your table stores; the ones you leave out keep their names.
 
-| Option          | Default  | Meaning                                                             |
-| --------------- | -------- | ------------------------------------------------------------------- |
-| `secretStorage` | `vault`  | `vault` or `column`                                                 |
-| `allowHttp`     | `false`  | Allow `http:` destination URLs                                      |
-| `disableAfter`  | `5 days` | How long a destination fails without a success before it's disabled |
-| `eventIdType`   | `text`   | The type of the event id column                                     |
-| `runIdType`     | `text`   | The type of the run id column                                       |
+| Option          | Default  | Meaning                                                           |
+| --------------- | -------- | ----------------------------------------------------------------- |
+| `secretStorage` | `vault`  | `vault` or `column`                                               |
+| `allowHttp`     | `false`  | Allow `http:` endpoint URLs                                       |
+| `disableAfter`  | `5 days` | How long an endpoint fails without a success before it's disabled |
+| `eventIdType`   | `text`   | The type of the event id column                                   |
+| `runIdType`     | `text`   | The type of the run id column                                     |
+| `statuses`      | none     | The stored value of each status, in adopt mode only               |
 
 ## Error codes
 
-| `hint`                          | When                                                         |
-| ------------------------------- | ------------------------------------------------------------ |
-| `WEBHOOK_TYPE_REQUIRED`         | `publish` or `dispatch` without an event type                |
-| `WEBHOOK_FORBIDDEN`             | The caller lacks `webhooks.manage` in the organization       |
-| `WEBHOOK_DESTINATION_NOT_FOUND` | No destination with that id                                  |
-| `WEBHOOK_DESTINATION_DISABLED`  | Dispatching or redelivering to a disabled destination        |
-| `WEBHOOK_DELIVERY_NOT_FOUND`    | No delivery with that id                                     |
-| `WEBHOOK_DELIVERY_IN_PROGRESS`  | Redelivering a delivery that hasn't finished                 |
-| `WEBHOOK_STATUS_UNKNOWN`        | Completing a delivery with a status the kit doesn't know     |
-| `WEBHOOK_ATTEMPT_REQUIRED`      | Completing a delivery without the attempt its claim returned |
-| `WEBHOOK_SECRET_TOO_SHORT`      | Importing a secret shorter than 16 characters                |
+| `hint`                         | When                                                         |
+| ------------------------------ | ------------------------------------------------------------ |
+| `WEBHOOK_TYPE_REQUIRED`        | `publish` or `dispatch` without an event type                |
+| `WEBHOOK_FORBIDDEN`            | The caller lacks `webhooks.manage` in the organization       |
+| `WEBHOOK_ENDPOINT_NOT_FOUND`   | No endpoint with that id                                     |
+| `WEBHOOK_ENDPOINT_DISABLED`    | Dispatching or redelivering to a disabled endpoint           |
+| `WEBHOOK_DELIVERY_NOT_FOUND`   | No delivery with that id                                     |
+| `WEBHOOK_DELIVERY_IN_PROGRESS` | Redelivering a delivery that hasn't finished                 |
+| `WEBHOOK_STATUS_UNKNOWN`       | Completing a delivery with a status the kit doesn't know     |
+| `WEBHOOK_ATTEMPT_REQUIRED`     | Completing a delivery without the attempt its claim returned |
+| `WEBHOOK_SECRET_TOO_SHORT`     | Importing a secret shorter than 16 characters                |

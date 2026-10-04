@@ -177,8 +177,8 @@ export function testWebhookTransport(
 }
 
 export interface TestWebhookSecretStoreOptions {
-  /** A destination the store may read and, when it can rotate, rotate. */
-  readonly destinationId: string;
+  /** An endpoint the store may read and, when it can rotate, rotate. */
+  readonly endpointId: string;
 }
 
 /**
@@ -201,7 +201,7 @@ export function testWebhookSecretStore(
     [
       "lists the secrets as strings",
       async () => {
-        const secrets: unknown = await store.secrets(options.destinationId);
+        const secrets: unknown = await store.secrets(options.endpointId);
         expect(
           Array.isArray(secrets) &&
             secrets.every((secret) => typeof secret === "string"),
@@ -212,10 +212,10 @@ export function testWebhookSecretStore(
     store.rotate && [
       "rotates to a new secret and keeps the previous one during the overlap",
       async () => {
-        const first = await store.rotate!(options.destinationId, {
+        const first = await store.rotate!(options.endpointId, {
           overlap: "1 hour",
         });
-        const second = await store.rotate!(options.destinationId, {
+        const second = await store.rotate!(options.endpointId, {
           overlap: "1 hour",
         });
         expect(
@@ -223,7 +223,7 @@ export function testWebhookSecretStore(
           "rotate must return the new secret",
         );
         expect(first !== second, "each rotation must create a new secret");
-        const secrets = await store.secrets(options.destinationId);
+        const secrets = await store.secrets(options.endpointId);
         expect(secrets[0] === second, "the newest secret must be listed first");
         expect(
           secrets.includes(first),

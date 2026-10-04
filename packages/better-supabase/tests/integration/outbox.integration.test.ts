@@ -48,7 +48,9 @@ describe.skipIf(!live)("outbox", () => {
       "select to_regclass('better_supabase.kit_modules') is not null and exists (select 1 from better_supabase.kit_modules where name = 'outbox') as present",
     );
     registered = Boolean(rows[0]?.present);
-    const layout = { kits: { outbox: { schema: SCHEMA } } };
+    const layout = {
+      kits: { outbox: { schema: SCHEMA, idType: "text" as const } },
+    };
     const client = await pool.connect();
     try {
       await client.query("begin");
@@ -103,7 +105,10 @@ describe.skipIf(!live)("outbox", () => {
       slow.release();
     }
     expect(await outbox.relay("crm", sink)).toEqual({ delivered: 2 });
-    expect(sent.map((event) => event.type)).toEqual(["org.slow", "org.fast"]);
+    expect(sent.map((event) => event.type)).toEqual([
+      "dev.better-supabase.org.slow",
+      "dev.better-supabase.org.fast",
+    ]);
     expect(sent[1]).toMatchObject({ partitionkey: "t1", data: { n: 1 } });
     expect(await outbox.relay("crm", sink)).toEqual({ delivered: 0 });
   });
@@ -130,8 +135,8 @@ describe.skipIf(!live)("outbox", () => {
     }
     expect(await outbox.relay("late", sink)).toEqual({ delivered: 2 });
     expect(sent.map((event) => event.type)).toEqual([
-      "late.first",
-      "late.second",
+      "dev.better-supabase.late.first",
+      "dev.better-supabase.late.second",
     ]);
     expect((await outbox.unregister("late")).data).toBe(true);
   });

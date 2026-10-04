@@ -36,9 +36,8 @@ describe("kit CloudEvents", () => {
       subject: "invitations/i1",
       time: "2026-01-01T00:00:00Z",
       datacontenttype: "application/json",
-      data: { invitationId: "i1", organizationId: "o1" },
+      data: { invitationId: "i1", organizationId: "o1", actorId: "u1" },
       partitionkey: "o1",
-      actorid: "u1",
     });
     const plain = kitCloudEvent(
       { type: "org.created", data: { organizationId: "o1" }, time },

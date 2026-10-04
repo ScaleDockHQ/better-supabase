@@ -264,13 +264,45 @@ function deprecationPattern(entry: KitDeprecation): RegExp {
   }
 }
 
+const bareWord = (name: string): RegExp =>
+  new RegExp(`(?<![\\w"])${ident(name)}(?![\\w"])`, "i");
+
+/**
+ * The line where `text` uses a deprecated symbol. A column also counts
+ * unqualified (`m.org_id`) in a statement that names its table, or in a
+ * policy on that table.
+ */
+function lineOfUse(
+  entry: KitDeprecation,
+  text: string,
+  policyTable?: string,
+): number | undefined {
+  const direct = lineOf(text, deprecationPattern(entry));
+  if (direct !== undefined || entry.kind !== "column") return direct;
+  const [table = "", column = ""] = entry.symbol.split(".");
+  let offset = 0;
+  for (const statement of text.split(";")) {
+    const named = policyTable === table || bareWord(table).test(statement);
+    const at = statement.search(bareWord(column));
+    if (named && at !== -1)
+      return text.slice(0, offset + at).split("\n").length;
+    offset += statement.length + 1;
+  }
+  return undefined;
+}
+
 /** SQL files and policies that still use a symbol a kit module deprecated or removed. */
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
   const entries = kitDeprecations().filter(
     (entry) =>
       context.config.sql.kit.includes(entry.module) &&
-      !(entry.kind === "claim" && configured.has(entry.symbol)),
+      !(entry.kind === "claim" && configured.has(entry.symbol)) &&
+      // Adopted and custom tables keep the app's names.
+      !(
+        (entry.kind === "table" || entry.kind === "column") &&
+        (context.config.kits[entry.module]?.mode ?? "managed") !== "managed"
+      ),
   );
   if (entries.length === 0) return [];
   const files = (context.sqlFiles ?? []).filter(
@@ -280,14 +312,13 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   );
   const findings: FindingInput[] = [];
   for (const entry of entries) {
-    const pattern = deprecationPattern(entry);
     const status =
       entry.removed === undefined
         ? `deprecated since ${entry.since}`
         : `removed in ${entry.removed}`;
     const advice = `the ${entry.module} module's ${entry.kind} ${entry.symbol}, ${status}. Use ${entry.use}.`;
     for (const file of files) {
-      const line = lineOf(file.text, pattern);
+      const line = lineOfUse(entry, file.text);
       if (line === undefined) continue;
       findings.push({
         message: `${file.path} uses ${advice}`,
@@ -297,9 +328,8 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
     }
     for (const table of catalogOf(context).tables) {
       for (const policy of table.policies) {
-        if (!pattern.test(`${policy.using ?? ""}\n${policy.check ?? ""}`)) {
-          continue;
-        }
+        const text = `${policy.using ?? ""}\n${policy.check ?? ""}`;
+        if (lineOfUse(entry, text, table.name) === undefined) continue;
         findings.push({
           message: `Policy "${policy.name}" on ${qualified(table)} uses ${advice}`,
           target: `${qualified(table)}.${policy.name}:${entry.symbol}`,

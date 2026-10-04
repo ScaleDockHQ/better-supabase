@@ -223,7 +223,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
         impersonated_by: string;
         impersonation_reason: string;
       }>(
-        `select actor_id, impersonated_by, impersonation_reason from better_supabase.audit_log
+        `select actor_id, impersonated_by, impersonation_reason from better_supabase.audit_events
          where table_name = 'public.customers' and record_id = $1`,
         [id],
       );

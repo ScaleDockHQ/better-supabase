@@ -108,7 +108,7 @@ class Session {
 
   recipients(event: string): Promise<string[]> {
     return this.value(
-      "(select coalesce(array_agg(recipient_user_id order by recipient_user_id), '{}') from better_supabase.notification_recipients where event_id = $1)",
+      "(select coalesce(array_agg(user_id order by user_id), '{}') from better_supabase.notification_recipients where event_id = $1)",
       [event],
     );
   }
@@ -142,11 +142,11 @@ describe.skipIf(!live)("notifications", () => {
         [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
-        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'member'), ($1, $3, 'member')",
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member'), ($1, $3, 'member')",
         [org, USERS.member, USERS.watcher],
       );
       const task = {
-        kind: "task.assigned",
+        type: "task.assigned",
         tenant: org,
         subject_type: "task",
         subject_id: "t1",
@@ -205,7 +205,7 @@ describe.skipIf(!live)("notifications", () => {
       await s.as("owner");
       const second = await s.notify({
         ...task,
-        kind: "task.updated",
+        type: "task.updated",
         activity: "all",
         recipients: [USERS.member],
       });
@@ -219,13 +219,13 @@ describe.skipIf(!live)("notifications", () => {
       await s.as("owner");
       const third = await s.notify({
         ...task,
-        kind: "approval.requested",
+        type: "approval.requested",
         recipients: [USERS.member, USERS.watcher],
       });
       const deliveries = await s.value<
         { user: string; channel: string; status: string }[]
       >(
-        `(select jsonb_agg(jsonb_build_object('user', r.recipient_user_id, 'channel', d.channel, 'status', d.status) order by d.channel, r.recipient_user_id)
+        `(select jsonb_agg(jsonb_build_object('user', r.user_id, 'channel', d.channel, 'status', d.status) order by d.channel, r.user_id)
           from better_supabase.notification_deliveries d
           join better_supabase.notification_recipients r on r.id = d.recipient_id
           where r.event_id = $1)`,
@@ -245,11 +245,11 @@ describe.skipIf(!live)("notifications", () => {
 
       // The member's inbox, counts, read and dismiss.
       await s.as("member");
-      const inbox = await s.value<{ kind: string; subject_label: string }[]>(
+      const inbox = await s.value<{ type: string; subject_label: string }[]>(
         "better_supabase.list_notifications($1)",
         [org],
       );
-      expect(inbox.map((item) => item.kind)).toEqual([
+      expect(inbox.map((item) => item.type)).toEqual([
         "approval.requested",
         "task.assigned",
       ]);
@@ -261,7 +261,7 @@ describe.skipIf(!live)("notifications", () => {
       // Pages by (created_at, id), so items created at the same instant are not skipped.
       await s.as("service");
       await client.query(
-        "update better_supabase.notification_recipients set created_at = '2026-01-01T00:00:00Z' where recipient_user_id = $1",
+        "update better_supabase.notification_recipients set created_at = '2026-01-01T00:00:00Z' where user_id = $1",
         [USERS.member],
       );
       await s.as("member");
@@ -317,12 +317,12 @@ describe.skipIf(!live)("notifications", () => {
       // A worker claims the email delivery with the address, then completes it.
       await s.as("service");
       const claimed = await s.value<
-        { delivery_id: string; email: string; notification: { kind: string } }[]
+        { delivery_id: string; email: string; notification: { type: string } }[]
       >("better_supabase.claim_notification_deliveries('email')");
       expect(claimed).toHaveLength(1);
       expect(claimed[0]).toMatchObject({
         email: email("member"),
-        notification: { kind: "approval.requested" },
+        notification: { type: "approval.requested" },
       });
       expect(
         await s.value<unknown[]>(
@@ -447,7 +447,7 @@ describe.skipIf(!live)("notifications", () => {
     const sent: NotificationMessage[] = [];
     const notifications = createNotifications({
       transport: sqlTransport(sql),
-      kinds: { "task.assigned": anything },
+      types: { "task.assigned": anything },
       render: (item) => ({ title: `Assigned: ${item.subject?.label ?? ""}` }),
       channels: [
         {
@@ -477,7 +477,7 @@ describe.skipIf(!live)("notifications", () => {
         [{ name: "Acme", slug: `acme-e2e-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
-        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'member')",
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [org, USERS.member],
       );
       await client.query(
@@ -500,7 +500,7 @@ describe.skipIf(!live)("notifications", () => {
       const [item] = await notifications.list({ tenant: org }).orThrow();
       expect(item).toMatchObject({
         eventId: id,
-        kind: "task.assigned",
+        type: "task.assigned",
         subject: { type: "task", id: "t9", label: "Paint" },
         text: { title: "Assigned: Paint" },
         readAt: null,

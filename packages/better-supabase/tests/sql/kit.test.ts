@@ -21,7 +21,7 @@ describe("resolveModules", () => {
   });
 
   it("deduplicates and rejects unknown modules", () => {
-    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(3);
+    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(4);
     expect(() => resolveModules(["nope"])).toThrow(
       /Unknown SQL kit module "nope"/,
     );
@@ -67,7 +67,7 @@ describe("renderKit", () => {
     expect(file!.contents).toContain(
       "row_data ->> coalesce(entry.tenant_column, 'team_id')",
     );
-    expect(file!.contents).not.toContain("organization_id");
+    expect(file!.contents).not.toContain("'organization_id'");
     expect(file!.contents).toContain("i.indisprimary");
     expect(file!.contents).not.toContain("row_data ->> 'id'");
   });
@@ -258,7 +258,7 @@ describe("entitlements in PermDock mode", () => {
   it("drops the tenant dependency", () => {
     expect(
       resolveModules(["entitlements"]).map((module) => module.name),
-    ).toEqual(["tenant", "entitlements"]);
+    ).toEqual(["updated-at", "tenant", "entitlements"]);
     expect(
       resolveModules(["entitlements"], { permdock }).map(
         (module) => module.name,
@@ -318,7 +318,7 @@ describe("entitlements in PermDock mode", () => {
     expect(file!.contents).toContain(
       "select better_supabase.has_org_role(tenant)",
     );
-    expect(file!.contents).toContain("from better_supabase.memberships m");
+    expect(file!.contents).toContain('from "better_supabase"."memberships" m');
   });
 
   it("needs a customer column unless the managed organizations module adds one", () => {

@@ -7,6 +7,7 @@ import {
   columnRef,
   schemaPreamble,
   SERVICE_CALLER,
+  updatedAt,
 } from "../shared.ts";
 import { accessModel, KIT_PERMISSIONS, roleNames } from "./access-model.ts";
 import { activeTenantSource, roleNameOf } from "./tenant.ts";
@@ -34,10 +35,18 @@ const NAMES: KitNames = {
         slug: "slug",
         createdBy: "created_by",
         createdAt: "created_at",
+        updatedAt: "updated_at",
         disabledAt: "disabled_at",
         deletedAt: "deleted_at",
       },
-      optional: ["slug", "createdBy", "createdAt", "disabledAt", "deletedAt"],
+      optional: [
+        "slug",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+        "disabledAt",
+        "deletedAt",
+      ],
     },
   },
   hooks: [
@@ -155,7 +164,7 @@ create table if not exists ${n.org} (
   ${idColumn(ctx, n.id)},
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
 );
-${slugIndex}${
+${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.org} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.org, c("updatedAt"))}\n` : ""}${
     ctx.installed("entitlements")
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
 alter table ${n.org} add column if not exists stripe_customer_id text unique;
@@ -771,7 +780,7 @@ export const ORGANIZATIONS: KitModuleDefinition = {
   title: "Organizations",
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",
-  requires: ["tenant", "access"],
+  requires: ["tenant", "access", "updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   names: NAMES,

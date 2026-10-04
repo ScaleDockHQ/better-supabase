@@ -76,7 +76,7 @@ policy callback instead (below).
 `forwardKitEvents(betterSupabase, sink, { source, types })` sends them to an
 [`EventSink`](/docs/extending/interfaces#eventsink) as CloudEvents
 (`dev.better-supabase.org.created`, the tenant as `partitionkey`, the actor as
-`actorid`), and `traceKitEvents(betterSupabase)` from `better-supabase/otel`
+`data.actorId`), and `traceKitEvents(betterSupabase)` from `better-supabase/otel`
 records them on the active span. These events are in-process: when one must
 not be lost, install the `outbox` module, and the SQL kit writes the same
 event in the transaction that caused it.

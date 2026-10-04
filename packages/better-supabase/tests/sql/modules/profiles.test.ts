@@ -42,7 +42,7 @@ describe("profiles module", () => {
     );
     expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
     expect(sql).toContain(
-      'new."active_org_id" is distinct from old."active_org_id"',
+      'new."active_organization_id" is distinct from old."active_organization_id"',
     );
     expect(sql).toContain(
       'create trigger "bs_profile_sync" after insert on auth.users',

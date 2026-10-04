@@ -2,8 +2,13 @@ import type { KitContext, KitContractFunction, KitNames } from "../context.ts";
 import type { KitModuleDefinition } from "../kit.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { schemaPreamble } from "../shared.ts";
-import { functions, type HookNames, hookNames } from "./webhooks-out-sql.ts";
+import { schemaPreamble, updatedAt } from "../shared.ts";
+import {
+  functions,
+  type HookNames,
+  hookNames,
+  WEBHOOK_STATUSES,
+} from "./webhooks-out-sql.ts";
 
 const NAMES: KitNames = {
   options: [
@@ -12,17 +17,18 @@ const NAMES: KitNames = {
     "eventIdType",
     "runIdType",
     "secretStorage",
+    "statuses",
   ],
   tables: {
-    destinations: {
-      name: "webhook_destinations",
+    endpoints: {
+      name: "webhook_endpoints",
       columns: {
         id: "id",
         tenant: "organization_id",
         name: "name",
         url: "url",
         enabled: "enabled",
-        eventTypes: "event_kinds",
+        eventTypes: "event_types",
         failingSince: "failing_since",
         disabledAt: "disabled_at",
         disabledReason: "disabled_reason",
@@ -41,10 +47,10 @@ const NAMES: KitNames = {
       ],
     },
     secrets: {
-      name: "webhook_destination_secrets",
+      name: "webhook_endpoint_secrets",
       columns: {
         id: "id",
-        destination: "destination_id",
+        endpoint: "endpoint_id",
         tenant: "organization_id",
         secret: "secret",
         vaultId: "vault_secret_id",
@@ -58,10 +64,10 @@ const NAMES: KitNames = {
       columns: {
         id: "id",
         tenant: "organization_id",
-        destination: "destination_id",
+        endpoint: "endpoint_id",
         event: "event_id",
         run: "run_id",
-        type: "event_kind",
+        type: "event_type",
         payload: "payload",
         status: "status",
         attempt: "attempt",
@@ -94,7 +100,7 @@ const NAMES: KitNames = {
 function tables(ctx: KitContext, n: HookNames): string {
   if (!ctx.manages) return "";
   const id = ctx.idType;
-  const d = (logical: string) => n.col("destinations", logical);
+  const d = (logical: string) => n.col("endpoints", logical);
   const s = (logical: string) => n.col("secrets", logical);
   const v = (logical: string) => n.col("deliveries", logical);
   const opt = (table: string, logical: string, definition: string) =>
@@ -107,44 +113,44 @@ create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
     ? `check (${d("url")} ~* '^https?://')`
     : `check (${d("url")} ~* '^https://')`;
 
-  const destinations = `
-create table if not exists ${n.table("destinations")} (
+  const endpoints = `
+create table if not exists ${n.table("endpoints")} (
   ${[
     `${d("id")} uuid primary key default gen_random_uuid()`,
-    ...opt("destinations", "tenant", `${id} not null`),
+    ...opt("endpoints", "tenant", `${id} not null`),
     ...opt(
-      "destinations",
+      "endpoints",
       "name",
       `text not null check (length(trim(${d("name")})) > 0)`,
     ),
     `${d("url")} text not null ${urlCheck}`,
     `${d("enabled")} boolean not null default true`,
     `${d("eventTypes")} text[] not null default '{}'`,
-    ...opt("destinations", "failingSince", "timestamptz"),
-    ...opt("destinations", "disabledAt", "timestamptz"),
-    ...opt("destinations", "disabledReason", "text"),
+    ...opt("endpoints", "failingSince", "timestamptz"),
+    ...opt("endpoints", "disabledAt", "timestamptz"),
+    ...opt("endpoints", "disabledReason", "text"),
     ...opt(
-      "destinations",
+      "endpoints",
       "createdBy",
       "uuid references auth.users (id) on delete set null default auth.uid()",
     ),
     `${d("createdAt")} timestamptz not null default now()`,
-    ...opt("destinations", "updatedAt", "timestamptz not null default now()"),
+    ...opt("endpoints", "updatedAt", "timestamptz not null default now()"),
   ].join(",\n  ")}
 );
-create index if not exists webhook_destinations_types_idx on ${n.table("destinations")} using gin (${d("eventTypes")});
-alter table ${n.table("destinations")} enable row level security;
-revoke all on ${n.table("destinations")} from anon, authenticated;
-grant all on ${n.table("destinations")} to service_role;${
+create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
+${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}alter table ${n.table("endpoints")} enable row level security;
+revoke all on ${n.table("endpoints")} from anon, authenticated;
+grant all on ${n.table("endpoints")} to service_role;${
     scoped
       ? `
-grant select, insert, update, delete on ${n.table("destinations")} to authenticated;${policy(
-          "destinations",
-          "bs_webhook_destinations_read",
+grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
+          "endpoints",
+          "bs_webhook_endpoints_read",
           `for select to authenticated using (${n.can(d("tenant"), "view")})`,
         )}${policy(
-          "destinations",
-          "bs_webhook_destinations_write",
+          "endpoints",
+          "bs_webhook_endpoints_write",
           `for all to authenticated using (${n.can(d("tenant"), "manage")}) with check (${n.can(d("tenant"), "manage")})`,
         )}`
       : ""
@@ -154,18 +160,16 @@ grant select, insert, update, delete on ${n.table("destinations")} to authentica
 create table if not exists ${n.table("secrets")} (
   ${[
     `${s("id")} uuid primary key default gen_random_uuid()`,
-    `${s("destination")} uuid not null references ${n.table("destinations")} (${d("id")}) on delete cascade`,
+    `${s("endpoint")} uuid not null references ${n.table("endpoints")} (${d("id")}) on delete cascade`,
     ...opt("secrets", "tenant", id),
     ...(n.vault
       ? [`${s("vaultId")} uuid not null`]
-      : [
-          `${s("secret")} text not null check (length(${s("secret")}) between 16 and 200)`,
-        ]),
+      : [`${s("secret")} text not null`]),
     ...opt("secrets", "expiresAt", "timestamptz"),
     `${s("createdAt")} timestamptz not null default now()`,
   ].join(",\n  ")}
 );
-create index if not exists webhook_destination_secrets_destination_idx on ${n.table("secrets")} (${s("destination")});
+create index if not exists webhook_endpoint_secrets_endpoint_idx on ${n.table("secrets")} (${s("endpoint")});
 alter table ${n.table("secrets")} enable row level security;
 revoke all on ${n.table("secrets")} from anon, authenticated;
 grant all on ${n.table("secrets")} to service_role;`;
@@ -175,12 +179,12 @@ create table if not exists ${n.table("deliveries")} (
   ${[
     `${v("id")} uuid primary key default gen_random_uuid()`,
     ...opt("deliveries", "tenant", id),
-    `${v("destination")} uuid not null references ${n.table("destinations")} (${d("id")}) on delete cascade`,
+    `${v("endpoint")} uuid not null references ${n.table("endpoints")} (${d("id")}) on delete cascade`,
     ...opt("deliveries", "event", n.eventIdType),
     ...opt("deliveries", "run", n.runIdType),
     `${v("type")} text not null`,
     `${v("payload")} jsonb not null default '{}'`,
-    `${v("status")} text not null default 'pending' check (${v("status")} in ('pending', 'processing', 'completed', 'failed', 'dead_lettered', 'canceled'))`,
+    `${v("status")} text not null default 'pending' check (${v("status")} in (${WEBHOOK_STATUSES.map((status) => `'${status}'`).join(", ")}))`,
     `${v("attempt")} integer not null default 0 check (${v("attempt")} >= 0)`,
     `${v("availableAt")} timestamptz not null default now()`,
     `${v("leasedUntil")} timestamptz`,
@@ -193,11 +197,11 @@ create table if not exists ${n.table("deliveries")} (
     ...opt("deliveries", "updatedAt", "timestamptz not null default now()"),
   ].join(",\n  ")}
 );
-create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'failed', 'processing');
-create index if not exists webhook_deliveries_destination_idx on ${n.table("deliveries")} (${v("destination")}, ${v("createdAt")} desc);${
+create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
+create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);${
     n.has("deliveries", "event")
       ? `
-create unique index if not exists webhook_deliveries_destination_event_idx on ${n.table("deliveries")} (${v("destination")}, ${v("event")}) where ${v("event")} is not null;`
+create unique index if not exists webhook_deliveries_endpoint_event_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null;`
       : ""
   }
 alter table ${n.table("deliveries")} enable row level security;
@@ -213,28 +217,26 @@ grant select on ${n.table("deliveries")} to authenticated;${policy(
       : ""
   }`;
 
-  return [destinations, secrets, deliveries].join("\n");
+  return [endpoints, secrets, deliveries].join("\n");
 }
 
-/** Re-enabling a destination clears its failure streak. */
+/** Re-enabling an endpoint clears its failure streak. */
 function reenable(ctx: KitContext, n: HookNames): string {
-  const d = (logical: string) => n.col("destinations", logical);
+  const d = (logical: string) => n.col("endpoints", logical);
   const resets = [
-    n.has("destinations", "failingSince")
+    n.has("endpoints", "failingSince")
       ? `new.${d("failingSince")} := null;`
       : "",
-    n.has("destinations", "disabledAt")
-      ? `new.${d("disabledAt")} := null;`
-      : "",
-    n.has("destinations", "disabledReason")
+    n.has("endpoints", "disabledAt") ? `new.${d("disabledAt")} := null;` : "",
+    n.has("endpoints", "disabledReason")
       ? `new.${d("disabledReason")} := null;`
       : "",
   ].filter(Boolean);
-  const trigger = ctx.trigger("webhook_destination_reenable");
+  const trigger = ctx.trigger("webhook_endpoint_reenable");
   if (resets.length === 0)
-    return `drop trigger if exists ${trigger} on ${n.table("destinations")};`;
+    return `drop trigger if exists ${trigger} on ${n.table("endpoints")};`;
   return `
-create or replace function ${ctx.fn("reset_webhook_destination")}()
+create or replace function ${ctx.fn("reset_webhook_endpoint")}()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -246,13 +248,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function ${ctx.fn("reset_webhook_destination")}() from public, anon, authenticated;
-drop trigger if exists ${trigger} on ${n.table("destinations")};
-create trigger ${trigger} before update of ${d("enabled")} on ${n.table("destinations")}
-  for each row execute function ${ctx.fn("reset_webhook_destination")}();`;
+revoke execute on function ${ctx.fn("reset_webhook_endpoint")}() from public, anon, authenticated;
+drop trigger if exists ${trigger} on ${n.table("endpoints")};
+create trigger ${trigger} before update of ${d("enabled")} on ${n.table("endpoints")}
+  for each row execute function ${ctx.fn("reset_webhook_endpoint")}();`;
 }
 
-/** Deleting a secret row (or its destination) deletes its Vault secret. */
+/** Deleting a secret row (or its endpoint) deletes its Vault secret. */
 function vaultCleanup(ctx: KitContext, n: HookNames): string {
   const t = n.table("secrets");
   const trigger = ctx.trigger("webhook_secret_vault");
@@ -322,8 +324,8 @@ export const WEBHOOKS_OUT: KitModuleDefinition = {
   name: "webhooks-out",
   title: "Outgoing webhooks",
   description:
-    "Outgoing webhooks: destinations subscribed to event types, a delivery log unique per destination and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after a destination keeps failing and redelivery.",
-  requires: [],
+    "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
+  requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

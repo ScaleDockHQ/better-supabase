@@ -15,6 +15,10 @@ const CENTRAKIT: KitsConfig = {
     mode: "adopt",
     schema: "public",
     idType: "uuid",
+    columns: {
+      events: { actor: "actor_user_id", data: "metadata" },
+      recipients: { user: "recipient_user_id" },
+    },
     options: {
       topic: "org:{tenantId}:notifications:{userId}",
       channels: ["in_app", "email"],
@@ -28,7 +32,7 @@ describe("notifications module", () => {
     expect(sql).toContain(
       'create table if not exists "better_supabase"."notification_events" (',
     );
-    expect(sql).toContain('"metadata" jsonb not null default');
+    expect(sql).toContain('"data" jsonb not null default');
     expect(sql).toContain("notification_events_key_idx");
     expect(sql).toContain(
       'grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;',
@@ -39,9 +43,7 @@ describe("notifications module", () => {
     expect(sql).toMatch(/function "better_supabase"\."notify"\(.*jsonb\)/);
     expect(sql).toContain("security definer");
     expect(sql).toContain("perform realtime.send(");
-    expect(sql).toContain(
-      "'notifications:' || new.\"recipient_user_id\"::text",
-    );
+    expect(sql).toContain("'notifications:' || new.\"user_id\"::text");
   });
 
   it("adopts CentraKit's tables and its tenant topic", () => {

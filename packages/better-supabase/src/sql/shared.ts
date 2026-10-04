@@ -76,6 +76,77 @@ $$;`;
 }
 
 /**
+ * An `updated_at` column on a managed table, kept current by the
+ * `updated-at` module's `set_updated_at()` (the module must require it).
+ */
+export function updatedAt(table: string, column: string): string {
+  return `alter table ${table} add column if not exists ${column} timestamptz not null default now();
+drop trigger if exists bs_updated_at on ${table};
+create trigger bs_updated_at before update on ${table}
+  for each row execute function better_supabase.set_updated_at(${sqlString(column.replaceAll('"', ""))});`;
+}
+
+/**
+ * Upgrade-step renames for a kit table in `schema`. Each runs only while the
+ * old name exists and the new one doesn't, so a step can run again.
+ */
+export interface KitRenames {
+  readonly schema: string;
+  /** The table's current name; `table` in `tables` renames it first. */
+  readonly table: string;
+  readonly tables?: readonly (readonly [from: string, to: string])[];
+  readonly columns?: readonly (readonly [from: string, to: string])[];
+  readonly indexes?: readonly (readonly [from: string, to: string])[];
+  readonly functions?: readonly (readonly [
+    from: string,
+    to: string,
+    args: string,
+  ])[];
+}
+
+export function renameSql(renames: KitRenames): string {
+  const schema = sqlString(renames.schema);
+  const q = (name: string): string =>
+    `${sqlIdent(renames.schema)}.${sqlIdent(name)}`;
+  const lines: string[] = [];
+  let table = renames.table;
+  for (const [from, to] of renames.tables ?? []) {
+    lines.push(`  if to_regclass(${sqlString(`${renames.schema}.${from}`)}) is not null
+    and (select c.relkind from pg_class c where c.oid = to_regclass(${sqlString(`${renames.schema}.${from}`)})) in ('r', 'p')
+    and to_regclass(${sqlString(`${renames.schema}.${to}`)}) is null then
+    alter table ${q(from)} rename to ${sqlIdent(to)};
+  end if;`);
+    if (from === table) table = to;
+  }
+  for (const [from, to] of renames.columns ?? []) {
+    lines.push(`  if exists (select 1 from information_schema.columns c
+      where c.table_schema = ${schema} and c.table_name = ${sqlString(table)} and c.column_name = ${sqlString(from)})
+    and not exists (select 1 from information_schema.columns c
+      where c.table_schema = ${schema} and c.table_name = ${sqlString(table)} and c.column_name = ${sqlString(to)}) then
+    alter table ${q(table)} rename column ${sqlIdent(from)} to ${sqlIdent(to)};
+  end if;`);
+  }
+  for (const [from, to] of renames.indexes ?? []) {
+    lines.push(`  if to_regclass(${sqlString(`${renames.schema}.${from}`)}) is not null
+    and to_regclass(${sqlString(`${renames.schema}.${to}`)}) is null then
+    alter index ${q(from)} rename to ${sqlIdent(to)};
+  end if;`);
+  }
+  for (const [from, to, args] of renames.functions ?? []) {
+    lines.push(`  if to_regprocedure(${sqlString(`${renames.schema}.${from}(${args})`)}) is not null
+    and to_regprocedure(${sqlString(`${renames.schema}.${to}(${args})`)}) is null then
+    alter function ${q(from)}(${args}) rename to ${sqlIdent(to)};
+  end if;`);
+  }
+  if (lines.length === 0) return "";
+  return `do $$
+begin
+${lines.join("\n")}
+end;
+$$;`;
+}
+
+/**
  * A SQL condition true when `org` names no row of the installed
  * organizations table. False without the organizations module.
  */

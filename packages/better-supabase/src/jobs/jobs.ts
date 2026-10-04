@@ -495,7 +495,7 @@ export function purgeAuditLog(
   }
   return run(async () => {
     const tenants = await sql.queryRaw<{ tenant: string | null }>(
-      "select tenant::text from better_supabase.audit_log_tenants($1::interval) as tenant",
+      "select tenant::text from better_supabase.audit_events_tenants($1::interval) as tenant",
       ["1 day"],
     );
     let purged = 0;

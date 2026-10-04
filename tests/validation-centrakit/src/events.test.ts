@@ -56,7 +56,7 @@ describe.skipIf(!live)(
         const emails: { email: string | null; title: string }[] = [];
         const notifications = createNotifications({
           transport: sqlTransport(s.sql),
-          kinds: { "task.assigned": task },
+          types: { "task.assigned": task },
           render: (item) => ({
             title: `Assigned: ${item.subject?.label ?? ""}`,
           }),
@@ -77,7 +77,7 @@ describe.skipIf(!live)(
 
         await s.as("owner");
         await notifications
-          .setPreference({ kind: "*", channel: "email", enabled: true })
+          .setPreference({ type: "*", channel: "email", enabled: true })
           .orThrow();
         await s.as("member");
         const id = await notifications
@@ -188,8 +188,8 @@ describe.skipIf(!live)(
         expect(delivery).toMatchObject({ event_kind: "notification.created" });
 
         expect(await webhooks.deliver()).toMatchObject({
-          completed: 1,
-          failed: 0,
+          succeeded: 1,
+          retrying: 0,
         });
         const request = sent[0]!;
         const timestamp = request.headers["x-centrakit-timestamp"]!;
@@ -210,7 +210,7 @@ describe.skipIf(!live)(
         );
         const direct = await webhooks
           .dispatch({
-            destinationId: destination!.id,
+            endpointId: destination!.id,
             type: "run.finished",
             data: { ok: true },
             runId: run!.id,

@@ -134,7 +134,19 @@ describe("upgradePlan", () => {
 
   it("plans the tenant module's upgrade from version 1", () => {
     expect(upgradePlan([{ module: "tenant", version: 1 }])).toMatchObject([
-      { module: "tenant", from: 1, to: 2, steps: [{ from: 1, sql: "" }] },
+      {
+        module: "tenant",
+        from: 1,
+        to: 2,
+        steps: [
+          {
+            from: 1,
+            sql: expect.stringContaining(
+              'alter table "better_supabase"."memberships" rename column "org_id" to "organization_id";',
+            ),
+          },
+        ],
+      },
     ]);
   });
 });

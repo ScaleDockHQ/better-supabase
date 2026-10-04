@@ -40,7 +40,7 @@ export interface OutboxOptions {
   readonly schema?: string;
   /** CloudEvents `source` of the relayed events, e.g. `https://crm.example.com`. */
   readonly source: string;
-  /** Prepended to each type with a dot when relaying, e.g. `com.example`. */
+  /** Prepended to each type with a dot when relaying, e.g. `com.example`. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
 }
 
@@ -170,8 +170,9 @@ function toEvents(value: unknown): readonly OutboxEvent[] {
 
 /**
  * The CloudEvent for an outbox row: the row id as `id` (stable, so receivers
- * can deduplicate), the tenant as `partitionkey`, the actor as `actorid` and
- * the writing module as `producer`.
+ * can deduplicate), the payload as `data`, the tenant as `partitionkey` and
+ * the writing module as `producer`. The actor stays out of the context
+ * attributes, which must not carry personal data.
  */
 export function outboxCloudEvent(
   event: OutboxEvent,
@@ -181,15 +182,12 @@ export function outboxCloudEvent(
     specversion: "1.0",
     id: event.id,
     source: options.source,
-    type: options.typePrefix
-      ? `${options.typePrefix}.${event.type}`
-      : event.type,
+    type: `${options.typePrefix ?? "dev.better-supabase"}.${event.type}`,
     ...(event.subject ? { subject: event.subject } : {}),
     time: event.createdAt.toString(),
     datacontenttype: "application/json",
     data: event.payload,
     ...(event.tenant ? { partitionkey: event.tenant } : {}),
-    ...(event.actorId ? { actorid: event.actorId } : {}),
     ...(event.source ? { producer: event.source } : {}),
   };
 }

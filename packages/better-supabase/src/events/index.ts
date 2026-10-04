@@ -31,6 +31,7 @@ export const ROW_EVENT_TYPES: { readonly [K in MutationIntent]: string } = {
 export interface RowEventData {
   readonly table: string;
   readonly row: Readonly<Record<string, unknown>>;
+  readonly actorId?: string;
 }
 
 export interface CloudEventOptions {
@@ -62,8 +63,8 @@ function subjectOf(
 
 /**
  * One CloudEvent per mutated row: `dev.better-supabase.row.created` with the
- * app-cased row as `data`, the primary key as `subject`, the tenant as
- * `partitionkey` and the actor as `actorid`. Writes that return no rows (soft
+ * app-cased row and the actor in `data`, the primary key as `subject` and the
+ * tenant as `partitionkey`. Writes that return no rows (soft
  * deletes, `returning: false`) send one event per known primary key, with the
  * key as `row`.
  */
@@ -78,6 +79,7 @@ export function toCloudEvents(
   const time = (options.now ?? nowInstant)().toString();
   const tenant = notice.tenant ?? notice.context.tenant;
   const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
+  const actorId = notice.context.actor?.id;
   return rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
     return {
@@ -88,9 +90,8 @@ export function toCloudEvents(
       ...(subject ? { subject } : {}),
       time,
       datacontenttype: "application/json",
-      data: { table: notice.table, row },
+      data: { table: notice.table, row, ...(actorId ? { actorId } : {}) },
       ...(tenant ? { partitionkey: tenant } : {}),
-      ...(notice.context.actor?.id ? { actorid: notice.context.actor.id } : {}),
     };
   });
 }
@@ -140,8 +141,8 @@ export function forwardMutations(
 
 /**
  * A kit event as a CloudEvent: `dev.better-supabase.support.started` with
- * the event data as `data`, the tenant as `partitionkey` and the actor as
- * `actorid`.
+ * the event data and the actor (`actorId`) as `data` and the tenant as
+ * `partitionkey`.
  */
 export function kitCloudEvent(
   event: KitEvent,
@@ -155,9 +156,10 @@ export function kitCloudEvent(
     ...(event.subject ? { subject: event.subject } : {}),
     time: (options.now?.() ?? event.time).toString(),
     datacontenttype: "application/json",
-    data: event.data,
+    data: event.actorId
+      ? { ...event.data, actorId: event.actorId }
+      : event.data,
     ...(event.tenant ? { partitionkey: event.tenant } : {}),
-    ...(event.actorId ? { actorid: event.actorId } : {}),
   };
 }
 

@@ -480,8 +480,11 @@ describe("generated and kit files (BS303, BS304)", () => {
 
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ sql: { kit: ["tenant"] } });
-    const [file, data] = renderKit(["tenant"], kitLayout(ctx.config));
-    await write(data!.path, data!.contents);
+    const files = renderKit(["tenant"], kitLayout(ctx.config));
+    for (const kit of files) await write(kit.path, kit.contents);
+    const file = files.find(
+      (kit) => kit.module === "tenant" && kit.kind === "schema",
+    );
     await write(file!.path, file!.contents.replace(/^-- @bs-kit .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
@@ -607,6 +610,55 @@ describe("kit upgrades (BS309, BS310)", () => {
       ),
     ).toEqual([]);
     expect(await run("BS309", context(snap))).toEqual([]);
+  });
+
+  it("reports a renamed kit column used unqualified next to its table", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        {
+          name: "own rows",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using:
+            "(exists (select 1 from better_supabase.memberships m where m.org_id = notes.tenant))",
+          check: null,
+        },
+      ];
+    });
+    const sqlFiles = [
+      {
+        path: "supabase/schemas/100_notes.sql",
+        text: "create view v as select 1;\ncreate view w as\nselect m.org_id\nfrom better_supabase.memberships m;\n",
+      },
+      {
+        path: "supabase/schemas/110_other.sql",
+        text: "select org_id from public.notes;",
+      },
+    ];
+    const findings = await run(
+      "BS309",
+      context(snap, { sqlFiles }, { sql: { kit: ["tenant"] } }),
+    );
+    expect(
+      findings.map((finding) => [finding.target, finding.location]),
+    ).toEqual([
+      [
+        "supabase/schemas/100_notes.sql:memberships.org_id",
+        { file: "supabase/schemas/100_notes.sql", line: 3 },
+      ],
+      ["public.notes.own rows:memberships.org_id", undefined],
+    ]);
+    expect(
+      await run(
+        "BS309",
+        context(
+          snap,
+          { sqlFiles },
+          { sql: { kit: ["tenant"] }, kits: { tenant: { mode: "adopt" } } },
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("reports a table with a kit trigger and an equivalent one", async () => {

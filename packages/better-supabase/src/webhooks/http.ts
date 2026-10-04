@@ -108,7 +108,7 @@ export function fetchTransport(
       for (let hop = 0; ; hop++) {
         if (options.allowUrl && !(await allowed(options.allowUrl, url)))
           throw new WebhookPolicyError(
-            `Destination URL is not allowed: ${url.host}`,
+            `Endpoint URL is not allowed: ${url.host}`,
           );
         const response = await send(url, {
           method: "POST",

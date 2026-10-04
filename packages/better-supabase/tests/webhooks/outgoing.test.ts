@@ -28,7 +28,7 @@ interface Call {
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "del-1",
-    destination_id: "dest-1",
+    endpoint_id: "dest-1",
     url: "https://hooks.example.com/in",
     type: "invoice.paid",
     payload: { id: 7 },
@@ -130,9 +130,9 @@ describe("createWebhooks: deliver", () => {
   it("signs the Standard Webhooks envelope and completes the delivery", async () => {
     const { webhooks, sent, outcomes, seen, calls } = setup([row()]);
     expect(await webhooks.deliver()).toEqual({
-      completed: 1,
-      failed: 0,
-      deadLettered: 0,
+      succeeded: 1,
+      retrying: 0,
+      dead: 0,
       canceled: 0,
       disabled: 0,
     });
@@ -146,7 +146,7 @@ describe("createWebhooks: deliver", () => {
     expect((await verifyWebhook(request, SECRET)).ok).toBe(true);
     expect(outcomes()).toEqual([
       {
-        status: "completed",
+        status: "succeeded",
         attempt: 1,
         response_status: 200,
         response_body: "ok",
@@ -182,14 +182,14 @@ describe("createWebhooks: deliver", () => {
     );
     const before = Date.now();
     expect(await webhooks.deliver()).toMatchObject({
-      failed: 1,
-      deadLettered: 2,
+      retrying: 1,
+      dead: 2,
     });
     const [retry, last, gone] = ["del-1", "del-2", "del-3"].map((id) =>
       outcomeOf(calls, id),
     );
     expect(retry).toMatchObject({
-      status: "failed",
+      status: "retrying",
       attempt: 1,
       response_status: 503,
       error: "HTTP 503",
@@ -198,10 +198,10 @@ describe("createWebhooks: deliver", () => {
     const retryAt = Date.parse(String(retry!["retry_at"]));
     expect(retryAt - before).toBeGreaterThanOrEqual(-1000);
     expect(retryAt - before).toBeLessThan(6000);
-    expect(last).toMatchObject({ status: "dead_lettered", attempt: 8 });
+    expect(last).toMatchObject({ status: "dead", attempt: 8 });
     expect(last).not.toHaveProperty("retry_at");
     expect(gone).toMatchObject({
-      status: "dead_lettered",
+      status: "dead",
       response_status: 410,
     });
     expect(seen.map((event) => event.type)).toEqual([
@@ -220,20 +220,20 @@ describe("createWebhooks: deliver", () => {
       (request) =>
         request.headers["webhook-id"] === "del-1"
           ? new Error("socket hang up")
-          : new WebhookPolicyError("Destination URL is not allowed"),
+          : new WebhookPolicyError("Endpoint URL is not allowed"),
     );
     expect(await webhooks.deliver()).toMatchObject({
-      failed: 1,
-      deadLettered: 1,
+      retrying: 1,
+      dead: 1,
     });
     expect(outcomes()).toHaveLength(2);
     expect(outcomeOf(calls, "del-1")).toMatchObject({
-      status: "failed",
+      status: "retrying",
       error: "socket hang up",
     });
     expect(outcomeOf(calls, "del-2")).toMatchObject({
-      status: "dead_lettered",
-      error: "Destination URL is not allowed",
+      status: "dead",
+      error: "Endpoint URL is not allowed",
     });
   });
 
@@ -250,7 +250,7 @@ describe("createWebhooks: deliver", () => {
       },
     );
     await webhooks.deliver();
-    expect(outcomes()[0]).toMatchObject({ status: "failed", attempt: 2 });
+    expect(outcomes()[0]).toMatchObject({ status: "retrying", attempt: 2 });
   });
 
   it("cancels when shouldDeliver returns false or throws, without sending", async () => {
@@ -308,13 +308,13 @@ describe("createWebhooks: deliver", () => {
     });
   });
 
-  it("dead-letters a destination without secrets and retries a failing transform", async () => {
+  it("dead-letters an endpoint without secrets and retries a failing transform", async () => {
     const empty = setup([row()], ok, {
       secrets: { apiVersion: 1, secrets: async () => [] },
     });
-    expect(await empty.webhooks.deliver()).toMatchObject({ deadLettered: 1 });
+    expect(await empty.webhooks.deliver()).toMatchObject({ dead: 1 });
     expect(empty.outcomes()[0]).toMatchObject({
-      error: "The destination has no signing secret",
+      error: "The endpoint has no signing secret",
     });
 
     const broken = setup([row()], ok, {
@@ -322,7 +322,7 @@ describe("createWebhooks: deliver", () => {
         throw new Error("bad payload");
       },
     });
-    expect(await broken.webhooks.deliver()).toMatchObject({ failed: 1 });
+    expect(await broken.webhooks.deliver()).toMatchObject({ retrying: 1 });
     expect(broken.sent).toHaveLength(0);
   });
 
@@ -353,7 +353,7 @@ describe("createWebhooks: deliver", () => {
       {},
       { complete_webhook_delivery: () => "stale" },
     );
-    expect(await webhooks.deliver()).toMatchObject({ completed: 0 });
+    expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
     expect(seen).toEqual([]);
   });
 
@@ -382,12 +382,12 @@ describe("createWebhooks: deliver", () => {
       },
     });
     expect(await webhooks.deliver({ concurrency: 3 })).toMatchObject({
-      completed: 7,
+      succeeded: 7,
     });
     expect(peak).toBe(3);
   });
 
-  it("counts and announces a destination the kit disabled", async () => {
+  it("counts and announces an endpoint the kit disabled", async () => {
     const { webhooks, seen } = setup(
       [row()],
       () => ({ status: 400, body: "" }),
@@ -397,7 +397,7 @@ describe("createWebhooks: deliver", () => {
       },
     );
     expect(await webhooks.deliver()).toMatchObject({
-      deadLettered: 1,
+      dead: 1,
       disabled: 1,
     });
     expect(seen.map((event) => event.type)).toEqual([
@@ -411,7 +411,7 @@ describe("createWebhooks: deliver", () => {
     kit.queue([row({ id: "del-3" })]);
     expect(
       await kit.webhooks.deliver({ batch: 2, lease: "30 seconds" }),
-    ).toMatchObject({ completed: 3 });
+    ).toMatchObject({ succeeded: 3 });
     expect(
       kit.calls.filter((call) => call.fn === "claim_webhook_deliveries"),
     ).toHaveLength(2);
@@ -419,7 +419,7 @@ describe("createWebhooks: deliver", () => {
 
     const idle = setup([row()]);
     expect(await idle.webhooks.deliver({ budgetMs: 0 })).toMatchObject({
-      completed: 0,
+      succeeded: 0,
     });
     expect(idle.calls).toHaveLength(0);
   });
@@ -429,7 +429,7 @@ describe("createWebhooks: deliver", () => {
       "junk" as unknown as Record<string, unknown>,
       row({ payload: null, attempt: null, created_at: null }),
     ]);
-    expect(await webhooks.deliver()).toMatchObject({ completed: 1 });
+    expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
     expect(JSON.parse(sent[0]!.body).data).toEqual({});
   });
 });
@@ -460,7 +460,7 @@ describe("createWebhooks: management", () => {
     expect(
       await webhooks
         .dispatch({
-          destinationId: "dest-1",
+          endpointId: "dest-1",
           type: "run.done",
           data: undefined,
           runId: "run-1",
@@ -484,7 +484,7 @@ describe("createWebhooks: management", () => {
       [
         "dispatch_webhook",
         {
-          destination: "dest-1",
+          endpoint: "dest-1",
           event_type: "run.done",
           payload: {},
           run_id: "run-1",
@@ -492,7 +492,7 @@ describe("createWebhooks: management", () => {
         },
       ],
       ["redeliver_webhook", { delivery: "del-1" }],
-      ["rotate_webhook_secret", { destination: "dest-1", overlap: "1 hour" }],
+      ["rotate_webhook_secret", { endpoint: "dest-1", overlap: "1 hour" }],
     ]);
   });
 
@@ -503,9 +503,9 @@ describe("createWebhooks: management", () => {
       {},
       {
         dispatch_webhook: () => {
-          throw Object.assign(new Error("Destination is disabled"), {
+          throw Object.assign(new Error("Endpoint is disabled"), {
             code: "55000",
-            hint: "WEBHOOK_DESTINATION_DISABLED",
+            hint: "WEBHOOK_ENDPOINT_DISABLED",
           });
         },
         publish_webhook_event: () => {
@@ -514,13 +514,13 @@ describe("createWebhooks: management", () => {
       },
     );
     const dispatched = await webhooks.dispatch({
-      destinationId: "d",
+      endpointId: "d",
       type: "t",
       data: {},
     });
     expect(dispatched.ok).toBe(false);
     expect(!dispatched.ok && dispatched.error.message).toBe(
-      "Destination is disabled",
+      "Endpoint is disabled",
     );
     expect((await webhooks.publish({ type: "t", data: {} })).ok).toBe(false);
   });
@@ -563,6 +563,35 @@ describe("createWebhooks: management", () => {
       { event_type: "deal.lost", payload: {}, tenant: null, event_id: "ce-2" },
     ]);
   });
+
+  it("removes the relay's type prefix before publishing", async () => {
+    const { webhooks, calls } = setup(
+      [],
+      ok,
+      {},
+      { publish_webhook_event: () => 1 },
+    );
+    const event = (type: string) => ({
+      specversion: "1.0" as const,
+      id: type,
+      source: "/crm",
+      type,
+    });
+    await webhooks
+      .sink()
+      .send([
+        event("dev.better-supabase.deal.won"),
+        event("com.acme.deal.won"),
+      ]);
+    await webhooks
+      .sink({ typePrefix: "com.acme" })
+      .send([event("com.acme.deal.lost")]);
+    expect(calls.map((call) => call.args["event_type"])).toEqual([
+      "deal.won",
+      "com.acme.deal.won",
+      "deal.lost",
+    ]);
+  });
 });
 
 describe("createWebhooks: deliverRoute", () => {
@@ -587,7 +616,7 @@ describe("createWebhooks: deliverRoute", () => {
       new Request(url, { headers: { authorization: "Bearer cron-secret" } }),
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ completed: 1 });
+    expect(await response.json()).toMatchObject({ succeeded: 1 });
   });
 
   it("reports a failing run as a problem", async () => {
@@ -632,18 +661,18 @@ describe("sqlSecretStore", () => {
       { schema: "hooks" },
     );
     const report = await testWebhookSecretStore(store, {
-      destinationId: "dest-1",
+      endpointId: "dest-1",
     });
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(calls[0]).toEqual({
       schema: "hooks",
       fn: "webhook_secrets",
-      args: { destination: "dest-1" },
+      args: { endpoint: "dest-1" },
     });
     expect(calls[1]).toEqual({
       schema: "hooks",
       fn: "rotate_webhook_secret",
-      args: { destination: "dest-1", overlap: "1 hour" },
+      args: { endpoint: "dest-1", overlap: "1 hour" },
     });
   });
 
@@ -661,7 +690,7 @@ describe("sqlSecretStore", () => {
             return current;
           },
         },
-        { destinationId: "dest-1" },
+        { endpointId: "dest-1" },
       ),
     ).rejects.toThrow("the previous secret must keep signing");
   });

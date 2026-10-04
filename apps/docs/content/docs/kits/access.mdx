@@ -49,14 +49,16 @@ export default defineConfig({
 });
 ```
 
-| Module             | Action and default key                                                                                                                                                             |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organizations`    | `update`: `organization.update`, `delete`: `organization.delete`, `removeMember`: `members.remove`, `updateRole`: `members.update_role`, `transferOwnership`: `ownership.transfer` |
-| `invitations`      | `invite`, `revoke` and `view`: `members.invite`                                                                                                                                    |
-| `audit`            | `view`: `audit.view`                                                                                                                                                               |
-| `support-sessions` | `start`: `support.start`, `view`: `support.view`                                                                                                                                   |
-| `notifications`    | `send`: `notifications.send`, `read`: `notifications.read`                                                                                                                         |
-| `webhooks-out`     | `manage`: `webhooks.manage`, `view`: `webhooks.view`                                                                                                                               |
+Keys follow one scheme, `<area>.<verb>`, with `read` for viewing. Platform-wide actions are checked with `is_platform()`.
+
+| Module             | Action and default key                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizations`    | `update`: `organization.update`, `delete`: `organization.delete`, `removeMember`: `members.remove`, `updateRole`: `members.update_role`, `transferOwnership`: `organization.transfer_ownership` |
+| `invitations`      | `invite`, `revoke` and `view`: `members.invite`; `invitePlatform`: `platform.invite`                                                                                                            |
+| `audit`            | `view` and `viewAll`: `audit.read`                                                                                                                                                              |
+| `support-sessions` | `start`: `support.start`, `view`: `support.read`, `revoke`: `support.revoke`                                                                                                                    |
+| `notifications`    | `send`: `notifications.send`, `read`: `notifications.read`                                                                                                                                      |
+| `webhooks-out`     | `manage`: `webhooks.manage`, `view`: `webhooks.read`                                                                                                                                            |
 
 ## Models
 

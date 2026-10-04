@@ -125,7 +125,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       actor_id: string;
       support_session_id: string;
     }>(
-      "select actor_id::text, support_session_id::text from better_supabase.audit_log where id = $1",
+      "select actor_id::text, support_session_id::text from better_supabase.audit_events where id = $1",
       [row?.id],
     );
     expect(audited).toEqual({

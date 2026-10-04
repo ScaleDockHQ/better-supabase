@@ -12,7 +12,7 @@ export interface NotificationItem<K extends string = string, D = unknown> {
   readonly id: string;
   /** The shared event id, the same for every recipient. */
   readonly eventId: string;
-  readonly kind: K;
+  readonly type: K;
   readonly data: D;
   readonly tenant: string | null;
   readonly actorId: string | null;

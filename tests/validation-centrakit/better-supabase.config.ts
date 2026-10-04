@@ -137,7 +137,7 @@ export default defineConfig({
           changed: null,
           actorRole: null,
           tenant: "organization_id",
-          at: "occurred_at",
+          occurredAt: "occurred_at",
           impersonatedBy: null,
           impersonationReason: null,
           supportSession: null,
@@ -167,8 +167,8 @@ export default defineConfig({
           xid: null,
         },
       },
+      idType: "uuid",
       options: {
-        tenantType: "uuid",
         defaultSource: "domain",
         kitSource: "domain",
       },
@@ -184,8 +184,11 @@ export default defineConfig({
         preferences: "centrakit.notification_preferences",
       },
       columns: {
-        events: { key: null },
+        events: { key: null, actor: "actor_user_id", data: "metadata" },
+        recipients: { user: "recipient_user_id" },
         deliveries: { attempts: null, nextAttemptAt: null },
+        subscriptions: { updatedAt: null },
+        preferences: { updatedAt: null },
       },
       idType: "uuid",
       options: {
@@ -196,18 +199,23 @@ export default defineConfig({
     "webhooks-out": {
       mode: "adopt",
       tables: {
-        destinations: "centrakit.webhook_destinations",
+        endpoints: "centrakit.webhook_destinations",
         secrets: "centrakit.webhook_destination_secrets",
         deliveries: "centrakit.webhook_deliveries",
       },
       columns: {
-        destinations: {
+        endpoints: {
+          eventTypes: "event_kinds",
           failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },
-        secrets: { vaultId: null, expiresAt: null },
-        deliveries: { run: "workflow_run_id" },
+        secrets: { endpoint: "destination_id", vaultId: null, expiresAt: null },
+        deliveries: {
+          endpoint: "destination_id",
+          type: "event_kind",
+          run: "workflow_run_id",
+        },
       },
       permissions: {
         manage: "organization.webhooks.manage",
@@ -217,6 +225,12 @@ export default defineConfig({
         secretStorage: "column",
         eventIdType: "uuid",
         runIdType: "uuid",
+        statuses: {
+          delivering: "processing",
+          succeeded: "completed",
+          retrying: "failed",
+          dead: "dead_lettered",
+        },
       },
     },
   },

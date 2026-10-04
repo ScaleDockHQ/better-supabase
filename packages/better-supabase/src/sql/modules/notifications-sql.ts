@@ -68,13 +68,13 @@ function wanted(ctx: KitContext, n: NotifyNames): string {
       from unnest(v_recipients) x cross join unnest(v_channels) c
       left join ${n.table("preferences")} p
         on p.${p("user")} = x and p.${p("channel")} = c
-        and (p.${p("kind")} = v_kind or p.${p("kind")} = '*')${
+        and (p.${p("type")} = v_type or p.${p("type")} = '*')${
           tenant
             ? `
         and (p.${p("tenant")} is null or p.${p("tenant")} = v_tenant)`
             : ""
         }
-      order by x, c${tenant ? `, p.${p("tenant")} is null` : ""}, p.${p("kind")} = '*'
+      order by x, c${tenant ? `, p.${p("tenant")} is null` : ""}, p.${p("type")} = '*'
     ) w
     where w.enabled`;
 }
@@ -102,21 +102,21 @@ function enabled(ctx: KitContext, n: NotifyNames): string {
     from ${n.table("preferences")} p
     where p.${n.col("preferences", "user")} = notification_enabled.member
       and p.${n.col("preferences", "channel")} = notification_enabled.channel
-      and (p.${n.col("preferences", "kind")} = notification_enabled.kind or p.${n.col("preferences", "kind")} = '*')${
+      and (p.${n.col("preferences", "type")} = notification_enabled.type or p.${n.col("preferences", "type")} = '*')${
         n.has("preferences", "tenant")
           ? `
       and (p.${n.col("preferences", "tenant")} is null or p.${n.col("preferences", "tenant")} = notification_enabled.tenant)
-    order by p.${n.col("preferences", "tenant")} is null, p.${n.col("preferences", "kind")} = '*'`
+    order by p.${n.col("preferences", "tenant")} is null, p.${n.col("preferences", "type")} = '*'`
           : `
-    order by p.${n.col("preferences", "kind")} = '*'`
+    order by p.${n.col("preferences", "type")} = '*'`
       }
     limit 1
   )`
     : "null::boolean";
   return `
--- A member's choice for a kind on a channel: the tenant's exact kind, the
--- tenant's '*', the exact kind anywhere, '*' anywhere, then the channel default.
-create or replace function ${fn}(member uuid, tenant ${id}, kind text, channel text)
+-- A member's choice for a type on a channel: the tenant's exact type, the
+-- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
+create or replace function ${fn}(member uuid, tenant ${id}, type text, channel text)
 returns boolean
 language sql
 stable
@@ -151,7 +151,7 @@ function notify(ctx: KitContext, n: NotifyNames): string {
   }
 
   const columns: [string, string][] = [
-    [e("kind"), "v_kind"],
+    [e("type"), "v_type"],
     [e("data"), "coalesce(notification -> 'data', '{}')"],
   ];
   const optional: [string, string][] = [
@@ -295,7 +295,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_kind text := notification ->> 'kind';
+  v_type text := notification ->> 'type';
   v_tenant ${id} := nullif(notification ->> 'tenant', '')::${id};
   v_actor uuid := coalesce(nullif(notification ->> 'actor', '')::uuid, auth.uid());
   v_subject_type text := notification ->> 'subject_type';
@@ -316,8 +316,8 @@ declare
   v_want_members uuid[];
   v_want_channels text[];
 begin
-  if v_kind is null or btrim(v_kind) = '' then
-    ${fail("NOTIFICATION_KIND_REQUIRED", "A notification needs a kind", "22023")}
+  if v_type is null or btrim(v_type) = '' then
+    ${fail("NOTIFICATION_TYPE_REQUIRED", "A notification needs a type", "22023")}
   end if;
   if not (v_priority = any(array[${priorities.map(sqlString).join(", ")}]::text[])) then
     ${fail("NOTIFICATION_PRIORITY_UNKNOWN", "Unknown notification priority", "22023")}
@@ -355,7 +355,7 @@ ${keyed}
   ${ctx.emit({
     type: "notification.created",
     payload:
-      "jsonb_build_object('notificationId', v_event, 'kind', v_kind, 'recipientIds', to_jsonb(v_recipients))",
+      "jsonb_build_object('notificationId', v_event, 'type', v_type, 'recipientIds', to_jsonb(v_recipients))",
     subject: "'notifications/' || v_event::text",
     tenant: "v_tenant",
   })}
@@ -373,7 +373,7 @@ function itemJson(n: NotifyNames): string {
   const pairs: [string, string][] = [
     ["id", `rc.${r("id")}`],
     ["event_id", `ev.${e("id")}`],
-    ["kind", `ev.${e("kind")}`],
+    ["type", `ev.${e("type")}`],
     ["data", `ev.${e("data")}`],
     ["created_at", `rc.${r("createdAt")}`],
     ["read_at", `rc.${r("readAt")}`],
@@ -415,7 +415,7 @@ function inbox(ctx: KitContext, n: NotifyNames): string {
     : "";
   const actionable = resolved
     ? `count(*) filter (
-      where rc.${r("resolvedAt")} is null and ev.${e("kind")} = any(coalesce(notification_counts.actionable, '{}'))
+      where rc.${r("resolvedAt")} is null and ev.${e("type")} = any(coalesce(notification_counts.actionable, '{}'))
     )`
     : "0";
   const parts = [
@@ -427,7 +427,7 @@ drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], tim
 create or replace function ${ctx.fn("list_notifications")}(
   tenant ${id} default null,
   status text default 'all',
-  kinds text[] default null,
+  types text[] default null,
   before timestamptz default null,
   max_items integer default 50,
   before_id uuid default null
@@ -446,7 +446,7 @@ as $$
     where rc.${r("user")} = auth.uid()
       and rc.${r("dismissedAt")} is null
       ${tenantFilter("list_notifications")}
-      and (list_notifications.kinds is null or ev.${e("kind")} = any(list_notifications.kinds))
+      and (list_notifications.types is null or ev.${e("type")} = any(list_notifications.types))
       and (
         list_notifications.before is null
         or (rc.${r("createdAt")}, rc.${r("id")}) < (list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid))
@@ -461,7 +461,7 @@ as $$
   ) x
 $$;
 
--- Unread and, for the kinds in actionable, unresolved counts.
+-- Unread and, for the types in actionable, unresolved counts.
 create or replace function ${ctx.fn("notification_counts")}(tenant ${id} default null, actionable text[] default null)
 returns jsonb
 language sql
@@ -538,9 +538,9 @@ $$;`,
       ? `(${SERVICE_CALLER}) or coalesce(better_supabase.member_can(auth.uid(), resolve_notifications.tenant, ${n.sendPermission}), false)`
       : SERVICE_CALLER;
     parts.push(`
--- Marks every recipient's notification of this kind about this subject
+-- Marks every recipient's notification of this type about this subject
 -- resolved (and read), e.g. once the approval it asked for is given.
-create or replace function ${ctx.fn("resolve_notifications")}(kind text, subject_type text, subject_id text, tenant ${id} default null)
+create or replace function ${ctx.fn("resolve_notifications")}(type text, subject_type text, subject_id text, tenant ${id} default null)
 returns integer
 language plpgsql
 security definer
@@ -556,7 +556,7 @@ begin
   set ${r("resolvedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())
   from ${n.table("events")} ev
   where ev.${e("id")} = rc.${r("event")}
-    and ev.${e("kind")} = resolve_notifications.kind
+    and ev.${e("type")} = resolve_notifications.type
     and ev.${e("subjectType")} = resolve_notifications.subject_type
     and ev.${e("subjectId")} = resolve_notifications.subject_id
     ${tenantMatch}
@@ -627,9 +627,9 @@ grant execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid) to authen
     const t = n.has("preferences", "tenant");
     const fn = "set_notification_preference";
     parts.push(`
--- Turns a kind ('*' for all) on or off on a channel, for one organization or
+-- Turns a type ('*' for all) on or off on a channel, for one organization or
 -- everywhere (tenant null); a null enabled removes the choice.
-create or replace function ${ctx.fn(fn)}(kind text, channel text, enabled boolean, tenant ${id} default null)
+create or replace function ${ctx.fn(fn)}(type text, channel text, enabled boolean, tenant ${id} default null)
 returns void
 language plpgsql
 security definer
@@ -641,11 +641,11 @@ begin
   end if;${member(fn)}
   delete from ${n.table("preferences")} p
   where p.${p("user")} = auth.uid()
-    and p.${p("kind")} = ${fn}.kind
+    and p.${p("type")} = ${fn}.type
     and p.${p("channel")} = ${fn}.channel${t ? `\n    and p.${p("tenant")} is not distinct from ${fn}.tenant` : ""};
   if ${fn}.enabled is not null then
-    insert into ${n.table("preferences")} (${[p("user"), ...(t ? [p("tenant")] : []), p("kind"), p("channel"), p("enabled")].join(", ")})
-    values (${["auth.uid()", ...(t ? [`${fn}.tenant`] : []), `${fn}.kind`, `${fn}.channel`, `${fn}.enabled`].join(", ")});
+    insert into ${n.table("preferences")} (${[p("user"), ...(t ? [p("tenant")] : []), p("type"), p("channel"), p("enabled")].join(", ")})
+    values (${["auth.uid()", ...(t ? [`${fn}.tenant`] : []), `${fn}.type`, `${fn}.channel`, `${fn}.enabled`].join(", ")});
   end if;
 end;
 $$;

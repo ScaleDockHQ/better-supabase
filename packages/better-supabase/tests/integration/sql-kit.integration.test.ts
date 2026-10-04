@@ -62,9 +62,11 @@ async function installSchemaModules(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    for (const module of Object.values(SQL_MODULES)) {
-      if (module.target === "schema") await client.query(module.sql);
-    }
+    const names = Object.values(SQL_MODULES)
+      .filter((module) => module.target === "schema")
+      .map((module) => module.name);
+    for (const file of renderKit(names))
+      if (file.kind !== "test") await client.query(file.contents);
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
   } catch (error) {
@@ -253,18 +255,23 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       op: string;
       changed: string[] | null;
       actor_id: string;
-      org_id: string;
+      organization_id: string;
     }>(
-      `select op, changed, actor_id, org_id from better_supabase.audit_log
+      `select op, changed, actor_id, organization_id from better_supabase.audit_events
        where table_name = $1 and record_id = $2 order by id`,
       [table, row!.id],
     );
     expect(log.rows).toEqual([
-      { op: "insert", changed: null, actor_id: user, org_id: ACME },
-      { op: "update", changed: ["name"], actor_id: user, org_id: ACME },
+      { op: "insert", changed: null, actor_id: user, organization_id: ACME },
+      {
+        op: "update",
+        changed: ["name"],
+        actor_id: user,
+        organization_id: ACME,
+      },
     ]);
     await expect(
-      as.queryRaw("select * from better_supabase.audit_log limit 1"),
+      as.queryRaw("select * from better_supabase.audit_events limit 1"),
     ).rejects.toMatchObject({ code: "42501" });
   });
 
@@ -291,7 +298,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       );
     expect(own!.impersonated_by).toBe(admin);
     const log = await pool.query(
-      `select impersonated_by, impersonation_reason from better_supabase.audit_log
+      `select impersonated_by, impersonation_reason from better_supabase.audit_events
        where table_name = $1 and record_id = $2 order by id`,
       [table, row!.id],
     );
@@ -411,7 +418,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         insert into ${composite} values (7, 'x', 'Seven');
       `);
       const log = await pool.query<{ record_id: string }>(
-        `select record_id from better_supabase.audit_log where table_name = $1`,
+        `select record_id from better_supabase.audit_events where table_name = $1`,
         [composite],
       );
       expect(log.rows).toEqual([{ record_id: "7,x" }]);
@@ -446,7 +453,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         [org],
       );
       await pool.query(
-        `insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'owner')`,
+        `insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner')`,
         [org, ownerId],
       );
       const asOwner = postgres.asUser({
@@ -629,7 +636,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         create table public.${billing} (org_id uuid primary key, customer_id text unique);
         insert into public.${billing} values ('${org}', '${customer}');
         insert into better_supabase.organizations (id, name, slug) values ('${org}', 'Test', 'test-${org.slice(0, 8)}');
-        insert into better_supabase.memberships (org_id, user_id, role) values ('${org}', '${member}', 'admin');
+        insert into better_supabase.memberships (organization_id, user_id, role) values ('${org}', '${member}', 'admin');
         insert into stripe.active_entitlements (id, customer, lookup_key) values
           ('ent_b_${RUN}', '${customer}', 'sso'), ('ent_a_${RUN}', '${customer}', 'exports'),
           ('ent_c_${RUN}', 'cus_other_${RUN}', 'audit');
@@ -1287,7 +1294,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     const purge = (call: string) => count(`select ${call} as n`);
 
     await pool.query(
-      `insert into better_supabase.audit_log (table_name, op, at)
+      `insert into better_supabase.audit_events (table_name, op, occurred_at)
        values ($1, 'insert', ${old}), ($1, 'update', ${old}), ($1, 'delete', now())`,
       [`purge_${RUN}`],
     );
@@ -1298,7 +1305,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     expect(await purge("better_supabase.purge_audit_log('10 years')")).toBe(0);
     expect(
       await count(
-        "select count(*)::int as n from better_supabase.audit_log where table_name = $1",
+        "select count(*)::int as n from better_supabase.audit_events where table_name = $1",
         [`purge_${RUN}`],
       ),
     ).toBe(1);
@@ -1392,10 +1399,10 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         target_type: string;
         new_record: { api_key: string };
         changed: string[] | null;
-        org_id: string;
+        organization_id: string;
       }>(
-        `select event_type, category, target_type, new_record, changed, org_id
-         from better_supabase.audit_log where table_name = $1 order by id`,
+        `select event_type, category, target_type, new_record, changed, organization_id
+         from better_supabase.audit_events where table_name = $1 order by id`,
         [name],
       );
       expect(rows.map((row) => row.event_type)).toEqual([
@@ -1407,7 +1414,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         target_type: "secret",
         new_record: { api_key: "[redacted]" },
         changed: ["api_key"],
-        org_id: ACME,
+        organization_id: ACME,
       });
 
       const event = (key: string) =>
@@ -1420,7 +1427,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       expect((await event(`k_${RUN}`)).rows[0]!.id).toBe(first);
       const stored = await pool.query(
         `select op, event_type, category, outcome, source, metadata
-         from better_supabase.audit_log where id = $1::bigint`,
+         from better_supabase.audit_events where id = $1::bigint`,
         [first],
       );
       expect(stored.rows[0]).toEqual({
@@ -1464,25 +1471,25 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         insert into ${name} values (1, '${ACME}', 'a');
       `);
       const entry = await pool.query<{ id: string; new_record: unknown }>(
-        "select id, new_record from better_supabase.audit_log where table_name = $1",
+        "select id, new_record from better_supabase.audit_events where table_name = $1",
         [name],
       );
       expect(entry.rows[0]!.new_record).toBeNull();
       const details = await pool.query<{ new_record: { note: string } }>(
-        "select new_record from better_supabase.audit_log_restricted where entry_id = $1",
+        "select new_record from better_supabase.audit_events_restricted where entry_id = $1",
         [entry.rows[0]!.id],
       );
       expect(details.rows[0]!.new_record.note).toBe("a");
 
       await expect(
         pool.query(
-          "update better_supabase.audit_log set op = 'x' where table_name = $1",
+          "update better_supabase.audit_events set op = 'x' where table_name = $1",
           [name],
         ),
       ).rejects.toThrow(/append-only/);
       await expect(
         pool.query(
-          "delete from better_supabase.audit_log where table_name = $1",
+          "delete from better_supabase.audit_events where table_name = $1",
           [name],
         ),
       ).rejects.toThrow(/append-only/);
@@ -1490,7 +1497,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       try {
         await writer.query("begin");
         await writer.query(
-          "grant delete on better_supabase.audit_log to service_role",
+          "grant delete on better_supabase.audit_events to service_role",
         );
         await writer.query("set local role service_role");
         await writer.query(
@@ -1498,14 +1505,14 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         );
         await expect(
           writer.query(
-            "delete from better_supabase.audit_log where table_name = $1",
+            "delete from better_supabase.audit_events where table_name = $1",
             [name],
           ),
         ).rejects.toThrow(/append-only/);
         await writer.query("rollback");
         await writer.query("begin");
         await expect(
-          writer.query("truncate better_supabase.audit_log cascade"),
+          writer.query("truncate better_supabase.audit_events cascade"),
         ).rejects.toThrow(/append-only/);
       } finally {
         await writer.query("rollback");
@@ -1513,7 +1520,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       }
 
       const privileges = await pool.query<{ column: string; allowed: boolean }>(
-        `select c as column, has_column_privilege('authenticated', 'better_supabase.audit_log', c, 'select') as allowed
+        `select c as column, has_column_privilege('authenticated', 'better_supabase.audit_events', c, 'select') as allowed
          from unnest(array['actor_id', 'impersonated_by']) c`,
       );
       expect(privileges.rows).toEqual([
@@ -1521,12 +1528,12 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         { column: "impersonated_by", allowed: false },
       ]);
       const policy = await pool.query(
-        "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_log' and policyname = 'bs_audit_read'",
+        "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_events' and policyname = 'bs_audit_read'",
       );
       expect(policy.rowCount).toBe(1);
 
       await pool.query(
-        `insert into better_supabase.audit_log (table_name, op, org_id, at)
+        `insert into better_supabase.audit_events (table_name, op, organization_id, occurred_at)
          values ($1, 'insert', $2, now() - interval '40 days'),
                 ($1, 'insert', $3, now() - interval '40 days')`,
         [`${name}_old`, ACME, other],
@@ -1540,15 +1547,15 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         "select better_supabase.purge_audit_log('10 years') as n",
       );
       expect(purged.rows[0]!.n).toBe(1);
-      const left = await pool.query<{ org_id: string }>(
-        "select org_id from better_supabase.audit_log where table_name = $1",
+      const left = await pool.query<{ organization_id: string }>(
+        "select organization_id from better_supabase.audit_events where table_name = $1",
         [`${name}_old`],
       );
-      expect(left.rows).toEqual([{ org_id: other }]);
+      expect(left.rows).toEqual([{ organization_id: other }]);
 
       await pool.query(`drop function ${hook}(uuid)`);
       await pool.query(
-        `insert into better_supabase.audit_log (table_name, op, at)
+        `insert into better_supabase.audit_events (table_name, op, occurred_at)
          values ($1, 'insert', now() - interval '40 days')`,
         [`${name}_old`],
       );
@@ -1558,7 +1565,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       });
       expect(retained.data).toBe(2);
       const none = await pool.query(
-        "select 1 from better_supabase.audit_log where table_name = $1",
+        "select 1 from better_supabase.audit_events where table_name = $1",
         [`${name}_old`],
       );
       expect(none.rowCount).toBe(0);
@@ -1569,10 +1576,10 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       await pool.query(SQL_MODULES["audit"]!.sql);
       await pool.query(deleteAudit("table_name like $1"), [`${name}%`]);
       await pool.query(
-        "drop policy if exists bs_audit_read on better_supabase.audit_log",
+        "drop policy if exists bs_audit_read on better_supabase.audit_events",
       );
       await pool.query(
-        "revoke all on better_supabase.audit_log from authenticated",
+        "revoke all on better_supabase.audit_events from authenticated",
       );
     }
   });

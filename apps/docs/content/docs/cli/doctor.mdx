@@ -554,8 +554,11 @@ policy uses a function, table, column or claim that a kit module in `sql.kit`
 deprecated or removed, such as `better_supabase.current_org_id()` or the
 `org_id` claim. A deprecated symbol keeps a compatibility wrapper for at least
 one minor release; a removed one fails at run time. The message names the
-replacement. Kit files and migrations are skipped, and so is a claim the config
-maps in `claims`.
+replacement. A renamed column such as `memberships.org_id` also counts
+unqualified (`m.org_id`) in a statement that names its table. Kit files and
+migrations are skipped, and so is a claim the config maps in `claims`. Tables
+and columns of a module in adopt or custom mode are the app's names and are
+never reported.
 
 ### BS310
 

@@ -6,7 +6,7 @@ export interface WebhookSignInput {
   readonly id: string;
   readonly body: string;
   readonly timestamp: Temporal.Instant;
-  /** The destination's live secrets, newest first. Sign with each while rotating. */
+  /** The endpoint's live secrets, newest first. Sign with each while rotating. */
   readonly secrets: readonly string[];
 }
 
@@ -35,7 +35,7 @@ export interface StandardWebhooksOptions {
 
 function needSecrets(secrets: readonly string[]): void {
   if (secrets.length === 0)
-    throw new TypeError("The destination has no signing secret");
+    throw new TypeError("The endpoint has no signing secret");
 }
 
 /**

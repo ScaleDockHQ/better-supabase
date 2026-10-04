@@ -2,7 +2,7 @@ import type { KitContext, KitContractFunction, KitNames } from "../context.ts";
 import type { KitModuleDefinition } from "../kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, updatedAt } from "../shared.ts";
 import {
   functions,
   type NotifyNames,
@@ -26,15 +26,15 @@ const NAMES: KitNames = {
       columns: {
         id: "id",
         tenant: "organization_id",
-        kind: "type",
-        actor: "actor_user_id",
+        type: "type",
+        actor: "actor_id",
         subjectType: "subject_type",
         subjectId: "subject_id",
         subjectLabel: "subject_label",
         summary: "summary",
         actionPath: "action_path",
         priority: "priority",
-        data: "metadata",
+        data: "data",
         key: "idempotency_key",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -58,7 +58,7 @@ const NAMES: KitNames = {
         id: "id",
         event: "event_id",
         tenant: "organization_id",
-        user: "recipient_user_id",
+        user: "user_id",
         readAt: "read_at",
         dismissedAt: "dismissed_at",
         resolvedAt: "resolved_at",
@@ -105,8 +105,9 @@ const NAMES: KitNames = {
         subjectId: "subject_id",
         level: "level",
         createdAt: "created_at",
+        updatedAt: "updated_at",
       },
-      optional: ["tenant"],
+      optional: ["tenant", "updatedAt"],
       optionalTable: true,
     },
     preferences: {
@@ -115,12 +116,13 @@ const NAMES: KitNames = {
         id: "id",
         user: "user_id",
         tenant: "organization_id",
-        kind: "type",
+        type: "type",
         channel: "channel",
         enabled: "enabled",
         createdAt: "created_at",
+        updatedAt: "updated_at",
       },
-      optional: ["tenant"],
+      optional: ["tenant", "updatedAt"],
       optionalTable: true,
     },
   },
@@ -150,7 +152,7 @@ create table if not exists ${n.table("events")} (
   ${[
     `${c("events", "id")} uuid primary key default gen_random_uuid()`,
     ...opt("events", "tenant", id),
-    `${c("events", "kind")} text not null`,
+    `${c("events", "type")} text not null`,
     ...opt(
       "events",
       "actor",
@@ -179,7 +181,7 @@ create table if not exists ${n.table("events")} (
     n.has("events", "subjectType") && n.has("events", "subjectId")
       ? `\ncreate index if not exists notification_events_subject_idx on ${n.table("events")} (${c("events", "subjectType")}, ${c("events", "subjectId")});`
       : ""
-  }
+  }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
 alter table ${n.table("events")} enable row level security;
 revoke all on ${n.table("events")} from anon, authenticated;
 grant select on ${n.table("events")} to authenticated;
@@ -278,7 +280,7 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
             `${c(table, "id")} uuid primary key default gen_random_uuid()`,
             `${c(table, "user")} uuid not null references auth.users (id) on delete cascade`,
             ...opt(table, "tenant", id),
-            `${c(table, "kind")} text not null`,
+            `${c(table, "type")} text not null`,
             `${c(table, "channel")} text not null`,
             `${c(table, "enabled")} boolean not null default true`,
             `${c(table, "createdAt")} timestamptz not null default now()`,
@@ -294,7 +296,7 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
         : [
             c(table, "user"),
             n.has(table, "tenant") ? c(table, "tenant") : undefined,
-            c(table, "kind"),
+            c(table, "type"),
             c(table, "channel"),
           ];
     const mine = own(n, table, "user");
@@ -302,7 +304,13 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
 create table if not exists ${n.table(table)} (
   ${columns.join(",\n  ")},
   unique nulls not distinct (${unique.filter((column) => column !== undefined).join(", ")})
-);
+);${
+      table === "subscriptions"
+        ? `
+create index if not exists notification_subscriptions_user_idx on ${n.table(table)} (${c(table, "user")});
+create index if not exists notification_subscriptions_subject_idx on ${n.table(table)} (${[n.has(table, "tenant") ? c(table, "tenant") : undefined, c(table, "subjectType"), c(table, "subjectId")].filter((column) => column !== undefined).join(", ")});`
+        : ""
+    }${n.has(table, "updatedAt") ? `\n${updatedAt(n.table(table), c(table, "updatedAt"))}` : ""}
 alter table ${n.table(table)} enable row level security;
 revoke all on ${n.table(table)} from anon, authenticated;
 grant select, insert, update, delete on ${n.table(table)} to authenticated;
@@ -527,7 +535,7 @@ export const NOTIFICATIONS: KitModuleDefinition = {
   title: "Notifications",
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
-  requires: [],
+  requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

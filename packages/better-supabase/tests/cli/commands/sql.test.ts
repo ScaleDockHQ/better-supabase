@@ -180,10 +180,10 @@ describe("runSql", () => {
       output: "SQL kit modules are at their current versions.",
     });
     await sql(["sync"], config);
-    const [file] = renderKit(
+    const file = renderKit(
       ["tenant"],
       kitLayout(resolveConfig(config, root)),
-    );
+    ).find((kit) => kit.module === "tenant" && kit.kind === "schema");
     const path = join(root, file!.path);
     const legacy = (await readFile(path, "utf8")).replace(
       /^-- @bs-kit .*\n/m,
@@ -204,7 +204,7 @@ describe("runSql", () => {
 
     const done = await sql(["upgrade"], config);
     expect(done.output).toContain(
-      "Adds memberships.last_used_at and org_member_role()",
+      "Renames memberships.org_id to organization_id",
     );
     expect(done.output).toContain("Then create a migration:");
     expect(await readFile(path, "utf8")).toContain("-- @bs-kit tenant@2");

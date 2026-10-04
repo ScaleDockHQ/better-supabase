@@ -554,7 +554,7 @@ describe("sql", () => {
 
   it("prints a module and rejects unknown ones", async () => {
     const print = await run(["sql", "print", "audit", "--cwd", dir]);
-    expect(print.stdout).toContain("better_supabase.audit_log");
+    expect(print.stdout).toContain('"better_supabase"."audit_events"');
     expect((await run(["sql", "add", "nope", "--cwd", dir])).code).toBe(2);
     expect(
       (await run(["sql", "add", "--dry-run", "audit", "--cwd", dir])).stdout,

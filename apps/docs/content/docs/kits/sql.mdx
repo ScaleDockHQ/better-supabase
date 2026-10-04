@@ -45,7 +45,7 @@ their functions.
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                 |
 | `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                       |
-| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                   |
+| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                |
 | `tenant`           | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                         |
 | `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                                                    |
 | `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/kits/orgs)                                                     |
@@ -211,7 +211,7 @@ The module options (`kits.audit.options`):
 | `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                          |
 | `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
 | `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
-| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_log_restricted` table that only `service_role` reads         |
+| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads      |
 | `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                         |
 | `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                             |
 | `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                               |
@@ -231,7 +231,7 @@ key index without a full scan. Only `service_role` can call them.
 
 | Function                                                                         | Deletes                                                                                                            |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `purge_audit_log(older_than => '1 year')`                                        | `audit_log` entries older than `older_than`, or than the tenant's own interval                                     |
+| `purge_audit_log(older_than => '1 year')`                                        | `audit_events` entries older than `older_than`, or than the tenant's own interval                                  |
 | `purge_webhooks(older_than => '30 days')`                                        | processed messages; `include_dead => true` also deletes dead ones                                                  |
 | `purge_job_archive(queue, older_than => '7 days', dead_older_than => '30 days')` | completed jobs, and dead jobs after their own retention (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
 | `purge_idempotency_keys()`                                                       | expired idempotency keys                                                                                           |
@@ -294,7 +294,7 @@ as the admin checks `support.start` again. Errors carry `SUPPORT_FORBIDDEN`,
 | `auditCategory`        | `support` | the audit log category of `support.started` and `support.ended`          |
 | `claimsHook`           | none      | `schema.function` of your access token hook, for `support_target_claims` |
 
-The permission keys are `support.start`, `support.view` and `support.revoke`;
+The permission keys are `support.start`, `support.read` and `support.revoke`;
 rename them with `kits["support-sessions"].permissions`. The hooks
 `before_support_start(admin, target, reason, metadata)`,
 `after_support_start(session_id)` and `after_support_end(session_id)` run in
@@ -447,9 +447,11 @@ forward steps into `<timestamp>_better_supabase_kit_upgrade.sql` in the
 steps run first. `sql upgrade --check` exits with 1 when a module is behind or
 a file is stale, and `--dry-run` lists the steps without writing.
 
-A renamed function or claim keeps working for at least one minor version. The
-module file keeps a wrapper under the old name, marked `-- Deprecated since`,
-and doctor reports code that still uses it (BS309). The
+A renamed function, table or claim keeps working for at least one minor
+version. The module file keeps a wrapper under the old name (a view for a
+table), marked `-- Deprecated since`, and doctor reports code that still uses
+it (BS309). A renamed column has no wrapper: `sql upgrade` renames it, and
+doctor reports the old name in your SQL before you upgrade. The
 [stability page](/docs/extending/stability#sql-kit-objects-and-claims) lists
 what each module guarantees.
 

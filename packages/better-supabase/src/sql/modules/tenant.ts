@@ -9,7 +9,9 @@ import {
   disabledHelpers,
   disabledHelpersNeedLaterTables,
   jwtClaim,
+  renameSql,
   schemaPreamble,
+  updatedAt,
 } from "../shared.ts";
 import { accessModel, roleNames } from "./access-model.ts";
 
@@ -140,7 +142,7 @@ create table if not exists ${m} (
   primary key (${tenant}, ${user})
 );
 create index if not exists memberships_user_idx on ${m} (${user});
-${ctx.has("memberships", "lastUsedAt") ? `alter table ${m} add column if not exists ${ctx.col("memberships", "lastUsedAt")} timestamptz;\n` : ""}${
+${model === "catalog" ? `create index if not exists memberships_role_idx on ${m} (${roleCol});\n` : ""}${ctx.has("memberships", "updatedAt") ? `${updatedAt(m, ctx.col("memberships", "updatedAt"))}\n` : ""}${ctx.has("memberships", "lastUsedAt") ? `alter table ${m} add column if not exists ${ctx.col("memberships", "lastUsedAt")} timestamptz;\n` : ""}${
         model === "catalog"
           ? ""
           : `alter table ${m} drop constraint if exists memberships_role_check;
@@ -259,7 +261,7 @@ export const TENANT: KitModuleDefinition = {
   title: "Tenant memberships and permission helper",
   description:
     "Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through kits.tenant.",
-  requires: [],
+  requires: ["updated-at"],
   target: "schema",
   version: 2,
   modes: ["managed", "adopt", "custom"],
@@ -269,13 +271,14 @@ export const TENANT: KitModuleDefinition = {
       memberships: {
         name: "memberships",
         columns: {
-          tenant: "org_id",
+          tenant: "organization_id",
           user: "user_id",
           role: "role",
           createdAt: "created_at",
+          updatedAt: "updated_at",
           lastUsedAt: "last_used_at",
         },
-        optional: ["lastUsedAt"],
+        optional: ["lastUsedAt", "updatedAt"],
       },
     },
   },
@@ -290,11 +293,25 @@ export const TENANT: KitModuleDefinition = {
     {
       from: 1,
       description:
-        "Adds memberships.last_used_at and org_member_role(); the role check follows kits.access.roles.",
-      sql: () => "",
+        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and org_member_role(); the role check follows kits.access.roles.",
+      sql: (ctx) =>
+        ctx.manages
+          ? renameSql({
+              schema: ctx.tableName("memberships").schema,
+              table: ctx.tableName("memberships").name,
+              columns: [["org_id", "organization_id"]],
+            })
+          : "",
     },
   ],
   deprecated: [
+    {
+      kind: "column",
+      symbol: "memberships.org_id",
+      use: "memberships.organization_id",
+      since: "0.5.0",
+      removed: "0.5.0",
+    },
     {
       kind: "function",
       symbol: "better_supabase.current_org_id",

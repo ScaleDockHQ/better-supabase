@@ -1776,7 +1776,7 @@ describe("purgeAuditLog", () => {
 
   it("purges each tenant with the interval the callback returns", async () => {
     const fake = fakeSql([
-      ["audit_log_tenants", [{ tenant: "a" }, { tenant: null }]],
+      ["audit_events_tenants", [{ tenant: "a" }, { tenant: null }]],
       ["purge_audit_log", [{ n: 2 }]],
     ]);
     const purged = await purgeAuditLog(fake.sql, {

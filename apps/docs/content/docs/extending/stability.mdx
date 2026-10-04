@@ -62,7 +62,10 @@ rename breaks the database, not the build. They follow these rules:
    for `better-supabase sql upgrade`.
 2. A renamed function keeps a wrapper under the old name for at least one
    minor release, with a `comment on function ... is 'deprecated: use X'`.
-   A renamed claim is read under both names for the same period.
+   A renamed table keeps a view under the old name, with the old column
+   names, for the same period. A renamed claim is read under both names.
+   A renamed column is renamed in place by the upgrade step, so code that
+   still uses the old name fails until it changes; doctor finds it first.
 3. Doctor reports code that still uses a deprecated or removed symbol
    (BS309), and a module behind its version (BS311).
 4. A removal is listed in the changelog with the replacement.

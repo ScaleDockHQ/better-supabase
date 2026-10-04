@@ -5,14 +5,7 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 
 const NAMES: KitNames = {
-  options: [
-    "defaultSource",
-    "emitRoles",
-    "kitSource",
-    "retention",
-    "settle",
-    "tenantType",
-  ],
+  options: ["defaultSource", "emitRoles", "kitSource", "retention", "settle"],
   tables: {
     events: {
       name: "outbox_events",
@@ -22,7 +15,7 @@ const NAMES: KitNames = {
         type: "type",
         source: "source",
         subject: "subject",
-        tenant: "tenant",
+        tenant: "organization_id",
         key: "key",
         payload: "payload",
         actor: "actor_id",
@@ -47,8 +40,6 @@ const NAMES: KitNames = {
   hooks: [],
 };
 
-const TYPE = /^[a-z][a-z0-9_ ]*(\[\])?$/;
-
 interface Names {
   readonly t: string;
   readonly c: string;
@@ -65,16 +56,6 @@ function names(ctx: KitContext): Names {
     k: (logical) => ctx.col("consumers", logical),
     has: (logical) => ctx.has("events", logical),
   };
-}
-
-function tenantType(ctx: KitContext): string {
-  const type = ctx.text("tenantType", "text");
-  if (!TYPE.test(type)) {
-    throw new TypeError(
-      `kits.outbox.options.tenantType must be a type name such as "uuid", not "${type}"`,
-    );
-  }
-  return type;
 }
 
 // Cursors are kit state no app has yet, so adopt mode still creates them.
@@ -119,7 +100,7 @@ function tables(ctx: KitContext, n: Names): string {
     `${n.e("type")} text not null`,
     n.has("source") ? `${n.e("source")} text` : undefined,
     n.has("subject") ? `${n.e("subject")} text` : undefined,
-    n.has("tenant") ? `${n.e("tenant")} ${tenantType(ctx)}` : undefined,
+    n.has("tenant") ? `${n.e("tenant")} ${ctx.idType}` : undefined,
     n.has("key") ? `${n.e("key")} text` : undefined,
     `${n.e("payload")} jsonb not null default '{}'`,
     n.has("actor") ? `${n.e("actor")} uuid` : undefined,
@@ -178,12 +159,11 @@ function emit(ctx: KitContext, n: Names): string {
   }
   if (n.has("subject"))
     insert.push([n.e("subject"), "coalesce(subject, payload ->> 'subject')"]);
-  if (n.has("tenant"))
-    insert.push([n.e("tenant"), `tenant::${tenantType(ctx)}`]);
+  if (n.has("tenant")) insert.push([n.e("tenant"), `tenant::${ctx.idType}`]);
   if (n.has("key")) insert.push([n.e("key"), "key"]);
   if (n.has("actor")) insert.push([n.e("actor"), "auth.uid()"]);
   const sameTenant = n.has("tenant")
-    ? ` and e.${n.e("tenant")} is not distinct from tenant::${tenantType(ctx)}`
+    ? ` and e.${n.e("tenant")} is not distinct from tenant::${ctx.idType}`
     : "";
   const existing = n.has("key")
     ? `

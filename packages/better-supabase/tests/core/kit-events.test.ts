@@ -14,7 +14,7 @@ describe("kit events", () => {
     const events = new EventHub();
     const data = {
       notificationId: "n1",
-      kind: "mention",
+      type: "mention",
       recipientIds: ["u1"],
     };
     emitKitEvent(events, "notification.created", data);

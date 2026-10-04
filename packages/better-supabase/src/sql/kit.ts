@@ -291,10 +291,31 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
-/** `has_entitlement` and `feature_claims` on the kit's `better_supabase.memberships`. */
-const tenantEntitlementChecks = (claims: ClaimsMeta): string => `
+/** The tenant module's memberships table and columns, for the entitlement lookups. */
+interface Memberships {
+  readonly table: string;
+  readonly tenant: string;
+  readonly user: string;
+  readonly idType: KitIdType;
+}
+
+function memberships(layout: KitLayout): Memberships {
+  const ctx = kitContext("tenant", layout);
+  return {
+    table: ctx.table("memberships"),
+    tenant: ctx.col("memberships", "tenant"),
+    user: ctx.col("memberships", "user"),
+    idType: ctx.idType,
+  };
+}
+
+/** `has_entitlement` and `feature_claims` on the tenant module's memberships. */
+const tenantEntitlementChecks = (
+  claims: ClaimsMeta,
+  m: Memberships,
+): string => `
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
-create or replace function better_supabase.has_entitlement(tenant uuid, key text)
+create or replace function better_supabase.has_entitlement(tenant ${m.idType}, key text)
 returns boolean
 language sql
 stable
@@ -305,14 +326,14 @@ as $$
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
-revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
-grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+revoke execute on function better_supabase.has_entitlement(${m.idType}, text) from public, anon;
+grant execute on function better_supabase.has_entitlement(${m.idType}, text) to authenticated, service_role;
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
 --   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
-returns setof uuid
+returns setof ${m.idType}
 language sql
 stable
 security definer
@@ -337,10 +358,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(m.org_id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from better_supabase.memberships m
-  cross join lateral (select better_supabase.tenant_entitlements(m.org_id) as keys) e
-  where m.user_id = feature_claims.user_id
+  select coalesce(jsonb_object_agg(m.${m.tenant}::text, to_jsonb(e.keys)), '{}'::jsonb)
+  from ${m.table} m
+  cross join lateral (select better_supabase.tenant_entitlements(m.${m.tenant}) as keys) e
+  where m.${m.user} = feature_claims.user_id
     and cardinality(e.keys) > 0
 $$;`;
 
@@ -411,7 +432,8 @@ const entitlementsSql = (
   claims: ClaimsMeta,
   layout: KitLayout = {},
 ): string => {
-  const id = layout.permdock?.idType ?? "uuid";
+  const m = memberships(layout);
+  const id = layout.permdock?.idType ?? m.idType;
   return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 
@@ -441,7 +463,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -455,7 +477,9 @@ const ENTITLEMENTS: SqlModule = {
   requires: ["tenant"],
   permdockRequires: [],
   target: "schema",
-  sql: entitlementsSql(DEFAULT_CLAIMS),
+  get sql() {
+    return entitlementsSql(DEFAULT_CLAIMS);
+  },
   render: entitlementsSql,
 };
 
@@ -1539,15 +1563,17 @@ function customerSource(
 
 function entitlementsSource(
   source: Required<EntitlementsSource> & { readonly deferred: boolean },
-  permdock: KitPermdock | undefined,
+  layout: KitLayout,
 ): string {
+  const permdock = layout.permdock;
+  const m = memberships(layout);
   const [schema, table] = source.table.includes(".")
     ? source.table.split(".", 2)
     : ["public", source.table];
   const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
-  const id = permdock?.idType ?? "uuid";
+  const id = permdock?.idType ?? m.idType;
   const definer =
     "language sql\nstable\nsecurity definer\nset search_path = ''";
   // plpgsql checks the body when it runs, which the organizations default
@@ -1604,9 +1630,9 @@ as $$
 ${
   permdock
     ? permdockEntitlementMembers(permdock)
-    : `  select distinct m.user_id
-  from better_supabase.memberships m
-  where m.org_id in (select better_supabase.stripe_customer_tenants(customer))`
+    : `  select distinct m.${m.user}
+  from ${m.table} m
+  where m.${m.tenant} in (select better_supabase.stripe_customer_tenants(customer))`
 }
 $$;
 
@@ -1623,10 +1649,7 @@ function moduleExtras(
   installed: readonly string[],
 ): string {
   if (module.name === "entitlements")
-    return entitlementsSource(
-      customerSource(layout, installed),
-      layout.permdock,
-    );
+    return entitlementsSource(customerSource(layout, installed), layout);
   if (module.name === "realtime-tables")
     return realtimeRegistrations(
       layout.realtimeTables ?? [],

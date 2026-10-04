@@ -256,7 +256,10 @@ describe("kit modes", () => {
   });
 
   it("stamps the module version and mode, and records the module", () => {
-    const [file] = renderKit(["tenant"]);
+    const tenant = renderKit(["tenant"]).filter(
+      (kit) => kit.module === "tenant",
+    );
+    const file = tenant.find((kit) => kit.kind === "schema");
     expect(file!.contents).toContain("-- @bs-kit tenant@2 managed\n");
     expect(kitFileVersion(file!.contents)).toEqual({
       module: "tenant",
@@ -267,7 +270,7 @@ describe("kit modes", () => {
     expect(file!.contents).toContain(
       "create table if not exists better_supabase.kit_modules",
     );
-    const [, data] = renderKit(["tenant"]);
+    const data = tenant.find((kit) => kit.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
       path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
@@ -286,7 +289,7 @@ describe("kit modes", () => {
     const files = renderKit(["invitations"], layout);
     expect(
       files.filter((file) => file.kind === "schema").map((file) => file.module),
-    ).toEqual(["invitations", "access"]);
+    ).toEqual(["updated-at", "invitations", "access"]);
     expect(moduleBody("tenant", layout)).toBeUndefined();
     const [contract] = customContracts(["invitations"], layout);
     expect(contract).toMatchObject({
@@ -334,7 +337,7 @@ describe("kit modes", () => {
     const sql = moduleBody("tenant", {
       kits: { tenant: { options: { claimFormat: "map" } } },
     })!;
-    expect(sql).toContain('jsonb_object_agg(m."org_id"::text');
+    expect(sql).toContain('jsonb_object_agg(m."organization_id"::text');
   });
 
   it("reads the active tenant from the configured source, members only", () => {
@@ -396,8 +399,8 @@ describe("kit modes", () => {
       resolveModules(["access"], { kits: { access: { model } } }).map(
         (module) => module.name,
       );
-    expect(names("roles")).toEqual(["tenant", "access"]);
-    expect(names("catalog")).toEqual(["tenant", "access"]);
+    expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);
+    expect(names("catalog")).toEqual(["updated-at", "tenant", "access"]);
     expect(names("permdock")).toEqual(["access"]);
     expect(names("custom")).toEqual(["access"]);
   });

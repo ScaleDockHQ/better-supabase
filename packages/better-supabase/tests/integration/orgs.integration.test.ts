@@ -89,7 +89,7 @@ class Session {
 
   role(org: string, who: Who): Promise<string | null> {
     return this.value(
-      "(select role from better_supabase.memberships where org_id = $1 and user_id = $2)",
+      "(select role from better_supabase.memberships where organization_id = $1 and user_id = $2)",
       [org, USERS[who]],
     );
   }
@@ -284,7 +284,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         [{ name: "Stale", slug: `stale-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
-        `insert into better_supabase.memberships (org_id, user_id, role)
+        `insert into better_supabase.memberships (organization_id, user_id, role)
          values ($1, $2, 'admin'), ($1, $3, 'member')`,
         [org, USERS.admin, USERS.member],
       );
@@ -409,7 +409,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       await s.value(`${schema}.accept_invitation($1)`, [invite.token]);
       expect(
         await s.value(
-          `(select role::text from ${schema}.memberships where org_id = $1 and user_id = $2)`,
+          `(select role::text from ${schema}.memberships where organization_id = $1 and user_id = $2)`,
           [org, USERS.member],
         ),
       ).toBe("00000000-0000-4000-8000-00000000f002");
@@ -431,7 +431,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       ]);
       expect(
         await s.value(
-          `(select (select count(*) from ${schema}.memberships where org_id = $1) + (select count(*) from ${schema}.invitations where org_id = $1))::int`,
+          `(select (select count(*) from ${schema}.memberships where organization_id = $1) + (select count(*) from ${schema}.invitations where organization_id = $1))::int`,
           [org],
         ),
       ).toBe(0);

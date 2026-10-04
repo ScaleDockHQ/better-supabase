@@ -44,9 +44,12 @@ describe("CloudEvents", () => {
         subject: "customers/c1",
         time: "2026-01-01T00:00:00Z",
         datacontenttype: "application/json",
-        data: { table: "customers", row: { id: "c1", name: "Acme" } },
+        data: {
+          table: "customers",
+          row: { id: "c1", name: "Acme" },
+          actorId: "u1",
+        },
         partitionkey: "org-1",
-        actorid: "u1",
       },
     ]);
     const custom = toCloudEvents(

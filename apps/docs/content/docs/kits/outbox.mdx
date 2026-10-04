@@ -94,6 +94,10 @@ them as one `sink.send` call and moves the cursor past them, until none are
 left or `budgetMs` runs out. When the sink throws, the cursor stays where it
 was and the next run sends the same batch again, so delivery is at least
 once. The CloudEvent `id` is the row id, so a receiver can drop repeats.
+Each type gets `typePrefix` (`dev.better-supabase` by default) in front, the
+payload is the `data` and the tenant is the `partitionkey`. The actor is not
+sent: context attributes must not carry personal data, so put it in the
+payload when receivers need it.
 
 A claim leases the consumer to one worker for `lease` (one minute by
 default), so two cron runs never send the same batch at the same time.
@@ -160,10 +164,11 @@ export default defineConfig({
     outbox: {
       mode: "adopt",
       tables: { events: "public.domain_events" },
+      idType: "uuid",
       columns: {
         events: { type: "kind", position: "seq", xid: null, key: null },
       },
-      options: { tenantType: "uuid", settle: "2 seconds" },
+      options: { settle: "2 seconds" },
     },
   },
 });
@@ -177,7 +182,6 @@ table, or map them to the same column when its ids are a `bigint` sequence.
 | --------------- | -------------------------- | -------------------------------------------------------------------- |
 | `retention`     | `30 days`                  | Default age for `purge_outbox`                                       |
 | `emitRoles`     | `["service_role"]`         | Roles allowed to call `emit_event` directly                          |
-| `tenantType`    | `text`                     | The type of the tenant column                                        |
 | `settle`        | `5 seconds`                | The wait before a claim reads an event, without `xid`; never zero    |
 | `defaultSource` | none                       | The source `emit_event` stores when the caller passes none           |
 | `kitSource`     | `better-supabase/{module}` | The source of events from kit modules; `{module}` is the module name |

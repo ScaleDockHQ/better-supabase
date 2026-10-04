@@ -151,7 +151,7 @@ describe.skipIf(!live)("profiles", () => {
       expect(await visible("ada")).toEqual([USERS.ada]);
       const org = crypto.randomUUID();
       await client.query(
-        `insert into ${SCHEMA}.memberships (org_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')`,
+        `insert into ${SCHEMA}.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')`,
         [org, USERS.ada, USERS.bob],
       );
       expect(await visible("ada")).toEqual([USERS.ada, USERS.bob].toSorted());
@@ -247,7 +247,7 @@ describe.skipIf(!live)("profiles", () => {
         [org],
       );
       await client.query(
-        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')",
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')",
         [org, USERS.ada, USERS.bob],
       );
       const logos = orgLogoBucket({ id: `logos-${org.slice(0, 8)}` });

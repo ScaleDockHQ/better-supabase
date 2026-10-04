@@ -114,7 +114,6 @@ describe("createOutbox", () => {
       source: "https://crm.example.com",
       subject: "organizations/1",
       partitionkey: "t1",
-      actorid: "u1",
       producer: "better-supabase/organizations",
       data: { n: 1 },
     });
@@ -196,6 +195,25 @@ describe("createOutbox", () => {
       "time",
       "type",
     ]);
+    expect(event.type).toBe("dev.better-supabase.x");
+    expect(event.data).toBeNull();
+  });
+
+  it("keeps the payload as it is and sends no actor", () => {
+    const base = {
+      position: 1,
+      id: "1",
+      type: "x",
+      source: null,
+      subject: null,
+      tenant: null,
+      key: null,
+      actorId: "u1",
+      createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+    };
+    const event = outboxCloudEvent({ ...base, payload: { n: 1 } }, OPTIONS);
+    expect(event.data).toEqual({ n: 1 });
+    expect(event).not.toHaveProperty("actorid");
   });
 });
 

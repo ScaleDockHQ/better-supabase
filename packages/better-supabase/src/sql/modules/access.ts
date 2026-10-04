@@ -740,7 +740,7 @@ export const ACCESS: KitModuleDefinition = {
       overrides: {
         name: "permission_overrides",
         columns: {
-          tenant: "org_id",
+          tenant: "organization_id",
           role: "role_id",
           permission: "permission_id",
           granted: "granted",

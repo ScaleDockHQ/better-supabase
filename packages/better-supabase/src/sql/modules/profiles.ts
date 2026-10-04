@@ -36,7 +36,7 @@ const NAMES: KitNames = {
         firstName: "first_name",
         lastName: "last_name",
         avatar: "avatar_url",
-        activeTenant: "active_org_id",
+        activeTenant: "active_organization_id",
         activeTeam: "active_team_id",
         onboarding: "onboarding",
         disabledAt: "disabled_at",

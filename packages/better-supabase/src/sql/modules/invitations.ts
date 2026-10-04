@@ -4,8 +4,10 @@ import type { KitModuleDefinition } from "../kit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   organizationMissing,
+  renameSql,
   schemaPreamble,
   SERVICE_CALLER,
+  updatedAt,
 } from "../shared.ts";
 import {
   accessModel,
@@ -24,6 +26,7 @@ const PLATFORM_COLUMNS = {
   tokenHash: "token_hash",
   invitedBy: "invited_by",
   createdAt: "created_at",
+  updatedAt: "updated_at",
   expiresAt: "expires_at",
   acceptedAt: "accepted_at",
   acceptedBy: "accepted_by",
@@ -47,12 +50,13 @@ const NAMES: KitNames = {
       name: "invitations",
       columns: {
         ...PLATFORM_COLUMNS,
-        tenant: "org_id",
+        tenant: "organization_id",
         prefill: "prefill",
       },
       optional: [
         "invitedBy",
         "createdAt",
+        "updatedAt",
         "acceptedBy",
         "declinedAt",
         "revokedAt",
@@ -65,6 +69,7 @@ const NAMES: KitNames = {
       optional: [
         "invitedBy",
         "createdAt",
+        "updatedAt",
         "acceptedBy",
         "declinedAt",
         "revokedAt",
@@ -284,7 +289,7 @@ ${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("
 drop index if exists ${sqlIdent(ctx.tableName("invitations").schema)}.invitations_open_idx;
 create unique index if not exists invitations_open_email_idx
   on ${t.table} (${c("tenant")}, lower(${c("email")})) where ${where};
-${t.has("invitedBy") ? `create index if not exists invitations_invited_by_idx on ${t.table} (${c("invitedBy")});\n` : ""}${t.has("acceptedBy") ? `create index if not exists invitations_accepted_by_idx on ${t.table} (${c("acceptedBy")});\n` : ""}
+${t.has("createdAt") ? `create index if not exists invitations_tenant_created_idx on ${t.table} (${c("tenant")}, ${c("createdAt")});\n` : `create index if not exists invitations_tenant_idx on ${t.table} (${c("tenant")});\n`}${t.has("updatedAt") ? `${updatedAt(t.table, c("updatedAt"))}\n` : ""}${t.has("invitedBy") ? `create index if not exists invitations_invited_by_idx on ${t.table} (${c("invitedBy")});\n` : ""}${t.has("acceptedBy") ? `create index if not exists invitations_accepted_by_idx on ${t.table} (${c("acceptedBy")});\n` : ""}
 alter table ${t.table} drop constraint if exists invitations_role_check;
 ${roleCheck}
 alter table ${t.table} enable row level security;
@@ -335,19 +340,31 @@ create table if not exists ${p.table} (
 ${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}
 create unique index if not exists platform_invitations_open_email_idx
   on ${p.table} (lower(${c("email")})) where ${where};
-${p.has("invitedBy") ? `create index if not exists platform_invitations_invited_by_idx on ${p.table} (${c("invitedBy")});\n` : ""}${p.has("acceptedBy") ? `create index if not exists platform_invitations_accepted_by_idx on ${p.table} (${c("acceptedBy")});\n` : ""}
+${p.has("updatedAt") ? `${updatedAt(p.table, c("updatedAt"))}\n` : ""}${p.has("invitedBy") ? `create index if not exists platform_invitations_invited_by_idx on ${p.table} (${c("invitedBy")});\n` : ""}${p.has("acceptedBy") ? `create index if not exists platform_invitations_accepted_by_idx on ${p.table} (${c("acceptedBy")});\n` : ""}
 alter table ${p.table} enable row level security;
 revoke all on ${p.table} from anon, authenticated;
 grant select on ${p.table} to authenticated;
 grant all on ${p.table} to service_role;
+create or replace function ${ctx.fn("platform_invitations_readable")}()
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return better_supabase.is_platform(${invitePlatform(ctx)});
+end;
+$$;
+revoke execute on function ${ctx.fn("platform_invitations_readable")}() from public, anon;
+grant execute on function ${ctx.fn("platform_invitations_readable")}() to authenticated, service_role;
 drop policy if exists bs_platform_invitations_read on ${p.table};
 create policy bs_platform_invitations_read on ${p.table} for select to authenticated
-  using ((select better_supabase.is_platform(${invitePlatform(ctx)})));
+  using ((select ${ctx.fn("platform_invitations_readable")}()));
 `;
 }
 
 const invitePlatform = (ctx: KitContext): string =>
-  ctx.permission("invitePlatform", "platform.invite");
+  ctx.permission("invitePlatform", KIT_PERMISSIONS.invitations.invitePlatform);
 
 /** The invitation as returned to the inviter; the token only right after creating it. */
 function inviteJson(
@@ -883,7 +900,7 @@ export const INVITATIONS: KitModuleDefinition = {
   title: "Invitations",
   description:
     "invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.",
-  requires: ["tenant", "access"],
+  requires: ["tenant", "access", "updated-at"],
   target: "schema",
   version: 2,
   modes: ["managed", "adopt", "custom"],
@@ -904,8 +921,24 @@ export const INVITATIONS: KitModuleDefinition = {
     {
       from: 1,
       description:
-        "Adds declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from kits.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
-      sql: () => "",
+        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from kits.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
+      sql: (ctx) =>
+        ctx.manages
+          ? renameSql({
+              schema: ctx.tableName("invitations").schema,
+              table: ctx.tableName("invitations").name,
+              columns: [["org_id", "organization_id"]],
+            })
+          : "",
+    },
+  ],
+  deprecated: [
+    {
+      kind: "column",
+      symbol: "invitations.org_id",
+      use: "invitations.organization_id",
+      since: "0.5.0",
+      removed: "0.5.0",
     },
   ],
   build: invitationsSql,

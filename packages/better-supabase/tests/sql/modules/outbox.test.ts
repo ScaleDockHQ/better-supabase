@@ -26,12 +26,12 @@ describe("outbox module", () => {
     const sql = body({
       outbox: {
         mode: "adopt",
+        idType: "uuid",
         tables: { events: "public.domain_events" },
         columns: {
           events: { type: "kind", position: "seq", xid: null, key: null },
         },
         options: {
-          tenantType: "uuid",
           settle: "2 seconds",
           emitRoles: ["authenticated"],
           defaultSource: "domain",

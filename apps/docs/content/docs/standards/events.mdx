@@ -30,16 +30,21 @@ Each mutated row becomes one event:
   "subject": "customers/5f0c…",
   "time": "2026-01-01T00:00:00.000Z",
   "datacontenttype": "application/json",
-  "data": { "table": "customers", "row": { "id": "5f0c…", "name": "Acme" } },
-  "partitionkey": "org-1",
-  "actorid": "user-1"
+  "data": {
+    "table": "customers",
+    "row": { "id": "5f0c…", "name": "Acme" },
+    "actorId": "user-1"
+  },
+  "partitionkey": "org-1"
 }
 ```
 
 The types are `row.created`, `row.updated`, `row.upserted`, `row.deleted` and
 `row.softdeleted`. Use `typePrefix: 'com.acme.crm'` to use your own namespace.
 `subject` is the primary key, `partitionkey` the tenant (also the one
-`tenant()` resolved from the claims) and `actorid` the acting user. Writes
+`tenant()` resolved from the claims) and `data.actorId` the acting user. The
+actor is in `data`, not in a context attribute, because intermediaries read
+context attributes and they must not carry personal data. Writes
 that return no rows send one event per known primary key, with the key as
 `data.row`.
 

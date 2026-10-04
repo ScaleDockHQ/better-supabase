@@ -10,12 +10,69 @@ export interface HookNames {
   readonly has: (table: string, logical: string) => boolean;
   /** A member check on `tenant` (a SQL expression) for a kit action. */
   readonly can: (tenant: string, action: "manage" | "view") => string;
-  /** Clients read and manage destinations through RLS. */
+  /** Clients read and manage endpoints through RLS. */
   readonly clientAccess: boolean;
   readonly vault: boolean;
   readonly allowHttp: boolean;
   readonly eventIdType: string;
   readonly runIdType: string;
+  /** A delivery status as the deliveries table stores it, quoted. */
+  readonly status: (status: WebhookStatus) => string;
+  /** `expression` (a status name) as the stored value. */
+  readonly stored: (expression: string) => string;
+}
+
+export const WEBHOOK_STATUSES = [
+  "pending",
+  "delivering",
+  "succeeded",
+  "retrying",
+  "dead",
+  "canceled",
+] as const;
+
+export type WebhookStatus = (typeof WEBHOOK_STATUSES)[number];
+
+const isStatus = (value: string): value is WebhookStatus =>
+  WEBHOOK_STATUSES.some((status) => status === value);
+
+/** `kits.webhooks-out.options.statuses`: the values an adopted table stores. */
+export function statusValues(
+  ctx: KitContext,
+): Readonly<Record<WebhookStatus, string>> {
+  const configured = ctx.option("statuses") ?? {};
+  if (typeof configured !== "object" || Array.isArray(configured)) {
+    throw new TypeError(
+      "kits.webhooks-out.options.statuses must map status names to the stored values",
+    );
+  }
+  const values: Record<WebhookStatus, string> = {
+    pending: "pending",
+    delivering: "delivering",
+    succeeded: "succeeded",
+    retrying: "retrying",
+    dead: "dead",
+    canceled: "canceled",
+  };
+  for (const [name, value] of Object.entries(configured)) {
+    if (!isStatus(name)) {
+      throw new TypeError(
+        `kits.webhooks-out.options.statuses: unknown status "${name}". Statuses: ${WEBHOOK_STATUSES.join(", ")}`,
+      );
+    }
+    if (typeof value !== "string" || value.length === 0) {
+      throw new TypeError(
+        `kits.webhooks-out.options.statuses.${name} must be a non-empty string`,
+      );
+    }
+    if (ctx.manages) {
+      throw new TypeError(
+        "kits.webhooks-out.options.statuses maps an adopted table's values; managed tables use the default statuses",
+      );
+    }
+    values[name] = value;
+  }
+  return values;
 }
 
 const TYPE = /^[a-z][a-z0-9_ ]*$/;
@@ -46,6 +103,7 @@ export function hookNames(ctx: KitContext): HookNames {
   }
   const access = ctx.installed("access");
   const permissions = KIT_PERMISSIONS["webhooks-out"];
+  const values = statusValues(ctx);
   return {
     table: (table) => ctx.table(table),
     col: (table, logical) => ctx.col(table, logical),
@@ -55,11 +113,16 @@ export function hookNames(ctx: KitContext): HookNames {
         ? `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`
         : "false",
     clientAccess:
-      access && has("destinations", "tenant") && has("deliveries", "tenant"),
+      access && has("endpoints", "tenant") && has("deliveries", "tenant"),
     vault,
     allowHttp: ctx.flag("allowHttp", false),
     eventIdType: typeOption(ctx, "eventIdType"),
     runIdType: typeOption(ctx, "runIdType"),
+    status: (status) => sqlString(values[status]),
+    stored: (expression) =>
+      WEBHOOK_STATUSES.every((status) => values[status] === status)
+        ? expression
+        : `case ${expression} ${WEBHOOK_STATUSES.map((status) => `when '${status}' then ${sqlString(values[status])}`).join(" ")} end`,
   };
 }
 
@@ -79,20 +142,18 @@ function guard(
   tenant: string,
   action: "manage" | "view",
 ): string {
-  const member = n.has("destinations", "tenant")
-    ? n.can(tenant, action)
-    : "false";
+  const member = n.has("endpoints", "tenant") ? n.can(tenant, action) : "false";
   return `if not (${SERVICE_CALLER}) and not ${member} then
-    ${fail("WEBHOOK_FORBIDDEN", "Not allowed to manage this webhook destination")}
+    ${fail("WEBHOOK_FORBIDDEN", "Not allowed to manage this webhook endpoint")}
   end if;`;
 }
 
-function destinationTenant(n: HookNames, id: string): string {
-  return n.has("destinations", "tenant")
-    ? `select d.${n.col("destinations", "tenant")}, d.${n.col("destinations", "enabled")} into v_tenant, v_enabled
-  from ${n.table("destinations")} d where d.${n.col("destinations", "id")} = ${id};`
-    : `select null, d.${n.col("destinations", "enabled")} into v_tenant, v_enabled
-  from ${n.table("destinations")} d where d.${n.col("destinations", "id")} = ${id};`;
+function endpointTenant(n: HookNames, id: string): string {
+  return n.has("endpoints", "tenant")
+    ? `select d.${n.col("endpoints", "tenant")}, d.${n.col("endpoints", "enabled")} into v_tenant, v_enabled
+  from ${n.table("endpoints")} d where d.${n.col("endpoints", "id")} = ${id};`
+    : `select null, d.${n.col("endpoints", "enabled")} into v_tenant, v_enabled
+  from ${n.table("endpoints")} d where d.${n.col("endpoints", "id")} = ${id};`;
 }
 
 const touched = (n: HookNames, table: string, alias = ""): string =>
@@ -103,17 +164,17 @@ const touched = (n: HookNames, table: string, alias = ""): string =>
 function publish(ctx: KitContext, n: HookNames): string {
   const fn = ctx.fn("publish_webhook_event");
   const id = ctx.idType;
-  const d = (logical: string) => n.col("destinations", logical);
+  const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
   const columns: [string, string][] = [
-    [v("destination"), `d.${d("id")}`],
+    [v("endpoint"), `d.${d("id")}`],
     [v("type"), "publish_webhook_event.event_type"],
     [v("payload"), "coalesce(publish_webhook_event.payload, '{}')"],
   ];
   if (n.has("deliveries", "tenant"))
     columns.push([
       v("tenant"),
-      n.has("destinations", "tenant")
+      n.has("endpoints", "tenant")
         ? `d.${d("tenant")}`
         : "publish_webhook_event.tenant",
     ]);
@@ -122,16 +183,16 @@ function publish(ctx: KitContext, n: HookNames): string {
       v("event"),
       `publish_webhook_event.event_id::${n.eventIdType}`,
     ]);
-  const tenant = n.has("destinations", "tenant")
+  const tenant = n.has("endpoints", "tenant")
     ? `\n    and d.${d("tenant")} is not distinct from publish_webhook_event.tenant`
     : "";
   const conflict = n.has("deliveries", "event")
-    ? `\n  on conflict (${v("destination")}, ${v("event")}) where ${v("event")} is not null do nothing`
+    ? `\n  on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
     : "";
   return `
--- Queues the event for every enabled destination subscribed to its type:
+-- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The same
--- event id never queues twice for one destination.
+-- event id never queues twice for one endpoint.
 create or replace function ${fn}(event_type text, payload jsonb, tenant ${id} default null, event_id text default null)
 returns integer
 language plpgsql
@@ -147,7 +208,7 @@ begin
   end if;
   insert into ${n.table("deliveries")} (${columns.map(([column]) => column).join(", ")})
   select ${columns.map(([, value]) => value).join(", ")}
-  from ${n.table("destinations")} d
+  from ${n.table("endpoints")} d
   where d.${d("enabled")}${tenant}
     and exists (
       select 1 from unnest(d.${d("eventTypes")}) t(pattern)
@@ -166,7 +227,7 @@ function dispatch(ctx: KitContext, n: HookNames): string {
   const fn = ctx.fn("dispatch_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
   const columns: [string, string][] = [
-    [v("destination"), "dispatch_webhook.destination"],
+    [v("endpoint"), "dispatch_webhook.endpoint"],
     [v("type"), "dispatch_webhook.event_type"],
     [v("payload"), "coalesce(dispatch_webhook.payload, '{}')"],
   ];
@@ -177,11 +238,11 @@ function dispatch(ctx: KitContext, n: HookNames): string {
   if (event)
     columns.push([v("event"), `dispatch_webhook.event_id::${n.eventIdType}`]);
   const existing = `select v.${v("id")} into v_id from ${n.table("deliveries")} v
-    where v.${v("destination")} = dispatch_webhook.destination and v.${v("event")} = dispatch_webhook.event_id::${n.eventIdType};`;
+    where v.${v("endpoint")} = dispatch_webhook.endpoint and v.${v("event")} = dispatch_webhook.event_id::${n.eventIdType};`;
   return `
--- Sends one event to one destination, outside its subscriptions, e.g. from a
+-- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
-create or replace function ${fn}(destination uuid, event_type text, payload jsonb, run_id text default null, event_id text default null)
+create or replace function ${fn}(endpoint uuid, event_type text, payload jsonb, run_id text default null, event_id text default null)
 returns uuid
 language plpgsql
 security definer
@@ -196,13 +257,13 @@ begin
   if coalesce(dispatch_webhook.event_type, '') = '' then
     ${fail("WEBHOOK_TYPE_REQUIRED", "An event type is required", "22023")}
   end if;
-  ${destinationTenant(n, "dispatch_webhook.destination")}
+  ${endpointTenant(n, "dispatch_webhook.endpoint")}
   if not found then
-    ${fail("WEBHOOK_DESTINATION_NOT_FOUND", "Webhook destination not found", "P0002")}
+    ${fail("WEBHOOK_ENDPOINT_NOT_FOUND", "Webhook endpoint not found", "P0002")}
   end if;
   ${guard(n, "v_tenant", "manage")}
   if not v_enabled then
-    ${fail("WEBHOOK_DESTINATION_DISABLED", "Webhook destination is disabled", "55000")}
+    ${fail("WEBHOOK_ENDPOINT_DISABLED", "Webhook endpoint is disabled", "55000")}
   end if;${
     event
       ? `
@@ -218,7 +279,7 @@ begin
   values (${columns.map(([, value]) => value).join(", ")})${
     event
       ? `
-  on conflict (${v("destination")}, ${v("event")}) where ${v("event")} is not null do nothing`
+  on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
       : ""
   }
   returning ${v("id")} into v_id;${
@@ -238,7 +299,7 @@ ${grants(fn, "uuid, text, jsonb, text, text", true)}`;
 
 function claim(ctx: KitContext, n: HookNames): string {
   const fn = ctx.fn("claim_webhook_deliveries");
-  const d = (logical: string) => n.col("destinations", logical);
+  const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
   const optional = (logical: string, key: string) =>
     n.has("deliveries", logical) ? `, '${key}', c.${v(logical)}` : "";
@@ -253,7 +314,7 @@ function claim(ctx: KitContext, n: HookNames): string {
 drop function if exists ${fn}(integer, interval);
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
--- complete_webhook_delivery checks. Deliveries of disabled destinations are
+-- complete_webhook_delivery checks. Deliveries of disabled endpoints are
 -- canceled instead, a lease that ran out is claimed again, and one that ran
 -- out on the last attempt is dead-lettered.
 create or replace function ${fn}(max_items integer default 25, lease interval default '2 minutes', max_attempts integer default 8)
@@ -267,26 +328,26 @@ declare
   result jsonb;
 begin
   update ${n.table("deliveries")} v
-  set ${v("status")} = 'canceled', ${v("leasedUntil")} = null${
+  set ${v("status")} = ${n.status("canceled")}, ${v("leasedUntil")} = null${
     n.has("deliveries", "lastError")
-      ? `, ${v("lastError")} = 'Destination is disabled'`
+      ? `, ${v("lastError")} = 'Endpoint is disabled'`
       : ""
   }${n.has("deliveries", "processedAt") ? `, ${v("processedAt")} = now()` : ""}${touched(n, "deliveries")}
-  from ${n.table("destinations")} d
-  where d.${d("id")} = v.${v("destination")}
+  from ${n.table("endpoints")} d
+  where d.${d("id")} = v.${v("endpoint")}
     and not d.${d("enabled")}
-    and v.${v("status")} in ('pending', 'failed');
+    and v.${v("status")} in (${n.status("pending")}, ${n.status("retrying")});
 
   update ${n.table("deliveries")} v
-  set ${v("status")} = 'dead_lettered', ${v("leasedUntil")} = null${stamp}
-  where v.${v("status")} = 'processing'
+  set ${v("status")} = ${n.status("dead")}, ${v("leasedUntil")} = null${stamp}
+  where v.${v("status")} = ${n.status("delivering")}
     and v.${v("leasedUntil")} <= now()
     and v.${v("attempt")} >= greatest(1, coalesce(claim_webhook_deliveries.max_attempts, 8));
 
   with due as (
     select v.${v("id")} as id
     from ${n.table("deliveries")} v
-    where v.${v("status")} in ('pending', 'failed', 'processing')
+    where v.${v("status")} in (${n.status("pending")}, ${n.status("retrying")}, ${n.status("delivering")})
       and v.${v("availableAt")} <= now()
       and (v.${v("leasedUntil")} is null or v.${v("leasedUntil")} <= now())
     order by v.${v("availableAt")}, v.${v("createdAt")}
@@ -295,7 +356,7 @@ begin
   ),
   claimed as (
     update ${n.table("deliveries")} v
-    set ${v("status")} = 'processing',
+    set ${v("status")} = ${n.status("delivering")},
       ${v("attempt")} = v.${v("attempt")} + 1,
       ${v("leasedUntil")} = now() + coalesce(claim_webhook_deliveries.lease, '2 minutes')${touched(n, "deliveries")}
     from due
@@ -304,7 +365,7 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', c.${v("id")},
-    'destination_id', c.${v("destination")},
+    'endpoint_id', c.${v("endpoint")},
     'type', c.${v("type")},
     'payload', c.${v("payload")},
     'attempt', c.${v("attempt")},
@@ -313,7 +374,7 @@ begin
   ) order by c.${v("availableAt")}), '[]')
   into result
   from claimed c
-  join ${n.table("destinations")} d on d.${d("id")} = c.${v("destination")};
+  join ${n.table("endpoints")} d on d.${d("id")} = c.${v("endpoint")};
   return result;
 end;
 $$;
@@ -322,7 +383,7 @@ ${grants(fn, "integer, interval, integer", false)}`;
 
 function complete(ctx: KitContext, n: HookNames): string {
   const fn = ctx.fn("complete_webhook_delivery");
-  const d = (logical: string) => n.col("destinations", logical);
+  const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
   const window = ctx.text("disableAfter", "5 days");
   if (!/^\d+ (minute|hour|day|week)s?$/.test(window)) {
@@ -332,9 +393,9 @@ function complete(ctx: KitContext, n: HookNames): string {
   }
   const disableAfter = sqlString(window);
   const sets = [
-    `${v("status")} = v_status`,
+    `${v("status")} = ${n.stored("v_status")}`,
     `${v("attempt")} = case when v_status = 'canceled' then greatest(v.${v("attempt")} - 1, 0) else v.${v("attempt")} end`,
-    `${v("availableAt")} = case when v_status = 'failed' then coalesce((complete_webhook_delivery.outcome ->> 'retry_at')::timestamptz, now()) else v.${v("availableAt")} end`,
+    `${v("availableAt")} = case when v_status = 'retrying' then coalesce((complete_webhook_delivery.outcome ->> 'retry_at')::timestamptz, now()) else v.${v("availableAt")} end`,
     `${v("leasedUntil")} = null`,
   ];
   const optional: [string, string][] = [
@@ -348,40 +409,40 @@ function complete(ctx: KitContext, n: HookNames): string {
       "(complete_webhook_delivery.outcome ->> 'duration_ms')::integer",
     ],
     ["lastError", "complete_webhook_delivery.outcome ->> 'error'"],
-    ["processedAt", "case when v_status = 'failed' then null else now() end"],
+    ["processedAt", "case when v_status = 'retrying' then null else now() end"],
     ["updatedAt", "now()"],
   ];
   for (const [logical, value] of optional)
     if (n.has("deliveries", logical)) sets.push(`${v(logical)} = ${value}`);
-  const tenantSelect = n.has("destinations", "tenant")
+  const tenantSelect = n.has("endpoints", "tenant")
     ? `, d.${d("tenant")}`
     : ", null";
   const disable = [
-    n.has("destinations", "disabledAt") ? `, ${d("disabledAt")} = now()` : "",
-    n.has("destinations", "disabledReason")
+    n.has("endpoints", "disabledAt") ? `, ${d("disabledAt")} = now()` : "",
+    n.has("endpoints", "disabledReason")
       ? `, ${d("disabledReason")} = format('Deliveries failed since %s', v_since)`
       : "",
-    touched(n, "destinations"),
+    touched(n, "endpoints"),
   ].join("");
-  const streak = n.has("destinations", "failingSince")
+  const streak = n.has("endpoints", "failingSince")
     ? `
-  if v_status = 'completed' then
-    update ${n.table("destinations")} d set ${d("failingSince")} = null
-    where d.${d("id")} = v_destination and d.${d("failingSince")} is not null;
-  elsif v_status in ('failed', 'dead_lettered') then
-    update ${n.table("destinations")} d set ${d("failingSince")} = coalesce(d.${d("failingSince")}, now())
-    where d.${d("id")} = v_destination
+  if v_status = 'succeeded' then
+    update ${n.table("endpoints")} d set ${d("failingSince")} = null
+    where d.${d("id")} = v_endpoint and d.${d("failingSince")} is not null;
+  elsif v_status in ('retrying', 'dead') then
+    update ${n.table("endpoints")} d set ${d("failingSince")} = coalesce(d.${d("failingSince")}, now())
+    where d.${d("id")} = v_endpoint
     returning d.${d("failingSince")}${tenantSelect} into v_since, v_tenant;
     if v_since <= now() - ${disableAfter}::interval then
-      update ${n.table("destinations")} d set ${d("enabled")} = false${disable}
-      where d.${d("id")} = v_destination and d.${d("enabled")};
+      update ${n.table("endpoints")} d set ${d("enabled")} = false${disable}
+      where d.${d("id")} = v_endpoint and d.${d("enabled")};
       if found then
         v_result := 'disabled';
         ${ctx.emit({
           type: "webhook.disabled",
           payload:
-            "jsonb_build_object('endpointId', v_destination, 'failingSince', v_since)",
-          subject: "'webhooks/' || v_destination::text",
+            "jsonb_build_object('endpointId', v_endpoint, 'failingSince', v_since)",
+          subject: "'webhooks/' || v_endpoint::text",
           tenant: "v_tenant::text",
         })}
       end if;
@@ -391,8 +452,8 @@ function complete(ctx: KitContext, n: HookNames): string {
   return `
 -- Records an attempt for the worker that holds the lease: outcome.attempt
 -- must be the attempt the claim returned, and a delivery claimed again in
--- the meantime returns 'stale' unchanged. 'failed' retries at retry_at, and
--- a destination that keeps failing for disableAfter is disabled.
+-- the meantime returns 'stale' unchanged. 'retrying' retries at retry_at, and
+-- an endpoint that keeps failing for disableAfter is disabled.
 create or replace function ${fn}(delivery uuid, outcome jsonb)
 returns text
 language plpgsql
@@ -403,13 +464,13 @@ ${VARIABLES}
 declare
   v_status text := complete_webhook_delivery.outcome ->> 'status';
   v_attempt integer := (complete_webhook_delivery.outcome ->> 'attempt')::integer;
-  v_destination uuid;
+  v_endpoint uuid;
   v_tenant ${ctx.idType};
   v_since timestamptz;
   v_result text := 'ok';
 begin
-  if v_status is null or v_status not in ('completed', 'failed', 'dead_lettered', 'canceled') then
-    ${fail("WEBHOOK_STATUS_UNKNOWN", "status must be completed, failed, dead_lettered or canceled", "22023")}
+  if v_status is null or v_status not in ('succeeded', 'retrying', 'dead', 'canceled') then
+    ${fail("WEBHOOK_STATUS_UNKNOWN", "status must be succeeded, retrying, dead or canceled", "22023")}
   end if;
   if v_attempt is null then
     ${fail("WEBHOOK_ATTEMPT_REQUIRED", "outcome.attempt must be the attempt the claim returned", "22023")}
@@ -418,8 +479,8 @@ begin
   set ${sets.join(",\n    ")}
   where v.${v("id")} = complete_webhook_delivery.delivery
     and v.${v("attempt")} = v_attempt
-    and v.${v("status")} = 'processing'
-  returning v.${v("destination")} into v_destination;
+    and v.${v("status")} = ${n.status("delivering")}
+  returning v.${v("endpoint")} into v_endpoint;
   if not found then
     if exists (select 1 from ${n.table("deliveries")} v where v.${v("id")} = complete_webhook_delivery.delivery) then
       return 'stale';
@@ -440,7 +501,7 @@ function redeliver(ctx: KitContext, n: HookNames): string {
   const fn = ctx.fn("redeliver_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
   const resets = [
-    `${v("status")} = 'pending'`,
+    `${v("status")} = ${n.status("pending")}`,
     `${v("attempt")} = 0`,
     `${v("availableAt")} = now()`,
     `${v("leasedUntil")} = null`,
@@ -460,23 +521,23 @@ set search_path = ''
 as $$
 ${VARIABLES}
 declare
-  v_destination uuid;
+  v_endpoint uuid;
   v_status text;
   v_tenant ${ctx.idType};
   v_enabled boolean;
 begin
-  select v.${v("destination")}, v.${v("status")} into v_destination, v_status
+  select v.${v("endpoint")}, v.${v("status")} into v_endpoint, v_status
   from ${n.table("deliveries")} v where v.${v("id")} = redeliver_webhook.delivery;
   if not found then
     ${fail("WEBHOOK_DELIVERY_NOT_FOUND", "Webhook delivery not found", "P0002")}
   end if;
-  ${destinationTenant(n, "v_destination")}
+  ${endpointTenant(n, "v_endpoint")}
   ${guard(n, "v_tenant", "manage")}
-  if v_status in ('pending', 'processing') then
+  if v_status in (${n.status("pending")}, ${n.status("delivering")}) then
     ${fail("WEBHOOK_DELIVERY_IN_PROGRESS", "The delivery is still in progress", "55000")}
   end if;
   if not v_enabled then
-    ${fail("WEBHOOK_DESTINATION_DISABLED", "Webhook destination is disabled", "55000")}
+    ${fail("WEBHOOK_ENDPOINT_DISABLED", "Webhook endpoint is disabled", "55000")}
   end if;
   update ${n.table("deliveries")} v
   set ${resets.join(", ")}
@@ -493,19 +554,19 @@ function secrets(ctx: KitContext, n: HookNames): string {
   const s = (logical: string) => n.col("secrets", logical);
   const t = n.table("secrets");
   const expires = n.has("secrets", "expiresAt");
-  const ofDestination = `s.${s("destination")} = rotate_webhook_secret.destination`;
+  const ofEndpoint = `s.${s("endpoint")} = rotate_webhook_secret.endpoint`;
   const dropVault = (where: string) =>
     n.vault
       ? `delete from vault.secrets vs using ${t} s where vs.id = s.${s("vaultId")} and ${where};
   `
       : "";
   const retire = expires
-    ? `${dropVault(`${ofDestination} and s.${s("expiresAt")} <= now()`)}delete from ${t} s where ${ofDestination} and s.${s("expiresAt")} <= now();
+    ? `${dropVault(`${ofEndpoint} and s.${s("expiresAt")} <= now()`)}delete from ${t} s where ${ofEndpoint} and s.${s("expiresAt")} <= now();
   update ${t} s set ${s("expiresAt")} = now() + coalesce(rotate_webhook_secret.overlap, '24 hours')
-  where ${ofDestination} and s.${s("expiresAt")} is null;`
-    : `${dropVault(ofDestination)}delete from ${t} s where ${ofDestination};`;
+  where ${ofEndpoint} and s.${s("expiresAt")} is null;`
+    : `${dropVault(ofEndpoint)}delete from ${t} s where ${ofEndpoint};`;
   const columns: [string, string][] = [
-    [s("destination"), "rotate_webhook_secret.destination"],
+    [s("endpoint"), "rotate_webhook_secret.endpoint"],
     n.vault ? [s("vaultId"), "v_vault"] : [s("secret"), "v_secret"],
   ];
   if (n.has("secrets", "tenant")) columns.push([s("tenant"), "v_tenant"]);
@@ -516,7 +577,7 @@ function secrets(ctx: KitContext, n: HookNames): string {
   return `
 -- A new signing secret, returned once. Older secrets keep signing for
 -- overlap, so receivers can switch without dropping deliveries.
-create or replace function ${rotate}(destination uuid, overlap interval default '24 hours', secret text default null)
+create or replace function ${rotate}(endpoint uuid, overlap interval default '24 hours', secret text default null)
 returns text
 language plpgsql
 security definer
@@ -531,9 +592,9 @@ declare
     'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
   );${n.vault ? "\n  v_vault uuid;" : ""}
 begin
-  ${destinationTenant(n, "rotate_webhook_secret.destination")}
+  ${endpointTenant(n, "rotate_webhook_secret.endpoint")}
   if not found then
-    ${fail("WEBHOOK_DESTINATION_NOT_FOUND", "Webhook destination not found", "P0002")}
+    ${fail("WEBHOOK_ENDPOINT_NOT_FOUND", "Webhook endpoint not found", "P0002")}
   end if;
   ${guard(n, "v_tenant", "manage")}
   if length(v_secret) < 16 then
@@ -544,7 +605,7 @@ begin
       ? `
   v_vault := vault.create_secret(
     v_secret,
-    'webhook:' || rotate_webhook_secret.destination::text || ':' || gen_random_uuid()::text,
+    'webhook:' || rotate_webhook_secret.endpoint::text || ':' || gen_random_uuid()::text,
     'better-supabase outgoing webhook signing secret'
   );`
       : ""
@@ -556,8 +617,8 @@ end;
 $$;
 ${grants(rotate, "uuid, interval, text", true)}
 
--- The secrets that sign a destination's deliveries: the current one first, then by age.
-create or replace function ${read}(destination uuid)
+-- The secrets that sign an endpoint's deliveries: the current one first, then by age.
+create or replace function ${read}(endpoint uuid)
 returns text[]
 language sql
 stable
@@ -568,7 +629,7 @@ as $$
   from (
     select ${value} as secret, ${expires ? `s.${s("expiresAt")}` : "null::timestamptz"} as expires, s.${s("createdAt")} as created
     from ${t} s${join}
-    where s.${s("destination")} = webhook_secrets.destination${
+    where s.${s("endpoint")} = webhook_secrets.endpoint${
       expires
         ? `
       and (s.${s("expiresAt")} is null or s.${s("expiresAt")} > now())`

@@ -16,7 +16,7 @@ describe("invitations module", () => {
       'alter table "better_supabase"."invitations" add column if not exists "declined_at" timestamptz;',
     );
     expect(sql).toContain(
-      'alter table "better_supabase"."invitations" alter column "org_id" set not null;',
+      'alter table "better_supabase"."invitations" alter column "organization_id" set not null;',
     );
     expect(sql).not.toContain('"prefill" jsonb');
     expect(sql).not.toContain("platform_invitations");
@@ -99,7 +99,7 @@ describe("invitations module", () => {
       'better_supabase.platform_can_assign(pinvite."invited_by", pinvite."role"::text)',
     );
     expect(sql).toContain(
-      'better_supabase.can_assign_as(invite."invited_by", invite."org_id", invite."role"::text)',
+      'better_supabase.can_assign_as(invite."invited_by", invite."organization_id", invite."role"::text)',
     );
     expect(sql).toContain('"prefill" jsonb not null');
     expect(sql).toContain("valid_for > '14 days'::interval");
@@ -124,7 +124,7 @@ describe("invitations module", () => {
       },
     })!;
     expect(sql).toContain(
-      "'organization', jsonb_build_object('id', i.\"org_id\")",
+      "'organization', jsonb_build_object('id', i.\"organization_id\")",
     );
     const plan = upgradePlan([{ module: "invitations", version: 1 }], {});
     expect(plan.map((step) => step.module)).toContain("invitations");

@@ -151,8 +151,8 @@ be retried, such as a blocked URL; any other error retries.
 ## WebhookSecretStore
 
 Where destination signing secrets live. It has `apiVersion: 1`,
-`secrets(destinationId)`, which returns the live secrets newest first, and an
-optional `rotate(destinationId, { overlap, secret })` that returns the new
+`secrets(endpointId)`, which returns the live secrets newest first, and an
+optional `rotate(endpointId, { overlap, secret })` that returns the new
 secret and keeps the previous ones live for `overlap`.
 
 ## AuthResolver

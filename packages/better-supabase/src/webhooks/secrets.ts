@@ -8,19 +8,16 @@ export interface RotateSecretOptions {
 }
 
 /**
- * Where destination signing secrets live. `sqlSecretStore` (Vault or a
+ * Where endpoint signing secrets live. `sqlSecretStore` (Vault or a
  * column, set in `kits.webhooks-out.options.secretStorage`) is the default;
  * implement it for a KMS or a secrets manager.
  */
 export interface WebhookSecretStore {
   readonly apiVersion: 1;
-  /** The live secrets of a destination, newest first. */
-  secrets(destinationId: string): Promise<readonly string[]>;
+  /** The live secrets of an endpoint, newest first. */
+  secrets(endpointId: string): Promise<readonly string[]>;
   /** Creates a new secret and returns it once. */
-  rotate?(
-    destinationId: string,
-    options?: RotateSecretOptions,
-  ): Promise<string>;
+  rotate?(endpointId: string, options?: RotateSecretOptions): Promise<string>;
 }
 
 /** The kit's `webhook_secrets` and `rotate_webhook_secret` functions. */
@@ -31,17 +28,17 @@ export function sqlSecretStore(
   const schema = options.schema ?? "better_supabase";
   return {
     apiVersion: 1,
-    async secrets(destinationId) {
+    async secrets(endpointId) {
       const value = await transport.call(schema, "webhook_secrets", {
-        destination: destinationId,
+        endpoint: endpointId,
       });
       return Array.isArray(value)
         ? value.filter((entry): entry is string => typeof entry === "string")
         : [];
     },
-    async rotate(destinationId, rotateOptions = {}) {
+    async rotate(endpointId, rotateOptions = {}) {
       const value = await transport.call(schema, "rotate_webhook_secret", {
-        destination: destinationId,
+        endpoint: endpointId,
         overlap: rotateOptions.overlap,
         secret: rotateOptions.secret,
       });

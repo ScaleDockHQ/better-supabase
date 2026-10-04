@@ -3,7 +3,7 @@ import type { KitModuleDefinition } from "../kit.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SCHEMA, SERVICE_CALLER } from "../shared.ts";
-import { hasPlatformRoles } from "./access-model.ts";
+import { hasPlatformRoles, KIT_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: KitNames = {
   options: [
@@ -22,7 +22,7 @@ const NAMES: KitNames = {
         admin: "admin_id",
         target: "target_user_id",
         reason: "reason",
-        tenant: "org_id",
+        tenant: "organization_id",
         readOnly: "read_only",
         startedAt: "started_at",
         expiresAt: "expires_at",
@@ -87,7 +87,7 @@ grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bs_support_read on ${sessions};
 create policy bs_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", "support.view")})));
+  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", KIT_PERMISSIONS["support-sessions"].view)})));
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -166,7 +166,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not ${isPlatform}(${ctx.permission("start", "support.start")}) then
+      or not ${isPlatform}(${ctx.permission("start", KIT_PERMISSIONS["support-sessions"].start)}) then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -274,7 +274,7 @@ begin
   }
   where s.${c("id")} = session_id and s.${c("endedAt")} is null
     and (service or s.${c("admin")} = auth.uid()
-      or ${isPlatform}(${ctx.permission("revoke", "support.revoke")}))
+      or ${isPlatform}(${ctx.permission("revoke", KIT_PERMISSIONS["support-sessions"].revoke)}))
   returning ${sessionJson(ctx, "s")} into ended;
   if not service then
     ended_by := case when (ended ->> 'admin_id')::uuid = auth.uid() then 'admin' else 'revoked' end;
@@ -328,7 +328,7 @@ as $$
     and s.${c("endedAt")} is null
     and s.${c("expiresAt")} > now()
     and case when ${SERVICE_CALLER} then s.${c("admin")} = $2
-      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", "support.start")})
+      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", KIT_PERMISSIONS["support-sessions"].start)})
     end
 $$;
 
@@ -348,7 +348,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", "support.view")}))
+      or ${isPlatform}(${ctx.permission("view", KIT_PERMISSIONS["support-sessions"].view)}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null

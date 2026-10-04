@@ -179,7 +179,7 @@ add entitlements` stops and doctor reports BS408.
 even when the manifest is there. Without a manifest the module also uses
 `tenant`; keep memberships in that table and list it as a PermDock
 membership source, so PermDock and the policy agree:
-`fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
+`fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'organization_id', roles: 'role' })`.
 
 `permdock rls generate` writes `member_<scope>_ids` for every scope, but
 `member_<scope>_ids_for` only for a scope with a membership source, and only
