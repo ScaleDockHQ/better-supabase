@@ -183,7 +183,10 @@ export default defineConfig({
         subscriptions: "centrakit.notification_subscriptions",
         preferences: "centrakit.notification_preferences",
       },
-      columns: { events: { key: null }, deliveries: { attempts: null } },
+      columns: {
+        events: { key: null },
+        deliveries: { attempts: null, nextAttemptAt: null },
+      },
       idType: "uuid",
       options: {
         topic: "org:{tenantId}:notifications:{userId}",

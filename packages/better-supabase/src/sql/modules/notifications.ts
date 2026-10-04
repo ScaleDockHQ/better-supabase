@@ -70,6 +70,7 @@ const NAMES: KitNames = {
         error: "error",
         attempts: "attempts",
         attemptedAt: "attempted_at",
+        nextAttemptAt: "next_attempt_at",
         deliveredAt: "delivered_at",
         createdAt: "created_at",
       },
@@ -79,6 +80,7 @@ const NAMES: KitNames = {
         "providerMessageId",
         "error",
         "attempts",
+        "nextAttemptAt",
         "deliveredAt",
       ],
       optionalTable: true,
@@ -226,6 +228,7 @@ create table if not exists ${n.table("deliveries")} (
     ...opt("deliveries", "error", "text"),
     ...opt("deliveries", "attempts", "integer not null default 0"),
     `${c("deliveries", "attemptedAt")} timestamptz`,
+    ...opt("deliveries", "nextAttemptAt", "timestamptz not null default now()"),
     ...opt("deliveries", "deliveredAt", "timestamptz"),
     `${c("deliveries", "createdAt")} timestamptz not null default now()`,
     `unique (${c("deliveries", "recipient")}, ${c("deliveries", "channel")})`,
@@ -444,7 +447,14 @@ function contract(ctx: KitContext): readonly KitContractFunction[] {
     },
     {
       name: "list_notifications",
-      args: ["{id}", "text", "text[]", "timestamp with time zone", "integer"],
+      args: [
+        "{id}",
+        "text",
+        "text[]",
+        "timestamp with time zone",
+        "integer",
+        "uuid",
+      ],
       returns: "jsonb",
     },
     {
@@ -458,6 +468,11 @@ function contract(ctx: KitContext): readonly KitContractFunction[] {
       returns: "integer",
     },
     { name: "dismiss_notifications", args: ["uuid[]"], returns: "integer" },
+    {
+      name: "purge_notifications",
+      args: ["interval", "integer"],
+      returns: "integer",
+    },
   ];
   if (ctx.has("recipients", "resolvedAt")) {
     fns.push({
@@ -484,13 +499,13 @@ function contract(ctx: KitContext): readonly KitContractFunction[] {
     fns.push(
       {
         name: "claim_notification_deliveries",
-        args: ["text", "integer", "interval"],
+        args: ["text", "integer", "interval", "integer"],
         returns: "jsonb",
       },
       {
         name: "complete_notification_delivery",
-        args: ["uuid", "text", "text", "text", "text"],
-        returns: "void",
+        args: ["uuid", "text", "text", "text", "text", "integer"],
+        returns: "text",
       },
     );
   }

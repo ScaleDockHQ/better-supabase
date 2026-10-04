@@ -413,6 +413,37 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [org, USERS.member],
         ),
       ).toBe("00000000-0000-4000-8000-00000000f002");
+
+      // A role still held by a member can't be deleted, and the
+      // organization's rows go with it.
+      await s.as("owner");
+      await client.query("savepoint role_delete");
+      await expect(
+        client.query(`delete from ${schema}.roles where key = 'member'`),
+      ).rejects.toMatchObject({ code: "23503" });
+      await client.query("rollback to savepoint role_delete");
+      await s.value(`${schema}.invite_member($1, $2, 'member')`, [
+        org,
+        "later@example.test",
+      ]);
+      await client.query(`delete from ${schema}.organizations where id = $1`, [
+        org,
+      ]);
+      expect(
+        await s.value(
+          `(select (select count(*) from ${schema}.memberships where org_id = $1) + (select count(*) from ${schema}.invitations where org_id = $1))::int`,
+          [org],
+        ),
+      ).toBe(0);
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ role: "service_role" }),
+      ]);
+      expect(
+        await s.hint(`${schema}.invite_member($1, $2, 'member')`, [
+          org,
+          "late@example.test",
+        ]),
+      ).toBe("INVITATION_INVALID");
     } finally {
       await client.query("rollback");
       client.release();

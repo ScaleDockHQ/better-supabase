@@ -52,6 +52,15 @@ describe("profiles module", () => {
     );
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
+    expect(sql).toContain("add constraint profiles_username_check check (");
+    expect(sql).toContain("lower(\"username\") <> all (array['admin'");
+    expect(sql).toContain("while candidate = any(array['admin'");
+    expect(sql).toMatch(
+      /if created then\s+if to_regprocedure\('"public"\."after_profile_sync"\(uuid\)'\)/,
+    );
+    expect(sql).toContain(
+      "exception when others then\n    raise warning 'No profile for user %",
+    );
     expect(sql).toContain('"id" = (select auth.uid())');
   });
 

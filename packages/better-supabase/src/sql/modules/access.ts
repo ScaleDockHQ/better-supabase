@@ -4,6 +4,7 @@ import type { KitLayout, KitModuleDefinition } from "../kit.ts";
 import { PERMDOCK_SCHEMA } from "../../core/permdock-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  addForeignKey,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
   schemaPreamble,
@@ -210,7 +211,21 @@ begin
     execute format('grant all on %s to service_role', t);
   end loop;
 end;
-$$;`;
+$$;${membershipRoleKey(ctx)}`;
+}
+
+/** A catalog role can't be deleted while a membership still holds it. */
+function membershipRoleKey(ctx: KitContext): string {
+  const tenant = ctx.of("tenant");
+  if (!tenant.manages) return "";
+  return `
+${addForeignKey({
+  table: tenant.table("memberships"),
+  name: "memberships_role_fkey",
+  column: tenant.col("memberships", "role"),
+  references: `${ctx.table("roles")} (${ctx.col("roles", "id")})`,
+  onDelete: "restrict",
+})}`;
 }
 
 /** `member_can`, `member_permissions` and `platform_can` for the roles and catalog models. */

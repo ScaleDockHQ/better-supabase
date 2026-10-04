@@ -44,7 +44,16 @@ describe("organizations module", () => {
     expect(sql).toContain(
       'insert into "better_supabase"."memberships" ("org_id", "user_id", "role")\n  values (org, owner, \'owner\');',
     );
-    expect(sql).toContain('create constraint trigger "bs_org_owner"');
+    expect(sql).toContain(
+      'create constraint trigger "bs_org_owner" after update of "role", "org_id" or delete',
+    );
+    expect(sql).toMatch(
+      /perform 1 from "better_supabase"\."organizations" o .* for update;/,
+    );
+    expect(sql).toContain('"slug" text not null');
+    expect(sql).toContain("coalesce(attrs ->> 'slug', '')");
+    expect(sql).toContain("memberships_organization_fkey");
+    expect(sql).toContain("on delete cascade not valid;");
     expect(sql).toContain("deferrable initially deferred");
     expect(sql).toContain("hint = 'ORG_ROLE_CEILING'");
     expect(sql).toContain(

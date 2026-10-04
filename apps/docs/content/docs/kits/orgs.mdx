@@ -50,6 +50,15 @@ the memberships table stops members from changing their own role or
 assigning a role above their own (`assignmentCeiling`). The kit's own writes
 and the service role pass the second one.
 
+The owner check locks the organization row, so two owners who leave at the
+same time can't both succeed. When the kit owns the organizations table, the
+slug is required, and memberships, invitations and permission overrides
+reference the organization with `on delete cascade`: deleting it deletes
+them. Under `model: 'catalog'`, a role that a member still holds can't be
+deleted (`on delete restrict`). The keys are added to tables that already
+exist too; when older rows have no organization, the kit adds the key
+without validating them and logs a warning.
+
 ## From TypeScript
 
 `createOrgs` takes a transport that runs the functions as the user.

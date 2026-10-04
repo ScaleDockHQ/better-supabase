@@ -44,6 +44,48 @@ export function columnRef(
 }
 
 /**
+ * Adds a foreign key to a table a module created earlier, once: `create
+ * table if not exists` can't add it to a table that already exists, and the
+ * referenced table can come from a module that renders later. Existing rows
+ * without a match leave the key unvalidated, with a warning.
+ */
+export function addForeignKey(fk: {
+  readonly table: string;
+  readonly name: string;
+  readonly column: string;
+  readonly references: string;
+  readonly onDelete: "cascade" | "restrict" | "set null";
+}): string {
+  return `do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = ${sqlString(fk.table)}::regclass and conname = ${sqlString(fk.name)}
+  ) then
+    alter table ${fk.table} add constraint ${sqlIdent(fk.name)}
+      foreign key (${fk.column}) references ${fk.references} on delete ${fk.onDelete} not valid;
+    begin
+      alter table ${fk.table} validate constraint ${sqlIdent(fk.name)};
+    exception when foreign_key_violation then
+      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
+        ${sqlString(fk.table)}, ${sqlString(fk.table)}, ${sqlString(fk.name)};
+    end;
+  end if;
+end;
+$$;`;
+}
+
+/**
+ * A SQL condition true when `org` names no row of the installed
+ * organizations table. False without the organizations module.
+ */
+export function organizationMissing(ctx: KitContext, org: string): string {
+  if (!ctx.installed("organizations")) return "false";
+  const orgs = ctx.of("organizations");
+  return `not exists (select 1 from ${orgs.table("organizations")} o where o.${orgs.col("organizations", "id")} = ${org})`;
+}
+
+/**
  * `tenant_disabled(id)` and `user_disabled(uuid)` from
  * `kits.access.disabled`. Without a column they return false, so callers
  * don't need to know whether it is configured.

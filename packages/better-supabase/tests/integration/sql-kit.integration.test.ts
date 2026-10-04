@@ -442,6 +442,10 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     const org = crypto.randomUUID();
     try {
       await pool.query(
+        "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
+        [org],
+      );
+      await pool.query(
         `insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'owner')`,
         [org, ownerId],
       );
@@ -521,11 +525,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       expect(ids).toEqual([{ id: org }]);
     } finally {
       await pool.query(
-        "delete from better_supabase.memberships where org_id = $1",
-        [org],
-      );
-      await pool.query(
-        "delete from better_supabase.invitations where org_id = $1",
+        "delete from better_supabase.organizations where id = $1",
         [org],
       );
       await pool.query("delete from auth.users where id = any($1)", [
@@ -628,6 +628,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       await pool.query(`
         create table public.${billing} (org_id uuid primary key, customer_id text unique);
         insert into public.${billing} values ('${org}', '${customer}');
+        insert into better_supabase.organizations (id, name, slug) values ('${org}', 'Test', 'test-${org.slice(0, 8)}');
         insert into better_supabase.memberships (org_id, user_id, role) values ('${org}', '${member}', 'admin');
         insert into stripe.active_entitlements (id, customer, lookup_key) values
           ('ent_b_${RUN}', '${customer}', 'sso'), ('ent_a_${RUN}', '${customer}', 'exports'),
@@ -702,6 +703,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         drop function if exists better_supabase.stripe_customer_tenants(text);
         drop function if exists better_supabase.tenant_stripe_customer(uuid);
         drop table if exists public.${billing};
+        delete from better_supabase.organizations where id = '${org}';
       `);
       await pool.query(
         ownsStripe

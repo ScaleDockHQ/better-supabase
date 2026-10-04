@@ -202,7 +202,13 @@ describe("createNotifications reads and writes", () => {
       status: "unread",
       kinds: ["task.assigned"],
       before: "2026-02-01T00:00:00Z",
+      before_id: null,
       max_items: 10,
+    });
+    await notifications.list({ before: first! });
+    expect(calls[1]?.args).toMatchObject({
+      before: "2026-01-01T00:00:00Z",
+      before_id: "r1",
     });
   });
 
@@ -212,6 +218,7 @@ describe("createNotifications reads and writes", () => {
       mark_notifications_read: () => 2,
       dismiss_notifications: () => 1,
       resolve_notifications: () => 4,
+      purge_notifications: () => 12,
     });
     const notifications = createNotifications({
       transport,
@@ -244,6 +251,9 @@ describe("createNotifications reads and writes", () => {
         enabled: false,
       }),
     ).toMatchObject({ ok: true });
+    expect(await notifications.purge("30 days", 500)).toMatchObject({
+      data: 12,
+    });
     expect(calls.map((call) => [call.fn, call.args])).toEqual([
       [
         "notification_counts",
@@ -274,6 +284,7 @@ describe("createNotifications reads and writes", () => {
         "set_notification_preference",
         { kind: "*", channel: "email", enabled: false, tenant: null },
       ],
+      ["purge_notifications", { older_than: "30 days", batch: 500 }],
     ]);
   });
 
@@ -357,8 +368,18 @@ describe("createNotifications().deliver", () => {
         provider: null,
         provider_message_id: null,
       },
-      { delivery: "d3", status: "pending", error: "smtp down" },
-      { delivery: "d4", status: "failed", error: "smtp down" },
+      {
+        delivery: "d3",
+        status: "pending",
+        error: "smtp down",
+        max_attempts: 5,
+      },
+      {
+        delivery: "d4",
+        status: "pending",
+        error: "smtp down",
+        max_attempts: 5,
+      },
     ]);
     expect(seen).toEqual([
       "notification.delivered",

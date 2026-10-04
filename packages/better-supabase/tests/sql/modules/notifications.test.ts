@@ -96,6 +96,48 @@ describe("notifications module", () => {
     expect(sql).toContain("emit_event('notification.created'");
   });
 
+  it("retries deliveries with backoff and gives up after max attempts", () => {
+    const sql = body();
+    expect(sql).toContain(
+      '"next_attempt_at" timestamptz not null default now()',
+    );
+    expect(sql).toContain('and d."next_attempt_at" <= now()');
+    expect(sql).toMatch(/v_status := 'failed'/);
+    expect(sql).toContain("'The lease ran out on the last attempt'");
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);',
+    );
+    const plain = body({
+      notifications: {
+        columns: { deliveries: { nextAttemptAt: null, attempts: null } },
+      },
+    });
+    expect(plain).not.toContain("next_attempt_at");
+    expect(plain).not.toContain("v_status := 'failed'");
+  });
+
+  it("resolves preferences in one query, caps recipients and pages by (created_at, id)", () => {
+    const sql = body();
+    expect(sql).toContain("select distinct on (x, c)");
+    expect(sql).toContain("case c when 'in_app' then true else false end");
+    expect(sql).toContain("NOTIFICATION_TOO_MANY_RECIPIENTS");
+    expect(sql).toContain("> 1000 then");
+    expect(sql).toContain("before_id uuid default null");
+    expect(sql).toContain('function "better_supabase"."purge_notifications"');
+    expect(
+      body({
+        notifications: {
+          options: { channelDefaults: { email: true }, maxRecipients: 50 },
+        },
+      }),
+    ).toContain(
+      "case c when 'email' then true when 'in_app' then true else false end",
+    );
+    expect(() =>
+      body({ notifications: { options: { maxRecipients: 0 } } }),
+    ).toThrow(/maxRecipients/);
+  });
+
   it("rejects options it would splice into SQL or can't honor", () => {
     expect(() =>
       body({ notifications: { options: { topic: "notifications" } } }),
@@ -127,6 +169,7 @@ describe("notifications module", () => {
       "notification_counts",
       "mark_notifications_read",
       "dismiss_notifications",
+      "purge_notifications",
       "resolve_notifications",
       "set_notification_subscription",
       "set_notification_preference",
@@ -142,6 +185,6 @@ describe("notifications module", () => {
         },
       },
     });
-    expect(minimal!.functions).toHaveLength(6);
+    expect(minimal!.functions).toHaveLength(7);
   });
 });

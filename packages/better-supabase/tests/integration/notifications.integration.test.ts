@@ -257,6 +257,23 @@ describe.skipIf(!live)("notifications", () => {
         subject_label: "Fix the roof",
         actor_id: USERS.owner,
       });
+
+      // Pages by (created_at, id), so items created at the same instant are not skipped.
+      await s.as("service");
+      await client.query(
+        "update better_supabase.notification_recipients set created_at = '2026-01-01T00:00:00Z' where recipient_user_id = $1",
+        [USERS.member],
+      );
+      await s.as("member");
+      const tied = await s.value<{ id: string }[]>(
+        "better_supabase.list_notifications($1)",
+        [org],
+      );
+      const page = await s.value<{ id: string }[]>(
+        "better_supabase.list_notifications($1, 'all', null, '2026-01-01T00:00:00Z', 50, $2)",
+        [org, tied[0]!.id],
+      );
+      expect(page.map((item) => item.id)).toEqual([tied[1]!.id]);
       expect(
         await s.value("better_supabase.notification_counts($1, $2)", [
           org,
@@ -323,6 +340,53 @@ describe.skipIf(!live)("notifications", () => {
         ),
       ).toBe("sent/msg_1");
 
+      // A retry waits for its backoff, and the last attempt fails the delivery.
+      const id = claimed[0]!.delivery_id;
+      await client.query(
+        "update better_supabase.notification_deliveries set status = 'pending', attempts = 0, attempted_at = null where id = $1",
+        [id],
+      );
+      const claimRetry =
+        "better_supabase.claim_notification_deliveries('email', 50, '5 minutes', 2)";
+      expect(await s.value<unknown[]>(claimRetry)).toHaveLength(1);
+      expect(
+        await s.value(
+          "better_supabase.complete_notification_delivery($1, 'pending', null, null, 'smtp down', 2)",
+          [id],
+        ),
+      ).toBe("pending");
+      expect(
+        await s.value(
+          "(select next_attempt_at > now() from better_supabase.notification_deliveries where id = $1)",
+          [id],
+        ),
+      ).toBe(true);
+      expect(await s.value<unknown[]>(claimRetry)).toEqual([]);
+      await client.query(
+        "update better_supabase.notification_deliveries set next_attempt_at = now() - interval '1 second' where id = $1",
+        [id],
+      );
+      expect(await s.value<unknown[]>(claimRetry)).toHaveLength(1);
+      expect(
+        await s.value(
+          "better_supabase.complete_notification_delivery($1, 'pending', null, null, 'smtp down', 2)",
+          [id],
+        ),
+      ).toBe("failed");
+
+      // A worker that died on the last attempt leaves a failed delivery.
+      await client.query(
+        "update better_supabase.notification_deliveries set status = 'pending', attempted_at = now() - interval '1 hour' where id = $1",
+        [id],
+      );
+      expect(await s.value<unknown[]>(claimRetry)).toEqual([]);
+      expect(
+        await s.value(
+          "(select status || '/' || error from better_supabase.notification_deliveries where id = $1)",
+          [id],
+        ),
+      ).toBe("failed/The lease ran out on the last attempt");
+
       await s.as("owner");
       expect(
         await s.value(
@@ -343,6 +407,20 @@ describe.skipIf(!live)("notifications", () => {
           "(select count(*)::int from better_supabase.outbox_events where type = 'notification.created')",
         ),
       ).toBeGreaterThanOrEqual(3);
+
+      // The purge deletes old notifications with their recipients and deliveries.
+      await s.as("service");
+      await client.query(
+        "update better_supabase.notification_events set created_at = now() - interval '100 days'",
+      );
+      expect(
+        await s.value<number>("better_supabase.purge_notifications()"),
+      ).toBeGreaterThanOrEqual(2);
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.notification_deliveries)",
+        ),
+      ).toBe(0);
     } finally {
       await client.query("rollback");
       client.release();

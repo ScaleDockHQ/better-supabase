@@ -56,8 +56,13 @@ export interface ListOptions<K extends string = string> {
   readonly tenant?: string;
   readonly status?: "all" | "unread" | "read" | "unresolved";
   readonly kinds?: readonly K[];
-  /** Page: only notifications created before this. */
-  readonly before?: Temporal.Instant;
+  /**
+   * Page: only notifications older than this. Pass the last item of the
+   * previous page; a bare instant skips items created at that same instant.
+   */
+  readonly before?:
+    | Temporal.Instant
+    | Pick<NotificationItem, "createdAt" | "id">;
   /** Up to 200. Defaults to 50. */
   readonly limit?: number;
   /** Passed to `render`. */
@@ -79,7 +84,10 @@ export interface DeliverOptions {
   readonly batch?: number;
   /** How long a claimed delivery waits before another worker retries it. */
   readonly lease?: string;
-  /** Tries before a delivery is `failed`. Defaults to 5. */
+  /**
+   * Tries before a delivery is `failed`. Defaults to 5. Retries wait a random
+   * time up to 30 seconds, doubling per attempt to an hour.
+   */
   readonly maxAttempts?: number;
   readonly budgetMs?: number;
 }
@@ -177,6 +185,11 @@ export interface Notifications<K extends NotificationKinds> {
   }): AsyncResult<void>;
   /** Sends pending deliveries through `channels`. Run it from a cron or a job. */
   deliver(options?: DeliverOptions): Promise<DeliverResult>;
+  /**
+   * Deletes up to `batch` (10,000) notifications older than `olderThan`
+   * (`90 days`) with their recipients and deliveries. Service only.
+   */
+  purge(olderThan?: string, batch?: number): AsyncResult<number>;
 }
 
 const DEFAULT_SCHEMA = "better_supabase";
@@ -212,6 +225,17 @@ function toItem(row: Record<string, unknown>): NotificationItem {
     readAt: instantOf(row["read_at"]),
     resolvedAt: instantOf(row["resolved_at"]),
   };
+}
+
+function cursorOf(before: ListOptions["before"]): {
+  readonly before: string | null;
+  readonly before_id: string | null;
+} {
+  if (before === undefined) return { before: null, before_id: null };
+  if ("epochNanoseconds" in before) {
+    return { before: before.toString(), before_id: null };
+  }
+  return { before: before.createdAt.toString(), before_id: before.id };
 }
 
 const errorText = (cause: unknown): string =>
@@ -315,8 +339,9 @@ export function createNotifications<const K extends NotificationKinds>(
       const error = errorText(cause);
       await call("complete_notification_delivery", {
         delivery: message.deliveryId,
-        status: attempts >= maxAttempts ? "failed" : "pending",
+        status: "pending",
         error,
+        max_attempts: maxAttempts,
       });
       emit(
         "notification.failed",
@@ -398,7 +423,7 @@ export function createNotifications<const K extends NotificationKinds>(
           tenant: listOptions.tenant ?? null,
           status: listOptions.status ?? "all",
           kinds: listOptions.kinds ?? null,
-          before: listOptions.before?.toString() ?? null,
+          ...cursorOf(listOptions.before),
           max_items: listOptions.limit ?? 50,
         },
         (value) =>
@@ -484,6 +509,7 @@ export function createNotifications<const K extends NotificationKinds>(
             channel: channel.name,
             max_items: batch,
             lease: deliverOptions.lease ?? "5 minutes",
+            max_attempts: deliverOptions.maxAttempts ?? 5,
           });
           const rows = (Array.isArray(claimed) ? claimed : []).filter(isRecord);
           for (const row of rows) {
@@ -495,6 +521,13 @@ export function createNotifications<const K extends NotificationKinds>(
         }
       }
       return counts;
+    },
+    purge(olderThan, batch) {
+      return run(
+        "purge_notifications",
+        { older_than: olderThan ?? null, batch: batch ?? null },
+        Number,
+      );
     },
   };
 }

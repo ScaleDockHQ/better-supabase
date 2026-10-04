@@ -82,6 +82,10 @@ describe.skipIf(!live)("access contract against the local database", () => {
       {},
       async (client) => {
         await client.query(
+          "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
+          [ORG],
+        );
+        await client.query(
           "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'admin')",
           [ORG, USER],
         );

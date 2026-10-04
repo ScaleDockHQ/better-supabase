@@ -28,10 +28,13 @@ const NAME = /^[a-z][a-z0-9_]*$/;
 const fail = (code: string, message: string, errcode = "42501"): string =>
   `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
 function channelDefaults(ctx: KitContext, channel: string): string {
-  const value = ctx.config.options["channelDefaults"];
-  if (value === undefined) return "true";
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  const value = ctx.config.options["channelDefaults"] ?? {};
+  if (!isRecord(value)) {
     throw new TypeError(
       "kits.notifications.options.channelDefaults must map channel names to booleans",
     );
@@ -44,9 +47,36 @@ function channelDefaults(ctx: KitContext, channel: string): string {
     }
     return `when ${sqlString(channel)} then ${String(enabled)}`;
   });
-  return cases.length === 0
-    ? "true"
-    : `case ${channel} ${cases.join(" ")} else true end`;
+  return `case ${channel} ${[...cases, "when 'in_app' then true"].join(" ")} else false end`;
+}
+
+/**
+ * The (member, channel) pairs that want this notification, in one query:
+ * each pair's most specific preference, or the channel default.
+ */
+function wanted(ctx: KitContext, n: NotifyNames): string {
+  const defaults = channelDefaults(ctx, "c");
+  if (!ctx.hasTable("preferences")) {
+    return `select x as member, c as channel
+    from unnest(v_recipients) x cross join unnest(v_channels) c
+    where ${defaults}`;
+  }
+  const p = (logical: string) => n.col("preferences", logical);
+  const tenant = n.has("preferences", "tenant");
+  return `select w.member, w.channel from (
+      select distinct on (x, c) x as member, c as channel, coalesce(p.${p("enabled")}, ${defaults}) as enabled
+      from unnest(v_recipients) x cross join unnest(v_channels) c
+      left join ${n.table("preferences")} p
+        on p.${p("user")} = x and p.${p("channel")} = c
+        and (p.${p("kind")} = v_kind or p.${p("kind")} = '*')${
+          tenant
+            ? `
+        and (p.${p("tenant")} is null or p.${p("tenant")} = v_tenant)`
+            : ""
+        }
+      order by x, c${tenant ? `, p.${p("tenant")} is null` : ""}, p.${p("kind")} = '*'
+    ) w
+    where w.enabled`;
 }
 
 function channels(ctx: KitContext): readonly string[] {
@@ -113,6 +143,12 @@ function notify(ctx: KitContext, n: NotifyNames): string {
     "urgent",
   ]);
   const defaultChannels = `array[${channels(ctx).map(sqlString).join(", ")}]::text[]`;
+  const maxRecipients = ctx.number("maxRecipients", 1000);
+  if (!Number.isInteger(maxRecipients) || maxRecipients < 1) {
+    throw new TypeError(
+      "kits.notifications.options.maxRecipients must be a whole number above zero",
+    );
+  }
 
   const columns: [string, string][] = [
     [e("kind"), "v_kind"],
@@ -213,7 +249,7 @@ function notify(ctx: KitContext, n: NotifyNames): string {
     "v_event",
     ...(n.has("recipients", "tenant") ? ["v_tenant"] : []),
     "x",
-    `case when 'in_app' = any(v_channels) and ${ctx.fn("notification_enabled")}(x, v_tenant, v_kind, 'in_app') then null else now() end`,
+    "case when exists (select 1 from unnest(v_want_members, v_want_channels) w(member, channel) where w.member = x and w.channel = 'in_app') then null else now() end",
     ...(n.has("recipients", "resolvedAt")
       ? [
           "case when coalesce((notification ->> 'resolved')::boolean, false) then now() end",
@@ -241,9 +277,9 @@ function notify(ctx: KitContext, n: NotifyNames): string {
       ? ["case when c = 'in_app' then now() end"]
       : []),
   ].join(", ")}
-  from ${n.table("recipients")} rc cross join unnest(v_channels) c
-  where rc.${r("event")} = v_event and rc.${r("user")} = any(v_recipients)
-    and ${ctx.fn("notification_enabled")}(rc.${r("user")}, v_tenant, v_kind, c)
+  from ${n.table("recipients")} rc
+  join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc.${r("user")}
+  where rc.${r("event")} = v_event
   on conflict do nothing;`
     : "";
 
@@ -277,6 +313,8 @@ declare
   );
   v_extra uuid[];
   v_event uuid;
+  v_want_members uuid[];
+  v_want_channels text[];
 begin
   if v_kind is null or btrim(v_kind) = '' then
     ${fail("NOTIFICATION_KIND_REQUIRED", "A notification needs a kind", "22023")}
@@ -294,11 +332,16 @@ begin
   if v_actor is not null and not coalesce((notification ->> 'include_actor')::boolean, false) then
     v_recipients := array_remove(v_recipients, v_actor);
   end if;${members}
-  v_recipients := array(
-    select distinct x from unnest(v_recipients) x
-    where x is not null
-      and exists (select 1 from unnest(v_channels) c where ${ctx.fn("notification_enabled")}(x, v_tenant, v_kind, c))
-  );
+  v_recipients := array(select distinct x from unnest(v_recipients) x where x is not null);
+  if cardinality(v_recipients) > ${String(maxRecipients)} then
+    ${fail("NOTIFICATION_TOO_MANY_RECIPIENTS", `A notification reaches at most ${String(maxRecipients)} recipients`, "22023")}
+  end if;
+  select coalesce(array_agg(w.member), '{}'), coalesce(array_agg(w.channel), '{}')
+  into v_want_members, v_want_channels
+  from (
+    ${wanted(ctx, n)}
+  ) w;
+  v_recipients := array(select distinct x from unnest(v_want_members) x);
   if cardinality(v_recipients) = 0 then
     return null;
   end if;
@@ -377,14 +420,17 @@ function inbox(ctx: KitContext, n: NotifyNames): string {
     : "0";
   const parts = [
     `
+drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer);
 -- The signed-in user's notifications, newest first, without dismissed ones.
--- status: all, unread, read${resolved ? " or unresolved" : ""}. Page with before.
+-- status: all, unread, read${resolved ? " or unresolved" : ""}. Page with the last item's
+-- created_at and id (before, before_id).
 create or replace function ${ctx.fn("list_notifications")}(
   tenant ${id} default null,
   status text default 'all',
   kinds text[] default null,
   before timestamptz default null,
-  max_items integer default 50
+  max_items integer default 50,
+  before_id uuid default null
 )
 returns jsonb
 language sql
@@ -392,22 +438,25 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(x.item order by x.created_at desc), '[]')
+  select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at
+    select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at, rc.${r("id")} as id
     from ${n.table("recipients")} rc
     join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
     where rc.${r("user")} = auth.uid()
       and rc.${r("dismissedAt")} is null
       ${tenantFilter("list_notifications")}
       and (list_notifications.kinds is null or ev.${e("kind")} = any(list_notifications.kinds))
-      and (list_notifications.before is null or rc.${r("createdAt")} < list_notifications.before)
+      and (
+        list_notifications.before is null
+        or (rc.${r("createdAt")}, rc.${r("id")}) < (list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid))
+      )
       and case coalesce(list_notifications.status, 'all')
         when 'unread' then rc.${r("readAt")} is null
         when 'read' then rc.${r("readAt")} is not null${unresolvedStatus}
         else true
       end
-    order by rc.${r("createdAt")} desc
+    order by rc.${r("createdAt")} desc, rc.${r("id")} desc
     limit least(coalesce(list_notifications.max_items, 50), 200)
   ) x
 $$;
@@ -472,7 +521,7 @@ end;
 $$;`,
   ];
   const grants = [
-    `list_notifications(${id}, text, text[], timestamptz, integer)`,
+    `list_notifications(${id}, text, text[], timestamptz, integer, uuid)`,
     `notification_counts(${id}, text[])`,
     `mark_notifications_read(uuid[], ${id})`,
     "dismiss_notifications(uuid[])",
@@ -614,9 +663,7 @@ function delivery(ctx: KitContext, n: NotifyNames): string {
   const attempts = n.has("deliveries", "attempts")
     ? `, ${d("attempts")} = d.${d("attempts")} + 1`
     : "";
-  const set: string[] = [
-    `${d("status")} = complete_notification_delivery.status`,
-  ];
+  const set: string[] = [`${d("status")} = v_status`];
   if (n.has("deliveries", "provider"))
     set.push(
       `${d("provider")} = coalesce(complete_notification_delivery.provider, d.${d("provider")})`,
@@ -629,15 +676,44 @@ function delivery(ctx: KitContext, n: NotifyNames): string {
     set.push(`${d("error")} = complete_notification_delivery.error`);
   if (n.has("deliveries", "deliveredAt"))
     set.push(
-      `${d("deliveredAt")} = case when complete_notification_delivery.status = 'sent' then now() else d.${d("deliveredAt")} end`,
+      `${d("deliveredAt")} = case when v_status = 'sent' then now() else d.${d("deliveredAt")} end`,
     );
   set.push(
-    `${d("attemptedAt")} = case when complete_notification_delivery.status = 'pending' then null else d.${d("attemptedAt")} end`,
+    `${d("attemptedAt")} = case when v_status = 'pending' then null else d.${d("attemptedAt")} end`,
   );
+  const retries = n.has("deliveries", "attempts");
+  const backoff = n.has("deliveries", "nextAttemptAt");
+  if (backoff)
+    set.push(
+      `${d("nextAttemptAt")} = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, ${retries ? `greatest(d.${d("attempts")}, 1) - 1` : "0"})))) else d.${d("nextAttemptAt")} end`,
+    );
+  const lostLease = retries
+    ? `
+  -- A delivery whose lease ran out on its last attempt lost its worker.
+  update ${n.table("deliveries")} d
+  set ${d("status")} = 'failed'${n.has("deliveries", "error") ? `, ${d("error")} = 'The lease ran out on the last attempt'` : ""}
+  where d.${d("channel")} = claim_notification_deliveries.channel
+    and d.${d("status")} = 'pending'
+    and d.${d("attempts")} >= greatest(1, coalesce(claim_notification_deliveries.max_attempts, 5))
+    and d.${d("attemptedAt")} < now() - claim_notification_deliveries.lease;
+`
+    : "";
+  const giveUp = retries
+    ? `
+  if v_status = 'pending' and exists (
+    select 1 from ${n.table("deliveries")} d
+    where d.${d("id")} = complete_notification_delivery.delivery
+      and d.${d("attempts")} >= greatest(1, coalesce(complete_notification_delivery.max_attempts, 5))
+  ) then
+    v_status := 'failed';
+  end if;`
+    : "";
   return `
--- Leases up to max_items pending deliveries of one channel and returns them
+drop function if exists ${ctx.fn("claim_notification_deliveries")}(text, integer, interval);
+drop function if exists ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text);
+-- Leases up to max_items due deliveries of one channel and returns them
 -- with the notification and the recipient's email, for a NotificationChannel.
-create or replace function ${ctx.fn("claim_notification_deliveries")}(channel text, max_items integer default 50, lease interval default '5 minutes')
+create or replace function ${ctx.fn("claim_notification_deliveries")}(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
 returns jsonb
 language plpgsql
 security definer
@@ -645,11 +721,16 @@ set search_path = ''
 as $$
 declare
   claimed jsonb;
-begin
+begin${lostLease}
   with picked as (
     select d.${d("id")} as id from ${n.table("deliveries")} d
     where d.${d("channel")} = claim_notification_deliveries.channel
-      and d.${d("status")} = 'pending'
+      and d.${d("status")} = 'pending'${
+        backoff
+          ? `
+      and d.${d("nextAttemptAt")} <= now()`
+          : ""
+      }
       and (d.${d("attemptedAt")} is null or d.${d("attemptedAt")} < now() - claim_notification_deliveries.lease)
     order by d.${d("createdAt")}
     limit claim_notification_deliveries.max_items
@@ -662,7 +743,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'delivery_id', l.${d("id")},
     'channel', l.${d("channel")},
-    'attempts', ${n.has("deliveries", "attempts") ? `l.${d("attempts")}` : "1"},
+    'attempts', ${retries ? `l.${d("attempts")}` : "1"},
     'user_id', rc.${r("user")},
     'email', u.email,
     'notification', ${itemJson(n)}
@@ -675,26 +756,61 @@ begin
 end;
 $$;
 
--- Records the outcome: sent, failed, skipped, or pending to retry later.
-create or replace function ${ctx.fn("complete_notification_delivery")}(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null)
-returns void
+-- Records the outcome: sent, failed, skipped, or pending to retry. A retry
+-- waits a random time up to 30 seconds, doubling per attempt to an hour,
+-- and after max_attempts the delivery is failed instead.
+create or replace function ${ctx.fn("complete_notification_delivery")}(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5)
+returns text
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_status text := complete_notification_delivery.status;
 begin
-  if complete_notification_delivery.status not in ('sent', 'failed', 'skipped', 'pending') then
+  if v_status is null or v_status not in ('sent', 'failed', 'skipped', 'pending') then
     ${fail("NOTIFICATION_STATUS_UNKNOWN", "status must be sent, failed, skipped or pending", "22023")}
-  end if;
+  end if;${giveUp}
   update ${n.table("deliveries")} d
   set ${set.join(",\n    ")}
   where d.${d("id")} = complete_notification_delivery.delivery;
+  return v_status;
 end;
 $$;
-revoke execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval) from public, anon, authenticated;
-grant execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval) to service_role;
-revoke execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text) from public, anon, authenticated;
-grant execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text) to service_role;`;
+revoke execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval, integer) from public, anon, authenticated;
+grant execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval, integer) to service_role;
+revoke execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text, integer) from public, anon, authenticated;
+grant execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text, integer) to service_role;`;
+}
+
+/** Deletes up to batch notifications older than older_than, with their recipients and deliveries. */
+function purge(ctx: KitContext, n: NotifyNames): string {
+  const e = (logical: string) => n.col("events", logical);
+  const fn = ctx.fn("purge_notifications");
+  return `
+-- Deletes up to batch notifications older than older_than, with their
+-- recipients and deliveries, and returns how many. Run it until it returns
+-- less than batch.
+create or replace function ${fn}(older_than interval default '90 days', batch integer default 10000)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with gone as (
+    delete from ${n.table("events")}
+    where ${e("id")} in (
+      select ev.${e("id")} from ${n.table("events")} ev
+      where ev.${e("createdAt")} < now() - coalesce(older_than, '90 days')
+      order by ev.${e("createdAt")}
+      limit coalesce(batch, 10000)
+    )
+    returning 1
+  )
+  select count(*)::integer from gone
+$$;
+revoke execute on function ${fn}(interval, integer) from public, anon, authenticated;
+grant execute on function ${fn}(interval, integer) to service_role;`;
 }
 
 export function functions(ctx: KitContext, n: NotifyNames): string {
@@ -704,5 +820,6 @@ export function functions(ctx: KitContext, n: NotifyNames): string {
     inbox(ctx, n),
     settings(ctx, n),
     delivery(ctx, n),
+    purge(ctx, n),
   ].join("\n");
 }

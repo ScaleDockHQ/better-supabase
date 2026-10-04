@@ -2,7 +2,11 @@ import type { KitContext, KitNames } from "../context.ts";
 import type { KitModuleDefinition } from "../kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  organizationMissing,
+  schemaPreamble,
+  SERVICE_CALLER,
+} from "../shared.ts";
 import {
   accessModel,
   hasPlatformRoles,
@@ -481,7 +485,7 @@ begin
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", KIT_PERMISSIONS.invitations.invite)}), false) then
     ${fail("INVITATION_FORBIDDEN", "Not allowed to invite members")}
   end if;
-  if better_supabase.tenant_disabled(tenant) then
+  if better_supabase.tenant_disabled(tenant) or ${organizationMissing(ctx, "tenant")} then
     ${fail("INVITATION_INVALID", "The organization is not active")}
   end if;
   if ${unknownRole} then
@@ -818,7 +822,7 @@ begin
     ${fail("INVITATION_INVALID", "The invitation is invalid or has expired")}
   end if;
   ${invitee(t, "invite")}
-  if better_supabase.tenant_disabled(invite.${c("tenant")}) then
+  if better_supabase.tenant_disabled(invite.${c("tenant")}) or ${organizationMissing(ctx, `invite.${c("tenant")}`)} then
     ${fail("INVITATION_INVALID", "The invitation is invalid or has expired")}
   end if;
   if exists (select 1 from ${m} m where m.${mt} = invite.${c("tenant")} and m.${mu} = me) then

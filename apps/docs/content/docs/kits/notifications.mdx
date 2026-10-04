@@ -102,8 +102,9 @@ await notifications.resolve({
 });
 ```
 
-`list` pages with `before` (an instant) and `limit` (50 by default, at most
-200), and filters with `status` (`all`, `unread`, `read`, `unresolved`) and
+`list` pages with `before` and `limit` (50 by default, at most 200). Pass the
+last item of the previous page as `before`: the kit orders by `created_at`
+and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`) and
 `kinds`. `resolve` marks every recipient's copy of a kind about one subject
 as handled, for example when someone approves the invoice.
 
@@ -150,7 +151,12 @@ subscription.
 `setPreference({ kind, channel, enabled, tenant? })` turns a kind (or `*`)
 on or off on a channel. The most specific row wins: the organization and
 kind, the organization and `*`, everywhere and kind, everywhere and `*`,
-then `options.channelDefaults` (email is off until a user turns it on).
+then `options.channelDefaults`. Without a default, `in_app` is on and every
+other channel is off until the user turns it on, so nobody gets email they
+did not ask for. The kit resolves the preferences of all recipients in one
+query, and `notify` refuses more than `options.maxRecipients` (1,000)
+recipients with `NOTIFICATION_TOO_MANY_RECIPIENTS`; fan out larger audiences
+from a job.
 
 ## Email, push and other channels
 
@@ -194,9 +200,15 @@ export async function GET() {
 
 `deliver` claims pending rows with `for update skip locked` and leases them
 (`lease`, five minutes by default), so two runs never send the same message.
-A channel that throws leaves the row pending for the next run, until
-`maxAttempts` (5) marks it `failed`. `testNotificationChannel` from
+A channel that throws leaves the row pending until `next_attempt_at`, a
+random time up to 30 seconds that doubles per attempt to at most an hour.
+The database marks it `failed` after `maxAttempts` (5), and also when a
+worker died while it held the last attempt. `testNotificationChannel` from
 `better-supabase/testing` checks a channel against the contract.
+
+Run `purge()` (`purge_notifications(older_than, batch)` in SQL) from a
+scheduled job to delete notifications older than 90 days with their
+recipients and deliveries, 10,000 per call.
 
 ## Extending it
 
@@ -240,12 +252,13 @@ stored as dismissed, so other channels can deliver it.
 
 ## Error codes
 
-| `hint`                          | When                                                               |
-| ------------------------------- | ------------------------------------------------------------------ |
-| `NOTIFICATION_KIND_REQUIRED`    | `notify` without a kind                                            |
-| `NOTIFICATION_KIND_UNKNOWN`     | `send` with a kind that isn't in `kinds` (checked in TypeScript)   |
-| `NOTIFICATION_FORBIDDEN`        | The sender lacks `notifications.send` in the organization          |
-| `NOTIFICATION_PRIORITY_UNKNOWN` | A priority that isn't in `options.priorities`                      |
-| `NOTIFICATION_ACTIVITY_UNKNOWN` | An `activity` other than `participating` or `all`                  |
-| `NOTIFICATION_LEVEL_UNKNOWN`    | A subscription level other than `participating`, `all` or `ignore` |
-| `NOTIFICATION_STATUS_UNKNOWN`   | Completing a delivery with a status the kit doesn't know           |
+| `hint`                             | When                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `NOTIFICATION_KIND_REQUIRED`       | `notify` without a kind                                            |
+| `NOTIFICATION_KIND_UNKNOWN`        | `send` with a kind that isn't in `kinds` (checked in TypeScript)   |
+| `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization          |
+| `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                      |
+| `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                  |
+| `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore` |
+| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the kit doesn't know           |
+| `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                       |
