@@ -259,7 +259,7 @@ standard or sets how the repo works.
 
 | Package        | Version       | Why                                                                        |
 | -------------- | ------------- | -------------------------------------------------------------------------- |
-| `@orpc/server` | 2.0.0-beta.40 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
+| `@orpc/server` | 2.0.0-beta.41 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
 | `c12`          | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
 
 Move each to its stable release when it ships, and update this list with

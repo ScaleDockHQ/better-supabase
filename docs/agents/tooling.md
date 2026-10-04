@@ -7,7 +7,10 @@
 - `minimumReleaseAge` in `pnpm-workspace.yaml` rejects a release younger than
   a day. Pin the previous release and move on; never lower the setting.
 - Catalog entries are exact versions. A package the root uses goes into the
-  catalog and into the root `devDependencies` as `catalog:`.
+  catalog and into the root `devDependencies` as `catalog:`. The named
+  catalogs `deps` and `peers` hold the ranges `better-supabase` publishes for
+  its runtime dependencies and peers; use them there instead of `catalog:`, so
+  apps don't get a second copy of a package they already have.
 
 ## Scripts and hooks
 

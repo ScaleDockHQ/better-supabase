@@ -32,9 +32,10 @@ don't rebuild for nothing.
 
 `database.types.ts` is formatted with [oxfmt](https://oxc.rs/docs/guide/usage/formatter),
 an optional peer. Without it, `gen` writes the file unformatted and says so;
-install it (`pnpm add -D oxfmt@0.66.0`) to match `supabase gen types` byte for byte.
-`@supabase/postgrest-typegen` pins that exact version as its peer. To use a
-newer oxfmt, allow it in `pnpm-workspace.yaml`:
+install it with `pnpm add -D oxfmt`. better-supabase accepts any oxfmt from
+0.66.0 up to, but not including, 1.0. `@supabase/postgrest-typegen` pins exactly 0.66.0 as its
+peer, the version that matches `supabase gen types` byte for byte, so pnpm
+warns about a newer oxfmt until you allow it in `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:

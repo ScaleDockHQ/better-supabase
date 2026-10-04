@@ -380,12 +380,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@standard-schema/spec": "catalog:",
-    "@supabase/middleware": "catalog:",
-    "@supabase/postgrest-js": "catalog:",
+    "@standard-schema/spec": "catalog:deps",
+    "@supabase/middleware": "catalog:deps",
+    "@supabase/postgrest-js": "catalog:deps",
     "@supabase/postgrest-typegen": "catalog:",
-    "@supabase/server": "catalog:",
-    "@supabase/ssr": "catalog:"
+    "@supabase/server": "catalog:deps",
+    "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",
