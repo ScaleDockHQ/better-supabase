@@ -397,6 +397,38 @@ describe.skipIf(!live)("webhooks-out", () => {
         ),
       ).toBe("dead/8");
 
+      // Prefix patterns match nested types too.
+      expect(
+        await webhooks
+          .publish({ type: "invoice.line.added", data: {}, tenant: org })
+          .orThrow(),
+      ).toBe(2);
+
+      // Purging keeps dead letters unless asked, and never touches open deliveries.
+      const count = (where: string) =>
+        s.value<number>(
+          `(select count(*)::int from better_supabase.webhook_deliveries where ${where})`,
+        );
+      await client.query(
+        "update better_supabase.webhook_deliveries set created_at = now() - interval '40 days'",
+      );
+      const open = await count(
+        "status not in ('succeeded', 'canceled', 'dead')",
+      );
+      const deadLetters = await count("status = 'dead'");
+      expect(deadLetters).toBeGreaterThan(0);
+      expect(
+        await s.value<number>("better_supabase.purge_webhook_deliveries()"),
+      ).toBeGreaterThan(0);
+      expect(await count("status in ('succeeded', 'canceled')")).toBe(0);
+      expect(await count("status = 'dead'")).toBe(deadLetters);
+      expect(
+        await s.value<number>(
+          "better_supabase.purge_webhook_deliveries(include_dead => true)",
+        ),
+      ).toBe(deadLetters);
+      expect(await count("true")).toBe(open);
+
       expect(
         await s.value(
           "(select count(*)::int from better_supabase.outbox_events where type = 'webhook.disabled')",

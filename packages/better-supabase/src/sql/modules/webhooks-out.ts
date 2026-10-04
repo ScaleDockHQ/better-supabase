@@ -139,7 +139,7 @@ create table if not exists ${n.table("endpoints")} (
   ].join(",\n  ")}
 );
 create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
-${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}alter table ${n.table("endpoints")} enable row level security;
+${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}alter table ${n.table("endpoints")} enable row level security;
 revoke all on ${n.table("endpoints")} from anon, authenticated;
 grant all on ${n.table("endpoints")} to service_role;${
     scoped
@@ -147,11 +147,11 @@ grant all on ${n.table("endpoints")} to service_role;${
 grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
           "endpoints",
           "bs_webhook_endpoints_read",
-          `for select to authenticated using (${n.can(d("tenant"), "view")})`,
+          `for select to authenticated using (${n.member(d("tenant"), "view")})`,
         )}${policy(
           "endpoints",
           "bs_webhook_endpoints_write",
-          `for all to authenticated using (${n.can(d("tenant"), "manage")}) with check (${n.can(d("tenant"), "manage")})`,
+          `for all to authenticated using (${n.member(d("tenant"), "manage")}) with check (${n.member(d("tenant"), "manage")})`,
         )}`
       : ""
   }`;
@@ -199,6 +199,11 @@ create table if not exists ${n.table("deliveries")} (
 );
 create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);${
+    n.has("deliveries", "tenant")
+      ? `
+create index if not exists webhook_deliveries_tenant_created_idx on ${n.table("deliveries")} (${v("tenant")}, ${v("createdAt")} desc);`
+      : ""
+  }${
     n.has("deliveries", "event")
       ? `
 create unique index if not exists webhook_deliveries_endpoint_event_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null;`
@@ -212,7 +217,7 @@ grant all on ${n.table("deliveries")} to service_role;${
 grant select on ${n.table("deliveries")} to authenticated;${policy(
           "deliveries",
           "bs_webhook_deliveries_read",
-          `for select to authenticated using (${n.can(v("tenant"), "view")})`,
+          `for select to authenticated using (${n.member(v("tenant"), "view")})`,
         )}`
       : ""
   }`;
@@ -311,6 +316,11 @@ function contract(): readonly KitContractFunction[] {
       returns: "text",
     },
     { name: "redeliver_webhook", args: ["uuid"], returns: "uuid" },
+    {
+      name: "purge_webhook_deliveries",
+      args: ["interval", "boolean", "integer"],
+      returns: "integer",
+    },
     {
       name: "rotate_webhook_secret",
       args: ["uuid", "interval", "text"],

@@ -183,7 +183,7 @@ ${
 create index if not exists audit_events_occurred_at_idx on ${log} (${c("occurredAt")});${
     ctx.has("log", "idempotencyKey")
       ? `
-create unique index if not exists audit_events_idempotency_idx on ${log} (${c("tenant")}, ${c("idempotencyKey")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
+create unique index if not exists audit_events_idempotency_idx on ${log} (${c("idempotencyKey")}, ${c("tenant")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
       : ""
   }
 alter table ${log} enable row level security;

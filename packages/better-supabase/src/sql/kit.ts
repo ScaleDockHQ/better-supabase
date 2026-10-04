@@ -1264,7 +1264,33 @@ end
 $$;
 
 revoke execute on function better_supabase.check_request() from public;
-grant execute on function better_supabase.check_request() to anon, authenticated, service_role;`,
+grant execute on function better_supabase.check_request() to anon, authenticated, service_role;
+
+-- Deletes up to batch counters whose window has ended or whose rule is gone.
+-- Every caller keeps a row until then, so schedule it with pg_cron:
+-- select cron.schedule('purge-rate-limits', '*/15 * * * *', 'select better_supabase.purge_rate_limits()');
+create or replace function better_supabase.purge_rate_limits(batch integer default 10000)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with expired as (
+    select l.scope, l.key from better_supabase.rate_limits l
+    left join better_supabase.rate_limit_rules r on r.scope = l.scope
+    where r.scope is null or l.window_start + r.period <= now()
+    limit batch
+  ),
+  purged as (
+    delete from better_supabase.rate_limits l
+    using expired e
+    where l.scope = e.scope and l.key = e.key
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+
+revoke execute on function better_supabase.purge_rate_limits(integer) from public, anon, authenticated;
+grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`,
 };
 
 const VECTOR_SEARCH: SqlModule = {
@@ -1500,10 +1526,15 @@ function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
     return [
       `alter table ${target} drop constraint if exists ${name};`,
       `alter table ${target} add constraint ${name}`,
-      `  check (extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)}));`,
+      `  check (extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)})) not valid;`,
+      `alter table ${target} validate constraint ${name};`,
     ].join("\n");
   });
-  return `\n-- config.json schemas\n${statements.join("\n\n")}\n`;
+  return `\n-- config.json schemas
+-- Each check is added not valid and validated separately. On a large table,
+-- move the validate statements to a later migration: the add blocks writes
+-- only briefly, and validating takes a lock that lets writes continue.
+${statements.join("\n\n")}\n`;
 }
 
 /** Users with a membership in a tenant of `customer`, from PermDock's membership sources. */

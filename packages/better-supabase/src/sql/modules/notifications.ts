@@ -175,7 +175,7 @@ create table if not exists ${n.table("events")} (
   ].join(",\n  ")}
 );${
     n.has("events", "key")
-      ? `\ncreate unique index if not exists notification_events_key_idx on ${n.table("events")} (${n.has("events", "tenant") ? `${c("events", "tenant")}, ` : ""}${c("events", "key")}) nulls not distinct where ${c("events", "key")} is not null;`
+      ? `\ncreate unique index if not exists notification_events_key_idx on ${n.table("events")} (${c("events", "key")}${n.has("events", "tenant") ? `, ${c("events", "tenant")}` : ""}) nulls not distinct where ${c("events", "key")} is not null;`
       : ""
   }${
     n.has("events", "subjectType") && n.has("events", "subjectId")

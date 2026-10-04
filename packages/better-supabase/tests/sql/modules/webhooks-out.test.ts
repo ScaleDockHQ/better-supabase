@@ -50,7 +50,11 @@ describe("webhooks-out module", () => {
     expect(sql).toMatch(
       /function "better_supabase"\."publish_webhook_event"\(/,
     );
-    expect(sql).toContain("starts_with(");
+    expect(sql).toContain('"event_types" && patterns');
+    expect(sql).toContain("webhook_endpoints_types_idx");
+    expect(sql).toContain(
+      `"status" in ('succeeded', 'canceled')\n          or (purge_webhook_deliveries.include_dead and v."status" = 'dead')`,
+    );
     expect(sql).toContain("security definer");
   });
 
@@ -72,10 +76,15 @@ describe("webhooks-out module", () => {
     ).not.toContain(`"url" ~* '^https://'`);
     const plain = renderKit(["webhooks-out"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
+    expect(plain).not.toContain("tenant_ids_with(");
     const sql = renderKit(["access", "outbox", "webhooks-out"]).find((file) =>
       file.path.includes("webhooks_out"),
     )!.contents;
     expect(sql).toContain("better_supabase.can('tenant', ");
+    expect(sql).toContain(
+      `using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))`,
+    );
+    expect(sql).toContain("webhook_deliveries_tenant_created_idx");
     expect(sql).toContain("'webhooks.manage'");
     expect(sql).toContain("'webhooks.read'");
     expect(sql).toContain("emit_event('webhook.disabled'");
@@ -136,6 +145,7 @@ describe("webhooks-out module", () => {
       "claim_webhook_deliveries",
       "complete_webhook_delivery",
       "redeliver_webhook",
+      "purge_webhook_deliveries",
       "rotate_webhook_secret",
       "webhook_secrets",
     ]);

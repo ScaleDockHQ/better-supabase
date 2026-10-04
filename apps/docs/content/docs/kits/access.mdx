@@ -18,11 +18,21 @@ create policy "members read" on public.projects for select to authenticated
   using (organization_id in (select better_supabase.tenant_ids_with('projects.read')));
 
 create policy "admins update" on public.projects for update to authenticated
-  using (better_supabase.can('organization', organization_id, 'projects.update'));
+  using (organization_id in (select better_supabase.tenant_ids_with('projects.update')))
+  with check (organization_id in (select better_supabase.tenant_ids_with('projects.update')));
+
+create policy "admins delete the organization" on public.organizations for delete to authenticated
+  using (
+    id = (select better_supabase.current_tenant_id())
+    and (select better_supabase.can('organization', better_supabase.current_tenant_id(), 'organizations.delete'))
+  );
 ```
 
-`tenant_ids_with()` returns a set, so Postgres runs it once per statement. Use
-it in policies on large tables, and keep `can()` for single checks.
+`tenant_ids_with()` returns a set, so Postgres runs it once per statement
+instead of once per row. Use it in `using` and `with check` whenever the
+tenant comes from the row. Keep `can()` for checks whose arguments are
+constants for the statement, and wrap the call in `(select ...)` so Postgres
+evaluates it once.
 
 ## The contract
 

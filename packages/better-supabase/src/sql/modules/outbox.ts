@@ -111,7 +111,7 @@ function tables(ctx: KitContext, n: Names): string {
   ].filter((line) => line !== undefined);
   const keyIndex = n.has("key")
     ? n.has("tenant")
-      ? `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("tenant")}, ${n.e("key")}) nulls not distinct where ${n.e("key")} is not null;`
+      ? `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}, ${n.e("tenant")}) nulls not distinct where ${n.e("key")} is not null;`
       : `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}) where ${n.e("key")} is not null;`
     : "";
   const subjectIndex = n.has("subject")

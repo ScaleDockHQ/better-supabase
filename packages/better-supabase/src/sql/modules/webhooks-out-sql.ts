@@ -10,6 +10,11 @@ export interface HookNames {
   readonly has: (table: string, logical: string) => boolean;
   /** A member check on `tenant` (a SQL expression) for a kit action. */
   readonly can: (tenant: string, action: "manage" | "view") => string;
+  /**
+   * `tenant in (select tenant_ids_with(...))` for policies: the set is
+   * computed once per query instead of a `can()` call per row.
+   */
+  readonly member: (tenant: string, action: "manage" | "view") => string;
   /** Clients read and manage endpoints through RLS. */
   readonly clientAccess: boolean;
   readonly vault: boolean;
@@ -112,6 +117,10 @@ export function hookNames(ctx: KitContext): HookNames {
       access
         ? `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`
         : "false",
+    member: (tenant, action) =>
+      access
+        ? `${tenant} in (select better_supabase.tenant_ids_with(${ctx.permission(action, permissions[action])}))`
+        : "false",
     clientAccess:
       access && has("endpoints", "tenant") && has("deliveries", "tenant"),
     vault,
@@ -191,8 +200,10 @@ function publish(ctx: KitContext, n: HookNames): string {
     : "";
   return `
 -- Queues the event for every enabled endpoint subscribed to its type:
--- the exact type, '*', or a prefix pattern such as 'invoice.*'. The same
--- event id never queues twice for one endpoint.
+-- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
+-- patterns that can match are built from the type, so && uses the GIN
+-- index on the subscriptions. The same event id never queues twice for one
+-- endpoint.
 create or replace function ${fn}(event_type text, payload jsonb, tenant ${id} default null, event_id text default null)
 returns integer
 language plpgsql
@@ -202,20 +213,21 @@ as $$
 ${VARIABLES}
 declare
   inserted integer;
+  segments text[] := string_to_array(publish_webhook_event.event_type, '.');
+  patterns text[];
 begin
   if coalesce(publish_webhook_event.event_type, '') = '' then
     ${fail("WEBHOOK_TYPE_REQUIRED", "An event type is required", "22023")}
   end if;
+  patterns := array[publish_webhook_event.event_type, '*'] || array(
+    select array_to_string(segments[1:i], '.') || '.*'
+    from generate_series(1, cardinality(segments) - 1) i
+  );
   insert into ${n.table("deliveries")} (${columns.map(([column]) => column).join(", ")})
   select ${columns.map(([, value]) => value).join(", ")}
   from ${n.table("endpoints")} d
   where d.${d("enabled")}${tenant}
-    and exists (
-      select 1 from unnest(d.${d("eventTypes")}) t(pattern)
-      where t.pattern = publish_webhook_event.event_type
-        or t.pattern = '*'
-        or (right(t.pattern, 2) = '.*' and starts_with(publish_webhook_event.event_type, left(t.pattern, -1)))
-    )${conflict};
+    and d.${d("eventTypes")} && patterns${conflict};
   get diagnostics inserted = row_count;
   return inserted;
 end;
@@ -548,6 +560,38 @@ $$;
 ${grants(fn, "uuid", true)}`;
 }
 
+function purge(ctx: KitContext, n: HookNames): string {
+  const fn = ctx.fn("purge_webhook_deliveries");
+  const v = (logical: string) => n.col("deliveries", logical);
+  return `
+-- Deletes up to batch finished deliveries (and dead ones with include_dead)
+-- created before older_than. A purged event id can be queued again for the
+-- same endpoint, so keep older_than above the window you republish in.
+-- Nightly with pg_cron: select cron.schedule('purge-webhook-deliveries', '45 3 * * *', 'select ${fn}()');
+create or replace function ${fn}(older_than interval default '30 days', include_dead boolean default false, batch integer default 10000)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with purged as (
+    delete from ${n.table("deliveries")}
+    where ${v("id")} in (
+      select v.${v("id")} from ${n.table("deliveries")} v
+      where v.${v("createdAt")} < now() - purge_webhook_deliveries.older_than
+        and (
+          v.${v("status")} in (${n.status("succeeded")}, ${n.status("canceled")})
+          or (purge_webhook_deliveries.include_dead and v.${v("status")} = ${n.status("dead")})
+        )
+      limit purge_webhook_deliveries.batch
+    )
+    returning 1
+  )
+  select count(*)::integer from purged
+$$;
+${grants(fn, "interval, boolean, integer", false)}`;
+}
+
 function secrets(ctx: KitContext, n: HookNames): string {
   const rotate = ctx.fn("rotate_webhook_secret");
   const read = ctx.fn("webhook_secrets");
@@ -647,6 +691,7 @@ export function functions(ctx: KitContext, n: HookNames): string {
     claim(ctx, n),
     complete(ctx, n),
     redeliver(ctx, n),
+    purge(ctx, n),
     secrets(ctx, n),
   ].join("\n");
 }

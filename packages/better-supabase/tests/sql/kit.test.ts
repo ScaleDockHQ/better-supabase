@@ -157,7 +157,7 @@ describe("sameKitFile", () => {
       "create extension if not exists pg_jsonschema with schema extensions;",
     );
     expect(file!.contents).toContain(
-      `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata"));`,
+      `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bs_json_metadata";`,
     );
     expect(file!.contents).toContain(
       'alter table "billing"."invoices" drop constraint if exists "bs_json_lines";',

@@ -1927,6 +1927,19 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       });
       expect((await call("GET")).status).toBe(200);
 
+      await pool.query(
+        `insert into better_supabase.rate_limits (scope, key, window_start, hits)
+         values ($1, 'expired', now() - interval '2 minutes', 1)`,
+        [scope],
+      );
+      await pool.query(`select better_supabase.purge_rate_limits()`);
+      const { rows: counters } = await pool.query<{ key: string }>(
+        `select key from better_supabase.rate_limits where scope = $1`,
+        [scope],
+      );
+      expect(counters.map((row) => row.key)).not.toContain("expired");
+      expect(counters).toHaveLength(1);
+
       await pool.query(`select better_supabase.set_rate_limit($1, null)`, [
         scope,
       ]);
