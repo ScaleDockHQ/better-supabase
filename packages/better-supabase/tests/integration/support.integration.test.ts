@@ -5,6 +5,7 @@ import { sqlSupportStore, supportClaims } from "../../src/auth/support.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { renderKit } from "../../src/sql/kit.ts";
 import { testSupportSessionStore } from "../../src/testing/conformance.ts";
+import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -42,8 +43,12 @@ describe.skipIf(!live)("support sessions against the local database", () => {
   const store = sqlSupportStore(postgres);
 
   beforeAll(async () => {
-    for (const file of renderKit(["support-sessions"], {}))
-      await postgres.admin.queryRaw(file.contents);
+    await postgres.admin.queryRaw(
+      [
+        ...renderKit(["support-sessions"], {}).map((file) => file.contents),
+        FIXTURE_TENANT_SQL,
+      ].join("\n;\n"),
+    );
     await postgres.admin.queryRaw(
       `insert into auth.users (id, email, aud, role, instance_id)
        values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')`,

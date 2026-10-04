@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AccessKitConfig } from "../../../src/config/kits.ts";
 
-import { moduleBody, SQL_MODULES } from "../../../src/sql/kit.ts";
+import { moduleBody, renderKit, SQL_MODULES } from "../../../src/sql/kit.ts";
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
 
 const access = (config: AccessKitConfig, tenant?: object) =>
@@ -123,7 +123,7 @@ describe("access module", () => {
     expect(sql).toContain("public.user_can(member, tenant, permission)");
     expect(sql).toContain("public.permission_claims(user_id)");
     expect(() => access({ model: "custom" })).toThrow(
-      /needs kits.access.functions.can, tenantIdsWith, isPlatform/,
+      /needs kits.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
     );
     expect(() =>
       access({
@@ -132,9 +132,32 @@ describe("access module", () => {
           can: "x({nope})",
           tenantIdsWith: "y()",
           isPlatform: "z()",
+          canAssign: "w()",
         },
       }),
     ).toThrow(/\{nope\} is not available/);
+  });
+
+  it("fails closed when the permdock model has no assignment rule", () => {
+    const alone = access({ model: "permdock" });
+    expect(alone).toMatch(/or coalesce\(\(false\), false\)/);
+    const withTenant = renderKit(["tenant", "access"], {
+      kits: { access: { model: "permdock" } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+    expect(withTenant).toContain(
+      "can_assign.role <> 'owner' or better_supabase.has_org_role(can_assign.tenant, array['owner'])",
+    );
+  });
+
+  it("counts tenant overrides when the catalog model checks an assignment", () => {
+    const sql = access({ model: "catalog" });
+    const canAssign = sql.slice(
+      sql.indexOf("function better_supabase.can_assign"),
+    );
+    expect(canAssign).toContain('"permission_overrides"');
+    expect(canAssign).toContain("can_assign.tenant as");
   });
 
   it("renders the id type in every signature", () => {

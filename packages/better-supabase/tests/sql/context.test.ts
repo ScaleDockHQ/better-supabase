@@ -308,13 +308,16 @@ describe("kit modes", () => {
     expect(sql).toContain('jsonb_object_agg(m."org_id"::text');
   });
 
-  it("reads the active tenant from the configured source", () => {
-    const claim = moduleBody("tenant", {})!;
+  it("reads the active tenant from the configured source, members only", () => {
+    const claim = moduleBody("tenant", {
+      kits: { access: { activeTenant: "claim" } },
+    })!;
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
     expect(claim).not.toContain("x-bs-tenant");
-    const resolver = moduleBody("tenant", {
-      kits: { access: { activeTenant: "resolver" } },
-    })!;
+    expect(claim).toContain('and m."user_id" = auth.uid() limit 1');
+    expect(claim).toContain("raw_app_meta_data - 'tenant_id'");
+    const resolver = moduleBody("tenant", {})!;
+    expect(resolver).not.toContain("clear_tenant_claim");
     expect(resolver).toContain(
       "current_setting('better_supabase.tenant', true)",
     );

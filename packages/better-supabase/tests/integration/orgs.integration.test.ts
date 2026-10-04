@@ -248,6 +248,117 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("fails closed on stale tenant claims, disabled organizations and non-owner transfers", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "admin", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      const layout: KitLayout = {
+        kits: {
+          access: {
+            activeTenant: "claim",
+            roles: {
+              owner: ["*"],
+              admin: ["ownership.transfer", "members.*"],
+              member: [],
+            },
+          },
+        },
+      };
+      for (const file of renderKit(["organizations"], layout))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      const org = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Stale", slug: `stale-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        `insert into better_supabase.memberships (org_id, user_id, role)
+         values ($1, $2, 'admin'), ($1, $3, 'member')`,
+        [org, USERS.admin, USERS.member],
+      );
+
+      await s.as("member");
+      await s.value("better_supabase.switch_organization($1)", [org]);
+      expect(
+        await s.value(
+          "(select raw_app_meta_data ->> 'tenant_id' from auth.users where id = $1)",
+          [USERS.member],
+        ),
+      ).toBe(org);
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({
+          sub: USERS.member,
+          role: "authenticated",
+          tenant_id: org,
+        }),
+      ]);
+      expect(await s.value("better_supabase.current_tenant_id()")).toBe(org);
+
+      await s.as("owner");
+      await s.value("better_supabase.remove_member($1, $2)", [
+        org,
+        USERS.member,
+      ]);
+      expect(
+        await s.value(
+          "(select raw_app_meta_data ->> 'tenant_id' from auth.users where id = $1)",
+          [USERS.member],
+        ),
+      ).toBeNull();
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({
+          sub: USERS.member,
+          role: "authenticated",
+          tenant_id: org,
+        }),
+      ]);
+      expect(await s.value("better_supabase.current_tenant_id()")).toBeNull();
+
+      await s.as("admin");
+      expect(
+        await s.hint("better_supabase.transfer_ownership($1, $2)", [
+          org,
+          USERS.admin,
+        ]),
+      ).toBe("ORG_FORBIDDEN");
+
+      await client.query(
+        "update better_supabase.organizations set disabled_at = now() where id = $1",
+        [org],
+      );
+      await s.as("owner");
+      expect(
+        await s.value("better_supabase.has_org_role($1, '{owner}')", [org]),
+      ).toBe(false);
+      expect(
+        await s.value(
+          "better_supabase.can('organization', $1, 'organization.read')",
+          [org],
+        ),
+      ).toBe(false);
+      expect(
+        await s.value("array(select better_supabase.member_org_ids())::text[]"),
+      ).toEqual([]);
+      await client.query("set local role authenticated");
+      expect(
+        await s.hint("better_supabase.tenant_disabled($1)", [org]),
+      ).toMatch(/permission denied/);
+      await client.query("reset role");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("stores catalog role ids and resolves role keys", async () => {
     const client = await pool.connect();
     const s = new Session(client);
@@ -355,7 +466,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       expect(taken.error).toMatchObject({ hint: "ORG_SLUG_TAKEN" });
 
       const switched = await orgs.switch(created.id).orThrow();
-      expect(switched).toEqual({ organizationId: created.id, refresh: true });
+      expect(switched).toEqual({ organizationId: created.id, refresh: false });
 
       const sent = await orgs
         .invite({

@@ -178,6 +178,7 @@
     "values": [
       "buildJsonSchema",
       "CONFIG_SCHEMA_URL",
+      "DEFAULT_ACTIVE_TENANT",
       "DEFAULT_CLAIMS",
       "defineConfig",
       "jsonSchema",

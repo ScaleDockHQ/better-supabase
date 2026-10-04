@@ -1,6 +1,7 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tenantClaimPaths } from "../../config/index.ts";
+import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   contractSignature,
   customContracts,
@@ -161,7 +162,10 @@ async function missingTenantClaim(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   if (!context.config.sql.kit.includes("tenant")) return [];
-  if ((context.config.kits.access?.activeTenant ?? "claim") !== "claim") {
+  if (
+    (context.config.kits.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT) !==
+    "claim"
+  ) {
     return [];
   }
   const userId = context.hookUser;
@@ -311,7 +315,7 @@ export const KIT_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `kits.access.activeTenant: 'claim'` (the default), `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. Apps without a tenant claim set `activeTenant` to `'resolver'` or a profile column.",
+      "With the `tenant` module and `kits.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {

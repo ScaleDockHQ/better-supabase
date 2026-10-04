@@ -246,6 +246,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
               can: "public.bs_access_can({scope}, {id}, {permission})",
               tenantIdsWith: "public.bs_access_ids({permission})",
               isPlatform: "public.bs_access_platform({permission})",
+              canAssign: "{role} <> 'owner'",
             },
           },
         },

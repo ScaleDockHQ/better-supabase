@@ -26,6 +26,7 @@ import { testQueueBackend } from "../../src/testing/conformance.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { signWebhook } from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 
 const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const dbUrl =
@@ -56,6 +57,23 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
+async function installSchemaModules(pool: Pool): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    for (const module of Object.values(SQL_MODULES)) {
+      if (module.target === "schema") await client.query(module.sql);
+    }
+    await client.query(FIXTURE_TENANT_SQL);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 interface PlainRow {
   id: string;
   name: string | null;
@@ -82,9 +100,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   const table = `public.bs_kit_${RUN}`;
 
   beforeAll(async () => {
-    for (const module of Object.values(SQL_MODULES)) {
-      if (module.target === "schema") await pool.query(module.sql);
-    }
+    await installSchemaModules(pool);
     await pool.query(`
       create table ${table} (
         id uuid primary key default gen_random_uuid(),
@@ -126,9 +142,7 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
   });
 
   it("is idempotent", async () => {
-    for (const module of Object.values(SQL_MODULES)) {
-      if (module.target === "schema") await pool.query(module.sql);
-    }
+    await installSchemaModules(pool);
   });
 
   it("warns about equivalent triggers and replaces them on request", async () => {

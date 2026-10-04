@@ -163,7 +163,10 @@ describe("BS308 tenant claim", () => {
       return [] as R[];
     },
   });
-  const tenantConfig = resolveConfig({ sql: { kit: ["tenant"] } }, "/project");
+  const tenantConfig = resolveConfig(
+    { sql: { kit: ["tenant"] }, kits: { access: { activeTenant: "claim" } } },
+    "/project",
+  );
   const run = (
     database: LiveDatabase,
     config = tenantConfig,
@@ -208,6 +211,9 @@ describe("BS308 tenant claim", () => {
     );
     const empty = hookDatabase({});
     expect(await run(empty, resolver)).toEqual([]);
+    expect(
+      await run(empty, resolveConfig({ sql: { kit: ["tenant"] } }, "/project")),
+    ).toEqual([]);
     expect(await run(empty, resolveConfig({}, "/project"))).toEqual([]);
     expect(await run(empty, tenantConfig, null)).toEqual([]);
     expect(await run(hookDatabase({}, false))).toEqual([]);

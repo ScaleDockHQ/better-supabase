@@ -60,18 +60,24 @@ export interface KitModuleConfig {
   readonly events?: boolean;
 }
 
-/** Where the active tenant of a request comes from. */
+/**
+ * Where the active tenant of a request comes from. Every source counts only
+ * while the caller is a member, so a stale claim or setting grants nothing.
+ */
 export type ActiveTenantSource =
-  /** The `claims.tenant` claim (the default). */
+  /** The `claims.tenant` claim, written by `switch_organization`. */
   | "claim"
   /**
-   * A TypeScript resolver (`ServerOptions.tenant`), e.g. from a URL slug. The
-   * server sends it as the `x-bs-tenant` header; `current_tenant_id()` only
-   * returns it when the caller is a member.
+   * A TypeScript resolver (`ServerOptions.tenant`), e.g. from a URL slug (the
+   * default). The server sends it as the `x-bs-tenant` header, then the
+   * `claims.tenant` claim is the fallback.
    */
   | "resolver"
   /** A profile column keyed by the user id, e.g. `public.profiles.active_organization_id`. */
   | { readonly profileColumn: string; readonly key?: string };
+
+/** URL tenancy: the tenant comes from the request (a slug), not a stored setting. */
+export const DEFAULT_ACTIVE_TENANT: ActiveTenantSource = "resolver";
 
 /**
  * The access contract every kit checks permissions through:

@@ -4,7 +4,7 @@ import type { KitModuleDefinition } from "../kit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { columnRef, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { accessModel, KIT_PERMISSIONS, roleNames } from "./access-model.ts";
-import { roleNameOf } from "./tenant.ts";
+import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
 const NAMES: KitNames = {
   tables: {
@@ -570,6 +570,13 @@ declare
 begin
   if not ${can("transferOwnership")} then
     raise exception 'Not allowed to transfer ownership' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+  end if;
+  -- Only an owner hands ownership on, so the permission alone can't make its
+  -- holder an owner.
+  if not (${SERVICE_CALLER}) and not exists (
+    select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = me and ${isOwner(ctx, n, "m")}
+  ) then
+    raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORG_FORBIDDEN';
   end if;${active}${checkRole(ctx, "former_role")}
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = new_owner) then
     raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
@@ -610,7 +617,7 @@ $$;
  * returns refresh = true, so the client refreshes its session.
  */
 function switcher(ctx: KitContext, n: OrgNames): string {
-  const source = ctx.kits.access?.activeTenant ?? "claim";
+  const source = activeTenantSource(ctx);
   let write: string;
   let refresh = "false";
   if (source === "claim") {

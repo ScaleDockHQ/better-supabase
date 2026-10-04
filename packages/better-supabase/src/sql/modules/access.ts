@@ -3,7 +3,11 @@ import type { KitLayout, KitModuleDefinition } from "../kit.ts";
 
 import { PERMDOCK_SCHEMA } from "../../core/permdock-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { disabledHelpers, schemaPreamble } from "../shared.ts";
+import {
+  disabledHelpers,
+  disabledHelpersNeedLaterTables,
+  schemaPreamble,
+} from "../shared.ts";
 import { accessModel, rolesOf, tenantScope } from "./access-model.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
@@ -113,7 +117,11 @@ as $$
     select 1 from unnest(better_supabase.role_permissions(role)) g(key)
     where better_supabase.permission_matches(g.key, permission)
   )
-$$;`;
+$$;
+revoke execute on function better_supabase.role_permissions(text) from public, anon, authenticated;
+revoke execute on function better_supabase.role_grants(text, text) from public, anon, authenticated;
+grant execute on function better_supabase.role_permissions(text) to service_role, supabase_auth_admin;
+grant execute on function better_supabase.role_grants(text, text) to service_role, supabase_auth_admin;`;
 }
 
 function catalogTables(ctx: KitContext): string {
@@ -209,14 +217,20 @@ function membershipFunctions(ctx: KitContext): string {
       where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member
         and ${catalogEffective(ctx, n)}
     )`;
+  // The catalog role's keys in this tenant, overrides included: the same
+  // rule member_can applies to a member holding the role.
   const roleKeys =
     model === "roles"
       ? "select 1 from unnest(better_supabase.role_permissions(can_assign.role)) k(key) where true"
       : `select 1
-        from ${ctx.table("rolePermissions")} rp
-        join ${ctx.table("permissions")} p on p.${ctx.col("permissions", "id")} = rp.${ctx.col("rolePermissions", "permission")}
+        from (
+          select r.${ctx.col("roles", "id")} as ${n.role}, can_assign.tenant as ${n.tenant}
+          from ${ctx.table("roles")} r
+          where r.${ctx.col("roles", "id")}::text = can_assign.role
+        ) m
+        cross join ${ctx.table("permissions")} p
         cross join lateral (select p.${ctx.col("permissions", "key")} as key) k
-        where rp.${ctx.col("rolePermissions", "role")}::text = can_assign.role`;
+        where ${catalogEffective(ctx, n)}`;
   let platform = platformClaim(
     ctx,
     "platform_can.member",
@@ -325,6 +339,19 @@ as $$
 $$;`;
 }
 
+function permdockCanAssign(ctx: KitContext): string {
+  const template = ctx.kits.access?.functions?.canAssign;
+  if (template) {
+    return fill(template, {
+      tenant: "can_assign.tenant",
+      role: "can_assign.role",
+    });
+  }
+  if (!ctx.installed("tenant")) return "false";
+  const owner = sqlString(ctx.of("organizations").text("ownerRole", "owner"));
+  return `can_assign.role <> ${owner} or better_supabase.has_org_role(can_assign.tenant, array[${owner}])`;
+}
+
 function permdockFunctions(ctx: KitContext, layout: KitLayout): string {
   const id = ctx.idType;
   const permdock = ctx.kits.access?.permdock ?? {};
@@ -381,14 +408,16 @@ as $$
     and not better_supabase.tenant_disabled(t.id::${id})
 $$;
 
--- PermDock enforces its own assignment rules; set kits.access.functions.canAssign to add one here.
+-- kits.access.functions.canAssign decides who assigns which role. Without
+-- it, only owners assign the owner role, and only with the tenant module.
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
 returns boolean
 language sql
 stable
+security definer
 set search_path = ''
 as $$
-  select ${ctx.kits.access?.functions?.canAssign ? fill(ctx.kits.access.functions.canAssign, { tenant: "can_assign.tenant", role: "can_assign.role" }) : "true"}
+  select ${SERVICE} or coalesce((${permdockCanAssign(ctx)}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)
@@ -404,9 +433,9 @@ $$;`;
 function customFunctions(ctx: KitContext): string {
   const id = ctx.idType;
   const functions = ctx.kits.access?.functions ?? {};
-  const missing = (["can", "tenantIdsWith", "isPlatform"] as const).filter(
-    (name) => !functions[name],
-  );
+  const missing = (
+    ["can", "tenantIdsWith", "isPlatform", "canAssign"] as const
+  ).filter((name) => !functions[name]);
   if (missing.length > 0) {
     throw new TypeError(
       `kits.access.model 'custom' needs kits.access.functions.${missing.join(", ")}`,
@@ -475,7 +504,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or coalesce((${functions.canAssign ? fill(functions.canAssign, { tenant: "can_assign.tenant", role: "can_assign.role" }) : "true"}), false)
+  select ${SERVICE} or coalesce((${fill(functions.canAssign!, { tenant: "can_assign.tenant", role: "can_assign.role" })}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)
@@ -512,9 +541,10 @@ function accessSql(ctx: KitContext, layout: KitLayout): string {
       return unreachable;
     }
   }
+  const defer = disabledHelpersNeedLaterTables(ctx);
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${disabledHelpers(ctx)}
+${defer ? "set check_function_bodies = off;" : ""}${disabledHelpers(ctx)}${defer ? "\nreset check_function_bodies;" : ""}
 
 -- \`*\` grants every key and \`prefix.*\` every key under prefix.
 create or replace function better_supabase.permission_matches(granted text, wanted text)
