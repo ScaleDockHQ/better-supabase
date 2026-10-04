@@ -106,7 +106,12 @@ export interface AccessKitConfig extends KitModuleConfig {
     readonly tenantIdsWith?: string;
     readonly isPlatform?: string;
     readonly canUser?: string;
-    /** `{tenant}` and `{role}`: whether the caller may assign the role. Defaults to true. */
+    /**
+     * `{tenant}` and `{role}`: whether the caller may assign the role.
+     * Required by the `custom` model. Without it, the `permdock` model lets
+     * only owners assign the owner role when the `tenant` module is
+     * installed, and lets only the service role assign roles when it is not.
+     */
     readonly canAssign?: string;
     /** `{user}`: the permission claim for the access token hook. */
     readonly permissionClaims?: string;

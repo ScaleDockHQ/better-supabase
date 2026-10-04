@@ -151,11 +151,17 @@ With [PermDock](/docs/auth/permdock), `can()` and `tenant_ids_with()` call
 PermDock's `permitted_<scope>_ids` and `permdock_has`. `kits.access.permdock`
 names PermDock's schema and the scope tenants are.
 
+PermDock has no role catalog to compare roles against, so `can_assign()`
+comes from `kits.access.functions.canAssign` when you set it. Without it,
+`can_assign()` allows every role except the owner role, which only owners
+assign. That default reads roles from the `tenant` module; without the `tenant`
+module, `can_assign()` returns false and only the service role assigns roles.
+
 ### custom
 
 Your app already has the functions. Give the contract as SQL templates with
 `{scope}`, `{id}`, `{permission}`, `{user}`, `{tenant}` and `{role}`
-placeholders. `can`, `tenantIdsWith` and `isPlatform` are required.
+placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -167,6 +173,7 @@ export default defineConfig({
         can: "public.authorize({scope}, {id}, {permission})",
         tenantIdsWith: "public.organizations_with({permission})",
         isPlatform: "public.is_staff({permission})",
+        canAssign: "public.can_grant_role({tenant}, {role})",
       },
     },
   },
