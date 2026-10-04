@@ -4,6 +4,7 @@ import { contractSignature, createKitContext } from "../../src/sql/context.ts";
 import {
   checkKits,
   customContracts,
+  isKitDataFile,
   kitContext,
   kitFileVersion,
   moduleBody,
@@ -21,6 +22,7 @@ const names = {
     },
     extras: { name: "extras", columns: { id: "id" }, optionalTable: true },
   },
+  options: ["flavour", "size", "on", "list", "missing"],
 };
 
 describe("createKitContext", () => {
@@ -45,7 +47,6 @@ describe("createKitContext", () => {
           tables: { items: "public.things", extras: null },
           columns: { items: { tenant: "organization_id", label: null } },
           idType: "int8",
-          triggerPrefix: "app_",
           permissions: { invite: "organization.members.invite" },
           options: { flavour: "map", size: 3, on: true, list: ["a"] },
         },
@@ -61,7 +62,7 @@ describe("createKitContext", () => {
     expect(() => ctx.col("items", "label")).toThrow(/maps to null/);
     expect(ctx.schema).toBe('"app"');
     expect(ctx.idType).toBe("bigint");
-    expect(ctx.trigger("audit")).toBe('"app_audit"');
+    expect(ctx.trigger("audit")).toBe('"bs_audit"');
     expect(ctx.permission("invite", "members.invite")).toBe(
       "'organization.members.invite'",
     );
@@ -92,10 +93,22 @@ describe("createKitContext", () => {
     );
     expect(build({ schema: "1x" })).toThrow(/not a valid identifier/);
     expect(build({ idType: "jsonb" })).toThrow(/idType/);
+    expect(build({ options: { flavor: "map" } })).toThrow(
+      'kits.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
+    );
+    expect(() =>
+      createKitContext("bare", () => undefined, {
+        kits: { bare: { options: { size: 1 } } },
+      }),
+    ).toThrow('kits.bare.options: unknown option "size". Options: none');
     const ctx = createKitContext("demo", () => names);
     expect(() => ctx.table("nope")).toThrow(/no table/);
     expect(() => ctx.col("items", "nope")).toThrow(/no column/);
     expect(() => ctx.hasTable("nope")).toThrow(/no table/);
+    expect(() => ctx.text("undeclared", "")).toThrow(
+      'Module "demo" reads option "undeclared", which its names.options doesn\'t declare',
+    );
+    expect(ctx.option("size")).toBeUndefined();
   });
 
   it("takes the id type from kits.access, then PermDock", () => {
@@ -241,23 +254,72 @@ describe("kit modes", () => {
     ).toThrow(/supports managed/);
   });
 
+  it("accepts migration-only options in adopt mode only", () => {
+    expect(() => {
+      checkKits({ invitations: { options: { tokenStorage: "plain" } } });
+    }).toThrow(
+      'kits.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set kits.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
+    );
+    expect(() => {
+      checkKits({ outbox: { options: { kitSource: "domain" } } });
+    }).toThrow(/outbox\.options\.kitSource/);
+    expect(() => {
+      checkKits({ "webhooks-out": { options: { eventIdType: "uuid" } } });
+    }).toThrow(/eventIdType/);
+    checkKits({
+      invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
+    });
+    checkKits({
+      outbox: {
+        options: {
+          settle: "2 seconds",
+          kitSource: "better-supabase/{module}",
+          defaultSource: "",
+        },
+      },
+    });
+    checkKits({
+      "webhooks-out": {
+        options: { secretStorage: "vault", eventIdType: "text" },
+      },
+    });
+  });
+
   it("stamps the module version and mode, and records the module", () => {
-    const [file] = renderKit(["tenant"]);
+    const tenant = renderKit(["tenant"]).filter(
+      (kit) => kit.module === "tenant",
+    );
+    const file = tenant.find((kit) => kit.kind === "schema");
     expect(file!.contents).toContain("-- @bs-kit tenant@2 managed\n");
     expect(kitFileVersion(file!.contents)).toEqual({
       module: "tenant",
       version: 2,
     });
     expect(kitFileVersion("-- no marker")).toBeUndefined();
-    expect(file!.contents).toContain("values ('tenant', 2, 'managed')");
-    const [pgtap] = renderKit(["pgtap"]);
-    expect(pgtap!.contents).not.toContain("kit_modules");
+    expect(file!.contents).not.toContain("insert into");
+    expect(file!.contents).toContain(
+      "create table if not exists better_supabase.kit_modules",
+    );
+    const data = tenant.find((kit) => kit.kind === "data");
+    expect(data).toMatchObject({
+      kind: "data",
+      path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+    });
+    expect(data!.contents).toContain("-- @bs-kit-data tenant\n");
+    expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
+    expect(isKitDataFile(data!.contents)).toBe(true);
+    expect(isKitDataFile(file!.contents)).toBe(false);
+    const pgtap = renderKit(["pgtap"]);
+    expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
+    expect(pgtap[0]!.contents).not.toContain("kit_modules");
   });
 
   it("writes no file in custom mode and lists the contract instead", () => {
     const layout = { kits: { tenant: { mode: "custom" as const } } };
     const files = renderKit(["invitations"], layout);
-    expect(files.map((file) => file.module)).toEqual(["invitations", "access"]);
+    expect(
+      files.filter((file) => file.kind === "schema").map((file) => file.module),
+    ).toEqual(["updated-at", "invitations", "access"]);
     expect(moduleBody("tenant", layout)).toBeUndefined();
     const [contract] = customContracts(["invitations"], layout);
     expect(contract).toMatchObject({
@@ -305,16 +367,19 @@ describe("kit modes", () => {
     const sql = moduleBody("tenant", {
       kits: { tenant: { options: { claimFormat: "map" } } },
     })!;
-    expect(sql).toContain('jsonb_object_agg(m."org_id"::text');
+    expect(sql).toContain('jsonb_object_agg(m."organization_id"::text');
   });
 
-  it("reads the active tenant from the configured source", () => {
-    const claim = moduleBody("tenant", {})!;
+  it("reads the active tenant from the configured source, members only", () => {
+    const claim = moduleBody("tenant", {
+      kits: { access: { activeTenant: "claim" } },
+    })!;
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
     expect(claim).not.toContain("x-bs-tenant");
-    const resolver = moduleBody("tenant", {
-      kits: { access: { activeTenant: "resolver" } },
-    })!;
+    expect(claim).toContain('and m."user_id" = auth.uid() limit 1');
+    expect(claim).toContain("raw_app_meta_data - 'tenant_id'");
+    const resolver = moduleBody("tenant", {})!;
+    expect(resolver).not.toContain("clear_tenant_claim");
     expect(resolver).toContain(
       "current_setting('better_supabase.tenant', true)",
     );
@@ -364,8 +429,8 @@ describe("kit modes", () => {
       resolveModules(["access"], { kits: { access: { model } } }).map(
         (module) => module.name,
       );
-    expect(names("roles")).toEqual(["tenant", "access"]);
-    expect(names("catalog")).toEqual(["tenant", "access"]);
+    expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);
+    expect(names("catalog")).toEqual(["updated-at", "tenant", "access"]);
     expect(names("permdock")).toEqual(["access"]);
     expect(names("custom")).toEqual(["access"]);
   });

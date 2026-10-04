@@ -10,6 +10,7 @@ import {
   type KitIdType,
   type KitNames,
 } from "./context.ts";
+import { migrationOptionUses } from "./migration-options.ts";
 import { ACCESS } from "./modules/access.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
@@ -94,6 +95,12 @@ export interface SqlModule {
   readonly build?: (ctx: KitContext, layout: KitLayout) => string;
   readonly upgrades?: readonly KitUpgrade[];
   readonly deprecated?: readonly KitDeprecation[];
+  /**
+   * Rows, role settings and calls that a schema diff doesn't capture. They
+   * go to `better-supabase-data/` next to the schema folder and a migration
+   * (`sql data`) instead of the schema file.
+   */
+  readonly data?: (ctx: KitContext, layout: KitLayout) => string;
 }
 
 export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
@@ -170,14 +177,16 @@ begin
     column_name
   );
 end;
-$$;`,
+$$;
+
+revoke execute on function better_supabase.track_updated_at(regclass, text, boolean) from public, anon, authenticated;`,
 };
 
 const ACTOR: SqlModule = {
   name: "actor",
   title: "Actor stamping",
   description:
-    "Sets created_by on insert and updated_by on update from auth.uid(). Service writes keep the values they send.",
+    "Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.",
   requires: [],
   target: "schema",
   sql: `${SCHEMA}
@@ -193,15 +202,26 @@ begin
   if actor is null then
     return new;
   end if;
-  if tg_op = 'INSERT' and tg_argv[0] <> '' then
-    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[0], actor));
+  if tg_argv[0] <> '' then
+    new := jsonb_populate_record(new, jsonb_build_object(
+      tg_argv[0],
+      case when tg_op = 'INSERT' then to_jsonb(actor) else to_jsonb(old) -> tg_argv[0] end
+    ));
   end if;
   if tg_argv[1] <> '' then
     new := jsonb_populate_record(new, jsonb_build_object(tg_argv[1], actor));
   end if;
-  -- The admin behind an impersonated write (the act claim), null otherwise.
+  -- The admin behind an impersonated write (the act claim). A user's own
+  -- update keeps the stamp, so it cannot clear the record of an earlier one.
   if tg_nargs > 2 and tg_argv[2] <> '' then
-    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[2], auth.jwt() -> 'act' ->> 'sub'));
+    new := jsonb_populate_record(new, jsonb_build_object(
+      tg_argv[2],
+      case
+        when auth.jwt() -> 'act' ->> 'sub' is not null then to_jsonb(auth.jwt() -> 'act' ->> 'sub')
+        when tg_op = 'INSERT' then 'null'::jsonb
+        else to_jsonb(old) -> tg_argv[2]
+      end
+    ));
   end if;
   return new;
 end;
@@ -231,7 +251,9 @@ begin
     coalesce(impersonated_by, '')
   );
 end;
-$$;`,
+$$;
+
+revoke execute on function better_supabase.track_actor(regclass, text, text, text) from public, anon, authenticated;`,
 };
 
 const MFA: SqlModule = {
@@ -270,10 +292,86 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
-/** `has_entitlement` and `feature_claims` on the kit's `better_supabase.memberships`. */
-const tenantEntitlementChecks = (claims: ClaimsMeta): string => `
+const SESSIONS: SqlModule = {
+  name: "sessions",
+  title: "Session revocation",
+  description:
+    "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire.",
+  requires: [],
+  target: "schema",
+  sql: `${SCHEMA}
+
+-- An access token stays valid until it expires, even after its session is
+-- signed out or its user is deleted. This checks the session behind it.
+-- Tokens without a session_id claim (signed by the app) and support tokens
+-- (with an act claim, whose session the support kit ends) pass.
+-- authenticated can't read auth.sessions, so the check runs as the owner.
+create or replace function better_supabase.session_active()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  claims jsonb := auth.jwt();
+  session text := claims ->> 'session_id';
+begin
+  if claims -> 'act' is not null or session is null then
+    return true;
+  end if;
+  if session !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return false;
+  end if;
+  return exists (
+    select 1
+    from auth.sessions s
+    join auth.users u on u.id = s.user_id
+    where s.id = session::uuid
+      and s.user_id = auth.uid()
+      and (s.not_after is null or s.not_after > now())
+      and (u.banned_until is null or u.banned_until <= now())
+      and u.deleted_at is null
+  );
+end;
+$$;
+
+revoke execute on function better_supabase.session_active() from public, anon;
+grant execute on function better_supabase.session_active() to authenticated;
+
+-- Restrictive, so it applies on top of the table's other policies. Wrapped in
+-- a select, it runs one indexed lookup per statement:
+-- create policy session_required on public.invoices as restrictive
+--   for all to authenticated
+--   using ((select better_supabase.session_active()))
+--   with check ((select better_supabase.session_active()));`,
+};
+
+/** The tenant module's memberships table and columns, for the entitlement lookups. */
+interface Memberships {
+  readonly table: string;
+  readonly tenant: string;
+  readonly user: string;
+  readonly idType: KitIdType;
+}
+
+function memberships(layout: KitLayout): Memberships {
+  const ctx = kitContext("tenant", layout);
+  return {
+    table: ctx.table("memberships"),
+    tenant: ctx.col("memberships", "tenant"),
+    user: ctx.col("memberships", "user"),
+    idType: ctx.idType,
+  };
+}
+
+/** `has_entitlement` and `feature_claims` on the tenant module's memberships. */
+const tenantEntitlementChecks = (
+  claims: ClaimsMeta,
+  m: Memberships,
+): string => `
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
-create or replace function better_supabase.has_entitlement(tenant uuid, key text)
+create or replace function better_supabase.has_entitlement(tenant ${m.idType}, key text)
 returns boolean
 language sql
 stable
@@ -284,8 +382,25 @@ as $$
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
-revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
-grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+revoke execute on function better_supabase.has_entitlement(${m.idType}, text) from public, anon;
+grant execute on function better_supabase.has_entitlement(${m.idType}, text) to authenticated, service_role;
+
+-- Every tenant of the caller with \`key\`, for one set check per query instead of
+-- one call per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
+create or replace function better_supabase.tenant_ids_with_entitlement(key text)
+returns setof ${m.idType}
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from better_supabase.member_org_ids() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id))
+$$;
+
+revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
+grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`${claims.features}\` claim: { [tenant id]: lookup keys }, read by
 -- hasEntitlement(). Tenants without entitlements are left out. Call it from
@@ -299,10 +414,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(m.org_id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from better_supabase.memberships m
-  cross join lateral (select better_supabase.tenant_entitlements(m.org_id) as keys) e
-  where m.user_id = feature_claims.user_id
+  select coalesce(jsonb_object_agg(m.${m.tenant}::text, to_jsonb(e.keys)), '{}'::jsonb)
+  from ${m.table} m
+  cross join lateral (select better_supabase.tenant_entitlements(m.${m.tenant}) as keys) e
+  where m.${m.user} = feature_claims.user_id
     and cardinality(e.keys) > 0
 $$;`;
 
@@ -333,6 +448,23 @@ $$;
 revoke execute on function better_supabase.has_entitlement(${id}, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(${id}, text) to authenticated, service_role;
 
+-- Every tenant of the caller with \`key\`, for one set check per query instead of
+-- one call per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
+create or replace function better_supabase.tenant_ids_with_entitlement(key text)
+returns setof ${id}
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from ${member}() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id))
+$$;
+
+revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
+grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
+
 -- The \`${claims.features}\` claim: { [${permdock.scope} id]: lookup keys }, read by
 -- hasEntitlement(). Register it with PermDock instead of writing a hook:
 --   supabase: { hook: { claims: { ${claims.features}: 'better_supabase.feature_claims' } } }
@@ -356,7 +488,8 @@ const entitlementsSql = (
   claims: ClaimsMeta,
   layout: KitLayout = {},
 ): string => {
-  const id = layout.permdock?.idType ?? "uuid";
+  const m = memberships(layout);
+  const id = layout.permdock?.idType ?? m.idType;
   return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 
@@ -386,7 +519,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -396,16 +529,50 @@ const ENTITLEMENTS: SqlModule = {
   name: "entitlements",
   title: "Stripe entitlements",
   description:
-    "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.",
+    "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.",
   requires: ["tenant"],
   permdockRequires: [],
   target: "schema",
-  sql: entitlementsSql(DEFAULT_CLAIMS),
+  get sql() {
+    return entitlementsSql(DEFAULT_CLAIMS);
+  },
   render: entitlementsSql,
 };
 
+const RESERVED_SLUGS_SEED = `insert into better_supabase.reserved_slugs (slug, reason)
+select value, 'system'
+from unnest(array[
+  'about', 'account', 'admin', 'api', 'app', 'assets', 'auth', 'billing', 'blog',
+  'callback', 'cdn', 'dashboard', 'docs', 'help', 'invite', 'login', 'logout',
+  'mail', 'new', 'oauth', 'onboarding', 'pricing', 'privacy', 'root', 'settings',
+  'signin', 'signout', 'signup', 'static', 'status', 'support', 'system', 'terms',
+  'www'
+]) as value
+on conflict (slug) do nothing;`;
+
+const RATE_LIMIT_HOOK = `-- Points PostgREST's pre-request hook at check_request. It keeps an
+-- existing pre-request function; chain from it.
+do $$
+declare
+  current_hook text;
+begin
+  select split_part(setting, '=', 2) into current_hook
+  from pg_catalog.pg_db_role_setting s
+  join pg_catalog.pg_roles r on r.oid = s.setrole
+  cross join lateral unnest(s.setconfig) setting
+  where r.rolname = 'authenticator' and s.setdatabase = 0 and setting like 'pgrst.db_pre_request=%';
+  if current_hook is null then
+    alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';
+  elsif current_hook <> 'better_supabase.check_request' then
+    raise notice 'pgrst.db_pre_request is %; call better_supabase.check_request() from it', current_hook;
+  end if;
+end
+$$;
+notify pgrst, 'reload config';`;
+
 const RESERVED_SLUGS: SqlModule = {
   name: "reserved-slugs",
+  data: () => RESERVED_SLUGS_SEED,
   title: "Reserved slugs",
   description:
     "A slug format check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
@@ -421,17 +588,6 @@ alter table better_supabase.reserved_slugs enable row level security;
 grant select on better_supabase.reserved_slugs to anon, authenticated;
 drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
-
-insert into better_supabase.reserved_slugs (slug, reason)
-select value, 'system'
-from unnest(array[
-  'about', 'account', 'admin', 'api', 'app', 'assets', 'auth', 'billing', 'blog',
-  'callback', 'cdn', 'dashboard', 'docs', 'help', 'invite', 'login', 'logout',
-  'mail', 'new', 'oauth', 'onboarding', 'pricing', 'privacy', 'root', 'settings',
-  'signin', 'signout', 'signup', 'static', 'status', 'support', 'system', 'terms',
-  'www'
-]) as value
-on conflict (slug) do nothing;
 
 create or replace function better_supabase.slug_problem(slug text)
 returns text
@@ -480,7 +636,12 @@ begin
     column_name
   );
 end;
-$$;`,
+$$;
+
+-- enforce_slug runs as the writer, so the check stays callable by authenticated.
+revoke execute on function better_supabase.slug_problem(text) from public, anon;
+grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
+revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;`,
 };
 
 const IDEMPOTENCY: SqlModule = {
@@ -813,7 +974,8 @@ end;
 $$;
 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
--- A tenant column the table lacks is ignored: the table broadcasts on one topic.
+-- tenant_column => null broadcasts on one topic every signed-in user receives;
+-- a tenant column the table lacks is an error, so no tenant table goes global.
 create or replace function better_supabase.track_realtime(target regclass, tenant_column text default null)
 returns void
 language plpgsql
@@ -824,7 +986,9 @@ begin
     select 1 from pg_catalog.pg_attribute a
     where a.attrelid = target and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped
   ) then
-    tenant_column := null;
+    raise exception '% has no column %', target, tenant_column
+      using errcode = '42703',
+        hint = 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user';
   end if;
   execute format('drop trigger if exists bs_realtime on %s', target);
   execute format('drop trigger if exists bs_realtime_insert on %s', target);
@@ -1002,9 +1166,10 @@ as $$
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated, service_role;
--- create_user writes auth.users as its definer; anon tests must not mint users.
-revoke execute on function tests.create_user(text, jsonb, jsonb) from public, anon;
-grant execute on function tests.create_user(text, jsonb, jsonb) to authenticated, service_role;
+-- create_user writes auth.users as its definer; tests call it as postgres
+-- before switching roles, so no API role can mint users.
+revoke execute on function tests.create_user(text, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function tests.create_user(text, jsonb, jsonb) to postgres, service_role;
 
 select extensions.plan(1);
 select extensions.pass('better-supabase test helpers installed');
@@ -1035,6 +1200,7 @@ const READ_SETS: SqlModule = {
 
 const RATE_LIMIT: SqlModule = {
   name: "rate-limit",
+  data: () => RATE_LIMIT_HOOK,
   title: "Write rate limits",
   description:
     "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
@@ -1044,7 +1210,8 @@ const RATE_LIMIT: SqlModule = {
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
--- counted by; callers without it are counted by their first x-forwarded-for hop.
+-- counted by; callers without it are counted by the right-most x-forwarded-for
+-- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists better_supabase.rate_limit_rules (
   scope text primary key,
   max_requests integer not null check (max_requests > 0),
@@ -1125,7 +1292,7 @@ begin
   loop
     caller := coalesce(
       claims ->> rule.key_claim,
-      'ip:' || coalesce(nullif(trim(split_part(headers ->> 'x-forwarded-for', ',', 1)), ''), 'unknown')
+      'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
     insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
     values (rule.scope, caller, now(), 1)
@@ -1155,25 +1322,31 @@ $$;
 revoke execute on function better_supabase.check_request() from public;
 grant execute on function better_supabase.check_request() to anon, authenticated, service_role;
 
--- supabase db diff doesn't capture role settings: put this block in a
--- migration too. It keeps an existing pre-request function; chain from it.
-do $$
-declare
-  current_hook text;
-begin
-  select split_part(setting, '=', 2) into current_hook
-  from pg_catalog.pg_db_role_setting s
-  join pg_catalog.pg_roles r on r.oid = s.setrole
-  cross join lateral unnest(s.setconfig) setting
-  where r.rolname = 'authenticator' and s.setdatabase = 0 and setting like 'pgrst.db_pre_request=%';
-  if current_hook is null then
-    alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';
-  elsif current_hook <> 'better_supabase.check_request' then
-    raise notice 'pgrst.db_pre_request is %; call better_supabase.check_request() from it', current_hook;
-  end if;
-end
+-- Deletes up to batch counters whose window has ended or whose rule is gone.
+-- Every caller keeps a row until then, so schedule it with pg_cron:
+-- select cron.schedule('purge-rate-limits', '*/15 * * * *', 'select better_supabase.purge_rate_limits()');
+create or replace function better_supabase.purge_rate_limits(batch integer default 10000)
+returns integer
+language sql
+set search_path = ''
+as $$
+  with expired as (
+    select l.scope, l.key from better_supabase.rate_limits l
+    left join better_supabase.rate_limit_rules r on r.scope = l.scope
+    where r.scope is null or l.window_start + r.period <= now()
+    limit batch
+  ),
+  purged as (
+    delete from better_supabase.rate_limits l
+    using expired e
+    where l.scope = e.scope and l.key = e.key
+    returning 1
+  )
+  select count(*)::integer from purged
 $$;
-notify pgrst, 'reload config';`,
+
+revoke execute on function better_supabase.purge_rate_limits(integer) from public, anon, authenticated;
+grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`,
 };
 
 const VECTOR_SEARCH: SqlModule = {
@@ -1220,6 +1393,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(OUTBOX),
       built(NOTIFICATIONS),
       built(WEBHOOKS_OUT),
+      SESSIONS,
     ].map((module) => [module.name, module]),
   );
 
@@ -1249,6 +1423,8 @@ export function resolveModules(
 
 export interface KitFile {
   readonly module: string;
+  /** `schema` and `test` files are diffed; `data` files go in a migration too. */
+  readonly kind: "schema" | "data" | "test";
   readonly path: string;
   readonly contents: string;
 }
@@ -1264,7 +1440,9 @@ export interface KitLayout {
   readonly version?: string;
   /** `config.realtime.tables`: registered at the end of the `realtime-tables` module. */
   readonly realtimeTables?: readonly string[];
-  /** Tenant column passed to `track_realtime`; tables without it broadcast unscoped. */
+  /** `config.realtime.global`: tables registered with `tenant_column => null`. */
+  readonly realtimeGlobal?: readonly string[];
+  /** Tenant column passed to `track_realtime` for the other tables. */
   readonly tenantColumn?: string;
   /** Check constraints for the `jsonb-schemas` module. */
   readonly jsonSchemas?: readonly JsonSchemaCheck[];
@@ -1357,10 +1535,10 @@ grant execute on function ${signature} to authenticated, service_role;`;
 
 /** The table holding each tenant's Stripe customer id. */
 interface EntitlementsSource {
-  /** `table` or `schema.table`. */
-  readonly table: string;
+  /** `table` or `schema.table`; unset uses the `organizations` module's. */
+  readonly table?: string;
   /** Column with the Stripe customer id (`cus_...`). */
-  readonly column: string;
+  readonly column?: string;
   /** Column with the tenant id. */
   readonly key: string;
 }
@@ -1405,10 +1583,15 @@ function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
     return [
       `alter table ${target} drop constraint if exists ${name};`,
       `alter table ${target} add constraint ${name}`,
-      `  check (extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)}));`,
+      `  check (extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)})) not valid;`,
+      `alter table ${target} validate constraint ${name};`,
     ].join("\n");
   });
-  return `\n-- config.json schemas\n${statements.join("\n\n")}\n`;
+  return `\n-- config.json schemas
+-- Each check is added not valid and validated separately. On a large table,
+-- move the validate statements to a later migration: the add blocks writes
+-- only briefly, and validating takes a lock that lets writes continue.
+${statements.join("\n\n")}\n`;
 }
 
 /** Users with a membership in a tenant of `customer`, from PermDock's membership sources. */
@@ -1433,22 +1616,83 @@ function permdockEntitlementMembers(permdock: KitPermdock): string {
     : "  select null::uuid where false";
 }
 
+/**
+ * `config.entitlements.customer`, or the `stripe_customer_id` column the
+ * managed `organizations` module adds when both modules are installed.
+ */
+function customerSource(
+  layout: KitLayout,
+  installed: readonly string[],
+): Required<EntitlementsSource> & { readonly deferred: boolean } {
+  const configured = layout.entitlements;
+  if (configured?.table !== undefined && configured.column !== undefined) {
+    return {
+      table: configured.table,
+      column: configured.column,
+      key: configured.key,
+      deferred: false,
+    };
+  }
+  if (
+    installed.includes("organizations") &&
+    kitContext("organizations", layout, installed).manages
+  ) {
+    return {
+      table: "better_supabase.organizations",
+      column: "stripe_customer_id",
+      key: "id",
+      deferred: true,
+    };
+  }
+  throw new TypeError(
+    "The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed organizations module it defaults to better_supabase.organizations.stripe_customer_id.",
+  );
+}
+
 function entitlementsSource(
-  source: EntitlementsSource,
-  permdock: KitPermdock | undefined,
+  source: Required<EntitlementsSource> & { readonly deferred: boolean },
+  layout: KitLayout,
 ): string {
+  const permdock = layout.permdock;
+  const m = memberships(layout);
   const [schema, table] = source.table.includes(".")
     ? source.table.split(".", 2)
     : ["public", source.table];
   const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
-  const id = permdock?.idType ?? "uuid";
+  const id = permdock?.idType ?? m.idType;
   const definer =
     "language sql\nstable\nsecurity definer\nset search_path = ''";
-  return `
--- config.entitlements: ${source.table}.${source.column}
-create or replace function better_supabase.tenant_stripe_customer(tenant ${id})
+  // plpgsql checks the body when it runs, which the organizations default
+  // needs: that module's file adds the column and is applied after this one.
+  // language sql checks the body now, so a missing configured column fails
+  // the file instead of every request.
+  const lookups = source.deferred
+    ? `create or replace function better_supabase.tenant_stripe_customer(tenant ${id})
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (select ${column} from ${target} t where ${key} = tenant);
+end
+$$;
+
+create or replace function better_supabase.stripe_customer_tenants(customer text)
+returns setof ${id}
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query select ${key} from ${target} t where ${column} = customer;
+end
+$$;`
+    : `create or replace function better_supabase.tenant_stripe_customer(tenant ${id})
 returns text
 ${definer}
 as $$
@@ -1460,7 +1704,10 @@ returns setof ${id}
 ${definer}
 as $$
   select ${key} from ${target} t where ${column} = customer
-$$;
+$$;`;
+  return `
+-- config.entitlements: ${source.table}.${source.column}
+${lookups}
 
 -- Users whose features claim carries the customer's entitlements, for
 -- invalidating their sessions after entitlements.active_entitlement_summary.updated.
@@ -1471,9 +1718,9 @@ as $$
 ${
   permdock
     ? permdockEntitlementMembers(permdock)
-    : `  select distinct m.user_id
-  from better_supabase.memberships m
-  where m.org_id in (select better_supabase.stripe_customer_tenants(customer))`
+    : `  select distinct m.${m.user}
+  from ${m.table} m
+  where m.${m.tenant} in (select better_supabase.stripe_customer_tenants(customer))`
 }
 $$;
 
@@ -1484,19 +1731,17 @@ grant execute on function better_supabase.entitlement_members(text) to service_r
 `;
 }
 
-function moduleExtras(module: SqlModule, layout: KitLayout): string {
+function moduleExtras(
+  module: SqlModule,
+  layout: KitLayout,
+  installed: readonly string[],
+): string {
   if (module.name === "entitlements")
-    return entitlementsSource(
-      layout.entitlements ?? {
-        table: "organizations",
-        column: "stripe_customer_id",
-        key: "id",
-      },
-      layout.permdock,
-    );
+    return entitlementsSource(customerSource(layout, installed), layout);
   if (module.name === "realtime-tables")
     return realtimeRegistrations(
       layout.realtimeTables ?? [],
+      layout.realtimeGlobal ?? [],
       layout.tenantColumn,
     );
   if (module.name === "jsonb-schemas")
@@ -1560,6 +1805,13 @@ export function checkKits(
       );
     }
   }
+  for (const use of migrationOptionUses(kits)) {
+    if (!use.adopted) {
+      throw new TypeError(
+        `${use.message} Only adopt mode accepts it: set kits.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
+      );
+    }
+  }
 }
 
 /** The `@bs-kit` line: module, version and mode, read by `sql upgrade`. */
@@ -1609,9 +1861,8 @@ function kitPath(module: SqlModule, layout: KitLayout): string {
     : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
 }
 
-/** Records the module in `better_supabase.kit_modules`, for apps that apply files directly. */
-function kitModuleRow(module: SqlModule, mode: KitMode): string {
-  return `
+/** The table `kitModuleRow` writes to, created by every schema module's file. */
+const KIT_MODULES_TABLE = `
 create schema if not exists better_supabase;
 create table if not exists better_supabase.kit_modules (
   name text primary key,
@@ -1623,16 +1874,41 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
+`;
+
+/** Records the module in `better_supabase.kit_modules`, which `sql upgrade` and doctor read. */
+function kitModuleRow(module: SqlModule, mode: KitMode): string {
+  return `insert into better_supabase.kit_modules (name, version, mode)
 values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
 on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();
-`;
+  set version = excluded.version, mode = excluded.mode, updated_at = now();`;
 }
 
 /**
+ * Where a module's data statements go: `better-supabase-data/` next to the
+ * schema folder. pg-delta loads every file under the schema folder, `_custom/`
+ * included, and rejects a managed table that has rows afterwards.
+ */
+function kitDataPath(module: SqlModule, layout: KitLayout): string {
+  const path = kitPath(module, layout);
+  const slash = path.lastIndexOf("/");
+  const parent = path.slice(0, slash).lastIndexOf("/");
+  return `${parent < 0 ? "" : path.slice(0, parent + 1)}better-supabase-data${path.slice(slash)}`;
+}
+
+/** The `@bs-kit-data` line of a data file. */
+const KIT_DATA_MARKER: RegExp = /^-- @bs-kit-data ([a-z0-9-]+)$/m;
+
+/** Whether `contents` is a data file `renderKit` wrote. */
+export const isKitDataFile = (contents: string): boolean =>
+  KIT_DATA_MARKER.test(contents);
+
+/**
  * The files `sql add` writes for these modules. Modules in `custom` mode
- * write nothing: the app implements their contract.
+ * write nothing: the app implements their contract. A schema module's rows,
+ * role settings and other statements a schema diff can't capture go to a
+ * second file in `better-supabase-data/` (`kind: 'data'`), which
+ * `sql data` writes into a migration.
  */
 export function renderKit(
   names: readonly string[],
@@ -1641,25 +1917,57 @@ export function renderKit(
   checkKits(layout.kits);
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
-  return modules.flatMap((module) => {
+  return modules.flatMap((module): KitFile[] => {
     const ctx = kitContext(module.name, layout, installed);
     if (ctx.mode === "custom") return [];
-    const header = [
-      `-- better-supabase SQL kit: ${module.name}${layout.version ? ` (${layout.version})` : ""}`,
-      `-- @bs-kit ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
-      `-- ${module.description}`,
+    const title = `-- better-supabase SQL kit: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
+    const managed = [
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
       "-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.",
+    ];
+    const header = [
+      title,
+      `-- @bs-kit ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
+      `-- ${module.description}`,
+      ...managed,
     ].join("\n");
-    const extra = moduleExtras(module, layout);
+    const extra = moduleExtras(module, layout, installed);
     const wrappers = deprecationWrappers(module, ctx);
-    const record =
-      module.target === "schema" ? kitModuleRow(module, ctx.mode) : "";
+    if (module.target === "test") {
+      return [
+        {
+          module: module.name,
+          kind: "test",
+          path: kitPath(module, layout),
+          contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}`,
+        },
+      ];
+    }
+    const data = [
+      module.data?.(ctx, layout).trim() ?? "",
+      kitModuleRow(module, ctx.mode),
+    ]
+      .filter((part) => part !== "")
+      .join("\n\n");
+    const dataHeader = [
+      title,
+      `-- @bs-kit-data ${module.name}`,
+      "-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`",
+      "-- after the schema migration to put them in a migration.",
+      ...managed,
+    ].join("\n");
     return [
       {
         module: module.name,
+        kind: "schema",
         path: kitPath(module, layout),
-        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${record}`,
+        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${KIT_MODULES_TABLE}`,
+      },
+      {
+        module: module.name,
+        kind: "data",
+        path: kitDataPath(module, layout),
+        contents: `${dataHeader}\n\n${data}\n`,
       },
     ];
   });
@@ -1720,6 +2028,7 @@ export function upgradePlan(
       ...(layout.kits ? { kits: layout.kits } : {}),
       ...(layout.claims ? { claims: layout.claims } : {}),
       installed: names,
+      ...(layout.permdock ? { permdockIdType: layout.permdock.idType } : {}),
     });
     if (ctx.mode === "custom") return [];
     const steps = (module.upgrades ?? [])
@@ -1774,13 +2083,18 @@ export function customContracts(
 
 function realtimeRegistrations(
   tables: readonly string[],
+  global: readonly string[],
   tenantColumn: string | undefined,
 ): string {
   if (tables.length === 0) return "";
-  const tenant = tenantColumn ? `, ${sqlString(tenantColumn)}` : "";
+  const qualify = (table: string): string =>
+    table.includes(".") ? table : `public.${table}`;
+  const unscoped = new Set(global.map(qualify));
   const lines = tables.map((table) => {
-    const target = table.includes(".") ? table : `public.${table}`;
-    return `select better_supabase.track_realtime(${sqlString(target)}${tenant});`;
+    const target = qualify(table);
+    const tenant =
+      tenantColumn && !unscoped.has(target) ? sqlString(tenantColumn) : "null";
+    return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => ${tenant});`;
   });
   return `\n-- config.realtime.tables\n${lines.join("\n")}\n`;
 }

@@ -41,7 +41,10 @@ type Who = keyof typeof USERS;
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
 const LAYOUT: KitLayout = {
-  kits: { organizations: { options: { reservedSlugs: ["admin"] } } },
+  kits: {
+    organizations: { options: { reservedSlugs: ["admin"] } },
+    invitations: { options: { prefill: true } },
+  },
 };
 
 class Session {
@@ -86,7 +89,7 @@ class Session {
 
   role(org: string, who: Who): Promise<string | null> {
     return this.value(
-      "(select role from better_supabase.memberships where org_id = $1 and user_id = $2)",
+      "(select role from better_supabase.memberships where organization_id = $1 and user_id = $2)",
       [org, USERS[who]],
     );
   }
@@ -248,6 +251,117 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("fails closed on stale tenant claims, disabled organizations and non-owner transfers", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "admin", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      const layout: KitLayout = {
+        kits: {
+          access: {
+            activeTenant: "claim",
+            roles: {
+              owner: ["*"],
+              admin: ["ownership.transfer", "members.*"],
+              member: [],
+            },
+          },
+        },
+      };
+      for (const file of renderKit(["organizations"], layout))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      const org = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Stale", slug: `stale-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        `insert into better_supabase.memberships (organization_id, user_id, role)
+         values ($1, $2, 'admin'), ($1, $3, 'member')`,
+        [org, USERS.admin, USERS.member],
+      );
+
+      await s.as("member");
+      await s.value("better_supabase.switch_organization($1)", [org]);
+      expect(
+        await s.value(
+          "(select raw_app_meta_data ->> 'tenant_id' from auth.users where id = $1)",
+          [USERS.member],
+        ),
+      ).toBe(org);
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({
+          sub: USERS.member,
+          role: "authenticated",
+          tenant_id: org,
+        }),
+      ]);
+      expect(await s.value("better_supabase.current_tenant_id()")).toBe(org);
+
+      await s.as("owner");
+      await s.value("better_supabase.remove_member($1, $2)", [
+        org,
+        USERS.member,
+      ]);
+      expect(
+        await s.value(
+          "(select raw_app_meta_data ->> 'tenant_id' from auth.users where id = $1)",
+          [USERS.member],
+        ),
+      ).toBeNull();
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({
+          sub: USERS.member,
+          role: "authenticated",
+          tenant_id: org,
+        }),
+      ]);
+      expect(await s.value("better_supabase.current_tenant_id()")).toBeNull();
+
+      await s.as("admin");
+      expect(
+        await s.hint("better_supabase.transfer_ownership($1, $2)", [
+          org,
+          USERS.admin,
+        ]),
+      ).toBe("ORG_FORBIDDEN");
+
+      await client.query(
+        "update better_supabase.organizations set disabled_at = now() where id = $1",
+        [org],
+      );
+      await s.as("owner");
+      expect(
+        await s.value("better_supabase.has_org_role($1, '{owner}')", [org]),
+      ).toBe(false);
+      expect(
+        await s.value(
+          "better_supabase.can('organization', $1, 'organization.read')",
+          [org],
+        ),
+      ).toBe(false);
+      expect(
+        await s.value("array(select better_supabase.member_org_ids())::text[]"),
+      ).toEqual([]);
+      await client.query("set local role authenticated");
+      expect(
+        await s.hint("better_supabase.tenant_disabled($1)", [org]),
+      ).toMatch(/permission denied/);
+      await client.query("reset role");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("stores catalog role ids and resolves role keys", async () => {
     const client = await pool.connect();
     const s = new Session(client);
@@ -295,10 +409,161 @@ describe.skipIf(!live)("organizations and invitations", () => {
       await s.value(`${schema}.accept_invitation($1)`, [invite.token]);
       expect(
         await s.value(
-          `(select role::text from ${schema}.memberships where org_id = $1 and user_id = $2)`,
+          `(select role::text from ${schema}.memberships where organization_id = $1 and user_id = $2)`,
           [org, USERS.member],
         ),
       ).toBe("00000000-0000-4000-8000-00000000f002");
+
+      // A role still held by a member can't be deleted, and the
+      // organization's rows go with it.
+      await s.as("owner");
+      await client.query("savepoint role_delete");
+      await expect(
+        client.query(`delete from ${schema}.roles where key = 'member'`),
+      ).rejects.toMatchObject({ code: "23503" });
+      await client.query("rollback to savepoint role_delete");
+      await s.value(`${schema}.invite_member($1, $2, 'member')`, [
+        org,
+        "later@example.test",
+      ]);
+      await client.query(`delete from ${schema}.organizations where id = $1`, [
+        org,
+      ]);
+      expect(
+        await s.value(
+          `(select (select count(*) from ${schema}.memberships where organization_id = $1) + (select count(*) from ${schema}.invitations where organization_id = $1))::int`,
+          [org],
+        ),
+      ).toBe(0);
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ role: "service_role" }),
+      ]);
+      expect(
+        await s.hint(`${schema}.invite_member($1, $2, 'member')`, [
+          org,
+          "late@example.test",
+        ]),
+      ).toBe("INVITATION_INVALID");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_platform_${USERS.owner.slice(0, 8)}`;
+    const kit = { schema };
+    const role = (n: number) => `00000000-0000-4000-8000-00000000f00${n}`;
+    const permission = (n: number) => `00000000-0000-4000-8000-00000000f10${n}`;
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "outsider"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      const layout: KitLayout = {
+        kits: {
+          access: { ...kit, model: "catalog" },
+          tenant: kit,
+          organizations: kit,
+          invitations: kit,
+        },
+      };
+      for (const file of renderKit(["organizations", "invitations"], layout))
+        await client.query(file.contents);
+      await client.query(`
+        insert into ${schema}.roles (id, key, scope) values
+          ('${role(1)}', 'owner', 'tenant'), ('${role(2)}', 'member', 'tenant'),
+          ('${role(3)}', 'lead', 'tenant'), ('${role(4)}', 'inviter', 'platform'),
+          ('${role(5)}', 'support', 'platform');
+        insert into ${schema}.permissions (id, key) values
+          ('${permission(1)}', 'members.invite'), ('${permission(2)}', 'reports.view'),
+          ('${permission(3)}', 'platform.invite'), ('${permission(4)}', 'support.view');
+        insert into ${schema}.role_permissions (role_id, permission_id) values
+          ('${role(1)}', '${permission(1)}'), ('${role(1)}', '${permission(2)}'),
+          ('${role(3)}', '${permission(1)}'), ('${role(3)}', '${permission(2)}'),
+          ('${role(4)}', '${permission(3)}'),
+          ('${role(5)}', '${permission(3)}'), ('${role(5)}', '${permission(4)}');
+        insert into ${schema}.platform_roles (user_id, role_id) values ('${USERS.owner}', '${role(4)}');
+      `);
+
+      await s.as("owner");
+      const org = await s.value<string>(`${schema}.create_organization($1)`, [
+        { name: "Platform", slug: `platform-${USERS.owner.slice(0, 8)}` },
+      ]);
+      expect(
+        await s.hint(`${schema}.invite_member($1, $2, 'member', '90 days')`, [
+          org,
+          email("outsider"),
+        ]),
+      ).toBe("INVITATION_VALIDITY");
+      const lead = await s.value<{ token: string }>(
+        `${schema}.invite_member($1, $2, 'lead')`,
+        [org, email("outsider")],
+      );
+      expect(
+        await s.hint(`${schema}.invite_member(null, $1, 'support')`, [
+          email("outsider"),
+        ]),
+      ).toBe("INVITATION_ROLE_FORBIDDEN");
+      expect(
+        await s.hint(`${schema}.invite_member(null, $1, 'member')`, [
+          email("outsider"),
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      const platform = await s.value<{ token: string; tenant: null }>(
+        `${schema}.invite_member(null, $1, 'inviter')`,
+        [email("outsider")],
+      );
+      expect(platform.tenant).toBeNull();
+      expect(
+        await s.value(
+          `(select count(*)::int from ${schema}.platform_invitations)`,
+        ),
+      ).toBe(1);
+
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({
+          sub: USERS.owner,
+          role: "authenticated",
+          act: { sub: USERS.outsider },
+        }),
+      ]);
+      expect(
+        await s.value("better_supabase.is_platform('platform.invite')"),
+      ).toBe(false);
+
+      await client.query(
+        `delete from ${schema}.role_permissions where role_id = $1 and permission_id = $2`,
+        [role(1), permission(2)],
+      );
+      await client.query(`delete from ${schema}.platform_roles`);
+      await s.as("outsider");
+      expect(
+        await s.hint(`${schema}.accept_invitation($1)`, [lead.token]),
+      ).toBe("INVITATION_INVITER_REVOKED");
+      expect(
+        await s.hint(`${schema}.accept_invitation($1)`, [platform.token]),
+      ).toBe("INVITATION_INVITER_REVOKED");
+
+      await client.query(
+        `insert into ${schema}.platform_roles (user_id, role_id) values ($1, $2)`,
+        [USERS.owner, role(4)],
+      );
+      expect(
+        await s.value(`${schema}.accept_invitation($1)`, [platform.token]),
+      ).toBeNull();
+      expect(
+        await s.value(
+          `(select role_id::text from ${schema}.platform_roles where user_id = $1)`,
+          [USERS.outsider],
+        ),
+      ).toBe(role(4));
     } finally {
       await client.query("rollback");
       client.release();
@@ -355,7 +620,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       expect(taken.error).toMatchObject({ hint: "ORG_SLUG_TAKEN" });
 
       const switched = await orgs.switch(created.id).orThrow();
-      expect(switched).toEqual({ organizationId: created.id, refresh: true });
+      expect(switched).toEqual({ organizationId: created.id, refresh: false });
 
       const sent = await orgs
         .invite({

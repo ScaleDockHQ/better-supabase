@@ -44,7 +44,7 @@ const USERS = {
 type Who = keyof typeof USERS;
 
 const LAYOUT: KitLayout = {
-  kits: { "webhooks-out": { options: { disableAfter: 2 } } },
+  kits: { "webhooks-out": { options: { disableAfter: "2 days" } } },
 };
 
 class Session {
@@ -141,22 +141,22 @@ describe.skipIf(!live)("webhooks-out", () => {
         [{ name: "Acme", slug: `acme-wh-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
-        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'member')",
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [org, USERS.member],
       );
-      const destination = async (url: string, types: string[]) => {
+      const endpoint = async (url: string, types: string[]) => {
         const { rows } = await client.query<{ id: string }>(
-          `insert into better_supabase.webhook_destinations (organization_id, name, url, event_kinds)
+          `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
            values ($1, 'Hook', $2, $3) returning id`,
           [org, url, types],
         );
         return rows[0]!.id;
       };
-      const billing = await destination("https://billing.example.com/hook", [
+      const billing = await endpoint("https://billing.example.com/hook", [
         "invoice.*",
       ]);
-      const all = await destination("https://all.example.com/hook", ["*"]);
-      const orgs = await destination("https://orgs.example.com/hook", [
+      const all = await endpoint("https://all.example.com/hook", ["*"]);
+      const orgs = await endpoint("https://orgs.example.com/hook", [
         "org.created",
       ]);
       const billingSecret = await s.value<string>(
@@ -169,12 +169,12 @@ describe.skipIf(!live)("webhooks-out", () => {
           id,
         ]);
 
-      // A member can neither see nor manage destinations.
+      // A member can neither see nor manage endpoints.
       await client.query("set local role authenticated");
       await s.as("member");
       expect(
         await s.value(
-          "(select count(*)::int from better_supabase.webhook_destinations)",
+          "(select count(*)::int from better_supabase.webhook_endpoints)",
         ),
       ).toBe(0);
       expect(
@@ -188,7 +188,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       await s.as("owner");
       expect(
         await s.value(
-          "(select count(*)::int from better_supabase.webhook_destinations)",
+          "(select count(*)::int from better_supabase.webhook_endpoints)",
         ),
       ).toBe(3);
       await client.query("reset role");
@@ -204,6 +204,27 @@ describe.skipIf(!live)("webhooks-out", () => {
           billing,
         ]),
       ).toEqual([rotated, billingSecret]);
+      expect(Buffer.from(rotated.slice(6), "base64")).toHaveLength(32);
+
+      // Deleting an endpoint deletes its Vault secrets.
+      const doomed = await endpoint("https://gone.example.com/hook", ["*"]);
+      await client.query("select better_supabase.rotate_webhook_secret($1)", [
+        doomed,
+      ]);
+      const vaultIds = async () =>
+        (
+          await client.query<{ n: number }>(
+            `select count(*)::int as n from vault.secrets
+             where name like 'webhook:' || $1::text || ':%'`,
+            [doomed],
+          )
+        ).rows[0]!.n;
+      expect(await vaultIds()).toBe(1);
+      await client.query(
+        "delete from better_supabase.webhook_endpoints where id = $1",
+        [doomed],
+      );
+      expect(await vaultIds()).toBe(0);
 
       const { http, sent } = fakeHttp({
         "https://billing.example.com/hook": [500],
@@ -242,7 +263,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       ).toBe(0);
       const direct = await webhooks
         .dispatch({
-          destinationId: orgs,
+          endpointId: orgs,
           type: "run.finished",
           data: { ok: true },
           runId: "run-1",
@@ -252,7 +273,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       expect(
         await webhooks
           .dispatch({
-            destinationId: orgs,
+            endpointId: orgs,
             type: "run.finished",
             data: {},
             eventId: "evt-2",
@@ -261,9 +282,9 @@ describe.skipIf(!live)("webhooks-out", () => {
       ).toBe(direct);
 
       expect(await webhooks.deliver()).toEqual({
-        completed: 1,
-        failed: 1,
-        deadLettered: 1,
+        succeeded: 1,
+        retrying: 1,
+        dead: 1,
         canceled: 0,
         disabled: 0,
       });
@@ -281,63 +302,78 @@ describe.skipIf(!live)("webhooks-out", () => {
       const log = await s.value<
         { status: string; attempt: number; response_status: number }[]
       >(
-        `(select jsonb_agg(jsonb_build_object('status', status, 'attempt', attempt, 'response_status', response_status) order by status)
+        `(select jsonb_agg(jsonb_build_object('status', status, 'attempt', attempt, 'response_status', response_status) order by response_status)
           from better_supabase.webhook_deliveries)`,
       );
       expect(log).toEqual([
-        { status: "completed", attempt: 1, response_status: 200 },
-        { status: "dead_lettered", attempt: 1, response_status: 400 },
-        { status: "failed", attempt: 1, response_status: 500 },
+        { status: "succeeded", attempt: 1, response_status: 200 },
+        { status: "dead", attempt: 1, response_status: 400 },
+        { status: "retrying", attempt: 1, response_status: 500 },
       ]);
 
-      // A second dead letter in a row disables the destination.
+      // Completing under a lease that is no longer held changes nothing.
+      const done = await s.value<string>(
+        "(select id from better_supabase.webhook_deliveries where status = 'succeeded')",
+      );
+      expect(
+        await s.value(
+          'better_supabase.complete_webhook_delivery($1, \'{"status": "retrying", "attempt": 1}\')',
+          [done],
+        ),
+      ).toBe("stale");
+
+      // An endpoint that keeps failing for disableAfter is disabled.
+      await client.query(
+        "update better_supabase.webhook_endpoints set failing_since = now() - interval '3 days' where id = $1",
+        [all],
+      );
       await webhooks
         .publish({ type: "invoice.void", data: {}, tenant: org, id: "evt-3" })
         .orThrow();
       await client.query(
-        "update better_supabase.webhook_deliveries set available_at = now() where status = 'failed'",
+        "update better_supabase.webhook_deliveries set available_at = now() where status = 'retrying'",
       );
       const second = await webhooks.deliver();
       expect(second).toMatchObject({
-        completed: 2,
-        deadLettered: 1,
+        succeeded: 2,
+        dead: 1,
         disabled: 1,
       });
       expect(
         await s.value(
-          "(select enabled from better_supabase.webhook_destinations where id = $1)",
+          "(select enabled from better_supabase.webhook_endpoints where id = $1)",
           [all],
         ),
       ).toBe(false);
 
-      // Deliveries to a disabled destination are canceled; enabling it again clears the streak.
+      // Deliveries to a disabled endpoint are canceled; enabling it again clears the streak.
       await webhooks
         .publish({ type: "org.renamed", data: {}, tenant: org })
         .orThrow();
       await client.query(
-        "insert into better_supabase.webhook_deliveries (organization_id, destination_id, event_kind) values ($1, $2, 'late')",
+        "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type) values ($1, $2, 'late')",
         [org, all],
       );
-      expect(await webhooks.deliver()).toMatchObject({ completed: 0 });
+      expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
       expect(
         await s.value(
-          "(select status from better_supabase.webhook_deliveries where event_kind = 'late')",
+          "(select status from better_supabase.webhook_deliveries where event_type = 'late')",
         ),
       ).toBe("canceled");
       await client.query(
-        "update better_supabase.webhook_destinations set enabled = true where id = $1",
+        "update better_supabase.webhook_endpoints set enabled = true where id = $1",
         [all],
       );
       expect(
         await s.value(
-          "(select consecutive_failures || '/' || coalesce(disabled_at::text, 'null') from better_supabase.webhook_destinations where id = $1)",
+          "(select coalesce(failing_since::text, 'null') || '/' || coalesce(disabled_at::text, 'null') from better_supabase.webhook_endpoints where id = $1)",
           [all],
         ),
-      ).toBe("0/null");
+      ).toBe("null/null");
 
       // Redelivering a dead letter queues it again from the first attempt.
       const dead = await s.value<string>(
-        "(select id from better_supabase.webhook_deliveries where status = 'dead_lettered' limit 1)",
+        "(select id from better_supabase.webhook_deliveries where status = 'dead' limit 1)",
       );
       await s.as("owner");
       expect(
@@ -347,7 +383,51 @@ describe.skipIf(!live)("webhooks-out", () => {
         await s.hint("select better_supabase.redeliver_webhook($1)", [dead]),
       ).toBe("WEBHOOK_DELIVERY_IN_PROGRESS");
       await s.as("service");
-      expect(await webhooks.deliver()).toMatchObject({ completed: 1 });
+      expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
+
+      // A worker that died on the last attempt still used it up.
+      await client.query(
+        "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type, status, attempt, leased_until) values ($1, $2, 'crashed', 'delivering', 8, now() - interval '1 minute')",
+        [org, orgs],
+      );
+      expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
+      expect(
+        await s.value(
+          "(select status || '/' || attempt from better_supabase.webhook_deliveries where event_type = 'crashed')",
+        ),
+      ).toBe("dead/8");
+
+      // Prefix patterns match nested types too.
+      expect(
+        await webhooks
+          .publish({ type: "invoice.line.added", data: {}, tenant: org })
+          .orThrow(),
+      ).toBe(2);
+
+      // Purging keeps dead letters unless asked, and never touches open deliveries.
+      const count = (where: string) =>
+        s.value<number>(
+          `(select count(*)::int from better_supabase.webhook_deliveries where ${where})`,
+        );
+      await client.query(
+        "update better_supabase.webhook_deliveries set created_at = now() - interval '40 days'",
+      );
+      const open = await count(
+        "status not in ('succeeded', 'canceled', 'dead')",
+      );
+      const deadLetters = await count("status = 'dead'");
+      expect(deadLetters).toBeGreaterThan(0);
+      expect(
+        await s.value<number>("better_supabase.purge_webhook_deliveries()"),
+      ).toBeGreaterThan(0);
+      expect(await count("status in ('succeeded', 'canceled')")).toBe(0);
+      expect(await count("status = 'dead'")).toBe(deadLetters);
+      expect(
+        await s.value<number>(
+          "better_supabase.purge_webhook_deliveries(include_dead => true)",
+        ),
+      ).toBe(deadLetters);
+      expect(await count("true")).toBe(open);
 
       expect(
         await s.value(

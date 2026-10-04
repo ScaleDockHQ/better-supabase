@@ -37,7 +37,8 @@ end;
 $$;
 
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
--- A tenant column the table lacks is ignored: the table broadcasts on one topic.
+-- tenant_column => null broadcasts on one topic every signed-in user receives;
+-- a tenant column the table lacks is an error, so no tenant table goes global.
 create or replace function better_supabase.track_realtime(target regclass, tenant_column text default null)
 returns void
 language plpgsql
@@ -48,7 +49,9 @@ begin
     select 1 from pg_catalog.pg_attribute a
     where a.attrelid = target and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped
   ) then
-    tenant_column := null;
+    raise exception '% has no column %', target, tenant_column
+      using errcode = '42703',
+        hint = 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user';
   end if;
   execute format('drop trigger if exists bs_realtime on %s', target);
   execute format('drop trigger if exists bs_realtime_insert on %s', target);
@@ -111,7 +114,7 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
   );
 
 -- config.realtime.tables
-select better_supabase.track_realtime('public.notifications', 'organization_id');
+select better_supabase.track_realtime('public.notifications', tenant_column => 'organization_id');
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.kit_modules (
@@ -124,7 +127,3 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('realtime-tables', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();

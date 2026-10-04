@@ -82,7 +82,11 @@ describe.skipIf(!live)("access contract against the local database", () => {
       {},
       async (client) => {
         await client.query(
-          "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'admin')",
+          "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
+          [ORG],
+        );
+        await client.query(
+          "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
           [ORG, USER],
         );
         await asUser(client, { platform_permissions: ["support.*"] });
@@ -94,7 +98,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           better_supabase.can_assign($1, 'owner') as assign_owner,
           better_supabase.is_platform('support.start') as platform,
           better_supabase.is_platform('billing.manage') as not_platform,
-          array(select better_supabase.tenant_ids_with('audit.view')) as ids,
+          array(select better_supabase.tenant_ids_with('audit.read')) as ids,
           better_supabase.permission_claims($2) -> $1::text as claims`,
           [ORG, USER],
         );
@@ -246,6 +250,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
               can: "public.bs_access_can({scope}, {id}, {permission})",
               tenantIdsWith: "public.bs_access_ids({permission})",
               isPlatform: "public.bs_access_platform({permission})",
+              canAssign: "{role} <> 'owner'",
             },
           },
         },

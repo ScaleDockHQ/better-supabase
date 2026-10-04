@@ -10,6 +10,8 @@ export interface WebhookRequest {
 export interface WebhookResponse {
   readonly status: number;
   readonly body: string;
+  /** Seconds from the `Retry-After` header, when the receiver sent one. */
+  readonly retryAfter?: number;
 }
 
 /**
@@ -31,13 +33,52 @@ export interface FetchTransportOptions {
   readonly fetch?: typeof fetch;
   /** Checked before the first request and before each redirect. */
   readonly allowUrl?: AllowUrl;
-  /** Defaults to 5. */
+  /**
+   * Defaults to 0: a redirect fails the delivery without a retry. Each hop
+   * you allow is checked with `allowUrl` first.
+   */
   readonly maxRedirects?: number;
   /** Per request. Defaults to 10 seconds. */
   readonly timeoutMs?: number;
+  /** The response body bytes kept; the rest is not read. Defaults to 64 KiB. */
+  readonly maxResponseBytes?: number;
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+/** `Retry-After` as seconds from now: delta-seconds or an HTTP date. */
+export function parseRetryAfter(
+  value: string | null,
+  now: number = Date.now(),
+): number | undefined {
+  if (value === null) return undefined;
+  const text = value.trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const at = Date.parse(text);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, Math.ceil((at - now) / 1000));
+}
+
+/** Reads at most `limit` bytes of the body, then cancels the stream. */
+async function readCapped(response: Response, limit: number): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let left = limit;
+  try {
+    while (left > 0) {
+      const { done, value } = await reader.read();
+      if (done) return text + decoder.decode();
+      const chunk = value.byteLength > left ? value.subarray(0, left) : value;
+      left -= chunk.byteLength;
+      text += decoder.decode(chunk, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+}
 
 async function allowed(allowUrl: AllowUrl, url: URL): Promise<boolean> {
   try {
@@ -52,8 +93,9 @@ export function fetchTransport(
   options: FetchTransportOptions = {},
 ): WebhookTransport {
   const send = options.fetch ?? globalThis.fetch;
-  const maxRedirects = options.maxRedirects ?? 5;
+  const maxRedirects = options.maxRedirects ?? 0;
   const timeoutMs = options.timeoutMs ?? 10_000;
+  const maxResponseBytes = options.maxResponseBytes ?? 65_536;
   return {
     apiVersion: 1,
     name: "fetch",
@@ -66,7 +108,7 @@ export function fetchTransport(
       for (let hop = 0; ; hop++) {
         if (options.allowUrl && !(await allowed(options.allowUrl, url)))
           throw new WebhookPolicyError(
-            `Destination URL is not allowed: ${url.host}`,
+            `Endpoint URL is not allowed: ${url.host}`,
           );
         const response = await send(url, {
           method: "POST",
@@ -75,8 +117,16 @@ export function fetchTransport(
           redirect: "manual",
           signal,
         });
-        if (!REDIRECTS.has(response.status))
-          return { status: response.status, body: await response.text() };
+        if (!REDIRECTS.has(response.status)) {
+          const retryAfter = parseRetryAfter(
+            response.headers.get("retry-after"),
+          );
+          return {
+            status: response.status,
+            body: await readCapped(response, maxResponseBytes),
+            ...(retryAfter === undefined ? {} : { retryAfter }),
+          };
+        }
         await response.body?.cancel();
         const location = response.headers.get("location");
         if (!location)
@@ -85,7 +135,9 @@ export function fetchTransport(
           );
         if (hop >= maxRedirects)
           throw new WebhookPolicyError(
-            `More than ${String(maxRedirects)} redirects`,
+            maxRedirects === 0
+              ? `Redirect ${String(response.status)} not followed (maxRedirects is 0)`
+              : `More than ${String(maxRedirects)} redirects`,
           );
         url = new URL(location, url);
       }

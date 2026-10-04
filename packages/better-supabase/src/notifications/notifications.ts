@@ -19,10 +19,10 @@ import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { temporal } from "../core/temporal-required.ts";
 
-/** Kind name to the Standard Schema of its `data`. */
-export type NotificationKinds = Readonly<Record<string, StandardSchemaV1>>;
+/** Notification type to the Standard Schema of its `data`. */
+export type NotificationTypes = Readonly<Record<string, StandardSchemaV1>>;
 
-type KindName<K extends NotificationKinds> = keyof K & string;
+type TypeName<K extends NotificationTypes> = keyof K & string;
 
 export interface SendInput<D = unknown> {
   /** Who gets it. Watchers of `subject` and the `notification_audience` hook add more. */
@@ -55,9 +55,14 @@ export interface SendInput<D = unknown> {
 export interface ListOptions<K extends string = string> {
   readonly tenant?: string;
   readonly status?: "all" | "unread" | "read" | "unresolved";
-  readonly kinds?: readonly K[];
-  /** Page: only notifications created before this. */
-  readonly before?: Temporal.Instant;
+  readonly types?: readonly K[];
+  /**
+   * Page: only notifications older than this. Pass the last item of the
+   * previous page; a bare instant skips items created at that same instant.
+   */
+  readonly before?:
+    | Temporal.Instant
+    | Pick<NotificationItem, "createdAt" | "id">;
   /** Up to 200. Defaults to 50. */
   readonly limit?: number;
   /** Passed to `render`. */
@@ -66,7 +71,7 @@ export interface ListOptions<K extends string = string> {
 
 export interface NotificationCounts {
   readonly unread: number;
-  /** Unresolved notifications of the `actionable` kinds. */
+  /** Unresolved notifications of the `actionable` types. */
   readonly actionable: number;
 }
 
@@ -79,7 +84,10 @@ export interface DeliverOptions {
   readonly batch?: number;
   /** How long a claimed delivery waits before another worker retries it. */
   readonly lease?: string;
-  /** Tries before a delivery is `failed`. Defaults to 5. */
+  /**
+   * Tries before a delivery is `failed`. Defaults to 5. Retries wait a random
+   * time up to 30 seconds, doubling per attempt to an hour.
+   */
   readonly maxAttempts?: number;
   readonly budgetMs?: number;
 }
@@ -99,11 +107,11 @@ export interface Rendered<
   readonly text?: RenderedText;
 }
 
-export interface NotificationsOptions<K extends NotificationKinds> {
+export interface NotificationsOptions<K extends NotificationTypes> {
   /** `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the service. */
   readonly transport: KitTransport;
-  /** Each kind's `data` schema: `send` validates against it. */
-  readonly kinds: K;
+  /** Each type's `data` schema: `send` validates against it. */
+  readonly types: K;
   /** `kits.notifications.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** Turns a notification into text at read time, in the reader's locale. */
@@ -111,14 +119,14 @@ export interface NotificationsOptions<K extends NotificationKinds> {
     item: NotificationItem,
     context: { readonly locale?: string },
   ) => RenderedText;
-  /** Kinds that wait for an action; `counts().actionable` counts them. */
-  readonly actionable?: readonly KindName<K>[];
+  /** Types that wait for an action; `counts().actionable` counts them. */
+  readonly actionable?: readonly TypeName<K>[];
   /** Senders for the non-`in_app` channels, used by `deliver()`. */
   readonly channels?: readonly NotificationChannel[];
   /** Runs after a notification is stored, e.g. to call Next's `updateTag`. */
   readonly onSent?: (sent: {
     readonly id: string;
-    readonly kind: string;
+    readonly type: string;
     readonly tenant: string | null;
     readonly recipients: readonly string[];
   }) => void | Promise<void>;
@@ -131,19 +139,19 @@ export interface NotificationsOptions<K extends NotificationKinds> {
 
 /**
  * The `notifications` SQL kit module as typed calls. `send` validates the
- * data against its kind's schema; the database checks the send permission,
+ * data against its type's schema; the database checks the send permission,
  * leaves out the actor and non-members and applies subscriptions and
  * preferences.
  */
-export interface Notifications<K extends NotificationKinds> {
+export interface Notifications<K extends NotificationTypes> {
   /** The notification id, or `null` when nobody was left to notify. */
-  send<N extends KindName<K>>(
-    kind: N,
+  send<N extends TypeName<K>>(
+    type: N,
     input: SendInput<StandardSchemaV1.InferInput<K[N]>>,
   ): AsyncResult<string | null>;
   list(
-    options?: ListOptions<KindName<K>>,
-  ): AsyncResult<readonly Rendered<KindName<K>>[]>;
+    options?: ListOptions<TypeName<K>>,
+  ): AsyncResult<readonly Rendered<TypeName<K>>[]>;
   counts(options?: {
     readonly tenant?: string;
   }): AsyncResult<NotificationCounts>;
@@ -153,9 +161,9 @@ export interface Notifications<K extends NotificationKinds> {
     readonly tenant?: string;
   }): AsyncResult<number>;
   dismiss(ids: readonly string[]): AsyncResult<number>;
-  /** Resolves every recipient's notification of a kind about a subject. */
+  /** Resolves every recipient's notification of a type about a subject. */
   resolve(input: {
-    readonly kind: KindName<K>;
+    readonly type: TypeName<K>;
     readonly subject: NotificationSubject;
     readonly tenant?: string;
   }): AsyncResult<number>;
@@ -167,9 +175,9 @@ export interface Notifications<K extends NotificationKinds> {
     /** Another member; only the service can set it. */
     readonly userId?: string;
   }): AsyncResult<void>;
-  /** Turns a kind (`*` for all) on or off on a channel; `null` removes it. */
+  /** Turns a type (`*` for all) on or off on a channel; `null` removes it. */
   setPreference(input: {
-    readonly kind: KindName<K> | "*";
+    readonly type: TypeName<K> | "*";
     readonly channel: string;
     readonly enabled: boolean | null;
     /** One organization, or everywhere when omitted. */
@@ -177,6 +185,11 @@ export interface Notifications<K extends NotificationKinds> {
   }): AsyncResult<void>;
   /** Sends pending deliveries through `channels`. Run it from a cron or a job. */
   deliver(options?: DeliverOptions): Promise<DeliverResult>;
+  /**
+   * Deletes up to `batch` (10,000) notifications older than `olderThan`
+   * (`90 days`) with their recipients and deliveries. Service only.
+   */
+  purge(olderThan?: string, batch?: number): AsyncResult<number>;
 }
 
 const DEFAULT_SCHEMA = "better_supabase";
@@ -197,7 +210,7 @@ function toItem(row: Record<string, unknown>): NotificationItem {
   return {
     id: String(row["id"]),
     eventId: String(row["event_id"]),
-    kind: String(row["kind"]),
+    type: String(row["type"]),
     data: row["data"] ?? {},
     tenant: textOf(row["tenant"]),
     actorId: textOf(row["actor_id"]),
@@ -214,10 +227,21 @@ function toItem(row: Record<string, unknown>): NotificationItem {
   };
 }
 
+function cursorOf(before: ListOptions["before"]): {
+  readonly before: string | null;
+  readonly before_id: string | null;
+} {
+  if (before === undefined) return { before: null, before_id: null };
+  if ("epochNanoseconds" in before) {
+    return { before: before.toString(), before_id: null };
+  }
+  return { before: before.createdAt.toString(), before_id: before.id };
+}
+
 const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
-export function createNotifications<const K extends NotificationKinds>(
+export function createNotifications<const K extends NotificationTypes>(
   options: NotificationsOptions<K>,
 ): Notifications<K> {
   const { transport } = options;
@@ -304,7 +328,7 @@ export function createNotifications<const K extends NotificationKinds>(
           "notification.delivered",
           {
             notificationId: notification.eventId,
-            kind: notification.kind,
+            type: notification.type,
             channel: channel.name,
           },
           notification.tenant,
@@ -315,14 +339,15 @@ export function createNotifications<const K extends NotificationKinds>(
       const error = errorText(cause);
       await call("complete_notification_delivery", {
         delivery: message.deliveryId,
-        status: attempts >= maxAttempts ? "failed" : "pending",
+        status: "pending",
         error,
+        max_attempts: maxAttempts,
       });
       emit(
         "notification.failed",
         {
           notificationId: notification.eventId,
-          kind: notification.kind,
+          type: notification.type,
           channel: channel.name,
           error,
         },
@@ -333,23 +358,23 @@ export function createNotifications<const K extends NotificationKinds>(
   }
 
   return {
-    send(kind, input) {
+    send(type, input) {
       return AsyncResult.from(async () => {
-        const schemaOf = Object.hasOwn(options.kinds, kind)
-          ? options.kinds[kind]
+        const schemaOf = Object.hasOwn(options.types, type)
+          ? options.types[type]
           : undefined;
         if (schemaOf === undefined) {
           return err(
-            dbError("validation", `Unknown notification kind "${kind}"`, {
-              issues: [{ path: ["kind"], message: `Unknown kind "${kind}"` }],
-              hint: "NOTIFICATION_KIND_UNKNOWN",
+            dbError("validation", `Unknown notification type "${type}"`, {
+              issues: [{ path: ["type"], message: `Unknown type "${type}"` }],
+              hint: "NOTIFICATION_TYPE_UNKNOWN",
             }),
           );
         }
-        const data = await validate(schemaOf, input.data, `${kind} data`);
+        const data = await validate(schemaOf, input.data, `${type} data`);
         if (!data.ok) return err(data.error);
         const notification = {
-          kind,
+          type,
           data: data.data,
           recipients: input.recipients ?? [],
           tenant: input.tenant,
@@ -373,14 +398,14 @@ export function createNotifications<const K extends NotificationKinds>(
         const recipients = input.recipients ?? [];
         emit(
           "notification.created",
-          { notificationId: sent.data, kind, recipientIds: recipients },
+          { notificationId: sent.data, type, recipientIds: recipients },
           input.tenant ?? null,
         );
         if (options.onSent) {
           try {
             await options.onSent({
               id: sent.data,
-              kind,
+              type,
               tenant: input.tenant ?? null,
               recipients,
             });
@@ -397,8 +422,8 @@ export function createNotifications<const K extends NotificationKinds>(
         {
           tenant: listOptions.tenant ?? null,
           status: listOptions.status ?? "all",
-          kinds: listOptions.kinds ?? null,
-          before: listOptions.before?.toString() ?? null,
+          types: listOptions.types ?? null,
+          ...cursorOf(listOptions.before),
           max_items: listOptions.limit ?? 50,
         },
         (value) =>
@@ -434,7 +459,7 @@ export function createNotifications<const K extends NotificationKinds>(
       return run(
         "resolve_notifications",
         {
-          kind: input.kind,
+          type: input.type,
           subject_type: input.subject.type,
           subject_id: input.subject.id,
           tenant: input.tenant ?? null,
@@ -459,7 +484,7 @@ export function createNotifications<const K extends NotificationKinds>(
       return run(
         "set_notification_preference",
         {
-          kind: input.kind,
+          type: input.type,
           channel: input.channel,
           enabled: input.enabled,
           tenant: input.tenant ?? null,
@@ -484,6 +509,7 @@ export function createNotifications<const K extends NotificationKinds>(
             channel: channel.name,
             max_items: batch,
             lease: deliverOptions.lease ?? "5 minutes",
+            max_attempts: deliverOptions.maxAttempts ?? 5,
           });
           const rows = (Array.isArray(claimed) ? claimed : []).filter(isRecord);
           for (const row of rows) {
@@ -495,6 +521,13 @@ export function createNotifications<const K extends NotificationKinds>(
         }
       }
       return counts;
+    },
+    purge(olderThan, batch) {
+      return run(
+        "purge_notifications",
+        { older_than: olderThan ?? null, batch: batch ?? null },
+        Number,
+      );
     },
   };
 }

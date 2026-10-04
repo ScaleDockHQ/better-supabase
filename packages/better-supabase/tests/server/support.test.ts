@@ -98,8 +98,8 @@ describe("support sessions on the server", () => {
     });
     expect(started.error?.message).toMatch(/supportSessions\(\{ store \}\)/);
     expect((await server.support.stop(admin(), "s")).ok).toBe(false);
-    expect((await server.support.revoke("s")).ok).toBe(false);
-    expect((await server.support.list()).ok).toBe(false);
+    expect((await server.support.revoke(admin(), "s")).ok).toBe(false);
+    expect((await server.support.list(admin())).ok).toBe(false);
     expect(
       await server.support.current(new Request("https://a.test/"), admin()),
     ).toBeUndefined();
@@ -246,7 +246,9 @@ describe("support sessions on the server", () => {
     expect(ctx.stats().calls).toBe(2);
     expect(ctx.apply(new Response()).status).toBe(200);
 
-    const listed = await server.support.list({ adminId: ADMIN }).orThrow();
+    const listed = await server.support
+      .list(admin(), { adminId: ADMIN })
+      .orThrow();
     expect(listed).toHaveLength(1);
 
     const stopped = await server.support
@@ -293,6 +295,25 @@ describe("support sessions on the server", () => {
     });
   });
 
+  it("keeps a writable stored session read-only under the always policy", async () => {
+    const { server, store } = setup();
+    const session = await store.start({
+      adminId: ADMIN,
+      adminClaims: {},
+      targetUserId: TARGET,
+      reason: "r",
+      ttlSeconds: 60,
+      readOnly: false,
+      metadata: {},
+    });
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bs-support=${session.id}` },
+    });
+    const active = await server.support.current(cookie, admin());
+    expect(active?.session.readOnly).toBe(true);
+    expect(active?.claims["act"]).toMatchObject({ read_only: true });
+  });
+
   it("ignores the cookie for another admin, a nested token or bad claims", async () => {
     const { server, store } = setup({
       auth: {
@@ -319,7 +340,14 @@ describe("support sessions on the server", () => {
     expect(await server.support.current(cookie, admin())).toBeUndefined();
     expect(server.support.sessionIdOf(cookie)).toBe(session.id);
     expect(server.support.clearCookie()).toContain("Max-Age=0");
-    expect(await server.support.revoke(session.id).orThrow()).toBe(true);
+    const anon = { kind: "anon", reason: "none" } as const;
+    expect((await server.support.revoke(anon, session.id)).error?.kind).toBe(
+      "unauthorized",
+    );
+    expect((await server.support.list(anon)).error?.kind).toBe("unauthorized");
+    expect(await server.support.revoke(admin(), session.id).orThrow()).toBe(
+      true,
+    );
     expect(store.sessions.get(session.id)?.endedBy).toBe("revoked");
   });
 

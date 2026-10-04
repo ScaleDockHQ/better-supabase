@@ -18,11 +18,21 @@ create policy "members read" on public.projects for select to authenticated
   using (organization_id in (select better_supabase.tenant_ids_with('projects.read')));
 
 create policy "admins update" on public.projects for update to authenticated
-  using (better_supabase.can('organization', organization_id, 'projects.update'));
+  using (organization_id in (select better_supabase.tenant_ids_with('projects.update')))
+  with check (organization_id in (select better_supabase.tenant_ids_with('projects.update')));
+
+create policy "admins delete the organization" on public.organizations for delete to authenticated
+  using (
+    id = (select better_supabase.current_tenant_id())
+    and (select better_supabase.can('organization', better_supabase.current_tenant_id(), 'organizations.delete'))
+  );
 ```
 
-`tenant_ids_with()` returns a set, so Postgres runs it once per statement. Use
-it in policies on large tables, and keep `can()` for single checks.
+`tenant_ids_with()` returns a set, so Postgres runs it once per statement
+instead of once per row. Use it in `using` and `with check` whenever the
+tenant comes from the row. Keep `can()` for checks whose arguments are
+constants for the statement, and wrap the call in `(select ...)` so Postgres
+evaluates it once.
 
 ## The contract
 
@@ -49,14 +59,16 @@ export default defineConfig({
 });
 ```
 
-| Module             | Action and default key                                                                                                                                                             |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organizations`    | `update`: `organization.update`, `delete`: `organization.delete`, `removeMember`: `members.remove`, `updateRole`: `members.update_role`, `transferOwnership`: `ownership.transfer` |
-| `invitations`      | `invite`, `revoke` and `view`: `members.invite`                                                                                                                                    |
-| `audit`            | `view`: `audit.view`                                                                                                                                                               |
-| `support-sessions` | `start`: `support.start`, `view`: `support.view`                                                                                                                                   |
-| `notifications`    | `send`: `notifications.send`, `read`: `notifications.read`                                                                                                                         |
-| `webhooks-out`     | `manage`: `webhooks.manage`, `view`: `webhooks.view`                                                                                                                               |
+Keys follow one scheme, `<area>.<verb>`, with `read` for viewing. Platform-wide actions are checked with `is_platform()`.
+
+| Module             | Action and default key                                                                                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizations`    | `update`: `organization.update`, `delete`: `organization.delete`, `removeMember`: `members.remove`, `updateRole`: `members.update_role`, `transferOwnership`: `organization.transfer_ownership` |
+| `invitations`      | `invite`, `revoke` and `view`: `members.invite`; `invitePlatform`: `platform.invite`                                                                                                            |
+| `audit`            | `view` and `viewAll`: `audit.read`                                                                                                                                                              |
+| `support-sessions` | `start`: `support.start`, `view`: `support.read`, `revoke`: `support.revoke`                                                                                                                    |
+| `notifications`    | `send`: `notifications.send`, `read`: `notifications.read`                                                                                                                                      |
+| `webhooks-out`     | `manage`: `webhooks.manage`, `view`: `webhooks.read`                                                                                                                                            |
 
 ## Models
 
@@ -184,8 +196,8 @@ kits: {
 },
 ```
 
-`tenantKey` and `userKey` name the column matched against the tenant or user
-id; they default to `id`.
+The tenant column is matched against the table's `id`. `userKey` names the
+column matched against the user id; it defaults to `id`.
 
 ## The active tenant
 
@@ -195,8 +207,8 @@ from.
 
 | Source                   | Reads                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------- |
-| `'claim'` (default)      | the `claims.tenant` claim, at the top level or in `app_metadata`                  |
-| `'resolver'`             | the tenant the server resolved for the request, then the claim                    |
+| `'claim'`                | the `claims.tenant` claim, at the top level or in `app_metadata`                  |
+| `'resolver'` (default)   | the tenant the server resolved for the request, then the claim                    |
 | `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
 
 With `'resolver'`, pass `tenant` to the server. It runs once per request, and

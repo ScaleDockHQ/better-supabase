@@ -178,7 +178,7 @@ rollback;
 
 | Helper                                                  | Does                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id                                        |
+| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id; call it before switching roles        |
 | `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction |
 | `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                 |
 | `tests.clear_authentication()`                          | Switches back to the test runner's role                                            |

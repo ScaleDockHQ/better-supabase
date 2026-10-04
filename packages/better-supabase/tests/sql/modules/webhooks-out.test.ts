@@ -16,8 +16,8 @@ const CENTRAKIT: KitsConfig = {
     schema: "public",
     idType: "uuid",
     columns: {
-      destinations: {
-        failureCount: null,
+      endpoints: {
+        failingSince: null,
         disabledAt: null,
         disabledReason: null,
       },
@@ -36,21 +36,25 @@ describe("webhooks-out module", () => {
   it("owns its tables, keeps secrets in Vault and the secrets table closed to clients", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."webhook_destinations" (',
+      'create table if not exists "better_supabase"."webhook_endpoints" (',
     );
-    expect(sql).toContain('"event_kinds" text[]');
+    expect(sql).toContain('"event_types" text[]');
     expect(sql).toContain('"vault_secret_id" uuid');
     expect(sql).toContain(`"url" ~* '^https://'`);
-    expect(sql).toContain("webhook_deliveries_destination_event_idx");
+    expect(sql).toContain("webhook_deliveries_endpoint_event_idx");
     expect(sql).toContain("vault.create_secret(");
     expect(sql).toContain("vault.decrypted_secrets");
     expect(sql).not.toMatch(
-      /grant [^;]*"webhook_destination_secrets" to authenticated/,
+      /grant [^;]*"webhook_endpoint_secrets" to authenticated/,
     );
     expect(sql).toMatch(
       /function "better_supabase"\."publish_webhook_event"\(/,
     );
-    expect(sql).toContain("starts_with(");
+    expect(sql).toContain('"event_types" && patterns');
+    expect(sql).toContain("webhook_endpoints_types_idx");
+    expect(sql).toContain(
+      `"status" in ('succeeded', 'canceled')\n          or (purge_webhook_deliveries.include_dead and v."status" = 'dead')`,
+    );
     expect(sql).toContain("security definer");
   });
 
@@ -58,9 +62,9 @@ describe("webhooks-out module", () => {
     const sql = body(CENTRAKIT);
     expect(sql).not.toContain("create table if not exists");
     expect(sql).not.toContain("vault.");
-    expect(sql).not.toContain('"consecutive_failures"');
+    expect(sql).not.toContain('"failing_since"');
     expect(sql).not.toContain('"expires_at"');
-    expect(sql).toContain('"public"."webhook_destination_secrets"');
+    expect(sql).toContain('"public"."webhook_endpoint_secrets"');
     expect(sql).toContain('"workflow_run_id"');
     expect(sql).toContain("dispatch_webhook.run_id::uuid");
     expect(sql).toContain("publish_webhook_event.event_id::uuid");
@@ -72,12 +76,17 @@ describe("webhooks-out module", () => {
     ).not.toContain(`"url" ~* '^https://'`);
     const plain = renderKit(["webhooks-out"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
+    expect(plain).not.toContain("tenant_ids_with(");
     const sql = renderKit(["access", "outbox", "webhooks-out"]).find((file) =>
       file.path.includes("webhooks_out"),
     )!.contents;
     expect(sql).toContain("better_supabase.can('tenant', ");
+    expect(sql).toContain(
+      `using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))`,
+    );
+    expect(sql).toContain("webhook_deliveries_tenant_created_idx");
     expect(sql).toContain("'webhooks.manage'");
-    expect(sql).toContain("'webhooks.view'");
+    expect(sql).toContain("'webhooks.read'");
     expect(sql).toContain("emit_event('webhook.disabled'");
   });
 
@@ -98,10 +107,32 @@ describe("webhooks-out module", () => {
     ).toThrow(/vaultId/);
   });
 
-  it("never disables a destination with disableAfter 0", () => {
-    const sql = body({ "webhooks-out": { options: { disableAfter: 0 } } });
-    expect(sql).not.toContain("WEBHOOK_DISABLED_AFTER");
-    expect(sql).not.toContain("'disabled'");
+  it("disables an endpoint that keeps failing for disableAfter", () => {
+    const sql = body({
+      "webhooks-out": { options: { disableAfter: "3 days" } },
+    });
+    expect(sql).toContain('"failing_since" timestamptz');
+    expect(sql).toContain("v_since <= now() - '3 days'::interval");
+    expect(() =>
+      body({ "webhooks-out": { options: { disableAfter: "soon" } } }),
+    ).toThrow(/disableAfter/);
+    const never = body({
+      "webhooks-out": { columns: { endpoints: { failingSince: null } } },
+    });
+    expect(never).not.toContain("v_result := 'disabled'");
+  });
+
+  it("counts the attempt at claim and completes only under the lease", () => {
+    const sql = body();
+    expect(sql).toContain('"attempt" = v."attempt" + 1');
+    expect(sql).toContain("max_attempts integer default 8");
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."claim_webhook_deliveries"(integer, interval);',
+    );
+    expect(sql).toContain('and v."attempt" = v_attempt');
+    expect(sql).toContain(`and v."status" = 'delivering'`);
+    expect(sql).toContain("return 'stale';");
+    expect(sql).toContain("WEBHOOK_ATTEMPT_REQUIRED");
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
@@ -114,6 +145,7 @@ describe("webhooks-out module", () => {
       "claim_webhook_deliveries",
       "complete_webhook_delivery",
       "redeliver_webhook",
+      "purge_webhook_deliveries",
       "rotate_webhook_secret",
       "webhook_secrets",
     ]);

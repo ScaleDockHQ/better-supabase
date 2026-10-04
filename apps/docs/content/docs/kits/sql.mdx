@@ -13,7 +13,17 @@ schema.
 better-supabase sql list
 better-supabase sql add audit jobs pgtap
 supabase db schema declarative sync -f better_supabase_kit
+better-supabase sql data
 ```
+
+A schema diff only captures objects, so each module's rows and settings (its
+`kit_modules` row, the reserved slugs, the rate-limit role setting) go to a
+second file in `supabase/better-supabase-data/`, outside the schema folder:
+pg-delta loads every file under `supabase/schemas` and refuses a table that
+has rows afterwards. `better-supabase sql data` writes those files into one
+migration, stamped after the newest one so it runs after the schema migration.
+Its statements are idempotent, and it writes nothing when the latest data
+migration already has them. `sql add` and `sql sync` say when to run it.
 
 The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
 orders the schema files by dependency. Projects created by `supabase init`
@@ -35,7 +45,7 @@ their functions.
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                 |
 | `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                       |
-| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_log`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                   |
+| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                |
 | `tenant`           | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                         |
 | `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                                                    |
 | `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/kits/orgs)                                                     |
@@ -49,6 +59,7 @@ their functions.
 | `grants`           | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                                                                |
 | `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                                                            |
 | `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                                                        |
+| `sessions`         | `session_active()` for restrictive policies that reject tokens whose session was signed out or expired, or whose user was banned or deleted. See [Ended sessions](/docs/auth/account-deletion#ended-sessions)                                                  |
 | `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)                                                                                              |
 | `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                                                        |
 | `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                      |
@@ -60,8 +71,9 @@ their functions.
 | `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/kits/webhooks-out) |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
-pulls those in as well. They read the active tenant from the claim named by `claims.tenant` in the config
-(`tenant_id` by default), or from the source in `kits.access.activeTenant`.
+pulls those in as well. They read the active tenant from the source in
+`kits.access.activeTenant`: by default the tenant the server resolved for the
+request, then the claim named by `claims.tenant` (`tenant_id` by default).
 The roles come from `kits.access.roles`. Change modules through `kits` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `sql sync` rewrites them, and doctor reports a hand edit.
@@ -96,6 +108,11 @@ moving a row into an organization the user can't manage.
 Admins can invite members, viewers and other admins. Only an owner, or the
 service role, can invite an owner, and the invitee has to confirm their email
 address before `accept_invitation` adds them.
+
+Kit tables use `gen_random_uuid()` keys. Postgres 18's `uuidv7()` gives
+time-ordered keys that keep indexes compact, and the kit moves to it once
+hosted Supabase runs Postgres 18
+([supabase/postgres#2051](https://github.com/supabase/postgres/pull/2051)).
 
 Errors raised by the kit carry a stable code in the `hint` field, for example
 `SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
@@ -139,23 +156,25 @@ export default defineConfig({
 });
 ```
 
-| Key             | What it sets                                                                            |
-| --------------- | --------------------------------------------------------------------------------------- |
-| `mode`          | `managed`, `adopt` or `custom`                                                          |
-| `schema`        | the schema of the module's functions and managed tables (`better_supabase`)             |
-| `tables`        | logical table to `table` or `schema.table`; `null` for an optional table you don't have |
-| `columns`       | logical table to logical column to column name; `null` for an optional column           |
-| `idType`        | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                     |
-| `triggerPrefix` | the prefix of the triggers the module creates (`bs_`)                                   |
-| `permissions`   | kit action to permission key, checked through the [access contract](/docs/kits/access)  |
-| `options`       | module options, listed on each module's page                                            |
-| `hooks`         | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)      |
-| `events`        | `false` stops the module writing its events to the outbox                               |
+| Key           | What it sets                                                                            |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `mode`        | `managed`, `adopt` or `custom`                                                          |
+| `schema`      | the schema of the module's functions and managed tables (`better_supabase`)             |
+| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have |
+| `columns`     | logical table to logical column to column name; `null` for an optional column           |
+| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                     |
+| `permissions` | kit action to permission key, checked through the [access contract](/docs/kits/access)  |
+| `options`     | module options, listed on each module's page                                            |
+| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)      |
+| `events`      | `false` stops the module writing its events to the outbox                               |
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the
-module version and mode (`-- @bs-kit tenant@2 adopt`), and schema files record
-them in `better_supabase.kit_modules`.
+module version and mode (`-- @bs-kit tenant@2 adopt`), and the data migration
+records them in `better_supabase.kit_modules`. An option a module doesn't read
+stops `sql add` as well, so a misspelled option can't fall back to its default
+without notice. Only `kits.access` takes the access keys (`model`, `roles`,
+`functions`, `activeTenant` and the rest).
 
 ## Audit log
 
@@ -192,16 +211,16 @@ select better_supabase.audit_event(
 
 The module options (`kits.audit.options`):
 
-| Option          | Default            | What it does                                                                                                                                  |
-| --------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`   | the tenant column of audited tables                                                                                                           |
-| `appendOnly`    | `false`            | a trigger rejects updates and deletes; only the purge functions delete                                                                        |
-| `readPolicy`    | `false`            | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
-| `impersonators` | `show`             | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
-| `restricted`    | `false`            | old and new records, IP address, user agent and metadata go to a separate `audit_log_restricted` table that only `service_role` reads         |
-| `eventRoles`    | `['service_role']` | the roles that can call `audit_event`                                                                                                         |
-| `eventCategory` | `system`           | the category of an `audit_event` call without one                                                                                             |
-| `eventSource`   | `app`              | the source of an `audit_event` call without one                                                                                               |
+| Option          | Default             | What it does                                                                                                                                  |
+| --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                           |
+| `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                          |
+| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
+| `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
+| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads      |
+| `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                         |
+| `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                             |
+| `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                               |
 
 An app with its own audit table adopts it: map `kits.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
@@ -210,18 +229,19 @@ creates it.
 
 ## Retention
 
-The audit log, the webhook inbox and the job archives only grow. Each module
-has a purge function that deletes rows older than an interval, at most `batch`
-rows per call (10,000 by default), and returns how many it deleted. They
-delete in primary-key order, so they find the oldest rows through the primary
-key index without a full scan. Only `service_role` can call them.
+The audit log, the webhook inbox and delivery log, the rate-limit counters
+and the job archives only grow. Each module has a purge function that deletes
+rows older than an interval, at most `batch` rows per call (10,000 by
+default), and returns how many it deleted. Only `service_role` can call them.
 
-| Function                                           | Deletes                                                                            |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`, or than the tenant's own interval     |
-| `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones                  |
-| `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
-| `purge_idempotency_keys()`                         | expired idempotency keys                                                           |
+| Function                                                                         | Deletes                                                                                                            |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `purge_audit_log(older_than => '1 year')`                                        | `audit_events` entries older than `older_than`, or than the tenant's own interval                                  |
+| `purge_webhooks(older_than => '30 days')`                                        | processed messages; `include_dead => true` also deletes dead ones                                                  |
+| `purge_job_archive(queue, older_than => '7 days', dead_older_than => '30 days')` | completed jobs, and dead jobs after their own retention (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
+| `purge_idempotency_keys()`                                                       | expired idempotency keys                                                                                           |
+| `purge_webhook_deliveries(older_than => '30 days')`                              | succeeded and canceled outgoing deliveries; `include_dead => true` also deletes dead ones                          |
+| `purge_rate_limits()`                                                            | counters whose window has ended or whose rule was removed                                                          |
 
 Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
 hour. Enable the extension once (`create extension pg_cron with schema
@@ -232,6 +252,8 @@ select cron.schedule('purge-audit-log', '15 3 * * *', $$select better_supabase.p
 select cron.schedule('purge-webhooks', '30 3 * * *', $$select better_supabase.purge_webhooks()$$);
 select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
 select cron.schedule('purge-idempotency-keys', '0 4 * * *', $$select better_supabase.purge_idempotency_keys()$$);
+select cron.schedule('purge-webhook-deliveries', '45 3 * * *', $$select better_supabase.purge_webhook_deliveries()$$);
+select cron.schedule('purge-rate-limits', '*/15 * * * *', $$select better_supabase.purge_rate_limits()$$);
 ```
 
 Tenants can keep entries for different periods, a plan's retention for
@@ -262,19 +284,26 @@ was purged is stored and processed again.
 `start_support_session(target, reason, ttl, read_only, metadata, tenant)`
 checks `is_platform('support.start')` for the caller, ends the caller's
 previous session, writes `support.started` to the audit log and returns the
-session as jsonb. `end_support_session(session_id)` ends it for its admin, the
-service role or a caller with `support.revoke`. Errors carry `SUPPORT_FORBIDDEN`,
-`SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TTL` or
-`SUPPORT_REASON_REQUIRED` in the `hint`.
+session as jsonb. An admin has one active session (a unique index). It refuses
+a target with platform permissions and a writable session unless the options
+below allow them. `end_support_session(session_id)` ends it for its admin
+(`ended_by` is `admin`), a caller with `support.revoke` (`revoked`) or the
+service role, which alone passes `ended_by`. `active_support_session` called
+as the admin checks `support.start` again. Errors carry `SUPPORT_FORBIDDEN`,
+`SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TARGET_PLATFORM`,
+`SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL` or `SUPPORT_REASON_REQUIRED` in the
+`hint`.
 
-| Option          | Default   | What it does                                                             |
-| --------------- | --------- | ------------------------------------------------------------------------ |
-| `maxTtl`        | `4 hours` | the longest session `start_support_session` accepts                      |
-| `requireReason` | `true`    | refuses a start without a reason                                         |
-| `auditCategory` | `support` | the audit log category of `support.started` and `support.ended`          |
-| `claimsHook`    | none      | `schema.function` of your access token hook, for `support_target_claims` |
+| Option                 | Default   | What it does                                                             |
+| ---------------------- | --------- | ------------------------------------------------------------------------ |
+| `maxTtl`               | `4 hours` | the longest session `start_support_session` accepts                      |
+| `requireReason`        | `true`    | refuses a start without a reason                                         |
+| `allowWrites`          | `false`   | accepts `read_only => false`                                             |
+| `allowPlatformTargets` | `false`   | lets a session target platform staff                                     |
+| `auditCategory`        | `support` | the audit log category of `support.started` and `support.ended`          |
+| `claimsHook`           | none      | `schema.function` of your access token hook, for `support_target_claims` |
 
-The permission keys are `support.start`, `support.view` and `support.revoke`;
+The permission keys are `support.start`, `support.read` and `support.revoke`;
 rename them with `kits["support-sessions"].permissions`. The hooks
 `before_support_start(admin, target, reason, metadata)`,
 `after_support_start(session_id)` and `after_support_end(session_id)` run in
@@ -322,18 +351,20 @@ select better_supabase.set_rate_limit('/customers', null);
   both apply.
 - Only `POST`, `PATCH`, `PUT` and `DELETE` count. GET and HEAD run read-only
   and may be served by a [read replica](/docs/guides/read-replicas).
-- Callers without the claim (anonymous) are counted by their first
-  `x-forwarded-for` hop. The service role is never limited.
+- Callers without the claim (anonymous) are counted by the right-most
+  `x-forwarded-for` hop, the one the API gateway appends; clients can forge
+  the hops before it. The service role is never limited.
 - Counters live in an unlogged table: fast, and reset after a crash.
 - A write over the limit fails with HTTP 429 and a `Retry-After` header. The
   repository returns it as a `rate_limited` [`DbError`](/docs/concepts/results)
   with `retryAfter` in seconds, and `problemResponse()` passes the header on.
 
-The module sets `pgrst.db_pre_request` on the `authenticator` role, and only
-if no other pre-request function is set. Neither diff engine captures
-role settings, so copy the `do` block at the end of the file into a
-migration. If you already have a pre-request function, keep it and call the
-check from it. Put it in a schema the Data API doesn't expose, so clients
+The module's data file sets `pgrst.db_pre_request` on the `authenticator`
+role, and only if no other pre-request function is set. Neither diff engine
+captures role settings, so the setting ships in the migration `sql data`
+writes. Doctor warns (BS313) when a live database has no pre-request hook, or
+one that doesn't call `check_request()`. If you already have a pre-request
+function, keep it and call the check from it. Put it in a schema the Data API doesn't expose, so clients
 can't call it through `/rpc`:
 
 ```sql
@@ -378,8 +409,11 @@ export default defineConfig({
 });
 ```
 
-The constraint is validated when it is added, so existing rows that don't
-match make the migration fail. Fix those rows first. Re-run `sql add` after
+Each constraint is added `not valid` and then validated in its own
+statement, so existing rows that don't match make the migration fail. Fix
+those rows first. On a large table, move the `validate constraint` statement
+to a later migration: adding a `not valid` check blocks writes only briefly,
+and validating takes a lock that lets writes continue. Re-run `sql add` after
 you change a schema.
 
 ## Keeping files current
@@ -397,7 +431,7 @@ export default defineConfig({
 `better-supabase sql sync` rewrites those files after an upgrade, and
 `sql sync --check` fails in CI when a file is out of date. Use
 `sql print <module>` to copy a module into a hand-written migration instead.
-`sql add` and `sql sync` take `--dry-run` to show what they would write, and
+`sql add`, `sql sync` and `sql data` take `--dry-run` to show what they would write, and
 `--tests-dir <dir>` overrides `sql.testsDir` for the pgTAP module.
 
 | Option         | Default               |
@@ -420,14 +454,16 @@ better-supabase sql upgrade
 
 It reads the version from each file's `@bs-kit` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
-forward steps into `supabase/migrations/<timestamp>_better_supabase_kit_upgrade.sql`
-and rewrites the module files. Create the schema migration afterwards, so the
+forward steps into `<timestamp>_better_supabase_kit_upgrade.sql` in the
+`migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
 steps run first. `sql upgrade --check` exits with 1 when a module is behind or
 a file is stale, and `--dry-run` lists the steps without writing.
 
-A renamed function or claim keeps working for at least one minor version. The
-module file keeps a wrapper under the old name, marked `-- Deprecated since`,
-and doctor reports code that still uses it (BS309). The
+A renamed function, table or claim keeps working for at least one minor
+version. The module file keeps a wrapper under the old name (a view for a
+table), marked `-- Deprecated since`, and doctor reports code that still uses
+it (BS309). A renamed column has no wrapper: `sql upgrade` renames it, and
+doctor reports the old name in your SQL before you upgrade. The
 [stability page](/docs/extending/stability#sql-kit-objects-and-claims) lists
 what each module guarantees.
 

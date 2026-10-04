@@ -456,23 +456,35 @@ describe("generated and kit files (BS303, BS304)", () => {
       "then `supabase db schema declarative sync`.",
     );
 
-    await write(files[0]!.path, files[0]!.contents);
+    const data = files.find((file) => file.kind === "data")!;
+    expect(
+      missing.find((finding) => finding.target === data.path)!.message,
+    ).toContain("which also writes the rows into a migration");
+
+    const audit = files.find(
+      (file) => file.module === "audit" && file.kind === "schema",
+    );
+    for (const file of files) await write(file.path, file.contents);
     await write(
-      files[1]!.path,
-      files[1]!.contents.replace("create schema", "-- changed\ncreate schema"),
+      audit!.path,
+      audit!.contents.replace("create schema", "-- changed\ncreate schema"),
     );
     expect(await run("BS304", ctx)).toEqual([
       expect.objectContaining({
-        target: files[1]!.path,
+        target: audit!.path,
         message: expect.stringContaining("(audit) is out of date"),
-        location: { file: files[1]!.path, line: 1 },
+        location: { file: audit!.path, line: 1 },
       }),
     ]);
   });
 
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ sql: { kit: ["tenant"] } });
-    const [file] = renderKit(["tenant"], kitLayout(ctx.config));
+    const files = renderKit(["tenant"], kitLayout(ctx.config));
+    for (const kit of files) await write(kit.path, kit.contents);
+    const file = files.find(
+      (kit) => kit.module === "tenant" && kit.kind === "schema",
+    );
     await write(file!.path, file!.contents.replace(/^-- @bs-kit .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
@@ -600,6 +612,55 @@ describe("kit upgrades (BS309, BS310)", () => {
     expect(await run("BS309", context(snap))).toEqual([]);
   });
 
+  it("reports a renamed kit column used unqualified next to its table", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        {
+          name: "own rows",
+          command: "select",
+          roles: ["authenticated"],
+          permissive: true,
+          using:
+            "(exists (select 1 from better_supabase.memberships m where m.org_id = notes.tenant))",
+          check: null,
+        },
+      ];
+    });
+    const sqlFiles = [
+      {
+        path: "supabase/schemas/100_notes.sql",
+        text: "create view v as select 1;\ncreate view w as\nselect m.org_id\nfrom better_supabase.memberships m;\n",
+      },
+      {
+        path: "supabase/schemas/110_other.sql",
+        text: "select org_id from public.notes;",
+      },
+    ];
+    const findings = await run(
+      "BS309",
+      context(snap, { sqlFiles }, { sql: { kit: ["tenant"] } }),
+    );
+    expect(
+      findings.map((finding) => [finding.target, finding.location]),
+    ).toEqual([
+      [
+        "supabase/schemas/100_notes.sql:memberships.org_id",
+        { file: "supabase/schemas/100_notes.sql", line: 3 },
+      ],
+      ["public.notes.own rows:memberships.org_id", undefined],
+    ]);
+    expect(
+      await run(
+        "BS309",
+        context(
+          snap,
+          { sqlFiles },
+          { sql: { kit: ["tenant"] }, kits: { tenant: { mode: "adopt" } } },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("reports a table with a kit trigger and an equivalent one", async () => {
     const trigger = (name: string, fn: string) => ({
       name,
@@ -626,6 +687,164 @@ describe("kit upgrades (BS309, BS310)", () => {
         ),
       }),
     ]);
+  });
+});
+
+describe("exposed kit schemas (BS312)", () => {
+  const api = toml('[api]\nschemas = ["public", "better_supabase", "crm"]\n');
+
+  it("reports better_supabase and kits.*.schema in [api] schemas", async () => {
+    const findings = await run(
+      "BS312",
+      context(
+        base,
+        { configToml: api },
+        {
+          sql: { kit: ["tenant", "audit"] },
+          kits: { audit: { schema: "crm" } },
+        },
+      ),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "better_supabase",
+      "crm",
+    ]);
+    expect(findings[0]!.severity).toBe("error");
+  });
+
+  it("skips projects without kit modules or exposed kit schemas", async () => {
+    expect(await run("BS312", context(base, { configToml: api }))).toEqual([]);
+    expect(
+      await run(
+        "BS312",
+        context(
+          base,
+          { configToml: toml('[api]\nschemas = ["public"]\n') },
+          { sql: { kit: ["tenant"] }, schemas: ["public", "better_supabase"] },
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS312",
+        context(
+          base,
+          {},
+          { sql: { kit: ["tenant"] }, schemas: ["public", "better_supabase"] },
+        ),
+      ),
+    ).toHaveLength(1);
+  });
+});
+
+describe("rate limits wired to PostgREST (BS313)", () => {
+  const live = (
+    kit: string[],
+    rows: Record<string, unknown>[] | Error,
+  ): Parameters<typeof run>[1] => ({
+    ...context(base, {}, { sql: { kit } }),
+    database: {
+      describe: "test",
+      session: true,
+      query: <R>() =>
+        rows instanceof Error
+          ? Promise.reject(rows)
+          : Promise.resolve(rows as R[]),
+    },
+  });
+
+  it("reports an unset hook and one that doesn't call check_request", async () => {
+    expect(
+      await run("BS313", live(["rate-limit"], [{ hook: null, calls: false }])),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "authenticator pgrst.db_pre_request",
+        message: expect.stringContaining("pgrst.db_pre_request isn't set"),
+      }),
+    ]);
+    expect(
+      (
+        await run(
+          "BS313",
+          live(["rate-limit"], [{ hook: "public.pre_request", calls: false }]),
+        )
+      )[0]!.message,
+    ).toBe(
+      "pgrst.db_pre_request is public.pre_request, which doesn't call better_supabase.check_request(), so rate limits never apply. Call it from public.pre_request.",
+    );
+  });
+
+  it("passes the kit hook, a chaining hook, and projects without the module or a database", async () => {
+    for (const row of [
+      { hook: "better_supabase.check_request", calls: false },
+      { hook: "public.pre_request", calls: true },
+    ])
+      expect(await run("BS313", live(["rate-limit"], [row]))).toEqual([]);
+    expect(
+      await run("BS313", live(["tenant"], [{ hook: null, calls: false }])),
+    ).toEqual([]);
+    expect(
+      await run("BS313", live(["rate-limit"], new Error("denied"))),
+    ).toEqual([]);
+    expect(
+      await run("BS313", context(base, {}, { sql: { kit: ["rate-limit"] } })),
+    ).toEqual([]);
+  });
+});
+
+describe("migration-only kit options (BS314)", () => {
+  it("warns about each weakening option on a module in sql.kit", async () => {
+    const findings = await run(
+      "BS314",
+      context(
+        base,
+        {},
+        {
+          sql: { kit: ["invitations", "outbox"] },
+          kits: {
+            invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
+            outbox: {
+              mode: "adopt",
+              options: {
+                kitSource: "better-supabase/{module}",
+                defaultSource: "domain",
+              },
+            },
+            "webhooks-out": {
+              mode: "adopt",
+              options: { secretStorage: "column" },
+            },
+          },
+        },
+      ),
+    );
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "kits.invitations.options.tokenStorage",
+      }),
+      expect.objectContaining({ target: "kits.outbox.options.defaultSource" }),
+    ]);
+    expect(findings[0]!.message).toBe(
+      'kits.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It exists to adopt an existing schema; remove it once your data matches the managed default.',
+    );
+  });
+
+  it("is quiet for managed defaults", async () => {
+    expect(
+      await run(
+        "BS314",
+        context(
+          base,
+          {},
+          {
+            sql: { kit: ["invitations"] },
+            kits: { invitations: { options: { tokenStorage: "sha256" } } },
+          },
+        ),
+      ),
+    ).toEqual([]);
   });
 });
 

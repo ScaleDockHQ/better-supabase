@@ -16,11 +16,12 @@ const db = defineSupabase(schema)
   `updatedBy` records who deleted the row.
 - Upserts that may update only get `updatedBy`.
 - Tables with an `impersonated_by` column (`plugins.actor.impersonatedBy` in
-  the config renames it) get `impersonatedBy` on every insert and update: the
-  admin from `actor.impersonator` during
-  [impersonation](/docs/auth/impersonation), `null` otherwise. That is what
-  the SQL kit's `track_actor(table, impersonated_by => 'impersonated_by')`
-  writes.
+  the config renames it) get `impersonatedBy` on each insert and update made
+  during [impersonation](/docs/auth/impersonation): the admin from
+  `actor.impersonator`. The user's own writes leave it alone, so the row
+  keeps the last impersonating admin. That is what the SQL kit's
+  `track_actor(table, impersonated_by => 'impersonated_by')` writes, and it
+  also keeps `created_by` on updates.
 - Anonymous requests set nothing.
 - `createdBy`, `updatedBy` and `impersonatedBy` values you pass yourself are refused with
   `invalid_request`, so a caller cannot sign a row as someone else. Pass

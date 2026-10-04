@@ -2,12 +2,28 @@ import type { KitContext, KitIdType, KitNames } from "../context.ts";
 import type { KitLayout, KitModuleDefinition } from "../kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { EQUIVALENT_TRIGGERS, SCHEMA, SERVICE_CALLER } from "../shared.ts";
+import {
+  EQUIVALENT_TRIGGERS,
+  renameSql,
+  SCHEMA,
+  SERVICE_CALLER,
+} from "../shared.ts";
+import { KIT_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "appendOnly",
+    "eventCategory",
+    "eventRoles",
+    "eventSource",
+    "impersonators",
+    "readPolicy",
+    "restricted",
+    "tenantColumn",
+  ],
   tables: {
     log: {
-      name: "audit_log",
+      name: "audit_events",
       columns: {
         id: "id",
         table: "table_name",
@@ -18,8 +34,8 @@ const NAMES: KitNames = {
         changed: "changed",
         actor: "actor_id",
         actorRole: "actor_role",
-        tenant: "org_id",
-        at: "at",
+        tenant: "organization_id",
+        occurredAt: "occurred_at",
         impersonatedBy: "impersonated_by",
         impersonationReason: "impersonation_reason",
         supportSession: "support_session_id",
@@ -52,7 +68,7 @@ const NAMES: KitNames = {
       ],
     },
     restricted: {
-      name: "audit_log_restricted",
+      name: "audit_events_restricted",
       columns: {
         entry: "entry_id",
         old: "old_record",
@@ -155,19 +171,19 @@ revoke all on ${ctx.table("restricted")} from anon, authenticated;`
   return `create table if not exists ${log} (
   ${c("id")} bigint generated always as identity primary key,${line("table", "text")}${line("record", "text")}${line("op", "text not null")}${line("old", "jsonb")}${line("new", "jsonb")}${line("changed", "text[]")}${line("actor", "uuid")}${line("actorRole", "text")}
   ${c("tenant")} ${ctx.idType},
-  ${c("at")} timestamptz not null default now()
+  ${c("occurredAt")} timestamptz not null default now()
 );${op}${table}
 -- Set when an admin acted as the user (the act claim).${add("impersonatedBy", "uuid")}${add("impersonationReason", "text")}${add("supportSession", "uuid")}
 -- Semantic events (audit_event) and the per-table registry fill these.${add("eventType", "text")}${add("category", "text")}${add("outcome", "text")}${add("source", "text")}${add("targetType", "text")}${add("metadata", "jsonb")}${add("idempotencyKey", "text")}
 ${
   ctx.has("log", "table") && ctx.has("log", "record")
-    ? `create index if not exists audit_log_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("at")} desc);\n`
+    ? `create index if not exists audit_events_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("occurredAt")} desc);\n`
     : ""
-}create index if not exists audit_log_org_idx on ${log} (${c("tenant")}, ${c("at")} desc);
-create index if not exists audit_log_at_idx on ${log} (${c("at")});${
+}create index if not exists audit_events_organization_idx on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
+create index if not exists audit_events_occurred_at_idx on ${log} (${c("occurredAt")});${
     ctx.has("log", "idempotencyKey")
       ? `
-create unique index if not exists audit_log_idempotency_idx on ${log} (${c("tenant")}, ${c("idempotencyKey")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
+create unique index if not exists audit_events_idempotency_idx on ${log} (${c("idempotencyKey")}, ${c("tenant")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
       : ""
   }
 alter table ${log} enable row level security;
@@ -190,7 +206,8 @@ alter table better_supabase.audited_tables add column if not exists tenant_colum
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
--- The client address PostgREST forwards, or null.
+-- The client address the API gateway appended to x-forwarded-for (the
+-- right-most hop; clients can forge the ones before it), or null.
 create or replace function better_supabase.request_ip()
 returns inet
 language plpgsql
@@ -198,7 +215,7 @@ stable
 set search_path = ''
 as $$
 begin
-  return nullif(trim(split_part(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ',', 1)), '')::inet;
+  return nullif(trim(reverse(split_part(reverse(current_setting('request.headers', true)::json ->> 'x-forwarded-for'), ',', 1))), '')::inet;
 exception when others then
   return null;
 end;
@@ -278,7 +295,7 @@ function triggerFunction(
     ["source", "'database'"],
     ["targetType", "coalesce(entry.target_type, tg_table_name)"],
   ]);
-  return `create or replace function better_supabase.audit_trigger()
+  return `create or replace function better_supabase.audit_row_change()
 returns trigger
 language plpgsql
 security definer
@@ -414,37 +431,58 @@ grant execute on function better_supabase.audit_event(text, text, text, text, te
 function appendOnly(ctx: KitContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_append_only");
-  if (!ctx.flag("appendOnly", false)) {
-    return `drop trigger if exists ${trigger} on ${log};`;
+  const truncate = ctx.trigger("audit_no_truncate");
+  if (!ctx.flag("appendOnly", ctx.manages)) {
+    return `drop trigger if exists ${trigger} on ${log};
+drop trigger if exists ${truncate} on ${log};`;
   }
-  return `-- Entries are append-only; purge_audit_log sets better_supabase.audit_purge
--- for its own transaction to delete old ones.
+  const purge = sqlString(
+    `better_supabase.purge_audit_log(interval, integer, ${ctx.idType}, boolean)`,
+  );
+  return `-- Entries are append-only. purge_audit_log deletes old ones: it runs as its
+-- owner and sets better_supabase.audit_purge, and a role that only sets the
+-- setting is not the owner.
 create or replace function better_supabase.audit_append_only()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if tg_op = 'DELETE' and current_setting('better_supabase.audit_purge', true) = 'on' then
+  if tg_op = 'DELETE'
+    and current_setting('better_supabase.audit_purge', true) = 'on'
+    and current_user = (
+      select r.rolname from pg_catalog.pg_proc p
+      join pg_catalog.pg_roles r on r.oid = p.proowner
+      where p.oid = to_regprocedure(${purge})
+    )
+  then
     return old;
   end if;
   raise exception 'audit log entries are append-only'
     using errcode = '42501', hint = 'Delete old entries with better_supabase.purge_audit_log()';
 end;
 $$;
+revoke execute on function better_supabase.audit_append_only() from public, anon, authenticated;
 drop trigger if exists ${trigger} on ${log};
 create trigger ${trigger} before update or delete on ${log}
-  for each row execute function better_supabase.audit_append_only();`;
+  for each row execute function better_supabase.audit_append_only();
+drop trigger if exists ${truncate} on ${log};
+create trigger ${truncate} before truncate on ${log}
+  for each statement execute function better_supabase.audit_append_only();`;
 }
 
 function readPolicy(ctx: KitContext): string {
   const log = ctx.table("log");
   if (!ctx.flag("readPolicy", false)) {
-    return ctx.manages ? `drop policy if exists bs_audit_read on ${log};` : "";
+    return ctx.manages
+      ? `drop policy if exists bs_audit_read on ${log};
+drop function if exists ${ctx.fn("audit_read_tenants")}();
+drop function if exists ${ctx.fn("audit_reads_all")}();`
+      : "";
   }
   const c = (logical: string) => ctx.col("log", logical);
-  const view = ctx.permission("view", "audit.view");
-  const viewAll = ctx.permission("viewAll", "audit.view");
+  const view = ctx.permission("view", KIT_PERMISSIONS.audit.view);
+  const viewAll = ctx.permission("viewAll", KIT_PERMISSIONS.audit.viewAll);
   const hidden = new Set(
     impersonators(ctx) === "hide"
       ? ["impersonatedBy", "impersonationReason", "supportSession"]
@@ -453,13 +491,38 @@ function readPolicy(ctx: KitContext): string {
   const readable = Object.keys(NAMES.tables["log"]!.columns)
     .filter((logical) => ctx.has("log", logical) && !hidden.has(logical))
     .map(c);
-  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", "audit.view")} permission;
--- platform staff read every entry.
+  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", KIT_PERMISSIONS.audit.view)} permission;
+-- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
+-- is_platform when it runs, so this file installs before the access module's.
+create or replace function ${ctx.fn("audit_read_tenants")}()
+returns setof ${ctx.idType}
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return query select t::${ctx.idType} from better_supabase.tenant_ids_with(${view}) t;
+end;
+$$;
+create or replace function ${ctx.fn("audit_reads_all")}()
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return better_supabase.is_platform(${viewAll});
+end;
+$$;
+revoke execute on function ${ctx.fn("audit_read_tenants")}() from public, anon;
+revoke execute on function ${ctx.fn("audit_reads_all")}() from public, anon;
+grant execute on function ${ctx.fn("audit_read_tenants")}() to authenticated, service_role;
+grant execute on function ${ctx.fn("audit_reads_all")}() to authenticated, service_role;
 drop policy if exists bs_audit_read on ${log};
 create policy bs_audit_read on ${log} for select to authenticated
   using (
-    ${c("tenant")} in (select better_supabase.tenant_ids_with(${view}))
-    or (select better_supabase.is_platform(${viewAll}))
+    ${c("tenant")} in (select ${ctx.fn("audit_read_tenants")}())
+    or (select ${ctx.fn("audit_reads_all")}())
   );
 ${
   hidden.size > 0
@@ -503,8 +566,8 @@ begin
       delete from ${log}
       where ${c("id")} in (
         select l.${c("id")} from ${log} l
-        where l.${c("at")} < now() - coalesce(${hook}(l.${c("tenant")}), older_than)
-        order by l.${c("at")}
+        where l.${c("occurredAt")} < now() - coalesce(${hook}(l.${c("tenant")}), older_than)
+        order by l.${c("occurredAt")}
         limit batch
       )
       returning 1
@@ -515,9 +578,9 @@ begin
       delete from ${log}
       where ${c("id")} in (
         select l.${c("id")} from ${log} l
-        where l.${c("at")} < now() - older_than
+        where l.${c("occurredAt")} < now() - older_than
           and (not for_tenant or l.${c("tenant")} is not distinct from purge_audit_log.tenant)
-        order by l.${c("at")}
+        order by l.${c("occurredAt")}
         limit batch
       )
       returning 1
@@ -532,7 +595,7 @@ revoke execute on function better_supabase.purge_audit_log(interval, integer, ${
 grant execute on function better_supabase.purge_audit_log(interval, integer, ${id}, boolean) to service_role;
 
 -- Tenants with entries older than older_than, for a retention callback in TypeScript.
-create or replace function better_supabase.audit_log_tenants(older_than interval default '1 day')
+create or replace function better_supabase.audit_events_tenants(older_than interval default '1 day')
 returns setof ${id}
 language sql
 stable
@@ -540,10 +603,10 @@ security definer
 set search_path = ''
 as $$
   select distinct l.${c("tenant")} from ${log} l
-  where l.${c("at")} < now() - older_than
+  where l.${c("occurredAt")} < now() - older_than
 $$;
-revoke execute on function better_supabase.audit_log_tenants(interval) from public, anon, authenticated;
-grant execute on function better_supabase.audit_log_tenants(interval) to service_role;`;
+revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
+grant execute on function better_supabase.audit_events_tenants(interval) to service_role;`;
 }
 
 const REGISTER = `drop function if exists better_supabase.audit(regclass, text[]);
@@ -591,7 +654,7 @@ begin
       target_type = excluded.target_type, tenant_column = excluded.tenant_column;
   execute format('drop trigger if exists bs_audit on %s', target);
   execute format(
-    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_trigger()',
+    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change()',
     target
   );
 end;
@@ -606,7 +669,23 @@ begin
   execute format('drop trigger if exists bs_audit on %s', target);
   delete from better_supabase.audited_tables a where a.target = unaudit.target;
 end;
-$$;`;
+$$;
+
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text) from public, anon, authenticated;
+revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;`;
+
+/** The 0.4 table name and columns, read-only, until the next minor release. */
+function legacyView(ctx: KitContext): string {
+  const log = ctx.table("log");
+  const view = `${sqlIdent(ctx.tableName("log").schema)}.audit_log`;
+  return `create or replace view ${view}
+  with (security_invoker = true) as
+  select l.*, l.${ctx.col("log", "occurredAt")} as at, l.${ctx.col("log", "tenant")} as org_id
+  from ${log} l;
+comment on view ${view} is 'deprecated: use ${ctx.tableName("log").schema}.${ctx.tableName("log").name}';
+revoke all on ${view} from anon, authenticated;
+grant select on ${view} to service_role;`;
+}
 
 function auditSql(ctx: KitContext, layout: KitLayout): string {
   const restricted = restrictedOn(ctx);
@@ -684,12 +763,50 @@ export const AUDIT: KitModuleDefinition = {
     {
       from: 1,
       description:
-        "audit() takes redact, category, event_prefix, target_type and tenant_column; audit_event() records semantic events; purge_audit_log() takes a tenant.",
-      sql: () =>
+        "Renames audit_log to audit_events (with a read-only audit_log view until 0.6), at to occurred_at, org_id to organization_id and audit_trigger() to audit_row_change(); audit() takes redact, category, event_prefix, target_type and tenant_column; audit_event() records semantic events; purge_audit_log() takes a tenant.",
+      sql: (ctx) =>
         [
+          ctx.manages
+            ? renameSql({
+                schema: ctx.tableName("log").schema,
+                table: "audit_log",
+                tables: [["audit_log", ctx.tableName("log").name]],
+                columns: [
+                  ["at", "occurred_at"],
+                  ["org_id", "organization_id"],
+                ],
+                indexes: [
+                  ["audit_log_record_idx", "audit_events_record_idx"],
+                  ["audit_log_org_idx", "audit_events_organization_idx"],
+                ],
+              })
+            : "",
+          renameSql({
+            schema: "better_supabase",
+            table: "audited_tables",
+            functions: [["audit_trigger", "audit_row_change", ""]],
+          }),
           "drop function if exists better_supabase.audit(regclass, text[], boolean);",
           "drop function if exists better_supabase.purge_audit_log(interval, integer);",
-        ].join("\n"),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+    },
+  ],
+  deprecated: [
+    {
+      kind: "table",
+      symbol: "better_supabase.audit_log",
+      use: "better_supabase.audit_events (occurred_at, organization_id)",
+      since: "0.5.0",
+      wrapper: (ctx) => (ctx.manages ? legacyView(ctx) : ""),
+    },
+    {
+      kind: "function",
+      symbol: "better_supabase.audit_trigger",
+      use: "better_supabase.audit_row_change()",
+      since: "0.5.0",
+      removed: "0.5.0",
     },
   ],
   build: auditSql,

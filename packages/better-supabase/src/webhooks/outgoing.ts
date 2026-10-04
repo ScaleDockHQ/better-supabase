@@ -3,7 +3,7 @@ import type { EventHub } from "../core/events.ts";
 import type { KitTransport } from "../core/kit-transport.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { CloudEvent, EventSink } from "../events/index.ts";
-import type { WebhookTransport } from "./http.ts";
+import type { WebhookResponse, WebhookTransport } from "./http.ts";
 import type { RotateSecretOptions, WebhookSecretStore } from "./secrets.ts";
 import type { WebhookSigner } from "./signers.ts";
 import type { AllowUrl } from "./url-policy.ts";
@@ -23,11 +23,11 @@ import { verifySharedSecret } from "./verify.ts";
 /** One claimed delivery, as `shouldDeliver`, `transform` and `headers` see it. */
 export interface WebhookDelivery {
   readonly id: string;
-  readonly destinationId: string;
+  readonly endpointId: string;
   readonly url: string;
   readonly type: string;
   readonly payload: unknown;
-  /** 1 on the first try. */
+  /** 1 on the first try. Counted when the delivery is claimed. */
   readonly attempt: number;
   readonly tenant: string | null;
   readonly eventId: string | null;
@@ -36,9 +36,13 @@ export interface WebhookDelivery {
 }
 
 export interface RetryPolicy {
-  /** Attempts before a delivery is dead-lettered. Defaults to 5. */
+  /** Attempts before a delivery is dead-lettered. Defaults to 8. */
   readonly maxAttempts?: number;
-  /** Seconds before the next attempt. Defaults to 30s doubling, at most an hour. */
+  /**
+   * Seconds before the next attempt. Defaults to 5 seconds, 5 minutes, 30
+   * minutes, 2 hours, 5 hours, then 10 hours, each with full jitter. A
+   * receiver's `Retry-After` wins when it asks for longer, up to a day.
+   */
   readonly backoff?: (attempt: number) => number;
   /** Statuses worth retrying. Defaults to 408, 429 and 5xx; network errors always retry. */
   readonly retryable?: (status: number) => boolean;
@@ -88,7 +92,7 @@ export interface PublishInput {
 }
 
 export interface DispatchInput {
-  readonly destinationId: string;
+  readonly endpointId: string;
   readonly type: string;
   readonly data: unknown;
   /** An external run id stored with the delivery, e.g. a workflow run. */
@@ -99,18 +103,24 @@ export interface DispatchInput {
 export interface DeliverWebhooksOptions {
   /** Deliveries per claim. Defaults to 25. */
   readonly batch?: number;
+  /**
+   * Requests in flight at once. Defaults to 10, so a batch of 25 at the
+   * 10-second timeout finishes well inside the lease.
+   */
+  readonly concurrency?: number;
   /** How long a claim holds a delivery. Defaults to `'2 minutes'`. */
   readonly lease?: string;
   readonly budgetMs?: number;
 }
 
 export interface DeliverWebhooksResult {
-  readonly completed: number;
+  readonly succeeded: number;
   /** Failed attempts that will retry. */
-  readonly failed: number;
-  readonly deadLettered: number;
+  readonly retrying: number;
+  /** Deliveries that ran out of attempts or can't succeed. */
+  readonly dead: number;
   readonly canceled: number;
-  /** Destinations disabled after too many dead letters in a row. */
+  /** Endpoints disabled after failing for `disableAfter`. */
   readonly disabled: number;
 }
 
@@ -120,15 +130,15 @@ export interface WebhooksRouteOptions extends DeliverWebhooksOptions {
 }
 
 export interface Webhooks {
-  /** Queues the event for each subscribed destination; returns how many. */
+  /** Queues the event for each subscribed endpoint; returns how many. */
   publish(event: PublishInput): AsyncResult<number>;
-  /** Sends to one destination outside its subscriptions; returns the delivery id. */
+  /** Sends to one endpoint outside its subscriptions; returns the delivery id. */
   dispatch(input: DispatchInput): AsyncResult<string>;
   /** Queues a finished delivery again. */
   redeliver(deliveryId: string): AsyncResult<string>;
   /** A new signing secret, returned once. */
   rotateSecret(
-    destinationId: string,
+    endpointId: string,
     options?: RotateSecretOptions,
   ): AsyncResult<string>;
   /** Sends due deliveries. Run it from a cron route or a job. */
@@ -137,8 +147,17 @@ export interface Webhooks {
   deliverRoute(
     options: WebhooksRouteOptions,
   ): (request: Request) => Promise<Response>;
-  /** An `EventSink` that publishes CloudEvents, e.g. from the outbox relay. */
-  sink(): EventSink;
+  /**
+   * An `EventSink` that publishes CloudEvents, e.g. from the outbox relay.
+   * Endpoints subscribe to unprefixed types, so it removes `typePrefix`
+   * (`dev.better-supabase` by default, the relay's default) and the dot.
+   */
+  sink(options?: WebhookSinkOptions): EventSink;
+}
+
+export interface WebhookSinkOptions {
+  /** The relay's `typePrefix`. */
+  readonly typePrefix?: string;
 }
 
 const DEFAULT_SCHEMA = "better_supabase";
@@ -152,11 +171,11 @@ const textOf = (value: unknown): string | null =>
 function toDelivery(row: Record<string, unknown>): WebhookDelivery {
   return {
     id: String(row["id"]),
-    destinationId: String(row["destination_id"]),
+    endpointId: String(row["endpoint_id"]),
     url: String(row["url"]),
     type: String(row["type"]),
     payload: row["payload"] ?? {},
-    attempt: Number(row["attempt"] ?? 0) + 1,
+    attempt: Number(row["attempt"] ?? 1),
     tenant: textOf(row["tenant"]),
     eventId: textOf(row["event_id"]),
     runId: textOf(row["run_id"]),
@@ -167,8 +186,15 @@ function toDelivery(row: Record<string, unknown>): WebhookDelivery {
   };
 }
 
+const SCHEDULE = [5, 300, 1800, 7200, 18_000, 36_000] as const;
+
 const defaultBackoff = (attempt: number): number =>
-  Math.min(3600, 30 * 2 ** Math.max(0, attempt - 1));
+  Math.round(
+    Math.random() *
+      SCHEDULE[Math.min(Math.max(attempt, 1), SCHEDULE.length) - 1]!,
+  );
+
+const MAX_RETRY_AFTER = 86_400;
 
 const defaultRetryable = (status: number): boolean =>
   status === 408 || status === 429 || status >= 500;
@@ -176,7 +202,7 @@ const defaultRetryable = (status: number): boolean =>
 const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
-type Outcome = "completed" | "failed" | "dead_lettered" | "canceled";
+type Outcome = "succeeded" | "retrying" | "dead" | "canceled";
 
 export function createWebhooks(options: WebhooksOptions): Webhooks {
   const { transport } = options;
@@ -184,7 +210,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   const mappers = options.errorMappers ?? [];
   const store = options.secrets ?? sqlSecretStore(transport, { schema });
   const signer = options.signer ?? standardWebhooks();
-  const maxAttempts = options.retry?.maxAttempts ?? 5;
+  const maxAttempts = options.retry?.maxAttempts ?? 8;
   const backoff = options.retry?.backoff ?? defaultBackoff;
   const retryable = options.retry?.retryable ?? defaultRetryable;
   const bodyLimit = options.responseBodyLimit ?? 2000;
@@ -219,14 +245,14 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       options.events,
       type,
       {
-        endpointId: delivery.destinationId,
+        endpointId: delivery.endpointId,
         deliveryId: delivery.id,
         eventType: delivery.type,
         attempt: delivery.attempt,
         ...extra,
       },
       {
-        subject: `webhooks/${delivery.destinationId}`,
+        subject: `webhooks/${delivery.endpointId}`,
         ...(delivery.tenant ? { tenant: delivery.tenant } : {}),
         ...(options.context ? { context: options.context } : {}),
       },
@@ -237,24 +263,29 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     delivery: WebhookDelivery,
     status: Outcome,
     detail: {
-      readonly response?: { readonly status: number; readonly body: string };
+      readonly response?: WebhookResponse;
       readonly durationMs?: number;
       readonly error?: string;
     },
-  ): Promise<boolean> {
+  ): Promise<unknown> {
+    const retryAfter = Math.min(
+      detail.response?.retryAfter ?? 0,
+      MAX_RETRY_AFTER,
+    );
     const retryAt =
-      status === "failed"
+      status === "retrying"
         ? temporal()
             .Now.instant()
-            .add({ seconds: backoff(delivery.attempt) })
+            .add({
+              seconds: Math.max(backoff(delivery.attempt), retryAfter),
+            })
             .toString()
         : undefined;
-    const state = await call("complete_webhook_delivery", {
+    return call("complete_webhook_delivery", {
       delivery: delivery.id,
       outcome: {
         status,
-        attempt:
-          status === "canceled" ? delivery.attempt - 1 : delivery.attempt,
+        attempt: delivery.attempt,
         ...(retryAt ? { retry_at: retryAt } : {}),
         ...(detail.response
           ? {
@@ -270,15 +301,14 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
           : { error: detail.error.slice(0, bodyLimit) }),
       },
     });
-    return state === "disabled";
   }
 
   const failure = (delivery: WebhookDelivery): Outcome =>
-    delivery.attempt >= maxAttempts ? "dead_lettered" : "failed";
+    delivery.attempt >= maxAttempts ? "dead" : "retrying";
 
   async function attempt(delivery: WebhookDelivery): Promise<{
     readonly outcome: Outcome;
-    readonly response?: { readonly status: number; readonly body: string };
+    readonly response?: WebhookResponse;
     readonly durationMs?: number;
     readonly error?: string;
   }> {
@@ -295,11 +325,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     let body: string;
     let headers: Record<string, string>;
     try {
-      const secrets = await store.secrets(delivery.destinationId);
+      const secrets = await store.secrets(delivery.endpointId);
       if (secrets.length === 0)
         return {
-          outcome: "dead_lettered",
-          error: "The destination has no signing secret",
+          outcome: "dead",
+          error: "The endpoint has no signing secret",
         };
       body = JSON.stringify(
         options.transform
@@ -333,11 +363,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       });
       const durationMs = Date.now() - started;
       if (response.status >= 200 && response.status < 300)
-        return { outcome: "completed", response, durationMs };
+        return { outcome: "succeeded", response, durationMs };
       return {
-        outcome: retryable(response.status)
-          ? failure(delivery)
-          : "dead_lettered",
+        outcome: retryable(response.status) ? failure(delivery) : "dead",
         response,
         durationMs,
         error: `HTTP ${String(response.status)}`,
@@ -345,9 +373,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     } catch (cause) {
       return {
         outcome:
-          cause instanceof WebhookPolicyError
-            ? "dead_lettered"
-            : failure(delivery),
+          cause instanceof WebhookPolicyError ? "dead" : failure(delivery),
         durationMs: Date.now() - started,
         error: errorText(cause),
       };
@@ -358,9 +384,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     deliverOptions: DeliverWebhooksOptions = {},
   ): Promise<DeliverWebhooksResult> {
     const counts = {
-      completed: 0,
-      failed: 0,
-      deadLettered: 0,
+      succeeded: 0,
+      retrying: 0,
+      dead: 0,
       canceled: 0,
       disabled: 0,
     };
@@ -369,46 +395,59 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         ? Number.POSITIVE_INFINITY
         : Date.now() + deliverOptions.budgetMs;
     const batch = deliverOptions.batch ?? 25;
+    const concurrency = Math.max(1, deliverOptions.concurrency ?? 10);
+
+    async function handle(delivery: WebhookDelivery): Promise<void> {
+      const result = await attempt(delivery);
+      const state = await complete(delivery, result.outcome, result);
+      if (state === "stale") return;
+      switch (result.outcome) {
+        case "succeeded":
+          counts.succeeded += 1;
+          emit("webhook.delivered", delivery, {
+            status: result.response?.status ?? 200,
+          });
+          break;
+        case "retrying":
+        case "dead":
+          if (result.outcome === "retrying") counts.retrying += 1;
+          else counts.dead += 1;
+          emit("webhook.failed", delivery, {
+            ...(result.response ? { status: result.response.status } : {}),
+            ...(result.error ? { error: result.error } : {}),
+          });
+          break;
+        case "canceled":
+          counts.canceled += 1;
+          break;
+        default: {
+          const unknown: never = result.outcome;
+          throw new TypeError(`Unknown outcome ${String(unknown)}`);
+        }
+      }
+      if (state === "disabled") {
+        counts.disabled += 1;
+        emit("webhook.disabled", delivery);
+      }
+    }
+
     while (Date.now() < deadline) {
       const claimed = await call("claim_webhook_deliveries", {
         max_items: batch,
         lease: deliverOptions.lease ?? "2 minutes",
+        max_attempts: maxAttempts,
       });
-      const rows = (Array.isArray(claimed) ? claimed : []).filter(isRecord);
-      for (const row of rows) {
-        const delivery = toDelivery(row);
-        const result = await attempt(delivery);
-        const disabled = await complete(delivery, result.outcome, result);
-        switch (result.outcome) {
-          case "completed":
-            counts.completed += 1;
-            emit("webhook.delivered", delivery, {
-              status: result.response?.status ?? 200,
-            });
-            break;
-          case "failed":
-          case "dead_lettered":
-            if (result.outcome === "failed") counts.failed += 1;
-            else counts.deadLettered += 1;
-            emit("webhook.failed", delivery, {
-              ...(result.response ? { status: result.response.status } : {}),
-              ...(result.error ? { error: result.error } : {}),
-            });
-            break;
-          case "canceled":
-            counts.canceled += 1;
-            break;
-          default: {
-            const unknown: never = result.outcome;
-            throw new TypeError(`Unknown outcome ${String(unknown)}`);
-          }
-        }
-        if (disabled) {
-          counts.disabled += 1;
-          emit("webhook.disabled", delivery);
-        }
-      }
-      if (rows.length < batch) break;
+      const queue = (Array.isArray(claimed) ? claimed : [])
+        .filter(isRecord)
+        .map(toDelivery);
+      const size = queue.length;
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, size) }, async () => {
+          for (let next = queue.shift(); next; next = queue.shift())
+            await handle(next);
+        }),
+      );
+      if (size < batch) break;
     }
     return counts;
   }
@@ -429,7 +468,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       run(
         () =>
           call("dispatch_webhook", {
-            destination: input.destinationId,
+            endpoint: input.endpointId,
             event_type: input.type,
             payload: input.data ?? {},
             run_id: input.runId ?? null,
@@ -439,14 +478,14 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       ),
     redeliver: (deliveryId) =>
       run(() => call("redeliver_webhook", { delivery: deliveryId }), String),
-    rotateSecret(destinationId, rotateOptions) {
+    rotateSecret(endpointId, rotateOptions) {
       if (!store.rotate) {
         return AsyncResult.err(
           dbError("unexpected", "The secret store can't rotate secrets"),
         );
       }
       const rotate = store.rotate.bind(store);
-      return run(() => rotate(destinationId, rotateOptions), String);
+      return run(() => rotate(endpointId, rotateOptions), String);
     },
     deliver,
     deliverRoute(routeOptions) {
@@ -480,18 +519,23 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         }
       };
     },
-    sink: () => ({
-      async send(events: readonly CloudEvent[]) {
-        for (const event of events) {
-          const tenant = event["partitionkey"];
-          await call("publish_webhook_event", {
-            event_type: event.type,
-            payload: event.data ?? {},
-            tenant: typeof tenant === "string" ? tenant : null,
-            event_id: event.id,
-          });
-        }
-      },
-    }),
+    sink: (sinkOptions = {}) => {
+      const prefix = `${sinkOptions.typePrefix ?? "dev.better-supabase"}.`;
+      return {
+        async send(events: readonly CloudEvent[]) {
+          for (const event of events) {
+            const tenant = event["partitionkey"];
+            await call("publish_webhook_event", {
+              event_type: event.type.startsWith(prefix)
+                ? event.type.slice(prefix.length)
+                : event.type,
+              payload: event.data ?? {},
+              tenant: typeof tenant === "string" ? tenant : null,
+              event_id: event.id,
+            });
+          }
+        },
+      };
+    },
   };
 }

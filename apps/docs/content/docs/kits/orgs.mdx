@@ -47,8 +47,17 @@ Every check runs in the function, and the database keeps two rules even for
 writes that bypass the functions. A deferred trigger refuses a commit that
 leaves an organization without an owner (`ownerInvariant`), and a trigger on
 the memberships table stops members from changing their own role or
-assigning a role above their own (`assignmentCeiling`). The kit's own writes
-and the service role pass the second one.
+assigning a role above their own. The kit's own writes and the service role
+pass the second one, and it can't be turned off.
+
+The owner check locks the organization row, so two owners who leave at the
+same time can't both succeed. When the kit owns the organizations table, the
+slug is required, and memberships, invitations and permission overrides
+reference the organization with `on delete cascade`: deleting it deletes
+them. Under `model: 'catalog'`, a role that a member still holds can't be
+deleted (`on delete restrict`). The keys are added to tables that already
+exist too; when older rows have no organization, the kit adds the key
+without validating them and logs a warning.
 
 ## From TypeScript
 
@@ -79,11 +88,26 @@ export async function inviteMember(organizationId: string, email: string) {
 }
 ```
 
-`rpcTransport(ctx.supabase)` calls them over the Data API instead. The
-default `better_supabase` schema is not exposed, so use it after you add the
-schema to `[api] schemas` in `config.toml`, or set `kits.<module>.schema` to
-an exposed schema. With modules in different schemas, pass
-`schema: { organizations: "public", invitations: "app" }`.
+`rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
+`better_supabase` or a `kits.<module>.schema` to `[api] schemas`: those
+schemas hold internal helpers that policies call, and doctor reports exposing
+them as BS312. Create a separate API schema, such as `api`, that holds only the
+RPC entry points: one `security invoker` function per kit function you call,
+with the same name and arguments, that calls the kit function. Add that schema
+to `[api] schemas` and pass `schema: "api"` to `createOrgs`. With entry points
+in different schemas, pass `schema: { organizations: "api", invitations: "app_api" }`.
+
+```sql title="supabase/schemas/200_api.sql"
+create schema if not exists api;
+grant usage on schema api to authenticated;
+
+create function api.create_organization(attrs jsonb)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select better_supabase.create_organization(attrs) $$;
+```
 
 Each method returns an `AsyncResult`. Errors the kit raises are `DbError`s
 whose `hint` is a stable code, so a form can show the right message:
@@ -127,39 +151,49 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 `kits.organizations.options`:
 
-| Option              | Default                             | What it does                                                                                                 |
-| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `attributes`        | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
-| `ownerRole`         | `owner`                             | the creator's role                                                                                           |
-| `formerOwnerRole`   | `admin`                             | the previous owner's role after a transfer                                                                   |
-| `deleteMode`        | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
-| `ownerInvariant`    | `true`                              | an organization always keeps an owner                                                                        |
-| `assignmentCeiling` | `true`                              | members can't raise their own role or assign one above it                                                    |
-| `slugPattern`       | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
-| `slugMinLength`     | `2`                                 | the shortest slug                                                                                            |
-| `slugMaxLength`     | `48`                                | the longest slug                                                                                             |
-| `reservedSlugs`     | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
-| `slugCitext`        | `false`                             | a `citext` slug column on a managed table                                                                    |
+| Option            | Default                             | What it does                                                                                                 |
+| ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
+| `ownerRole`       | `owner`                             | the creator's role                                                                                           |
+| `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                   |
+| `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
+| `ownerInvariant`  | `true`                              | an organization always keeps an owner                                                                        |
+| `slugPattern`     | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
+| `slugMinLength`   | `2`                                 | the shortest slug                                                                                            |
+| `slugMaxLength`   | `48`                                | the longest slug                                                                                             |
+| `reservedSlugs`   | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
+| `slugCitext`      | `false`                             | a `citext` slug column on a managed table                                                                    |
 
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.
 
-`kits.invitations.options`:
+`kits.invitations.options` (`tokenStorage: "plain"` is migration-only: the
+config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 
 | Option                  | Default    | What it does                                                 |
 | ----------------------- | ---------- | ------------------------------------------------------------ |
 | `validFor`              | `7 days`   | how long an invitation is open                               |
-| `tokenStorage`          | `sha256`   | `plain` stores the token itself, for tables that already do  |
+| `maxValidFor`           | `30 days`  | the longest `valid_for` an invite or resend may ask for      |
+| `prefill`               | `false`    | adds the `prefill` column (managed tables)                   |
+| `tokenStorage`          | `sha256`   | `plain` stores the token itself; migration-only (adopt mode) |
 | `tokenBytes`            | `24`       | the token's random bytes                                     |
 | `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
-| `recheckInviter`        | `true`     | refuses the invitation when the inviter can no longer invite |
 | `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
-| `errorCodes`            | none       | SQLSTATE per error code, for apps that match on SQLSTATE     |
 
-An invitation with a null organization is a platform invitation: with
-`kits.access.model: "catalog"` and a `platformAssignments` table, accepting
-it assigns the platform role. It needs the `invitePlatform` permission
-(`platform.invite`).
+Accepting checks the inviter again: an inviter who lost the invite permission,
+or a permission the role grants, can no longer bring someone in with it.
+
+An invitation with a null organization is a platform invitation. It needs
+`kits.access.model: "catalog"` with a `platformAssignments` table, and lives in
+its own `platform_invitations` table. The inviter needs the `invitePlatform`
+permission (`platform.invite`) and every permission the platform role grants,
+both when inviting and when the invitation is accepted. Managed catalog roles
+have a `scope` column (`tenant` or `platform`), and neither kind of role is
+assignable as the other. An adopted catalog maps `kits.access.columns.roles.scope`
+and names its values in `kits.access.options.tenantRoleScope` and
+`platformRoleScope`; an adopted invitations table that also holds platform
+invitations (rows without an organization) maps `tables.platformInvitations`
+to itself.
 
 ## Existing tables
 
@@ -218,6 +252,7 @@ run your own checks and side effects in the same transaction.
 | `INVITATION_FORBIDDEN`, `INVITATION_ROLE_FORBIDDEN`       | the caller may not invite, or not with that role   |
 | `INVITATION_ROLE_UNKNOWN`, `INVITATION_ALREADY_MEMBER`    | no such role, or the address is already a member   |
 | `INVITATION_INVALID`                                      | unknown, used, revoked or expired token            |
+| `INVITATION_VALIDITY`                                     | `valid_for` is not positive or above `maxValidFor` |
 | `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`         | not signed in, or signed in with another address   |
 | `INVITATION_EMAIL_UNCONFIRMED`                            | the address is not confirmed yet                   |
 | `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`           | your own invitation, or the inviter lost the right |

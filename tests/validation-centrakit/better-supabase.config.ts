@@ -27,7 +27,11 @@ export default defineConfig({
         overrides: "centrakit.organization_permission_overrides",
         platformAssignments: "centrakit.user_roles",
       },
-      columns: { overrides: { tenant: "organization_id" } },
+      columns: {
+        roles: { scope: "scope" },
+        overrides: { tenant: "organization_id" },
+      },
+      options: { tenantRoleScope: "organization", platformRoleScope: "system" },
       disabled: {
         tenant: "centrakit.organizations.disabled_at",
         user: "centrakit.profiles.disabled_at",
@@ -68,7 +72,10 @@ export default defineConfig({
     },
     invitations: {
       mode: "adopt",
-      tables: { invitations: "centrakit.organization_invitations" },
+      tables: {
+        invitations: "centrakit.organization_invitations",
+        platformInvitations: "centrakit.organization_invitations",
+      },
       columns: {
         invitations: {
           tenant: "organization_id",
@@ -130,7 +137,7 @@ export default defineConfig({
           changed: null,
           actorRole: null,
           tenant: "organization_id",
-          at: "occurred_at",
+          occurredAt: "occurred_at",
           impersonatedBy: null,
           impersonationReason: null,
           supportSession: null,
@@ -160,9 +167,8 @@ export default defineConfig({
           xid: null,
         },
       },
+      idType: "uuid",
       options: {
-        tenantType: "uuid",
-        settle: "0 seconds",
         defaultSource: "domain",
         kitSource: "domain",
       },
@@ -177,7 +183,13 @@ export default defineConfig({
         subscriptions: "centrakit.notification_subscriptions",
         preferences: "centrakit.notification_preferences",
       },
-      columns: { events: { key: null }, deliveries: { attempts: null } },
+      columns: {
+        events: { key: null, actor: "actor_user_id", data: "metadata" },
+        recipients: { user: "recipient_user_id" },
+        deliveries: { attempts: null, nextAttemptAt: null },
+        subscriptions: { updatedAt: null },
+        preferences: { updatedAt: null },
+      },
       idType: "uuid",
       options: {
         topic: "org:{tenantId}:notifications:{userId}",
@@ -187,18 +199,23 @@ export default defineConfig({
     "webhooks-out": {
       mode: "adopt",
       tables: {
-        destinations: "centrakit.webhook_destinations",
+        endpoints: "centrakit.webhook_destinations",
         secrets: "centrakit.webhook_destination_secrets",
         deliveries: "centrakit.webhook_deliveries",
       },
       columns: {
-        destinations: {
-          failureCount: null,
+        endpoints: {
+          eventTypes: "event_kinds",
+          failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },
-        secrets: { vaultId: null, expiresAt: null },
-        deliveries: { run: "workflow_run_id" },
+        secrets: { endpoint: "destination_id", vaultId: null, expiresAt: null },
+        deliveries: {
+          endpoint: "destination_id",
+          type: "event_kind",
+          run: "workflow_run_id",
+        },
       },
       permissions: {
         manage: "organization.webhooks.manage",
@@ -208,6 +225,12 @@ export default defineConfig({
         secretStorage: "column",
         eventIdType: "uuid",
         runIdType: "uuid",
+        statuses: {
+          delivering: "processing",
+          succeeded: "completed",
+          retrying: "failed",
+          dead: "dead_lettered",
+        },
       },
     },
   },

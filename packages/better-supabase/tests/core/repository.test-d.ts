@@ -83,6 +83,8 @@ describe("payload inference", () => {
         organizationId: string;
         name: string;
         color: TagsColor;
+        createdAt: string;
+        updatedAt: string;
       }>
     >();
   });

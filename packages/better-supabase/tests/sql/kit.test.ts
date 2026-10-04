@@ -21,7 +21,7 @@ describe("resolveModules", () => {
   });
 
   it("deduplicates and rejects unknown modules", () => {
-    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(3);
+    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(4);
     expect(() => resolveModules(["nope"])).toThrow(
       /Unknown SQL kit module "nope"/,
     );
@@ -67,7 +67,7 @@ describe("renderKit", () => {
     expect(file!.contents).toContain(
       "row_data ->> coalesce(entry.tenant_column, 'team_id')",
     );
-    expect(file!.contents).not.toContain("organization_id");
+    expect(file!.contents).not.toContain("'organization_id'");
     expect(file!.contents).toContain("i.indisprimary");
     expect(file!.contents).not.toContain("row_data ->> 'id'");
   });
@@ -81,6 +81,22 @@ describe("renderKit", () => {
       for (const [, name] of functions)
         expect(name).toMatch(/^better_supabase\./);
       expect(module.sql).not.toMatch(/create table (?!if not exists)/);
+    }
+  });
+
+  it("keeps statements a schema diff skips out of the schema files", () => {
+    const layouts = [{}, { kits: { jobs: { options: { backend: "table" } } } }];
+    for (const layout of layouts) {
+      const files = renderKit(Object.keys(SQL_MODULES), layout);
+      for (const file of files.filter((entry) => entry.kind === "schema")) {
+        expect(file.contents).not.toMatch(
+          /^(insert|update|delete|select|truncate|notify|alter role|call)\b/im,
+        );
+      }
+      for (const file of files.filter((entry) => entry.kind === "data")) {
+        expect(file.path).toMatch(/\/better-supabase-data\/[^/]+\.sql$/);
+        expect(file.contents).not.toMatch(/^(create|drop|alter table)\b/im);
+      }
     }
   });
 });
@@ -99,15 +115,20 @@ describe("sameKitFile", () => {
 
   it("registers realtime tables with the tenant column", () => {
     const [file] = renderKit(["realtime-tables"], {
-      realtimeTables: ["customers", "billing.invoices"],
+      realtimeTables: ["customers", "billing.invoices", "plans"],
+      realtimeGlobal: ["public.plans"],
       tenantColumn: "organization_id",
     });
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.customers', 'organization_id');",
+      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('billing.invoices', 'organization_id');",
+      "select better_supabase.track_realtime('billing.invoices', tenant_column => 'organization_id');",
     );
+    expect(file!.contents).toContain(
+      "select better_supabase.track_realtime('public.plans', tenant_column => null);",
+    );
+    expect(file!.contents).toContain("raise exception '% has no column %'");
     expect(renderKit(["realtime-tables"])[0]!.contents).not.toContain(
       "config.realtime.tables",
     );
@@ -136,7 +157,7 @@ describe("sameKitFile", () => {
       "create extension if not exists pg_jsonschema with schema extensions;",
     );
     expect(file!.contents).toContain(
-      `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata"));`,
+      `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bs_json_metadata";`,
     );
     expect(file!.contents).toContain(
       'alter table "billing"."invoices" drop constraint if exists "bs_json_lines";',
@@ -228,11 +249,16 @@ describe("entitlements in PermDock mode", () => {
       },
     ],
   } as const;
+  const entitlements = {
+    table: "organizations",
+    column: "stripe_customer_id",
+    key: "id",
+  };
 
   it("drops the tenant dependency", () => {
     expect(
       resolveModules(["entitlements"]).map((module) => module.name),
-    ).toEqual(["tenant", "entitlements"]);
+    ).toEqual(["updated-at", "tenant", "entitlements"]);
     expect(
       resolveModules(["entitlements"], { permdock }).map(
         (module) => module.name,
@@ -241,7 +267,7 @@ describe("entitlements in PermDock mode", () => {
   });
 
   it("reads member_<scope>_ids and member_<scope>_ids_for", () => {
-    const [file] = renderKit(["entitlements"], { permdock });
+    const [file] = renderKit(["entitlements"], { permdock, entitlements });
     const sql = file!.contents;
     expect(sql).toContain(
       'select tenant in (select "authz"."member_organization_ids"())',
@@ -264,6 +290,7 @@ describe("entitlements in PermDock mode", () => {
     (idType) => {
       const file = renderKit(["entitlements"], {
         permdock: { ...permdock, idType },
+        entitlements,
       }).find((entry) => entry.module === "entitlements");
       const sql = file!.contents;
       for (const signature of [
@@ -285,12 +312,46 @@ describe("entitlements in PermDock mode", () => {
   );
 
   it("keeps the tenant-mode functions without PermDock", () => {
-    const file = renderKit(["entitlements"]).find(
+    const file = renderKit(["entitlements"], { entitlements }).find(
       (entry) => entry.module === "entitlements",
     );
     expect(file!.contents).toContain(
       "select better_supabase.has_org_role(tenant)",
     );
-    expect(file!.contents).toContain("from better_supabase.memberships m");
+    expect(file!.contents).toContain('from "better_supabase"."memberships" m');
+  });
+
+  it("needs a customer column unless the managed organizations module adds one", () => {
+    expect(() => renderKit(["entitlements"])).toThrow(
+      "The entitlements module needs entitlements.customer",
+    );
+    expect(() =>
+      renderKit(["entitlements", "organizations"], {
+        kits: { organizations: { mode: "adopt" } },
+      }),
+    ).toThrow("The entitlements module needs entitlements.customer");
+    const files = renderKit(["entitlements", "organizations"]);
+    const sql = (name: string) =>
+      files.find((file) => file.module === name && file.kind === "schema")!
+        .contents;
+    expect(sql("entitlements")).toContain(
+      'select t."stripe_customer_id" from "better_supabase"."organizations" t where t."id" = tenant',
+    );
+    expect(sql("organizations")).toContain(
+      "add column if not exists stripe_customer_id text unique;",
+    );
+    expect(sql("entitlements")).toContain("returns text\nlanguage plpgsql");
+    expect(
+      renderKit(["entitlements"], {
+        entitlements: { table: "billing", column: "customer", key: "org" },
+      }).find(
+        (file) => file.module === "entitlements" && file.kind === "schema",
+      )!.contents,
+    ).toContain("returns text\nlanguage sql");
+    expect(
+      renderKit(["organizations"]).find(
+        (file) => file.module === "organizations",
+      )!.contents,
+    ).not.toContain("stripe_customer_id");
   });
 });

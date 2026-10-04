@@ -3,8 +3,17 @@ import type { KitModuleDefinition } from "../kit.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SCHEMA, SERVICE_CALLER } from "../shared.ts";
+import { hasPlatformRoles, KIT_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "allowPlatformTargets",
+    "allowWrites",
+    "auditCategory",
+    "claimsHook",
+    "maxTtl",
+    "requireReason",
+  ],
   tables: {
     sessions: {
       name: "support_sessions",
@@ -13,7 +22,7 @@ const NAMES: KitNames = {
         admin: "admin_id",
         target: "target_user_id",
         reason: "reason",
-        tenant: "org_id",
+        tenant: "organization_id",
         readOnly: "read_only",
         startedAt: "started_at",
         expiresAt: "expires_at",
@@ -54,8 +63,9 @@ function table(ctx: KitContext): string {
   return `
 create table if not exists ${sessions} (
   ${c("id")} uuid primary key default gen_random_uuid(),
-  ${c("admin")} uuid not null references auth.users (id) on delete cascade,
-  ${c("target")} uuid not null references auth.users (id) on delete cascade,
+  -- Sessions outlive a deleted user, so the record of who viewed whom stays.
+  ${c("admin")} uuid references auth.users (id) on delete set null,
+  ${c("target")} uuid references auth.users (id) on delete set null,
   ${c("reason")} text not null,
   ${c("tenant")} ${ctx.idType},
   ${c("readOnly")} boolean not null default true,
@@ -70,15 +80,38 @@ create table if not exists ${sessions} (
 );
 create index if not exists support_sessions_admin_idx on ${sessions} (${c("admin")}, ${c("startedAt")} desc);
 create index if not exists support_sessions_target_idx on ${sessions} (${c("target")}, ${c("startedAt")} desc);
+create unique index if not exists support_sessions_one_active_idx on ${sessions} (${c("admin")}) where ${c("endedAt")} is null;
 alter table ${sessions} enable row level security;
 revoke all on ${sessions} from anon, authenticated;
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bs_support_read on ${sessions};
 create policy bs_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", "support.view")})));
+  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", KIT_PERMISSIONS["support-sessions"].view)})));
 grant select on ${sessions} to authenticated;
 `;
+}
+
+/**
+ * Whether `target` holds platform permissions: the platform claim in
+ * `app_metadata`, or a platform role under the catalog model. Claims your
+ * access token hook adds from elsewhere are not seen here.
+ */
+function platformTarget(ctx: KitContext): string {
+  const claim = sqlString(
+    ctx.kits.access?.platformClaim ?? "platform_permissions",
+  );
+  const claimed = `exists (
+    select 1 from auth.users u
+    where u.id = target and jsonb_typeof(u.raw_app_meta_data -> ${claim}) = 'array'
+      and jsonb_array_length(u.raw_app_meta_data -> ${claim}) > 0
+  )`;
+  if (!hasPlatformRoles(ctx)) return claimed;
+  const access = ctx.of("access");
+  return `(${claimed} or exists (
+    select 1 from ${access.table("platformAssignments")} a
+    where a.${access.col("platformAssignments", "user")} = target
+  ))`;
 }
 
 /** `start_support_session`: the admin is the caller, or `admin_id` for the service role. */
@@ -133,7 +166,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not ${isPlatform}(${ctx.permission("start", "support.start")}) then
+      or not ${isPlatform}(${ctx.permission("start", KIT_PERMISSIONS["support-sessions"].start)}) then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -146,6 +179,21 @@ begin
   if ttl <= interval '0' or ttl > ${maxTtl}::interval then
     raise exception 'ttl must be between 0 and %', ${maxTtl} using errcode = '22023', hint = 'SUPPORT_TTL';
   end if;${
+    ctx.flag("allowPlatformTargets", false)
+      ? ""
+      : `
+  -- Viewing the app as platform staff would hand the admin that staff's reach.
+  if ${platformTarget(ctx)} then
+    raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
+  end if;`
+  }${
+    ctx.flag("allowWrites", false)
+      ? ""
+      : `
+  if not coalesce(read_only, true) then
+    raise exception 'Support sessions are read-only (kits.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+  end if;`
+  }${
     requireReason
       ? `
   if coalesce(btrim(reason), '') = '' then
@@ -195,8 +243,9 @@ function end(ctx: KitContext): string {
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
   const category = sqlString(ctx.text("auditCategory", "support"));
-  return `-- Ends a session. The admin who started it ends their own; platform staff
--- with the revoke permission, or the service role, end anyone's.
+  return `-- Ends a session. The admin who started it ends their own ('admin');
+-- platform staff with the revoke permission end anyone's ('revoked'). Only
+-- the service role chooses ended_by, for example 'expired' from a sweep.
 create or replace function ${ctx.fn("end_support_session")}(
   session_id uuid,
   ended_by text default 'admin'
@@ -211,16 +260,25 @@ declare
   service boolean := ${SERVICE_CALLER};
   ended jsonb;
 begin
-  if ended_by not in ('admin', 'expired', 'revoked') then
+  if service and ended_by not in ('admin', 'expired', 'revoked') then
     raise exception 'ended_by must be admin, expired or revoked' using errcode = '22023';
   end if;
   update ${sessions} s set ${c("endedAt")} = now()${
-    ctx.has("sessions", "endedBy") ? `, ${c("endedBy")} = ended_by` : ""
+    ctx.has("sessions", "endedBy")
+      ? `, ${c("endedBy")} = case
+      when service then ended_by
+      when s.${c("admin")} = auth.uid() then 'admin'
+      else 'revoked'
+    end`
+      : ""
   }
   where s.${c("id")} = session_id and s.${c("endedAt")} is null
     and (service or s.${c("admin")} = auth.uid()
-      or ${isPlatform}(${ctx.permission("revoke", "support.revoke")}))
+      or ${isPlatform}(${ctx.permission("revoke", KIT_PERMISSIONS["support-sessions"].revoke)}))
   returning ${sessionJson(ctx, "s")} into ended;
+  if not service then
+    ended_by := case when (ended ->> 'admin_id')::uuid = auth.uid() then 'admin' else 'revoked' end;
+  end if;
   if ended is null then
     return false;
   end if;
@@ -252,7 +310,8 @@ function reads(ctx: KitContext): string {
   return `-- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
 -- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie.
+-- that carries the support cookie. Called as the admin, it also checks that
+-- the admin may still start sessions.
 create or replace function ${ctx.fn("active_support_session")}(
   session_id uuid,
   admin_id uuid default null
@@ -268,7 +327,9 @@ as $$
   where s.${c("id")} = $1
     and s.${c("endedAt")} is null
     and s.${c("expiresAt")} > now()
-    and s.${c("admin")} = case when ${SERVICE_CALLER} then $2 else auth.uid() end
+    and case when ${SERVICE_CALLER} then s.${c("admin")} = $2
+      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", KIT_PERMISSIONS["support-sessions"].start)})
+    end
 $$;
 
 -- Sessions, newest first, for platform staff with the view permission.
@@ -287,7 +348,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", "support.view")}))
+      or ${isPlatform}(${ctx.permission("view", KIT_PERMISSIONS["support-sessions"].view)}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null

@@ -539,12 +539,12 @@ print <module>` lists the signatures.
 ### BS308
 
 **Warning: tenant claim the hook does not write.** With the `tenant` module and
-`kits.access.activeTenant: 'claim'` (the default), `current_tenant_id()` and the
+`kits.access.activeTenant: 'claim'`, `current_tenant_id()` and the
 `tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
 returns. Write the claim in the hook, or, for apps that pick the tenant from
-the URL or a profile, set `activeTenant` to `'resolver'` (with
+the URL or a profile, use the default `'resolver'` (with
 `ServerOptions.tenant`) or `{ profileColumn }`.
 
 ### BS309
@@ -554,8 +554,11 @@ policy uses a function, table, column or claim that a kit module in `sql.kit`
 deprecated or removed, such as `better_supabase.current_org_id()` or the
 `org_id` claim. A deprecated symbol keeps a compatibility wrapper for at least
 one minor release; a removed one fails at run time. The message names the
-replacement. Kit files and migrations are skipped, and so is a claim the config
-maps in `claims`.
+replacement. A renamed column such as `memberships.org_id` also counts
+unqualified (`m.org_id`) in a statement that names its table. Kit files and
+migrations are skipped, and so is a claim the config maps in `claims`. Tables
+and columns of a module in adopt or custom mode are the app's names and are
+never reported.
 
 ### BS310
 
@@ -572,6 +575,37 @@ older trigger, or call `track_updated_at()` or `audit()` with
 records an older version than this release ships. Run `better-supabase sql
 upgrade`, which writes the forward steps into a migration and rewrites the
 files, then create the schema migration. BS304 skips files this check reports.
+
+### BS312
+
+**Error: kit schema exposed through the Data API.** `[api] schemas` in
+`supabase/config.toml` lists `better_supabase` or a schema a module in `kits`
+sets. Kit schemas hold internal tables and helpers that `authenticated` can
+execute so policies can call them; exposing the schema makes them callable over
+REST and RPC as well. Remove the schema from `[api] schemas` and from the
+exposed schemas in the dashboard, and call kit functions through wrappers in an
+exposed schema. Doctor reads `[api] schemas` for every exposure check and falls
+back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
+
+### BS313
+
+**Warning: rate limits not wired to PostgREST.** The `rate-limit` module is in
+`sql.kit`, but on the live database `pgrst.db_pre_request` for the
+`authenticator` role is unset, or names a function whose body doesn't call
+`better_supabase.check_request()`, so Data API writes are never counted. Apply
+the migration `better-supabase sql data` writes, which sets the hook when no
+other one is set, or call `check_request()` from your own pre-request
+function. Doctor needs a database connection for this check.
+
+### BS314
+
+**Warning: migration-only kit option.** A module in `sql.kit` sets an option
+that only exists to match a schema you are adopting: `tokenStorage: "plain"`
+for invitations, `secretStorage: "column"` or an `eventIdType` or `runIdType`
+other than `text` for webhooks-out, or a `kitSource` or `defaultSource` for
+the outbox. The config only accepts them with
+`mode: "adopt"`. Move the data to the managed default (hash the tokens, move
+the secrets into Vault), then remove the option.
 
 ## Auth config
 

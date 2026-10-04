@@ -116,6 +116,12 @@ export default {
           "type": "uuid",
           "nullable": false,
           "hasDefault": false
+        },
+        "createdAt": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
         }
       },
       "primaryKey": [
@@ -602,6 +608,12 @@ export default {
           "type": "timestamptz",
           "nullable": false,
           "hasDefault": true
+        },
+        "updatedAt": {
+          "db": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
         }
       },
       "primaryKey": [
@@ -808,6 +820,18 @@ export default {
             "green",
             "blue"
           ]
+        },
+        "createdAt": {
+          "db": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
+        },
+        "updatedAt": {
+          "db": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "hasDefault": true
         }
       },
       "primaryKey": [

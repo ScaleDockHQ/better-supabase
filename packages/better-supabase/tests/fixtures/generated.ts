@@ -78,16 +78,19 @@ export type Models = {
       customer_id: string;
       tag_id: string;
       organization_id: string;
+      created_at: string;
     };
     Insert: {
       customer_id: string;
       tag_id: string;
       organization_id: string;
+      created_at?: string;
     };
     Update: {
       customer_id?: string;
       tag_id?: string;
       organization_id?: string;
+      created_at?: string;
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -99,6 +102,7 @@ export type Models = {
     Checks: never;
     ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organization_id";
     };
   };
@@ -268,6 +272,7 @@ export type Models = {
       title: string;
       read_at: string | null;
       created_at: string;
+      updated_at: string;
     };
     Insert: {
       id?: never;
@@ -276,6 +281,7 @@ export type Models = {
       title: string;
       read_at?: string | null;
       created_at?: string;
+      updated_at?: string;
     };
     Update: {
       id?: never;
@@ -284,6 +290,7 @@ export type Models = {
       title?: string;
       read_at?: string | null;
       created_at?: string;
+      updated_at?: string;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -344,18 +351,24 @@ export type Models = {
       organization_id: string;
       name: string;
       color: "gray" | "red" | "green" | "blue";
+      created_at: string;
+      updated_at: string;
     };
     Insert: {
       id?: string;
       organization_id: string;
       name: string;
       color?: "gray" | "red" | "green" | "blue";
+      created_at?: string;
+      updated_at?: string;
     };
     Update: {
       id?: string;
       organization_id?: string;
       name?: string;
       color?: "gray" | "red" | "green" | "blue";
+      created_at?: string;
+      updated_at?: string;
     };
     Relations: {
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
@@ -369,6 +382,7 @@ export type Models = {
     Checks: "tags_color_check";
     ForeignKeys: "tags_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organization_id";
     };
   };

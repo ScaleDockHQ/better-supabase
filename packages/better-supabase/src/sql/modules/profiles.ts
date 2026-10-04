@@ -9,6 +9,22 @@ import {
 } from "../shared.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "columnGrants",
+    "extraColumns",
+    "metadata",
+    "mirrorEmail",
+    "readPolicy",
+    "reservedUsernames",
+    "serviceColumns",
+    "splitName",
+    "syncTrigger",
+    "updatable",
+    "username",
+    "usernameFrom",
+    "usernameMaxLength",
+    "usernameMinLength",
+  ],
   tables: {
     profiles: {
       name: "profiles",
@@ -20,7 +36,7 @@ const NAMES: KitNames = {
         firstName: "first_name",
         lastName: "last_name",
         avatar: "avatar_url",
-        activeTenant: "active_org_id",
+        activeTenant: "active_organization_id",
         activeTeam: "active_team_id",
         onboarding: "onboarding",
         disabledAt: "disabled_at",
@@ -73,7 +89,7 @@ function record(
   ctx: KitContext,
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
-  const value = ctx.config.options[name];
+  const value = ctx.option(name);
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`kits.profiles.options.${name} must be an object`);
@@ -170,6 +186,95 @@ function syncValues(ctx: KitContext): Map<string, string> {
   return values;
 }
 
+/** Columns only the profile's own user reads under `readPolicy: 'members'`. */
+const PRIVATE_COLUMNS: ReadonlySet<string> = new Set([
+  "email",
+  "activeTenant",
+  "activeTeam",
+  "onboarding",
+]);
+
+/** Names no one gets as a username, from `kits.profiles.options.reservedUsernames`. */
+const RESERVED_USERNAMES = [
+  "admin",
+  "administrator",
+  "api",
+  "app",
+  "auth",
+  "billing",
+  "help",
+  "login",
+  "logout",
+  "me",
+  "null",
+  "root",
+  "settings",
+  "signup",
+  "support",
+  "system",
+  "www",
+];
+
+function usernameRules(ctx: KitContext): {
+  readonly min: number;
+  readonly max: number;
+  readonly reserved: string;
+} {
+  const min = ctx.number("usernameMinLength", 3);
+  const max = ctx.number("usernameMaxLength", 32);
+  if (
+    !Number.isInteger(min) ||
+    !Number.isInteger(max) ||
+    min < 1 ||
+    max < min + 4
+  ) {
+    throw new TypeError(
+      "kits.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
+    );
+  }
+  const names = ctx
+    .list("reservedUsernames", RESERVED_USERNAMES)
+    .map((name) => {
+      if (!/^[a-z0-9_]+$/.test(name)) {
+        throw new TypeError(
+          `kits.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
+        );
+      }
+      return sqlString(name);
+    });
+  return {
+    min,
+    max,
+    reserved:
+      names.length === 0 ? "'{}'::text[]" : `array[${names.join(", ")}]`,
+  };
+}
+
+/**
+ * The username's length, characters and reserved names, as a check on the
+ * managed table. Existing rows that break it leave the check unvalidated.
+ */
+function usernameCheck(ctx: KitContext): string {
+  const t = ctx.table("profiles");
+  const u = ctx.col("profiles", "username");
+  const { min, max, reserved } = usernameRules(ctx);
+  return `alter table ${t} drop constraint if exists profiles_username_check;
+alter table ${t} add constraint profiles_username_check check (
+  ${u} is null or (
+    length(${u}) between ${String(min)} and ${String(max)}
+    and ${u} ~* '^[a-z][a-z0-9_]*$'
+    and lower(${u}) <> all (${reserved})
+  )
+) not valid;
+do $$
+begin
+  alter table ${t} validate constraint profiles_username_check;
+exception when check_violation then
+  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', ${sqlString(t)};
+end;
+$$;`;
+}
+
 function table(ctx: KitContext): string {
   if (!ctx.manages) return "";
   const t = ctx.table("profiles");
@@ -195,12 +300,41 @@ function table(ctx: KitContext): string {
     .filter(([logical]) => ctx.has("profiles", logical))
     .map(([logical, type]) => `${c(logical)} ${type}`);
   const username = ctx.has("profiles", "username")
-    ? `\ncreate unique index if not exists profiles_username_idx on ${t} (lower(${c("username")}));`
+    ? `\ncreate unique index if not exists profiles_username_idx on ${t} (lower(${c("username")}));
+${usernameCheck(ctx)}`
     : "";
-  const read =
-    ctx.text("readPolicy", "self") === "members"
-      ? membersRead(ctx)
-      : `${c("key")} = (select auth.uid())`;
+  const members = ctx.text("readPolicy", "self") === "members";
+  const read = members ? membersRead(ctx) : `${c("key")} = (select auth.uid())`;
+  const visible = [
+    ...definitions
+      .map(([logical]) => logical)
+      .filter(
+        (logical) =>
+          ctx.has("profiles", logical) && !PRIVATE_COLUMNS.has(logical),
+      )
+      .map(c),
+    ...extra.map(([name]) => name),
+  ];
+  const selectGrant = members
+    ? `-- Peers see the public columns; the caller reads the private ones
+-- (${[...PRIVATE_COLUMNS]
+        .filter((logical) => ctx.has("profiles", logical))
+        .map(c)
+        .join(", ")}) through ${ctx.fn("my_profile")}().
+revoke select on ${t} from authenticated;
+grant select (${visible.join(", ")}) on ${t} to authenticated;
+create or replace function ${ctx.fn("my_profile")}()
+returns setof ${t}
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select * from ${t} p where p.${c("key")} = auth.uid()
+$$;
+revoke execute on function ${ctx.fn("my_profile")}() from public, anon;
+grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_role;`
+    : `grant select on ${t} to authenticated;`;
   return `
 create table if not exists ${t} (
   ${columns.join(",\n  ")}
@@ -214,7 +348,7 @@ drop policy if exists bs_profiles_update on ${t};
 create policy bs_profiles_update on ${t} for update to authenticated
   using (${c("key")} = (select auth.uid()))
   with check (${c("key")} = (select auth.uid()));
-grant select on ${t} to authenticated;
+${selectGrant}
 grant all on ${t} to service_role;
 `;
 }
@@ -271,7 +405,7 @@ function grants(ctx: KitContext): string {
   ]
     .filter((logical) => ctx.has("profiles", logical))
     .map((logical) => ctx.col("profiles", logical));
-  const configured = ctx.config.options["updatable"];
+  const configured = ctx.option("updatable");
   const columns =
     configured === undefined
       ? [...defaults, ...extraColumns(ctx).map(([name]) => name)]
@@ -299,7 +433,7 @@ function guard(ctx: KitContext): string {
     .filter((logical) => ctx.has("profiles", logical))
     .map((logical) => ctx.col("profiles", logical));
   const columns =
-    ctx.config.options["serviceColumns"] === undefined
+    ctx.option("serviceColumns") === undefined
       ? defaults
       : ctx
           .list("serviceColumns", [])
@@ -344,15 +478,19 @@ function functions(ctx: KitContext): string {
   const values = syncValues(ctx);
   const columns = [key, ...values.keys()];
   const expressions = ["user_id", ...values.values()];
-  const minLength = ctx.number("usernameMinLength", 3);
-  const maxLength = ctx.number("usernameMaxLength", 32);
   const username = ctx.has("profiles", "username")
     ? ctx.col("profiles", "username")
     : undefined;
+  const {
+    min: minLength,
+    max: maxLength,
+    reserved,
+  } = username ? usernameRules(ctx) : { min: 3, max: 32, reserved: "" };
   const allocate = username
     ? `
 -- A free username from base: lowercased, stripped to [a-z0-9_], starting
--- with a letter, then suffixed with a number while another profile has it.
+-- with a letter, then suffixed with a number while it is reserved or
+-- another profile has it.
 create or replace function ${ctx.fn("allocate_username")}(base text, user_id uuid default null)
 returns text
 language plpgsql
@@ -372,7 +510,7 @@ begin
     stem := 'user';
   end if;
   candidate := stem;
-  while exists (
+  while candidate = any(${reserved}) or exists (
     select 1 from ${t} p
     where lower(p.${username}) = candidate and p.${key} is distinct from user_id
   ) loop
@@ -388,7 +526,8 @@ grant execute on function ${ctx.fn("allocate_username")}(text, uuid) to authenti
   return `${allocate}
 
 -- Creates the user's profile from auth.users when it has none: metadata
--- keys (kits.profiles.options.metadata), the email and a username.
+-- keys (kits.profiles.options.metadata), the email and a username. The
+-- after_profile_sync hook runs only for a profile it created.
 create or replace function ${ctx.fn("sync_profile")}(user_id uuid)
 returns boolean
 language plpgsql
@@ -423,7 +562,9 @@ begin
       end;
     end loop;
   end if;
-  ${ctx.hook("after_profile_sync", [["uuid", "user_id"]])}
+  if created then
+    ${ctx.hook("after_profile_sync", [["uuid", "user_id"]]).replaceAll("\n", "\n  ")}
+  end if;
   return created;
 end;
 $$;
@@ -460,15 +601,20 @@ security definer
 set search_path = ''
 as $$
 begin
-  perform ${ctx.fn("sync_profile")}(new.id);
+  -- A failure here would abort the sign-up. The user gets an account
+  -- without a profile instead, and backfill_profiles() creates it later.
+  begin
+    perform ${ctx.fn("sync_profile")}(new.id);
+  exception when others then
+    raise warning 'No profile for user %: % (SQLSTATE %). Run backfill_profiles() once it is fixed.',
+      new.id, sqlerrm, sqlstate;
+  end;
   return new;
 end;
 $$;
 drop trigger if exists ${sync} on auth.users;
 create trigger ${sync} after insert on auth.users
-  for each row execute function ${ctx.fn("on_auth_user_created")}();
--- Warns about another trigger that also creates profiles (handle_new_user).
-select better_supabase.replace_equivalent_triggers('auth.users', ${sqlString(sync.slice(1, -1).replaceAll('""', '"'))}, '(handle_new_user|create_profile|new_user_profile)', false);`);
+  for each row execute function ${ctx.fn("on_auth_user_created")}();`);
   } else {
     parts.push(`drop trigger if exists ${sync} on auth.users;`);
   }
@@ -528,4 +674,9 @@ export const PROFILES: KitModuleDefinition = {
     { name: "backfill_profiles", args: [], returns: "integer" },
   ],
   build,
+  data: (ctx) =>
+    ctx.flag("syncTrigger", true)
+      ? `-- Warns about another trigger that also creates profiles (handle_new_user).
+select better_supabase.replace_equivalent_triggers('auth.users', ${sqlString(ctx.trigger("profile_sync").slice(1, -1).replaceAll('""', '"'))}, '(handle_new_user|create_profile|new_user_profile)', false);`
+      : "",
 };

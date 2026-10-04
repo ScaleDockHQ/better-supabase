@@ -229,7 +229,14 @@ describe("doctor command", () => {
       { snapshot },
       config,
     );
-    expect(findings(loaded).map((finding) => finding.code)).toEqual(["BS304"]);
+    expect(findings(loaded).map((finding) => finding.message)).toEqual([
+      expect.stringContaining(
+        "supabase/schemas/900_better_supabase_14_read_sets.sql",
+      ),
+      expect.stringContaining(
+        "supabase/better-supabase-data/900_better_supabase_14_read_sets.sql",
+      ),
+    ]);
     const skipped = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot },

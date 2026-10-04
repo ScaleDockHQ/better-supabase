@@ -47,7 +47,9 @@ const OPTIONS = { source: "https://crm.example.com" };
 
 describe("createOutbox", () => {
   it("emits with the module's argument order", async () => {
-    const { sql, calls } = fakeSql({ emit_event: [7] });
+    const { sql, calls } = fakeSql({
+      emit_event: ["0199a7c4-0000-7000-8000-000000000007"],
+    });
     const outbox = createOutbox(sql, { ...OPTIONS, schema: "app" });
     const result = await outbox.emit(
       "invoice.paid",
@@ -57,7 +59,10 @@ describe("createOutbox", () => {
         key: "inv-1",
       },
     );
-    expect(result).toMatchObject({ ok: true, data: 7 });
+    expect(result).toMatchObject({
+      ok: true,
+      data: "0199a7c4-0000-7000-8000-000000000007",
+    });
     expect(calls[0]).toEqual({
       fn: "emit_event",
       args: ["invoice.paid", '{"id":1}', null, "t1", "inv-1", null],
@@ -71,7 +76,8 @@ describe("createOutbox", () => {
     });
     const { sql, calls } = fakeSql({
       outbox_register: [0],
-      purge_outbox: [failure],
+      outbox_unregister: [true],
+      purge_outbox: [failure, 3],
     });
     const outbox = createOutbox(sql, OPTIONS);
     expect(
@@ -84,6 +90,9 @@ describe("createOutbox", () => {
     const purged = await outbox.purge("7 days");
     expect(purged.ok).toBe(false);
     expect(purged.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
+    expect((await outbox.purge(undefined, 500)).data).toBe(3);
+    expect(calls.at(-1)).toEqual({ fn: "purge_outbox", args: [null, 500] });
+    expect((await outbox.unregister("billing")).data).toBe(true);
   });
 
   it("relays batches as CloudEvents and moves the cursor", async () => {
@@ -105,7 +114,6 @@ describe("createOutbox", () => {
       source: "https://crm.example.com",
       subject: "organizations/1",
       partitionkey: "t1",
-      actorid: "u1",
       producer: "better-supabase/organizations",
       data: { n: 1 },
     });
@@ -187,6 +195,25 @@ describe("createOutbox", () => {
       "time",
       "type",
     ]);
+    expect(event.type).toBe("dev.better-supabase.x");
+    expect(event.data).toBeNull();
+  });
+
+  it("keeps the payload as it is and sends no actor", () => {
+    const base = {
+      position: 1,
+      id: "1",
+      type: "x",
+      source: null,
+      subject: null,
+      tenant: null,
+      key: null,
+      actorId: "u1",
+      createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+    };
+    const event = outboxCloudEvent({ ...base, payload: { n: 1 } }, OPTIONS);
+    expect(event.data).toEqual({ n: 1 });
+    expect(event).not.toHaveProperty("actorid");
   });
 });
 

@@ -53,9 +53,12 @@ filled it.
 RLS still decides what a user can read and write. `tenant()` makes queries
 explicit and fills the column; it doesn't replace the policy.
 
-The tenant comes from the verified `tenant_id` claim (renamed with
-`claims.tenant` in `better-supabase.config.ts`), then `app_metadata.tenant_id`.
-Never read it from `user_metadata`, a URL or a request body. When the project
+The tenant comes from `context.tenant`, which the server's `tenant` resolver
+sets per request (the default `kits.access.activeTenant: 'resolver'`), then
+the verified `tenant_id` claim (renamed with `claims.tenant` in
+`better-supabase.config.ts`), then `app_metadata.tenant_id`. A resolver may
+read the URL, but `current_tenant_id()` only returns a tenant the caller is a
+member of. Never trust a tenant from `user_metadata` or a request body. When the project
 has a `permdock.config.ts`, PermDock's hook writes that claim and the
 memberships: don't run `sql add tenant`, and follow the PermDock reference of
 the `better-supabase-auth` skill

@@ -26,10 +26,16 @@ decides what each user sees, and includes and filters stay correct.
    better-supabase sql add realtime-tables
    ```
 
-With the [tenant plugin](/docs/plugins/tenant), tables that have the tenant
-column broadcast on a per-tenant topic (`bs:t:public.customers:<org>`), and
-the policy only lets a user join the tenant in their `tenant_id` claim. Tables without it use
-one topic.
+With the [tenant plugin](/docs/plugins/tenant), tables broadcast on a
+per-tenant topic (`bs:t:public.customers:<org>`), and the policy only lets a
+user join the tenant in their `tenant_id` claim. A table without the tenant
+column fails to install, so a tenant table never broadcasts to everyone by
+mistake. List tables that are global on purpose in `realtime.global`; they
+use one topic that every signed-in user receives:
+
+```ts title="better-supabase.config.ts"
+realtime: { tables: ["customers", "plans"], global: ["plans"] },
+```
 
 ## React
 

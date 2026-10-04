@@ -42,7 +42,7 @@ describe("profiles module", () => {
     );
     expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
     expect(sql).toContain(
-      'new."active_org_id" is distinct from old."active_org_id"',
+      'new."active_organization_id" is distinct from old."active_organization_id"',
     );
     expect(sql).toContain(
       'create trigger "bs_profile_sync" after insert on auth.users',
@@ -52,6 +52,15 @@ describe("profiles module", () => {
     );
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
+    expect(sql).toContain("add constraint profiles_username_check check (");
+    expect(sql).toContain("lower(\"username\") <> all (array['admin'");
+    expect(sql).toContain("while candidate = any(array['admin'");
+    expect(sql).toMatch(
+      /if created then\s+if to_regprocedure\('"public"\."after_profile_sync"\(uuid\)'\)/,
+    );
+    expect(sql).toContain(
+      "exception when others then\n    raise warning 'No profile for user %",
+    );
     expect(sql).toContain('"id" = (select auth.uid())');
   });
 
@@ -85,7 +94,7 @@ describe("profiles module", () => {
           },
         },
       },
-    }).at(-1)!.contents;
+    }).findLast((file) => file.kind === "schema")!.contents;
     expect(sql).toContain(
       `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,
     );
@@ -93,6 +102,17 @@ describe("profiles module", () => {
     expect(sql).toContain(
       '"id" in (select "better_supabase"."profile_peer_ids"())',
     );
+    expect(sql).toContain(
+      'revoke select on "better_supabase"."profiles" from authenticated;',
+    );
+    const grant =
+      /grant select \(([^)]*)\) on "better_supabase"\."profiles"/.exec(
+        sql,
+      )?.[1];
+    expect(grant).toContain('"username"');
+    expect(grant).toContain('"locale"');
+    expect(grant).not.toContain('"email"');
+    expect(sql).toContain('"better_supabase"."my_profile"()');
   });
 
   it("honours updatable, serviceColumns and turning features off", () => {

@@ -37,16 +37,19 @@ export const customerTagsRow: v.GenericSchema<RowOf<'customerTags'>> = v.object(
   customerId: v.pipe(v.string(), v.uuid()),
   tagId: v.pipe(v.string(), v.uuid()),
   organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
 });
 export const customerTagsInsert: v.GenericSchema<InsertOf<'customerTags'>> = v.object({
   customerId: v.pipe(v.string(), v.uuid()),
   tagId: v.pipe(v.string(), v.uuid()),
   organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 export const customerTagsUpdate: v.GenericSchema<UpdateOf<'customerTags'>> = v.object({
   customerId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   tagId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 
 export const customersRow: v.GenericSchema<RowOf<'customers'>> = v.object({
@@ -165,6 +168,7 @@ export const notificationsRow: v.GenericSchema<RowOf<'notifications'>> = v.objec
   title: v.string(),
   readAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
   createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
 });
 export const notificationsInsert: v.GenericSchema<InsertOf<'notifications'>> = v.object({
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -172,6 +176,7 @@ export const notificationsInsert: v.GenericSchema<InsertOf<'notifications'>> = v
   title: v.string(),
   readAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 export const notificationsUpdate: v.GenericSchema<UpdateOf<'notifications'>> = v.object({
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -179,6 +184,7 @@ export const notificationsUpdate: v.GenericSchema<UpdateOf<'notifications'>> = v
   title: v.exactOptional(v.string()),
   readAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
   createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 
 export const organizationsRow: v.GenericSchema<RowOf<'organizations'>> = v.object({
@@ -208,18 +214,24 @@ export const tagsRow: v.GenericSchema<RowOf<'tags'>> = v.object({
   organizationId: v.pipe(v.string(), v.uuid()),
   name: v.string(),
   color: v.picklist(["gray", "red", "green", "blue"]),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
 });
 export const tagsInsert: v.GenericSchema<InsertOf<'tags'>> = v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.pipe(v.string(), v.uuid()),
   name: v.string(),
   color: v.exactOptional(v.picklist(["gray", "red", "green", "blue"])),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 export const tagsUpdate: v.GenericSchema<UpdateOf<'tags'>> = v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   name: v.exactOptional(v.string()),
   color: v.exactOptional(v.picklist(["gray", "red", "green", "blue"])),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 });
 
 /** Write validators for the validation plugin. */

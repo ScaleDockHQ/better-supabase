@@ -32,7 +32,7 @@ create index customers_active_idx on public.customers (organization_id, created_
 create index customers_name_trgm_idx on public.customers using gin (name extensions.gin_trgm_ops);
 
 create trigger customers_set_updated_at before update on public.customers
-  for each row execute function public.set_updated_at();
+  for each row execute function better_supabase.set_updated_at();
 
 alter table public.customers enable row level security;
 

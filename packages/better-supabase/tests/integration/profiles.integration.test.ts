@@ -74,6 +74,7 @@ describe.skipIf(!live)("profiles", () => {
           profiles: {
             schema: SCHEMA,
             options: { readPolicy: "members" },
+            hooks: { schema: SCHEMA },
           },
         },
       };
@@ -150,11 +151,24 @@ describe.skipIf(!live)("profiles", () => {
       expect(await visible("ada")).toEqual([USERS.ada]);
       const org = crypto.randomUUID();
       await client.query(
-        `insert into ${SCHEMA}.memberships (org_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')`,
+        `insert into ${SCHEMA}.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')`,
         [org, USERS.ada, USERS.bob],
       );
       expect(await visible("ada")).toEqual([USERS.ada, USERS.bob].toSorted());
       expect(await visible("eve")).toEqual([USERS.eve]);
+      const peerEmail = await as(
+        client,
+        "ada",
+        `select email from ${PROFILES} where id = $1`,
+        [USERS.bob],
+      );
+      expect(peerEmail.error?.code).toBe("42501");
+      const own = await as<{ email: string }>(
+        client,
+        "ada",
+        `select email from ${SCHEMA}.my_profile()`,
+      );
+      expect(own.rows).toEqual([{ email: "ada@new.test" }]);
 
       const removed = await client.query(
         `delete from ${PROFILES} where id = $1 returning id`,
@@ -166,6 +180,48 @@ describe.skipIf(!live)("profiles", () => {
       );
       expect(backfilled.rows[0].n).toBeGreaterThanOrEqual(1);
       expect(await profile("eve")).toBeDefined();
+
+      // Usernames follow the length, character and reserved-name rules.
+      for (const name of ["admin", "x", "1abc", "ada king"]) {
+        const bad = await as(
+          client,
+          "ada",
+          `update ${PROFILES} set username = $2 where id = $1`,
+          [USERS.ada, name],
+        );
+        expect(bad.error?.code).toBe("23514");
+      }
+
+      // A reserved name gets a suffix, and a failing after_profile_sync
+      // hook leaves the user signed up without a profile.
+      await client.query(`
+        create function ${SCHEMA}.after_profile_sync(user_id uuid) returns void
+        language plpgsql set search_path = '' as $$
+        begin
+          if exists (select 1 from auth.users u where u.id = user_id and u.email like 'broken-%') then
+            raise exception 'CRM is down';
+          end if;
+        end;
+        $$;`);
+      const [admin, broken] = [crypto.randomUUID(), crypto.randomUUID()];
+      await client.query(
+        `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
+         values ($1, $3, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{"user_name": "admin"}'),
+                ($2, $4, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', '{}')`,
+        [
+          admin,
+          broken,
+          `admin-${admin}@example.test`,
+          `broken-${broken}@example.test`,
+        ],
+      );
+      const usernames = await client.query(
+        `select id, username from ${PROFILES} where id = any($1)`,
+        [[admin, broken]],
+      );
+      expect(usernames.rows).toEqual([
+        { id: admin, username: expect.stringMatching(/^admin\d+$/) },
+      ]);
     } finally {
       await client.query("rollback");
       client.release();
@@ -187,7 +243,11 @@ describe.skipIf(!live)("profiles", () => {
       }
       const org = crypto.randomUUID();
       await client.query(
-        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')",
+        "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
+        [org],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')",
         [org, USERS.ada, USERS.bob],
       );
       const logos = orgLogoBucket({ id: `logos-${org.slice(0, 8)}` });

@@ -76,14 +76,14 @@ bucket path is written to a `*_url` column.
 `logos.sql()` returns idempotent SQL. It upserts the bucket row and creates
 `storage.objects` policies for the `authenticated` role:
 
-| `policy`              | Access                                                                             |
-| --------------------- | ---------------------------------------------------------------------------------- |
-| `tenant`              | The `{orgId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`) |
-| `owner`               | The `{userId}` segment must equal `auth.uid()`                                     |
-| `public`              | Anyone can read. Writes need the secret key                                        |
-| `none`                | No policies. Only the secret key has access                                        |
-| `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below)         |
-| `{ access }`          | The SQL kit's access contract decides, for any access model (see below)            |
+| `policy`              | Access                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tenant`              | The `{orgId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`)                                                         |
+| `owner`               | The `{userId}` segment must equal `auth.uid()`                                                                                             |
+| `public`              | Anyone can read. Writes need the secret key. A `public: true` bucket gets no select policy, so its public URLs work and nobody can list it |
+| `none`                | No policies. Only the secret key has access                                                                                                |
+| `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below)                                                                 |
+| `{ access }`          | The SQL kit's access contract decides, for any access model (see below)                                                                    |
 
 `bucket.owner` names the placeholder that holds the owning user's id: the
 `owner` param for `owner` buckets, otherwise `userId` when the template has

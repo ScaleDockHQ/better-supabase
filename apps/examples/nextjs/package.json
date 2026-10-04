@@ -14,7 +14,7 @@
     "doctor": "better-supabase doctor",
     "doctor:explain": "better-supabase doctor --only BS205,BS206,BS207 --explain customers,notes --claims '{\"role\":\"authenticated\",\"org_id\":\"00000000-0000-4000-8000-000000000001\"}'",
     "gen": "better-supabase gen",
-    "gen:check": "better-supabase gen --check",
+    "gen:check": "better-supabase gen --check && better-supabase sql sync --check",
     "lint": "oxlint",
     "start": "next start -p 3100",
     "transit": "true",

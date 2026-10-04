@@ -55,9 +55,32 @@ describe("jobs module", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "jobs", version: 1 }]);
-    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 2 });
+    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 3 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
+    );
+    expect(plan!.steps[1]!.sql).toContain(
+      "drop function if exists better_supabase.purge_job_archive(text, interval, integer);",
+    );
+  });
+
+  it("dead-letters lost last attempts, jitters retries and replays dead letters", () => {
+    for (const backend of ["pgmq", "table"]) {
+      const sql = moduleBody("jobs", {
+        kits: { jobs: { options: { backend } } },
+      })!;
+      expect(sql).toContain("The lease ran out on the last attempt");
+      expect(sql).toContain(
+        "1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer",
+      );
+      expect(sql).toContain("dead_older_than interval default '30 days'");
+      expect(sql).toContain(
+        "function better_supabase.replay_dead_job(queue text, job_id bigint)",
+      );
+      expect(sql).toContain("'replay_dead_job(text, bigint)'");
+    }
+    expect(moduleBody("jobs", {})).toContain(
+      "perform pgmq.set_vt(queue, job_id, lease);",
     );
   });
 });

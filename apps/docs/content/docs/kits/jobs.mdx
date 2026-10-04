@@ -38,8 +38,10 @@ export default defineConfig({
 
 Run `better-supabase sql sync` after changing either option. On the table
 backend, completed and dead jobs stay in `job_messages` with `archived_at`
-set; `better_supabase.purge_job_archive(queue)` deletes old ones on both
-backends.
+set. `better_supabase.purge_job_archive(queue, older_than, batch,
+dead_older_than)` deletes completed jobs after `older_than` (7 days) and
+dead letters after `dead_older_than` (30 days) on both backends, so dead
+letters stay around long enough to replay.
 
 Declare queues with a Standard Schema for their payload. `enqueue`
 validates the payload, so a wrong payload is a type error at compile time
@@ -85,13 +87,19 @@ await jobs.work(
 
 - A job is done when its handler returns; it is archived (`pgmq.a_<queue>`).
   If the handler throws or returns a failed `Result`, the job is retried
-  after 10s, 20s, 40s and so on, up to an hour. `last_error` is kept on the
-  message. After `maxAttempts` (5 by default) it is archived with
-  `dead: true`.
+  with exponential backoff and full jitter: a random wait up to 10s, 20s,
+  40s and so on, at most an hour, so failed jobs don't retry in bursts.
+  `last_error` is kept on the message. After `maxAttempts` (5 by default) it
+  is archived with `dead: true`. A job whose worker died on its last attempt
+  is archived as dead by the next claim instead of running again.
+- `jobs.replay(queue, id)` (SQL `better_supabase.replay_dead_job`) enqueues
+  a dead letter again with its payload, attempts and dedupe key, and removes
+  it from the archive.
 - While a batch runs, a heartbeat keeps extending the lease of every job in
   it that hasn't finished, including the ones waiting their turn. If a worker
-  crashes, the lease ends and another worker picks the job up. `job.attempts`
-  is pgmq's `read_ct`; a worker whose lease was taken over gets `false` from
+  crashes, the lease ends and another worker picks the job up. On pgmq the
+  lease is extended with `pgmq.set_vt`. `job.attempts` is pgmq's `read_ct`;
+  a worker whose lease was taken over gets `false` from
   `complete` instead of finishing someone else's job.
 - An idle worker polls after `pollInterval` (1 second), then doubles the wait
   after each empty poll up to `maxPollInterval` (30 seconds). The next claimed

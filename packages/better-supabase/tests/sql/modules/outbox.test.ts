@@ -26,12 +26,12 @@ describe("outbox module", () => {
     const sql = body({
       outbox: {
         mode: "adopt",
+        idType: "uuid",
         tables: { events: "public.domain_events" },
         columns: {
           events: { type: "kind", position: "seq", xid: null, key: null },
         },
         options: {
-          tenantType: "uuid",
           settle: "2 seconds",
           emitRoles: ["authenticated"],
           defaultSource: "domain",
@@ -48,18 +48,52 @@ describe("outbox module", () => {
     expect(sql).toContain('insert into "public"."domain_events" ("kind"');
     expect(sql).toContain("tenant::uuid");
     expect(sql).toContain("now() - '2 seconds'::interval");
-    expect(sql).toContain('returning "seq" into found_position');
+    expect(sql).toContain('returning "id"::text into found_id');
+    expect(sql).toContain('where e."seq" > c."cursor_position"');
+    expect(sql).not.toContain('add column if not exists "xid"');
     expect(sql).not.toContain('where e."key"');
     expect(sql).toContain("to service_role, authenticated;");
   });
 
-  it("separates the position from a non-numeric id", () => {
-    const sql = body({
-      outbox: { columns: { events: { position: "position" } } },
-    });
+  it("gives events a uuid id and a separate position", () => {
+    const sql = body({});
+    expect(sql).toContain('"id" uuid primary key default gen_random_uuid()');
     expect(sql).toContain(
       '"position" bigint generated always as identity unique',
     );
+    expect(sql).toContain(
+      'create index if not exists outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");',
+    );
+    expect(sql).toContain('("cursor_xid", "cursor_position") = (');
+    expect(sql).toContain(
+      '(e."xid", e."position") > (c."cursor_xid", c."cursor_position")',
+    );
+    expect(sql).toContain("outbox_unregister");
+    expect(sql).toContain("limit coalesce(batch, 10000)");
+    const shared = body({
+      outbox: { columns: { events: { position: "id" } } },
+    });
+    expect(shared).toContain(
+      '"id" bigint generated always as identity primary key',
+    );
+  });
+
+  it("adds the xid column to an adopted table and refuses a zero settle", () => {
+    const adopted = body({
+      outbox: { mode: "adopt", tables: { events: "public.domain_events" } },
+    });
+    expect(adopted).toContain(
+      'alter table "public"."domain_events" add column if not exists "xid" xid8 not null default pg_current_xact_id();',
+    );
+    expect(() =>
+      body({
+        outbox: {
+          mode: "adopt",
+          columns: { events: { xid: null } },
+          options: { settle: "0 seconds" },
+        },
+      }),
+    ).toThrow(/settle must be longer than zero/);
   });
 
   it("rejects option values it would splice into SQL", () => {

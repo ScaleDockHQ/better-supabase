@@ -32,6 +32,29 @@ comments. Put these in a hand-written migration instead:
   configurations). Their SQL also goes in `supabase/schemas/_custom/` so
   dependent objects still resolve; `--strict-coverage` fails until it does.
 
+pg-delta also loads `supabase/schemas/_custom/` into its shadow database and
+then rejects any managed table that has rows, so `_custom/` can't hold data
+either. The SQL kit writes its rows and role settings to
+`supabase/better-supabase-data/` instead, and `better-supabase sql data`
+turns them into a migration stamped after the newest one.
+`tests/integration/pgdelta-roundtrip.integration.test.ts` runs every kit
+module through the sync on a second stack (ports 56420 to 56422) when the
+Supabase CLI and Docker are available.
+
+The `900_better_supabase_*` files in `supabase/schemas` and
+`supabase/better-supabase-data` are kit modules that `better-supabase sql sync`
+writes from `apps/examples/nextjs` (its `sql.dir` points at the fixture). Never
+edit them by hand. When a change touches one of those modules, run
+`pnpm --filter @better-supabase/example-nextjs exec better-supabase sql sync`,
+then `pnpm supabase:sync <name>`, and `sql data` from the same folder when the
+data files changed. The example's `gen:check` fails while they are stale.
+
+Managed kit defaults follow the repo standard (hashed tokens, Vault secrets,
+`text` ids, the kit's CloudEvents sources). A shape that only an existing app
+needs belongs in its adopt config, never in a managed default. When an adopter
+needs a weaker value, add it to `src/sql/migration-options.ts`, so the config
+accepts it in `mode: "adopt"` only and doctor warns about it (BS314).
+
 Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend; `090_grants.sql` is
 where the fixture's grants live.

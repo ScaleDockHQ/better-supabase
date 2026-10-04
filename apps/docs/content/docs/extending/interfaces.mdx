@@ -109,7 +109,9 @@ Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for
 Stores and leases jobs for [`createJobs`](/docs/kits/jobs). It has
 `apiVersion: 1`, sends and reads messages, completes, fails and extends them
 by attempt (a stale attempt must get `false` or `null`), and optionally
-claims due schedules for the drain route. Set `leases: false` when `extend`
+claims due schedules for the drain route and replays dead letters
+(`replay`). A message read past its `max_attempts` should be archived as
+dead instead of returned. Set `leases: false` when `extend`
 can't work, so workers skip the heartbeat.
 
 ## SupportSessionStore
@@ -149,8 +151,8 @@ be retried, such as a blocked URL; any other error retries.
 ## WebhookSecretStore
 
 Where destination signing secrets live. It has `apiVersion: 1`,
-`secrets(destinationId)`, which returns the live secrets newest first, and an
-optional `rotate(destinationId, { overlap, secret })` that returns the new
+`secrets(endpointId)`, which returns the live secrets newest first, and an
+optional `rotate(endpointId, { overlap, secret })` that returns the new
 secret and keeps the previous ones live for `overlap`.
 
 ## AuthResolver

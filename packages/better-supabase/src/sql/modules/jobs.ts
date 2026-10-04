@@ -35,7 +35,9 @@ drop function if exists better_supabase.complete_job(bigint, text);
 drop function if exists better_supabase.fail_job(bigint, text, text, interval);
 drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);`;
+drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+-- purge_job_archive before dead letters had their own retention.
+drop function if exists better_supabase.purge_job_archive(text, interval, integer);`;
 
 const PGMQ = `-- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -73,8 +75,6 @@ begin
 end;
 $$;
 
-select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
-
 -- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -111,17 +111,32 @@ begin
 end;
 $$;
 
+-- A message read past max_attempts lost its worker on the last attempt
+-- (fail_job archives it otherwise), so the claim archives it as dead.
 create or replace function better_supabase.claim_jobs(queue text, lease integer default 300, batch integer default 1)
 returns table (id bigint, attempts integer, enqueued_at timestamptz, visible_until timestamptz, message jsonb)
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  r record;
 begin
   perform better_supabase.ensure_job_queue(queue);
-  return query
-    select r.msg_id, r.read_ct, r.enqueued_at, r.vt, r.message
-    from pgmq.read(queue, lease, batch) r;
+  for r in select * from pgmq.read(queue, lease, batch) loop
+    if r.read_ct > coalesce((r.message ->> 'max_attempts')::integer, 5) then
+      execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', ''The lease ran out on the last attempt'', ''dead'', true) where msg_id = $1', 'q_' || queue)
+        using r.msg_id;
+      perform pgmq.archive(queue, r.msg_id);
+    else
+      id := r.msg_id;
+      attempts := r.read_ct;
+      enqueued_at := r.enqueued_at;
+      visible_until := r.vt;
+      message := r.message;
+      return next;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -145,8 +160,9 @@ begin
 end;
 $$;
 
--- Retries with exponential backoff (10s, 20s, 40s, ... at most an hour) until
--- max_attempts, then archives the message with dead = true.
+-- Retries with exponential backoff and full jitter (a random wait up to 10s,
+-- 20s, 40s, ... at most an hour) until max_attempts, then archives the
+-- message with dead = true.
 create or replace function better_supabase.fail_job(
   queue text,
   job_id bigint,
@@ -174,7 +190,7 @@ begin
     return 'dead';
   end if;
   execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text), vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1', 'q_' || queue)
-    using job_id, left(error, 4000), coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer));
+    using job_id, left(error, 4000), coalesce(retry_in, 1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer);
   return 'queued';
 end;
 $$;
@@ -188,18 +204,24 @@ as $$
 declare
   hit bigint;
 begin
-  execute format('update pgmq.%I set vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1 and read_ct = $2 returning msg_id', 'q_' || queue)
-    into hit using job_id, attempt, lease;
-  return hit is not null;
+  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
+    into hit using job_id, attempt;
+  if hit is null then
+    return false;
+  end if;
+  perform pgmq.set_vt(queue, job_id, lease);
+  return true;
 end;
 $$;
 
 -- pgmq keeps completed and dead messages in pgmq.a_<queue>. Deletes up to
--- batch of them archived longer than older_than.
+-- batch of them archived longer than older_than, or dead_older_than for dead
+-- letters, which are kept longer so they can be replayed.
 create or replace function better_supabase.purge_job_archive(
   queue text,
   older_than interval default '7 days',
-  batch integer default 10000
+  batch integer default 10000,
+  dead_older_than interval default '30 days'
 )
 returns integer
 language plpgsql
@@ -210,10 +232,38 @@ declare
   purged integer;
 begin
   execute format(
-    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
+    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue
-  ) into purged using older_than, batch;
+  ) into purged using older_than, batch, dead_older_than;
   return purged;
+end;
+$$;
+
+-- Enqueues a dead letter again with its payload, attempts and dedupe key,
+-- and removes it from the archive. Returns the new id, or null when job_id
+-- is not a dead letter of the queue.
+create or replace function better_supabase.replay_dead_job(queue text, job_id bigint)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  msg jsonb;
+begin
+  perform better_supabase.ensure_job_queue(queue);
+  execute format('delete from pgmq.%I where msg_id = $1 and message ? ''dead'' returning message', 'a_' || queue)
+    into msg using job_id;
+  if msg is null then
+    return null;
+  end if;
+  return better_supabase.enqueue_job(
+    queue,
+    coalesce(msg -> 'payload', '{}'),
+    0,
+    coalesce((msg ->> 'max_attempts')::integer, 5),
+    msg ->> 'dedupe_key'
+  );
 end;
 $$;`;
 
@@ -287,6 +337,14 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
+  -- A visible message at max_attempts lost its worker on the last attempt
+  -- (fail_job archives it otherwise).
+  update better_supabase.job_messages m
+  set message = m.message || jsonb_build_object('last_error', 'The lease ran out on the last attempt', 'dead', true),
+      dead = true,
+      archived_at = now()
+  where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= clock_timestamp()
+    and m.attempts >= coalesce((m.message ->> 'max_attempts')::integer, 5);
   return query
     with picked as (
       select m.id
@@ -322,8 +380,9 @@ as $$
   select exists (select 1 from done);
 $$;
 
--- Retries with exponential backoff (10s, 20s, 40s, ... at most an hour) until
--- max_attempts, then archives the message with dead = true.
+-- Retries with exponential backoff and full jitter (a random wait up to 10s,
+-- 20s, 40s, ... at most an hour) until max_attempts, then archives the
+-- message with dead = true.
 create or replace function better_supabase.fail_job(
   queue text,
   job_id bigint,
@@ -356,7 +415,7 @@ begin
   end if;
   update better_supabase.job_messages m
   set message = m.message || jsonb_build_object('last_error', left(error, 4000)),
-      visible_at = clock_timestamp() + make_interval(secs => coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer)))
+      visible_at = clock_timestamp() + make_interval(secs => coalesce(retry_in, 1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer))
   where m.id = job_id;
   return 'queued';
 end;
@@ -378,11 +437,13 @@ as $$
 $$;
 
 -- Completed and dead messages stay in job_messages with archived_at. Deletes
--- up to batch of them archived longer than older_than.
+-- up to batch of them archived longer than older_than, or dead_older_than
+-- for dead letters, which are kept longer so they can be replayed.
 create or replace function better_supabase.purge_job_archive(
   queue text,
   older_than interval default '7 days',
-  batch integer default 10000
+  batch integer default 10000,
+  dead_older_than interval default '30 days'
 )
 returns integer
 language sql
@@ -393,13 +454,42 @@ as $$
     delete from better_supabase.job_messages
     where id in (
       select m.id from better_supabase.job_messages m
-      where m.queue = purge_job_archive.queue and m.archived_at < now() - older_than
+      where m.queue = purge_job_archive.queue
+        and m.archived_at < now() - case when m.dead then dead_older_than else older_than end
       order by m.id
       limit batch
     )
     returning 1
   )
   select count(*)::integer from purged;
+$$;
+
+-- Enqueues a dead letter again with its payload, attempts and dedupe key,
+-- and removes the dead row. Returns the new id, or null when job_id is not a
+-- dead letter of the queue.
+create or replace function better_supabase.replay_dead_job(queue text, job_id bigint)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  msg jsonb;
+begin
+  delete from better_supabase.job_messages m
+  where m.id = job_id and m.queue = replay_dead_job.queue and m.dead
+  returning m.message into msg;
+  if msg is null then
+    return null;
+  end if;
+  return better_supabase.enqueue_job(
+    queue,
+    coalesce(msg -> 'payload', '{}'),
+    0,
+    coalesce((msg ->> 'max_attempts')::integer, 5),
+    msg ->> 'dedupe_key'
+  );
+end;
 $$;`;
 
 const ensureQueue = (backend: JobsBackend): string =>
@@ -596,7 +686,8 @@ begin
     'unschedule_job(text)',
     'claim_due_schedules(integer, integer)',
     'advance_schedule(text, timestamptz, timestamptz)',
-    'purge_job_archive(text, interval, integer)'
+    'purge_job_archive(text, interval, integer, interval)',
+    'replay_dead_job(text, bigint)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);
@@ -623,7 +714,12 @@ export const JOBS: KitModuleDefinition = {
     "Typed jobs on Supabase Queues (pgmq) or a plain table (kits.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
-  version: 2,
+  version: 3,
+  names: { tables: {}, options: ["backend", "scheduler"] },
+  data: (ctx) =>
+    jobsBackend(ctx) === "pgmq"
+      ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
+      : "",
   upgrades: [
     {
       from: 1,
@@ -631,6 +727,13 @@ export const JOBS: KitModuleDefinition = {
         "schedule_job takes a time zone and next run; the drain scheduler and the table backend are options.",
       sql: () =>
         "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
+    },
+    {
+      from: 2,
+      description:
+        "Dead letters get their own retention in purge_job_archive and replay_dead_job; claims archive a message whose last attempt lost its worker.",
+      sql: () =>
+        "drop function if exists better_supabase.purge_job_archive(text, interval, integer);",
     },
   ],
   build: jobsSql,

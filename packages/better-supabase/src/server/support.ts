@@ -104,14 +104,21 @@ export interface SupportApi {
     admin: AuthState,
     sessionId: string,
   ): AsyncResult<{ readonly ended: boolean; readonly cookie: string }>;
-  /** Ends anyone's session. Check the caller's permission first. */
-  revoke(sessionId: string): AsyncResult<boolean>;
+  /**
+   * Ends a session as `caller`: the SQL store allows the session's admin and
+   * staff with the revoke permission.
+   */
+  revoke(caller: AuthState, sessionId: string): AsyncResult<boolean>;
   /** The running session the request's cookie names for `auth`, if any. */
   current(
     request: Request,
     auth: AuthState,
   ): Promise<ActiveSupport | undefined>;
-  list(filter?: SupportListFilter): AsyncResult<readonly SupportSession[]>;
+  /** The sessions `caller` may view (the SQL store checks the view permission). */
+  list(
+    caller: AuthState,
+    filter?: SupportListFilter,
+  ): AsyncResult<readonly SupportSession[]>;
   /** The support session id in a request's cookie. */
   sessionIdOf(request: Request): string | undefined;
   /** `Set-Cookie` that clears the support cookie. */
@@ -295,9 +302,17 @@ function createSupport(
             dbError("unauthorized", "Sign in to stop a support session"),
           );
         try {
-          const session = await options.store.get(sessionId, admin.user.id);
+          const session = await options.store.get(
+            sessionId,
+            admin.user.id,
+            admin.claims,
+          );
           if (!session) return ok({ ended: false, cookie });
-          const ended = await options.store.end(sessionId, "admin");
+          const ended = await options.store.end(
+            sessionId,
+            "admin",
+            admin.claims,
+          );
           if (ended) {
             emit("support.ended", {
               sessionId,
@@ -313,10 +328,16 @@ function createSupport(
       });
     },
 
-    revoke(sessionId) {
+    revoke(caller, sessionId) {
       return AsyncResult.from(async () => {
+        if (caller.kind !== "user")
+          return err(
+            dbError("unauthorized", "Sign in to revoke a support session"),
+          );
         try {
-          return ok(await options.store.end(sessionId, "revoked"));
+          return ok(
+            await options.store.end(sessionId, "revoked", caller.claims),
+          );
         } catch (cause) {
           return err(storeError(cause));
         }
@@ -332,9 +353,12 @@ function createSupport(
       let session: SupportSession | undefined;
       let claims: Readonly<Record<string, unknown>>;
       try {
-        session = await options.store.get(id, auth.user.id);
+        session = await options.store.get(id, auth.user.id, auth.claims);
         if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
           return;
+        }
+        if (policy.readOnly !== "default" && !session.readOnly) {
+          session = { ...session, readOnly: true };
         }
         claims = supportClaims(
           session,
@@ -368,10 +392,14 @@ function createSupport(
       };
     },
 
-    list(filter) {
+    list(caller, filter) {
       return AsyncResult.from(async () => {
+        if (caller.kind !== "user")
+          return err(
+            dbError("unauthorized", "Sign in to list support sessions"),
+          );
         try {
-          return ok(await options.store.list(filter));
+          return ok(await options.store.list(filter, caller.claims));
         } catch (cause) {
           return err(storeError(cause));
         }

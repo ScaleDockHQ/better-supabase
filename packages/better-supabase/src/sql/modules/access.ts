@@ -3,10 +3,25 @@ import type { KitLayout, KitModuleDefinition } from "../kit.ts";
 
 import { PERMDOCK_SCHEMA } from "../../core/permdock-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { disabledHelpers, schemaPreamble } from "../shared.ts";
-import { accessModel, rolesOf, tenantScope } from "./access-model.ts";
+import {
+  addForeignKey,
+  disabledHelpers,
+  disabledHelpersNeedLaterTables,
+  schemaPreamble,
+} from "../shared.ts";
+import {
+  accessModel,
+  hasPlatformRoles,
+  roleScopeIs,
+  rolesOf,
+  tenantScope,
+} from "./access-model.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
+
+// A token with an `act` claim (a support session) acts as its subject, so it
+// never carries the subject's platform permissions.
+const NOT_ACTING = `(platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)`;
 
 /** Fills `{name}` placeholders of a `kits.access.functions` template. */
 function fill(
@@ -113,7 +128,11 @@ as $$
     select 1 from unnest(better_supabase.role_permissions(role)) g(key)
     where better_supabase.permission_matches(g.key, permission)
   )
-$$;`;
+$$;
+revoke execute on function better_supabase.role_permissions(text) from public, anon, authenticated;
+revoke execute on function better_supabase.role_grants(text, text) from public, anon, authenticated;
+grant execute on function better_supabase.role_permissions(text) to service_role, supabase_auth_admin;
+grant execute on function better_supabase.role_grants(text, text) to service_role, supabase_auth_admin;`;
 }
 
 function catalogTables(ctx: KitContext): string {
@@ -136,6 +155,10 @@ create table if not exists ${ctx.table("roles")} (
   ${ctx.col("roles", "id")} uuid primary key default gen_random_uuid(),
   ${ctx.col("roles", "key")} text not null unique
 );
+-- A tenant role goes in memberships, a platform role in platform assignments.
+alter table ${ctx.table("roles")} add column if not exists ${ctx.col("roles", "scope")} text not null default 'tenant';
+alter table ${ctx.table("roles")} drop constraint if exists roles_scope_check;
+alter table ${ctx.table("roles")} add constraint roles_scope_check check (${ctx.col("roles", "scope")} in ('tenant', 'platform'));
 create table if not exists ${ctx.table("permissions")} (
   ${ctx.col("permissions", "id")} uuid primary key default gen_random_uuid(),
   ${ctx.col("permissions", "key")} text not null unique
@@ -188,7 +211,21 @@ begin
     execute format('grant all on %s to service_role', t);
   end loop;
 end;
-$$;`;
+$$;${membershipRoleKey(ctx)}`;
+}
+
+/** A catalog role can't be deleted while a membership still holds it. */
+function membershipRoleKey(ctx: KitContext): string {
+  const tenant = ctx.of("tenant");
+  if (!tenant.manages) return "";
+  return `
+${addForeignKey({
+  table: tenant.table("memberships"),
+  name: "memberships_role_fkey",
+  column: tenant.col("memberships", "role"),
+  references: `${ctx.table("roles")} (${ctx.col("roles", "id")})`,
+  onDelete: "restrict",
+})}`;
 }
 
 /** `member_can`, `member_permissions` and `platform_can` for the roles and catalog models. */
@@ -209,14 +246,28 @@ function membershipFunctions(ctx: KitContext): string {
       where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member
         and ${catalogEffective(ctx, n)}
     )`;
+  // The catalog role's keys in this tenant, overrides included: the same
+  // rule member_can applies to a member holding the role.
   const roleKeys =
     model === "roles"
-      ? "select 1 from unnest(better_supabase.role_permissions(can_assign.role)) k(key) where true"
+      ? "select 1 from unnest(better_supabase.role_permissions(can_assign_as.role)) k(key) where true"
       : `select 1
-        from ${ctx.table("rolePermissions")} rp
-        join ${ctx.table("permissions")} p on p.${ctx.col("permissions", "id")} = rp.${ctx.col("rolePermissions", "permission")}
+        from (
+          select r.${ctx.col("roles", "id")} as ${n.role}, can_assign_as.tenant as ${n.tenant}
+          from ${ctx.table("roles")} r
+          where r.${ctx.col("roles", "id")}::text = can_assign_as.role
+        ) m
+        cross join ${ctx.table("permissions")} p
         cross join lateral (select p.${ctx.col("permissions", "key")} as key) k
-        where rp.${ctx.col("rolePermissions", "role")}::text = can_assign.role`;
+        where ${catalogEffective(ctx, n)}`;
+  const tenantRole = roleScopeIs(ctx, "r", "tenant");
+  const scoped = tenantRole
+    ? `
+      and exists (
+        select 1 from ${ctx.table("roles")} r
+        where r.${ctx.col("roles", "id")}::text = can_assign_as.role and ${tenantRole}
+      )`
+    : "";
   let platform = platformClaim(
     ctx,
     "platform_can.member",
@@ -269,6 +320,7 @@ security definer
 set search_path = ''
 as $$
   select member is not null
+    and ${NOT_ACTING}
     and not better_supabase.user_disabled(member)
     and (${platform})
 $$;
@@ -288,8 +340,26 @@ as $$
     and ${grants(ctx, n, "tenant_ids_with.permission")}
 $$;
 
--- Admins assign roles up to their own permissions: every key the role
--- grants must be one the caller holds in the tenant.
+-- Members assign roles up to their own permissions: every key the role
+-- grants must be one the member holds in the tenant.
+create or replace function better_supabase.can_assign_as(member uuid, tenant ${id}, role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and exists (
+      select 1 from ${n.m} m
+      where m.${n.tenant} = can_assign_as.tenant and m.${n.user} = can_assign_as.member
+    )${scoped}
+    and not exists (
+      ${roleKeys}
+        and not coalesce(better_supabase.member_can(can_assign_as.member, can_assign_as.tenant, k.key), false)
+    )
+$$;
+
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
 returns boolean
 language sql
@@ -297,18 +367,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE}
-    or (
-      exists (
-        select 1 from ${n.m} m
-        where m.${n.tenant} = can_assign.tenant and m.${n.user} = auth.uid()
-      )
-      and not exists (
-        ${roleKeys}
-          and not coalesce(better_supabase.member_can(auth.uid(), can_assign.tenant, k.key), false)
-      )
-    )
+  select ${SERVICE} or better_supabase.can_assign_as(auth.uid(), can_assign.tenant, can_assign.role)
 $$;
+${platformCanAssign(ctx)}
 
 create or replace function better_supabase.permission_claims(user_id uuid)
 returns jsonb
@@ -323,6 +384,49 @@ as $$
     and not better_supabase.user_disabled(permission_claims.user_id)
     and not better_supabase.tenant_disabled(m.${n.tenant})
 $$;`;
+}
+
+/** `platform_can_assign(member, role)`: the platform role ceiling. */
+function platformCanAssign(ctx: KitContext): string {
+  if (!hasPlatformRoles(ctx)) return "";
+  const platformRole = roleScopeIs(ctx, "r", "platform");
+  return `
+-- A platform role is assignable by a member who holds every key it grants.
+create or replace function better_supabase.platform_can_assign(member uuid, role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and exists (
+      select 1 from ${ctx.table("roles")} r
+      where r.${ctx.col("roles", "id")}::text = platform_can_assign.role${platformRole ? ` and ${platformRole}` : ""}
+    )
+    and not exists (
+      select 1
+      from ${ctx.table("rolePermissions")} rp
+      join ${ctx.table("permissions")} p on p.${ctx.col("permissions", "id")} = rp.${ctx.col("rolePermissions", "permission")}
+      where rp.${ctx.col("rolePermissions", "role")}::text = platform_can_assign.role
+        and not coalesce(better_supabase.platform_can(platform_can_assign.member, p.${ctx.col("permissions", "key")}), false)
+    )
+$$;
+revoke execute on function better_supabase.platform_can_assign(uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.platform_can_assign(uuid, text) to service_role;`;
+}
+
+function permdockCanAssign(ctx: KitContext): string {
+  const template = ctx.kits.access?.functions?.canAssign;
+  if (template) {
+    return fill(template, {
+      tenant: "can_assign.tenant",
+      role: "can_assign.role",
+    });
+  }
+  if (!ctx.installed("tenant")) return "false";
+  const owner = sqlString(ctx.of("organizations").text("ownerRole", "owner"));
+  return `can_assign.role <> ${owner} or better_supabase.has_org_role(can_assign.tenant, array[${owner}])`;
 }
 
 function permdockFunctions(ctx: KitContext, layout: KitLayout): string {
@@ -366,7 +470,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select member = auth.uid() and not better_supabase.user_disabled(member) and ${schema}.permdock_has(permission)
+  select member = auth.uid() and ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has(permission)
 $$;
 
 create or replace function better_supabase.tenant_ids_with(permission text)
@@ -381,14 +485,16 @@ as $$
     and not better_supabase.tenant_disabled(t.id::${id})
 $$;
 
--- PermDock enforces its own assignment rules; set kits.access.functions.canAssign to add one here.
+-- kits.access.functions.canAssign decides who assigns which role. Without
+-- it, only owners assign the owner role, and only with the tenant module.
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
 returns boolean
 language sql
 stable
+security definer
 set search_path = ''
 as $$
-  select ${ctx.kits.access?.functions?.canAssign ? fill(ctx.kits.access.functions.canAssign, { tenant: "can_assign.tenant", role: "can_assign.role" }) : "true"}
+  select ${SERVICE} or coalesce((${permdockCanAssign(ctx)}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)
@@ -404,9 +510,9 @@ $$;`;
 function customFunctions(ctx: KitContext): string {
   const id = ctx.idType;
   const functions = ctx.kits.access?.functions ?? {};
-  const missing = (["can", "tenantIdsWith", "isPlatform"] as const).filter(
-    (name) => !functions[name],
-  );
+  const missing = (
+    ["can", "tenantIdsWith", "isPlatform", "canAssign"] as const
+  ).filter((name) => !functions[name]);
   if (missing.length > 0) {
     throw new TypeError(
       `kits.access.model 'custom' needs kits.access.functions.${missing.join(", ")}`,
@@ -452,7 +558,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select member = auth.uid() and not better_supabase.user_disabled(member)
+  select member = auth.uid() and ${NOT_ACTING} and not better_supabase.user_disabled(member)
     and coalesce((${fill(functions.isPlatform!, { permission: "permission", user: "member" })}), false)
 $$;
 
@@ -475,7 +581,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or coalesce((${functions.canAssign ? fill(functions.canAssign, { tenant: "can_assign.tenant", role: "can_assign.role" }) : "true"}), false)
+  select ${SERVICE} or coalesce((${fill(functions.canAssign!, { tenant: "can_assign.tenant", role: "can_assign.role" })}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)
@@ -512,9 +618,10 @@ function accessSql(ctx: KitContext, layout: KitLayout): string {
       return unreachable;
     }
   }
+  const defer = disabledHelpersNeedLaterTables(ctx);
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${disabledHelpers(ctx)}
+${defer ? "set check_function_bodies = off;" : ""}${disabledHelpers(ctx)}${defer ? "\nreset check_function_bodies;" : ""}
 
 -- \`*\` grants every key and \`prefix.*\` every key under prefix.
 create or replace function better_supabase.permission_matches(granted text, wanted text)
@@ -591,7 +698,7 @@ begin
     'member_permissions(uuid, ${id})',
     'platform_can(uuid, text)',
     'can_user(uuid, text, ${id}, text)',
-    'permission_claims(uuid)'
+    'permission_claims(uuid)'${model === "roles" || model === "catalog" ? `,\n    'can_assign_as(uuid, ${id}, text)'` : ""}
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role, supabase_auth_admin', fn);
@@ -618,8 +725,13 @@ export const ACCESS: KitModuleDefinition = {
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   names: {
+    options: ["platformRoleScope", "scope", "tenantRoleScope"],
     tables: {
-      roles: { name: "roles", columns: { id: "id", key: "key" } },
+      roles: {
+        name: "roles",
+        columns: { id: "id", key: "key", scope: "scope" },
+        optional: ["scope"],
+      },
       permissions: { name: "permissions", columns: { id: "id", key: "key" } },
       rolePermissions: {
         name: "role_permissions",
@@ -628,7 +740,7 @@ export const ACCESS: KitModuleDefinition = {
       overrides: {
         name: "permission_overrides",
         columns: {
-          tenant: "org_id",
+          tenant: "organization_id",
           role: "role_id",
           permission: "permission_id",
           granted: "granted",

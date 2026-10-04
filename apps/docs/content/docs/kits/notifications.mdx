@@ -23,7 +23,7 @@ needs `notifications.send` in the organization and every recipient needs
 
 ## Sending
 
-Declare each kind with a Standard Schema for its data. `send` validates the
+Declare each type with a Standard Schema for its data. `send` validates the
 data before it reaches the database:
 
 ```ts title="lib/notifications.ts"
@@ -35,7 +35,7 @@ import {
 } from "better-supabase/notifications";
 import { z } from "zod";
 
-export const kinds = {
+export const types = {
   "task.assigned": z.object({ title: z.string() }),
   "approval.requested": z.object({ amount: z.number() }),
 };
@@ -43,10 +43,10 @@ export const kinds = {
 export const notificationsFor = (claims: Record<string, unknown>) =>
   createNotifications({
     transport: sqlTransport(postgres.asUser(claims)),
-    kinds,
+    types,
     actionable: ["approval.requested"],
     events: betterSupabase.events,
-    render: (item) => ({ title: `${item.kind}: ${item.subject?.label ?? ""}` }),
+    render: (item) => ({ title: `${item.type}: ${item.subject?.label ?? ""}` }),
   });
 ```
 
@@ -97,14 +97,15 @@ const { unread, actionable } = await notifications
 await notifications.markRead({ ids: [items[0].id] });
 await notifications.dismiss([items[0].id]);
 await notifications.resolve({
-  kind: "approval.requested",
+  type: "approval.requested",
   subject: { type: "invoice", id },
 });
 ```
 
-`list` pages with `before` (an instant) and `limit` (50 by default, at most
-200), and filters with `status` (`all`, `unread`, `read`, `unresolved`) and
-`kinds`. `resolve` marks every recipient's copy of a kind about one subject
+`list` pages with `before` and `limit` (50 by default, at most 200). Pass the
+last item of the previous page as `before`: the kit orders by `created_at`
+and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`) and
+`types`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
 
 ## Realtime
@@ -147,10 +148,15 @@ routine activity too, `participating` only what involves them, and `ignore`
 mutes the subject even when a sender names them. `null` removes the
 subscription.
 
-`setPreference({ kind, channel, enabled, tenant? })` turns a kind (or `*`)
+`setPreference({ type, channel, enabled, tenant? })` turns a type (or `*`)
 on or off on a channel. The most specific row wins: the organization and
-kind, the organization and `*`, everywhere and kind, everywhere and `*`,
-then `options.channelDefaults` (email is off until a user turns it on).
+type, the organization and `*`, everywhere and type, everywhere and `*`,
+then `options.channelDefaults`. Without a default, `in_app` is on and every
+other channel is off until the user turns it on, so nobody gets email they
+did not ask for. The kit resolves the preferences of all recipients in one
+query, and `notify` refuses more than `options.maxRecipients` (1,000)
+recipients with `NOTIFICATION_TOO_MANY_RECIPIENTS`; fan out larger audiences
+from a job.
 
 ## Email, push and other channels
 
@@ -166,11 +172,11 @@ import {
   sqlTransport,
 } from "better-supabase/notifications";
 
-import { kinds } from "@/lib/notifications";
+import { types } from "@/lib/notifications";
 
 const notifications = createNotifications({
   transport: sqlTransport(postgres.admin),
-  kinds,
+  types,
   channels: [
     {
       apiVersion: 1,
@@ -179,7 +185,7 @@ const notifications = createNotifications({
         if (!email) return { status: "skipped" };
         const { id } = await resend.emails.send({
           to: email,
-          subject: text?.title ?? notification.kind,
+          subject: text?.title ?? notification.type,
         });
         return { provider: "resend", providerMessageId: id };
       },
@@ -194,9 +200,15 @@ export async function GET() {
 
 `deliver` claims pending rows with `for update skip locked` and leases them
 (`lease`, five minutes by default), so two runs never send the same message.
-A channel that throws leaves the row pending for the next run, until
-`maxAttempts` (5) marks it `failed`. `testNotificationChannel` from
+A channel that throws leaves the row pending until `next_attempt_at`, a
+random time up to 30 seconds that doubles per attempt to at most an hour.
+The database marks it `failed` after `maxAttempts` (5), and also when a
+worker died while it held the last attempt. `testNotificationChannel` from
 `better-supabase/testing` checks a channel against the contract.
+
+Run `purge()` (`purge_notifications(older_than, batch)` in SQL) from a
+scheduled job to delete notifications older than 90 days with their
+recipients and deliveries, 10,000 per call.
 
 ## Extending it
 
@@ -210,11 +222,11 @@ A channel that throws leaves the row pending for the next run, until
 
 ## Existing tables
 
-The default names match a common layout (`notification_events` with `type`
-and `metadata`, `notification_recipients`, `notification_deliveries`,
-`notification_subscriptions` and `notification_preferences`, keyed on
-`organization_id`). Adopt yours and rename what differs; map columns and
-tables you don't have to `null`:
+The managed tables are `notification_events` (with `type`, `data` and
+`actor_id`), `notification_recipients` (keyed on `user_id`),
+`notification_deliveries`, `notification_subscriptions` and
+`notification_preferences`, keyed on `organization_id`. Adopt yours and
+rename what differs; map columns and tables you don't have to `null`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -224,7 +236,10 @@ export default defineConfig({
       schema: "public",
       idType: "uuid",
       tables: { subscriptions: null },
-      columns: { events: { key: null }, recipients: { resolvedAt: null } },
+      columns: {
+        events: { key: null, actor: "actor_user_id", data: "metadata" },
+        recipients: { user: "recipient_user_id", resolvedAt: null },
+      },
       options: {
         topic: "org:{tenantId}:notifications:{userId}",
         channels: ["in_app", "email"],
@@ -235,17 +250,18 @@ export default defineConfig({
 ```
 
 Without a key column, keyed sends derive the event id from the organization
-and key instead. A recipient with in-app off for a kind still gets a row,
+and key instead. A recipient with in-app off for a type still gets a row,
 stored as dismissed, so other channels can deliver it.
 
 ## Error codes
 
-| `hint`                          | When                                                               |
-| ------------------------------- | ------------------------------------------------------------------ |
-| `NOTIFICATION_KIND_REQUIRED`    | `notify` without a kind                                            |
-| `NOTIFICATION_KIND_UNKNOWN`     | `send` with a kind that isn't in `kinds` (checked in TypeScript)   |
-| `NOTIFICATION_FORBIDDEN`        | The sender lacks `notifications.send` in the organization          |
-| `NOTIFICATION_PRIORITY_UNKNOWN` | A priority that isn't in `options.priorities`                      |
-| `NOTIFICATION_ACTIVITY_UNKNOWN` | An `activity` other than `participating` or `all`                  |
-| `NOTIFICATION_LEVEL_UNKNOWN`    | A subscription level other than `participating`, `all` or `ignore` |
-| `NOTIFICATION_STATUS_UNKNOWN`   | Completing a delivery with a status the kit doesn't know           |
+| `hint`                             | When                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `NOTIFICATION_TYPE_REQUIRED`       | `notify` without a type                                            |
+| `NOTIFICATION_TYPE_UNKNOWN`        | `send` with a type that isn't in `types` (checked in TypeScript)   |
+| `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization          |
+| `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                      |
+| `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                  |
+| `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore` |
+| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the kit doesn't know           |
+| `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                       |

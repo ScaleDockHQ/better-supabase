@@ -23,8 +23,9 @@ function defaultActor(context: RequestContext): string | undefined {
  * Stamps the columns generated as `Flags.actor`: `createdBy` on insert and
  * `updatedBy` on insert and update. Soft deletes are updates, so they record
  * who deleted the row. `impersonatedBy` gets `context.actor.impersonator` on
- * every insert and update, and `null` when nobody is impersonating, like the
- * SQL kit's `track_actor`. Without an actor (anonymous requests) nothing is set.
+ * an impersonated insert or update and is left alone otherwise, so a user's
+ * own update keeps the stamp, like the SQL kit's `track_actor`. Without an
+ * actor (anonymous requests) nothing is set.
  */
 export function actor(options: ActorOptions = {}): Plugin<"actor"> {
   const resolve = options.resolve ?? defaultActor;
@@ -39,9 +40,13 @@ export function actor(options: ActorOptions = {}): Plugin<"actor"> {
       guardManaged(op, [created, updated, impersonated], "actor", options);
       const id = resolve(context);
       if (id === undefined) return op;
-      const impersonator = context.actor?.impersonator ?? null;
-      const stamp = (row: Row): Row =>
-        withDefault(withDefault(row, updated, id), impersonated, impersonator);
+      const impersonator = context.actor?.impersonator;
+      const stamp = (row: Row): Row => {
+        const stamped = withDefault(row, updated, id);
+        return impersonator === undefined
+          ? stamped
+          : withDefault(stamped, impersonated, impersonator);
+      };
       switch (op.kind) {
         case "insert": {
           const stampCreated = insertsOnly(op);

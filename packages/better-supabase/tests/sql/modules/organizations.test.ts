@@ -42,9 +42,18 @@ describe("organizations module", () => {
       'create table if not exists "better_supabase"."organizations" (',
     );
     expect(sql).toContain(
-      'insert into "better_supabase"."memberships" ("org_id", "user_id", "role")\n  values (org, owner, \'owner\');',
+      'insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")\n  values (org, owner, \'owner\');',
     );
-    expect(sql).toContain('create constraint trigger "bs_org_owner"');
+    expect(sql).toContain(
+      'create constraint trigger "bs_org_owner" after update of "role", "organization_id" or delete',
+    );
+    expect(sql).toMatch(
+      /perform 1 from "better_supabase"\."organizations" o .* for update;/,
+    );
+    expect(sql).toContain('"slug" text not null');
+    expect(sql).toContain("coalesce(attrs ->> 'slug', '')");
+    expect(sql).toContain("memberships_organization_fkey");
+    expect(sql).toContain("on delete cascade not valid;");
     expect(sql).toContain("deferrable initially deferred");
     expect(sql).toContain("hint = 'ORG_ROLE_CEILING'");
     expect(sql).toContain(
@@ -76,19 +85,21 @@ describe("organizations module", () => {
     expect(sql).toContain('on "public"."organization_users"');
   });
 
-  it("soft-deletes, renders without the guards and checks its options", () => {
+  it("soft-deletes, renders without the owner guard and checks its options", () => {
     const soft = body({
       organizations: {
         options: {
           deleteMode: "soft",
           ownerInvariant: false,
-          assignmentCeiling: false,
         },
       },
     });
     expect(soft).toContain('set "deleted_at" = now()');
     expect(soft).not.toContain("bs_org_owner");
-    expect(soft).not.toContain("guard_membership");
+    expect(soft).toContain("guard_membership");
+    expect(() =>
+      body({ organizations: { options: { assignmentCeiling: false } } }),
+    ).toThrow(/assignmentCeiling/);
     expect(() =>
       body({
         organizations: {
@@ -111,7 +122,7 @@ describe("organizations module", () => {
 
   it("installs after tenant and access", () => {
     const names = resolveModules(["organizations"]).map((m) => m.name);
-    expect(names).toEqual(["tenant", "access", "organizations"]);
+    expect(names).toEqual(["updated-at", "tenant", "access", "organizations"]);
     expect(
       moduleBody("organizations", {
         kits: { organizations: { mode: "custom" } },

@@ -32,6 +32,8 @@ export type {
   KitTableSpec,
 } from "./context.ts";
 export { kitLayout } from "./layout.ts";
+export { migrationOptionUses } from "./migration-options.ts";
+export type { MigrationOptionUse } from "./migration-options.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";
 export type { CompiledReadSet } from "./read-sets.ts";
 export {

@@ -1,12 +1,17 @@
+import type { ActiveTenantSource } from "../../config/kits.ts";
 import type { KitContext } from "../context.ts";
 import type { KitModuleDefinition } from "../kit.ts";
 
+import { DEFAULT_ACTIVE_TENANT } from "../../config/kits.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   columnRef,
   disabledHelpers,
+  disabledHelpersNeedLaterTables,
   jwtClaim,
+  renameSql,
   schemaPreamble,
+  updatedAt,
 } from "../shared.ts";
 import { accessModel, roleNames } from "./access-model.ts";
 
@@ -25,24 +30,17 @@ function currentTenant(ctx: KitContext): string {
   const tenant = ctx.col("memberships", "tenant");
   const user = ctx.col("memberships", "user");
   const claim = `nullif(${jwtClaim(ctx.claims.tenant)}, '')`;
-  const source = ctx.kits.access?.activeTenant ?? "claim";
+  const source = activeTenantSource(ctx);
   const member = (value: string): string =>
     `(select m.${tenant}::text from ${m} m where m.${tenant}::text = ${value} and m.${user} = auth.uid() limit 1)`;
   let requested: string;
   let comment: string;
   if (source === "claim") {
-    return `
--- The tenant of the current request: the top-level \`${ctx.claims.tenant}\` claim
--- (custom access token hook) or \`app_metadata.${ctx.claims.tenant}\` (Auth admin API).
--- Never user_metadata: users can write it.
-create or replace function better_supabase.current_tenant_id()
-returns ${id}
-language sql
-stable
-set search_path = ''
-as $$
-  select ${claim}::${id}
-$$;`;
+    comment = `-- The top-level \`${ctx.claims.tenant}\` claim (custom access token hook) or
+-- \`app_metadata.${ctx.claims.tenant}\` (switch_organization), while the caller is
+-- still a member: a token issued before a removal grants nothing. Never
+-- user_metadata: users can write it.`;
+    requested = member(claim);
   } else if (source === "resolver") {
     comment = `-- The tenant the server resolved (the better_supabase.tenant setting over Postgres,
 -- the x-bs-tenant header over the Data API), then the \`${ctx.claims.tenant}\` claim.
@@ -75,7 +73,46 @@ security definer
 set search_path = ''
 as $$
   select ${requested}::${id}
-$$;`;
+$$;
+revoke execute on function better_supabase.current_tenant_id() from public;
+grant execute on function better_supabase.current_tenant_id() to anon, authenticated, service_role, supabase_auth_admin;${source === "claim" ? clearClaim(ctx) : ""}`;
+}
+
+/** `kits.access.activeTenant`, defaulting to the resolver (URL tenancy). */
+export function activeTenantSource(ctx: KitContext): ActiveTenantSource {
+  return ctx.kits.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
+}
+
+/**
+ * With the claim source, removing a membership also clears the claim that
+ * points at it, so the next token carries no tenant.
+ */
+function clearClaim(ctx: KitContext): string {
+  if (ctx.mode === "custom") return "";
+  const m = ctx.table("memberships");
+  const tenant = ctx.col("memberships", "tenant");
+  const user = ctx.col("memberships", "user");
+  const key = sqlString(ctx.claims.tenant);
+  return `
+
+create or replace function better_supabase.clear_tenant_claim()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update auth.users u
+  set raw_app_meta_data = u.raw_app_meta_data - ${key}
+  where u.id = old.${user}
+    and u.raw_app_meta_data ->> ${key} = old.${tenant}::text;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.clear_tenant_claim() from public, anon, authenticated;
+drop trigger if exists ${ctx.trigger("clear_tenant_claim")} on ${m};
+create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
+  for each row execute function better_supabase.clear_tenant_claim();`;
 }
 
 function tenantSql(ctx: KitContext): string {
@@ -105,7 +142,7 @@ create table if not exists ${m} (
   primary key (${tenant}, ${user})
 );
 create index if not exists memberships_user_idx on ${m} (${user});
-${ctx.has("memberships", "lastUsedAt") ? `alter table ${m} add column if not exists ${ctx.col("memberships", "lastUsedAt")} timestamptz;\n` : ""}${
+${model === "catalog" ? `create index if not exists memberships_role_idx on ${m} (${roleCol});\n` : ""}${ctx.has("memberships", "updatedAt") ? `${updatedAt(m, ctx.col("memberships", "updatedAt"))}\n` : ""}${ctx.has("memberships", "lastUsedAt") ? `alter table ${m} add column if not exists ${ctx.col("memberships", "lastUsedAt")} timestamptz;\n` : ""}${
         model === "catalog"
           ? ""
           : `alter table ${m} drop constraint if exists memberships_role_check;
@@ -128,9 +165,11 @@ create policy bs_memberships_read on ${m}
   using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_org_ids()));
 `
     : "";
-  // The catalog's roles table is in the access module's file, which sorts
-  // after this one; the bodies are checked when they first run instead.
-  const deferBodies = model === "catalog";
+  // The catalog's roles table and the managed organizations table are in
+  // files that sort after this one; the bodies are checked when they first
+  // run instead.
+  const deferBodies =
+    model === "catalog" || disabledHelpersNeedLaterTables(ctx);
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
 ${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${disabledHelpers(ctx)}
@@ -152,6 +191,8 @@ as $$
   from ${m} m
   where m.${user} = (select auth.uid())
     and (member_org_ids.roles is null or ${role} = any (member_org_ids.roles))
+    and not better_supabase.user_disabled(m.${user})
+    and not better_supabase.tenant_disabled(m.${tenant})
 $$;
 
 create or replace function better_supabase.has_org_role(org ${id}, roles text[] default null)
@@ -167,6 +208,8 @@ as $$
     where m.${tenant} = has_org_role.org
       and m.${user} = auth.uid()
       and (has_org_role.roles is null or ${role} = any (has_org_role.roles))
+      and not better_supabase.user_disabled(m.${user})
+      and not better_supabase.tenant_disabled(m.${tenant})
   )
 $$;
 
@@ -218,22 +261,24 @@ export const TENANT: KitModuleDefinition = {
   title: "Tenant memberships and permission helper",
   description:
     "Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through kits.tenant.",
-  requires: [],
+  requires: ["updated-at"],
   target: "schema",
   version: 2,
   modes: ["managed", "adopt", "custom"],
   names: {
+    options: ["claimFormat"],
     tables: {
       memberships: {
         name: "memberships",
         columns: {
-          tenant: "org_id",
+          tenant: "organization_id",
           user: "user_id",
           role: "role",
           createdAt: "created_at",
+          updatedAt: "updated_at",
           lastUsedAt: "last_used_at",
         },
-        optional: ["lastUsedAt"],
+        optional: ["lastUsedAt", "updatedAt"],
       },
     },
   },
@@ -248,11 +293,25 @@ export const TENANT: KitModuleDefinition = {
     {
       from: 1,
       description:
-        "Adds memberships.last_used_at and org_member_role(); the role check follows kits.access.roles.",
-      sql: () => "",
+        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and org_member_role(); the role check follows kits.access.roles.",
+      sql: (ctx) =>
+        ctx.manages
+          ? renameSql({
+              schema: ctx.tableName("memberships").schema,
+              table: ctx.tableName("memberships").name,
+              columns: [["org_id", "organization_id"]],
+            })
+          : "",
     },
   ],
   deprecated: [
+    {
+      kind: "column",
+      symbol: "memberships.org_id",
+      use: "memberships.organization_id",
+      since: "0.5.0",
+      removed: "0.5.0",
+    },
     {
       kind: "function",
       symbol: "better_supabase.current_org_id",

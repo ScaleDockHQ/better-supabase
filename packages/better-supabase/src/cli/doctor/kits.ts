@@ -1,6 +1,7 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tenantClaimPaths } from "../../config/index.ts";
+import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   contractSignature,
   customContracts,
@@ -8,11 +9,13 @@ import {
   kitDeprecations,
   kitFileVersion,
   kitLayout,
+  migrationOptionUses,
 } from "../../sql/index.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
 import {
   catalogOf,
+  exposedSchemas,
   lineOf,
   policyObject,
   qualified,
@@ -73,6 +76,45 @@ const normalize = (types: string): string =>
     .replaceAll(/\s+/g, " ")
     .replaceAll(/\s*,\s*/g, ", ")
     .trim();
+
+const PRE_REQUEST_HOOK = `select h.hook,
+  coalesce(pg_catalog.strpos(pg_catalog.pg_get_functiondef(pg_catalog.to_regproc(h.hook)), 'better_supabase.check_request') > 0, false) as calls
+from (
+  select (
+    select pg_catalog.split_part(setting, '=', 2)
+    from pg_catalog.pg_db_role_setting s
+    join pg_catalog.pg_roles r on r.oid = s.setrole
+    cross join lateral pg_catalog.unnest(s.setconfig) setting
+    where r.rolname = 'authenticator' and s.setdatabase = 0
+      and setting like 'pgrst.db_pre_request=%'
+    limit 1
+  ) as hook
+) h`;
+
+/** `rate-limit` in `sql.kit` without PostgREST's pre-request hook reaching `check_request()`. */
+async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
+  const db = context.database;
+  if (!context.config.sql.kit.includes("rate-limit") || !db || "skipped" in db)
+    return [];
+  let rows: { hook: string | null; calls: boolean }[];
+  try {
+    rows = await db.query(PRE_REQUEST_HOOK);
+  } catch {
+    return [];
+  }
+  const [row] = rows;
+  if (!row || row.hook === "better_supabase.check_request" || row.calls)
+    return [];
+  return [
+    {
+      message:
+        row.hook === null
+          ? "pgrst.db_pre_request isn't set for authenticator, so better_supabase.check_request() never runs. Apply the migration `better-supabase sql data` writes, which sets it."
+          : `pgrst.db_pre_request is ${row.hook}, which doesn't call better_supabase.check_request(), so rate limits never apply. Call it from ${row.hook}.`,
+      target: "authenticator pgrst.db_pre_request",
+    },
+  ];
+}
 
 /** Custom-mode modules whose contract functions the database or SQL files don't have. */
 async function missingContracts(
@@ -161,7 +203,10 @@ async function missingTenantClaim(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   if (!context.config.sql.kit.includes("tenant")) return [];
-  if ((context.config.kits.access?.activeTenant ?? "claim") !== "claim") {
+  if (
+    (context.config.kits.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT) !==
+    "claim"
+  ) {
     return [];
   }
   const userId = context.hookUser;
@@ -220,13 +265,45 @@ function deprecationPattern(entry: KitDeprecation): RegExp {
   }
 }
 
+const bareWord = (name: string): RegExp =>
+  new RegExp(`(?<![\\w"])${ident(name)}(?![\\w"])`, "i");
+
+/**
+ * The line where `text` uses a deprecated symbol. A column also counts
+ * unqualified (`m.org_id`) in a statement that names its table, or in a
+ * policy on that table.
+ */
+function lineOfUse(
+  entry: KitDeprecation,
+  text: string,
+  policyTable?: string,
+): number | undefined {
+  const direct = lineOf(text, deprecationPattern(entry));
+  if (direct !== undefined || entry.kind !== "column") return direct;
+  const [table = "", column = ""] = entry.symbol.split(".");
+  let offset = 0;
+  for (const statement of text.split(";")) {
+    const named = policyTable === table || bareWord(table).test(statement);
+    const at = statement.search(bareWord(column));
+    if (named && at !== -1)
+      return text.slice(0, offset + at).split("\n").length;
+    offset += statement.length + 1;
+  }
+  return undefined;
+}
+
 /** SQL files and policies that still use a symbol a kit module deprecated or removed. */
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
   const entries = kitDeprecations().filter(
     (entry) =>
       context.config.sql.kit.includes(entry.module) &&
-      !(entry.kind === "claim" && configured.has(entry.symbol)),
+      !(entry.kind === "claim" && configured.has(entry.symbol)) &&
+      // Adopted and custom tables keep the app's names.
+      !(
+        (entry.kind === "table" || entry.kind === "column") &&
+        (context.config.kits[entry.module]?.mode ?? "managed") !== "managed"
+      ),
   );
   if (entries.length === 0) return [];
   const files = (context.sqlFiles ?? []).filter(
@@ -236,14 +313,13 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   );
   const findings: FindingInput[] = [];
   for (const entry of entries) {
-    const pattern = deprecationPattern(entry);
     const status =
       entry.removed === undefined
         ? `deprecated since ${entry.since}`
         : `removed in ${entry.removed}`;
     const advice = `the ${entry.module} module's ${entry.kind} ${entry.symbol}, ${status}. Use ${entry.use}.`;
     for (const file of files) {
-      const line = lineOf(file.text, pattern);
+      const line = lineOfUse(entry, file.text);
       if (line === undefined) continue;
       findings.push({
         message: `${file.path} uses ${advice}`,
@@ -253,9 +329,8 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
     }
     for (const table of catalogOf(context).tables) {
       for (const policy of table.policies) {
-        if (!pattern.test(`${policy.using ?? ""}\n${policy.check ?? ""}`)) {
-          continue;
-        }
+        const text = `${policy.using ?? ""}\n${policy.check ?? ""}`;
+        if (lineOfUse(entry, text, table.name) === undefined) continue;
         findings.push({
           message: `Policy "${policy.name}" on ${qualified(table)} uses ${advice}`,
           target: `${qualified(table)}.${policy.name}:${entry.symbol}`,
@@ -297,6 +372,31 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
   );
 }
 
+/** `better_supabase` and every `kits.*.schema` that `[api] schemas` serves through the Data API. */
+function exposedKitSchemas(context: DoctorContext): FindingInput[] {
+  if (context.config.sql.kit.length === 0) return [];
+  const kitSchemas = new Set<string>(["better_supabase"]);
+  for (const module of Object.values(context.config.kits)) {
+    if (module?.schema !== undefined) kitSchemas.add(module.schema);
+  }
+  return exposedSchemas(context)
+    .filter((schema) => kitSchemas.has(schema))
+    .map((schema) => ({
+      message: `The Data API serves the kit schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), and call the kit functions through a wrapper in an exposed schema.`,
+      target: schema,
+    }));
+}
+
+function migrationOptions(context: DoctorContext): FindingInput[] {
+  const kit = new Set(context.config.sql.kit);
+  return migrationOptionUses(context.config.kits)
+    .filter((use) => kit.has(use.module))
+    .map((use) => ({
+      message: `${use.message} It exists to adopt an existing schema; remove it once your data matches the managed default.`,
+      target: `kits.${use.module}.options.${use.option}`,
+    }));
+}
+
 export const KIT_RULES: readonly Rule[] = [
   {
     code: "BS307",
@@ -311,7 +411,7 @@ export const KIT_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `kits.access.activeTenant: 'claim'` (the default), `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. Apps without a tenant claim set `activeTenant` to `'resolver'` or a profile column.",
+      "With the `tenant` module and `kits.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {
@@ -329,5 +429,29 @@ export const KIT_RULES: readonly Rule[] = [
     description:
       "A table has a kit trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
     check: duplicateTriggers,
+  },
+  {
+    code: "BS313",
+    severity: "warning",
+    title: "Rate limits not wired to PostgREST",
+    description:
+      "The `rate-limit` module is in `sql.kit`, but on the live database `pgrst.db_pre_request` for the `authenticator` role is unset or names a function that doesn't call `better_supabase.check_request()`, so Data API requests are never counted.",
+    check: rateLimitHook,
+  },
+  {
+    code: "BS312",
+    severity: "error",
+    title: "Kit schema exposed through the Data API",
+    description:
+      "`[api] schemas` in `config.toml` lists `better_supabase` or a `kits.*.schema`. The kit schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
+    check: exposedKitSchemas,
+  },
+  {
+    code: "BS314",
+    severity: "warning",
+    title: "Migration-only kit option",
+    description:
+      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets in a column, non-text webhook ids, or a custom outbox source. Remove it once the data matches the managed default.",
+    check: migrationOptions,
   },
 ];

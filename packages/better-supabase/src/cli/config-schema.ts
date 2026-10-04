@@ -30,7 +30,6 @@ const kitModuleEntries = {
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
   idType: v.optional(v.string()),
-  triggerPrefix: v.optional(v.string()),
   permissions: v.optional(stringRecord),
   options: v.optional(v.record(v.string(), v.unknown())),
   hooks: v.optional(
@@ -60,7 +59,6 @@ const accessKit = v.strictObject({
   disabled: v.optional(
     v.strictObject({
       tenant: v.optional(v.string()),
-      tenantKey: v.optional(v.string()),
       user: v.optional(v.string()),
       userKey: v.optional(v.string()),
     }),
@@ -81,8 +79,6 @@ const accessKit = v.strictObject({
     }),
   ),
 });
-
-const kitModule = v.union([v.strictObject(kitModuleEntries), accessKit]);
 
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
@@ -153,7 +149,12 @@ const ConfigSchema = v.strictObject({
   ),
   buckets: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
   topics: v.optional(stringRecord),
-  realtime: v.optional(v.strictObject({ tables: v.optional(strings) })),
+  realtime: v.optional(
+    v.strictObject({
+      tables: v.optional(strings),
+      global: v.optional(strings),
+    }),
+  ),
   entitlements: v.optional(
     v.strictObject({
       customer: v.optional(v.string()),
@@ -193,10 +194,10 @@ const ConfigSchema = v.strictObject({
     }),
   ),
   kits: v.optional(
-    v.intersect([
-      v.object({ access: v.optional(accessKit) }),
-      v.record(v.string(), kitModule),
-    ]),
+    v.objectWithRest(
+      { access: v.optional(accessKit) },
+      v.strictObject(kitModuleEntries),
+    ),
   ),
   seed: v.optional(
     v.strictObject({

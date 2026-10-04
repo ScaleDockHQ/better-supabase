@@ -90,8 +90,10 @@ export interface OrgsOptions {
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: KitTransport;
   /**
-   * `kits.<module>.schema`. One schema for both modules, or one per
-   * module. Defaults to `better_supabase`.
+   * The schema holding the functions: `kits.<module>.schema` with
+   * `sqlTransport`, the exposed API schema of wrappers with `rpcTransport`.
+   * One schema for both modules, or one per module. Defaults to
+   * `better_supabase`.
    */
   readonly schema?:
     | string

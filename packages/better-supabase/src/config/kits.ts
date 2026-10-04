@@ -34,8 +34,6 @@ export interface KitModuleConfig {
   >;
   /** Type of tenant ids: `uuid` (default), `text`, `bigint` or `integer`. */
   readonly idType?: string;
-  /** Prefix of the triggers the module creates. Defaults to `bs_`. */
-  readonly triggerPrefix?: string;
   /**
    * Kit action to permission key, checked through the access contract, e.g.
    * `{ invite: 'organization.members.invite' }`.
@@ -60,18 +58,24 @@ export interface KitModuleConfig {
   readonly events?: boolean;
 }
 
-/** Where the active tenant of a request comes from. */
+/**
+ * Where the active tenant of a request comes from. Every source counts only
+ * while the caller is a member, so a stale claim or setting grants nothing.
+ */
 export type ActiveTenantSource =
-  /** The `claims.tenant` claim (the default). */
+  /** The `claims.tenant` claim, written by `switch_organization`. */
   | "claim"
   /**
-   * A TypeScript resolver (`ServerOptions.tenant`), e.g. from a URL slug. The
-   * server sends it as the `x-bs-tenant` header; `current_tenant_id()` only
-   * returns it when the caller is a member.
+   * A TypeScript resolver (`ServerOptions.tenant`), e.g. from a URL slug (the
+   * default). The server sends it as the `x-bs-tenant` header, then the
+   * `claims.tenant` claim is the fallback.
    */
   | "resolver"
   /** A profile column keyed by the user id, e.g. `public.profiles.active_organization_id`. */
   | { readonly profileColumn: string; readonly key?: string };
+
+/** URL tenancy: the tenant comes from the request (a slug), not a stored setting. */
+export const DEFAULT_ACTIVE_TENANT: ActiveTenantSource = "resolver";
 
 /**
  * The access contract every kit checks permissions through:
@@ -119,7 +123,6 @@ export interface AccessKitConfig extends KitModuleConfig {
    */
   readonly disabled?: {
     readonly tenant?: string;
-    readonly tenantKey?: string;
     readonly user?: string;
     readonly userKey?: string;
   };
@@ -144,7 +147,6 @@ export interface ResolvedKitModule {
     Record<string, Readonly<Record<string, string | null>>>
   >;
   readonly idType?: string;
-  readonly triggerPrefix: string;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
   readonly hooks: {
@@ -165,7 +167,6 @@ export function resolveKitModule(
     tables: config.tables ?? {},
     columns: config.columns ?? {},
     ...(config.idType === undefined ? {} : { idType: config.idType }),
-    triggerPrefix: config.triggerPrefix ?? "bs_",
     permissions: config.permissions ?? {},
     options: config.options ?? {},
     hooks: {

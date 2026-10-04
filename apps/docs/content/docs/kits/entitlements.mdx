@@ -17,13 +17,16 @@ better-supabase sql add entitlements   # adds tenant as well
 
 ## Configuration
 
-Each tenant needs its Stripe customer id somewhere. Point the module at it:
+Each tenant needs its Stripe customer id somewhere. With the managed
+[`organizations` module](/docs/kits/orgs) installed alongside, the module adds
+`better_supabase.organizations.stripe_customer_id` (unique) and reads it.
+Otherwise point the module at your own column; `sql add` stops without one:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   entitlements: {
-    customer: "organizations.stripe_customer_id", // the default
-    key: "id", // the tenant id column, the default
+    customer: "billing_customers.stripe_customer_id",
+    key: "organization_id", // the tenant id column, defaults to id
   },
 });
 ```
@@ -36,12 +39,13 @@ has no entitlements.
 
 ## SQL
 
-| Function                        | Grants                                | Returns                                                         |
-| ------------------------------- | ------------------------------------- | --------------------------------------------------------------- |
-| `tenant_entitlements(tenant)`   | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer                     |
-| `has_entitlement(tenant, key)`  | `authenticated`                       | `true` when the caller is a member of `tenant` and it has `key` |
-| `feature_claims(user_id)`       | `service_role`, `supabase_auth_admin` | The `features` claim for the user: lookup keys per tenant       |
-| `entitlement_members(customer)` | `service_role`                        | Members of the tenants billed to `customer`                     |
+| Function                           | Grants                                | Returns                                                           |
+| ---------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| `tenant_entitlements(tenant)`      | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer                       |
+| `has_entitlement(tenant, key)`     | `authenticated`                       | `true` when the caller is a member of `tenant` and it has `key`   |
+| `tenant_ids_with_entitlement(key)` | `authenticated`                       | The caller's tenants that have `key`, for one set check per query |
+| `feature_claims(user_id)`          | `service_role`, `supabase_auth_admin` | The `features` claim for the user: lookup keys per tenant         |
+| `entitlement_members(customer)`    | `service_role`                        | Members of the tenants billed to `customer`                       |
 
 RLS reads the live table, so a downgrade takes effect on the next query:
 
@@ -49,6 +53,14 @@ RLS reads the live table, so a downgrade takes effect on the next query:
 create policy exports_need_plan on public.exports as restrictive
   for insert to authenticated
   with check ((select better_supabase.has_entitlement(organization_id, 'exports')));
+```
+
+On a read policy over many rows, compare against the set instead, so Postgres
+evaluates the entitlements once per query rather than once per row:
+
+```sql
+create policy exports_read on public.exports for select to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')));
 ```
 
 ## In the access token
@@ -167,7 +179,7 @@ add entitlements` stops and doctor reports BS408.
 even when the manifest is there. Without a manifest the module also uses
 `tenant`; keep memberships in that table and list it as a PermDock
 membership source, so PermDock and the policy agree:
-`fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'org_id', roles: 'role' })`.
+`fromJunction({ table: 'better_supabase.memberships', scope: 'organization', id: 'organization_id', roles: 'role' })`.
 
 `permdock rls generate` writes `member_<scope>_ids` for every scope, but
 `member_<scope>_ids_for` only for a scope with a membership source, and only

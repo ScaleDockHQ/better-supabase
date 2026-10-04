@@ -351,7 +351,7 @@ describe("actor", () => {
     expect(requests[1]?.body).toEqual({ name: "B", updated_by: USER });
   });
 
-  it("stamps impersonatedBy from the impersonator, and clears it otherwise", async () => {
+  it("stamps impersonatedBy from the impersonator, and leaves it alone otherwise", async () => {
     const customers = schema.meta.tables["customers"]!;
     const impersonation = defineSupabase(
       defineSchema<Models, Database, Functions>({
@@ -404,7 +404,6 @@ describe("actor", () => {
     expect(requests[1]?.body).toEqual({
       name: "B",
       updated_by: USER,
-      impersonated_by: null,
     });
     const forged = await impersonated.customers.update(
       "c",

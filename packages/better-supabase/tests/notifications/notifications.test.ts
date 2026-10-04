@@ -23,7 +23,7 @@ const titled: StandardSchemaV1<{ title: string }> = {
   },
 };
 
-const kinds = { "task.assigned": titled, "approval.requested": titled };
+const types = { "task.assigned": titled, "approval.requested": titled };
 
 type Handler = (args: Readonly<Record<string, unknown>>) => unknown;
 
@@ -43,7 +43,7 @@ function fakeTransport(handlers: Record<string, Handler> = {}) {
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: "r1",
   event_id: "e1",
-  kind: "task.assigned",
+  type: "task.assigned",
   data: { title: "Ship it" },
   tenant: "org_1",
   actor_id: "u0",
@@ -68,7 +68,7 @@ describe("createNotifications().send", () => {
     const onSent = vi.fn();
     const notifications = createNotifications({
       transport,
-      kinds,
+      types,
       schema: "app",
       events,
       onSent,
@@ -86,7 +86,7 @@ describe("createNotifications().send", () => {
       fn: "notify",
       args: {
         notification: {
-          kind: "task.assigned",
+          type: "task.assigned",
           recipients: ["u1"],
           tenant: "org_1",
           subject_type: "task",
@@ -100,23 +100,23 @@ describe("createNotifications().send", () => {
     expect(seen).toEqual(["notification.created"]);
     expect(onSent).toHaveBeenCalledWith({
       id: "e1",
-      kind: "task.assigned",
+      type: "task.assigned",
       tenant: "org_1",
       recipients: ["u1"],
     });
   });
 
-  it("rejects unknown kinds and invalid data without calling the database", async () => {
+  it("rejects unknown types and invalid data without calling the database", async () => {
     const { transport, calls } = fakeTransport();
-    const notifications = createNotifications({ transport, kinds });
+    const notifications = createNotifications({ transport, types });
     const unknown = await notifications.send(
-      // @ts-expect-error -- not a configured kind
+      // @ts-expect-error -- not a configured type
       "nope",
       { data: {} },
     );
     expect(unknown).toMatchObject({
       ok: false,
-      error: { kind: "validation", hint: "NOTIFICATION_KIND_UNKNOWN" },
+      error: { kind: "validation", hint: "NOTIFICATION_TYPE_UNKNOWN" },
     });
     const invalid = await notifications.send("task.assigned", {
       // @ts-expect-error -- title is required
@@ -129,7 +129,7 @@ describe("createNotifications().send", () => {
   it("returns null without events when nobody is left to notify", async () => {
     const { transport } = fakeTransport({ notify: () => null });
     const onSent = vi.fn();
-    const notifications = createNotifications({ transport, kinds, onSent });
+    const notifications = createNotifications({ transport, types, onSent });
     const sent = await notifications.send("task.assigned", {
       data: { title: "x" },
     });
@@ -146,7 +146,7 @@ describe("createNotifications().send", () => {
         });
       },
     });
-    const notifications = createNotifications({ transport, kinds });
+    const notifications = createNotifications({ transport, types });
     const denied = await notifications.send("task.assigned", {
       data: { title: "x" },
     });
@@ -157,7 +157,7 @@ describe("createNotifications().send", () => {
 
     const failing = createNotifications({
       transport: fakeTransport({ notify: () => "e1" }).transport,
-      kinds,
+      types,
       onSent: () => {
         throw new Error("cache down");
       },
@@ -174,14 +174,14 @@ describe("createNotifications reads and writes", () => {
     });
     const notifications = createNotifications({
       transport,
-      kinds,
+      types,
       render: (item, { locale }) => ({
         title: `${locale ?? "en"}: ${item.summary ?? ""}`,
       }),
     });
     const listed = await notifications.list({
       status: "unread",
-      kinds: ["task.assigned"],
+      types: ["task.assigned"],
       before: Temporal.Instant.from("2026-02-01T00:00:00Z"),
       limit: 10,
       locale: "nl",
@@ -200,9 +200,15 @@ describe("createNotifications reads and writes", () => {
     expect(calls[0]?.args).toEqual({
       tenant: null,
       status: "unread",
-      kinds: ["task.assigned"],
+      types: ["task.assigned"],
       before: "2026-02-01T00:00:00Z",
+      before_id: null,
       max_items: 10,
+    });
+    await notifications.list({ before: first! });
+    expect(calls[1]?.args).toMatchObject({
+      before: "2026-01-01T00:00:00Z",
+      before_id: "r1",
     });
   });
 
@@ -212,10 +218,11 @@ describe("createNotifications reads and writes", () => {
       mark_notifications_read: () => 2,
       dismiss_notifications: () => 1,
       resolve_notifications: () => 4,
+      purge_notifications: () => 12,
     });
     const notifications = createNotifications({
       transport,
-      kinds,
+      types,
       actionable: ["approval.requested"],
     });
     expect(await notifications.counts({ tenant: "org_1" })).toMatchObject({
@@ -226,7 +233,7 @@ describe("createNotifications reads and writes", () => {
     expect(await notifications.dismiss(["r1"])).toMatchObject({ data: 1 });
     expect(
       await notifications.resolve({
-        kind: "approval.requested",
+        type: "approval.requested",
         subject: { type: "invoice", id: "7" },
       }),
     ).toMatchObject({ data: 4 });
@@ -239,11 +246,14 @@ describe("createNotifications reads and writes", () => {
     ).toMatchObject({ ok: true });
     expect(
       await notifications.setPreference({
-        kind: "*",
+        type: "*",
         channel: "email",
         enabled: false,
       }),
     ).toMatchObject({ ok: true });
+    expect(await notifications.purge("30 days", 500)).toMatchObject({
+      data: 12,
+    });
     expect(calls.map((call) => [call.fn, call.args])).toEqual([
       [
         "notification_counts",
@@ -254,7 +264,7 @@ describe("createNotifications reads and writes", () => {
       [
         "resolve_notifications",
         {
-          kind: "approval.requested",
+          type: "approval.requested",
           subject_type: "invoice",
           subject_id: "7",
           tenant: null,
@@ -272,14 +282,15 @@ describe("createNotifications reads and writes", () => {
       ],
       [
         "set_notification_preference",
-        { kind: "*", channel: "email", enabled: false, tenant: null },
+        { type: "*", channel: "email", enabled: false, tenant: null },
       ],
+      ["purge_notifications", { older_than: "30 days", batch: 500 }],
     ]);
   });
 
   it("reads missing counts as zero", async () => {
     const { transport } = fakeTransport();
-    const notifications = createNotifications({ transport, kinds });
+    const notifications = createNotifications({ transport, types });
     expect(await notifications.counts()).toMatchObject({
       data: { unread: 0, actionable: 0 },
     });
@@ -328,7 +339,7 @@ describe("createNotifications().deliver", () => {
     events.on("kit", (event) => seen.push(event.type));
     const notifications = createNotifications({
       transport,
-      kinds,
+      types,
       events,
       render: (item) => ({ title: item.summary ?? "" }),
       channels: [{ apiVersion: 1, name: "email", send }],
@@ -339,7 +350,7 @@ describe("createNotifications().deliver", () => {
       channel: "email",
       email: "u1@acme.test",
       text: { title: "Assigned" },
-      notification: { eventId: "e1", kind: "task.assigned" },
+      notification: { eventId: "e1", type: "task.assigned" },
     });
     const completions = calls
       .filter((call) => call.fn === "complete_notification_delivery")
@@ -357,8 +368,18 @@ describe("createNotifications().deliver", () => {
         provider: null,
         provider_message_id: null,
       },
-      { delivery: "d3", status: "pending", error: "smtp down" },
-      { delivery: "d4", status: "failed", error: "smtp down" },
+      {
+        delivery: "d3",
+        status: "pending",
+        error: "smtp down",
+        max_attempts: 5,
+      },
+      {
+        delivery: "d4",
+        status: "pending",
+        error: "smtp down",
+        max_attempts: 5,
+      },
     ]);
     expect(seen).toEqual([
       "notification.delivered",
@@ -379,7 +400,7 @@ describe("createNotifications().deliver", () => {
     const push = { apiVersion: 1 as const, name: "push", send: vi.fn() };
     const notifications = createNotifications({
       transport,
-      kinds,
+      types,
       channels: [email, push],
     });
     expect(
@@ -397,7 +418,7 @@ describe("createNotifications().deliver", () => {
     });
     const notifications = createNotifications({
       transport,
-      kinds,
+      types,
       channels: [{ apiVersion: 1, name: "email", send: vi.fn() }],
     });
     await expect(notifications.deliver()).rejects.toThrow(/no notification/);

@@ -7,6 +7,7 @@ import type {
 import type { DoctorContext, SqlObject } from "./rules.ts";
 
 import { toCatalog } from "../introspect/catalog.ts";
+import { tomlGet } from "../supabase-toml.ts";
 
 const catalogs = new WeakMap<Snapshot, Catalog>();
 
@@ -20,10 +21,23 @@ export function catalogOf(context: DoctorContext): Catalog {
   return catalog;
 }
 
-export const exposed = (context: DoctorContext): CatalogTable[] =>
-  catalogOf(context).tables.filter((table) =>
-    context.config.schemas.includes(table.schema),
+/** `[api] schemas` from `config.toml`, the schemas PostgREST serves, or `config.schemas` without one. */
+export function exposedSchemas(context: DoctorContext): readonly string[] {
+  const listed = context.configToml
+    ? tomlGet(context.configToml.document, ["api", "schemas"])
+    : undefined;
+  return Array.isArray(listed) &&
+    listed.every((entry): entry is string => typeof entry === "string")
+    ? listed
+    : context.config.schemas;
+}
+
+export const exposed = (context: DoctorContext): CatalogTable[] => {
+  const schemas = exposedSchemas(context);
+  return catalogOf(context).tables.filter((table) =>
+    schemas.includes(table.schema),
   );
+};
 
 export const qualified = (table: CatalogTable): string =>
   `${table.schema}.${table.name}`;

@@ -199,6 +199,15 @@ export interface Jobs<Q extends QueueSchemas> {
   /** Pushes the lease out by `lease` seconds. `false` when it was lost or the transport can't. */
   extend(job: Job, lease: number): AsyncResult<boolean>;
   /**
+   * Enqueues a dead letter again with its payload and attempts, and removes
+   * it from the archive. Returns the new id, or `null` when `id` is not a
+   * dead letter of `queue`. SQL connections only.
+   */
+  replay(
+    queue: Extract<keyof Q, string>,
+    id: number,
+  ): AsyncResult<number | null>;
+  /**
    * Enqueues `payload` on a cron schedule (`'0 3 * * *'`, `'@daily'`,
    * `'30 seconds'`), with pg_cron or the drain scheduler
    * (`kits.jobs.options.scheduler`). Re-scheduling a name replaces it. SQL
@@ -308,6 +317,8 @@ export interface QueueBackend {
     retryIn: number | undefined,
   ): Promise<"queued" | "dead" | null>;
   extend(job: Job, lease: number): Promise<boolean>;
+  /** Re-enqueues a dead letter; `null` when it isn't one. Absent when the backend can't. */
+  replay?(queue: string, id: number): Promise<number | null>;
   schedule(
     name: string,
     cron: string,
@@ -384,6 +395,13 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
         [job.queue, job.id, job.attempts, lease],
       );
       return row?.extended ?? false;
+    },
+    async replay(queue, id) {
+      const [row] = await sql.queryRaw<{ id: string | number | null }>(
+        "select better_supabase.replay_dead_job($1, $2) as id",
+        [queue, id],
+      );
+      return row?.id === null || row?.id === undefined ? null : Number(row.id);
     },
     async schedule(name, cron, queue, payload, timeZone, nextRun) {
       await sql.queryRaw(
@@ -484,7 +502,17 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
           message: QueueMessageBody | null;
         }[]
       >("read", { queue_name: queue, sleep_seconds: lease, n: batch });
-      return rows.map((row) => ({
+      const live = [];
+      for (const row of rows) {
+        // A message read past max_attempts lost its worker on the last attempt.
+        if (row.read_ct > (row.message?.max_attempts ?? 5)) {
+          await call<boolean>("archive", {
+            queue_name: queue,
+            message_id: row.msg_id,
+          });
+        } else live.push(row);
+      }
+      return live.map((row) => ({
         id: row.msg_id,
         attempts: row.read_ct,
         enqueued_at: row.enqueued_at,
@@ -844,6 +872,11 @@ export function createJobs<const Q extends QueueSchemas>(
     complete,
     fail,
     extend: (job, lease) => run(() => transport.extend(job, lease)),
+    replay: (queue, id) =>
+      run(() => {
+        if (!transport.replay) sqlOnly("replay");
+        return transport.replay(queue, id);
+      }),
     schedule(name, cron, queue, payload, scheduleOptions = {}) {
       return AsyncResult.from(async () => {
         const valid = await validate(schemaOf(queue), payload, "payload");

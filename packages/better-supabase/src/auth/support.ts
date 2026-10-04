@@ -38,6 +38,9 @@ export interface SupportStartInput {
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 
+/** A caller's verified claims, which the store runs a call with. */
+export type SupportCallerClaims = Readonly<Record<string, unknown>>;
+
 export interface SupportListFilter {
   readonly adminId?: string;
   readonly targetUserId?: string;
@@ -57,11 +60,30 @@ export interface SupportSessionStore {
   readonly name: string;
   /** Starts a session and ends the admin's previous one. Rejects when the store refuses. */
   start(input: SupportStartInput): Promise<SupportSession>;
-  /** The admin's session while it is running; `undefined` once ended or expired. */
-  get(sessionId: string, adminId: string): Promise<SupportSession | undefined>;
-  /** `false` when it was not running. */
-  end(sessionId: string, endedBy: SupportEndedBy): Promise<boolean>;
-  list(filter?: SupportListFilter): Promise<readonly SupportSession[]>;
+  /**
+   * The admin's session while it is running; `undefined` once ended or
+   * expired. With the admin's `claims`, the store also checks that the admin
+   * may still start sessions.
+   */
+  get(
+    sessionId: string,
+    adminId: string,
+    claims?: SupportCallerClaims,
+  ): Promise<SupportSession | undefined>;
+  /**
+   * `false` when it was not running. With `claims`, it runs as that caller:
+   * the session's admin, or staff with the revoke permission.
+   */
+  end(
+    sessionId: string,
+    endedBy: SupportEndedBy,
+    claims?: SupportCallerClaims,
+  ): Promise<boolean>;
+  /** With `claims`, only what that caller may view. */
+  list(
+    filter?: SupportListFilter,
+    claims?: SupportCallerClaims,
+  ): Promise<readonly SupportSession[]>;
   /** The claims `targetUserId` would get, when the store can build them. */
   claims?(targetUserId: string): Promise<Readonly<Record<string, unknown>>>;
 }
@@ -114,6 +136,8 @@ export function sqlSupportStore(
 ): SupportSessionStore {
   const fn = (name: string) =>
     `${sqlIdent(options.schema ?? "better_supabase")}.${sqlIdent(name)}`;
+  const as = (claims: SupportCallerClaims | undefined): SqlClient =>
+    claims ? postgres.asUser(claims) : postgres.admin;
   const one = async (
     client: SqlClient,
     text: string,
@@ -145,23 +169,23 @@ export function sqlSupportStore(
       if (!row) throw new Error("start_support_session returned no session");
       return supportSessionFromRow(row);
     },
-    async get(sessionId, adminId) {
+    async get(sessionId, adminId, claims) {
       const row = await one(
-        postgres.admin,
+        as(claims),
         `select ${fn("active_support_session")}($1, $2) as session`,
         [sessionId, adminId],
       );
       return row ? supportSessionFromRow(row) : undefined;
     },
-    async end(sessionId, endedBy) {
-      const [row] = await postgres.admin.queryRaw<{ ended: boolean }>(
+    async end(sessionId, endedBy, claims) {
+      const [row] = await as(claims).queryRaw<{ ended: boolean }>(
         `select ${fn("end_support_session")}($1, $2) as ended`,
         [sessionId, endedBy],
       );
       return row?.ended === true;
     },
-    async list(filter = {}) {
-      const rows = await postgres.admin.queryRaw<{ session: SupportRow }>(
+    async list(filter = {}, claims) {
+      const rows = await as(claims).queryRaw<{ session: SupportRow }>(
         `select session from ${fn("list_support_sessions")}($1, $2, $3, $4) as session`,
         [
           filter.adminId ?? null,

@@ -40,7 +40,7 @@ export interface InvitationEventData {
 /** `notification.*`. */
 export interface NotificationEventData {
   readonly notificationId: string;
-  readonly kind: string;
+  readonly type: string;
   readonly recipientIds?: readonly string[];
   readonly channel?: string;
   readonly error?: string;
@@ -128,7 +128,7 @@ export const KIT_ATTRIBUTES = {
   supportSessionId: "better_supabase.support.session_id",
   orgId: "better_supabase.org.id",
   invitationId: "better_supabase.invitation.id",
-  notificationKind: "better_supabase.notification.kind",
+  notificationType: "better_supabase.notification.type",
   webhookEndpointId: "better_supabase.webhook.endpoint_id",
 } as const;
 
@@ -148,7 +148,7 @@ export function kitEventAttributes(event: KitEvent): Record<string, string> {
   add(KIT_ATTRIBUTES.supportSessionId, data["sessionId"]);
   add(KIT_ATTRIBUTES.orgId, data["organizationId"]);
   add(KIT_ATTRIBUTES.invitationId, data["invitationId"]);
-  add(KIT_ATTRIBUTES.notificationKind, data["kind"]);
+  add(KIT_ATTRIBUTES.notificationType, data["type"]);
   add(KIT_ATTRIBUTES.webhookEndpointId, data["endpointId"]);
   return attributes;
 }

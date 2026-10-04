@@ -15,7 +15,7 @@ create index locations_customer_id_idx on public.locations (customer_id, organiz
 create index locations_organization_id_idx on public.locations (organization_id);
 
 create trigger locations_set_updated_at before update on public.locations
-  for each row execute function public.set_updated_at();
+  for each row execute function better_supabase.set_updated_at();
 
 alter table public.locations enable row level security;
 

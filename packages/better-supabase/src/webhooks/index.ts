@@ -28,6 +28,7 @@ export type {
   WebhookDelivery,
   Webhooks,
   WebhooksOptions,
+  WebhookSinkOptions,
   WebhooksRouteOptions,
 } from "./outgoing.ts";
 export { hmacSigner, standardWebhooks } from "./signers.ts";

@@ -26,6 +26,7 @@ import {
 import { createServer } from "../../src/server/server.ts";
 import { SQL_MODULES } from "../../src/sql/kit.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { deleteAudit } from "./audit-cleanup.ts";
 
 const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const dbUrl =
@@ -222,7 +223,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
         impersonated_by: string;
         impersonation_reason: string;
       }>(
-        `select actor_id, impersonated_by, impersonation_reason from better_supabase.audit_log
+        `select actor_id, impersonated_by, impersonation_reason from better_supabase.audit_events
          where table_name = 'public.customers' and record_id = $1`,
         [id],
       );
@@ -241,10 +242,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
         await postgres.admin.queryRaw("delete from customers where id = $1", [
           id,
         ]);
-        await postgres.admin.queryRaw(
-          "delete from better_supabase.audit_log where record_id = $1",
-          [id],
-        );
+        await postgres.admin.queryRaw(deleteAudit("record_id = $1"), [id]);
       }
     }
   });

@@ -126,12 +126,18 @@
         "organizationId": {
           "type": "string",
           "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
         "customerId",
         "tagId",
-        "organizationId"
+        "organizationId",
+        "createdAt"
       ],
       "additionalProperties": false
     },
@@ -149,6 +155,11 @@
         "organizationId": {
           "type": "string",
           "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
@@ -172,6 +183,11 @@
         "organizationId": {
           "type": "string",
           "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "additionalProperties": false
@@ -740,6 +756,11 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
@@ -748,7 +769,8 @@
         "userId",
         "title",
         "readAt",
-        "createdAt"
+        "createdAt",
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -774,6 +796,11 @@
           "format": "date-time"
         },
         "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
           "type": "string",
           "format": "date-time",
           "readOnly": true
@@ -807,6 +834,11 @@
           "format": "date-time"
         },
         "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
           "type": "string",
           "format": "date-time",
           "readOnly": true
@@ -925,13 +957,25 @@
             "green",
             "blue"
           ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
         "id",
         "organizationId",
         "name",
-        "color"
+        "color",
+        "createdAt",
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -957,6 +1001,16 @@
             "green",
             "blue"
           ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "required": [
@@ -987,6 +1041,16 @@
             "green",
             "blue"
           ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
         }
       },
       "additionalProperties": false

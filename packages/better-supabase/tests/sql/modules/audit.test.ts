@@ -4,6 +4,7 @@ import type { KitModuleConfig } from "../../../src/config/kits.ts";
 
 import {
   moduleBody,
+  renderKit,
   resolveModules,
   upgradePlan,
 } from "../../../src/sql/kit.ts";
@@ -28,7 +29,7 @@ const CENTRAKIT: KitModuleConfig = {
       changed: null,
       actorRole: null,
       tenant: "organization_id",
-      at: "occurred_at",
+      occurredAt: "occurred_at",
       impersonatedBy: null,
       impersonationReason: null,
       supportSession: null,
@@ -48,7 +49,7 @@ describe("audit module", () => {
   it("keeps the managed defaults and adds event naming", () => {
     const sql = audit();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."audit_log" (',
+      'create table if not exists "better_supabase"."audit_events" (',
     );
     expect(sql).toContain(
       "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op",
@@ -59,9 +60,19 @@ describe("audit module", () => {
     expect(sql).toContain("coalesce(source, 'app')");
     expect(sql).toContain('drop trigger if exists "bs_audit_append_only"');
     expect(sql).toContain(
-      'drop policy if exists bs_audit_read on "better_supabase"."audit_log";',
+      'drop policy if exists bs_audit_read on "better_supabase"."audit_events";',
     );
-    expect(sql).not.toContain("audit_log_restricted");
+    expect(sql).not.toContain("audit_events_restricted");
+    expect(sql).toContain(
+      "execute function better_supabase.audit_row_change()",
+    );
+    const [file] = renderKit(["audit"]);
+    expect(file!.contents).toContain(
+      'create or replace view "better_supabase".audit_log',
+    );
+    expect(file!.contents).toContain(
+      "'deprecated: use better_supabase.audit_events'",
+    );
   });
 
   it("maps onto adopted tables without creating them", () => {
@@ -99,7 +110,7 @@ describe("audit module", () => {
     expect(sql).toMatch(/grant select \([^)]*"actor_id"[^)]*\) on/);
     expect(sql).not.toMatch(/grant select \([^)]*"impersonated_by"/);
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."audit_log_restricted"',
+      'create table if not exists "better_supabase"."audit_events_restricted"',
     );
     expect(sql).toContain('to "service_role", "authenticated";');
   });

@@ -3,7 +3,7 @@
 exports[`entitlements in PermDock mode > renders the bigint scope id type in every tenant signature 1`] = `
 "-- better-supabase SQL kit: entitlements
 -- @bs-kit entitlements@1 managed
--- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.
+-- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase sql add\`; re-running it overwrites this file.
 -- Change it through \`kits\` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -55,6 +55,23 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(bigint, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(bigint, text) to authenticated, service_role;
+
+-- Every tenant of the caller with \`key\`, for one set check per query instead of
+-- one call per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
+create or replace function better_supabase.tenant_ids_with_entitlement(key text)
+returns setof bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from "authz"."member_organization_ids"() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id))
+$$;
+
+revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
+grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
 -- hasEntitlement(). Register it with PermDock instead of writing a hook:
@@ -129,17 +146,13 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('entitlements', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();
 "
 `;
 
 exports[`entitlements in PermDock mode > renders the integer scope id type in every tenant signature 1`] = `
 "-- better-supabase SQL kit: entitlements
 -- @bs-kit entitlements@1 managed
--- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.
+-- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase sql add\`; re-running it overwrites this file.
 -- Change it through \`kits\` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -191,6 +204,23 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(integer, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(integer, text) to authenticated, service_role;
+
+-- Every tenant of the caller with \`key\`, for one set check per query instead of
+-- one call per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
+create or replace function better_supabase.tenant_ids_with_entitlement(key text)
+returns setof integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from "authz"."member_organization_ids"() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id))
+$$;
+
+revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
+grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
 -- hasEntitlement(). Register it with PermDock instead of writing a hook:
@@ -265,17 +295,13 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('entitlements', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();
 "
 `;
 
 exports[`entitlements in PermDock mode > renders the text scope id type in every tenant signature 1`] = `
 "-- better-supabase SQL kit: entitlements
 -- @bs-kit entitlements@1 managed
--- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.
+-- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase sql add\`; re-running it overwrites this file.
 -- Change it through \`kits\` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -327,6 +353,23 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(text, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(text, text) to authenticated, service_role;
+
+-- Every tenant of the caller with \`key\`, for one set check per query instead of
+-- one call per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
+create or replace function better_supabase.tenant_ids_with_entitlement(key text)
+returns setof text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from "authz"."member_organization_ids"() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id))
+$$;
+
+revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
+grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
 -- hasEntitlement(). Register it with PermDock instead of writing a hook:
@@ -401,17 +444,13 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('entitlements', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();
 "
 `;
 
 exports[`entitlements in PermDock mode > renders the uuid scope id type in every tenant signature 1`] = `
 "-- better-supabase SQL kit: entitlements
 -- @bs-kit entitlements@1 managed
--- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() for RLS.
+-- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by \`better-supabase sql add\`; re-running it overwrites this file.
 -- Change it through \`kits\` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -463,6 +502,23 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+
+-- Every tenant of the caller with \`key\`, for one set check per query instead of
+-- one call per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_entitlement('exports')))
+create or replace function better_supabase.tenant_ids_with_entitlement(key text)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from "authz"."member_organization_ids"() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id))
+$$;
+
+revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
+grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
 -- hasEntitlement(). Register it with PermDock instead of writing a hook:
@@ -537,9 +593,5 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('entitlements', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();
 "
 `;

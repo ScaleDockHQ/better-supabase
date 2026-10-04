@@ -149,6 +149,33 @@ describe("createJobs over pgmq_public", () => {
     ]);
   });
 
+  it("archives a message read past its last attempt instead of returning it", async () => {
+    const { client, calls } = fakeClient(({ fn }) =>
+      fn === "read"
+        ? [
+            {
+              msg_id: 8,
+              read_ct: 4,
+              enqueued_at: "2026-09-24T10:00:00Z",
+              vt: "2026-09-24T10:05:00Z",
+              message: { payload: {}, max_attempts: 3 },
+            },
+          ]
+        : true,
+    );
+    const jobs = createJobs(client, { emails: v.object({}) });
+    expect(await jobs.claim("emails").orThrow()).toEqual([]);
+    expect(calls.at(-1)).toEqual({
+      schema: "pgmq_public",
+      fn: "archive",
+      args: { queue_name: "emails", message_id: 8 },
+    });
+    expect((await jobs.replay("emails", 8)).error).toMatchObject({
+      kind: "invalid_request",
+      message: expect.stringContaining("replay needs a SQL connection"),
+    });
+  });
+
   it("refuses SQL-only features and invalid queue names", async () => {
     const { client } = fakeClient(() => [1]);
     const jobs = createJobs(client, { emails: v.object({}) });
@@ -592,6 +619,19 @@ describe("createJobs over SQL", () => {
         values: ["emails", 12, 2, 120],
       },
     ]);
+  });
+
+  it("replays a dead letter through replay_dead_job", async () => {
+    const fake = fakeSql([
+      ["replay_dead_job", sequence([{ id: "41" }], [{ id: null }])],
+    ]);
+    const jobs = createJobs(fake.sql, queues);
+    expect(await jobs.replay("emails", 12).orThrow()).toBe(41);
+    expect(await jobs.replay("emails", 13).orThrow()).toBeNull();
+    expect(fake.calls[0]).toEqual({
+      text: "select better_supabase.replay_dead_job($1, $2) as id",
+      values: ["emails", 12],
+    });
   });
 
   it("reports a lost lease when the kit functions return no row", async () => {
@@ -1318,6 +1358,42 @@ describe("createIdempotency", () => {
     ]);
   });
 
+  it("scopes keys to the caller's credentials by default", async () => {
+    const fake = fakeSql([
+      [
+        "begin_idempotent",
+        () => [{ state: "started", status_code: null, response: null }],
+      ],
+    ]);
+    const idempotency = createIdempotency(fake.sql);
+    const send = (headers: Record<string, string>) =>
+      idempotency.handle(
+        new Request("https://api.test/payments", {
+          method: "POST",
+          headers: { "idempotency-key": "k1", ...headers },
+          body: "{}",
+        }),
+        () => new Response("ok"),
+      );
+    await send({ authorization: "Bearer alice" });
+    await send({ authorization: "Bearer bob" });
+    await send({
+      cookie: "theme=dark; sb-ref-auth-token.0=a; sb-ref-auth-token.1=b",
+    });
+    await send({
+      cookie: "sb-ref-auth-token.1=b; theme=light; sb-ref-auth-token.0=a",
+    });
+    await send({});
+    const scopes = fake.calls
+      .filter((call) => call.text.includes("begin_idempotent"))
+      .map((call) => call.values[0]);
+    expect(scopes[0]).toMatch(/^caller:[0-9a-f]{64}$/);
+    expect(scopes[1]).not.toBe(scopes[0]);
+    expect(scopes[2]).toMatch(/^caller:/);
+    expect(scopes[3]).toBe(scopes[2]);
+    expect(scopes[4]).toBe("");
+  });
+
   it("fingerprints the method, path and body, with a fixed scope", async () => {
     const fake = fakeSql([
       [
@@ -1700,7 +1776,7 @@ describe("purgeAuditLog", () => {
 
   it("purges each tenant with the interval the callback returns", async () => {
     const fake = fakeSql([
-      ["audit_log_tenants", [{ tenant: "a" }, { tenant: null }]],
+      ["audit_events_tenants", [{ tenant: "a" }, { tenant: null }]],
       ["purge_audit_log", [{ n: 2 }]],
     ]);
     const purged = await purgeAuditLog(fake.sql, {

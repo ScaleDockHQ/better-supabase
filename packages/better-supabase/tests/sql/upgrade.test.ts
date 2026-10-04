@@ -89,6 +89,33 @@ describe("upgradePlan", () => {
     ]);
   });
 
+  it("renders steps with PermDock's scope id type", () => {
+    const typed: SqlModule = {
+      ...widget,
+      upgrades: [
+        {
+          from: 3,
+          description: "Retypes the tenant.",
+          sql: (ctx) => `alter table w alter column t type ${ctx.idType};`,
+        },
+      ],
+    };
+    const permdock = {
+      schema: "authz",
+      scope: "organization",
+      idType: "bigint",
+      memberships: [],
+    } as const;
+    const [plan] = upgradePlan(
+      [{ module: "widget", version: 3 }],
+      { permdock },
+      { widget: typed },
+    );
+    expect(plan!.steps[0]!.sql).toBe(
+      "alter table w alter column t type bigint;",
+    );
+  });
+
   it("skips current, unknown and custom-mode modules", () => {
     expect(
       upgradePlan([{ module: "widget", version: 4 }], {}, modules),
@@ -107,7 +134,19 @@ describe("upgradePlan", () => {
 
   it("plans the tenant module's upgrade from version 1", () => {
     expect(upgradePlan([{ module: "tenant", version: 1 }])).toMatchObject([
-      { module: "tenant", from: 1, to: 2, steps: [{ from: 1, sql: "" }] },
+      {
+        module: "tenant",
+        from: 1,
+        to: 2,
+        steps: [
+          {
+            from: 1,
+            sql: expect.stringContaining(
+              'alter table "better_supabase"."memberships" rename column "org_id" to "organization_id";',
+            ),
+          },
+        ],
+      },
     ]);
   });
 });

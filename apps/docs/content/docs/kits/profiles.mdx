@@ -29,23 +29,37 @@ user has no profile yet, it inserts one:
 | `username`   | metadata `user_name`, `preferred_username` or `username`, else the email's local part |
 
 Usernames are lowercased, stripped to `a-z`, `0-9` and `_`, start with a
-letter, and get a number suffix while another profile has the name (`ada`,
-then `ada1`). `allocate_username(base)` returns a free one for a
-"pick a username" form.
+letter, and get a number suffix while the name is reserved or another
+profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a
+free one for a "pick a username" form. On a managed table, a check
+constraint applies the same rules to names users pick themselves: the
+length limits, the characters and `reservedUsernames` (`admin`, `api`,
+`support`, `www` and similar by default).
 
-After the insert, the module calls your `after_profile_sync(user_id)`
+After the module creates a profile, it calls your `after_profile_sync(user_id)`
 [SQL hook](/docs/extending/events#sql-hooks) when it exists, to create rows
-that hang off the profile. After installing on a project with users, run
-`select better_supabase.backfill_profiles()` once as the service role.
+that hang off the profile. It doesn't call the hook for users who already
+had a profile.
+
+A failure while creating the profile, in the insert or in the hook, never
+blocks the sign-up. The user gets an account without a profile, Postgres
+logs a warning with the error, and `select better_supabase.backfill_profiles()`
+as the service role creates the missing profiles once the cause is fixed.
+Run it once after installing on a project that already has users.
 
 ## Who can change what
 
 | Rule              | Default                                                                                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read              | your own profile; with `readPolicy: 'members'`, everyone who shares an organization with you                                                        |
+| Read              | your own profile; with `readPolicy: 'members'`, the public columns of everyone who shares an organization with you                                  |
 | Update            | your own row, only the columns in `updatable`                                                                                                       |
 | Service columns   | `email`, `disabled_at`, the active organization and team, `created_at`; a trigger refuses changes from the API roles with `PROFILE_COLUMN_READONLY` |
 | Insert and delete | the service role and `auth.users` (rows are deleted with their user)                                                                                |
+
+With `readPolicy: 'members'`, `authenticated` gets `select` on the public
+columns only, so select them by name instead of `*`. `email`, the active
+organization and team and `onboarding` stay private: read your own through
+`better_supabase.my_profile()`, which returns your full row.
 
 Security definer functions, such as `switch_organization` from the
 [organizations](/docs/kits/orgs) module and the email mirror, write the
@@ -71,6 +85,7 @@ kits: {
 | `usernameFrom`      | `["user_name", "preferred_username", "username"]`     | metadata keys tried before the email                                                           |
 | `usernameMinLength` | `3`                                                   | shorter names become `user`                                                                    |
 | `usernameMaxLength` | `32`                                                  | the longest name, suffix included                                                              |
+| `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                    |
 | `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ locale: "text not null default 'en'" }` |
 | `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                   |
 | `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                             |

@@ -19,7 +19,7 @@ create index notes_organization_id_idx on public.notes (organization_id, created
 create index notes_embedding_idx on public.notes using hnsw (embedding extensions.vector_cosine_ops);
 
 create trigger notes_set_updated_at before update on public.notes
-  for each row execute function public.set_updated_at();
+  for each row execute function better_supabase.set_updated_at();
 
 alter table public.notes enable row level security;
 

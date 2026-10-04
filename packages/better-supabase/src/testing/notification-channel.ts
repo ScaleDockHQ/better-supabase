@@ -29,7 +29,7 @@ function sample(channel: string, email: string | null): NotificationMessage {
     notification: Object.freeze({
       id: "00000000-0000-4000-8000-00000000c0f1",
       eventId: "00000000-0000-4000-8000-00000000c0f2",
-      kind: "conformance.check",
+      type: "conformance.check",
       data: Object.freeze({ title: "Conformance" }),
       tenant: null,
       actorId: null,

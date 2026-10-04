@@ -84,10 +84,17 @@ describe("defineBucket", () => {
       policy: "public",
       public: true,
     }).sql();
-    expect(open).toContain(
-      "for select to anon, authenticated\n  using (bucket_id = 'public')",
-    );
+    expect(open).not.toContain("for select");
+    expect(open).toContain("a select policy would also let anyone list them");
     expect(open).not.toContain("for insert");
+    const readable = defineBucket({
+      id: "readable",
+      path: "{file}",
+      policy: "public",
+    }).sql();
+    expect(readable).toContain(
+      "for select to anon, authenticated\n  using (bucket_id = 'readable')",
+    );
   });
 
   it("writes config.toml and detects drift", () => {

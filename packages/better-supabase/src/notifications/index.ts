@@ -11,7 +11,7 @@ export type {
   DeliverResult,
   ListOptions,
   NotificationCounts,
-  NotificationKinds,
+  NotificationTypes,
   Notifications,
   NotificationsOptions,
   Rendered,

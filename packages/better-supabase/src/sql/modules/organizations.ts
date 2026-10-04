@@ -2,11 +2,29 @@ import type { KitContext, KitNames } from "../context.ts";
 import type { KitModuleDefinition } from "../kit.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { columnRef, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  addForeignKey,
+  columnRef,
+  schemaPreamble,
+  SERVICE_CALLER,
+  updatedAt,
+} from "../shared.ts";
 import { accessModel, KIT_PERMISSIONS, roleNames } from "./access-model.ts";
-import { roleNameOf } from "./tenant.ts";
+import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "attributes",
+    "deleteMode",
+    "formerOwnerRole",
+    "ownerInvariant",
+    "ownerRole",
+    "reservedSlugs",
+    "slugCitext",
+    "slugMaxLength",
+    "slugMinLength",
+    "slugPattern",
+  ],
   tables: {
     organizations: {
       name: "organizations",
@@ -16,10 +34,18 @@ const NAMES: KitNames = {
         slug: "slug",
         createdBy: "created_by",
         createdAt: "created_at",
+        updatedAt: "updated_at",
         disabledAt: "disabled_at",
         deletedAt: "deleted_at",
       },
-      optional: ["slug", "createdBy", "createdAt", "disabledAt", "deletedAt"],
+      optional: [
+        "slug",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+        "disabledAt",
+        "deletedAt",
+      ],
     },
   },
   hooks: [
@@ -135,9 +161,15 @@ function table(ctx: KitContext, n: OrgNames): string {
   return `${slugType === "text" ? "" : "\ncreate extension if not exists citext with schema extensions;"}
 create table if not exists ${n.org} (
   ${idColumn(ctx, n.id)},
-  ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", slugType)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
+  ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
 );
-${slugIndex}alter table ${n.org} enable row level security;
+${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.org} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.org, c("updatedAt"))}\n` : ""}${
+    ctx.installed("entitlements")
+      ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
+alter table ${n.org} add column if not exists stripe_customer_id text unique;
+`
+      : ""
+  }alter table ${n.org} enable row level security;
 revoke all on ${n.org} from anon, authenticated;
 grant select on ${n.org} to authenticated;
 grant all on ${n.org} to service_role;
@@ -200,7 +232,7 @@ grant execute on function ${ctx.fn("organization_slug_problem")}(text, ${ctx.idT
 const raiseSlug = (ctx: KitContext, value: string, except: string): string =>
   ctx.has("organizations", "slug")
     ? `
-  case ${ctx.fn("organization_slug_problem")}(${value}, ${except})
+  case ${ctx.fn("organization_slug_problem")}(${ctx.manages ? `coalesce(${value}, '')` : value}, ${except})
     when 'invalid' then raise exception 'Invalid slug "%"', ${value} using errcode = '23514', hint = 'ORG_SLUG_INVALID';
     when 'reserved' then raise exception 'The slug "%" is reserved', ${value} using errcode = '23514', hint = 'ORG_SLUG_RESERVED';
     when 'taken' then raise exception 'The slug "%" is taken', ${value} using errcode = '23505', hint = 'ORG_SLUG_TAKEN';
@@ -389,6 +421,53 @@ $$;
 `;
 }
 
+/**
+ * When the kit owns the organizations table, the tenant rows of memberships,
+ * invitations and permission overrides go with their organization.
+ */
+function tenantKeys(ctx: KitContext, n: OrgNames): string {
+  if (!ctx.manages) return "";
+  const references = `${n.org} (${n.id})`;
+  const keys: string[] = [];
+  const add = (
+    module: string,
+    logical: string,
+    name: string,
+    available: boolean,
+  ): void => {
+    if (!available) return;
+    const other = ctx.of(module);
+    if (!other.manages || !other.hasTable(logical)) return;
+    keys.push(
+      addForeignKey({
+        table: other.table(logical),
+        name,
+        column: other.col(logical, "tenant"),
+        references,
+        onDelete: "cascade",
+      }),
+    );
+  };
+  add("tenant", "memberships", "memberships_organization_fkey", true);
+  add(
+    "access",
+    "overrides",
+    "permission_overrides_organization_fkey",
+    accessModel(ctx) === "catalog",
+  );
+  add(
+    "invitations",
+    "invitations",
+    "invitations_organization_fkey",
+    ctx.installed("invitations"),
+  );
+  return keys.length === 0
+    ? ""
+    : `
+${keys.join("\n")}
+`;
+}
+
 /** The deferred owner check and the role guard on the memberships table. */
 function guards(ctx: KitContext, n: OrgNames): string {
   const invariant = ctx.flag("ownerInvariant", true)
@@ -402,8 +481,10 @@ security definer
 set search_path = ''
 as $$
 begin
-  if exists (select 1 from ${n.org} o where o.${n.id} = old.${n.tenant})
-    and not exists (
+  -- The row lock serializes concurrent demotions and leaves, so two
+  -- transactions can't each remove a different last owner.
+  perform 1 from ${n.org} o where o.${n.id} = old.${n.tenant} for update;
+  if found and not exists (
       select 1 from ${n.m} m where m.${n.tenant} = old.${n.tenant} and ${isOwner(ctx, n, "m")}
     ) then
     raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORG_OWNER_REQUIRED';
@@ -412,13 +493,12 @@ begin
 end;
 $$;
 drop trigger if exists ${ctx.trigger("org_owner")} on ${n.m};
-create constraint trigger ${ctx.trigger("org_owner")} after update or delete on ${n.m}
+create constraint trigger ${ctx.trigger("org_owner")} after update of ${n.role}, ${n.tenant} or delete on ${n.m}
   deferrable initially deferred
   for each row execute function ${ctx.fn("ensure_organization_owner")}();
 `
     : "";
-  const ceiling = ctx.flag("assignmentCeiling", true)
-    ? `
+  const ceiling = `
 -- No one grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. The service role, direct
 -- admin connections and the kit's own writes (${TRUSTED_SETTING}) pass.
@@ -448,12 +528,9 @@ $$;
 drop trigger if exists ${ctx.trigger("org_role_guard")} on ${n.m};
 create trigger ${ctx.trigger("org_role_guard")} before insert or update on ${n.m}
   for each row execute function ${ctx.fn("guard_membership")}();
-`
-    : "";
-  const revoke = ctx.flag("assignmentCeiling", true)
-    ? `revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, authenticated;\n`
-    : "";
-  return `${invariant}${ceiling}${revoke}`;
+revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, authenticated;
+`;
+  return `${invariant}${ceiling}`;
 }
 
 function members(ctx: KitContext, n: OrgNames): string {
@@ -570,6 +647,13 @@ declare
 begin
   if not ${can("transferOwnership")} then
     raise exception 'Not allowed to transfer ownership' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+  end if;
+  -- Only an owner hands ownership on, so the permission alone can't make its
+  -- holder an owner.
+  if not (${SERVICE_CALLER}) and not exists (
+    select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = me and ${isOwner(ctx, n, "m")}
+  ) then
+    raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORG_FORBIDDEN';
   end if;${active}${checkRole(ctx, "former_role")}
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = new_owner) then
     raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
@@ -610,7 +694,7 @@ $$;
  * returns refresh = true, so the client refreshes its session.
  */
 function switcher(ctx: KitContext, n: OrgNames): string {
-  const source = ctx.kits.access?.activeTenant ?? "claim";
+  const source = activeTenantSource(ctx);
   let write: string;
   let refresh = "false";
   if (source === "claim") {
@@ -682,7 +766,7 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
     )
     .join("\n");
   return `${schemaPreamble(ctx)}
-${table(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${switcher(ctx, n)}
+${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${switcher(ctx, n)}
 ${grants}`;
 }
 
@@ -691,7 +775,7 @@ export const ORGANIZATIONS: KitModuleDefinition = {
   title: "Organizations",
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",
-  requires: ["tenant", "access"],
+  requires: ["tenant", "access", "updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   names: NAMES,

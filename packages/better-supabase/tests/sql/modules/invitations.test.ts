@@ -16,8 +16,11 @@ describe("invitations module", () => {
       'alter table "better_supabase"."invitations" add column if not exists "declined_at" timestamptz;',
     );
     expect(sql).toContain(
-      'alter table "better_supabase"."invitations" alter column "org_id" drop not null;',
+      'alter table "better_supabase"."invitations" alter column "organization_id" set not null;',
     );
+    expect(sql).not.toContain('"prefill" jsonb');
+    expect(sql).not.toContain("platform_invitations");
+    expect(sql).toContain("valid_for > '30 days'::interval");
     expect(sql).toContain(
       'drop function if exists "better_supabase"."create_invitation"(uuid, text, text, interval);',
     );
@@ -41,7 +44,10 @@ describe("invitations module", () => {
       },
       invitations: {
         mode: "adopt",
-        tables: { invitations: "public.organization_invitations" },
+        tables: {
+          invitations: "public.organization_invitations",
+          platformInvitations: "public.organization_invitations",
+        },
         columns: {
           invitations: {
             tenant: "organization_id",
@@ -53,16 +59,14 @@ describe("invitations module", () => {
         },
         options: {
           tokenStorage: "plain",
-          errorCodes: { INVITATION_ALREADY_MEMBER: "P0001" },
           requireConfirmedEmail: false,
         },
       },
     });
     expect(sql).not.toContain("create table if not exists");
-    expect(sql).toContain('where i."token" = token\n  for update;');
     expect(sql).not.toContain("extensions.digest(token");
     expect(sql).toContain(
-      "using errcode = 'P0001', hint = 'INVITATION_ALREADY_MEMBER'",
+      "using errcode = '23505', hint = 'INVITATION_ALREADY_MEMBER'",
     );
     expect(sql).toContain(
       'insert into "public"."user_roles" ("user_id", "role_id")',
@@ -71,17 +75,39 @@ describe("invitations module", () => {
       'delete from "public"."organization_invitations" i where i."id" = invitation_id',
     );
     expect(sql).not.toContain("email_confirmed_at is not null");
+    expect(sql).toContain(
+      `where i."token" = token and i."organization_id" is null\n  for update;`,
+    );
+    expect(sql).toContain(
+      `where i."token" = token and i."organization_id" is not null\n  for update;`,
+    );
   });
 
-  it("rejects unknown error codes, bad SQLSTATEs and token storage", () => {
+  it("keeps platform invitations in their own table, under a role ceiling", () => {
+    const sql = body({
+      access: { model: "catalog" },
+      invitations: { options: { prefill: true, maxValidFor: "14 days" } },
+    });
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."platform_invitations" (',
+    );
+    expect(sql).toContain(
+      "better_supabase.platform_can_assign(auth.uid(), ((select r.",
+    );
+    expect(sql).toContain(
+      'better_supabase.platform_can_assign(pinvite."invited_by", pinvite."role"::text)',
+    );
+    expect(sql).toContain(
+      'better_supabase.can_assign_as(invite."invited_by", invite."organization_id", invite."role"::text)',
+    );
+    expect(sql).toContain('"prefill" jsonb not null');
+    expect(sql).toContain("valid_for > '14 days'::interval");
+  });
+
+  it("rejects removed and invalid options", () => {
     const options = (value: Record<string, unknown>) => () =>
       body({ invitations: { options: value } });
-    expect(options({ errorCodes: { NOPE: "P0001" } })).toThrow(
-      /unknown code "NOPE"/,
-    );
-    expect(options({ errorCodes: { INVITATION_SELF: "x" } })).toThrow(
-      /five-character SQLSTATE/,
-    );
+    expect(options({ errorCodes: { NOPE: "P0001" } })).toThrow(/errorCodes/);
     expect(options({ tokenStorage: "md5" })).toThrow(/tokenStorage/);
   });
 
@@ -92,7 +118,7 @@ describe("invitations module", () => {
       },
     })!;
     expect(sql).toContain(
-      "'organization', case when i.\"org_id\" is null then null else jsonb_build_object('id', i.\"org_id\") end",
+      "'organization', jsonb_build_object('id', i.\"organization_id\")",
     );
     const plan = upgradePlan([{ module: "invitations", version: 1 }], {});
     expect(plan.map((step) => step.module)).toContain("invitations");
