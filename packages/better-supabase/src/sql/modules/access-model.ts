@@ -1,6 +1,8 @@
 import type { AccessKitConfig } from "../../config/kits.ts";
 import type { KitContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
+
 export type AccessModel = NonNullable<AccessKitConfig["model"]>;
 
 /**
@@ -62,3 +64,34 @@ export const roleNames = (ctx: KitContext): readonly string[] =>
  */
 export const tenantScope = (ctx: KitContext): string =>
   ctx.of("access").text("scope", "organization");
+
+/** Whether the catalog has platform roles, and so platform invitations. */
+export function hasPlatformRoles(ctx: KitContext): boolean {
+  return (
+    accessModel(ctx) === "catalog" &&
+    ctx.of("access").hasTable("platformAssignments")
+  );
+}
+
+/**
+ * Whether catalog role row `alias` is a tenant or a platform role, or
+ * `undefined` when roles carry no scope. Managed catalogs have a `scope`
+ * column; an adopted one maps `roles.scope` and names its values in
+ * `kits.access.options.tenantRoleScope` and `platformRoleScope`.
+ */
+export function roleScopeIs(
+  ctx: KitContext,
+  alias: string,
+  scope: "tenant" | "platform",
+): string | undefined {
+  if (accessModel(ctx) !== "catalog") return undefined;
+  const access = ctx.of("access");
+  if (!access.manages && access.config.columns["roles"]?.["scope"] == null) {
+    return undefined;
+  }
+  const value =
+    scope === "tenant"
+      ? access.text("tenantRoleScope", "tenant")
+      : access.text("platformRoleScope", "platform");
+  return `${alias}.${access.col("roles", "scope")}::text = ${sqlString(value)}`;
+}

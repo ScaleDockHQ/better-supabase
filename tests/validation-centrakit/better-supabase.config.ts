@@ -27,7 +27,11 @@ export default defineConfig({
         overrides: "centrakit.organization_permission_overrides",
         platformAssignments: "centrakit.user_roles",
       },
-      columns: { overrides: { tenant: "organization_id" } },
+      columns: {
+        roles: { scope: "scope" },
+        overrides: { tenant: "organization_id" },
+      },
+      options: { tenantRoleScope: "organization", platformRoleScope: "system" },
       disabled: {
         tenant: "centrakit.organizations.disabled_at",
         user: "centrakit.profiles.disabled_at",
@@ -68,7 +72,10 @@ export default defineConfig({
     },
     invitations: {
       mode: "adopt",
-      tables: { invitations: "centrakit.organization_invitations" },
+      tables: {
+        invitations: "centrakit.organization_invitations",
+        platformInvitations: "centrakit.organization_invitations",
+      },
       columns: {
         invitations: {
           tenant: "organization_id",

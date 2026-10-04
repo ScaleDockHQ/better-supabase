@@ -134,4 +134,48 @@ describe.skipIf(!live)("support sessions against the local database", () => {
     });
     expect(await store.end(session.id, "admin")).toBe(true);
   });
+
+  it("refuses platform targets and writes, and checks every caller again", async () => {
+    const start = (targetUserId: string, readOnly = true) =>
+      store.start({
+        adminId: ADMIN,
+        adminClaims,
+        targetUserId,
+        reason: "ticket 3",
+        ttlSeconds: 600,
+        readOnly,
+        metadata: {},
+      });
+    const member = { sub: MEMBER, role: "authenticated" };
+    await postgres.admin.queryRaw(
+      `update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || '{"platform_permissions": ["support.view"]}' where id = $1`,
+      [OTHER],
+    );
+    await expect(start(OTHER)).rejects.toMatchObject({
+      hint: "SUPPORT_TARGET_PLATFORM",
+    });
+    await postgres.admin.queryRaw(
+      "update auth.users set raw_app_meta_data = raw_app_meta_data - 'platform_permissions' where id = $1",
+      [OTHER],
+    );
+    await expect(start(MEMBER, false)).rejects.toMatchObject({
+      hint: "SUPPORT_WRITES_DISABLED",
+    });
+
+    const session = await start(MEMBER);
+    expect(
+      await store.get(session.id, ADMIN, { sub: ADMIN, role: "authenticated" }),
+    ).toBeUndefined();
+    expect(await store.get(session.id, ADMIN, adminClaims)).toMatchObject({
+      id: session.id,
+    });
+    expect(await store.list({}, member)).toEqual([]);
+    expect(await store.end(session.id, "revoked", member)).toBe(false);
+    expect(await store.end(session.id, "expired", adminClaims)).toBe(true);
+    const [ended] = await postgres.admin.queryRaw<{ ended_by: string }>(
+      "select ended_by from better_supabase.support_sessions where id = $1",
+      [session.id],
+    );
+    expect(ended?.ended_by).toBe("admin");
+  });
 });

@@ -149,9 +149,19 @@ The SQL module writes `support.started` and `support.ended` to the
 writable session records `impersonated_by` and `support_session_id`, so you
 can list everything one session did.
 
-`bs.support.list({ active: true })` lists running sessions for an admin
-page, and `bs.support.revoke(id)` ends anyone's session. Check the caller's
-permission before calling either.
+`bs.support.list(auth, { active: true })` lists running sessions for an
+admin page, and `bs.support.revoke(auth, id)` ends a session. Both run as the
+caller: the SQL store lists sessions for staff with `support.view`, and ends
+the caller's own session or, with `support.revoke`, anyone's.
+
+The SQL module refuses a target who holds platform permissions (the platform
+claim in `app_metadata`, or a platform role), because the admin would gain
+that staff member's reach (`allowPlatformTargets` turns this off). Sessions
+are read-only unless `kits["support-sessions"].options.allowWrites` is true and
+the policy is `readOnly: "default"`. A token that carries an `act` claim never
+has platform permissions, so a support session can't start another one or act
+as staff. Each request checks again that the admin still holds
+`support.start`, and an admin has one active session at a time.
 
 ### Bringing your own store
 

@@ -262,17 +262,24 @@ was purged is stored and processed again.
 `start_support_session(target, reason, ttl, read_only, metadata, tenant)`
 checks `is_platform('support.start')` for the caller, ends the caller's
 previous session, writes `support.started` to the audit log and returns the
-session as jsonb. `end_support_session(session_id)` ends it for its admin, the
-service role or a caller with `support.revoke`. Errors carry `SUPPORT_FORBIDDEN`,
-`SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TTL` or
-`SUPPORT_REASON_REQUIRED` in the `hint`.
+session as jsonb. An admin has one active session (a unique index). It refuses
+a target with platform permissions and a writable session unless the options
+below allow them. `end_support_session(session_id)` ends it for its admin
+(`ended_by` is `admin`), a caller with `support.revoke` (`revoked`) or the
+service role, which alone passes `ended_by`. `active_support_session` called
+as the admin checks `support.start` again. Errors carry `SUPPORT_FORBIDDEN`,
+`SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TARGET_PLATFORM`,
+`SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL` or `SUPPORT_REASON_REQUIRED` in the
+`hint`.
 
-| Option          | Default   | What it does                                                             |
-| --------------- | --------- | ------------------------------------------------------------------------ |
-| `maxTtl`        | `4 hours` | the longest session `start_support_session` accepts                      |
-| `requireReason` | `true`    | refuses a start without a reason                                         |
-| `auditCategory` | `support` | the audit log category of `support.started` and `support.ended`          |
-| `claimsHook`    | none      | `schema.function` of your access token hook, for `support_target_claims` |
+| Option                 | Default   | What it does                                                             |
+| ---------------------- | --------- | ------------------------------------------------------------------------ |
+| `maxTtl`               | `4 hours` | the longest session `start_support_session` accepts                      |
+| `requireReason`        | `true`    | refuses a start without a reason                                         |
+| `allowWrites`          | `false`   | accepts `read_only => false`                                             |
+| `allowPlatformTargets` | `false`   | lets a session target platform staff                                     |
+| `auditCategory`        | `support` | the audit log category of `support.started` and `support.ended`          |
+| `claimsHook`           | none      | `schema.function` of your access token hook, for `support_target_claims` |
 
 The permission keys are `support.start`, `support.view` and `support.revoke`;
 rename them with `kits["support-sessions"].permissions`. The hooks

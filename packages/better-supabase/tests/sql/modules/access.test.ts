@@ -157,7 +157,25 @@ describe("access module", () => {
       sql.indexOf("function better_supabase.can_assign"),
     );
     expect(canAssign).toContain('"permission_overrides"');
-    expect(canAssign).toContain("can_assign.tenant as");
+    expect(canAssign).toContain("can_assign_as.tenant as");
+  });
+
+  it("keeps tenant and platform roles apart in the managed catalog", () => {
+    const sql = access({ model: "catalog" });
+    expect(sql).toContain(`check ("scope" in ('tenant', 'platform'))`);
+    expect(sql).toContain(`r."scope"::text = 'tenant'`);
+    expect(sql).toContain(
+      "function better_supabase.platform_can_assign(member uuid, role text)",
+    );
+    expect(sql).toContain(`r."scope"::text = 'platform'`);
+  });
+
+  it("drops platform permissions while a token acts for another user", () => {
+    for (const model of ["roles", "catalog"] as const) {
+      expect(access({ model })).toContain(
+        "(platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)",
+      );
+    }
   });
 
   it("renders the id type in every signature", () => {

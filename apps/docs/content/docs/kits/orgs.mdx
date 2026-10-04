@@ -146,20 +146,31 @@ checked with `is_platform()`. Without it every signed-in user can create one.
 
 `kits.invitations.options`:
 
-| Option                  | Default    | What it does                                                 |
-| ----------------------- | ---------- | ------------------------------------------------------------ |
-| `validFor`              | `7 days`   | how long an invitation is open                               |
-| `tokenStorage`          | `sha256`   | `plain` stores the token itself, for tables that already do  |
-| `tokenBytes`            | `24`       | the token's random bytes                                     |
-| `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
-| `recheckInviter`        | `true`     | refuses the invitation when the inviter can no longer invite |
-| `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
-| `errorCodes`            | none       | SQLSTATE per error code, for apps that match on SQLSTATE     |
+| Option                  | Default    | What it does                                                |
+| ----------------------- | ---------- | ----------------------------------------------------------- |
+| `validFor`              | `7 days`   | how long an invitation is open                              |
+| `maxValidFor`           | `30 days`  | the longest `valid_for` an invite or resend may ask for     |
+| `prefill`               | `false`    | adds the `prefill` column (managed tables)                  |
+| `tokenStorage`          | `sha256`   | `plain` stores the token itself, for tables that already do |
+| `tokenBytes`            | `24`       | the token's random bytes                                    |
+| `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting       |
+| `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns       |
+| `errorCodes`            | none       | SQLSTATE per error code, for apps that match on SQLSTATE    |
 
-An invitation with a null organization is a platform invitation: with
-`kits.access.model: "catalog"` and a `platformAssignments` table, accepting
-it assigns the platform role. It needs the `invitePlatform` permission
-(`platform.invite`).
+Accepting checks the inviter again: an inviter who lost the invite permission,
+or a permission the role grants, can no longer bring someone in with it.
+
+An invitation with a null organization is a platform invitation. It needs
+`kits.access.model: "catalog"` with a `platformAssignments` table, and lives in
+its own `platform_invitations` table. The inviter needs the `invitePlatform`
+permission (`platform.invite`) and every permission the platform role grants,
+both when inviting and when the invitation is accepted. Managed catalog roles
+have a `scope` column (`tenant` or `platform`), and neither kind of role is
+assignable as the other. An adopted catalog maps `kits.access.columns.roles.scope`
+and names its values in `kits.access.options.tenantRoleScope` and
+`platformRoleScope`; an adopted invitations table that also holds platform
+invitations (rows without an organization) maps `tables.platformInvitations`
+to itself.
 
 ## Existing tables
 
@@ -218,6 +229,7 @@ run your own checks and side effects in the same transaction.
 | `INVITATION_FORBIDDEN`, `INVITATION_ROLE_FORBIDDEN`       | the caller may not invite, or not with that role   |
 | `INVITATION_ROLE_UNKNOWN`, `INVITATION_ALREADY_MEMBER`    | no such role, or the address is already a member   |
 | `INVITATION_INVALID`                                      | unknown, used, revoked or expired token            |
+| `INVITATION_VALIDITY`                                     | `valid_for` is not positive or above `maxValidFor` |
 | `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`         | not signed in, or signed in with another address   |
 | `INVITATION_EMAIL_UNCONFIRMED`                            | the address is not confirmed yet                   |
 | `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`           | your own invitation, or the inviter lost the right |

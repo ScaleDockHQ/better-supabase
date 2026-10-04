@@ -25,6 +25,7 @@ export type { SupportCookieOptions } from "../auth/support-cookie.ts";
 export { sqlSupportStore, supportClaims } from "../auth/support.ts";
 export type {
   SqlSupportStoreOptions,
+  SupportCallerClaims,
   SupportEndedBy,
   SupportListFilter,
   SupportSession,
