@@ -2,7 +2,7 @@ import type { SchemaMeta, TableMeta } from "../schema/types.ts";
 import type { EventHub } from "./events.ts";
 import type { ExecuteResult, Executor } from "./executor.ts";
 
-import { type IrBuilder, invalidRequest, isPlainObject } from "../ir/build.ts";
+import { type IrBuilder, invalidRequest } from "../ir/build.ts";
 import { decodeRows, needsDecoding } from "../ir/codec.ts";
 import {
   type Condition,
@@ -21,6 +21,7 @@ import {
 } from "../ir/types.ts";
 import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
+import { cloneValue } from "./clone.ts";
 import { decodeCursor, encodeCursor } from "./cursor.ts";
 import {
   type DbError,
@@ -129,21 +130,6 @@ function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
 function signalOf(args: Args | undefined): AbortSignal | undefined {
   const signal = args?.["signal"];
   return signal instanceof AbortSignal ? signal : undefined;
-}
-
-/**
- * Copies plain objects and arrays so hooks and listeners cannot change the
- * caller's result (invariant 5). Temporal values are immutable and stay shared.
- */
-function cloneValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(cloneValue);
-  if (isPlainObject(value)) {
-    const copy: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value))
-      copy[key] = cloneValue(item);
-    return copy;
-  }
-  return value;
 }
 
 function cloneRows(rows: readonly Row[]): Row[] {

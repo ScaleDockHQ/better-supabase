@@ -526,6 +526,53 @@ doctor skips that file instead of reporting it.
 without a primary key, so `postgres_changes` delete events carry no keys. Add a
 primary key, or run `alter table ... replica identity full`.
 
+### BS307
+
+**Error: custom kit module without its contract.** A module in `kits` uses
+`mode: 'custom'`, so the app writes the functions other modules and the
+TypeScript APIs call. With a database connection, doctor compares each
+function's argument and return types with the contract; without one, it looks
+for a `create function` in `supabase/schemas` and the migrations. Write the
+function, or switch the module to `adopt` or `managed`. `better-supabase sql
+print <module>` lists the signatures.
+
+### BS308
+
+**Warning: tenant claim the hook does not write.** With the `tenant` module and
+`kits.access.activeTenant: 'claim'` (the default), `current_tenant_id()` and the
+`tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
+top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
+access token hook for that user and warns when neither is in the claims it
+returns. Write the claim in the hook, or, for apps that pick the tenant from
+the URL or a profile, set `activeTenant` to `'resolver'` (with
+`ServerOptions.tenant`) or `{ profileColumn }`.
+
+### BS309
+
+**Warning: deprecated SQL kit symbol.** A file in `supabase/schemas` or a
+policy uses a function, table, column or claim that a kit module in `sql.kit`
+deprecated or removed, such as `better_supabase.current_org_id()` or the
+`org_id` claim. A deprecated symbol keeps a compatibility wrapper for at least
+one minor release; a removed one fails at run time. The message names the
+replacement. Kit files and migrations are skipped, and so is a claim the config
+maps in `claims`.
+
+### BS310
+
+**Warning: duplicate kit trigger.** A table has `bs_updated_at` and another
+trigger whose function looks like `updated_at`, `moddatetime` or `touch`, or
+`bs_audit` and another audit trigger, so both run on every write. Drop the
+older trigger, or call `track_updated_at()` or `audit()` with
+`replace_trigger => true` in a migration.
+
+### BS311
+
+**Warning: SQL kit module behind its current version.** A module file's
+`@bs-kit` line, or its row in `better_supabase.kit_modules` on a live database,
+records an older version than this release ships. Run `better-supabase sql
+upgrade`, which writes the forward steps into a migration and rewrites the
+files, then create the schema migration. BS304 skips files this check reports.
+
 ## Auth config
 
 ### BS401

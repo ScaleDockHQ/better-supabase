@@ -1,0 +1,190 @@
+---
+title: Existing apps
+description: Bring better-supabase into an app that already has its own tables, permissions, events and middleware, one module at a time.
+---
+
+An app with users in production can adopt better-supabase without renaming a
+table, changing a claim or logging anyone out. Each kit module runs over your
+existing tables, the access contract reads your permission model, and the
+session cookie is the one `@supabase/ssr` already writes. You move one module
+at a time and keep the rest of your code as it is.
+
+## Pick a mode per module
+
+Every SQL kit module has a contract: the functions your policies, other
+modules and the TypeScript APIs call. `kits.<module>.mode` decides what stands
+behind it.
+
+| Mode                | Use it when                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `managed` (default) | you have nothing for this feature yet; the kit creates the tables             |
+| `adopt`             | you have the tables; the kit writes functions over them and never creates one |
+| `custom`            | you have the tables and the functions; you write the contract yourself        |
+
+Start with `adopt` for the features you already built (organizations,
+invitations, an audit log, an events table) and `managed` for the ones you
+don't have. `custom` is for a function you can't replace yet; doctor checks its
+signature against the contract (BS307), and `sql print` with the module
+name lists the signatures. The
+[SQL kit page](/docs/kits/sql#existing-tables-managed-adopt-and-custom) shows
+which modules support which modes.
+
+## Map your names
+
+The kit never needs your tables to use its names. Map each logical table and
+column to yours, and set a column to `null` when you don't have it:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  sql: { kit: ["access", "tenant", "organizations", "outbox", "webhooks-out"] },
+  kits: {
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: {
+        memberships: {
+          tenant: "organization_id",
+          role: "role_id",
+          lastUsedAt: null,
+        },
+      },
+    },
+    organizations: {
+      mode: "adopt",
+      tables: { organizations: "public.organizations" },
+      columns: { organizations: { createdBy: null, deletedAt: null } },
+      permissions: { update: "organization.settings.manage" },
+      hooks: {
+        schema: "public",
+        functions: { after_organization_create: "seed_organization" },
+      },
+      options: { attributes: ["website", "logo_path", "default_currency"] },
+    },
+    outbox: {
+      mode: "adopt",
+      tables: { events: "public.workflow_events" },
+      columns: {
+        events: {
+          type: "kind",
+          tenant: "organization_id",
+          key: "idempotency_key",
+          xid: null,
+        },
+      },
+      options: {
+        tenantType: "uuid",
+        defaultSource: "domain",
+        kitSource: "domain",
+      },
+    },
+  },
+});
+```
+
+`permissions` maps each kit action to your permission keys, `hooks` points
+the kit at functions you already have (seeding a new organization, writing a
+contact profile), and `options` covers the rest: extra columns a function
+accepts, token storage, slug rules, source values your check constraints
+allow. An attribute your input leaves out keeps its column default. An unknown
+table or column stops `sql add` and `sql sync` with the valid names, so a typo
+fails before it reaches the database.
+
+## Choose an access model
+
+Policies and kit functions ask one question, `better_supabase.can(scope, id,
+permission)`, and [`kits.access.model`](/docs/kits/access#models) decides
+where the answer comes from.
+
+| Your app has                                             | Model      |
+| -------------------------------------------------------- | ---------- |
+| a role per membership and no permission tables           | `roles`    |
+| roles, permissions and role-permission tables of its own | `catalog`  |
+| PermDock                                                 | `permdock` |
+| something else                                           | `custom`   |
+
+With `catalog`, map your tables (`roles`, `permissions`, `role_permissions`,
+per-tenant overrides) and the columns that disable a tenant or a user. A
+helper such as `org_ids_with_permission(key)` in your policies becomes
+`better_supabase.tenant_ids_with(key)`; both return the same set, so you can
+switch policy by policy.
+
+The active organization can stay where it is. Set `kits.access.activeTenant`
+to `{ profileColumn: "public.profiles.active_organization_id", key: "user_id" }`
+when you store it on the profile, or `'resolver'` when the URL decides.
+
+## Keep your events and your receivers
+
+An adopted outbox writes to your events table. Kit modules emit in the same
+transaction as the change, with the source in `kitSource`, and
+`emit_event` calls without a source get `defaultSource`. Your existing
+webhook receivers keep their signature format through a
+[signer](/docs/kits/webhooks-out): `hmacSigner` writes `v1=<hex>` over
+`timestamp.body` under your header names, so you can move to Standard
+Webhooks later, per destination.
+
+## Upgrade without breaking users
+
+- **SQL objects.** Run `better-supabase sql upgrade` after each package
+  update. It writes forward steps into a migration before the schema diff runs,
+  and `sql upgrade --check` fails CI when a module is behind. A renamed
+  function or claim keeps a wrapper under the old name for at least one minor
+  release, and doctor reports code that still uses it (BS309).
+- **TypeScript.** `better-supabase codemod <version>` rewrites renamed imports
+  and members; run it with `--dry-run` first. The
+  [stability page](/docs/extending/stability) lists what a minor release may
+  change.
+- **Triggers.** `track_updated_at()` and `audit()` warn when a table already
+  has a trigger doing the same work; pass `replace_trigger => true` to swap it
+  in the same call.
+
+## Keep your supabase-js code
+
+The repositories and your hand-written `supabase-js` calls use the same
+session and the same Data API, so they work side by side. Move a query when
+you touch it, not all at once; the [supabase-js guide](/docs/migration/supabase-js)
+maps each call. The raw client stays available as `$client` for anything the
+repositories don't cover.
+
+## Keep your sessions
+
+better-supabase reads and writes the `sb-<project>-auth-token` cookie in the
+`@supabase/ssr` format, chunks included, so a user signed in before the
+switch stays signed in after it, and a page still on `@supabase/ssr` reads the
+session better-supabase wrote. See [sessions](/docs/auth/sessions).
+
+## Keep your middleware
+
+`bs.proxy` owns the session refresh; your other middleware goes in `before`,
+and your route rules in `protect`:
+
+```ts title="src/proxy.ts"
+import createMiddleware from "next-intl/middleware";
+import type { NextRequest } from "next/server";
+import { routing } from "@/i18n/routing";
+import { bs } from "@/lib/supabase/server";
+
+const intl = createMiddleware(routing);
+
+export const proxy = (request: NextRequest) =>
+  bs.proxy(request, {
+    before: intl,
+    protect: (auth, req) => (auth.kind === "user" ? undefined : toLogin(req)),
+  });
+```
+
+The refreshed cookie lands on next-intl's rewrite, and the locale header it
+sets reaches Server Components. The [middleware page](/docs/auth/middleware#nextjs-proxy-composition)
+explains the order.
+
+## A suggested order
+
+1. Add `better-supabase.config.ts` with `access` in the model your app uses,
+   and run `better-supabase doctor` to see what it finds.
+2. Adopt `tenant` and swap one policy helper for `tenant_ids_with`.
+3. Adopt the features you already have (organizations, invitations, audit,
+   the events table), one per pull request, and run your tests after each.
+4. Add the modules you don't have yet in `managed` mode.
+5. Move the session handling to an adapter and `bs.proxy`, then move queries
+   to repositories as you touch them.

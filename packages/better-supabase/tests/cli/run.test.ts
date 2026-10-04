@@ -55,6 +55,13 @@ describe("run", () => {
     });
   });
 
+  it("runs the codemod command over the project", async () => {
+    await writeFile(join(dir, "a.ts"), "export const a = 1;\n");
+    expect(
+      await run(["codemod", "0.5", "--dry-run", "--cwd", dir]),
+    ).toMatchObject({ code: 0 });
+  });
+
   it("prints the usage to stderr without a command and to stdout for help", async () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);

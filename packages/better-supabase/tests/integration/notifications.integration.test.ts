@@ -1,0 +1,451 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
+import { Pool, type PoolClient } from "pg";
+import { afterAll, describe, expect, it } from "vitest";
+
+import type { NotificationMessage } from "../../src/notifications/index.ts";
+import type { SqlClient } from "../../src/postgres/executor.ts";
+import type { KitLayout } from "../../src/sql/kit.ts";
+
+import {
+  createNotifications,
+  sqlTransport,
+} from "../../src/notifications/index.ts";
+import { renderKit } from "../../src/sql/kit.ts";
+
+const dbUrl =
+  process.env["SUPABASE_DB_URL"] ??
+  "postgresql://postgres:postgres@127.0.0.1:55422/postgres";
+
+async function reachable(): Promise<boolean> {
+  const pool = new Pool({
+    connectionString: dbUrl,
+    max: 1,
+    connectionTimeoutMillis: 1000,
+  });
+  try {
+    await pool.query("select 1");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await pool.end();
+  }
+}
+
+const live = await reachable();
+
+const USERS = {
+  owner: crypto.randomUUID(),
+  member: crypto.randomUUID(),
+  watcher: crypto.randomUUID(),
+  outsider: crypto.randomUUID(),
+} as const;
+type Who = keyof typeof USERS;
+const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
+
+const LAYOUT: KitLayout = {
+  kits: {
+    notifications: {
+      options: {
+        topic: "org:{tenantId}:notifications:{userId}",
+        channels: ["in_app", "email"],
+        channelDefaults: { email: false },
+      },
+    },
+  },
+};
+
+class Session {
+  private readonly client: PoolClient;
+
+  constructor(client: PoolClient) {
+    this.client = client;
+  }
+
+  async as(who: Who | "service"): Promise<void> {
+    const claims =
+      who === "service"
+        ? { role: "service_role" }
+        : { sub: USERS[who], role: "authenticated", email: email(who) };
+    await this.client.query(
+      "select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify(claims)],
+    );
+  }
+
+  async value<T>(sql: string, params: unknown[] = []): Promise<T> {
+    const { rows } = await this.client.query<{ value: T }>(
+      `select ${sql} as value`,
+      params,
+    );
+    return rows[0]!.value;
+  }
+
+  async hint(sql: string, params: unknown[] = []): Promise<string> {
+    await this.client.query("savepoint attempt");
+    try {
+      await this.client.query(sql, params);
+    } catch (error) {
+      await this.client.query("rollback to savepoint attempt");
+      const failure = error as {
+        code?: string;
+        hint?: string;
+        message: string;
+      };
+      return failure.code === "42501" &&
+        !failure.hint?.startsWith("NOTIFICATION")
+        ? "42501"
+        : (failure.hint ?? failure.message);
+    }
+    await this.client.query("release savepoint attempt");
+    return "no error";
+  }
+
+  notify(notification: Record<string, unknown>): Promise<string | null> {
+    return this.value("better_supabase.notify($1)", [notification]);
+  }
+
+  recipients(event: string): Promise<string[]> {
+    return this.value(
+      "(select coalesce(array_agg(recipient_user_id order by recipient_user_id), '{}') from better_supabase.notification_recipients where event_id = $1)",
+      [event],
+    );
+  }
+}
+
+describe.skipIf(!live)("notifications", () => {
+  const pool = new Pool({ connectionString: dbUrl, max: 2 });
+  afterAll(() => pool.end());
+
+  it("sends, filters, deduplicates and delivers notifications", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of Object.keys(USERS) as Who[]) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderKit(
+        ["organizations", "outbox", "notifications"],
+        LAYOUT,
+      ))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      const org = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'member'), ($1, $3, 'member')",
+        [org, USERS.member, USERS.watcher],
+      );
+      const task = {
+        kind: "task.assigned",
+        tenant: org,
+        subject_type: "task",
+        subject_id: "t1",
+        subject_label: "Fix the roof",
+      };
+
+      await s.as("member");
+      expect(
+        await s.hint("select better_supabase.notify($1)", [
+          { ...task, recipients: [USERS.owner] },
+        ]),
+      ).toBe("NOTIFICATION_FORBIDDEN");
+
+      // The actor and non-members are left out; the key makes it idempotent.
+      await s.as("owner");
+      const first = await s.notify({
+        ...task,
+        key: "assign-1",
+        recipients: [USERS.owner, USERS.member, USERS.outsider],
+      });
+      expect(first).toMatch(/^[0-9a-f-]{36}$/);
+      expect(await s.recipients(first!)).toEqual([USERS.member]);
+      expect(
+        await s.notify({
+          ...task,
+          key: "assign-1",
+          recipients: [USERS.member],
+        }),
+      ).toBe(first);
+      expect(
+        await s.value("better_supabase.notify($1)", [
+          { ...task, recipients: [USERS.owner] },
+        ]),
+      ).toBeNull();
+      expect(
+        await s.hint("select better_supabase.notify($1)", [
+          { ...task, priority: "panic", recipients: [USERS.member] },
+        ]),
+      ).toBe("NOTIFICATION_PRIORITY_UNKNOWN");
+
+      // Watching with "all" adds the watcher; "ignore" removes the member.
+      await s.as("watcher");
+      await client.query(
+        "select better_supabase.set_notification_subscription('task', 't1', 'all', $1)",
+        [org],
+      );
+      await s.as("member");
+      await client.query(
+        "select better_supabase.set_notification_subscription('task', 't1', 'ignore', $1)",
+        [org],
+      );
+      await client.query(
+        "select better_supabase.set_notification_preference('*', 'email', true, $1)",
+        [org],
+      );
+      await s.as("owner");
+      const second = await s.notify({
+        ...task,
+        kind: "task.updated",
+        activity: "all",
+        recipients: [USERS.member],
+      });
+      expect(await s.recipients(second!)).toEqual([USERS.watcher]);
+
+      await s.as("member");
+      await client.query(
+        "select better_supabase.set_notification_subscription('task', 't1', null, $1)",
+        [org],
+      );
+      await s.as("owner");
+      const third = await s.notify({
+        ...task,
+        kind: "approval.requested",
+        recipients: [USERS.member, USERS.watcher],
+      });
+      const deliveries = await s.value<
+        { user: string; channel: string; status: string }[]
+      >(
+        `(select jsonb_agg(jsonb_build_object('user', r.recipient_user_id, 'channel', d.channel, 'status', d.status) order by d.channel, r.recipient_user_id)
+          from better_supabase.notification_deliveries d
+          join better_supabase.notification_recipients r on r.id = d.recipient_id
+          where r.event_id = $1)`,
+        [third],
+      );
+      expect(deliveries).toEqual(
+        [
+          { user: USERS.member, channel: "email", status: "pending" },
+          { user: USERS.member, channel: "in_app", status: "sent" },
+          { user: USERS.watcher, channel: "in_app", status: "sent" },
+        ].sort((a, b) =>
+          a.channel === b.channel
+            ? a.user.localeCompare(b.user)
+            : a.channel.localeCompare(b.channel),
+        ),
+      );
+
+      // The member's inbox, counts, read and dismiss.
+      await s.as("member");
+      const inbox = await s.value<{ kind: string; subject_label: string }[]>(
+        "better_supabase.list_notifications($1)",
+        [org],
+      );
+      expect(inbox.map((item) => item.kind)).toEqual([
+        "approval.requested",
+        "task.assigned",
+      ]);
+      expect(inbox[1]).toMatchObject({
+        subject_label: "Fix the roof",
+        actor_id: USERS.owner,
+      });
+      expect(
+        await s.value("better_supabase.notification_counts($1, $2)", [
+          org,
+          ["approval.requested"],
+        ]),
+      ).toEqual({ unread: 2, actionable: 1 });
+      const [latest] = inbox as unknown as { id: string }[];
+      expect(
+        await s.value("better_supabase.mark_notifications_read($1)", [
+          [latest!.id],
+        ]),
+      ).toBe(1);
+      expect(
+        await s.value("better_supabase.list_notifications($1, 'unread')", [
+          org,
+        ]),
+      ).toHaveLength(1);
+      expect(
+        await s.value("better_supabase.dismiss_notifications($1)", [
+          [latest!.id],
+        ]),
+      ).toBe(1);
+      expect(
+        await s.value("better_supabase.list_notifications($1)", [org]),
+      ).toHaveLength(1);
+
+      // Clients read only their own rows and can't write events.
+      await client.query("set local role authenticated");
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.notification_recipients)",
+        ),
+      ).toBe(2);
+      expect(
+        await s.hint(
+          "insert into better_supabase.notification_events (type) values ('spoof')",
+        ),
+      ).toBe("42501");
+      await client.query("reset role");
+
+      // A worker claims the email delivery with the address, then completes it.
+      await s.as("service");
+      const claimed = await s.value<
+        { delivery_id: string; email: string; notification: { kind: string } }[]
+      >("better_supabase.claim_notification_deliveries('email')");
+      expect(claimed).toHaveLength(1);
+      expect(claimed[0]).toMatchObject({
+        email: email("member"),
+        notification: { kind: "approval.requested" },
+      });
+      expect(
+        await s.value<unknown[]>(
+          "better_supabase.claim_notification_deliveries('email')",
+        ),
+      ).toEqual([]);
+      await client.query(
+        "select better_supabase.complete_notification_delivery($1, 'sent', 'resend', 'msg_1')",
+        [claimed[0]!.delivery_id],
+      );
+      expect(
+        await s.value(
+          "(select status || '/' || provider_message_id from better_supabase.notification_deliveries where id = $1)",
+          [claimed[0]!.delivery_id],
+        ),
+      ).toBe("sent/msg_1");
+
+      await s.as("owner");
+      expect(
+        await s.value(
+          "better_supabase.resolve_notifications('approval.requested', 'task', 't1', $1)",
+          [org],
+        ),
+      ).toBe(1);
+
+      // Broadcasts reach the private topic, and the outbox has the event.
+      expect(
+        await s.value(
+          "(select count(*)::int from realtime.messages where topic = $1 and event = 'notification_created')",
+          [`org:${org}:notifications:${USERS.member}`],
+        ),
+      ).toBe(2);
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.outbox_events where type = 'notification.created')",
+        ),
+      ).toBeGreaterThanOrEqual(3);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("works end to end through createNotifications and sqlTransport", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const sql: SqlClient = {
+      async queryRaw<T>(text: string, params: unknown[] = []) {
+        const { rows } = await client.query(text, params);
+        // SAFETY: the test reads only the `value` column sqlTransport selects.
+        return rows as T[];
+      },
+    };
+    const anything: StandardSchemaV1<{ title: string }> = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) => ({ value: value as { title: string } }),
+      },
+    };
+    const sent: NotificationMessage[] = [];
+    const notifications = createNotifications({
+      transport: sqlTransport(sql),
+      kinds: { "task.assigned": anything },
+      render: (item) => ({ title: `Assigned: ${item.subject?.label ?? ""}` }),
+      channels: [
+        {
+          apiVersion: 1,
+          name: "email",
+          send: (message) => {
+            sent.push(message);
+            return { provider: "test", providerMessageId: "m1" };
+          },
+        },
+      ],
+    });
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderKit(["organizations", "notifications"], LAYOUT))
+        await client.query(file.contents);
+      await s.as("owner");
+      const org = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-e2e-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (org_id, user_id, role) values ($1, $2, 'member')",
+        [org, USERS.member],
+      );
+      await client.query(
+        "insert into better_supabase.notification_preferences (user_id, organization_id, type, channel, enabled) values ($1, null, '*', 'email', true)",
+        [USERS.member],
+      );
+
+      const id = await notifications
+        .send("task.assigned", {
+          tenant: org,
+          recipients: [USERS.member],
+          subject: { type: "task", id: "t9", label: "Paint" },
+          data: { title: "Paint" },
+          channels: ["in_app", "email"],
+        })
+        .orThrow();
+      expect(id).toMatch(/^[0-9a-f-]{36}$/);
+
+      await s.as("member");
+      const [item] = await notifications.list({ tenant: org }).orThrow();
+      expect(item).toMatchObject({
+        eventId: id,
+        kind: "task.assigned",
+        subject: { type: "task", id: "t9", label: "Paint" },
+        text: { title: "Assigned: Paint" },
+        readAt: null,
+      });
+      expect(await notifications.counts({ tenant: org }).orThrow()).toEqual({
+        unread: 1,
+        actionable: 0,
+      });
+      expect(await notifications.markRead({ tenant: org }).orThrow()).toBe(1);
+
+      await s.as("service");
+      expect(await notifications.deliver()).toEqual({
+        sent: 1,
+        skipped: 0,
+        failed: 0,
+      });
+      expect(sent[0]).toMatchObject({
+        email: email("member"),
+        text: { title: "Assigned: Paint" },
+      });
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+});

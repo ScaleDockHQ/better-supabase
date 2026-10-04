@@ -4,7 +4,35 @@ export type {
 } from "./delete-account.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
-export { createServer } from "./server.ts";
+export { createServer, TENANT_HEADER } from "./server.ts";
+export type {
+  ActiveSupport,
+  SupportApi,
+  SupportAuthorizeInput,
+  SupportOptions,
+  SupportPolicy,
+  SupportSessions,
+  SupportStartRequest,
+} from "./support.ts";
+export { supportSessions } from "./support.ts";
+export {
+  clearSupportCookie,
+  SUPPORT_COOKIE,
+  supportCookie,
+  supportCookieValue,
+} from "../auth/support-cookie.ts";
+export type { SupportCookieOptions } from "../auth/support-cookie.ts";
+export { sqlSupportStore, supportClaims } from "../auth/support.ts";
+export type {
+  SqlSupportStoreOptions,
+  SupportEndedBy,
+  SupportListFilter,
+  SupportSession,
+  SupportSessionStore,
+  SupportStartInput,
+} from "../auth/support.ts";
+export { supportOf } from "../auth/support-view.ts";
+export type { SupportView } from "../auth/support-view.ts";
 export type {
   BetterServer,
   ContextOptions,

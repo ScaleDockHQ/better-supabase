@@ -59,11 +59,23 @@ export interface SqlClaims {
   readonly [claim: string]: unknown;
 }
 
+/** What every transaction of a user session sets besides the claims and role. */
+export interface SessionOptions {
+  /**
+   * Transaction-local settings, e.g. `{ 'better_supabase.tenant': id }`.
+   * Names need a dot (custom settings); `role` and `request.jwt.claims` are
+   * set from the claims.
+   */
+  readonly settings?: Readonly<Record<string, string>>;
+  /** Runs every transaction with `begin read only`: writes fail with 25006. */
+  readonly readOnly?: boolean;
+}
+
 export interface BetterPostgres {
   /** Connects as the connection-string role. On Supabase that bypasses RLS. */
   readonly admin: SqlClient;
   /** Runs every query as the given user, with RLS, like PostgREST does. */
-  asUser(claims: SqlClaims): SqlClient;
+  asUser(claims: SqlClaims, options?: SessionOptions): SqlClient;
   /** Runs every query as `anon`. */
   readonly anon: SqlClient;
   /**
@@ -71,11 +83,11 @@ export interface BetterPostgres {
    * `createServer` calls it for `ctx.sql`, so only apps that pass `postgres`
    * bundle the SQL compiler.
    */
-  executorFor(claims: SqlClaims): Executor;
+  executorFor(claims: SqlClaims, options?: SessionOptions): Executor;
   /** Runs `fn` in one transaction. Pass claims to run it as a user. */
   transaction<T>(
     fn: (client: SqlClient) => Promise<T>,
-    options?: { readonly claims?: SqlClaims },
+    options?: { readonly claims?: SqlClaims } & SessionOptions,
   ): Promise<T>;
   end(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
@@ -112,8 +124,20 @@ function openPool(options: PostgresOptions): PgPool {
 }
 
 type Session =
-  | { readonly claims: SqlClaims; readonly role: string }
+  | ({ readonly claims: SqlClaims; readonly role: string } & SessionOptions)
   | undefined;
+
+const RESERVED_SETTINGS = new Set(["role", "request.jwt.claims"]);
+
+function checkSettings(settings: Readonly<Record<string, string>> = {}): void {
+  for (const name of Object.keys(settings)) {
+    if (!name.includes(".") || RESERVED_SETTINGS.has(name)) {
+      throw new TypeError(
+        `Session setting "${name}": use a custom setting with a dot, such as better_supabase.tenant`,
+      );
+    }
+  }
+}
 
 /**
  * A pooled Postgres connection for jobs, scripts and tests. Each query (or
@@ -133,8 +157,10 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
 
   /** Opens the transaction, then sets the timeouts, claims and role in one round trip. */
   async function begin(client: PgPoolClient, session: Session): Promise<void> {
-    await client.query("begin");
-    const settings: [string, string][] = [];
+    await client.query(session?.readOnly ? "begin read only" : "begin");
+    const settings: [string, string][] = Object.entries(
+      session?.settings ?? {},
+    );
     const timeout =
       session?.role === "authenticated"
         ? timeouts.authenticated
@@ -194,19 +220,29 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     transaction: (fn) => transaction(session, fn),
   });
 
-  const sessionFor = (claims: SqlClaims): Session => ({
-    claims,
-    role: roleOf(claims),
-  });
+  const sessionFor = (
+    claims: SqlClaims,
+    sessionOptions: SessionOptions = {},
+  ): Session => {
+    checkSettings(sessionOptions.settings);
+    return {
+      claims,
+      role: roleOf(claims),
+      ...(sessionOptions.settings ? { settings: sessionOptions.settings } : {}),
+      ...(sessionOptions.readOnly ? { readOnly: true } : {}),
+    };
+  };
 
   return {
     admin: clientFor(undefined),
     anon: clientFor({ claims: { role: "anon" }, role: "anon" }),
-    asUser: (claims) => clientFor(sessionFor(claims)),
-    executorFor: (claims) => postgresExecutor(clientFor(sessionFor(claims))),
+    asUser: (claims, sessionOptions) =>
+      clientFor(sessionFor(claims, sessionOptions)),
+    executorFor: (claims, sessionOptions) =>
+      postgresExecutor(clientFor(sessionFor(claims, sessionOptions))),
     transaction: (fn, txOptions) =>
       transaction(
-        txOptions?.claims ? sessionFor(txOptions.claims) : undefined,
+        txOptions?.claims ? sessionFor(txOptions.claims, txOptions) : undefined,
         fn,
       ),
     end: () => pool.end(),

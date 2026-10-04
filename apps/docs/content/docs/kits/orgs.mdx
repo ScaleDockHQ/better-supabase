@@ -1,0 +1,224 @@
+---
+title: Organizations and invitations
+description: Create organizations, manage members and roles, invite by email and switch the active organization, on tables you already have or tables the kit creates.
+---
+
+The `organizations` and `invitations` [SQL kit](/docs/kits/sql) modules put
+the rules for teams in Postgres: who may rename an organization, who may
+invite whom and with which role, that an organization always keeps an owner,
+and that an invitation is accepted once by the address it was sent to.
+`better-supabase/orgs` calls those functions from TypeScript, returns a
+`Result` for each call and emits [kit events](/docs/extending/events).
+
+```bash
+pnpm better-supabase sql add organizations invitations
+```
+
+Both modules need `tenant` (the memberships table) and `access` (the
+[access contract](/docs/kits/access)), so `sql add` pulls those in too.
+Permissions are checked with `member_can()`, so the same functions work with
+the default roles, your own role and permission tables, PermDock or your own
+functions.
+
+## Functions
+
+| Function                                                   | What it does                                                                                          |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `create_organization(attrs)`                               | creates the organization from `name`, `slug` and the `attributes` columns, and makes the caller owner |
+| `update_organization(org, attrs)`                          | updates the columns present in `attrs` (`update`)                                                     |
+| `delete_organization(org)`                                 | deletes it, or sets `deleted_at` with `deleteMode: 'soft'` (`delete`)                                 |
+| `organization_slug_problem(value, except_org)`             | `invalid`, `reserved`, `taken` or null, for form validation                                           |
+| `update_member_role(org, member, role)`                    | changes a member's role, up to the caller's own (`updateRole`)                                        |
+| `remove_member(org, member)` and `leave_organization(org)` | removes a member (`removeMember`), or the caller                                                      |
+| `transfer_ownership(org, new_owner, former_role)`          | makes another member owner and gives the caller `former_role` (`transferOwnership`)                   |
+| `switch_organization(org)`                                 | makes it the caller's active organization (see [Switching](#switching-organizations))                 |
+| `mark_used(org)`                                           | sets `last_used_at` on the caller's membership                                                        |
+| `invite_member(tenant, invitee_email, invitee_role)`       | creates an invitation and returns it with its token (`invite`)                                        |
+| `resend_invitation(invitation_id)`                         | issues a new token and expiry; the old token stops working                                            |
+| `revoke_invitation(invitation_id)`                         | revokes an open invitation (`revoke`)                                                                 |
+| `invitation_preview(token)`                                | status, email, role and organization for the accept page; callable without a session                  |
+| `accept_invitation(token)` and `decline_invitation(token)` | accepts for the signed-in user, or declines                                                           |
+
+The name in parentheses is the kit action whose permission the function
+checks. `create_invitation(org, email, role)` from 0.4 still works and
+returns the token only.
+
+Every check runs in the function, and the database keeps two rules even for
+writes that bypass the functions. A deferred trigger refuses a commit that
+leaves an organization without an owner (`ownerInvariant`), and a trigger on
+the memberships table stops members from changing their own role or
+assigning a role above their own (`assignmentCeiling`). The kit's own writes
+and the service role pass the second one.
+
+## From TypeScript
+
+`createOrgs` takes a transport that runs the functions as the user.
+`sqlTransport` uses a Postgres connection with the user's claims, and works
+whatever schema the modules are in:
+
+```ts title="app/orgs/actions.ts"
+"use server";
+import { createOrgs, sqlTransport } from "better-supabase/orgs";
+import { betterSupabase } from "@/lib/supabase/client";
+import { postgres } from "@/lib/supabase/postgres";
+import { bs } from "@/lib/supabase/server";
+import { sendInvitationEmail } from "@/lib/email";
+
+export async function inviteMember(organizationId: string, email: string) {
+  const ctx = await bs.context();
+  if (ctx.auth.kind !== "user") throw new Error("Sign in first");
+  const orgs = createOrgs({
+    transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+    events: betterSupabase.events,
+    actorId: ctx.auth.user.id,
+    canInvite: async () => (await seatsLeft(organizationId)) > 0,
+    onInvite: ({ invitation, token }) =>
+      sendInvitationEmail(invitation.email, `/invite/${token}`),
+  });
+  return orgs.invite({ organizationId, email, role: "member" });
+}
+```
+
+`rpcTransport(ctx.supabase)` calls them over the Data API instead. The
+default `better_supabase` schema is not exposed, so use it after you add the
+schema to `[api] schemas` in `config.toml`, or set `kits.<module>.schema` to
+an exposed schema. With modules in different schemas, pass
+`schema: { organizations: "public", invitations: "app" }`.
+
+Each method returns an `AsyncResult`. Errors the kit raises are `DbError`s
+whose `hint` is a stable code, so a form can show the right message:
+
+```ts
+const result = await orgs.create({ name, slug });
+if (!result.ok && result.error.hint === "ORG_SLUG_TAKEN") {
+  return { field: "slug", message: "That address is taken" };
+}
+```
+
+| Option         | What it does                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| `transport`    | `sqlTransport(client)`, `rpcTransport(client)` or your own `call(schema, fn, args)`            |
+| `schema`       | the modules' schema, or one per module (`better_supabase`)                                     |
+| `events`       | `betterSupabase.events`; each change emits `org.*` or `invitation.*`                           |
+| `actorId`      | the user acting, recorded on the events                                                        |
+| `canInvite`    | runs before `invite_member`; return `false` for seat limits or plans                           |
+| `onInvite`     | runs after an invite or resend with the token, to send the email; when it throws, resend later |
+| `errorMappers` | your own error mapping, as in `betterSupabase.mapError()`                                      |
+
+The token is only in the `onInvite` argument and the `invite` result. It is
+never part of an event, and by default only its SHA-256 hash is stored.
+
+## Switching organizations
+
+`switch_organization(org)` checks the caller is a member and the organization
+is active, then follows `kits.access.activeTenant`:
+
+| Source          | `switch_organization` writes                               | `refresh` |
+| --------------- | ---------------------------------------------------------- | --------- |
+| `claim`         | the claim (`claims.tenant`) into the user's `app_metadata` | `true`    |
+| `profileColumn` | the organization id into that column of the user's profile | `false`   |
+| `resolver`      | nothing: your resolver picks the tenant per request        | `false`   |
+
+When `refresh` is `true`, refresh the session so the next access token
+carries the new claim. If your access token hook builds the claim from
+somewhere else, use the `profileColumn` or `resolver` source instead.
+
+## Options
+
+`kits.organizations.options`:
+
+| Option              | Default                             | What it does                                                                                                 |
+| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `attributes`        | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
+| `ownerRole`         | `owner`                             | the creator's role                                                                                           |
+| `formerOwnerRole`   | `admin`                             | the previous owner's role after a transfer                                                                   |
+| `deleteMode`        | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
+| `ownerInvariant`    | `true`                              | an organization always keeps an owner                                                                        |
+| `assignmentCeiling` | `true`                              | members can't raise their own role or assign one above it                                                    |
+| `slugPattern`       | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
+| `slugMinLength`     | `2`                                 | the shortest slug                                                                                            |
+| `slugMaxLength`     | `48`                                | the longest slug                                                                                             |
+| `reservedSlugs`     | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
+| `slugCitext`        | `false`                             | a `citext` slug column on a managed table                                                                    |
+
+`permissions.create` makes creating an organization a platform permission,
+checked with `is_platform()`. Without it every signed-in user can create one.
+
+`kits.invitations.options`:
+
+| Option                  | Default    | What it does                                                 |
+| ----------------------- | ---------- | ------------------------------------------------------------ |
+| `validFor`              | `7 days`   | how long an invitation is open                               |
+| `tokenStorage`          | `sha256`   | `plain` stores the token itself, for tables that already do  |
+| `tokenBytes`            | `24`       | the token's random bytes                                     |
+| `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
+| `recheckInviter`        | `true`     | refuses the invitation when the inviter can no longer invite |
+| `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
+| `errorCodes`            | none       | SQLSTATE per error code, for apps that match on SQLSTATE     |
+
+An invitation with a null organization is a platform invitation: with
+`kits.access.model: "catalog"` and a `platformAssignments` table, accepting
+it assigns the platform role. It needs the `invitePlatform` permission
+(`platform.invite`).
+
+## Existing tables
+
+Both modules support `adopt`, so they run over the tables you have. Map the
+names and set the columns you don't have to `null`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["organizations", "invitations"] },
+  kits: {
+    access: { model: "catalog" },
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
+    },
+    organizations: {
+      mode: "adopt",
+      tables: { organizations: "public.organizations" },
+      columns: { organizations: { createdBy: null, deletedAt: null } },
+      options: { attributes: ["logo_url"] },
+    },
+    invitations: {
+      mode: "adopt",
+      tables: { invitations: "public.organization_invitations" },
+      columns: {
+        invitations: {
+          tenant: "organization_id",
+          role: "role_id",
+          tokenHash: "token",
+        },
+      },
+      options: { tokenStorage: "plain" },
+    },
+  },
+});
+```
+
+Under the `catalog` access model, roles are ids in your roles table, and the
+functions accept a role id or key. The `before_organization_create`,
+`after_organization_create`, `after_member_change`, `before_invitation_create`
+and `after_invitation_accept` [SQL hooks](/docs/extending/events#sql-hooks)
+run your own checks and side effects in the same transaction.
+
+## Errors
+
+| Code                                                      | When                                               |
+| --------------------------------------------------------- | -------------------------------------------------- |
+| `ORG_FORBIDDEN`                                           | the caller lacks the permission                    |
+| `ORG_DISABLED`                                            | the organization is disabled or deleted            |
+| `ORG_NOT_MEMBER`, `ORG_NOT_FOUND`                         | no such membership or organization                 |
+| `ORG_SELF`, `ORG_SELF_ROLE`                               | removing yourself, or changing your own role       |
+| `ORG_ROLE_CEILING`, `ORG_ROLE_UNKNOWN`                    | a role above your own, or no such role             |
+| `ORG_OWNER_REQUIRED`                                      | the change would leave no owner                    |
+| `ORG_SLUG_INVALID`, `ORG_SLUG_RESERVED`, `ORG_SLUG_TAKEN` | the slug can't be used                             |
+| `INVITATION_FORBIDDEN`, `INVITATION_ROLE_FORBIDDEN`       | the caller may not invite, or not with that role   |
+| `INVITATION_ROLE_UNKNOWN`, `INVITATION_ALREADY_MEMBER`    | no such role, or the address is already a member   |
+| `INVITATION_INVALID`                                      | unknown, used, revoked or expired token            |
+| `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`         | not signed in, or signed in with another address   |
+| `INVITATION_EMAIL_UNCONFIRMED`                            | the address is not confirmed yet                   |
+| `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`           | your own invitation, or the inviter lost the right |
+| `INVITATION_SCOPE_UNSUPPORTED`                            | a platform invitation without a catalog model      |

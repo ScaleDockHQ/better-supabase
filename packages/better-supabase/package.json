@@ -122,6 +122,16 @@
       "types": "./dist/jobs/index.d.ts",
       "default": "./dist/jobs/index.js"
     },
+    "./orgs": {
+      "@better-supabase/source": "./src/orgs/index.ts",
+      "types": "./dist/orgs/index.d.ts",
+      "default": "./dist/orgs/index.js"
+    },
+    "./notifications": {
+      "@better-supabase/source": "./src/notifications/index.ts",
+      "types": "./dist/notifications/index.d.ts",
+      "default": "./dist/notifications/index.js"
+    },
     "./env": {
       "@better-supabase/source": "./src/env/index.ts",
       "types": "./dist/env/index.d.ts",
@@ -276,6 +286,14 @@
       "./jobs": {
         "types": "./dist/jobs/index.d.ts",
         "default": "./dist/jobs/index.js"
+      },
+      "./orgs": {
+        "types": "./dist/orgs/index.d.ts",
+        "default": "./dist/orgs/index.js"
+      },
+      "./notifications": {
+        "types": "./dist/notifications/index.d.ts",
+        "default": "./dist/notifications/index.js"
       },
       "./env": {
         "types": "./dist/env/index.d.ts",

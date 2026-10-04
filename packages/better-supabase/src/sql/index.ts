@@ -1,19 +1,36 @@
 export {
+  customContracts,
   isKitIdType,
+  kitDeprecations,
+  kitFileVersion,
   kitIdType,
   KIT_ID_TYPES,
+  moduleBody,
+  moduleVersion,
   renderKit,
   resolveModules,
   sameKitFile,
   SQL_MODULES,
+  upgradePlan,
 } from "./kit.ts";
 export type {
+  InstalledKitModule,
+  KitDeprecation,
   KitFile,
   KitIdType,
   KitLayout,
   KitPermdock,
+  KitUpgrade,
+  KitUpgradePlan,
   SqlModule,
 } from "./kit.ts";
+export { contractSignature } from "./context.ts";
+export type {
+  KitContext,
+  KitContractFunction,
+  KitNames,
+  KitTableSpec,
+} from "./context.ts";
 export { kitLayout } from "./layout.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";
 export type { CompiledReadSet } from "./read-sets.ts";

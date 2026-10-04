@@ -17,11 +17,11 @@ describe("resolveModules", () => {
       resolveModules(["invitations", "updated-at"]).map(
         (module) => module.name,
       ),
-    ).toEqual(["updated-at", "tenant", "invitations"]);
+    ).toEqual(["updated-at", "tenant", "invitations", "access"]);
   });
 
   it("deduplicates and rejects unknown modules", () => {
-    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(2);
+    expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(3);
     expect(() => resolveModules(["nope"])).toThrow(
       /Unknown SQL kit module "nope"/,
     );
@@ -60,9 +60,13 @@ describe("renderKit", () => {
 
   it("renders the audit log's tenant column from config and keys rows by their primary key", () => {
     const [plain] = renderKit(["audit"]);
-    expect(plain!.contents).toContain("row_data ->> 'organization_id'");
+    expect(plain!.contents).toContain(
+      "row_data ->> coalesce(entry.tenant_column, 'organization_id')",
+    );
     const [file] = renderKit(["audit"], { tenantColumn: "team_id" });
-    expect(file!.contents).toContain("row_data ->> 'team_id'");
+    expect(file!.contents).toContain(
+      "row_data ->> coalesce(entry.tenant_column, 'team_id')",
+    );
     expect(file!.contents).not.toContain("organization_id");
     expect(file!.contents).toContain("i.indisprimary");
     expect(file!.contents).not.toContain("row_data ->> 'id'");

@@ -1,6 +1,8 @@
 -- better-supabase SQL kit: rate-limit (0.4.0)
+-- @bs-kit rate-limit@1 managed
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
+-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -137,3 +139,19 @@ begin
 end
 $$;
 notify pgrst, 'reload config';
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.kit_modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.kit_modules enable row level security;
+revoke all on better_supabase.kit_modules from anon, authenticated;
+grant select on better_supabase.kit_modules to service_role;
+insert into better_supabase.kit_modules (name, version, mode)
+values ('rate-limit', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -15,10 +15,31 @@ better-supabase sql add jobs idempotency webhook-inbox
 ## Jobs
 
 Jobs run on [Supabase Queues](https://supabase.com/docs/guides/queues)
-(`pgmq`), so queues and messages show up in the dashboard. The `jobs` module
-installs `pgmq` and adds thin `better_supabase.*` functions for what pgmq
-doesn't do itself: lease-safe completion, retries with backoff, dead letters,
-deduplication keys and pg_cron schedules.
+(`pgmq`) by default, so queues and messages show up in the dashboard. The
+`jobs` module installs `pgmq` and adds thin `better_supabase.*` functions for
+what pgmq doesn't do itself: lease-safe completion, retries with backoff,
+dead letters, deduplication keys and schedules.
+
+Two module options change where jobs and schedules live. Both keep the same
+functions, so the TypeScript side doesn't change:
+
+| Option                        | Values                       | What it does                                                                                                                                                |
+| ----------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kits.jobs.options.backend`   | `pgmq` (default), `table`    | `table` stores jobs in `better_supabase.job_messages` and claims them with `for update skip locked`, for projects without pgmq                              |
+| `kits.jobs.options.scheduler` | `pg_cron` (default), `drain` | `drain` stores schedules in `better_supabase.job_schedules`, with a time zone each, and the [drain route](#drain-route) enqueues them; pg_cron isn't needed |
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  kits: {
+    jobs: { options: { backend: "table", scheduler: "drain" } },
+  },
+});
+```
+
+Run `better-supabase sql sync` after changing either option. On the table
+backend, completed and dead jobs stay in `job_messages` with `archived_at`
+set; `better_supabase.purge_job_archive(queue)` deletes old ones on both
+backends.
 
 Declare queues with a Standard Schema for their payload. `enqueue`
 validates the payload, so a wrong payload is a type error at compile time
@@ -108,9 +129,11 @@ argument.
 
 ### Schedules
 
-`schedule` enqueues a payload on a [pg_cron](https://supabase.com/docs/guides/cron)
-schedule. Enable the `pg_cron` extension first. Scheduling the same name again
-replaces it.
+`schedule` enqueues a payload on a cron schedule. Scheduling the same name
+again replaces it. A schedule is five cron fields (lists, ranges, steps, and
+names such as `MON-FRI`), a macro (`@hourly`, `@daily`, `@weekly`,
+`@monthly`, `@yearly`) or an interval (`30 seconds`, `5 minutes`). An
+invalid schedule returns an error before anything is written.
 
 ```ts
 await jobs.schedule("nightly-digest", "0 3 * * *", "send_email", {
@@ -118,6 +141,81 @@ await jobs.schedule("nightly-digest", "0 3 * * *", "send_email", {
   template: "digest",
 });
 await jobs.unschedule("nightly-digest");
+```
+
+With the default `pg_cron` scheduler, enable the
+[pg_cron](https://supabase.com/docs/guides/cron) extension first. pg_cron
+reads every schedule in `cron.timezone` (UTC on Supabase), so a `timeZone`
+other than `UTC` returns an error.
+
+With `scheduler: "drain"`, each schedule has its own time zone, and the
+drain route enqueues a run when one is due:
+
+```ts
+await jobs.schedule(
+  "weekday-digest",
+  "0 9 * * MON-FRI",
+  "send_email",
+  { to: "team@example.com", template: "digest" },
+  { timeZone: "Europe/Amsterdam" },
+);
+```
+
+The next run is computed in that zone, so 09:00 stays 09:00 across daylight
+saving changes. A time that a change skips (02:30 on the night clocks move
+forward) runs right after the gap. When the drain route didn't run for a
+while, missed runs collapse into one. `runSchedules()` does the same work
+without the route, and `nextCronRun(cron, timeZone, after)` is exported for
+your own checks.
+
+### Drain route
+
+`drainRoute` turns the queues into an HTTP endpoint for a cron caller such as
+[Vercel Cron](https://vercel.com/docs/cron-jobs). Each call checks the bearer
+secret, enqueues due schedules, then drains each queue in `handlers` until
+they are empty or `budgetMs` (50 seconds by default) is spent. Jobs it
+already claimed still finish.
+
+```ts title="app/api/jobs/drain/route.ts"
+import "server-only";
+
+import { jobs } from "@/lib/jobs";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  budgetMs: 50_000,
+  handlers: {
+    send_email: (payload) => sendEmail(payload),
+  },
+  onError: (error, job) => console.error(error.message, job?.id),
+});
+```
+
+```json title="vercel.json"
+{
+  "crons": [{ "path": "/api/jobs/drain", "schedule": "* * * * *" }]
+}
+```
+
+Vercel sends `Authorization: Bearer <CRON_SECRET>`; a request without it gets
+`401`. The response is JSON: `schedules` (runs enqueued), `queues` (the
+succeeded and failed counts per queue) and `budgetExhausted`. Keep `budgetMs`
+below the function's maximum duration. `drain` takes the same `budgetMs` when
+you call it yourself.
+
+### Queue backends
+
+`createJobs` accepts a SQL connection, a Supabase client, or any
+`QueueBackend` (API version 1). `sqlQueueBackend(sql)` and
+`pgmqPublicBackend(client)` are the two built in; implement the interface to
+put jobs somewhere else, and prove it with `testQueueBackend` from
+[conformance kits](/docs/extending/conformance).
+
+```ts
+import { createJobs, type QueueBackend } from "better-supabase/jobs";
+
+const backend: QueueBackend = myQueue;
+const jobs = createJobs(backend, { send_email: schema });
 ```
 
 ### Without a database connection

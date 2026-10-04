@@ -1,7 +1,66 @@
+import type { KitMode, KitsConfig } from "../config/kits.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import {
+  createKitContext,
+  type KitContext,
+  type KitContractFunction,
+  type KitIdType,
+  type KitNames,
+} from "./context.ts";
+import { ACCESS } from "./modules/access.ts";
+import { AUDIT } from "./modules/audit.ts";
+import { INVITATIONS } from "./modules/invitations.ts";
+import { JOBS } from "./modules/jobs.ts";
+import { NOTIFICATIONS } from "./modules/notifications.ts";
+import { ORGANIZATIONS } from "./modules/organizations.ts";
+import { OUTBOX } from "./modules/outbox.ts";
+import { PROFILES } from "./modules/profiles.ts";
+import { SUPPORT_SESSIONS } from "./modules/support.ts";
+import { TENANT } from "./modules/tenant.ts";
+import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
+
+export {
+  isKitIdType,
+  KIT_ID_TYPES,
+  type KitIdType,
+  kitIdType,
+} from "./context.ts";
+
+/** The step from one module version to the next, for `sql upgrade`. */
+export interface KitUpgrade {
+  /** The installed version this step upgrades from. */
+  readonly from: number;
+  readonly description: string;
+  /** SQL run before the module's current file, e.g. renames and backfills. */
+  readonly sql: (ctx: KitContext) => string;
+}
+
+/**
+ * A renamed kit symbol. It keeps a compatibility wrapper for at least one
+ * minor release, then is removed; doctor reports uses of both (BS309), and
+ * the name stays reserved.
+ */
+export interface KitDeprecation {
+  readonly kind: "function" | "claim" | "table" | "column";
+  /** The old name: `schema.function`, a claim name, `schema.table` or `table.column`. */
+  readonly symbol: string;
+  /** What to use instead. */
+  readonly use: string;
+  /** The package version that deprecated it. */
+  readonly since: string;
+  /** The package version that removed it; until then `wrapper` is written. */
+  readonly removed?: string;
+  /**
+   * The compatibility wrapper the module file keeps, e.g. a function with the
+   * old name that calls the new one and a `comment on function ... is
+   * 'deprecated: use X'`.
+   */
+  readonly wrapper?: (ctx: KitContext) => string;
+}
 
 /**
  * SQL kit modules for `better-supabase sql add`. Every module is idempotent
@@ -15,25 +74,53 @@ export interface SqlModule {
   readonly requires: readonly string[];
   /** What it needs instead when the layout has `permdock`. */
   readonly permdockRequires?: readonly string[];
+  /** What it needs for this layout, e.g. per `kits.access.model`; overrides both. */
+  readonly dependencies?: (layout: KitLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
   /** The module with the default claim names. */
   readonly sql: string;
   /** The module for configured claim names (`config.claims`), when it reads claims. */
   readonly render?: (claims: ClaimsMeta, layout: KitLayout) => string;
+  /** Bumped when installed databases need an upgrade step. Defaults to 1. */
+  readonly version?: number;
+  /** The modes `kits.<name>.mode` accepts. Defaults to `managed` only. */
+  readonly modes?: readonly KitMode[];
+  /** The logical tables and columns `kits.<name>.tables` and `columns` map. */
+  readonly names?: KitNames;
+  /** The functions other modules and the TypeScript side call. */
+  readonly contract?: (ctx: KitContext) => readonly KitContractFunction[];
+  /** Renders the module for a layout; takes precedence over `render`. */
+  readonly build?: (ctx: KitContext, layout: KitLayout) => string;
+  readonly upgrades?: readonly KitUpgrade[];
+  readonly deprecated?: readonly KitDeprecation[];
+}
+
+export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
+
+/** A module rendered by `build`; its `sql` is the build with the defaults. */
+export type KitModuleDefinition = Omit<
+  SqlModule,
+  "sql" | "render" | "build"
+> & {
+  readonly build: NonNullable<SqlModule["build"]>;
+};
+
+function built(definition: KitModuleDefinition): SqlModule {
+  let cached: string | undefined;
+  return {
+    ...definition,
+    get sql() {
+      return (cached ??= definition.build(kitContext(definition.name, {}), {}));
+    },
+  };
 }
 
 const requiresOf = (module: SqlModule, layout: KitLayout): readonly string[] =>
-  layout.permdock && module.permdockRequires
+  module.dependencies?.(layout) ??
+  (layout.permdock && module.permdockRequires
     ? module.permdockRequires
-    : module.requires;
-
-function jwtClaim(name: string): string {
-  return `coalesce(auth.jwt() ->> ${sqlString(name)}, auth.jwt() -> 'app_metadata' ->> ${sqlString(name)})`;
-}
-
-const SCHEMA = `create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;`;
+    : module.requires);
 
 const UPDATED_AT: SqlModule = {
   name: "updated-at",
@@ -57,16 +144,25 @@ begin
 end;
 $$;
 
+${EQUIVALENT_TRIGGERS}
+
+drop function if exists better_supabase.track_updated_at(regclass, text);
+
 -- select better_supabase.track_updated_at('public.customers');
+-- replace_trigger => true drops another trigger that sets updated_at (moddatetime, touch_*).
 create or replace function better_supabase.track_updated_at(
   target regclass,
-  column_name text default 'updated_at'
+  column_name text default 'updated_at',
+  replace_trigger boolean default false
 )
 returns void
 language plpgsql
 set search_path = ''
 as $$
 begin
+  perform better_supabase.replace_equivalent_triggers(
+    target, 'bs_updated_at', 'updated_at|moddatetime|touch', replace_trigger
+  );
   execute format('drop trigger if exists bs_updated_at on %s', target);
   execute format(
     'create trigger bs_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',
@@ -136,273 +232,6 @@ begin
   );
 end;
 $$;`,
-};
-
-const auditSql = (tenantColumn = "organization_id"): string => `${SCHEMA}
-
-create table if not exists better_supabase.audited_tables (
-  target regclass primary key,
-  ignore text[] not null default '{}'
-);
--- The primary key columns, read when the table is registered; composite keys are joined with ','.
-alter table better_supabase.audited_tables add column if not exists key_columns text[] not null default '{id}';
-
-create table if not exists better_supabase.audit_log (
-  id bigint generated always as identity primary key,
-  table_name text not null,
-  record_id text,
-  op text not null check (op in ('insert', 'update', 'delete')),
-  old_record jsonb,
-  new_record jsonb,
-  changed text[],
-  actor_id uuid,
-  actor_role text,
-  org_id uuid,
-  at timestamptz not null default now()
-);
--- Set when an admin acted as the user (the act claim).
-alter table better_supabase.audit_log add column if not exists impersonated_by uuid;
-alter table better_supabase.audit_log add column if not exists impersonation_reason text;
-create index if not exists audit_log_record_idx on better_supabase.audit_log (table_name, record_id, at desc);
-create index if not exists audit_log_org_idx on better_supabase.audit_log (org_id, at desc);
-
-alter table better_supabase.audited_tables enable row level security;
-alter table better_supabase.audit_log enable row level security;
-revoke all on better_supabase.audited_tables, better_supabase.audit_log from anon, authenticated;
-grant select on better_supabase.audit_log to service_role;
-
-create or replace function better_supabase.audit_trigger()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  ignored text[];
-  keys text[];
-  old_row jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
-  new_row jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
-  row_data jsonb := coalesce(new_row, old_row);
-  changed_columns text[];
-begin
-  select a.ignore, a.key_columns into ignored, keys
-  from better_supabase.audited_tables a
-  where a.target = tg_relid::regclass;
-  ignored := coalesce(ignored, '{}');
-  keys := coalesce(keys, '{id}');
-  old_row := old_row - ignored;
-  new_row := new_row - ignored;
-  if tg_op = 'UPDATE' then
-    select array_agg(key order by key) into changed_columns
-    from jsonb_each(new_row) n
-    where n.value is distinct from old_row -> n.key;
-    if changed_columns is null then
-      return null;
-    end if;
-  end if;
-  insert into better_supabase.audit_log
-    (table_name, record_id, op, old_record, new_record, changed, actor_id, actor_role, org_id,
-     impersonated_by, impersonation_reason)
-  values (
-    tg_table_schema || '.' || tg_table_name,
-    (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(keys) with ordinality k(name, ord)),
-    lower(tg_op),
-    old_row,
-    new_row,
-    changed_columns,
-    auth.uid(),
-    coalesce(auth.jwt() ->> 'role', current_user),
-    case
-      when row_data ->> ${sqlString(tenantColumn)} ~ '^[0-9a-f-]{36}$'
-        then (row_data ->> ${sqlString(tenantColumn)})::uuid
-    end,
-    case
-      when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$'
-        then (auth.jwt() -> 'act' ->> 'sub')::uuid
-    end,
-    auth.jwt() -> 'act' ->> 'reason'
-  );
-  return null;
-end;
-$$;
-
--- select better_supabase.audit('public.customers', ignore => '{updated_at}');
-create or replace function better_supabase.audit(target regclass, ignore text[] default '{}')
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  keys text[];
-begin
-  select array_agg(c.attname::text order by k.ord) into keys
-  from pg_catalog.pg_index i
-  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
-  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
-  where i.indrelid = audit.target and i.indisprimary;
-  insert into better_supabase.audited_tables as a (target, ignore, key_columns)
-  values (audit.target, audit.ignore, coalesce(keys, '{id}'))
-  on conflict on constraint audited_tables_pkey do update
-    set ignore = excluded.ignore, key_columns = excluded.key_columns;
-  execute format('drop trigger if exists bs_audit on %s', target);
-  execute format(
-    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_trigger()',
-    target
-  );
-end;
-$$;
-
-create or replace function better_supabase.unaudit(target regclass)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-begin
-  execute format('drop trigger if exists bs_audit on %s', target);
-  delete from better_supabase.audited_tables a where a.target = unaudit.target;
-end;
-$$;
-
--- Deletes up to batch entries older than older_than and returns how many.
--- Ids grow with time, so the primary key finds the oldest rows first.
--- Nightly with pg_cron: select cron.schedule('purge-audit-log', '15 3 * * *', 'select better_supabase.purge_audit_log()');
-create or replace function better_supabase.purge_audit_log(
-  older_than interval default '1 year',
-  batch integer default 10000
-)
-returns integer
-language sql
-set search_path = ''
-as $$
-  with purged as (
-    delete from better_supabase.audit_log
-    where id in (
-      select l.id from better_supabase.audit_log l
-      where l.at < now() - older_than
-      order by l.id
-      limit batch
-    )
-    returning 1
-  )
-  select count(*)::integer from purged
-$$;
-revoke execute on function better_supabase.purge_audit_log(interval, integer) from public, anon, authenticated;
-grant execute on function better_supabase.purge_audit_log(interval, integer) to service_role;`;
-
-const AUDIT: SqlModule = {
-  name: "audit",
-  title: "Audit log",
-  description:
-    "Records inserts, updates and deletes with the actor and changed columns, for tables you register.",
-  requires: [],
-  target: "schema",
-  sql: auditSql(),
-  render: (_claims, layout) => auditSql(layout.tenantColumn),
-};
-
-const tenantSql = (claims: ClaimsMeta): string => `${SCHEMA}
-grant usage on schema better_supabase to supabase_auth_admin;
-
-create table if not exists better_supabase.memberships (
-  org_id uuid not null,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  role text not null default 'member' check (role in ('owner', 'admin', 'member', 'viewer')),
-  created_at timestamptz not null default now(),
-  primary key (org_id, user_id)
-);
-create index if not exists memberships_user_idx on better_supabase.memberships (user_id);
-
-alter table better_supabase.memberships enable row level security;
-grant select on better_supabase.memberships to authenticated;
-grant all on better_supabase.memberships to service_role;
-
--- The tenant of the current request: the top-level \`${claims.tenant}\` claim
--- (custom access token hook) or \`app_metadata.${claims.tenant}\` (Auth admin API).
--- Never user_metadata: users can write it.
-create or replace function better_supabase.current_tenant_id()
-returns uuid
-language sql
-stable
-set search_path = ''
-as $$
-  select nullif(${jwtClaim(claims.tenant)}, '')::uuid
-$$;
-
--- Policies compare against the set once per statement:
---   using (organization_id in (select better_supabase.member_org_ids('{owner,admin}')))
--- has_org_role(org) answers for one organization, in functions and checks.
-create or replace function better_supabase.member_org_ids(roles text[] default null)
-returns setof uuid
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select m.org_id
-  from better_supabase.memberships m
-  where m.user_id = (select auth.uid())
-    and (roles is null or m.role = any (roles))
-$$;
-
-create or replace function better_supabase.has_org_role(org uuid, roles text[] default null)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1
-    from better_supabase.memberships m
-    where m.org_id = org
-      and m.user_id = auth.uid()
-      and (roles is null or m.role = any (roles))
-  )
-$$;
-
-drop policy if exists bs_memberships_read on better_supabase.memberships;
-create policy bs_memberships_read on better_supabase.memberships
-  for select to authenticated
-  using (user_id = (select auth.uid()) or org_id in (select better_supabase.member_org_ids()));
-
-revoke execute on function better_supabase.member_org_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_org_role(uuid, text[]) from public, anon;
-grant execute on function better_supabase.member_org_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_org_role(uuid, text[]) to authenticated, service_role;
-
--- The memberships claim in PermDock's shape: [{ scope, id, roles }]. With
--- PermDock, \`permdock supabase hook generate\` writes the hook instead.
--- Otherwise call it from your custom access token hook:
---   return jsonb_set(event, '{claims,memberships}',
---     better_supabase.membership_claims((event ->> 'user_id')::uuid));
-create or replace function better_supabase.membership_claims(user_id uuid)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'scope', ${sqlString(claims.scope)},
-      'id', m.org_id,
-      'roles', jsonb_build_array(m.role)
-    ) order by m.created_at, m.org_id), '[]'::jsonb)
-  from better_supabase.memberships m
-  where m.user_id = membership_claims.user_id
-$$;
-
-revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
-grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;`;
-
-const TENANT: SqlModule = {
-  name: "tenant",
-  title: "Tenant memberships and permission helper",
-  description:
-    "Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. A template: edit the roles to fit your app.",
-  requires: [],
-  target: "schema",
-  sql: tenantSql(DEFAULT_CLAIMS),
-  render: tenantSql,
 };
 
 const MFA: SqlModule = {
@@ -575,131 +404,6 @@ const ENTITLEMENTS: SqlModule = {
   render: entitlementsSql,
 };
 
-const INVITATIONS: SqlModule = {
-  name: "invitations",
-  title: "Invitations",
-  description:
-    "Owners and admins invite by email; the invitee accepts with a one-time token and becomes a member.",
-  requires: ["tenant"],
-  target: "schema",
-  sql: `${SCHEMA}
-
-create table if not exists better_supabase.invitations (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null,
-  email text not null,
-  role text not null default 'member',
-  token_hash text not null unique,
-  invited_by uuid references auth.users (id) on delete set null,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null,
-  accepted_at timestamptz,
-  accepted_by uuid references auth.users (id) on delete set null
-);
-create unique index if not exists invitations_open_idx
-  on better_supabase.invitations (org_id, lower(email)) where accepted_at is null;
-create index if not exists invitations_invited_by_idx
-  on better_supabase.invitations (invited_by);
-create index if not exists invitations_accepted_by_idx
-  on better_supabase.invitations (accepted_by);
-
-alter table better_supabase.invitations drop constraint if exists invitations_role_check;
-alter table better_supabase.invitations
-  add constraint invitations_role_check check (role in ('owner', 'admin', 'member', 'viewer'));
-
-alter table better_supabase.invitations enable row level security;
-revoke all on better_supabase.invitations from anon, authenticated;
-grant select on better_supabase.invitations to authenticated;
-grant all on better_supabase.invitations to service_role;
-
-drop policy if exists bs_invitations_read on better_supabase.invitations;
-create policy bs_invitations_read on better_supabase.invitations
-  for select to authenticated
-  using (org_id in (select better_supabase.member_org_ids('{owner,admin}')));
-
--- Returns the token to send; only its hash is stored.
-create or replace function better_supabase.create_invitation(
-  org uuid,
-  invitee_email text,
-  invitee_role text default 'member',
-  valid_for interval default '7 days'
-)
-returns text
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  token text := encode(extensions.gen_random_bytes(24), 'hex');
-  privileged boolean := coalesce(auth.jwt() ->> 'role', '') = 'service_role';
-begin
-  if not privileged and not better_supabase.has_org_role(org, '{owner,admin}') then
-    raise exception 'Only owners and admins can invite' using errcode = '42501';
-  end if;
-  -- Admins invite admins and below; only an owner hands out ownership.
-  if invitee_role = 'owner' and not privileged and not better_supabase.has_org_role(org, '{owner}') then
-    raise exception 'Only owners can invite an owner' using errcode = '42501', hint = 'INVITATION_ROLE_FORBIDDEN';
-  end if;
-  delete from better_supabase.invitations i
-  where i.org_id = org and lower(i.email) = lower(invitee_email) and i.accepted_at is null;
-  insert into better_supabase.invitations (org_id, email, role, token_hash, invited_by, expires_at)
-  values (
-    org,
-    invitee_email,
-    invitee_role,
-    encode(extensions.digest(token, 'sha256'), 'hex'),
-    auth.uid(),
-    now() + valid_for
-  );
-  return token;
-end;
-$$;
-
-create or replace function better_supabase.accept_invitation(token text)
-returns uuid
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  invite better_supabase.invitations;
-begin
-  if auth.uid() is null then
-    raise exception 'Sign in to accept an invitation' using errcode = '42501';
-  end if;
-  select * into invite
-  from better_supabase.invitations i
-  where i.token_hash = encode(extensions.digest(token, 'sha256'), 'hex')
-  for update;
-  if invite.id is null or invite.accepted_at is not null or invite.expires_at < now() then
-    raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';
-  end if;
-  if lower(invite.email) <> lower(coalesce(auth.jwt() ->> 'email', '')) then
-    raise exception 'The invitation is for another email address' using errcode = '42501', hint = 'INVITATION_EMAIL_MISMATCH';
-  end if;
-  -- The email claim alone does not prove the address: an unconfirmed sign-up carries it too.
-  if not exists (
-    select 1 from auth.users u
-    where u.id = auth.uid() and u.email_confirmed_at is not null and lower(u.email) = lower(invite.email)
-  ) then
-    raise exception 'Confirm your email address before accepting the invitation' using errcode = '42501', hint = 'INVITATION_EMAIL_UNCONFIRMED';
-  end if;
-  insert into better_supabase.memberships (org_id, user_id, role)
-  values (invite.org_id, auth.uid(), invite.role)
-  on conflict (org_id, user_id) do update set role = excluded.role;
-  update better_supabase.invitations
-  set accepted_at = now(), accepted_by = auth.uid()
-  where id = invite.id;
-  return invite.org_id;
-end;
-$$;
-
-revoke execute on function better_supabase.create_invitation(uuid, text, text, interval) from public, anon;
-revoke execute on function better_supabase.accept_invitation(text) from public, anon;
-grant execute on function better_supabase.create_invitation(uuid, text, text, interval) to authenticated, service_role;
-grant execute on function better_supabase.accept_invitation(text) to authenticated;`,
-};
-
 const RESERVED_SLUGS: SqlModule = {
   name: "reserved-slugs",
   title: "Reserved slugs",
@@ -775,256 +479,6 @@ begin
     target,
     column_name
   );
-end;
-$$;`,
-};
-
-const JOBS: SqlModule = {
-  name: "jobs",
-  title: "Job queue",
-  description:
-    "Typed jobs on Supabase Queues (pgmq): leases, retries with backoff, dead letters, deduplication keys, and pg_cron schedules.",
-  requires: [],
-  target: "schema",
-  sql: `${SCHEMA}
-
--- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
--- pgmq's read_ct is the attempt number and vt the lease.
-create extension if not exists pgmq;
-
--- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
-
--- Deduplicated enqueues look the key up under an advisory lock, so each
--- queue table gets a partial index on it.
-create or replace function better_supabase.index_job_queue(queue text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  execute format(
-    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
-    'q_' || queue || '_dedupe_idx',
-    'q_' || queue
-  );
-end;
-$$;
-
--- Queue names: lowercase letters, digits and underscores (pgmq's rule).
-create or replace function better_supabase.ensure_job_queue(queue text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if not exists (select 1 from pgmq.list_queues() q where q.queue_name = queue) then
-    perform pgmq.create(queue);
-    perform better_supabase.index_job_queue(queue);
-  end if;
-end;
-$$;
-
-select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
-
--- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
-create or replace function better_supabase.enqueue_job(
-  queue text,
-  payload jsonb default '{}',
-  delay integer default 0,
-  max_attempts integer default 5,
-  dedupe_key text default null
-)
-returns bigint
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  existing bigint;
-begin
-  perform better_supabase.ensure_job_queue(queue);
-  if dedupe_key is not null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
-    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)
-      into existing using dedupe_key;
-    if existing is not null then
-      return existing;
-    end if;
-  end if;
-  return (
-    select pgmq.send(
-      queue,
-      jsonb_build_object('payload', payload, 'max_attempts', max_attempts)
-        || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,
-      greatest(delay, 0)
-    )
-  );
-end;
-$$;
-
-create or replace function better_supabase.claim_jobs(queue text, lease integer default 300, batch integer default 1)
-returns table (id bigint, attempts integer, enqueued_at timestamptz, visible_until timestamptz, message jsonb)
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  perform better_supabase.ensure_job_queue(queue);
-  return query
-    select r.msg_id, r.read_ct, r.enqueued_at, r.vt, r.message
-    from pgmq.read(queue, lease, batch) r;
-end;
-$$;
-
--- Each claim bumps read_ct, so a stale worker (its lease expired and another
--- worker claimed the message) no longer matches and gets false / null.
-create or replace function better_supabase.complete_job(queue text, job_id bigint, attempt integer)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  hit bigint;
-begin
-  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
-    into hit using job_id, attempt;
-  if hit is null then
-    return false;
-  end if;
-  return pgmq.archive(queue, job_id);
-end;
-$$;
-
--- Retries with exponential backoff (10s, 20s, 40s, ... at most an hour) until
--- max_attempts, then archives the message with dead = true.
-create or replace function better_supabase.fail_job(
-  queue text,
-  job_id bigint,
-  attempt integer,
-  error text,
-  retry_in integer default null
-)
-returns text
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  msg jsonb;
-begin
-  execute format('select message from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
-    into msg using job_id, attempt;
-  if msg is null then
-    return null;
-  end if;
-  if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then
-    execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text, ''dead'', true) where msg_id = $1', 'q_' || queue)
-      using job_id, left(error, 4000);
-    perform pgmq.archive(queue, job_id);
-    return 'dead';
-  end if;
-  execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text), vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1', 'q_' || queue)
-    using job_id, left(error, 4000), coalesce(retry_in, least(3600, 10 * power(2, attempt - 1)::integer));
-  return 'queued';
-end;
-$$;
-
-create or replace function better_supabase.extend_job_lease(queue text, job_id bigint, attempt integer, lease integer)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  hit bigint;
-begin
-  execute format('update pgmq.%I set vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1 and read_ct = $2 returning msg_id', 'q_' || queue)
-    into hit using job_id, attempt, lease;
-  return hit is not null;
-end;
-$$;
-
--- pgmq keeps completed and dead messages in pgmq.a_<queue>. Deletes up to
--- batch of them archived longer than older_than.
--- Nightly with pg_cron: select cron.schedule('purge-emails-archive', '45 3 * * *', $$select better_supabase.purge_job_archive('emails')$$);
-create or replace function better_supabase.purge_job_archive(
-  queue text,
-  older_than interval default '7 days',
-  batch integer default 10000
-)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  purged integer;
-begin
-  execute format(
-    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - $1 order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
-    'a_' || queue
-  ) into purged using older_than, batch;
-  return purged;
-end;
-$$;
-
--- Recurring jobs with pg_cron: select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
-create or replace function better_supabase.schedule_job(job_name text, schedule text, queue text, payload jsonb default '{}')
-returns bigint
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if pg_catalog.to_regnamespace('cron') is null then
-    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog';
-  end if;
-  perform better_supabase.ensure_job_queue(queue);
-  return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));
-end;
-$$;
-
-create or replace function better_supabase.unschedule_job(job_name text)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if pg_catalog.to_regnamespace('cron') is null then
-    return false;
-  end if;
-  return cron.unschedule(job_name);
-end;
-$$;
-
-do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[
-    'index_job_queue(text)',
-    'ensure_job_queue(text)',
-    'enqueue_job(text, jsonb, integer, integer, text)',
-    'claim_jobs(text, integer, integer)',
-    'complete_job(text, bigint, integer)',
-    'fail_job(text, bigint, integer, text, integer)',
-    'extend_job_lease(text, bigint, integer, integer)',
-    'schedule_job(text, text, text, jsonb)',
-    'unschedule_job(text)',
-    'purge_job_archive(text, interval, integer)'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role', fn);
-  end loop;
 end;
 $$;`,
 };
@@ -1743,11 +1197,11 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
     [
       UPDATED_AT,
       ACTOR,
-      AUDIT,
-      TENANT,
-      INVITATIONS,
+      built(AUDIT),
+      built(TENANT),
+      built(INVITATIONS),
       RESERVED_SLUGS,
-      JOBS,
+      built(JOBS),
       IDEMPOTENCY,
       WEBHOOK_INBOX,
       REALTIME_TABLES,
@@ -1759,6 +1213,13 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       ENTITLEMENTS,
       RATE_LIMIT,
       VECTOR_SEARCH,
+      built(ACCESS),
+      built(SUPPORT_SESSIONS),
+      built(ORGANIZATIONS),
+      built(PROFILES),
+      built(OUTBOX),
+      built(NOTIFICATIONS),
+      built(WEBHOOKS_OUT),
     ].map((module) => [module.name, module]),
   );
 
@@ -1822,6 +1283,8 @@ export interface KitLayout {
   readonly claims?: ClaimsMeta;
   /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
   readonly permdock?: KitPermdock;
+  /** `config.kits`: modes, names and permission keys per module. */
+  readonly kits?: KitsConfig;
 }
 
 /** One PermDock membership source, from the manifest's `memberships`. */
@@ -1842,31 +1305,6 @@ export interface KitPermdock {
   /** The scope's id type, from the manifest's `rls.scopes[].type`. */
   readonly idType: KitIdType;
   readonly memberships: readonly KitMembershipSource[];
-}
-
-/** The scope id types the `entitlements` module renders in PermDock mode. */
-export const KIT_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
-export type KitIdType = (typeof KIT_ID_TYPES)[number];
-
-export const isKitIdType = (value: string): value is KitIdType =>
-  KIT_ID_TYPES.some((type) => type === value);
-
-const ID_TYPE_ALIASES: Readonly<Record<string, KitIdType>> = {
-  int8: "bigint",
-  int4: "integer",
-  int: "integer",
-  varchar: "text",
-  "character varying": "text",
-};
-
-/**
- * A Postgres type name as one of `KIT_ID_TYPES`: case and spacing are
- * normalised and aliases such as `int8` resolved. `undefined` for any other
- * type, so callers refuse it instead of guessing.
- */
-export function kitIdType(value: string): KitIdType | undefined {
-  const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
-  return isKitIdType(name) ? name : ID_TYPE_ALIASES[name];
 }
 
 /** An embedding column `db.$search` can query. */
@@ -2088,35 +1526,249 @@ export function sameKitFile(
   return strip(current) === strip(expected);
 }
 
-/** The files `sql add` writes for these modules. */
+/** The context a module renders with for `layout`. */
+export function kitContext(
+  name: string,
+  layout: KitLayout = {},
+  installed?: readonly string[],
+): KitContext {
+  return createKitContext(name, (module) => SQL_MODULES[module]?.names, {
+    ...(layout.kits ? { kits: layout.kits } : {}),
+    ...(layout.claims ? { claims: layout.claims } : {}),
+    ...(installed ? { installed } : {}),
+    ...(layout.permdock ? { permdockIdType: layout.permdock.idType } : {}),
+  });
+}
+
+/** Throws on a `kits` key that names no module, or a mode a module doesn't support. */
+export function checkKits(
+  kits: KitsConfig = {},
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): void {
+  for (const [name, entry] of Object.entries(kits)) {
+    const module = modules[name];
+    if (!module) {
+      throw new TypeError(
+        `kits.${name}: there is no SQL kit module "${name}". Modules: ${Object.keys(modules).join(", ")}`,
+      );
+    }
+    const mode = entry?.mode ?? "managed";
+    const modes = module.modes ?? ["managed"];
+    if (!modes.includes(mode)) {
+      throw new TypeError(
+        `kits.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
+      );
+    }
+  }
+}
+
+/** The `@bs-kit` line: module, version and mode, read by `sql upgrade`. */
+const KIT_MARKER: RegExp = /^-- @bs-kit ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
+
+/** The installed version of a kit file, from its `@bs-kit` line. */
+export function kitFileVersion(
+  contents: string,
+): { readonly module: string; readonly version: number } | undefined {
+  const match = KIT_MARKER.exec(contents);
+  return match ? { module: match[1]!, version: Number(match[2]) } : undefined;
+}
+
+function moduleSql(module: SqlModule, ctx: KitContext, layout: KitLayout) {
+  if (module.build) return module.build(ctx, layout);
+  if (
+    module.render &&
+    (layout.claims || layout.permdock || layout.tenantColumn)
+  )
+    return module.render(layout.claims ?? DEFAULT_CLAIMS, layout);
+  return module.sql;
+}
+
+/** A module's SQL for `layout`, without header; `undefined` in custom mode. */
+export function moduleBody(
+  name: string,
+  layout: KitLayout = {},
+): string | undefined {
+  checkKits(layout.kits);
+  const modules = resolveModules([name], layout);
+  const module = modules.find((entry) => entry.name === name)!;
+  const ctx = kitContext(
+    name,
+    layout,
+    modules.map((entry) => entry.name),
+  );
+  return ctx.mode === "custom" ? undefined : moduleSql(module, ctx, layout);
+}
+
+function kitPath(module: SqlModule, layout: KitLayout): string {
+  const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
+  const prefix = layout.prefix ?? "900_better_supabase";
+  const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
+  const slug = module.name.replaceAll("-", "_");
+  return module.target === "test"
+    ? `${testsDir}/000_better_supabase_${slug}.test.sql`
+    : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
+}
+
+/** Records the module in `better_supabase.kit_modules`, for apps that apply files directly. */
+function kitModuleRow(module: SqlModule, mode: KitMode): string {
+  return `
+create schema if not exists better_supabase;
+create table if not exists better_supabase.kit_modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.kit_modules enable row level security;
+revoke all on better_supabase.kit_modules from anon, authenticated;
+grant select on better_supabase.kit_modules to service_role;
+insert into better_supabase.kit_modules (name, version, mode)
+values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+`;
+}
+
+/**
+ * The files `sql add` writes for these modules. Modules in `custom` mode
+ * write nothing: the app implements their contract.
+ */
 export function renderKit(
   names: readonly string[],
   layout: KitLayout = {},
 ): KitFile[] {
-  const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
-  const prefix = layout.prefix ?? "900_better_supabase";
-  const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
-  return resolveModules(names, layout).map((module) => {
-    const slug = module.name.replaceAll("-", "_");
-    const path =
-      module.target === "test"
-        ? `${testsDir}/000_better_supabase_${slug}.test.sql`
-        : `${dir}/${prefix}_${String(ORDER.indexOf(module.name) + 1).padStart(2, "0")}_${slug}.sql`;
+  checkKits(layout.kits);
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module) => {
+    const ctx = kitContext(module.name, layout, installed);
+    if (ctx.mode === "custom") return [];
     const header = [
       `-- better-supabase SQL kit: ${module.name}${layout.version ? ` (${layout.version})` : ""}`,
+      `-- @bs-kit ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
       `-- ${module.description}`,
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
+      "-- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.",
     ].join("\n");
     const extra = moduleExtras(module, layout);
-    const sql =
-      module.render && (layout.claims || layout.permdock || layout.tenantColumn)
-        ? module.render(layout.claims ?? DEFAULT_CLAIMS, layout)
-        : module.sql;
-    return {
+    const wrappers = deprecationWrappers(module, ctx);
+    const record =
+      module.target === "schema" ? kitModuleRow(module, ctx.mode) : "";
+    return [
+      {
+        module: module.name,
+        path: kitPath(module, layout),
+        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${record}`,
+      },
+    ];
+  });
+}
+
+/** The compatibility wrappers of a module's deprecated symbols that are not removed yet. */
+export function deprecationWrappers(
+  module: SqlModule,
+  ctx: KitContext,
+): string {
+  return (module.deprecated ?? [])
+    .flatMap((entry) =>
+      entry.removed === undefined && entry.wrapper
+        ? [
+            `\n-- Deprecated since ${entry.since}: use ${entry.use}.\n${entry.wrapper(ctx).trim()}\n`,
+          ]
+        : [],
+    )
+    .join("");
+}
+
+/** An installed module, from its file's `@bs-kit` line or `kit_modules`. */
+export interface InstalledKitModule {
+  readonly module: string;
+  readonly version: number;
+}
+
+/** What `sql upgrade` runs for one module behind the current version. */
+export interface KitUpgradePlan {
+  readonly module: string;
+  readonly from: number;
+  readonly to: number;
+  readonly steps: readonly {
+    readonly from: number;
+    readonly description: string;
+    readonly sql: string;
+  }[];
+}
+
+/**
+ * The upgrade steps for modules installed at an older version. A version
+ * without a step needs none: the module file upgrades in place. Modules in
+ * custom mode belong to the app and are skipped.
+ */
+export function upgradePlan(
+  installed: readonly InstalledKitModule[],
+  layout: KitLayout = {},
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): KitUpgradePlan[] {
+  checkKits(layout.kits, modules);
+  const names = installed.map((entry) => entry.module);
+  return installed.flatMap((entry): KitUpgradePlan[] => {
+    const module = modules[entry.module];
+    if (!module) return [];
+    const to = moduleVersion(module);
+    if (entry.version >= to) return [];
+    const ctx = createKitContext(entry.module, (name) => modules[name]?.names, {
+      ...(layout.kits ? { kits: layout.kits } : {}),
+      ...(layout.claims ? { claims: layout.claims } : {}),
+      installed: names,
+    });
+    if (ctx.mode === "custom") return [];
+    const steps = (module.upgrades ?? [])
+      .filter((step) => step.from >= entry.version && step.from < to)
+      .toSorted((a, b) => a.from - b.from)
+      .map((step) => ({
+        from: step.from,
+        description: step.description,
+        sql: step.sql(ctx).trim(),
+      }));
+    return [{ module: module.name, from: entry.version, to, steps }];
+  });
+}
+
+/** Every deprecated or removed kit symbol, with its module. */
+export function kitDeprecations(
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): readonly (KitDeprecation & { readonly module: string })[] {
+  return Object.values(modules).flatMap((module) =>
+    (module.deprecated ?? []).map((entry) => ({
+      ...entry,
       module: module.name,
-      path,
-      contents: `${header}\n\n${sql.trim()}\n${extra}`,
-    };
+    })),
+  );
+}
+
+/** The contract functions of the modules in `custom` mode, for doctor. */
+export function customContracts(
+  names: readonly string[],
+  layout: KitLayout = {},
+): {
+  readonly module: string;
+  readonly schema: string;
+  readonly idType: KitIdType;
+  readonly functions: readonly KitContractFunction[];
+}[] {
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module) => {
+    const ctx = kitContext(module.name, layout, installed);
+    if (ctx.mode !== "custom" || !module.contract) return [];
+    return [
+      {
+        module: module.name,
+        schema: ctx.schemaName,
+        idType: ctx.idType,
+        functions: module.contract(ctx),
+      },
+    ];
   });
 }
 

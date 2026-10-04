@@ -36,6 +36,13 @@ export type {
   VectorDistance,
   VectorSearchConfig,
 } from "./config.ts";
+export type {
+  AccessKitConfig,
+  ActiveTenantSource,
+  KitMode,
+  KitModuleConfig,
+  KitsConfig,
+} from "./kits.ts";
 export type * from "./snapshot.ts";
 export { DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 export {

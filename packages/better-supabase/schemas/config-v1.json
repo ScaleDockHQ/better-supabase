@@ -362,6 +362,14 @@
         "kit": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "kits": {
+      "type": "object",
+      "description": "How each SQL kit module maps onto the database, keyed by module name.",
+      "properties": {
+        "access": { "$ref": "#/$defs/accessKit" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/kitModule" }
+    },
     "seed": {
       "type": "object",
       "additionalProperties": false,
@@ -397,6 +405,120 @@
     }
   },
   "$defs": {
+    "stringRecord": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "kitModuleProperties": {
+      "mode": { "enum": ["managed", "adopt", "custom"], "default": "managed" },
+      "schema": { "type": "string", "default": "better_supabase" },
+      "tables": {
+        "type": "object",
+        "additionalProperties": { "type": ["string", "null"] }
+      },
+      "columns": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"] }
+        }
+      },
+      "idType": { "type": "string" },
+      "triggerPrefix": { "type": "string", "default": "bs_" },
+      "permissions": { "$ref": "#/$defs/stringRecord" },
+      "options": { "type": "object" }
+    },
+    "kitModule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "$ref": "#/$defs/kitModuleProperties/mode" },
+        "schema": { "$ref": "#/$defs/kitModuleProperties/schema" },
+        "tables": { "$ref": "#/$defs/kitModuleProperties/tables" },
+        "columns": { "$ref": "#/$defs/kitModuleProperties/columns" },
+        "idType": { "$ref": "#/$defs/kitModuleProperties/idType" },
+        "triggerPrefix": {
+          "$ref": "#/$defs/kitModuleProperties/triggerPrefix"
+        },
+        "permissions": { "$ref": "#/$defs/kitModuleProperties/permissions" },
+        "options": { "$ref": "#/$defs/kitModuleProperties/options" }
+      }
+    },
+    "accessKit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "$ref": "#/$defs/kitModuleProperties/mode" },
+        "schema": { "$ref": "#/$defs/kitModuleProperties/schema" },
+        "tables": { "$ref": "#/$defs/kitModuleProperties/tables" },
+        "columns": { "$ref": "#/$defs/kitModuleProperties/columns" },
+        "idType": { "$ref": "#/$defs/kitModuleProperties/idType" },
+        "triggerPrefix": {
+          "$ref": "#/$defs/kitModuleProperties/triggerPrefix"
+        },
+        "permissions": { "$ref": "#/$defs/kitModuleProperties/permissions" },
+        "options": { "$ref": "#/$defs/kitModuleProperties/options" },
+        "model": {
+          "enum": ["roles", "catalog", "permdock", "custom"],
+          "default": "roles"
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "functions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "can": { "type": "string" },
+            "tenantIdsWith": { "type": "string" },
+            "isPlatform": { "type": "string" },
+            "canUser": { "type": "string" },
+            "canAssign": { "type": "string" },
+            "permissionClaims": { "type": "string" }
+          }
+        },
+        "platformClaim": {
+          "type": "string",
+          "default": "platform_permissions"
+        },
+        "disabled": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tenant": { "type": "string" },
+            "tenantKey": { "type": "string" },
+            "user": { "type": "string" },
+            "userKey": { "type": "string" }
+          }
+        },
+        "activeTenant": {
+          "oneOf": [
+            { "enum": ["claim", "resolver"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["profileColumn"],
+              "properties": {
+                "profileColumn": { "type": "string" },
+                "key": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "permdock": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": { "type": "string" },
+            "scope": { "type": "string" }
+          }
+        }
+      }
+    },
     "casing": { "enum": ["snake", "camel"] },
     "privileges": {
       "type": "array",

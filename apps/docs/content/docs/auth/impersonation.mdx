@@ -1,11 +1,169 @@
 ---
 title: Impersonation
-description: Act as a user for support work, with RLS applied and the admin recorded in the audit log.
+description: Let support staff view the app as a user, read-only by default, with every session recorded and audited.
 ---
 
 Support staff sometimes need to see what a user sees, or fix their data the
-way the app would. `actingAs` runs repositories as that user, under their RLS
-policies, and records who really made each change:
+way the app would. A support session does this for the whole app: the admin
+picks a user, and every page, action and route renders as that user, under
+their RLS policies, until the session ends or expires. The admin stays signed
+in as themselves the whole time.
+
+## Support sessions
+
+Install the `support-sessions` kit module, then pass a store to `createServer`:
+
+```bash
+npx better-supabase sql add support-sessions
+```
+
+```ts title="src/lib/better-supabase.ts"
+import {
+  createServer,
+  sqlSupportStore,
+  supportSessions,
+} from "better-supabase/server";
+
+export const bs = createServer(betterSupabase, {
+  env,
+  postgres,
+  support: supportSessions({
+    store: sqlSupportStore(postgres),
+    policy: { ttl: 30 * 60, requireReason: true },
+  }),
+});
+```
+
+`supportSessions` lives in its own function so apps without support mode
+don't bundle it. `createNext` takes the same option, and `better-supabase/next`
+exports `supportSessions` too.
+
+The module adds a `support_sessions` table and four functions:
+`start_support_session`, `end_support_session`, `active_support_session` and
+`list_support_sessions`. Starting a session checks
+`is_platform('support.start')` in the database with the admin's own claims, so
+only admins your [access model](/docs/kits/access) grants that permission
+can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
+or a platform role in the catalog model.
+
+In Next.js, start and stop the session from server actions:
+
+```ts title="app/admin/users/actions.ts"
+"use server";
+import { bs } from "@/lib/supabase/server";
+
+export async function viewAs(userId: string, reason: string) {
+  return bs.startSupport({ targetUserId: userId, reason });
+}
+
+export async function stopViewing() {
+  return bs.stopSupport();
+}
+```
+
+`startSupport` records the session, sets an HTTP-only `bs-support` cookie that
+holds the session id, and returns an `ActionResult`. From the next request on,
+`bs.session()`, `bs.context()`, actions, routes and `bs.cached()` all run as
+the target. Ending the session (or its expiry) brings the admin back to their
+own view. Outside Next.js, `bs.support.start(auth, request)` returns the
+session and the `Set-Cookie` header to send.
+
+### What the admin can do
+
+| Policy option   | Default    | Effect                                                                                    |
+| --------------- | ---------- | ----------------------------------------------------------------------------------------- |
+| `ttl`           | `1800`     | Session length in seconds when the request names none                                     |
+| `maxTtl`        | `14400`    | Longest session allowed (`SUPPORT_TTL` above it); the SQL module checks `maxTtl` too      |
+| `requireReason` | `true`     | Refuses a start without a reason (`SUPPORT_REASON_REQUIRED`)                              |
+| `readOnly`      | `"always"` | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
+
+A read-only session runs each transaction with `begin read only`, so any write
+fails with Postgres error `25006`. In a support session, `ctx.supabase` and
+`ctx.db.$client` throw: the Data API would only see the admin's own token, so
+everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
+
+Starting a second session ends the admin's first one. Admins can't start a
+session for themselves (`SUPPORT_SELF`) or from inside another one
+(`SUPPORT_NESTED`).
+
+### Deciding who may start one
+
+`authorize` runs before the store, with the admin's verified auth, the target
+and the reason. Returning `false` (or throwing) refuses the start with
+`SUPPORT_FORBIDDEN`:
+
+```ts
+support: supportSessions({
+  store: sqlSupportStore(postgres),
+  authorize: ({ admin, targetUserId }) =>
+    admin.claims.app_metadata?.role === "support" && targetUserId !== OWNER_ID,
+}),
+```
+
+In SQL, the `before_support_start(admin, target, reason, metadata)` hook can
+refuse a start too, for example when no open ticket names the user. See
+[support sessions](/docs/kits/sql#support-sessions) for the module's names,
+hooks and options.
+
+### The target's claims
+
+The target gets the claims your [custom access token hook](/docs/auth#typed-claims)
+would give them, so tenant and role claims match a real session. Set
+`kits["support-sessions"].options.claimsHook` to the hook function
+(`"public.custom_access_token_hook"`) and `support_target_claims` calls it with
+a synthetic event. Without a hook, the target gets the claims Auth puts in
+every token (`email`, `role`, `app_metadata`, `user_metadata`, `aal1`). Pass
+`claims` in the options to build them in TypeScript instead.
+
+### Showing a banner
+
+`useSupportSession()` from `better-supabase/react` returns the session while
+the admin views the app as someone else, and `undefined` otherwise:
+
+```tsx title="components/support-banner.tsx"
+"use client";
+import { useSupportSession } from "better-supabase/react";
+import { stopViewing } from "@/app/admin/users/actions";
+
+export function SupportBanner() {
+  const support = useSupportSession();
+  if (!support) return null;
+  return (
+    <div role="status">
+      Viewing as {support.targetUserId}
+      {support.readOnly ? " (read-only)" : ""}
+      <button onClick={() => stopViewing()}>Stop</button>
+    </div>
+  );
+}
+```
+
+On the server, `supportOf(session)` returns the same value.
+
+### Events and the audit log
+
+`sb.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
+`expired` or `revoked`) and `support.denied` (with the denial code).
+The SQL module writes `support.started` and `support.ended` to the
+[audit log](/docs/kits/sql#audit-log), and every row the admin changes in a
+writable session records `impersonated_by` and `support_session_id`, so you
+can list everything one session did.
+
+`bs.support.list({ active: true })` lists running sessions for an admin
+page, and `bs.support.revoke(id)` ends anyone's session. Check the caller's
+permission before calling either.
+
+### Bringing your own store
+
+`SupportSessionStore` (`apiVersion: 1`) is the interface behind
+`sqlSupportStore`. Implement `start`, `get`, `end` and `list` to keep sessions
+somewhere else, and run `testSupportSessionStore` from `better-supabase/testing`
+against it (see [conformance](/docs/extending/conformance)).
+
+## Acting as a user in code
+
+`actingAs` runs repositories as a user for one piece of server code, without a
+session or a cookie. Use it in jobs and scripts:
 
 ```ts title="app/admin/actions.ts"
 const db = bs.actingAs(
@@ -25,10 +183,10 @@ only call it after your own admin check.
 
 | Where              | What                                                                                                                              |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `audit` kit module | `audit_log.impersonated_by` and `impersonation_reason` on every row the admin changes                                             |
+| `audit` kit module | `audit_log.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                       |
 | `actor` kit module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write, and clears it on the user's own writes |
 | Repository context | `context.actor.impersonator`, for plugins                                                                                         |
-| In SQL             | `auth.jwt() -> 'act' ->> 'sub'`, for your own triggers and policies                                                               |
+| In SQL             | `auth.jwt() -> 'act' ->> 'sub'` and `auth.jwt() -> 'act' ->> 'session_id'`, for your own triggers and policies                    |
 
 A policy can also refuse impersonated writes where they make no sense:
 
@@ -40,9 +198,9 @@ create policy "no impersonated payouts" on public.payouts
 
 ## Why only over Postgres
 
-`actingAs` needs [`postgres`](/docs/auth/postgres) in `createServer`. It sets
-the claims for the transaction itself, the way PostgREST does after checking a
-token. The Data API has no equivalent:
+Support sessions and `actingAs` need [`postgres`](/docs/auth/postgres) in
+`createServer`. They set the claims for the transaction itself, the way
+PostgREST does after checking a token. The Data API has no equivalent:
 
 - PostgREST only trusts tokens signed by the project's JWT signing keys. With
   asymmetric keys, only the Auth server holds the private key, so the app
@@ -54,20 +212,12 @@ token. The Data API has no equivalent:
 So over the Data API, the claims are whatever Auth issued. Run impersonated
 work on the server over Postgres, and keep the admin signed in as themselves.
 
-## Showing a banner
+## Reading the act claim
 
-`session.impersonator` is set when a verified token carries an `act` claim,
-for example one your [custom access token hook](/docs/auth#typed-claims) adds for
-a support session recorded in a table:
-
-```tsx
-if (session.kind === "user" && session.impersonator) {
-  return <Banner>Support session by {session.impersonator.id}</Banner>;
-}
-```
-
-`impersonatorOf(claims)` from `better-supabase/server` reads the same claim
-anywhere else.
+`session.impersonator` is set when a verified token or a support session
+carries an `act` claim. It holds the admin's `id`, the `reason`, and, for
+support sessions, `sessionId` and `readOnly`. `impersonatorOf(claims)` from
+`better-supabase/server` reads the same claim anywhere else.
 
 The `act` claim is the RFC 8693 actor claim, so the same token also sets
 `session.actor` to the admin, the way PermDock's `actorOf` reads it (see

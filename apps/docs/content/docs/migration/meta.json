@@ -1,4 +1,10 @@
 {
   "title": "Migrating",
-  "pages": ["0.3-to-0.4", "0.1-to-0.2", "supabase-js", "supabase-cache-helpers"]
+  "pages": [
+    "existing-apps",
+    "0.3-to-0.4",
+    "0.1-to-0.2",
+    "supabase-js",
+    "supabase-cache-helpers"
+  ]
 }

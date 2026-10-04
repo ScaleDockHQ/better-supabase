@@ -15,6 +15,7 @@ import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Operation } from "../ir/types.ts";
 
+import { kitEventAttributes } from "../core/kit-events.ts";
 import { definePlugin, type Plugin } from "../core/plugin.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import { VERSION } from "../core/version.ts";
@@ -244,6 +245,36 @@ export function traceAuth(
     offAuth();
     offRefresh();
   };
+}
+
+/**
+ * Records kit events (`support.started`, `webhook.failed`, ...) with the
+ * `KIT_ATTRIBUTES` names: as an event on the active span, or as a short
+ * `kit <type>` span when there is none. Failures (`*.failed`, `*.denied`)
+ * set an error status. Returns a function that stops listening.
+ */
+export function traceKitEvents(
+  betterSupabase: { readonly events: EventHub },
+  options: Pick<OtelOptions, "tracer" | "attributes"> = {},
+): () => void {
+  const tracer =
+    options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
+  return betterSupabase.events.on("kit", (event) => {
+    const attributes = { ...options.attributes, ...kitEventAttributes(event) };
+    const failed =
+      event.type.endsWith(".failed") || event.type.endsWith(".denied");
+    const active = trace.getActiveSpan();
+    if (active) {
+      active.addEvent(event.type, attributes);
+      return;
+    }
+    const span = tracer.startSpan(`kit ${event.type}`, {
+      kind: SpanKind.INTERNAL,
+      attributes,
+    });
+    if (failed) span.setStatus({ code: SpanStatusCode.ERROR });
+    span.end();
+  });
 }
 
 /**

@@ -88,6 +88,28 @@ export const bs = createServer(betterSupabase, {
 });
 ```
 
+## Active tenant
+
+Apps that pick the tenant from the URL or a profile, rather than a claim,
+pass `tenant`. It returns the tenant id for a request, or `undefined`. The
+result becomes `context.tenant` for the [`tenant()` plugin](/docs/plugins/tenant),
+the `better_supabase.tenant` setting for `ctx.sql` and the `x-bs-tenant`
+header (`TENANT_HEADER`) for `ctx.db`, which `current_tenant_id()` reads with
+`kits.access.activeTenant: 'resolver'`. See
+[The active tenant](/docs/kits/access#the-active-tenant).
+
+```ts
+export const bs = createServer(betterSupabase, {
+  tenant: (request) => request.headers.get("x-organization-id") ?? undefined,
+});
+
+const ctx = await bs.context(request, { tenant: organizationId });
+```
+
+`context(request, { tenant })` overrides the resolver for one call.
+`contextFromResolution` can't wait for an async resolver, so it throws unless
+you pass `{ tenant }`.
+
 ## Machine callers
 
 Secret keys sent as `apikey` are rejected unless you enable them. Give a list

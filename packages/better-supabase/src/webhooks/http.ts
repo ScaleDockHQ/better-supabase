@@ -1,0 +1,94 @@
+import type { AllowUrl } from "./url-policy.ts";
+
+export interface WebhookRequest {
+  readonly url: string;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface WebhookResponse {
+  readonly status: number;
+  readonly body: string;
+}
+
+/**
+ * Sends one signed webhook request. Throw `WebhookPolicyError` when the
+ * request must never be retried (a blocked URL); any other error retries.
+ */
+export interface WebhookTransport {
+  readonly apiVersion: 1;
+  readonly name: string;
+  send(request: WebhookRequest): Promise<WebhookResponse>;
+}
+
+/** A delivery that must not be retried, e.g. a URL `allowUrl` rejected. */
+export class WebhookPolicyError extends Error {
+  override readonly name = "WebhookPolicyError";
+}
+
+export interface FetchTransportOptions {
+  readonly fetch?: typeof fetch;
+  /** Checked before the first request and before each redirect. */
+  readonly allowUrl?: AllowUrl;
+  /** Defaults to 5. */
+  readonly maxRedirects?: number;
+  /** Per request. Defaults to 10 seconds. */
+  readonly timeoutMs?: number;
+}
+
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+async function allowed(allowUrl: AllowUrl, url: URL): Promise<boolean> {
+  try {
+    return await allowUrl(url);
+  } catch {
+    return false;
+  }
+}
+
+/** Sends webhooks with `fetch`, following redirects only to allowed URLs. */
+export function fetchTransport(
+  options: FetchTransportOptions = {},
+): WebhookTransport {
+  const send = options.fetch ?? globalThis.fetch;
+  const maxRedirects = options.maxRedirects ?? 5;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  return {
+    apiVersion: 1,
+    name: "fetch",
+    async send(request) {
+      const timeout = AbortSignal.timeout(timeoutMs);
+      const signal = request.signal
+        ? AbortSignal.any([request.signal, timeout])
+        : timeout;
+      let url = new URL(request.url);
+      for (let hop = 0; ; hop++) {
+        if (options.allowUrl && !(await allowed(options.allowUrl, url)))
+          throw new WebhookPolicyError(
+            `Destination URL is not allowed: ${url.host}`,
+          );
+        const response = await send(url, {
+          method: "POST",
+          headers: request.headers,
+          body: request.body,
+          redirect: "manual",
+          signal,
+        });
+        if (!REDIRECTS.has(response.status))
+          return { status: response.status, body: await response.text() };
+        await response.body?.cancel();
+        const location = response.headers.get("location");
+        if (!location)
+          throw new WebhookPolicyError(
+            `Redirect ${String(response.status)} without a location`,
+          );
+        if (hop >= maxRedirects)
+          throw new WebhookPolicyError(
+            `More than ${String(maxRedirects)} redirects`,
+          );
+        url = new URL(location, url);
+      }
+    },
+  };
+}

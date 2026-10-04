@@ -13,6 +13,7 @@ import {
   useAuth,
   useLiveCount,
   useSession,
+  useSupportSession,
 } from "../../src/react/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -111,6 +112,41 @@ describe("react", () => {
     expect(await render({ kind: "anon", reason: "none" })).toContain(
       "<p>anon</p>",
     );
+  });
+
+  it("shows the support session behind a session", async () => {
+    function Banner() {
+      const support = useSupportSession();
+      return createElement(
+        "p",
+        null,
+        support ? `as ${support.targetUserId}` : "self",
+      );
+    }
+    const stream = await renderToReadableStream(
+      createElement(
+        Suspense,
+        { fallback: "loading" },
+        createElement(
+          SessionProvider,
+          {
+            sessionPromise: Promise.resolve<AuthSession>({
+              kind: "user",
+              user: { id: "u1" },
+              claims: { sub: "u1" },
+              expiresAt: null,
+              aal: "aal1",
+              anonymous: false,
+              amr: [],
+              impersonator: { id: "admin-1", sessionId: "s1", readOnly: true },
+            }),
+          },
+          createElement(Banner),
+        ),
+      ),
+    );
+    await stream.allReady;
+    expect(await new Response(stream).text()).toContain("<p>as u1</p>");
   });
 
   it("explains a missing SessionProvider", () => {

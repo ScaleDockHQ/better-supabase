@@ -7,17 +7,23 @@ Every integration point is a small interface. The built-in behavior is one
 implementation of it, and yours can replace or sit next to it. Each interface
 has a [conformance kit](/docs/extending/conformance).
 
-| Interface                           | Built in                                                  | Plug in with                                            |
-| ----------------------------------- | --------------------------------------------------------- | ------------------------------------------------------- |
-| [`Executor`](#executor)             | `postgrestExecutor`, `postgresExecutor`                   | `betterSupabase.connect(executor)`                      |
-| [`Compiler`](#compiler)             | `postgrestCompiler`, `sqlCompiler`                        | your executor                                           |
-| [`CacheAdapter`](#cacheadapter)     | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `betterSupabase.cache(adapter)`                         |
-| [`EventSink`](#eventsink)           | `httpSink()`                                              | `forwardMutations(betterSupabase, sink, { source })`    |
-| [`AuthResolver`](#authresolver)     | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(betterSupabase, { auth: { resolvers } })` |
-| [`Generator`](#generator)           | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                              |
-| [`Logger`](#logger)                 | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                    |
-| `EnvSource`                         | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                      |
-| [`Plugin`](/docs/extending/plugins) | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                            |
+| Interface                                     | Built in                                                  | Plug in with                                                            |
+| --------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`Executor`](#executor)                       | `postgrestExecutor`, `postgresExecutor`                   | `betterSupabase.connect(executor)`                                      |
+| [`Compiler`](#compiler)                       | `postgrestCompiler`, `sqlCompiler`                        | your executor                                                           |
+| [`CacheAdapter`](#cacheadapter)               | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `betterSupabase.cache(adapter)`                                         |
+| [`EventSink`](#eventsink)                     | `httpSink()`                                              | `forwardMutations(betterSupabase, sink, { source })`                    |
+| [`AuthResolver`](#authresolver)               | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(betterSupabase, { auth: { resolvers } })`                 |
+| [`Generator`](#generator)                     | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                                              |
+| [`Logger`](#logger)                           | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                                    |
+| [`QueueBackend`](#queuebackend)               | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`       | `createJobs(backend, queues)`                                           |
+| [`SupportSessionStore`](#supportsessionstore) | `sqlSupportStore(postgres)`                               | `createServer(betterSupabase, { support: supportSessions({ store }) })` |
+| [`NotificationChannel`](#notificationchannel) | none (bring your email or push provider)                  | `createNotifications({ channels })`                                     |
+| [`WebhookSigner`](#webhooksigner)             | `standardWebhooks()`, `hmacSigner(options)`               | `createWebhooks({ signer })`                                            |
+| [`WebhookTransport`](#webhooktransport)       | `fetchTransport({ allowUrl })`                            | `createWebhooks({ http })`                                              |
+| [`WebhookSecretStore`](#webhooksecretstore)   | `sqlSecretStore(transport)`                               | `createWebhooks({ secrets })`                                           |
+| `EnvSource`                                   | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                                      |
+| [`Plugin`](/docs/extending/plugins)           | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                                            |
 
 ## Executor
 
@@ -97,6 +103,55 @@ returned from the mutation.
 
 Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for
 `toCloudEvents` and `forwardMutations`.
+
+## QueueBackend
+
+Stores and leases jobs for [`createJobs`](/docs/kits/jobs). It has
+`apiVersion: 1`, sends and reads messages, completes, fails and extends them
+by attempt (a stale attempt must get `false` or `null`), and optionally
+claims due schedules for the drain route. Set `leases: false` when `extend`
+can't work, so workers skip the heartbeat.
+
+## SupportSessionStore
+
+Records [support sessions](/docs/auth/impersonation). It has `apiVersion: 1`
+and four methods: `start(input)` ends the admin's previous session and returns
+the new one, `get(sessionId, adminId)` returns a running session only to its
+admin, `end(sessionId, endedBy)` returns `true` once and `false` after, and
+`list(filter)` returns sessions newest first. `claims(targetUserId)` is
+optional and returns the claims the target would get. `start` should refuse
+an admin without permission with an error whose `code` is `42501`.
+
+## NotificationChannel
+
+Sends one [notification](/docs/kits/notifications) delivery on a channel
+other than in-app. It has `apiVersion: 1`, a `name` that matches the
+delivery's channel and `send(message)`, which gets the recipient's id and
+email, the notification and its rendered text. Return `{ provider,
+providerMessageId }` to store the provider's id, `{ status: 'skipped' }` when
+there is nothing to send, and throw to retry later.
+
+## WebhookSigner
+
+Adds the signature headers to an [outgoing webhook](/docs/kits/webhooks-out).
+It has `apiVersion: 1`, a `name` and `sign({ id, body, timestamp, secrets })`,
+which returns the headers. `secrets` lists every live secret, newest first;
+sign with each so receivers keep verifying while a secret rotates. The same
+input must give the same headers.
+
+## WebhookTransport
+
+Sends one signed webhook request. It has `apiVersion: 1`, a `name` and
+`send({ url, headers, body, signal })`, which returns `{ status, body }` for
+any HTTP response. Throw `WebhookPolicyError` for a request that must never
+be retried, such as a blocked URL; any other error retries.
+
+## WebhookSecretStore
+
+Where destination signing secrets live. It has `apiVersion: 1`,
+`secrets(destinationId)`, which returns the live secrets newest first, and an
+optional `rotate(destinationId, { overlap, secret })` that returns the new
+secret and keeps the previous ones live for `overlap`.
 
 ## AuthResolver
 
