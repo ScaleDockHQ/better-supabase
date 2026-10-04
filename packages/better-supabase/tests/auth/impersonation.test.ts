@@ -21,14 +21,25 @@ function user(claims: Record<string, unknown>): AuthState {
 
 describe("impersonation", () => {
   it("reads the act claim, ignoring malformed ones", () => {
-    expect(act).toEqual({ sub: "admin-1", reason: "support ticket 42" });
+    expect(act).toEqual({
+      kind: "impersonation",
+      sub: "admin-1",
+      reason: "support ticket 42",
+    });
     expect(impersonatorOf({ act })).toEqual({
+      kind: "impersonation",
       id: "admin-1",
       reason: "support ticket 42",
     });
-    expect(impersonatorOf({ act: { sub: "admin-1" } })).toEqual({
-      id: "admin-1",
-    });
+    expect(
+      impersonatorOf({ act: { kind: "impersonation", sub: "admin-1" } }),
+    ).toEqual({ kind: "impersonation", id: "admin-1" });
+    // An unmarked act is an OAuth client or agent chain, not an admin.
+    expect(impersonatorOf({ act: { sub: "admin-1" } })).toBeUndefined();
+    expect(impersonatorOf({ client_id: "app" })).toBeUndefined();
+    expect(
+      impersonatorOf({ act: { kind: "auditor", sub: "admin-1" } }),
+    ).toBeUndefined();
     expect(impersonatorOf({ act: "admin-1" })).toBeUndefined();
     expect(impersonatorOf({ act: { sub: "" } })).toBeUndefined();
     expect(impersonatorOf({})).toBeUndefined();
@@ -38,7 +49,12 @@ describe("impersonation", () => {
     const acting = toSession(user({ act }));
     expect(acting).toMatchObject({
       kind: "user",
-      impersonator: { id: "admin-1", reason: "support ticket 42" },
+      impersonator: {
+        kind: "impersonation",
+        id: "admin-1",
+        reason: "support ticket 42",
+      },
+      actor: { kind: "impersonation", id: "admin-1" },
     });
     expect(toSession(user({}))).not.toHaveProperty("impersonator");
     expect(authContext(user({ act })).actor).toMatchObject({

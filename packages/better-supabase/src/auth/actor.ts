@@ -6,15 +6,37 @@ export interface ActClaim {
 }
 
 /**
- * The app acting for the user: the outermost `sub` of an RFC 8693 `act`
- * chain (prior actors stay on `chain`), else the OAuth `client_id` of a
- * Supabase OAuth server token.
+ * Who acts for the user, from the outermost level of the RFC 8693 `act`
+ * claim, by its `kind`:
+ *
+ * - `oauth-client`: an `act` without `kind` (prior actors stay on `chain`),
+ *   else the OAuth `client_id` of a Supabase OAuth server token. Only this
+ *   kind is limited to the scopes the user delegated.
+ * - `support`: an admin in a support session (`act.kind: "support"`, from
+ *   `supportClaims`). An `act` without `kind` but with `session_id`, as
+ *   0.5.0 minted it, counts as one until 0.6.
+ * - `impersonation`: an admin acting as the user (`act.kind:
+ *   "impersonation"`, from `actClaim`).
  */
-export interface SessionActor {
-  readonly id: string;
-  readonly kind: "oauth-client";
-  readonly chain?: ActClaim;
-}
+export type SessionActor =
+  | {
+      readonly kind: "oauth-client";
+      readonly id: string;
+      readonly chain?: ActClaim;
+    }
+  | {
+      readonly kind: "support";
+      readonly id: string;
+      readonly sessionId: string;
+      /** `act.read_only`; a support token without it is read-only. */
+      readonly readOnly: boolean;
+      readonly reason?: string;
+    }
+  | {
+      readonly kind: "impersonation";
+      readonly id: string;
+      readonly reason?: string;
+    };
 
 /** What the user delegated to the actor: the token's OAuth `scope`. */
 export interface SessionDelegation {
@@ -41,30 +63,70 @@ function copyAct(level: Readonly<Record<string, unknown>>): ActClaim {
   return Object.fromEntries(entries) as ActClaim;
 }
 
+const INVALID: ActorOutcome = { ok: false, reason: "invalid-chain" };
+
+function actorAt(
+  outer: Readonly<Record<string, unknown>>,
+  id: string,
+): ActorOutcome {
+  const kind = outer["kind"];
+  const sessionId = outer["session_id"];
+  const readOnly = outer["read_only"];
+  const reason = outer["reason"];
+  if (kind === "support" || (kind === undefined && sessionId !== undefined)) {
+    if (typeof sessionId !== "string" || sessionId === "") return INVALID;
+    if (readOnly !== undefined && typeof readOnly !== "boolean") return INVALID;
+    return {
+      ok: true,
+      actor: {
+        kind: "support",
+        id,
+        sessionId,
+        readOnly: readOnly ?? true,
+        ...(typeof reason === "string" ? { reason } : {}),
+      },
+    };
+  }
+  if (kind === "impersonation") {
+    return {
+      ok: true,
+      actor: {
+        kind: "impersonation",
+        id,
+        ...(typeof reason === "string" ? { reason } : {}),
+      },
+    };
+  }
+  if (kind !== undefined) return INVALID;
+  return {
+    ok: true,
+    actor: { kind: "oauth-client", id, chain: copyAct(outer) },
+  };
+}
+
 /**
  * Reads only `act` and `client_id`, the way PermDock's `actorOf` does. An
- * `act` that is not a chain of objects each with a non-empty `sub` is
- * `{ ok: false }`: the session must not pass as the user alone.
+ * `act` that is not a chain of objects each with a non-empty `sub`, a
+ * `kind` other than `support` or `impersonation`, or a support level without
+ * a `session_id` is `{ ok: false }`: the session must not pass as the user
+ * alone.
  */
 export function actorOf(
   claims: Readonly<Record<string, unknown>>,
 ): ActorOutcome {
   const outer = claims["act"];
   if (outer !== undefined) {
-    let level: unknown = outer;
+    if (!isRecord(outer)) return INVALID;
+    const id = outer["sub"];
+    if (typeof id !== "string" || id === "") return INVALID;
+    let level: unknown = outer["act"];
     while (level !== undefined) {
-      if (!isRecord(level)) return { ok: false, reason: "invalid-chain" };
+      if (!isRecord(level)) return INVALID;
       const sub = level["sub"];
-      if (typeof sub !== "string" || sub === "")
-        return { ok: false, reason: "invalid-chain" };
+      if (typeof sub !== "string" || sub === "") return INVALID;
       level = level["act"];
     }
-    if (!isRecord(outer) || typeof outer["sub"] !== "string")
-      return { ok: false, reason: "invalid-chain" };
-    return {
-      ok: true,
-      actor: { id: outer["sub"], kind: "oauth-client", chain: copyAct(outer) },
-    };
+    return actorAt(outer, id);
   }
   const client = claims["client_id"];
   if (typeof client === "string" && client !== "")

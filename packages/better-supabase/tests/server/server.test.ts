@@ -526,7 +526,11 @@ describe("createServer actingAs", () => {
       {
         role: "anon",
         sub: USER,
-        act: { sub: "admin-1", reason: "support ticket" },
+        act: {
+          kind: "impersonation",
+          sub: "admin-1",
+          reason: "support ticket",
+        },
       },
     ]);
   });

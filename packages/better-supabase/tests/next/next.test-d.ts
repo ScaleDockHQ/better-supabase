@@ -75,7 +75,7 @@ describe("betterSupabase.claims(schema)", () => {
     }
     if (session.kind === "user") {
       expectTypeOf(session.actor?.kind).toEqualTypeOf<
-        "oauth-client" | undefined
+        "oauth-client" | "support" | "impersonation" | undefined
       >();
       expectTypeOf(session.delegation?.scopes).toEqualTypeOf<
         readonly string[] | undefined

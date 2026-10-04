@@ -119,19 +119,25 @@ carries `client_id` and `scope`; a token exchanged for an agent carries an
 RFC 8693 `act` chain. The session names who acts for the user, the way
 PermDock's `actorOf` and `delegationOf` read the same claims:
 
-| Token                                               | `session.actor`                                | `session.delegation`                       |
-| --------------------------------------------------- | ---------------------------------------------- | ------------------------------------------ |
-| The user's own                                      | not set                                        | not set                                    |
-| `client_id: 'c1'`, `scope: 'openid customers:read'` | `{ id: 'c1', kind: 'oauth-client' }`           | `{ scopes: ['openid', 'customers:read'] }` |
-| `act: { sub: 'agent', act: { sub: 'mcp-42' } }`     | `{ id: 'agent', kind: 'oauth-client', chain }` | `{ scopes, chain }`                        |
+| Token                                                  | `session.actor`                                | `session.delegation`                       |
+| ------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------ |
+| The user's own                                         | not set                                        | not set                                    |
+| `client_id: 'c1'`, `scope: 'openid customers:read'`    | `{ id: 'c1', kind: 'oauth-client' }`           | `{ scopes: ['openid', 'customers:read'] }` |
+| `act: { sub: 'agent', act: { sub: 'mcp-42' } }`        | `{ id: 'agent', kind: 'oauth-client', chain }` | `{ scopes, chain }`                        |
+| `act: { kind: 'support', sub, session_id, read_only }` | `{ id, kind: 'support', sessionId, readOnly }` | not set                                    |
+| `act: { kind: 'impersonation', sub, reason }`          | `{ id, kind: 'impersonation', reason }`        | not set                                    |
 
 The outermost `sub` is the current actor; nested levels are the actors
-before it, kept on `chain` for the audit log. An `act` that is not a chain
-of objects each with a non-empty `sub` resolves to
-`{ kind: 'invalid', reason: 'actor' }` and a 401, never to the user alone.
+before it, kept on `chain` for the audit log. A support session or an
+impersonated session marks its `act` with `kind` (see
+[impersonation](/docs/auth/impersonation#reading-the-act-claim)). An `act`
+that is not a chain of objects each with a non-empty `sub`, or has another
+`kind`, resolves to `{ kind: 'invalid', reason: 'actor' }` and a 401, never
+to the user alone.
 
-`scopes` on a route limits what a delegated token may do. The user's own
-session is not limited, since it holds no `client_id` or `act`:
+`scopes` on a route limits what a delegated token (an `oauth-client` actor)
+may do. The user's own session is not limited, and neither is a support or
+impersonated session, which acts as the user:
 
 ```ts title="src/app/api/customers/[id]/route.ts"
 export const GET = bs.route<{ id: string }>(

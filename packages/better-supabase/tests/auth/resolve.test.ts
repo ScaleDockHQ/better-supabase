@@ -412,7 +412,7 @@ describe("authContext", () => {
         claims: {
           sub: USER,
           role: "authenticated",
-          act: { sub: "admin-1" },
+          act: { kind: "impersonation", sub: "admin-1" },
         },
         user: { id: USER, role: "authenticated", email: "a@b.c" },
         source: "bearer",
@@ -426,7 +426,11 @@ describe("authContext", () => {
         email: "a@b.c",
         impersonator: "admin-1",
       },
-      claims: { sub: USER, role: "authenticated", act: { sub: "admin-1" } },
+      claims: {
+        sub: USER,
+        role: "authenticated",
+        act: { kind: "impersonation", sub: "admin-1" },
+      },
     });
     expect(
       authContext({

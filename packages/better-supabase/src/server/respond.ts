@@ -41,14 +41,18 @@ export interface MiddlewareOptions extends GuardOptions {
   readonly refresh?: boolean;
 }
 
-/** The scopes a delegated user token lacks; empty for the user's own session. */
+/**
+ * The scopes a delegated user token lacks. Empty for the user's own session,
+ * which a support or impersonated session counts as: only an `oauth-client`
+ * actor is limited to what the user delegated.
+ */
 function missingScopes(
   auth: Extract<AuthState, { kind: "user" }>,
   required: readonly string[],
 ): readonly string[] {
   if (required.length === 0) return [];
   const outcome = actorOf(auth.claims);
-  if (!outcome.ok || !outcome.actor) return [];
+  if (!outcome.ok || outcome.actor?.kind !== "oauth-client") return [];
   const granted = new Set(delegationOf(auth.claims)?.scopes);
   return required.filter((scope) => !granted.has(scope));
 }

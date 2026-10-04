@@ -207,7 +207,8 @@ export function sqlSupportStore(
 
 /**
  * The claims a support session runs with: the target's, plus `act` naming
- * the admin, the reason and the session (the audit module records all three).
+ * the admin, the reason and the session (the audit module records all three),
+ * marked `kind: "support"` so `actorOf` never reads it as an OAuth client.
  * `role` falls back to `authenticated`; the admin's claims never leak in.
  */
 export function supportClaims(
@@ -223,6 +224,7 @@ export function supportClaims(
     sub: session.targetUserId,
     role: typeof role === "string" && role !== "" ? role : "authenticated",
     act: {
+      kind: "support",
       sub: session.adminId,
       reason: session.reason,
       session_id: session.id,

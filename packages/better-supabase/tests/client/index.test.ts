@@ -137,7 +137,11 @@ describe("createClient", () => {
 
   it("carries the impersonator from the act claim", () => {
     const { browser, emit } = setup();
-    emit(session(token({ act: { sub: "admin-1" } }), { id: "u1" }));
+    emit(
+      session(token({ act: { kind: "impersonation", sub: "admin-1" } }), {
+        id: "u1",
+      }),
+    );
     expect(browser.db.$context.actor).toEqual({
       id: "u1",
       kind: "user",

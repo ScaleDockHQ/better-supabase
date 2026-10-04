@@ -66,7 +66,7 @@ describe("better-supabase/hono after @supabase/server's withSupabase", () => {
     const token = await signer.sign({
       sub: USER,
       iss: `${PROJECT_URL}/auth/v1`,
-      act: { sub: ADMIN },
+      act: { kind: "impersonation", sub: ADMIN },
     });
     const reused = await call(combined, token);
     expect(reused.status).toBe(200);

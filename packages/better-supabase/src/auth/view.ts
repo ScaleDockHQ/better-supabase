@@ -42,14 +42,21 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly anonymous: boolean;
       /** How the user signed in (`password`, `totp`, `sso/saml`, ...). */
       readonly amr: readonly AmrEntry[];
-      /** Set when an admin acts as this user (the `act` claim), for a banner. */
+      /**
+       * Set when an admin acts as this user in a support session or an
+       * impersonated session (`act.kind`), for a banner. Matches `actor`.
+       */
       readonly impersonator?: Impersonator;
       /**
-       * The OAuth client or agent acting for the user (`client_id`, or the
-       * outermost `sub` of the `act` chain), as PermDock's `actorOf` reads it.
+       * Who acts for the user: an OAuth client or agent (`client_id`, or an
+       * `act` chain without `kind`), a support session or an impersonated
+       * session, as PermDock's `actorOf` reads it.
        */
       readonly actor?: SessionActor;
-      /** The scopes the user granted `actor`, plus its `act` chain. Set only with `actor`. */
+      /**
+       * The scopes the user granted an `oauth-client` actor, plus its `act`
+       * chain. Never set for a support or impersonated session.
+       */
       readonly delegation?: SessionDelegation;
     }
   | { readonly kind: "service"; readonly keyName: string }
@@ -74,12 +81,13 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
       const impersonator = impersonatorOf(auth.claims);
       const outcome = actorOf(auth.claims);
       const actor = outcome.ok ? outcome.actor : undefined;
-      const scopes = actor ? delegationOf(auth.claims)?.scopes : undefined;
+      const client = actor?.kind === "oauth-client" ? actor : undefined;
+      const scopes = client ? delegationOf(auth.claims)?.scopes : undefined;
       const delegation: SessionDelegation | undefined =
-        actor && (scopes || actor.chain)
+        client && (scopes || client.chain)
           ? {
               scopes: scopes ?? [],
-              ...(actor.chain ? { chain: actor.chain } : {}),
+              ...(client.chain ? { chain: client.chain } : {}),
             }
           : undefined;
       return {

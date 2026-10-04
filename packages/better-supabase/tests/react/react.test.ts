@@ -138,7 +138,12 @@ describe("react", () => {
               aal: "aal1",
               anonymous: false,
               amr: [],
-              impersonator: { id: "admin-1", sessionId: "s1", readOnly: true },
+              impersonator: {
+                kind: "support",
+                id: "admin-1",
+                sessionId: "s1",
+                readOnly: true,
+              },
             }),
           },
           createElement(Banner),

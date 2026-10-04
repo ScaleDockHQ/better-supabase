@@ -4,6 +4,7 @@ import type { AuthState } from "../../src/auth/resolve.ts";
 
 import { toSession } from "../../src/auth/view.ts";
 import { guard, respond } from "../../src/server/respond.ts";
+import { supabaseClaimFixtures } from "../../src/testing/index.ts";
 
 function user(claims: Record<string, unknown>): AuthState {
   return {
@@ -42,6 +43,32 @@ describe("guard and anonymous users", () => {
   it("marks the session", () => {
     expect(toSession(anonymous)).toMatchObject({ anonymous: true });
     expect(toSession(user({}))).toMatchObject({ anonymous: false });
+  });
+});
+
+describe("guard and delegated scopes", () => {
+  const as = (name: keyof typeof supabaseClaimFixtures) =>
+    user(supabaseClaimFixtures[name].claims);
+
+  it("limits only an oauth-client actor to the delegated scopes", () => {
+    expect(guard(as("oauthClient"), ["user"], "aal1", ["posts:read"])).toBe(
+      undefined,
+    );
+    expect(
+      guard(as("agentChain"), ["user"], "aal1", ["posts:write"]),
+    ).toMatchObject({ code: "INSUFFICIENT_SCOPE" });
+  });
+
+  it("checks support and impersonated sessions as the user's own", () => {
+    for (const name of [
+      "supportSession",
+      "supportSessionReadOnly",
+      "impersonation",
+    ] as const) {
+      expect(guard(as(name), ["user"], "aal1", ["posts:write"])).toBe(
+        undefined,
+      );
+    }
   });
 });
 

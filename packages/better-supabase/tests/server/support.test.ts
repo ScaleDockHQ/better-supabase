@@ -236,6 +236,7 @@ describe("support sessions on the server", () => {
       org: "o1",
       sub: TARGET,
       act: {
+        kind: "support",
         sub: ADMIN,
         reason: "ticket 9",
         session_id: started.session.id,

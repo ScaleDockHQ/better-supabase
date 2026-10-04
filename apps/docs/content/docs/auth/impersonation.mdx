@@ -185,7 +185,7 @@ await db.invoices.update(id, { status: "void" });
 ```
 
 The third argument adds an [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#section-4.1)
-`act` claim to the session: `{ sub: admin.id, reason }`. Policies still see
+`act` claim to the session: `{ kind: "impersonation", sub: admin.id, reason }`. Policies still see
 `auth.uid() = userId`. Check who acts first: `actingAs` trusts its caller, so
 only call it after your own admin check.
 
@@ -224,13 +224,33 @@ work on the server over Postgres, and keep the admin signed in as themselves.
 
 ## Reading the act claim
 
-`session.impersonator` is set when a verified token or a support session
-carries an `act` claim. It holds the admin's `id`, the `reason`, and, for
-support sessions, `sessionId` and `readOnly`. `impersonatorOf(claims)` from
-`better-supabase/server` reads the same claim anywhere else.
+`act` is the [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#section-4.1)
+actor claim, which OAuth clients and agent chains carry too. Its `kind`
+says which of them a token is, and `session.actor` (the way PermDock's
+`actorOf` reads it) and `session.impersonator` always agree:
 
-The `act` claim is the RFC 8693 actor claim, so the same token also sets
-`session.actor` to the admin, the way PermDock's `actorOf` reads it (see
-[bearer callers](/docs/frameworks/next#bearer-callers)). An `act` claim
-that is not a chain of objects each with a `sub` makes the session
-`{ kind: 'invalid', reason: 'actor' }`.
+| `act`                                                                             | `session.actor.kind`                       | `session.impersonator` | `session.delegation`            |
+| --------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------- | ------------------------------- |
+| `{ kind: "support", sub, reason, session_id, read_only }`, from a support session | `support`, with `sessionId` and `readOnly` | set                    | never                           |
+| `{ kind: "impersonation", sub, reason }`, from `actingAs`                         | `impersonation`                            | set                    | never                           |
+| no `kind`, from an OAuth client or an agent chain                                 | `oauth-client`, with the `chain`           | not set                | the `scope` claim and the chain |
+| none, with a `client_id` (Supabase's OAuth server)                                | `oauth-client`                             | not set                | the `scope` claim               |
+
+Only an `oauth-client` actor is limited to the scopes the user delegated: the
+`scopes` guard option checks a support or impersonated session as the user's
+own, and a read-only support session still blocks writes. A support token
+from 0.5.0, with `session_id` but no `kind`, counts as a support session
+until 0.6. An `act` claim that is not a chain of objects each with a `sub`,
+that has another `kind`, or a support level without `session_id` makes the
+session `{ kind: 'invalid', reason: 'actor' }`.
+
+`impersonatorOf(claims)` from `better-supabase/server` reads the same claim
+anywhere else, and `supabaseClaimFixtures` from `better-supabase/testing`
+holds a token of each kind, in the shape of PermDock's fixtures, for tests:
+
+```ts title="tests/support-banner.test.ts"
+import { supabaseClaimFixtures } from "better-supabase/testing";
+
+const { claims, expect: read } = supabaseClaimFixtures.supportSessionReadOnly;
+// read.actor: { kind: "support", id, sessionId, readOnly: true, reason }
+```

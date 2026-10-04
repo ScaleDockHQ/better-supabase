@@ -65,9 +65,16 @@ describe("supportClaims", () => {
       sub: "t",
       role: "authenticated",
       org_roles: { o: "member" },
-      act: { sub: "a", reason: "r", session_id: "s", read_only: true },
+      act: {
+        kind: "support",
+        sub: "a",
+        reason: "r",
+        session_id: "s",
+        read_only: true,
+      },
     });
     expect(impersonatorOf(claims)).toEqual({
+      kind: "support",
       id: "a",
       reason: "r",
       sessionId: "s",

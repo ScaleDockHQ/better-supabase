@@ -49,7 +49,10 @@ describe("contextFromSupabase", () => {
   });
 
   it("carries the impersonator like authContext does", () => {
-    const claims = { sub: "u1", act: { sub: "admin-1", reason: "ticket" } };
+    const claims = {
+      sub: "u1",
+      act: { kind: "impersonation", sub: "admin-1", reason: "ticket" },
+    };
     expect(
       contextFromSupabase(
         auth({

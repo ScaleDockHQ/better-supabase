@@ -212,7 +212,7 @@ export interface BetterServer<
   ): AsyncResult<DeleteAccountResult>;
   /**
    * Repositories running as a user, with RLS, over direct Postgres. With
-   * `impersonation`, the claims carry `act: { sub: actor, reason }`, which
+   * `impersonation`, the claims carry `act: { kind: "impersonation", sub, reason }`, which
    * the `audit` and `actor` SQL kit modules record.
    */
   actingAs(

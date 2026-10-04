@@ -394,7 +394,7 @@ async function checkClaims(
       reason: "actor",
       error: dbError(
         "unauthorized",
-        "The token's act claim is not a chain of actors with a sub",
+        "The token's act claim is not a chain of actors with a sub, or has a kind other than support or impersonation",
         { code: "ACTOR_INVALID" },
       ),
     };

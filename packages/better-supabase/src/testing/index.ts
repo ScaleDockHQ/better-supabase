@@ -22,6 +22,11 @@ export type {
   DbBudgetExpectation,
   MeasuredRender,
 } from "./budget.ts";
+export { supabaseClaimFixtures } from "./claims-fixtures.ts";
+export type {
+  SupabaseClaimFixture,
+  SupabaseClaimFixtureName,
+} from "./claims-fixtures.ts";
 export { defineSeed, isSeed } from "./seed.ts";
 export type { ExactSeed, Seed, SeedFixtures } from "./seed.ts";
 export {

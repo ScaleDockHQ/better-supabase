@@ -72,6 +72,67 @@ describe("actorOf and delegationOf", () => {
     }
   });
 
+  it("reads support and impersonation levels by act.kind", () => {
+    const admin = "admin-1";
+    expect(
+      actorOf({
+        ...base,
+        act: { kind: "support", sub: admin, session_id: "s1" },
+      }),
+    ).toEqual({
+      ok: true,
+      actor: { kind: "support", id: admin, sessionId: "s1", readOnly: true },
+    });
+    // 0.5.0 minted support tokens without kind; session_id marks them until 0.6.
+    expect(
+      actorOf({
+        ...base,
+        act: { sub: admin, session_id: "s1", read_only: false, reason: "r" },
+      }),
+    ).toEqual({
+      ok: true,
+      actor: {
+        kind: "support",
+        id: admin,
+        sessionId: "s1",
+        readOnly: false,
+        reason: "r",
+      },
+    });
+    expect(
+      actorOf({ ...base, act: { kind: "impersonation", sub: admin } }),
+    ).toEqual({ ok: true, actor: { kind: "impersonation", id: admin } });
+  });
+
+  it("fails closed on an unknown kind or a malformed support level", () => {
+    for (const act of [
+      { kind: "auditor", sub: "a" },
+      { kind: 1, sub: "a" },
+      { kind: "oauth-client", sub: "a" },
+      { kind: "support", sub: "a" },
+      { kind: "support", sub: "a", session_id: "" },
+      { sub: "a", session_id: 7 },
+      { kind: "support", sub: "a", session_id: "s1", read_only: "yes" },
+    ]) {
+      expect(actorOf({ ...base, act })).toEqual({
+        ok: false,
+        reason: "invalid-chain",
+      });
+    }
+  });
+
+  it("sets delegation only for an oauth-client actor", () => {
+    const support = toSession(
+      user({
+        ...base,
+        scope: "posts:read",
+        act: { kind: "support", sub: "admin-1", session_id: "s1" },
+      }),
+    );
+    expect(support).toMatchObject({ actor: { kind: "support" } });
+    expect(support).not.toHaveProperty("delegation");
+  });
+
   it("reads scope lists and ignores empty scopes", () => {
     expect(delegationOf({ scope: ["a", 1, "b"] })).toEqual({
       scopes: ["a", "b"],

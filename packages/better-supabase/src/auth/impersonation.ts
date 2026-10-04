@@ -1,7 +1,11 @@
 import type { Actor, RequestContext } from "../core/plugin.ts";
 
+import { actorOf } from "./actor.ts";
+
 /** The admin acting as the user, from the RFC 8693 `act` claim. */
 export interface Impersonator {
+  /** `act.kind`: a support session or an impersonated session. */
+  readonly kind: "support" | "impersonation";
   readonly id: string;
   readonly reason?: string;
   /** The support session, when the admin started one (`act.session_id`). */
@@ -18,27 +22,35 @@ export interface ImpersonationOptions {
 
 /** The `act` claim for an impersonated session. */
 export function actClaim(options: ImpersonationOptions): {
+  readonly kind: "impersonation";
   readonly sub: string;
   readonly reason: string;
 } {
-  return { sub: options.actor, reason: options.reason };
+  return { kind: "impersonation", sub: options.actor, reason: options.reason };
 }
 
-/** The impersonator in `claims.act`, or `undefined` for a normal session. */
+/**
+ * The admin in `claims.act`: a support session or an impersonated session
+ * (`actorOf` reads the same level, so the two always agree). `undefined`
+ * for a normal session, an OAuth client or agent chain, and an invalid `act`.
+ */
 export function impersonatorOf(
   claims: Readonly<Record<string, unknown>>,
 ): Impersonator | undefined {
-  const act = claims["act"];
-  if (typeof act !== "object" || act === null) return undefined;
-  // SAFETY: the check above narrows act to a non-null object; each field is checked below.
-  const { sub, reason, session_id, read_only } = act as Record<string, unknown>;
-  if (typeof sub !== "string" || sub === "") return undefined;
-  return {
-    id: sub,
-    ...(typeof reason === "string" ? { reason } : {}),
-    ...(typeof session_id === "string" ? { sessionId: session_id } : {}),
-    ...(typeof read_only === "boolean" ? { readOnly: read_only } : {}),
-  };
+  const outcome = actorOf(claims);
+  const actor = outcome.ok ? outcome.actor : undefined;
+  if (actor === undefined) return undefined;
+  switch (actor.kind) {
+    case "oauth-client":
+      return undefined;
+    case "support":
+    case "impersonation":
+      return { ...actor };
+    default: {
+      const unreachable: never = actor;
+      return unreachable;
+    }
+  }
 }
 
 /**
