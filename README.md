@@ -1,27 +1,66 @@
 # better-supabase
 
-**A typed data layer, auth glue and CLI for Supabase apps, APIs, MCP servers and jobs.**
+**Typed repositories, auth glue and a CLI for Supabase apps, APIs, MCP servers and jobs.**
 
 [![npm](https://img.shields.io/npm/v/better-supabase)](https://www.npmjs.com/package/better-supabase)
-[![CI](https://img.shields.io/github/actions/workflow/status/ScaleDockHQ/better-supabase/ci.yml?label=CI)](https://github.com/ScaleDockHQ/better-supabase/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6%20%7C%207-3178c6.svg)
+[![CI](https://img.shields.io/github/actions/workflow/status/ScaleDockHQ/better-supabase/ci.yml?label=CI)](https://github.com/ScaleDockHQ/better-supabase/actions/workflows/ci.yml)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
 
-[Docs](https://bettersupabase.com/docs) · [Website](https://bettersupabase.com) · [Product](./PRODUCT.md) · [Design](./DESIGN.md) · [Agent guide](./AGENTS.md)
+[Docs](https://bettersupabase.com/docs) · [Quickstart](https://bettersupabase.com/docs/getting-started) · [Examples](https://bettersupabase.com/docs/examples) · [Changelog](https://bettersupabase.com/changelog) · [npm](https://www.npmjs.com/package/better-supabase)
 
-better-supabase removes the glue code every Supabase app rewrites: auth wiring, typed repositories, pagination, includes, nested filters, soft delete, timestamps, upserts, cache invalidation, list pages, storage paths and realtime topics. It builds directly on [`@supabase/server`](https://github.com/supabase/server), [`@supabase/middleware`](https://github.com/supabase/middleware) and [`@supabase/ssr`](https://github.com/supabase/ssr).
+better-supabase sits on top of the supabase-js client you already use. You keep your database, your RLS policies, Supabase Auth and Storage. The CLI reads your schema and generates a typed repository for every table, so a query is a typed object instead of a string, a typo in a column name is a compile error, and the row type follows what you selected.
 
-## Why better-supabase
+It also writes the glue every Supabase app repeats: the session cookie and token refresh for Next.js, Hono, oRPC, Edge Functions and MCP servers, pagination, soft delete, timestamps, cache invalidation, background jobs and typed Storage and Realtime. It is built on [`@supabase/supabase-js`](https://github.com/supabase/supabase-js), [`@supabase/server`](https://github.com/supabase/server), [`@supabase/middleware`](https://github.com/supabase/middleware) and [`@supabase/ssr`](https://github.com/supabase/ssr). It is an independent open-source project, not made by Supabase.
 
-- **Stronger generated types.** `better-supabase gen` wraps `supabase gen types` and adds relationship cardinality, unique keys, CHECK-constraint unions, typed jsonb and column maps for camelCase apps.
-- **One request per query.** `db.customers.findMany({ where, include, orderBy })` compiles to a single PostgREST request, or to SQL on the direct-Postgres path.
-- **Errors are values.** Every call returns a `Result` with a serializable `DbError`. Adapters turn it into RFC 9457 Problem Details with the right status.
-- **RLS by construction.** Repositories are bound to the caller for each request. The service role is an explicit `admin()` call.
-- **No auth calls on the hot path.** Valid access tokens are verified locally against the JWKS. Refresh happens once, in the proxy.
-- **Adapters for where you run.** Next.js (including Cache Components), Hono, oRPC, Supabase Edge Functions and MCP servers.
-- **Kits for the SQL every app repeats.** Jobs on Supabase Queues, webhook inboxes, idempotency keys, typed Storage and Realtime, vector search and Stripe entitlements, written into your declarative schema.
-- **Checks you can run in CI.** `gen --check` for drift, `doctor` for security and performance findings (with SARIF), and `asUser` for RLS tests against the local stack.
+## Before and after
+
+With supabase-js, the query is a string and the error is a Postgres code:
+
+```ts
+const { data, error } = await supabase
+  .from("customers")
+  .select("id, name, organization(name), notes!inner(kind)")
+  .eq("status", "active")
+  .eq("notes.kind", "call")
+  .order("name")
+  .limit(20);
+if (error) throw error;
+
+const { error: insertError } = await supabase.from("tags").insert({ name });
+if (insertError?.code === "23505") return { message: "Tag already exists" };
+```
+
+With better-supabase, every column, relation and operator is typed, and errors are values with a `kind`:
+
+```ts
+const customers = await db.customers.findMany({
+  select: ["id", "name"],
+  where: { status: "active", notes: { some: { kind: "call" } } },
+  include: { organization: { select: ["name"] } },
+  orderBy: { name: "asc" },
+  limit: 20,
+});
+// customers.data: { id: string; name: string; organization: { name: string } }[]
+
+const tag = await db.tags.create({ organizationId, name });
+if (tag.error?.kind === "conflict") return { message: "Tag already exists" };
+```
+
+Each call is still one PostgREST request, and it runs as the signed-in user, so your RLS policies decide what it can read and write. The [supabase-js migration guide](https://bettersupabase.com/docs/migration/supabase-js) maps every supabase-js call to its repository equivalent, and the two work side by side while you move over.
+
+## What you get
+
+- **Stronger generated types.** [`better-supabase gen`](https://bettersupabase.com/docs/cli/gen) writes the same `database.types.ts` as `supabase gen types` and adds relationship cardinality, unique keys, CHECK-constraint unions, typed jsonb and camelCase column maps.
+- **A typed repository per table.** [`findMany`, `findUnique`, `create`, `upsert`, `paginate`, counts and aggregates](https://bettersupabase.com/docs/repository), with nested relation filters and includes, compiled to PostgREST or to SQL on a direct Postgres connection.
+- **Results instead of exceptions.** Every call returns a [`Result` with a plain, serializable `DbError`](https://bettersupabase.com/docs/concepts/results) that you can return from server actions and RPC handlers. `.orThrow()` is opt-in, and adapters turn errors into RFC 9457 Problem Details with the right status.
+- **Your casing.** Keep database names with `casing: 'snake'`, or get [camelCase rows](https://bettersupabase.com/docs/concepts/casing) renamed inside the PostgREST query.
+- **Auth without extra round trips.** Valid access tokens are [verified locally](https://bettersupabase.com/docs/auth) against the JWKS and never reach the Auth server. Refresh happens once, in the proxy. The service role is an explicit `bs.admin()` call.
+- **Cache tags that follow writes.** Mutations [invalidate the tables they change](https://bettersupabase.com/docs/concepts/caching), with read-your-writes in Next.js server actions and table-based invalidation in TanStack Query.
+- **Plugins.** [Timestamps, soft delete, tenant scoping, actor columns, validation and rules](https://bettersupabase.com/docs/plugins), each versioned and opt-in.
+- **Kits for the SQL every app repeats.** [Jobs on Supabase Queues](https://bettersupabase.com/docs/kits/jobs), webhook inboxes, idempotency keys, organizations and invitations, notifications, list pages, typed Storage paths and Realtime topics, vector search and Stripe entitlements. [`better-supabase sql add`](https://bettersupabase.com/docs/kits/sql) writes the tables, functions and policies into your declarative schema.
+- **Tests and CI checks.** [`asUser`](https://bettersupabase.com/docs/testing) runs RLS tests as any user against the local stack, `gen --check` fails on schema drift, and [`doctor`](https://bettersupabase.com/docs/cli/doctor) reports security and performance findings, with SARIF output for code scanning.
 
 ## Install
 
@@ -30,12 +69,11 @@ pnpm add better-supabase @supabase/supabase-js
 pnpm add -D pg
 ```
 
-Or start with `npx better-supabase init`, which detects your frameworks
-and prints the install command. ESM only. Node 24 or later for the CLI; the runtime entries run on every WinterTC runtime. TypeScript 6 and 7 are tested.
+Before installing, `npx better-supabase init` detects your frameworks and prints the install command for your package manager. The package is ESM only. The CLI needs Node 24 or later, and the runtime entries run on every WinterTC runtime. On runtimes without a native `Temporal` (Node 24, Safari), load [`temporal-polyfill`](https://bettersupabase.com/docs/concepts/temporal) once at startup. TypeScript 6 and 7 are tested.
 
 ## Quick start
 
-### 1. Generate
+Generate the typed schema from your local stack:
 
 ```bash
 supabase start
@@ -44,7 +82,7 @@ pnpm better-supabase env    # URL and keys into .env.local
 pnpm better-supabase gen    # database.types.ts and generated.ts
 ```
 
-### 2. Query
+Define the client once, then connect it per request with the current user's Supabase client:
 
 ```ts
 import { createClient } from "@supabase/supabase-js";
@@ -57,18 +95,15 @@ export const betterSupabase = defineSupabase(schema);
 const db = betterSupabase.connect(createClient(url, publishableKey));
 
 const customers = await db.customers
-  .findMany({
-    select: ["id", "name"],
-    where: { status: "active", notes: { some: { kind: "call" } } },
-    include: { organization: { select: ["name"] } },
-    orderBy: { name: "asc" },
-    limit: 20,
-  })
+  .findMany({ select: ["id", "name"], where: { status: "active" } })
   .orThrow();
-// { id: string; name: string; organization: { name: string } }[]
 ```
 
-### Next.js
+`defineSupabase` holds no secrets and no connection. Because you connect with the client for the current user, every query runs under their RLS policies.
+
+## Use it where you run
+
+An adapter verifies the session, refreshes it where it should and gives each handler a `db` for the caller. In Next.js:
 
 ```tsx
 // src/lib/supabase/server.ts
@@ -87,144 +122,97 @@ export default async function Customers() {
 }
 ```
 
-### Hono
+| Where you run                      | What the adapter gives you                                              | Docs                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Next.js                            | Proxy, Server Components, route handlers, server actions and cache tags | [Next.js](https://bettersupabase.com/docs/frameworks/next) |
+| Hono                               | Middleware, Result-aware handlers and REST resources that match OpenAPI | [Hono](https://bettersupabase.com/docs/frameworks/hono)    |
+| oRPC                               | A middleware that adds the caller's repositories to the oRPC context    | [oRPC](https://bettersupabase.com/docs/frameworks/orpc)    |
+| Edge Functions, Deno, Bun, Workers | Fetch handlers with the caller's repositories                           | [Edge](https://bettersupabase.com/docs/frameworks/edge)    |
+| MCP servers                        | Tools from your tables and your own code, running as the signed-in user | [MCP](https://bettersupabase.com/docs/frameworks/mcp)      |
+| React and TanStack Query           | A browser client, typed hooks, query and mutation options, live queries | [Frontend](https://bettersupabase.com/docs/frontend/query) |
 
-```ts
-const bs = createHono(betterSupabase);
+## The CLI
 
-const app = new Hono<HonoEnv<Models, Functions, unknown>>()
-  .onError(bs.onError)
-  .use("/api/*", bs.middleware())
-  .get(
-    "/api/customers",
-    bs.handler((c, { db }) => db.customers.findMany({ limit: 20 })),
-  );
+The `better-supabase` command ships in this package:
+
+```bash
+pnpm better-supabase init                   # config, client and framework glue
+pnpm better-supabase env                    # local URL and keys into .env.local
+pnpm better-supabase gen                    # database.types.ts and generated.ts
+pnpm better-supabase gen --check            # exit 1 in CI when the schema drifted
+pnpm better-supabase doctor                 # RLS, grants, indexes and Supabase advisors
+pnpm better-supabase doctor --format sarif  # the same findings for GitHub code scanning
+pnpm better-supabase sql add jobs           # a SQL kit module into supabase/schemas
+pnpm better-supabase skills install         # Agent Skills for your coding agent
 ```
 
-### MCP
-
-```ts
-const bs = createMcp(betterSupabase, {
-  name: "crm",
-  version: "1.0.0",
-  resources: { customers: { select: ["id", "name", "status"] } },
-});
-
-Deno.serve(bs.fetch);
-```
+See the [CLI reference](https://bettersupabase.com/docs/cli) for every command and flag.
 
 ## Works with
 
 | Area       | Supported                                                                 |
 | ---------- | ------------------------------------------------------------------------- |
-| Frameworks | Next.js 16, Hono, oRPC, Supabase Edge Functions, Deno, Bun, Workers       |
+| Frameworks | Next.js 16, Hono, oRPC, Supabase Edge Functions, MCP servers              |
+| Runtimes   | Node.js, Deno, Bun, Cloudflare Workers, Vercel Functions, Supabase Edge   |
 | Frontend   | React 19, TanStack Query 5, live queries over Realtime                    |
 | Validation | Zod, Valibot and any Standard Schema                                      |
 | Standards  | OpenAPI 3.1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP |
 | Testing    | Vitest, pgTAP, the Supabase local stack                                   |
 
+## Good to know
+
+- **It does not replace supabase-js.** Auth flows, Storage and Realtime stay on the supabase-js client, which is one property away as `db.$client`.
+- **It does not replace RLS.** Queries run as the caller and your policies decide. Bypassing them takes an explicit `bs.admin()`.
+- **A direct Postgres connection is optional.** Queries go through PostgREST by default. [`better-supabase/postgres`](https://bettersupabase.com/docs/auth/postgres) runs the same repository API over SQL for jobs, scripts and transactions.
+- **PostgREST's limits still apply.** There are no transactions across requests, and a few filters only work on reads. The [limitations page](https://bettersupabase.com/docs/guides/limitations) lists each one and what to use instead.
+
+## Subpaths
+
+| Import                                                     | What it gives you                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `better-supabase`                                          | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`         |
+| `better-supabase/config`                                   | `defineConfig` and generators for `better-supabase.config.ts`            |
+| `better-supabase/cli`                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI      |
+| `better-supabase/client`                                   | Browser repositories that follow the session                             |
+| `better-supabase/react`                                    | Provider, typed hooks and the server session                             |
+| `better-supabase/query`                                    | TanStack Query options with table-based invalidation                     |
+| `better-supabase/server`                                   | Repositories bound to the caller, admin and acting-as identities         |
+| `better-supabase/postgres`                                 | The same repositories over direct Postgres                               |
+| `better-supabase/ssr`                                      | The `@supabase/ssr` cookie format for any framework                      |
+| `better-supabase/next`, `/next/image`                      | Proxy, Server Components, route handlers, server actions, Storage images |
+| `better-supabase/hono`, `/orpc`, `/edge`                   | Framework adapters                                                       |
+| `better-supabase/mcp`                                      | MCP servers whose tools run as the signed-in user                        |
+| `better-supabase/jobs`                                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
+| `better-supabase/orgs`                                     | Organizations, members, invitations and switching from the SQL kit       |
+| `better-supabase/notifications`                            | Sending, listing and delivering notifications from the SQL kit           |
+| `better-supabase/list`                                     | Search, facets, sorting and pagination from one definition               |
+| `better-supabase/storage`, `/realtime`                     | Typed bucket paths and broadcast topics                                  |
+| `better-supabase/env`                                      | Validated Supabase settings                                              |
+| `better-supabase/events`, `/webhooks`, `/openapi`, `/otel` | CloudEvents, Standard Webhooks, OpenAPI 3.1 and OpenTelemetry            |
+| `better-supabase/plugins/*`                                | Timestamps, soft delete, tenant, actor, validation and runtime rules     |
+| `better-supabase/sql`                                      | The SQL kit modules and read-set compiler behind `better-supabase sql`   |
+| `better-supabase/lint`                                     | Editor rules for unbounded reads and unscoped deletes                    |
+| `better-supabase/testing`                                  | `asUser`, `localAuth`, typed seeds and conformance kits                  |
+
 ## For AI agents
 
-The package ships [Agent Skills](https://agentskills.io) for queries, APIs and tests:
+The package ships [Agent Skills](https://agentskills.io) for queries, APIs, auth and tests:
 
 ```bash
 npx skills add ScaleDockHQ/better-supabase
+# or, from the installed version:
+pnpm better-supabase skills install
 ```
 
-Maintainer rules for agents working on this repository are in [`AGENTS.md`](./AGENTS.md). The docs publish [`/llms.txt`](https://bettersupabase.com/llms.txt), every page as Markdown at `/docs/<page>.md`, and a read-only docs MCP server at `https://bettersupabase.com/mcp`.
+The docs are also available as [`/llms.txt`](https://bettersupabase.com/llms.txt), as Markdown at `/docs/<page>.md`, and through the read-only docs MCP server at `https://bettersupabase.com/mcp`.
 
 ## Documentation
 
-[bettersupabase.com/docs](https://bettersupabase.com/docs). The source is in [`apps/docs/content/docs`](./apps/docs/content/docs), and runnable apps for every adapter are in [`apps/examples`](./apps/examples).
-
-## Develop this repository
-
-### Prerequisites
-
-- Node 24 (`.nvmrc`) and pnpm 12. `devEngines` in `package.json` downloads the right Node for pnpm.
-- Docker, for the local Supabase stack.
-- The Vercel CLI, to pull environment variables (maintainers only; everything runs without them).
-
-### First local run
-
-```bash
-pnpm install
-vercel link           # maintainers: link the scaledock team's project
-pnpm env:pull         # maintainers: hosted keys in .env.local
-pnpm supabase:start   # API on 55421, Postgres on 55422
-pnpm env:local        # local stack and Portless URLs in .env.development.local
-pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
-```
-
-The first `pnpm dev:portless` asks to trust the Portless certificate authority.
-
-### Local URLs and logins
-
-| App             | URL                           |
-| --------------- | ----------------------------- |
-| Marketing       | `https://www.localhost`       |
-| Docs            | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost`   |
-
-The seed creates two users in the Acme organization, both with the password
-`password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role `member`).
-
-### Scripts
-
-| Script                  | What it does                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| `pnpm verify`           | The gate before every push: format, lint, prose, typecheck, Knip, boundaries, tests, doctor and audit |
-| `pnpm dev:portless`     | Docs, marketing and the Next.js example on `.localhost` URLs                                          |
-| `pnpm build`            | Builds every package and app                                                                          |
-| `pnpm test`             | Unit and type tests                                                                                   |
-| `pnpm test:integration` | Integration tests against the local stack                                                             |
-| `pnpm test:e2e`         | The example apps against the local stack                                                              |
-| `pnpm typecheck:matrix` | The published types against TypeScript 6 and 7                                                        |
-| `pnpm size`             | Bundle size baselines and the WinterTC import check                                                   |
-| `pnpm supabase:reset`   | Rebuilds the local database from the migrations and the seed                                          |
-| `pnpm supabase:test`    | pgTAP tests in `supabase/tests`                                                                       |
-| `pnpm db:gen`           | Regenerates the typed client in every example                                                         |
-| `pnpm changeset`        | Records a user-visible change for the next release                                                    |
-
-### Layout
-
-```text
-packages/better-supabase   the published library, the better-supabase CLI and its consumer skills
-packages/next-config       shared Next.js config for docs and marketing
-packages/ox-config         Oxlint presets, Oxfmt config and the anti-slop plugin
-packages/typescript-config tsconfig presets
-apps/docs                  bettersupabase.com/docs (Fumadocs)
-apps/marketing             bettersupabase.com
-apps/examples/*            one runnable app per adapter
-tests/*                    bundle size, the TypeScript matrix, e2e and validation ports
-supabase/                  the local stack: schemas, migrations, seed and pgTAP tests
-docs/                      agent notes and architecture decision records
-```
-
-### Architecture
-
-The package is one ESM module with subpath exports. The runtime entries import
-no Node built-ins, so they run on every WinterTC runtime; the CLI, `postgres`
-and `testing` entries run on Node. The CLI introspects the local database and
-writes `database.types.ts` and `generated.ts` into each app, and those files
-carry every type through inferring functions, without `declare module`. The
-examples and the integration suite run against the fixture schema in
-`supabase/`. [`AGENTS.md`](./AGENTS.md) lists the invariants.
-
-### Deploy
-
-Docs and marketing deploy to Vercel as two services of one project
-(`vercel.json`), on the domain bettersupabase.com: `/docs` goes to the docs app
-and everything else to marketing, in the `fra1` region. Only `main` deploys
-(`git.deploymentEnabled`), and `turbo-ignore` skips a service whose app did not
-change. The npm package is
-released by `.github/workflows/release.yml`: changesets open a version pull
-request, and merging it publishes to npm with provenance when the `NPM_PUBLISH`
-variable is set.
+The full documentation is at [bettersupabase.com/docs](https://bettersupabase.com/docs), and a runnable app for every adapter is in [`apps/examples`](./apps/examples).
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md). Every user-visible change needs a changeset.
+Setup, the local stack, scripts and the release process are in [`CONTRIBUTING.md`](./CONTRIBUTING.md). The invariants and the "when you change X, also update Y" table for anyone changing the code, human or agent, are in [`AGENTS.md`](./AGENTS.md). Every user-visible change needs a changeset.
 
 ## Security
 
