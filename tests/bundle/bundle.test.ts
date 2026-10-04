@@ -254,11 +254,11 @@ describe("bundle", () => {
     >;
     expect(
       Object.keys(sizes).toSorted(),
-      "subpaths changed; run `pnpm --filter @better-supabase/bundle update`",
+      "subpaths changed; run `pnpm --filter @better-supabase/bundle run update`",
     ).toEqual(Object.keys(baseline).toSorted());
     expect(
       overBaseline(sizes, baseline),
-      "grew past the baseline; if intended, run `pnpm --filter @better-supabase/bundle update`",
+      "grew past the baseline; if intended, run `pnpm --filter @better-supabase/bundle run update`",
     ).toEqual([]);
   });
 
@@ -283,7 +283,7 @@ describe("bundle", () => {
     );
     expect(
       overBaseline(sizes, baseline),
-      "grew past the baseline; if intended, run `pnpm --filter @better-supabase/bundle update`",
+      "grew past the baseline; if intended, run `pnpm --filter @better-supabase/bundle run update`",
     ).toEqual([]);
   });
 });
