@@ -90,13 +90,16 @@ export interface HistoryFilter {
 }
 
 export interface Outbox {
+  /** Writes an event in the current transaction and returns its id. */
   emit(
     type: string,
     payload?: unknown,
     options?: EmitOptions,
-  ): AsyncResult<number>;
-  /** Creates the consumer, or changes its types. Returns its cursor. */
+  ): AsyncResult<string>;
+  /** Creates the consumer, or changes its types. Returns its cursor position. */
   register(consumer: string, options?: RegisterOptions): AsyncResult<number>;
+  /** Removes the consumer, so purges stop waiting for it. */
+  unregister(consumer: string): AsyncResult<boolean>;
   /**
    * Claims the consumer's next events, sends them to `sink` as CloudEvents and
    * moves the cursor, until none are left or the budget runs out. A sink that
@@ -112,8 +115,11 @@ export interface Outbox {
     options: OutboxRouteOptions,
   ): (request: Request) => Promise<Response>;
   history(filter?: HistoryFilter): AsyncResult<readonly OutboxEvent[]>;
-  /** Deletes events older than `olderThan` that every consumer has passed. */
-  purge(olderThan?: string): AsyncResult<number>;
+  /**
+   * Deletes up to `batch` events (default 10,000) older than `olderThan` that
+   * every consumer has passed. Call it again while it returns `batch`.
+   */
+  purge(olderThan?: string, batch?: number): AsyncResult<number>;
 }
 
 interface OutboxRow {
@@ -250,7 +256,7 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
   return {
     emit: (type, payload = {}, emitOptions = {}) =>
       run(async () =>
-        Number(
+        String(
           await call("emit_event", [
             type,
             JSON.stringify(payload),
@@ -271,6 +277,8 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
           ]),
         ),
       ),
+    unregister: (consumer) =>
+      run(async () => (await call("outbox_unregister", [consumer])) === true),
     relay: (consumer, sink, relayOptions) =>
       relay(consumer, sink, relayOptions),
     relayRoute(routeOptions) {
@@ -320,14 +328,9 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
           ]),
         ),
       ),
-    purge: (olderThan) =>
+    purge: (olderThan, batch) =>
       run(async () =>
-        Number(
-          await call(
-            "purge_outbox",
-            olderThan === undefined ? [] : [olderThan],
-          ),
-        ),
+        Number(await call("purge_outbox", [olderThan ?? null, batch ?? null])),
       ),
   };
 }

@@ -10,7 +10,7 @@ const NAMES: KitNames = {
       name: "outbox_events",
       columns: {
         id: "id",
-        position: "id",
+        position: "position",
         type: "type",
         source: "source",
         subject: "subject",
@@ -27,7 +27,8 @@ const NAMES: KitNames = {
       name: "outbox_consumers",
       columns: {
         name: "name",
-        cursor: "cursor",
+        cursorXid: "cursor_xid",
+        cursor: "cursor_position",
         types: "types",
         leaseOwner: "lease_owner",
         leaseUntil: "lease_until",
@@ -73,6 +74,9 @@ function consumersTable(n: Names): string {
   return `
 create table if not exists ${n.c} (
   ${n.k("name")} text primary key,
+  -- The last event passed, ordered by (transaction id, position). Without
+  -- the xid column, cursor_xid stays 0 and the position alone orders.
+  ${n.k("cursorXid")} xid8 not null default '0',
   ${n.k("cursor")} bigint not null default 0,
   -- Type patterns ('org.*', 'invoice.paid'); null takes every event.
   ${n.k("types")} text[],
@@ -86,11 +90,21 @@ grant all on ${n.c} to service_role;
 `;
 }
 
+/** Adopt mode adds the xid column; existing rows get the migration's transaction id. */
+function adoptXid(n: Names): string {
+  if (!n.has("xid")) return "";
+  return `
+alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default pg_current_xact_id();
+create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
+}
+
 function tables(ctx: KitContext, n: Names): string {
-  if (!ctx.manages) return consumersTable(n);
+  if (!ctx.manages) return `${adoptXid(n)}${consumersTable(n)}`;
   const samePosition = n.e("position") === n.e("id");
   const columns = [
-    `${n.e("id")} bigint generated always as identity primary key`,
+    samePosition
+      ? `${n.e("id")} bigint generated always as identity primary key`
+      : `${n.e("id")} uuid primary key default gen_random_uuid()`,
     ...(samePosition
       ? []
       : [`${n.e("position")} bigint generated always as identity unique`]),
@@ -119,7 +133,11 @@ create table if not exists ${n.t} (
   ${columns.join(",\n  ")}
 );${keyIndex}${subjectIndex}
 create index if not exists outbox_events_type_idx on ${n.t} (${n.e("type")}, ${n.e("position")});
-create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt")});
+create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt")});${
+    n.has("xid")
+      ? `\ncreate index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`
+      : ""
+  }
 alter table ${n.t} enable row level security;
 revoke all on ${n.t} from anon, authenticated;
 grant all on ${n.t} to service_role;
@@ -162,18 +180,18 @@ function emit(ctx: KitContext, n: Names): string {
   const existing = n.has("key")
     ? `
   if key is not null then
-    select e.${n.e("position")} into found_position from ${n.t} e
+    select e.${n.e("id")}::text into found_id from ${n.t} e
     where e.${n.e("key")} = key${sameTenant};
-    if found_position is not null then
-      return found_position;
+    if found_id is not null then
+      return found_id;
     end if;
   end if;`
     : "";
   const retry = n.has("key")
     ? `
-  if found_position is null then
+  if found_id is null then
     -- Another transaction emitted the same key first.
-    select e.${n.e("position")} into found_position from ${n.t} e
+    select e.${n.e("id")}::text into found_id from ${n.t} e
     where e.${n.e("key")} = key${sameTenant};
   end if;`
     : "";
@@ -187,8 +205,11 @@ function emit(ctx: KitContext, n: Names): string {
   }
   const signature = `${ctx.fn("emit_event")}(text, jsonb, text, text, text, text)`;
   return `
+-- create or replace can't change the return type of an earlier install.
+drop function if exists ${signature};
 -- Appends an event in the caller's transaction, so it exists only if the
--- transaction commits. A repeated key (per tenant) returns the first event.
+-- transaction commits, and returns its id. A repeated key (per tenant)
+-- returns the first event's id.
 create or replace function ${ctx.fn("emit_event")}(
   event_type text,
   payload jsonb default '{}',
@@ -197,14 +218,14 @@ create or replace function ${ctx.fn("emit_event")}(
   key text default null,
   source text default null
 )
-returns bigint
+returns text
 language plpgsql
 security definer
 set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  found_position bigint;
+  found_id text;
 begin
   if event_type is null or btrim(event_type) = '' then
     raise exception 'An event needs a type' using errcode = '22023', hint = 'OUTBOX_TYPE_REQUIRED';
@@ -212,8 +233,8 @@ begin
   insert into ${n.t} (${insert.map(([column]) => column).join(", ")})
   values (${insert.map(([, value]) => value).join(", ")})
   on conflict do nothing
-  returning ${n.e("position")} into found_position;${retry}
-  return found_position;
+  returning ${n.e("id")}::text into found_id;${retry}
+  return found_id;
 end;
 $$;
 revoke execute on function ${signature} from public, anon, authenticated;
@@ -221,9 +242,29 @@ grant execute on function ${signature} to ${[...new Set(["service_role", ...role
 }
 
 function consumers(ctx: KitContext, n: Names): string {
-  const settled = n.has("xid")
+  const byXid = n.has("xid");
+  const settle = ctx.text("settle", "5 seconds");
+  if (!byXid && /^\s*0+(\.0+)?\s*[a-z]*\s*$/i.test(settle)) {
+    throw new TypeError(
+      "kits.outbox.options.settle must be longer than zero: without the xid column it is how long a slow commit has to show up",
+    );
+  }
+  const pos = (row: string) => `${row}.${n.e("position")}`;
+  // (xid, position) when the xid column exists, else the position alone.
+  const key = (row: string) =>
+    byXid ? `(${row}.${n.e("xid")}, ${pos(row)})` : pos(row);
+  const cursor = (row: string) =>
+    byXid
+      ? `(${row}.${n.k("cursorXid")}, ${row}.${n.k("cursor")})`
+      : `${row}.${n.k("cursor")}`;
+  const order = (row: string, direction = "") =>
+    byXid
+      ? `${row}.${n.e("xid")}${direction}, ${pos(row)}${direction}`
+      : `${pos(row)}${direction}`;
+  const settled = byXid
     ? `e.${n.e("xid")} < pg_snapshot_xmin(pg_current_snapshot())`
-    : `e.${n.e("createdAt")} < now() - ${sqlString(ctx.text("settle", "5 seconds"))}::interval`;
+    : `e.${n.e("createdAt")} < now() - ${sqlString(settle)}::interval`;
+  const xidOf = (row: string) => (byXid ? `${row}.${n.e("xid")}` : `'0'::xid8`);
   const matches = `(c.${n.k("types")} is null or exists (
         select 1 from unnest(c.${n.k("types")}) p
         where p = '*' or p = e.${n.e("type")}
@@ -238,6 +279,8 @@ function consumers(ctx: KitContext, n: Names): string {
 grant execute on function ${ctx.fn(fn)}(${args}) to service_role;`;
   const retention = sqlString(ctx.text("retention", "30 days"));
   return `
+drop function if exists ${ctx.fn("purge_outbox")}(interval);
+
 -- Registers a consumer. A new one starts after the latest event, or at the
 -- first with from_start. Registering again changes only its types.
 create or replace function ${ctx.fn("outbox_register")}(consumer text, types text[] default null, from_start boolean default false)
@@ -246,19 +289,43 @@ language sql
 security definer
 set search_path = ''
 as $$
-  insert into ${n.c} (${n.k("name")}, ${n.k("cursor")}, ${n.k("types")})
-  values (
-    consumer,
-    case when from_start then 0 else coalesce((select max(e.${n.e("position")}) from ${n.t} e), 0) end,
-    types
-  )
+  insert into ${n.c} (${n.k("name")}, ${n.k("cursorXid")}, ${n.k("cursor")}, ${n.k("types")})
+  select consumer, coalesce(latest.xid, '0'), coalesce(latest.position, 0), types
+  from (select 1) one
+  left join lateral (
+    select ${xidOf("e")} as xid, ${pos("e")} as position from ${n.t} e
+    where not from_start
+    order by ${order("e", " desc")}
+    limit 1
+  ) latest on true
   on conflict (${n.k("name")}) do update set ${n.k("types")} = excluded.${n.k("types")}, ${n.k("updatedAt")} = now()
   returning ${n.k("cursor")}
 $$;
 
+-- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
+create or replace function ${ctx.fn("outbox_unregister")}(consumer text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  delete from ${n.c} k where k.${n.k("name")} = consumer;
+  return found;
+end;
+$$;
+
 -- Leases the consumer to owner and returns its next events after the
--- cursor, oldest first. Events of transactions still running are held back,
--- so a slow commit is never skipped. Empty while another owner holds it.
+-- cursor. ${
+    byXid
+      ? `Events of transactions still running are held back, and
+-- events sort by (xid, position), so a transaction that commits late sorts
+-- after the cursor and is never skipped.`
+      : `Events newer than the settle interval are held back for
+-- slow commits.`
+  } When no event matches the consumer's types,
+-- the cursor moves past the settled events it scanned.
 create or replace function ${ctx.fn("outbox_claim")}(consumer text, owner text, max_events integer default 100, lease interval default '1 minute')
 returns jsonb
 language plpgsql
@@ -268,6 +335,7 @@ as $$
 #variable_conflict use_variable
 declare
   c ${n.c};
+  events jsonb;
 begin
   update ${n.c} k
   set ${n.k("leaseOwner")} = owner, ${n.k("leaseUntil")} = now() + lease, ${n.k("updatedAt")} = now()
@@ -280,23 +348,33 @@ begin
     end if;
     return '[]';
   end if;
-  return coalesce((
-    select jsonb_agg(x.event order by x.position)
-    from (
-      select ${eventJson(n, "e")} as event, e.${n.e("position")} as position
-      from ${n.t} e
-      where e.${n.e("position")} > c.${n.k("cursor")}
-        and ${settled}
-        and ${matches}
-      order by e.${n.e("position")}
-      limit max_events
-    ) x
-  ), '[]');
+  select jsonb_agg(x.event order by x.n) into events
+  from (
+    select ${eventJson(n, "e")} as event, row_number() over (order by ${order("e")}) as n
+    from ${n.t} e
+    where ${key("e")} > ${cursor("c")}
+      and ${settled}
+      and ${matches}
+    order by ${order("e")}
+    limit max_events
+  ) x;
+  if events is null then
+    update ${n.c} k
+    set (${n.k("cursorXid")}, ${n.k("cursor")}) = (
+      select ${xidOf("e")}, ${pos("e")} from ${n.t} e
+      where ${key("e")} > ${cursor("c")} and ${settled}
+      order by ${order("e", " desc")}
+      limit 1
+    )
+    where k.${n.k("name")} = consumer
+      and exists (select 1 from ${n.t} e where ${key("e")} > ${cursor("c")} and ${settled});
+  end if;
+  return coalesce(events, '[]');
 end;
 $$;
 
--- Moves the cursor to upto (when given) and releases the lease. False when
--- owner no longer holds it.
+-- Moves the cursor to the event at position upto (when given) and releases
+-- the lease. False when owner no longer holds it.
 create or replace function ${ctx.fn("outbox_ack")}(consumer text, owner text, upto bigint default null)
 returns boolean
 language plpgsql
@@ -306,8 +384,18 @@ as $$
 #variable_conflict use_variable
 begin
   update ${n.c} k
-  set ${n.k("cursor")} = greatest(k.${n.k("cursor")}, coalesce(upto, k.${n.k("cursor")})),
+  set (${n.k("cursorXid")}, ${n.k("cursor")}) = (
+      select ${xidOf("e")}, ${pos("e")} from ${n.t} e where ${pos("e")} = upto
+    ),
     ${n.k("leaseOwner")} = null, ${n.k("leaseUntil")} = null, ${n.k("updatedAt")} = now()
+  where k.${n.k("name")} = consumer and k.${n.k("leaseOwner")} = owner
+    and upto is not null
+    and exists (select 1 from ${n.t} e where ${pos("e")} = upto and ${key("e")} > ${cursor("k")});
+  if found then
+    return true;
+  end if;
+  update ${n.c} k
+  set ${n.k("leaseOwner")} = null, ${n.k("leaseUntil")} = null, ${n.k("updatedAt")} = now()
   where k.${n.k("name")} = consumer and k.${n.k("leaseOwner")} = owner;
   return found;
 end;
@@ -333,8 +421,10 @@ as $$
   ) x
 $$;
 
--- Deletes events older than older_than that every consumer has passed.
-create or replace function ${ctx.fn("purge_outbox")}(older_than interval default ${retention})
+-- Deletes up to batch events older than older_than that every consumer has
+-- passed, and returns how many. Run it until it returns less than batch.
+-- A null argument takes its default.
+create or replace function ${ctx.fn("purge_outbox")}(older_than interval default ${retention}, batch integer default 10000)
 returns integer
 language sql
 security definer
@@ -342,17 +432,30 @@ set search_path = ''
 as $$
   with gone as (
     delete from ${n.t} e
-    where e.${n.e("createdAt")} < now() - older_than
-      and e.${n.e("position")} <= coalesce((select min(k.${n.k("cursor")}) from ${n.c} k), e.${n.e("position")})
+    where e.${n.e("id")} in (
+      select d.${n.e("id")} from ${n.t} d
+      where d.${n.e("createdAt")} < now() - coalesce(older_than, ${retention}::interval)
+        and (
+          not exists (select 1 from ${n.c})
+          or ${key("d")} <= (
+            select ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")} from ${n.c} k
+            order by ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")}
+            limit 1
+          )
+        )
+      order by d.${n.e("createdAt")}
+      limit coalesce(batch, 10000)
+    )
     returning 1
   )
   select count(*)::integer from gone
 $$;
 ${service("outbox_register", "text, text[], boolean")}
+${service("outbox_unregister", "text")}
 ${service("outbox_claim", "text, text, integer, interval")}
 ${service("outbox_ack", "text, text, bigint")}
 ${service("outbox_history", "text, text, bigint, integer")}
-${service("purge_outbox", "interval")}`;
+${service("purge_outbox", "interval, integer")}`;
 }
 
 function tracking(ctx: KitContext): string {
@@ -424,7 +527,7 @@ export const OUTBOX: KitModuleDefinition = {
     {
       name: "emit_event",
       args: ["text", "jsonb", "text", "text", "text", "text"],
-      returns: "bigint",
+      returns: "text",
     },
     {
       name: "outbox_register",
@@ -446,7 +549,12 @@ export const OUTBOX: KitModuleDefinition = {
       args: ["text", "text", "bigint", "integer"],
       returns: "jsonb",
     },
-    { name: "purge_outbox", args: ["interval"], returns: "integer" },
+    { name: "outbox_unregister", args: ["text"], returns: "boolean" },
+    {
+      name: "purge_outbox",
+      args: ["interval", "integer"],
+      returns: "integer",
+    },
   ],
   build,
 };

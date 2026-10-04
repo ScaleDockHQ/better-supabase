@@ -23,7 +23,8 @@ events, and `support-sessions` emits `support.started` and
 ## Emitting from SQL
 
 `emit_event(type, payload, subject, tenant, key, source)` appends an event
-and returns its position. Call it from your own functions and triggers:
+and returns its id (a `uuid` on a managed table, as text). Call it from your
+own functions and triggers:
 
 ```sql
 perform better_supabase.emit_event(
@@ -35,13 +36,13 @@ perform better_supabase.emit_event(
 );
 ```
 
-| Argument  | Meaning                                                                                        |
-| --------- | ---------------------------------------------------------------------------------------------- |
-| `type`    | Any string, usually `noun.verb`. Consumers filter on it                                        |
-| `payload` | The event data. `subject` defaults to `payload ->> 'subject'`                                  |
-| `tenant`  | The organization the event belongs to, relayed as the `partitionkey` extension                 |
-| `key`     | With a key, emitting the same key again for the same tenant returns the first event's position |
-| `source`  | The module or function that wrote it, relayed as the `producer` extension                      |
+| Argument  | Meaning                                                                                  |
+| --------- | ---------------------------------------------------------------------------------------- |
+| `type`    | Any string, usually `noun.verb`. Consumers filter on it                                  |
+| `payload` | The event data. `subject` defaults to `payload ->> 'subject'`                            |
+| `tenant`  | The organization the event belongs to, relayed as the `partitionkey` extension           |
+| `key`     | With a key, emitting the same key again for the same tenant returns the first event's id |
+| `source`  | The module or function that wrote it, relayed as the `producer` extension                |
 
 The signed-in user (`auth.uid()`) is stored as the actor. Only
 `service_role` can call `emit_event` directly; the kit's own functions are
@@ -103,11 +104,17 @@ does.
 ### Ordering and open transactions
 
 Positions come from an identity column, which hands out numbers before
-commit. A transaction that started first can commit after a later one. The
-claim therefore skips every event whose transaction id is not older than
-the oldest running transaction (`pg_snapshot_xmin`), so a slow commit is
-delayed, never skipped. A long-running transaction delays all consumers
-until it ends.
+commit, so a transaction that started first can commit after a later one.
+The claim holds back every event whose transaction id (`xid`) is not older
+than the oldest running transaction (`pg_snapshot_xmin`), and orders and
+tracks events by `(xid, position)`. An event that commits late therefore
+sorts after the consumer's cursor and is delayed, never skipped. A
+long-running transaction delays all consumers until it ends.
+
+When none of the claimed events match a consumer's `types`, its cursor
+still moves past the settled events, so a consumer of rare types doesn't
+rescan the whole table. `outbox.unregister(consumer)` removes a consumer
+you no longer relay, so purges stop waiting for it.
 
 ### Into a queue
 
@@ -131,16 +138,21 @@ await outbox.relay("jobs", toJobs);
 subject, oldest first, for an activity feed or a debugging view. Filter by
 `type` and page with `after` (a position) and `limit`.
 
-`outbox.purge()` (SQL `purge_outbox(older_than)`) deletes events older than
+`outbox.purge(olderThan, batch)` (SQL `purge_outbox(older_than, batch)`)
+deletes up to `batch` events (10,000 by default) older than
 `kits.outbox.options.retention` (`30 days` by default), but never one that a
-registered consumer hasn't passed. Schedule it with the jobs schedules or
+registered consumer hasn't passed. It returns how many it deleted; run it
+again while that equals `batch`. Schedule it with the jobs schedules or
 pg_cron.
 
 ## Existing tables
 
-Adopt an events table you already have and rename its columns. Columns you
-don't have map to `null`; without the `xid` column the claim waits
-`settle` (5 seconds by default) after an event's `created_at` instead.
+Adopt an events table you already have and rename its columns. Adopt mode
+adds the `xid` column (and its index) when the table lacks it. Map `xid` to
+`null` to keep the table as it is: the claim then orders by position alone
+and waits `settle` (5 seconds by default, and never zero) after an event's
+`created_at`, which skips an event whose transaction commits later than
+that. Other columns you don't have map to `null`.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -157,15 +169,16 @@ export default defineConfig({
 });
 ```
 
-`position` must be a `bigint` that only grows. It is the `id` column on a
-managed table; map it to another column when your ids are UUIDs.
+`position` must be a `bigint` that only grows. A managed table has a `uuid`
+`id` and a separate `position` identity column; map both when you adopt a
+table, or map them to the same column when its ids are a `bigint` sequence.
 
 | Option          | Default                    | Meaning                                                              |
 | --------------- | -------------------------- | -------------------------------------------------------------------- |
 | `retention`     | `30 days`                  | Default age for `purge_outbox`                                       |
 | `emitRoles`     | `["service_role"]`         | Roles allowed to call `emit_event` directly                          |
 | `tenantType`    | `text`                     | The type of the tenant column                                        |
-| `settle`        | `5 seconds`                | The wait before a claim reads an event, without `xid`                |
+| `settle`        | `5 seconds`                | The wait before a claim reads an event, without `xid`; never zero    |
 | `defaultSource` | none                       | The source `emit_event` stores when the caller passes none           |
 | `kitSource`     | `better-supabase/{module}` | The source of events from kit modules; `{module}` is the module name |
 

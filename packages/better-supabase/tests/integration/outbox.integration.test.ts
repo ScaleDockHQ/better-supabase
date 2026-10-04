@@ -108,6 +108,34 @@ describe.skipIf(!live)("outbox", () => {
     expect(await outbox.relay("crm", sink)).toEqual({ delivered: 0 });
   });
 
+  it("delivers an event whose transaction commits after a later one", async () => {
+    expect((await outbox.register("late", { types: ["late.*"] })).ok).toBe(
+      true,
+    );
+    const sent: CloudEvent[] = [];
+    const sink = {
+      send: (events: readonly CloudEvent[]) => void sent.push(...events),
+    };
+    const early = await pool.connect();
+    try {
+      await early.query("begin");
+      await early.query(
+        `select ${SCHEMA}.emit_event('late.first', '{}'::jsonb)`,
+      );
+      expect((await outbox.emit("late.second")).ok).toBe(true);
+      expect(await outbox.relay("late", sink)).toEqual({ delivered: 0 });
+      await early.query("commit");
+    } finally {
+      early.release();
+    }
+    expect(await outbox.relay("late", sink)).toEqual({ delivered: 2 });
+    expect(sent.map((event) => event.type)).toEqual([
+      "late.first",
+      "late.second",
+    ]);
+    expect((await outbox.unregister("late")).data).toBe(true);
+  });
+
   it("deduplicates keys, tracks rows and keeps history", async () => {
     const first = await outbox.emit(
       "invoice.paid",

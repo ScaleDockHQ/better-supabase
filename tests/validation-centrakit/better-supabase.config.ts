@@ -169,7 +169,6 @@ export default defineConfig({
       },
       options: {
         tenantType: "uuid",
-        settle: "0 seconds",
         defaultSource: "domain",
         kitSource: "domain",
       },
