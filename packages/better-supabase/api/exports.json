@@ -887,23 +887,57 @@
   "./webhooks": {
     "values": [
       "authHook",
+      "createWebhooks",
       "databaseChange",
+      "fetchTransport",
+      "hmacSigner",
       "hookError",
       "isDatabaseWebhook",
+      "isPublicAddress",
+      "publicUrl",
+      "rpcTransport",
       "signWebhook",
+      "sqlSecretStore",
+      "sqlTransport",
+      "standardWebhooks",
       "timingSafeEqual",
       "verifySharedSecret",
-      "verifyWebhook"
+      "verifyWebhook",
+      "WebhookPolicyError"
     ],
     "types": [
+      "AllowUrl",
       "AuthHookError",
       "AuthHookKind",
       "AuthHooks",
       "DatabaseChange",
       "DatabaseWebhookPayload",
+      "DeliverWebhooksOptions",
+      "DeliverWebhooksResult",
+      "DispatchInput",
+      "FetchTransportOptions",
+      "HmacSignerOptions",
+      "KitTransport",
+      "PublicUrlOptions",
+      "PublishInput",
+      "ResolveHost",
+      "RetryPolicy",
+      "RotateSecretOptions",
+      "RpcClient",
+      "StandardWebhooksOptions",
       "VerifiedWebhook",
       "VerifyOptions",
-      "WebhookInput"
+      "WebhookDelivery",
+      "WebhookInput",
+      "WebhookRequest",
+      "WebhookResponse",
+      "Webhooks",
+      "WebhookSecretStore",
+      "WebhookSigner",
+      "WebhookSignInput",
+      "WebhooksOptions",
+      "WebhooksRouteOptions",
+      "WebhookTransport"
     ]
   },
   "./openapi": {
@@ -1075,7 +1109,10 @@
       "testNotificationChannel",
       "testPlugin",
       "testQueueBackend",
-      "testSupportSessionStore"
+      "testSupportSessionStore",
+      "testWebhookSecretStore",
+      "testWebhookSigner",
+      "testWebhookTransport"
     ],
     "types": [
       "BudgetPage",
@@ -1103,7 +1140,10 @@
       "TestQueueBackendOptions",
       "TestSigner",
       "TestSupportSessionStoreOptions",
-      "TestUser"
+      "TestUser",
+      "TestWebhookSecretStoreOptions",
+      "TestWebhookSignerOptions",
+      "TestWebhookTransportOptions"
     ]
   }
 }

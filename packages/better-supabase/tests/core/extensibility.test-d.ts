@@ -20,6 +20,11 @@ import type { Operation } from "../../src/ir/types.ts";
 import type { QueueBackend } from "../../src/jobs/index.ts";
 import type { NotificationChannel } from "../../src/notifications/index.ts";
 import type { SupportSessionStore } from "../../src/server/index.ts";
+import type {
+  WebhookSecretStore,
+  WebhookSigner,
+  WebhookTransport,
+} from "../../src/webhooks/index.ts";
 
 import { jsonSchema } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
@@ -39,6 +44,12 @@ import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import { sqlSupportStore } from "../../src/server/index.ts";
+import {
+  fetchTransport,
+  hmacSigner,
+  sqlSecretStore,
+  standardWebhooks,
+} from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -60,6 +71,13 @@ describe("extension interfaces", () => {
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(standardWebhooks).returns.toExtend<WebhookSigner>();
+    expectTypeOf(hmacSigner).returns.toExtend<WebhookSigner>();
+    expectTypeOf(fetchTransport).returns.toExtend<WebhookTransport>();
+    expectTypeOf(sqlSecretStore).returns.toExtend<WebhookSecretStore>();
+    expectTypeOf<WebhookSigner["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<WebhookTransport["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<WebhookSecretStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(consoleLogger).toExtend<Logger>();
     expectTypeOf(silentLogger).toExtend<Logger>();
     expectTypeOf(zod()).toExtend<Generator>();

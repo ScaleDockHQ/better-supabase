@@ -298,7 +298,7 @@ grant all on ${n.table(table)} to service_role;${policy(
       `bs_notification_${table}_own`,
       `for all to authenticated using (${mine}) with check (${mine}${
         n.has(table, "tenant") && ctx.installed("access")
-          ? ` and (${c(table, "tenant")} is null or coalesce(better_supabase.member_can((select auth.uid()), ${c(table, "tenant")}, ${n.readPermission}), false))`
+          ? ` and (${c(table, "tenant")} is null or coalesce(better_supabase.can('tenant', ${c(table, "tenant")}, ${n.readPermission}), false))`
           : ""
       })`,
     )}`);

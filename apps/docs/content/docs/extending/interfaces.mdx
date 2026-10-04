@@ -19,6 +19,9 @@ has a [conformance kit](/docs/extending/conformance).
 | [`QueueBackend`](#queuebackend)               | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`       | `createJobs(backend, queues)`                           |
 | [`SupportSessionStore`](#supportsessionstore) | `sqlSupportStore(postgres)`                               | `createServer(betterSupabase, { support: { store } })`  |
 | [`NotificationChannel`](#notificationchannel) | none (bring your email or push provider)                  | `createNotifications({ channels })`                     |
+| [`WebhookSigner`](#webhooksigner)             | `standardWebhooks()`, `hmacSigner(options)`               | `createWebhooks({ signer })`                            |
+| [`WebhookTransport`](#webhooktransport)       | `fetchTransport({ allowUrl })`                            | `createWebhooks({ http })`                              |
+| [`WebhookSecretStore`](#webhooksecretstore)   | `sqlSecretStore(transport)`                               | `createWebhooks({ secrets })`                           |
 | `EnvSource`                                   | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                      |
 | [`Plugin`](/docs/extending/plugins)           | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                            |
 
@@ -127,6 +130,28 @@ delivery's channel and `send(message)`, which gets the recipient's id and
 email, the notification and its rendered text. Return `{ provider,
 providerMessageId }` to store the provider's id, `{ status: 'skipped' }` when
 there is nothing to send, and throw to retry later.
+
+## WebhookSigner
+
+Adds the signature headers to an [outgoing webhook](/docs/kits/webhooks-out).
+It has `apiVersion: 1`, a `name` and `sign({ id, body, timestamp, secrets })`,
+which returns the headers. `secrets` lists every live secret, newest first;
+sign with each so receivers keep verifying while a secret rotates. The same
+input must give the same headers.
+
+## WebhookTransport
+
+Sends one signed webhook request. It has `apiVersion: 1`, a `name` and
+`send({ url, headers, body, signal })`, which returns `{ status, body }` for
+any HTTP response. Throw `WebhookPolicyError` for a request that must never
+be retried, such as a blocked URL; any other error retries.
+
+## WebhookSecretStore
+
+Where destination signing secrets live. It has `apiVersion: 1`,
+`secrets(destinationId)`, which returns the live secrets newest first, and an
+optional `rotate(destinationId, { overlap, secret })` that returns the new
+secret and keeps the previous ones live for `overlap`.
 
 ## AuthResolver
 

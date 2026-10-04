@@ -88,6 +88,10 @@ describe("notifications module", () => {
       file.path.includes("notifications"),
     )!.contents;
     expect(sql).toContain("member_can");
+    expect(sql).toMatch(
+      /create policy [\s\S]*better_supabase\.can\('tenant', /,
+    );
+    expect(sql).not.toMatch(/create policy [^;]*member_can/);
     expect(sql).toContain("'notifications.send'");
     expect(sql).toContain("emit_event('notification.created'");
   });
