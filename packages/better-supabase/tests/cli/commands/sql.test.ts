@@ -152,6 +152,23 @@ describe("runSql", () => {
     });
   });
 
+  it("keeps data files out of pg-delta's schema folder when sql.dir is inside it", async () => {
+    await mkdir(join(root, "supabase"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./declarative"\n',
+    );
+    const synced = await sql(["sync"], {
+      sql: { kit: ["tenant"], dir: "supabase/declarative/kit" },
+    });
+    expect(synced.output).toContain(
+      "Wrote supabase/declarative/kit/900_better_supabase_04_tenant.sql (tenant)",
+    );
+    expect(synced.output).toContain(
+      "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
+    );
+  });
+
   it("stamps the data migration after the newest migration", async () => {
     const config: BetterSupabaseConfig = { sql: { kit: ["tenant"] } };
     await sql(["sync"], config);

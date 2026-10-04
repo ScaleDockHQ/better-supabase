@@ -372,6 +372,17 @@ function auditEvent(ctx: KitContext, restricted: boolean): string {
     ["idempotencyKey", "idempotency_key"],
   ]);
   const roles = ctx.list("eventRoles", ["service_role"]);
+  const noRestricted = restricted
+    ? ""
+    : `
+  if restricted is not null then
+    raise exception 'audit_event got restricted details, and the audit module has no restricted table'
+      using errcode = '22023', hint = ${sqlString(
+        ctx.manages
+          ? "Set kits.audit.options.restricted to true."
+          : "Map kits.audit.tables.restricted to the table for sensitive details.",
+      )};
+  end if;`;
   const idempotent = ctx.has("log", "idempotencyKey")
     ? `
   if idempotency_key is not null then
@@ -389,7 +400,8 @@ function auditEvent(ctx: KitContext, restricted: boolean): string {
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
 -- actor_id is honoured for the service role and direct admin connections;
--- everyone else is auth.uid().
+-- everyone else is auth.uid(). restricted goes to the restricted table;
+-- without that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
 create or replace function better_supabase.audit_event(
   event_type text,
@@ -412,7 +424,7 @@ as $$
 declare
   existing text;
   entry_id ${log}.${c("id")}%type;
-begin
+begin${noRestricted}
   if not (${SERVICE_CALLER}) or actor_id is null then
     actor_id := auth.uid();
   end if;${idempotent}
@@ -562,17 +574,21 @@ declare
 begin
   perform set_config('better_supabase.audit_purge', 'on', true);
   if not for_tenant and to_regprocedure(${signature}) is not null then
-    with gone as (
+    -- Not a literal name, so plpgsql_check passes without the hook.
+    execute format(
+      ${sqlString(`with gone as (
       delete from ${log}
       where ${c("id")} in (
         select l.${c("id")} from ${log} l
-        where l.${c("occurredAt")} < now() - coalesce(${hook}(l.${c("tenant")}), older_than)
+        where l.${c("occurredAt")} < now() - coalesce(%s(l.${c("tenant")}), $1)
         order by l.${c("occurredAt")}
-        limit batch
+        limit $2
       )
       returning 1
     )
-    select count(*)::integer into purged from gone;
+    select count(*)::integer from gone`)},
+      to_regprocedure(${signature})::oid::regproc
+    ) into purged using older_than, batch;
   else
     with gone as (
       delete from ${log}

@@ -282,6 +282,13 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
   );
 }
 
+/** The folder the diff engine loads declarative schema files from, relative to the root. */
+export function declarativeSchemasDir(toml?: SupabaseToml): string {
+  return diffEngine(toml) === "pg-delta"
+    ? pgDeltaSchemasDir(toml)
+    : SCHEMAS_DIR;
+}
+
 async function expand(cwd: string, pattern: string): Promise<string[]> {
   const matched: string[] = [];
   for await (const path of glob(pattern.replace(/^\.\//, ""), { cwd }))

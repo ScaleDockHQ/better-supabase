@@ -19,8 +19,11 @@ better-supabase sql data
 A schema diff only captures objects, so each module's rows and settings (its
 `kit_modules` row, the reserved slugs, the rate-limit role setting) go to a
 second file in `supabase/better-supabase-data/`, outside the schema folder:
-pg-delta loads every file under `supabase/schemas` and refuses a table that
-has rows afterwards. `better-supabase sql data` writes those files into one
+pg-delta loads every file under `supabase/schemas`, nested folders included,
+and refuses a table that has rows afterwards. When `sql.dir` is a folder
+inside the schema folder (`supabase/schemas/kit`), the data files still go
+next to the schema folder, and `declarative_schema_path` in
+`supabase/config.toml` moves both. `better-supabase sql data` writes those files into one
 migration, stamped after the newest one so it runs after the schema migration.
 Its statements are idempotent, and it writes nothing when the latest data
 migration already has them. `sql add` and `sql sync` say when to run it.
@@ -211,16 +214,16 @@ select better_supabase.audit_event(
 
 The module options (`kits.audit.options`):
 
-| Option          | Default             | What it does                                                                                                                                  |
-| --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                           |
-| `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                          |
-| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access)) |
-| `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                   |
-| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads      |
-| `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                         |
-| `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                             |
-| `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                               |
+| Option          | Default             | What it does                                                                                                                                                                                              |
+| --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                                                                                       |
+| `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
+| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access))                                                             |
+| `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
+| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
+| `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                                                                                     |
+| `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                                                                                         |
+| `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                                                                                           |
 
 An app with its own audit table adopts it: map `kits.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
@@ -259,7 +262,9 @@ select cron.schedule('purge-rate-limits', '*/15 * * * *', $$select better_supaba
 Tenants can keep entries for different periods, a plan's retention for
 example. Write an `audit_retention(tenant)` function that returns an interval
 (or null for the default) in the schema `kits.audit.hooks` points at, and
-`purge_audit_log` uses it for every entry. To decide in TypeScript instead,
+`purge_audit_log` uses it for every entry. Like every SQL hook, it is
+optional: the kit calls hooks through dynamic SQL, so `supabase db lint`
+passes without them. To decide in TypeScript instead,
 call `purgeAuditLog` from `better-supabase/jobs` in a scheduled job:
 
 ```ts

@@ -21,7 +21,11 @@ import {
 import { defineBucket, parseSize } from "../../storage/index.ts";
 import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
-import { migrationCommand, tomlGet } from "../supabase-toml.ts";
+import {
+  declarativeSchemasDir,
+  migrationCommand,
+  tomlGet,
+} from "../supabase-toml.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { KIT_RULES } from "./kits.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -152,16 +156,16 @@ async function kitFiles(context: DoctorContext): Promise<KitFileState[]> {
   if (access.kind === "invalid") return [];
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
-  const files = renderKit(
-    context.config.sql.kit,
-    kitLayout(
+  const files = renderKit(context.config.sql.kit, {
+    ...kitLayout(
       context.config,
       context.config.sql.testsDir,
       skipped ? [] : readSets,
       entitlementsKit(context),
       access.kind === "permdock" ? access.access : undefined,
     ),
-  ).filter((file) => !(skipped && file.module === "read-sets"));
+    schemasDir: declarativeSchemasDir(context.configToml),
+  }).filter((file) => !(skipped && file.module === "read-sets"));
   return Promise.all(
     files.map(async (file) => {
       const current = await readFile(

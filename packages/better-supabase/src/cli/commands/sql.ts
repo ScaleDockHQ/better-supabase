@@ -38,6 +38,7 @@ import {
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
 import {
+  declarativeSchemasDir,
   migrationCommand,
   readSupabaseToml,
   schemaPaths,
@@ -157,13 +158,16 @@ async function layout(
   args: SqlArgs,
   names?: readonly string[],
 ): Promise<KitLayout> {
-  return kitLayout(
-    config,
-    args["tests-dir"],
-    [],
-    await permdockFor(config, names),
-    await accessPermdockFor(config, names),
-  );
+  return {
+    ...kitLayout(
+      config,
+      args["tests-dir"],
+      [],
+      await permdockFor(config, names),
+      await accessPermdockFor(config, names),
+    ),
+    schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
+  };
 }
 
 /** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
@@ -176,13 +180,16 @@ async function layoutFor(
   const needsReadSets = resolveModules(names, {
     ...(permdock ? { permdock } : {}),
   }).some((module) => module.name === "read-sets");
-  return kitLayout(
-    config,
-    args["tests-dir"],
-    needsReadSets ? await compiledReadSets(config) : [],
-    permdock,
-    await accessPermdockFor(config, names),
-  );
+  return {
+    ...kitLayout(
+      config,
+      args["tests-dir"],
+      needsReadSets ? await compiledReadSets(config) : [],
+      permdock,
+      await accessPermdockFor(config, names),
+    ),
+    schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
+  };
 }
 
 /**
