@@ -101,6 +101,10 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   it("answers 409 with Retry-After while the first request is still running (section 2.7)", async () => {
     const idempotency = createIdempotency(store().sql);
     let release!: () => void;
+    let started!: () => void;
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     const slow = idempotency.handle(
       post("k3"),
       () =>
@@ -108,11 +112,10 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
           release = () => {
             resolve(new Response("done"));
           };
+          started();
         }),
     );
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
+    await running;
     const concurrent = await idempotency.handle(
       post("k3"),
       () => new Response("second"),
