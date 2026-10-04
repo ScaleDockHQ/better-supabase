@@ -30,7 +30,6 @@ const kitModuleEntries = {
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
   idType: v.optional(v.string()),
-  triggerPrefix: v.optional(v.string()),
   permissions: v.optional(stringRecord),
   options: v.optional(v.record(v.string(), v.unknown())),
   hooks: v.optional(
@@ -60,7 +59,6 @@ const accessKit = v.strictObject({
   disabled: v.optional(
     v.strictObject({
       tenant: v.optional(v.string()),
-      tenantKey: v.optional(v.string()),
       user: v.optional(v.string()),
       userKey: v.optional(v.string()),
     }),

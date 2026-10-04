@@ -34,8 +34,6 @@ export interface KitModuleConfig {
   >;
   /** Type of tenant ids: `uuid` (default), `text`, `bigint` or `integer`. */
   readonly idType?: string;
-  /** Prefix of the triggers the module creates. Defaults to `bs_`. */
-  readonly triggerPrefix?: string;
   /**
    * Kit action to permission key, checked through the access contract, e.g.
    * `{ invite: 'organization.members.invite' }`.
@@ -125,7 +123,6 @@ export interface AccessKitConfig extends KitModuleConfig {
    */
   readonly disabled?: {
     readonly tenant?: string;
-    readonly tenantKey?: string;
     readonly user?: string;
     readonly userKey?: string;
   };
@@ -150,7 +147,6 @@ export interface ResolvedKitModule {
     Record<string, Readonly<Record<string, string | null>>>
   >;
   readonly idType?: string;
-  readonly triggerPrefix: string;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
   readonly hooks: {
@@ -171,7 +167,6 @@ export function resolveKitModule(
     tables: config.tables ?? {},
     columns: config.columns ?? {},
     ...(config.idType === undefined ? {} : { idType: config.idType }),
-    triggerPrefix: config.triggerPrefix ?? "bs_",
     permissions: config.permissions ?? {},
     options: config.options ?? {},
     hooks: {

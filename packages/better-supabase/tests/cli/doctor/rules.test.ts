@@ -793,6 +793,61 @@ describe("rate limits wired to PostgREST (BS313)", () => {
   });
 });
 
+describe("migration-only kit options (BS314)", () => {
+  it("warns about each weakening option on a module in sql.kit", async () => {
+    const findings = await run(
+      "BS314",
+      context(
+        base,
+        {},
+        {
+          sql: { kit: ["invitations", "outbox"] },
+          kits: {
+            invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
+            outbox: {
+              mode: "adopt",
+              options: {
+                kitSource: "better-supabase/{module}",
+                defaultSource: "domain",
+              },
+            },
+            "webhooks-out": {
+              mode: "adopt",
+              options: { secretStorage: "column" },
+            },
+          },
+        },
+      ),
+    );
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "kits.invitations.options.tokenStorage",
+      }),
+      expect.objectContaining({ target: "kits.outbox.options.defaultSource" }),
+    ]);
+    expect(findings[0]!.message).toBe(
+      'kits.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It exists to adopt an existing schema; remove it once your data matches the managed default.',
+    );
+  });
+
+  it("is quiet for managed defaults", async () => {
+    expect(
+      await run(
+        "BS314",
+        context(
+          base,
+          {},
+          {
+            sql: { kit: ["invitations"] },
+            kits: { invitations: { options: { tokenStorage: "sha256" } } },
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {

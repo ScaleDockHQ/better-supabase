@@ -9,6 +9,7 @@ import {
   kitDeprecations,
   kitFileVersion,
   kitLayout,
+  migrationOptionUses,
 } from "../../sql/index.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
@@ -386,6 +387,16 @@ function exposedKitSchemas(context: DoctorContext): FindingInput[] {
     }));
 }
 
+function migrationOptions(context: DoctorContext): FindingInput[] {
+  const kit = new Set(context.config.sql.kit);
+  return migrationOptionUses(context.config.kits)
+    .filter((use) => kit.has(use.module))
+    .map((use) => ({
+      message: `${use.message} It exists to adopt an existing schema; remove it once your data matches the managed default.`,
+      target: `kits.${use.module}.options.${use.option}`,
+    }));
+}
+
 export const KIT_RULES: readonly Rule[] = [
   {
     code: "BS307",
@@ -434,5 +445,13 @@ export const KIT_RULES: readonly Rule[] = [
     description:
       "`[api] schemas` in `config.toml` lists `better_supabase` or a `kits.*.schema`. The kit schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
     check: exposedKitSchemas,
+  },
+  {
+    code: "BS314",
+    severity: "warning",
+    title: "Migration-only kit option",
+    description:
+      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets in a column, non-text webhook ids, or a custom outbox source. Remove it once the data matches the managed default.",
+    check: migrationOptions,
   },
 ];

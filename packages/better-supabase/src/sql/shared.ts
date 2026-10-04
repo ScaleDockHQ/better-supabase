@@ -170,12 +170,11 @@ export function disabledHelpers(ctx: KitContext): string {
   const user = disabled.user
     ? columnRef("kits.access.disabled.user", disabled.user)
     : undefined;
-  const tenantKey = sqlIdent(disabled.tenantKey ?? "id");
   const userKey = sqlIdent(disabled.userKey ?? "id");
   const orgs = managedOrganizations(ctx);
   let tenantCheck = "false";
   if (tenant) {
-    tenantCheck = `exists (select 1 from ${tenant.table} t where t.${tenantKey} = tenant_disabled.tenant and t.${tenant.column} is not null)`;
+    tenantCheck = `exists (select 1 from ${tenant.table} t where t."id" = tenant_disabled.tenant and t.${tenant.column} is not null)`;
   } else if (orgs) {
     tenantCheck = `exists (select 1 from ${orgs.table} t where t.${orgs.id} = tenant_disabled.tenant and (${orgs.flags.map((column) => `t.${column} is not null`).join(" or ")}))`;
   }

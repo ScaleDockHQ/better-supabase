@@ -85,19 +85,21 @@ describe("organizations module", () => {
     expect(sql).toContain('on "public"."organization_users"');
   });
 
-  it("soft-deletes, renders without the guards and checks its options", () => {
+  it("soft-deletes, renders without the owner guard and checks its options", () => {
     const soft = body({
       organizations: {
         options: {
           deleteMode: "soft",
           ownerInvariant: false,
-          assignmentCeiling: false,
         },
       },
     });
     expect(soft).toContain('set "deleted_at" = now()');
     expect(soft).not.toContain("bs_org_owner");
-    expect(soft).not.toContain("guard_membership");
+    expect(soft).toContain("guard_membership");
+    expect(() =>
+      body({ organizations: { options: { assignmentCeiling: false } } }),
+    ).toThrow(/assignmentCeiling/);
     expect(() =>
       body({
         organizations: {

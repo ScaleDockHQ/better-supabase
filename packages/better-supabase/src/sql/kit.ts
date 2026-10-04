@@ -10,6 +10,7 @@ import {
   type KitIdType,
   type KitNames,
 } from "./context.ts";
+import { migrationOptionUses } from "./migration-options.ts";
 import { ACCESS } from "./modules/access.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
@@ -1801,6 +1802,13 @@ export function checkKits(
     if (!modes.includes(mode)) {
       throw new TypeError(
         `kits.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
+      );
+    }
+  }
+  for (const use of migrationOptionUses(kits)) {
+    if (!use.adopted) {
+      throw new TypeError(
+        `${use.message} Only adopt mode accepts it: set kits.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
       );
     }
   }

@@ -355,7 +355,7 @@ export function createKitContext(
     permissionKey: (action, fallback) => config.permissions[action] ?? fallback,
     permission: (action, fallback) =>
       sqlString(config.permissions[action] ?? fallback),
-    trigger: (name) => sqlIdent(`${config.triggerPrefix}${name}`),
+    trigger: (name) => sqlIdent(`bs_${name}`),
     installed: (name) => installed.has(name),
     of: (name) => createKitContext(name, namesOf, source),
     text: (name, fallback) => optionOf(name, "string", fallback),

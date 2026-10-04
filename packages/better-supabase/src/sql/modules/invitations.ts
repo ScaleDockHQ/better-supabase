@@ -36,7 +36,6 @@ const PLATFORM_COLUMNS = {
 
 const NAMES: KitNames = {
   options: [
-    "errorCodes",
     "maxValidFor",
     "prefill",
     "previewColumns",
@@ -98,34 +97,13 @@ const INVITATION_ERRORS = {
 
 type InvitationError = keyof typeof INVITATION_ERRORS;
 
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** `raise exception` for `code`, with the SQLSTATE from `kits.invitations.options.errorCodes`. */
-function raiser(
-  ctx: KitContext,
-): (code: InvitationError, message: string, ...args: string[]) => string {
-  const configured = ctx.option("errorCodes") ?? {};
-  if (typeof configured !== "object" || Array.isArray(configured)) {
-    throw new TypeError(
-      "kits.invitations.options.errorCodes must map error codes to SQLSTATEs",
-    );
-  }
-  const states = new Map<string, string>(Object.entries(INVITATION_ERRORS));
-  for (const [code, state] of Object.entries(configured)) {
-    if (!states.has(code)) {
-      throw new TypeError(
-        `kits.invitations.options.errorCodes: unknown code "${code}". Codes: ${[...states.keys()].join(", ")}`,
-      );
-    }
-    if (typeof state !== "string" || !SQLSTATE.test(state)) {
-      throw new TypeError(
-        `kits.invitations.options.errorCodes.${code} must be a five-character SQLSTATE`,
-      );
-    }
-    states.set(code, state);
-  }
-  return (code, message, ...args) =>
-    `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${states.get(code)!}', hint = '${code}';`;
+/** `raise exception` for `code`, with its SQLSTATE from `INVITATION_ERRORS`. */
+function raise(
+  code: InvitationError,
+  message: string,
+  ...args: string[]
+): string {
+  return `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${INVITATION_ERRORS[code]}', hint = '${code}';`;
 }
 
 /**
@@ -390,12 +368,12 @@ function inviteJson(
 function validity(ctx: KitContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
   return `if valid_for is null or valid_for <= interval '0' or valid_for > ${max}::interval then
-    ${raiser(ctx)("INVITATION_VALIDITY", "An invitation is valid for at most %", max)}
+    ${raise("INVITATION_VALIDITY", "An invitation is valid for at most %", max)}
   end if;`;
 }
 
 function platformInvite(ctx: KitContext, p: InviteTable | undefined): string {
-  const fail = raiser(ctx);
+  const fail = raise;
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
@@ -441,7 +419,7 @@ function invite(ctx: KitContext): string {
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
   const id = ctx.idType;
-  const fail = raiser(ctx);
+  const fail = raise;
   const tenantMembers = ctx.of("tenant");
   const m = tenantMembers.table("memberships");
   const mt = tenantMembers.col("memberships", "tenant");
@@ -732,7 +710,7 @@ function accept(ctx: KitContext): string {
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
   const id = ctx.idType;
-  const fail = raiser(ctx);
+  const fail = raise;
   const tenantCtx = ctx.of("tenant");
   const m = tenantCtx.table("memberships");
   const mt = tenantCtx.col("memberships", "tenant");

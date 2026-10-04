@@ -59,7 +59,6 @@ describe("invitations module", () => {
         },
         options: {
           tokenStorage: "plain",
-          errorCodes: { INVITATION_ALREADY_MEMBER: "P0001" },
           requireConfirmedEmail: false,
         },
       },
@@ -67,7 +66,7 @@ describe("invitations module", () => {
     expect(sql).not.toContain("create table if not exists");
     expect(sql).not.toContain("extensions.digest(token");
     expect(sql).toContain(
-      "using errcode = 'P0001', hint = 'INVITATION_ALREADY_MEMBER'",
+      "using errcode = '23505', hint = 'INVITATION_ALREADY_MEMBER'",
     );
     expect(sql).toContain(
       'insert into "public"."user_roles" ("user_id", "role_id")',
@@ -105,15 +104,10 @@ describe("invitations module", () => {
     expect(sql).toContain("valid_for > '14 days'::interval");
   });
 
-  it("rejects unknown error codes, bad SQLSTATEs and token storage", () => {
+  it("rejects removed and invalid options", () => {
     const options = (value: Record<string, unknown>) => () =>
       body({ invitations: { options: value } });
-    expect(options({ errorCodes: { NOPE: "P0001" } })).toThrow(
-      /unknown code "NOPE"/,
-    );
-    expect(options({ errorCodes: { INVITATION_SELF: "x" } })).toThrow(
-      /five-character SQLSTATE/,
-    );
+    expect(options({ errorCodes: { NOPE: "P0001" } })).toThrow(/errorCodes/);
     expect(options({ tokenStorage: "md5" })).toThrow(/tokenStorage/);
   });
 

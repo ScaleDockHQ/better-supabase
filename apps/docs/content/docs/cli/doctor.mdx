@@ -597,6 +597,16 @@ the migration `better-supabase sql data` writes, which sets the hook when no
 other one is set, or call `check_request()` from your own pre-request
 function. Doctor needs a database connection for this check.
 
+### BS314
+
+**Warning: migration-only kit option.** A module in `sql.kit` sets an option
+that only exists to match a schema you are adopting: `tokenStorage: "plain"`
+for invitations, `secretStorage: "column"` or an `eventIdType` or `runIdType`
+other than `text` for webhooks-out, or a `kitSource` or `defaultSource` for
+the outbox. The config only accepts them with
+`mode: "adopt"`. Move the data to the managed default (hash the tokens, move
+the secrets into Vault), then remove the option.
+
 ## Auth config
 
 ### BS401

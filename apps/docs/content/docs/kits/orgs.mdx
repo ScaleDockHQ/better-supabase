@@ -47,8 +47,8 @@ Every check runs in the function, and the database keeps two rules even for
 writes that bypass the functions. A deferred trigger refuses a commit that
 leaves an organization without an owner (`ownerInvariant`), and a trigger on
 the memberships table stops members from changing their own role or
-assigning a role above their own (`assignmentCeiling`). The kit's own writes
-and the service role pass the second one.
+assigning a role above their own. The kit's own writes and the service role
+pass the second one, and it can't be turned off.
 
 The owner check locks the organization row, so two owners who leave at the
 same time can't both succeed. When the kit owns the organizations table, the
@@ -151,35 +151,34 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 `kits.organizations.options`:
 
-| Option              | Default                             | What it does                                                                                                 |
-| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `attributes`        | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
-| `ownerRole`         | `owner`                             | the creator's role                                                                                           |
-| `formerOwnerRole`   | `admin`                             | the previous owner's role after a transfer                                                                   |
-| `deleteMode`        | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
-| `ownerInvariant`    | `true`                              | an organization always keeps an owner                                                                        |
-| `assignmentCeiling` | `true`                              | members can't raise their own role or assign one above it                                                    |
-| `slugPattern`       | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
-| `slugMinLength`     | `2`                                 | the shortest slug                                                                                            |
-| `slugMaxLength`     | `48`                                | the longest slug                                                                                             |
-| `reservedSlugs`     | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
-| `slugCitext`        | `false`                             | a `citext` slug column on a managed table                                                                    |
+| Option            | Default                             | What it does                                                                                                 |
+| ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
+| `ownerRole`       | `owner`                             | the creator's role                                                                                           |
+| `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                   |
+| `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
+| `ownerInvariant`  | `true`                              | an organization always keeps an owner                                                                        |
+| `slugPattern`     | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
+| `slugMinLength`   | `2`                                 | the shortest slug                                                                                            |
+| `slugMaxLength`   | `48`                                | the longest slug                                                                                             |
+| `reservedSlugs`   | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
+| `slugCitext`      | `false`                             | a `citext` slug column on a managed table                                                                    |
 
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.
 
-`kits.invitations.options`:
+`kits.invitations.options` (`tokenStorage: "plain"` is migration-only: the
+config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 
-| Option                  | Default    | What it does                                                |
-| ----------------------- | ---------- | ----------------------------------------------------------- |
-| `validFor`              | `7 days`   | how long an invitation is open                              |
-| `maxValidFor`           | `30 days`  | the longest `valid_for` an invite or resend may ask for     |
-| `prefill`               | `false`    | adds the `prefill` column (managed tables)                  |
-| `tokenStorage`          | `sha256`   | `plain` stores the token itself, for tables that already do |
-| `tokenBytes`            | `24`       | the token's random bytes                                    |
-| `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting       |
-| `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns       |
-| `errorCodes`            | none       | SQLSTATE per error code, for apps that match on SQLSTATE    |
+| Option                  | Default    | What it does                                                 |
+| ----------------------- | ---------- | ------------------------------------------------------------ |
+| `validFor`              | `7 days`   | how long an invitation is open                               |
+| `maxValidFor`           | `30 days`  | the longest `valid_for` an invite or resend may ask for      |
+| `prefill`               | `false`    | adds the `prefill` column (managed tables)                   |
+| `tokenStorage`          | `sha256`   | `plain` stores the token itself; migration-only (adopt mode) |
+| `tokenBytes`            | `24`       | the token's random bytes                                     |
+| `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
+| `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
 
 Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.

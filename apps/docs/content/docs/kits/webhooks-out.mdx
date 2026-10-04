@@ -260,15 +260,17 @@ Without `failingSince`, endpoints are never disabled automatically.
 Without `expiresAt`, rotating replaces the secret at once instead of
 overlapping. With `secretStorage: "column"` the secret is stored as plain
 text in a table no client can read. `statuses` maps each status to the value
-your table stores; the ones you leave out keep their names.
+your table stores; the ones you leave out keep their names. The options
+marked migration-only match an existing schema: the config accepts them in
+`mode: "adopt"` only, and doctor warns about them (BS314) until you remove them.
 
 | Option          | Default  | Meaning                                                           |
 | --------------- | -------- | ----------------------------------------------------------------- |
-| `secretStorage` | `vault`  | `vault` or `column`                                               |
+| `secretStorage` | `vault`  | `vault`, or `column` (migration-only, adopt mode)                 |
 | `allowHttp`     | `false`  | Allow `http:` endpoint URLs                                       |
 | `disableAfter`  | `5 days` | How long an endpoint fails without a success before it's disabled |
-| `eventIdType`   | `text`   | The type of the event id column                                   |
-| `runIdType`     | `text`   | The type of the run id column                                     |
+| `eventIdType`   | `text`   | The type of the event id column; others are migration-only        |
+| `runIdType`     | `text`   | The type of the run id column; others are migration-only          |
 | `statuses`      | none     | The stored value of each status, in adopt mode only               |
 
 ## Error codes

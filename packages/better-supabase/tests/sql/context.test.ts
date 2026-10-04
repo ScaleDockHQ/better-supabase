@@ -47,7 +47,6 @@ describe("createKitContext", () => {
           tables: { items: "public.things", extras: null },
           columns: { items: { tenant: "organization_id", label: null } },
           idType: "int8",
-          triggerPrefix: "app_",
           permissions: { invite: "organization.members.invite" },
           options: { flavour: "map", size: 3, on: true, list: ["a"] },
         },
@@ -63,7 +62,7 @@ describe("createKitContext", () => {
     expect(() => ctx.col("items", "label")).toThrow(/maps to null/);
     expect(ctx.schema).toBe('"app"');
     expect(ctx.idType).toBe("bigint");
-    expect(ctx.trigger("audit")).toBe('"app_audit"');
+    expect(ctx.trigger("audit")).toBe('"bs_audit"');
     expect(ctx.permission("invite", "members.invite")).toBe(
       "'organization.members.invite'",
     );
@@ -253,6 +252,37 @@ describe("kit modes", () => {
     expect(() =>
       renderKit(["mfa"], { kits: { mfa: { mode: "custom" } } }),
     ).toThrow(/supports managed/);
+  });
+
+  it("accepts migration-only options in adopt mode only", () => {
+    expect(() => {
+      checkKits({ invitations: { options: { tokenStorage: "plain" } } });
+    }).toThrow(
+      'kits.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set kits.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
+    );
+    expect(() => {
+      checkKits({ outbox: { options: { kitSource: "domain" } } });
+    }).toThrow(/outbox\.options\.kitSource/);
+    expect(() => {
+      checkKits({ "webhooks-out": { options: { eventIdType: "uuid" } } });
+    }).toThrow(/eventIdType/);
+    checkKits({
+      invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
+    });
+    checkKits({
+      outbox: {
+        options: {
+          settle: "2 seconds",
+          kitSource: "better-supabase/{module}",
+          defaultSource: "",
+        },
+      },
+    });
+    checkKits({
+      "webhooks-out": {
+        options: { secretStorage: "vault", eventIdType: "text" },
+      },
+    });
   });
 
   it("stamps the module version and mode, and records the module", () => {

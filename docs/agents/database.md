@@ -49,6 +49,12 @@ edit them by hand. When a change touches one of those modules, run
 then `pnpm supabase:sync <name>`, and `sql data` from the same folder when the
 data files changed. The example's `gen:check` fails while they are stale.
 
+Managed kit defaults follow the repo standard (hashed tokens, Vault secrets,
+`text` ids, the kit's CloudEvents sources). A shape that only an existing app
+needs belongs in its adopt config, never in a managed default. When an adopter
+needs a weaker value, add it to `src/sql/migration-options.ts`, so the config
+accepts it in `mode: "adopt"` only and doctor warns about it (BS314).
+
 Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend; `090_grants.sql` is
 where the fixture's grants live.

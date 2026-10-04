@@ -14,7 +14,6 @@ import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
 const NAMES: KitNames = {
   options: [
-    "assignmentCeiling",
     "attributes",
     "deleteMode",
     "formerOwnerRole",
@@ -499,8 +498,7 @@ create constraint trigger ${ctx.trigger("org_owner")} after update of ${n.role},
   for each row execute function ${ctx.fn("ensure_organization_owner")}();
 `
     : "";
-  const ceiling = ctx.flag("assignmentCeiling", true)
-    ? `
+  const ceiling = `
 -- No one grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. The service role, direct
 -- admin connections and the kit's own writes (${TRUSTED_SETTING}) pass.
@@ -530,12 +528,9 @@ $$;
 drop trigger if exists ${ctx.trigger("org_role_guard")} on ${n.m};
 create trigger ${ctx.trigger("org_role_guard")} before insert or update on ${n.m}
   for each row execute function ${ctx.fn("guard_membership")}();
-`
-    : "";
-  const revoke = ctx.flag("assignmentCeiling", true)
-    ? `revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, authenticated;\n`
-    : "";
-  return `${invariant}${ceiling}${revoke}`;
+revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, authenticated;
+`;
+  return `${invariant}${ceiling}`;
 }
 
 function members(ctx: KitContext, n: OrgNames): string {

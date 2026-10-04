@@ -1068,6 +1068,7 @@
       "kitFileVersion",
       "kitIdType",
       "kitLayout",
+      "migrationOptionUses",
       "moduleBody",
       "moduleVersion",
       "PERMDOCK_SCHEMA",
@@ -1093,6 +1094,7 @@
       "KitTableSpec",
       "KitUpgrade",
       "KitUpgradePlan",
+      "MigrationOptionUse",
       "PermdockCatalog",
       "PermdockKeyStatus",
       "SqlModule"
