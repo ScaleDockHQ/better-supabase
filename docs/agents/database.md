@@ -32,6 +32,15 @@ comments. Put these in a hand-written migration instead:
   configurations). Their SQL also goes in `supabase/schemas/_custom/` so
   dependent objects still resolve; `--strict-coverage` fails until it does.
 
+pg-delta also loads `supabase/schemas/_custom/` into its shadow database and
+then rejects any managed table that has rows, so `_custom/` can't hold data
+either. The SQL kit writes its rows and role settings to
+`supabase/better-supabase-data/` instead, and `better-supabase sql data`
+turns them into a migration stamped after the newest one.
+`tests/integration/pgdelta-roundtrip.integration.test.ts` runs every kit
+module through the sync on a second stack (ports 56420 to 56422) when the
+Supabase CLI and Docker are available.
+
 Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend; `090_grants.sql` is
 where the fixture's grants live.

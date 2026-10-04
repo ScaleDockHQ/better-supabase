@@ -82,8 +82,6 @@ const accessKit = v.strictObject({
   ),
 });
 
-const kitModule = v.union([v.strictObject(kitModuleEntries), accessKit]);
-
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
   source: v.optional(
@@ -198,10 +196,10 @@ const ConfigSchema = v.strictObject({
     }),
   ),
   kits: v.optional(
-    v.intersect([
-      v.object({ access: v.optional(accessKit) }),
-      v.record(v.string(), kitModule),
-    ]),
+    v.objectWithRest(
+      { access: v.optional(accessKit) },
+      v.strictObject(kitModuleEntries),
+    ),
   ),
   seed: v.optional(
     v.strictObject({

@@ -680,6 +680,18 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       expect(await has(member, "exports")).toBe(true);
       expect(await has(member, "audit")).toBe(false);
       expect(await has(outsider, "exports")).toBe(false);
+      const tenantsWith = async (sub: string, key: string) =>
+        (
+          await postgres
+            .asUser({ sub })
+            .queryRaw<{ id: string }>(
+              "select id from better_supabase.tenant_ids_with_entitlement($1) as t(id)",
+              [key],
+            )
+        ).map((row) => row.id);
+      expect(await tenantsWith(member, "sso")).toEqual([org]);
+      expect(await tenantsWith(member, "audit")).toEqual([]);
+      expect(await tenantsWith(outsider, "sso")).toEqual([]);
       await expect(
         postgres
           .asUser({ sub: member })
@@ -757,7 +769,10 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
       ],
     } as const;
     const kit = renderKit(["entitlements"], { entitlements, permdock });
-    expect(kit.map((file) => file.module)).toEqual(["entitlements"]);
+    expect(kit.map((file) => [file.module, file.kind])).toEqual([
+      ["entitlements", "schema"],
+      ["entitlements", "data"],
+    ]);
     const { rows: existing } = await pool.query(
       "select to_regclass('stripe.active_entitlements') as t",
     );

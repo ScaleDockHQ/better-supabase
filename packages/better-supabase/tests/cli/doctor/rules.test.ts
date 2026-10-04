@@ -456,23 +456,32 @@ describe("generated and kit files (BS303, BS304)", () => {
       "then `supabase db schema declarative sync`.",
     );
 
-    await write(files[0]!.path, files[0]!.contents);
+    const data = files.find((file) => file.kind === "data")!;
+    expect(
+      missing.find((finding) => finding.target === data.path)!.message,
+    ).toContain("which also writes the rows into a migration");
+
+    const audit = files.find(
+      (file) => file.module === "audit" && file.kind === "schema",
+    );
+    for (const file of files) await write(file.path, file.contents);
     await write(
-      files[1]!.path,
-      files[1]!.contents.replace("create schema", "-- changed\ncreate schema"),
+      audit!.path,
+      audit!.contents.replace("create schema", "-- changed\ncreate schema"),
     );
     expect(await run("BS304", ctx)).toEqual([
       expect.objectContaining({
-        target: files[1]!.path,
+        target: audit!.path,
         message: expect.stringContaining("(audit) is out of date"),
-        location: { file: files[1]!.path, line: 1 },
+        location: { file: audit!.path, line: 1 },
       }),
     ]);
   });
 
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ sql: { kit: ["tenant"] } });
-    const [file] = renderKit(["tenant"], kitLayout(ctx.config));
+    const [file, data] = renderKit(["tenant"], kitLayout(ctx.config));
+    await write(data!.path, data!.contents);
     await write(file!.path, file!.contents.replace(/^-- @bs-kit .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
@@ -673,6 +682,62 @@ describe("exposed kit schemas (BS312)", () => {
         ),
       ),
     ).toHaveLength(1);
+  });
+});
+
+describe("rate limits wired to PostgREST (BS313)", () => {
+  const live = (
+    kit: string[],
+    rows: Record<string, unknown>[] | Error,
+  ): Parameters<typeof run>[1] => ({
+    ...context(base, {}, { sql: { kit } }),
+    database: {
+      describe: "test",
+      session: true,
+      query: <R>() =>
+        rows instanceof Error
+          ? Promise.reject(rows)
+          : Promise.resolve(rows as R[]),
+    },
+  });
+
+  it("reports an unset hook and one that doesn't call check_request", async () => {
+    expect(
+      await run("BS313", live(["rate-limit"], [{ hook: null, calls: false }])),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "authenticator pgrst.db_pre_request",
+        message: expect.stringContaining("pgrst.db_pre_request isn't set"),
+      }),
+    ]);
+    expect(
+      (
+        await run(
+          "BS313",
+          live(["rate-limit"], [{ hook: "public.pre_request", calls: false }]),
+        )
+      )[0]!.message,
+    ).toBe(
+      "pgrst.db_pre_request is public.pre_request, which doesn't call better_supabase.check_request(), so rate limits never apply. Call it from public.pre_request.",
+    );
+  });
+
+  it("passes the kit hook, a chaining hook, and projects without the module or a database", async () => {
+    for (const row of [
+      { hook: "better_supabase.check_request", calls: false },
+      { hook: "public.pre_request", calls: true },
+    ])
+      expect(await run("BS313", live(["rate-limit"], [row]))).toEqual([]);
+    expect(
+      await run("BS313", live(["tenant"], [{ hook: null, calls: false }])),
+    ).toEqual([]);
+    expect(
+      await run("BS313", live(["rate-limit"], new Error("denied"))),
+    ).toEqual([]);
+    expect(
+      await run("BS313", context(base, {}, { sql: { kit: ["rate-limit"] } })),
+    ).toEqual([]);
   });
 });
 

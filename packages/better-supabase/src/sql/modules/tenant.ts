@@ -264,6 +264,7 @@ export const TENANT: KitModuleDefinition = {
   version: 2,
   modes: ["managed", "adopt", "custom"],
   names: {
+    options: ["claimFormat"],
     tables: {
       memberships: {
         name: "memberships",

@@ -94,7 +94,7 @@ describe("profiles module", () => {
           },
         },
       },
-    }).at(-1)!.contents;
+    }).findLast((file) => file.kind === "schema")!.contents;
     expect(sql).toContain(
       `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,
     );

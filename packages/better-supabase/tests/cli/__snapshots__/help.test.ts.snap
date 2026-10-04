@@ -222,13 +222,13 @@ OPTIONS
 `;
 
 exports[`help > documents sql 1`] = `
-"Lists, adds, syncs, upgrades and prints SQL kit modules (better-supabase sql v<version>)
+"Lists, adds, syncs, upgrades and prints SQL kit modules, and writes their data migration (better-supabase sql v<version>)
 
 USAGE better-supabase sql [OPTIONS] [ACTION]
 
 ARGUMENTS
 
-  ACTION    list (modules and whether they are installed), add <module...>, sync, upgrade or print <module>
+  ACTION    list (modules and whether they are installed), add <module...>, sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>
 
 OPTIONS
 

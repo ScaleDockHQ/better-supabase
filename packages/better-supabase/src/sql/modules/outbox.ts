@@ -5,6 +5,14 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "defaultSource",
+    "emitRoles",
+    "kitSource",
+    "retention",
+    "settle",
+    "tenantType",
+  ],
   tables: {
     events: {
       name: "outbox_events",

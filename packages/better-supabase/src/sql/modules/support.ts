@@ -6,6 +6,14 @@ import { SCHEMA, SERVICE_CALLER } from "../shared.ts";
 import { hasPlatformRoles } from "./access-model.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "allowPlatformTargets",
+    "allowWrites",
+    "auditCategory",
+    "claimsHook",
+    "maxTtl",
+    "requireReason",
+  ],
   tables: {
     sessions: {
       name: "support_sessions",

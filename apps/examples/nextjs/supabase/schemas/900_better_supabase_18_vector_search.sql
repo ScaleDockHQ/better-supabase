@@ -41,7 +41,3 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('vector-search', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();

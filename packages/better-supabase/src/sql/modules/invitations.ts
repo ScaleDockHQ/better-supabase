@@ -32,6 +32,16 @@ const PLATFORM_COLUMNS = {
 } as const;
 
 const NAMES: KitNames = {
+  options: [
+    "errorCodes",
+    "maxValidFor",
+    "prefill",
+    "previewColumns",
+    "requireConfirmedEmail",
+    "tokenBytes",
+    "tokenStorage",
+    "validFor",
+  ],
   tables: {
     invitations: {
       name: "invitations",
@@ -89,7 +99,7 @@ const SQLSTATE = /^[0-9A-Z]{5}$/;
 function raiser(
   ctx: KitContext,
 ): (code: InvitationError, message: string, ...args: string[]) => string {
-  const configured = ctx.config.options["errorCodes"] ?? {};
+  const configured = ctx.option("errorCodes") ?? {};
   if (typeof configured !== "object" || Array.isArray(configured)) {
     throw new TypeError(
       "kits.invitations.options.errorCodes must map error codes to SQLSTATEs",

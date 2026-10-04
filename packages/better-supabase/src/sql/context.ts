@@ -53,6 +53,8 @@ export interface KitNames {
   readonly tables: Readonly<Record<string, KitTableSpec>>;
   /** The `before_*` and `after_*` hooks the module calls, so `kits.<name>.hooks.functions` is checked. */
   readonly hooks?: readonly string[];
+  /** The `kits.<name>.options` keys the module reads; any other key is rejected. */
+  readonly options?: readonly string[];
 }
 
 /** An event a module writes to the outbox, as SQL expressions. */
@@ -121,6 +123,8 @@ export interface KitContext {
   flag(name: string, fallback: boolean): boolean;
   /** A module option that is a list of strings. */
   list(name: string, fallback: readonly string[]): readonly string[];
+  /** A declared module option as configured, for object-shaped options. */
+  option(name: string): unknown;
   /**
    * PL/pgSQL that calls the app's hook function when it exists, with
    * `[type, expression]` arguments: `if to_regprocedure(...) is not null
@@ -228,6 +232,23 @@ export function createKitContext(
     checkIdent(`${where}.hooks.functions.${hook}`, parts.name);
   }
 
+  const declared = new Set(names.options ?? []);
+  for (const key of Object.keys(config.options)) {
+    if (!declared.has(key)) {
+      throw new TypeError(
+        `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`,
+      );
+    }
+  }
+  const option = (name: string): unknown => {
+    if (!declared.has(name)) {
+      throw new TypeError(
+        `Module "${module}" reads option "${name}", which its names.options doesn't declare`,
+      );
+    }
+    return config.options[name];
+  };
+
   const rawId =
     config.idType ?? kits.access?.idType ?? source.permdockIdType ?? "uuid";
   const idType = kitIdType(rawId);
@@ -271,7 +292,7 @@ export function createKitContext(
     type: "string" | "number" | "boolean",
     fallback: string | number | boolean,
   ): string | number | boolean {
-    const value = config.options[name];
+    const value = option(name);
     if (value === undefined) return fallback;
     if (
       typeof value !== "string" &&
@@ -340,8 +361,9 @@ export function createKitContext(
     text: (name, fallback) => optionOf(name, "string", fallback),
     number: (name, fallback) => optionOf(name, "number", fallback),
     flag: (name, fallback) => optionOf(name, "boolean", fallback),
+    option,
     list(name, fallback) {
-      const value = config.options[name];
+      const value = option(name);
       if (value === undefined) return fallback;
       if (
         !Array.isArray(value) ||

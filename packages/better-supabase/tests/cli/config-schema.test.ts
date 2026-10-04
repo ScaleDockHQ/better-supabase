@@ -35,6 +35,22 @@ describe("configIssues", () => {
       expect.stringMatching(/^typo: Invalid key/),
     ]);
   });
+
+  it("takes the access keys only under kits.access", () => {
+    expect(
+      configIssues({
+        kits: {
+          access: { model: "catalog", activeTenant: "claim" },
+          organizations: { mode: "adopt", options: { ownerRole: "owner" } },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      configIssues({ kits: { organizations: { model: "catalog" } } }),
+    ).toEqual([
+      expect.stringMatching(/^kits\.organizations\.model: Invalid key/),
+    ]);
+  });
 });
 
 describe("committed configs", () => {

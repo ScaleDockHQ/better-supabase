@@ -4,6 +4,7 @@ import { contractSignature, createKitContext } from "../../src/sql/context.ts";
 import {
   checkKits,
   customContracts,
+  isKitDataFile,
   kitContext,
   kitFileVersion,
   moduleBody,
@@ -21,6 +22,7 @@ const names = {
     },
     extras: { name: "extras", columns: { id: "id" }, optionalTable: true },
   },
+  options: ["flavour", "size", "on", "list", "missing"],
 };
 
 describe("createKitContext", () => {
@@ -92,10 +94,22 @@ describe("createKitContext", () => {
     );
     expect(build({ schema: "1x" })).toThrow(/not a valid identifier/);
     expect(build({ idType: "jsonb" })).toThrow(/idType/);
+    expect(build({ options: { flavor: "map" } })).toThrow(
+      'kits.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
+    );
+    expect(() =>
+      createKitContext("bare", () => undefined, {
+        kits: { bare: { options: { size: 1 } } },
+      }),
+    ).toThrow('kits.bare.options: unknown option "size". Options: none');
     const ctx = createKitContext("demo", () => names);
     expect(() => ctx.table("nope")).toThrow(/no table/);
     expect(() => ctx.col("items", "nope")).toThrow(/no column/);
     expect(() => ctx.hasTable("nope")).toThrow(/no table/);
+    expect(() => ctx.text("undeclared", "")).toThrow(
+      'Module "demo" reads option "undeclared", which its names.options doesn\'t declare',
+    );
+    expect(ctx.option("size")).toBeUndefined();
   });
 
   it("takes the id type from kits.access, then PermDock", () => {
@@ -249,15 +263,30 @@ describe("kit modes", () => {
       version: 2,
     });
     expect(kitFileVersion("-- no marker")).toBeUndefined();
-    expect(file!.contents).toContain("values ('tenant', 2, 'managed')");
-    const [pgtap] = renderKit(["pgtap"]);
-    expect(pgtap!.contents).not.toContain("kit_modules");
+    expect(file!.contents).not.toContain("insert into");
+    expect(file!.contents).toContain(
+      "create table if not exists better_supabase.kit_modules",
+    );
+    const [, data] = renderKit(["tenant"]);
+    expect(data).toMatchObject({
+      kind: "data",
+      path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+    });
+    expect(data!.contents).toContain("-- @bs-kit-data tenant\n");
+    expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
+    expect(isKitDataFile(data!.contents)).toBe(true);
+    expect(isKitDataFile(file!.contents)).toBe(false);
+    const pgtap = renderKit(["pgtap"]);
+    expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
+    expect(pgtap[0]!.contents).not.toContain("kit_modules");
   });
 
   it("writes no file in custom mode and lists the contract instead", () => {
     const layout = { kits: { tenant: { mode: "custom" as const } } };
     const files = renderKit(["invitations"], layout);
-    expect(files.map((file) => file.module)).toEqual(["invitations", "access"]);
+    expect(
+      files.filter((file) => file.kind === "schema").map((file) => file.module),
+    ).toEqual(["invitations", "access"]);
     expect(moduleBody("tenant", layout)).toBeUndefined();
     const [contract] = customContracts(["invitations"], layout);
     expect(contract).toMatchObject({

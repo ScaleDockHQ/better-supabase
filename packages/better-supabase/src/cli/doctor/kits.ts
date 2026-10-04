@@ -76,6 +76,45 @@ const normalize = (types: string): string =>
     .replaceAll(/\s*,\s*/g, ", ")
     .trim();
 
+const PRE_REQUEST_HOOK = `select h.hook,
+  coalesce(pg_catalog.strpos(pg_catalog.pg_get_functiondef(pg_catalog.to_regproc(h.hook)), 'better_supabase.check_request') > 0, false) as calls
+from (
+  select (
+    select pg_catalog.split_part(setting, '=', 2)
+    from pg_catalog.pg_db_role_setting s
+    join pg_catalog.pg_roles r on r.oid = s.setrole
+    cross join lateral pg_catalog.unnest(s.setconfig) setting
+    where r.rolname = 'authenticator' and s.setdatabase = 0
+      and setting like 'pgrst.db_pre_request=%'
+    limit 1
+  ) as hook
+) h`;
+
+/** `rate-limit` in `sql.kit` without PostgREST's pre-request hook reaching `check_request()`. */
+async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
+  const db = context.database;
+  if (!context.config.sql.kit.includes("rate-limit") || !db || "skipped" in db)
+    return [];
+  let rows: { hook: string | null; calls: boolean }[];
+  try {
+    rows = await db.query(PRE_REQUEST_HOOK);
+  } catch {
+    return [];
+  }
+  const [row] = rows;
+  if (!row || row.hook === "better_supabase.check_request" || row.calls)
+    return [];
+  return [
+    {
+      message:
+        row.hook === null
+          ? "pgrst.db_pre_request isn't set for authenticator, so better_supabase.check_request() never runs. Apply the migration `better-supabase sql data` writes, which sets it."
+          : `pgrst.db_pre_request is ${row.hook}, which doesn't call better_supabase.check_request(), so rate limits never apply. Call it from ${row.hook}.`,
+      target: "authenticator pgrst.db_pre_request",
+    },
+  ];
+}
+
 /** Custom-mode modules whose contract functions the database or SQL files don't have. */
 async function missingContracts(
   context: DoctorContext,
@@ -349,6 +388,14 @@ export const KIT_RULES: readonly Rule[] = [
     description:
       "A table has a kit trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
     check: duplicateTriggers,
+  },
+  {
+    code: "BS313",
+    severity: "warning",
+    title: "Rate limits not wired to PostgREST",
+    description:
+      "The `rate-limit` module is in `sql.kit`, but on the live database `pgrst.db_pre_request` for the `authenticator` role is unset or names a function that doesn't call `better_supabase.check_request()`, so Data API requests are never counted.",
+    check: rateLimitHook,
   },
   {
     code: "BS312",

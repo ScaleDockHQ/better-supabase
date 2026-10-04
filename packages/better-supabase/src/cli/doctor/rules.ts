@@ -718,8 +718,12 @@ const OWN_RULES: readonly Rule[] = [
           current === undefined
             ? ""
             : ` If you edited it, move the change to \`kits.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+        const next =
+          file.kind === "data"
+            ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
+            : `Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.`;
         stale.push({
-          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase sql sync\`, then \`${migrationCommand(context.configToml)}\`.${edited}`,
+          message: `${file.path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}. ${next}${edited}`,
           target: file.path,
           ...(current === undefined
             ? {}

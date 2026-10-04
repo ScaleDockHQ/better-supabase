@@ -10,6 +10,16 @@ import {
 } from "./notifications-sql.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "channelDefaults",
+    "channels",
+    "createdEvent",
+    "maxRecipients",
+    "priorities",
+    "realtime",
+    "topic",
+    "updatedEvent",
+  ],
   tables: {
     events: {
       name: "notification_events",

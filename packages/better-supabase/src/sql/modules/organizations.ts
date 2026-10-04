@@ -12,6 +12,19 @@ import { accessModel, KIT_PERMISSIONS, roleNames } from "./access-model.ts";
 import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "assignmentCeiling",
+    "attributes",
+    "deleteMode",
+    "formerOwnerRole",
+    "ownerInvariant",
+    "ownerRole",
+    "reservedSlugs",
+    "slugCitext",
+    "slugMaxLength",
+    "slugMinLength",
+    "slugPattern",
+  ],
   tables: {
     organizations: {
       name: "organizations",
@@ -142,7 +155,13 @@ create table if not exists ${n.org} (
   ${idColumn(ctx, n.id)},
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
 );
-${slugIndex}alter table ${n.org} enable row level security;
+${slugIndex}${
+    ctx.installed("entitlements")
+      ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
+alter table ${n.org} add column if not exists stripe_customer_id text unique;
+`
+      : ""
+  }alter table ${n.org} enable row level security;
 revoke all on ${n.org} from anon, authenticated;
 grant select on ${n.org} to authenticated;
 grant all on ${n.org} to service_role;

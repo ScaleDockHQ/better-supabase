@@ -9,6 +9,22 @@ import {
 } from "../shared.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "columnGrants",
+    "extraColumns",
+    "metadata",
+    "mirrorEmail",
+    "readPolicy",
+    "reservedUsernames",
+    "serviceColumns",
+    "splitName",
+    "syncTrigger",
+    "updatable",
+    "username",
+    "usernameFrom",
+    "usernameMaxLength",
+    "usernameMinLength",
+  ],
   tables: {
     profiles: {
       name: "profiles",
@@ -73,7 +89,7 @@ function record(
   ctx: KitContext,
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
-  const value = ctx.config.options[name];
+  const value = ctx.option(name);
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`kits.profiles.options.${name} must be an object`);
@@ -389,7 +405,7 @@ function grants(ctx: KitContext): string {
   ]
     .filter((logical) => ctx.has("profiles", logical))
     .map((logical) => ctx.col("profiles", logical));
-  const configured = ctx.config.options["updatable"];
+  const configured = ctx.option("updatable");
   const columns =
     configured === undefined
       ? [...defaults, ...extraColumns(ctx).map(([name]) => name)]
@@ -417,7 +433,7 @@ function guard(ctx: KitContext): string {
     .filter((logical) => ctx.has("profiles", logical))
     .map((logical) => ctx.col("profiles", logical));
   const columns =
-    ctx.config.options["serviceColumns"] === undefined
+    ctx.option("serviceColumns") === undefined
       ? defaults
       : ctx
           .list("serviceColumns", [])
@@ -598,9 +614,7 @@ end;
 $$;
 drop trigger if exists ${sync} on auth.users;
 create trigger ${sync} after insert on auth.users
-  for each row execute function ${ctx.fn("on_auth_user_created")}();
--- Warns about another trigger that also creates profiles (handle_new_user).
-select better_supabase.replace_equivalent_triggers('auth.users', ${sqlString(sync.slice(1, -1).replaceAll('""', '"'))}, '(handle_new_user|create_profile|new_user_profile)', false);`);
+  for each row execute function ${ctx.fn("on_auth_user_created")}();`);
   } else {
     parts.push(`drop trigger if exists ${sync} on auth.users;`);
   }
@@ -660,4 +674,9 @@ export const PROFILES: KitModuleDefinition = {
     { name: "backfill_profiles", args: [], returns: "integer" },
   ],
   build,
+  data: (ctx) =>
+    ctx.flag("syncTrigger", true)
+      ? `-- Warns about another trigger that also creates profiles (handle_new_user).
+select better_supabase.replace_equivalent_triggers('auth.users', ${sqlString(ctx.trigger("profile_sync").slice(1, -1).replaceAll('""', '"'))}, '(handle_new_user|create_profile|new_user_profile)', false);`
+      : "",
 };

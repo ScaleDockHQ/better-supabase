@@ -5,6 +5,16 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { EQUIVALENT_TRIGGERS, SCHEMA, SERVICE_CALLER } from "../shared.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "appendOnly",
+    "eventCategory",
+    "eventRoles",
+    "eventSource",
+    "impersonators",
+    "readPolicy",
+    "restricted",
+    "tenantColumn",
+  ],
   tables: {
     log: {
       name: "audit_log",

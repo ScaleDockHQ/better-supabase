@@ -13,7 +13,17 @@ schema.
 better-supabase sql list
 better-supabase sql add audit jobs pgtap
 supabase db schema declarative sync -f better_supabase_kit
+better-supabase sql data
 ```
+
+A schema diff only captures objects, so each module's rows and settings (its
+`kit_modules` row, the reserved slugs, the rate-limit role setting) go to a
+second file in `supabase/better-supabase-data/`, outside the schema folder:
+pg-delta loads every file under `supabase/schemas` and refuses a table that
+has rows afterwards. `better-supabase sql data` writes those files into one
+migration, stamped after the newest one so it runs after the schema migration.
+Its statements are idempotent, and it writes nothing when the latest data
+migration already has them. `sql add` and `sql sync` say when to run it.
 
 The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
 orders the schema files by dependency. Projects created by `supabase init`
@@ -154,8 +164,11 @@ export default defineConfig({
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the
-module version and mode (`-- @bs-kit tenant@2 adopt`), and schema files record
-them in `better_supabase.kit_modules`.
+module version and mode (`-- @bs-kit tenant@2 adopt`), and the data migration
+records them in `better_supabase.kit_modules`. An option a module doesn't read
+stops `sql add` as well, so a misspelled option can't fall back to its default
+without notice. Only `kits.access` takes the access keys (`model`, `roles`,
+`functions`, `activeTenant` and the rest).
 
 ## Audit log
 
@@ -337,11 +350,12 @@ select better_supabase.set_rate_limit('/customers', null);
   repository returns it as a `rate_limited` [`DbError`](/docs/concepts/results)
   with `retryAfter` in seconds, and `problemResponse()` passes the header on.
 
-The module sets `pgrst.db_pre_request` on the `authenticator` role, and only
-if no other pre-request function is set. Neither diff engine captures
-role settings, so copy the `do` block at the end of the file into a
-migration. If you already have a pre-request function, keep it and call the
-check from it. Put it in a schema the Data API doesn't expose, so clients
+The module's data file sets `pgrst.db_pre_request` on the `authenticator`
+role, and only if no other pre-request function is set. Neither diff engine
+captures role settings, so the setting ships in the migration `sql data`
+writes. Doctor warns (BS313) when a live database has no pre-request hook, or
+one that doesn't call `check_request()`. If you already have a pre-request
+function, keep it and call the check from it. Put it in a schema the Data API doesn't expose, so clients
 can't call it through `/rpc`:
 
 ```sql
@@ -405,7 +419,7 @@ export default defineConfig({
 `better-supabase sql sync` rewrites those files after an upgrade, and
 `sql sync --check` fails in CI when a file is out of date. Use
 `sql print <module>` to copy a module into a hand-written migration instead.
-`sql add` and `sql sync` take `--dry-run` to show what they would write, and
+`sql add`, `sql sync` and `sql data` take `--dry-run` to show what they would write, and
 `--tests-dir <dir>` overrides `sql.testsDir` for the pgTAP module.
 
 | Option         | Default               |
@@ -428,8 +442,8 @@ better-supabase sql upgrade
 
 It reads the version from each file's `@bs-kit` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
-forward steps into `supabase/migrations/<timestamp>_better_supabase_kit_upgrade.sql`
-and rewrites the module files. Create the schema migration afterwards, so the
+forward steps into `<timestamp>_better_supabase_kit_upgrade.sql` in the
+`migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
 steps run first. `sql upgrade --check` exits with 1 when a module is behind or
 a file is stale, and `--dry-run` lists the steps without writing.
 

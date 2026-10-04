@@ -1,10 +1,11 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
+  migrationsDir,
   sqlCommand,
   type SqlArgs,
   runSql,
@@ -109,6 +110,63 @@ describe("runSql", () => {
       code: 0,
       output: "sql.kit is empty; nothing to sync.",
     });
+  });
+
+  it("writes the rows a schema diff skips into a data migration", async () => {
+    expect(await sql(["data"])).toEqual({
+      code: 0,
+      output: "sql.kit is empty; nothing to write.",
+    });
+    const config: BetterSupabaseConfig = {
+      sql: { kit: ["tenant", "rate-limit"] },
+    };
+    const synced = await sql(["sync"], config);
+    expect(synced.output).toContain(
+      "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
+    );
+    expect(synced.output).toContain("run `better-supabase sql data`");
+    expect((await sql(["sync"], config)).output).not.toContain("sql data");
+
+    expect((await sql(["data", "--dry-run"], config)).output).toMatch(
+      /^Would write supabase\/migrations\/\d{14}_better_supabase_kit_data\.sql$/,
+    );
+    const wrote = await sql(["data"], config);
+    const path = wrote.output!.replace("Wrote ", "");
+    expect(path).toMatch(
+      /^supabase\/migrations\/\d{14}_better_supabase_kit_data\.sql$/,
+    );
+    const migration = await readFile(join(root, path), "utf8");
+    expect(migration).toContain("values ('tenant', 2, 'managed')");
+    expect(migration).toContain("values ('rate-limit',");
+    expect(migration).toContain(
+      "alter role authenticator set pgrst.db_pre_request",
+    );
+    expect(migration).not.toContain("create table");
+    expect(await sql(["data"], config)).toEqual({
+      code: 0,
+      output: `${path} already has these rows; nothing to write.`,
+    });
+  });
+
+  it("stamps the data migration after the newest migration", async () => {
+    const config: BetterSupabaseConfig = { sql: { kit: ["tenant"] } };
+    await sql(["sync"], config);
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/29991231235959_kit.sql"),
+      "",
+    );
+    expect((await sql(["data"], config)).output).toBe(
+      "Wrote supabase/migrations/30000101000000_better_supabase_kit_data.sql",
+    );
+  });
+
+  it("puts migrations next to the config.toml above sql.dir", async () => {
+    await mkdir(join(root, "db/supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "db/supabase/config.toml"), "");
+    const config = resolveConfig({ sql: { dir: "db/supabase/schemas" } }, root);
+    expect(migrationsDir(config)).toBe("db/supabase/migrations");
+    expect(migrationsDir(resolveConfig({}, root))).toBe("supabase/migrations");
   });
 
   it("upgrades modules installed before versioned headers", async () => {

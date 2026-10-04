@@ -6,6 +6,13 @@ import { schemaPreamble } from "../shared.ts";
 import { functions, type HookNames, hookNames } from "./webhooks-out-sql.ts";
 
 const NAMES: KitNames = {
+  options: [
+    "allowHttp",
+    "disableAfter",
+    "eventIdType",
+    "runIdType",
+    "secretStorage",
+  ],
   tables: {
     destinations: {
       name: "webhook_destinations",

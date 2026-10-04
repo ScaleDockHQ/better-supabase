@@ -9,7 +9,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is
--- counted by; callers without it are counted by their first x-forwarded-for hop.
+-- counted by; callers without it are counted by the right-most x-forwarded-for
+-- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table if not exists better_supabase.rate_limit_rules (
   scope text primary key,
   max_requests integer not null check (max_requests > 0),
@@ -90,7 +91,7 @@ begin
   loop
     caller := coalesce(
       claims ->> rule.key_claim,
-      'ip:' || coalesce(nullif(trim(split_part(headers ->> 'x-forwarded-for', ',', 1)), ''), 'unknown')
+      'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
     insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
     values (rule.scope, caller, now(), 1)
@@ -120,26 +121,6 @@ $$;
 revoke execute on function better_supabase.check_request() from public;
 grant execute on function better_supabase.check_request() to anon, authenticated, service_role;
 
--- supabase db diff doesn't capture role settings: put this block in a
--- migration too. It keeps an existing pre-request function; chain from it.
-do $$
-declare
-  current_hook text;
-begin
-  select split_part(setting, '=', 2) into current_hook
-  from pg_catalog.pg_db_role_setting s
-  join pg_catalog.pg_roles r on r.oid = s.setrole
-  cross join lateral unnest(s.setconfig) setting
-  where r.rolname = 'authenticator' and s.setdatabase = 0 and setting like 'pgrst.db_pre_request=%';
-  if current_hook is null then
-    alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';
-  elsif current_hook <> 'better_supabase.check_request' then
-    raise notice 'pgrst.db_pre_request is %; call better_supabase.check_request() from it', current_hook;
-  end if;
-end
-$$;
-notify pgrst, 'reload config';
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.kit_modules (
   name text primary key,
@@ -151,7 +132,3 @@ create table if not exists better_supabase.kit_modules (
 alter table better_supabase.kit_modules enable row level security;
 revoke all on better_supabase.kit_modules from anon, authenticated;
 grant select on better_supabase.kit_modules to service_role;
-insert into better_supabase.kit_modules (name, version, mode)
-values ('rate-limit', 1, 'managed')
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();

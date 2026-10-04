@@ -11,6 +11,10 @@ const contents = (name: string, config: Record<string, unknown> = {}) =>
     file.path.includes(name.replaceAll("-", "_")),
   )!;
 
+const ENTITLEMENTS = {
+  entitlements: { customer: "organizations.stripe_customer_id" },
+};
+
 describe("pgTAP", () => {
   const file = contents("pgtap");
 
@@ -107,7 +111,7 @@ describe(`Stripe Sync Engine schema (${SPEC_PINS.stripeSyncEngine})`, () => {
       ),
     );
     expect(columns).toContain("customer");
-    const sql = contents("entitlements").contents;
+    const sql = contents("entitlements", ENTITLEMENTS).contents;
     expect(sql).toContain("from stripe.active_entitlements e");
     const from = sql.indexOf("from stripe.active_entitlements e");
     const statement = sql.slice(
@@ -122,7 +126,7 @@ describe(`Stripe Sync Engine schema (${SPEC_PINS.stripeSyncEngine})`, () => {
   });
 
   it("returns no entitlements until the engine's table exists", () => {
-    expect(contents("entitlements").contents).toContain(
+    expect(contents("entitlements", ENTITLEMENTS).contents).toContain(
       "to_regclass('stripe.active_entitlements') is null",
     );
   });

@@ -33,7 +33,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
 function channelDefaults(ctx: KitContext, channel: string): string {
-  const value = ctx.config.options["channelDefaults"] ?? {};
+  const value = ctx.option("channelDefaults") ?? {};
   if (!isRecord(value)) {
     throw new TypeError(
       "kits.notifications.options.channelDefaults must map channel names to booleans",

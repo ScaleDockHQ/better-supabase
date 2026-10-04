@@ -83,6 +83,22 @@ describe("renderKit", () => {
       expect(module.sql).not.toMatch(/create table (?!if not exists)/);
     }
   });
+
+  it("keeps statements a schema diff skips out of the schema files", () => {
+    const layouts = [{}, { kits: { jobs: { options: { backend: "table" } } } }];
+    for (const layout of layouts) {
+      const files = renderKit(Object.keys(SQL_MODULES), layout);
+      for (const file of files.filter((entry) => entry.kind === "schema")) {
+        expect(file.contents).not.toMatch(
+          /^(insert|update|delete|select|truncate|notify|alter role|call)\b/im,
+        );
+      }
+      for (const file of files.filter((entry) => entry.kind === "data")) {
+        expect(file.path).toMatch(/\/better-supabase-data\/[^/]+\.sql$/);
+        expect(file.contents).not.toMatch(/^(create|drop|alter table)\b/im);
+      }
+    }
+  });
 });
 
 describe("sameKitFile", () => {
@@ -233,6 +249,11 @@ describe("entitlements in PermDock mode", () => {
       },
     ],
   } as const;
+  const entitlements = {
+    table: "organizations",
+    column: "stripe_customer_id",
+    key: "id",
+  };
 
   it("drops the tenant dependency", () => {
     expect(
@@ -246,7 +267,7 @@ describe("entitlements in PermDock mode", () => {
   });
 
   it("reads member_<scope>_ids and member_<scope>_ids_for", () => {
-    const [file] = renderKit(["entitlements"], { permdock });
+    const [file] = renderKit(["entitlements"], { permdock, entitlements });
     const sql = file!.contents;
     expect(sql).toContain(
       'select tenant in (select "authz"."member_organization_ids"())',
@@ -269,6 +290,7 @@ describe("entitlements in PermDock mode", () => {
     (idType) => {
       const file = renderKit(["entitlements"], {
         permdock: { ...permdock, idType },
+        entitlements,
       }).find((entry) => entry.module === "entitlements");
       const sql = file!.contents;
       for (const signature of [
@@ -290,12 +312,46 @@ describe("entitlements in PermDock mode", () => {
   );
 
   it("keeps the tenant-mode functions without PermDock", () => {
-    const file = renderKit(["entitlements"]).find(
+    const file = renderKit(["entitlements"], { entitlements }).find(
       (entry) => entry.module === "entitlements",
     );
     expect(file!.contents).toContain(
       "select better_supabase.has_org_role(tenant)",
     );
     expect(file!.contents).toContain("from better_supabase.memberships m");
+  });
+
+  it("needs a customer column unless the managed organizations module adds one", () => {
+    expect(() => renderKit(["entitlements"])).toThrow(
+      "The entitlements module needs entitlements.customer",
+    );
+    expect(() =>
+      renderKit(["entitlements", "organizations"], {
+        kits: { organizations: { mode: "adopt" } },
+      }),
+    ).toThrow("The entitlements module needs entitlements.customer");
+    const files = renderKit(["entitlements", "organizations"]);
+    const sql = (name: string) =>
+      files.find((file) => file.module === name && file.kind === "schema")!
+        .contents;
+    expect(sql("entitlements")).toContain(
+      'select t."stripe_customer_id" from "better_supabase"."organizations" t where t."id" = tenant',
+    );
+    expect(sql("organizations")).toContain(
+      "add column if not exists stripe_customer_id text unique;",
+    );
+    expect(sql("entitlements")).toContain("returns text\nlanguage plpgsql");
+    expect(
+      renderKit(["entitlements"], {
+        entitlements: { table: "billing", column: "customer", key: "org" },
+      }).find(
+        (file) => file.module === "entitlements" && file.kind === "schema",
+      )!.contents,
+    ).toContain("returns text\nlanguage sql");
+    expect(
+      renderKit(["organizations"]).find(
+        (file) => file.module === "organizations",
+      )!.contents,
+    ).not.toContain("stripe_customer_id");
   });
 });

@@ -260,8 +260,9 @@ export interface RealtimeConfig {
 export interface EntitlementsConfig {
   /**
    * `table.column` (or `schema.table.column`) holding each tenant's Stripe
-   * customer id, read by the `entitlements` SQL kit module. Defaults to
-   * `organizations.stripe_customer_id`.
+   * customer id, read by the `entitlements` SQL kit module. Required
+   * without the `organizations` module; with it, defaults to the
+   * `stripe_customer_id` column that module adds.
    */
   readonly customer?: string;
   /** The tenant id column of that table. Defaults to `id`. */
@@ -392,16 +393,17 @@ export interface BetterSupabaseConfig {
 function entitlementsOf(
   config: EntitlementsConfig = {},
 ): ResolvedConfig["entitlements"] {
-  const customer = config.customer ?? "organizations.stripe_customer_id";
-  const dot = customer.lastIndexOf(".");
-  if (dot <= 0) {
+  const customer = config.customer;
+  const dot = customer?.lastIndexOf(".") ?? -1;
+  if (customer !== undefined && dot <= 0) {
     throw new TypeError(
       `entitlements.customer must be "table.column", got "${customer}"`,
     );
   }
   return {
-    table: customer.slice(0, dot),
-    column: customer.slice(dot + 1),
+    ...(customer === undefined
+      ? {}
+      : { table: customer.slice(0, dot), column: customer.slice(dot + 1) }),
     key: config.key ?? "id",
     permdock:
       config.permdock === false
@@ -449,8 +451,9 @@ export interface ResolvedConfig {
   readonly claims: Required<ClaimsConfig>;
   readonly buckets: Readonly<Record<string, BucketConfig>>;
   readonly entitlements: {
-    readonly table: string;
-    readonly column: string;
+    /** Unset without `entitlements.customer`. */
+    readonly table?: string;
+    readonly column?: string;
     readonly key: string;
     readonly permdock: false | { readonly scope?: string };
   };

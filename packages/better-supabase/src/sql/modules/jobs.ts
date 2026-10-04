@@ -75,8 +75,6 @@ begin
 end;
 $$;
 
-select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
-
 -- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
 create or replace function better_supabase.enqueue_job(
   queue text,
@@ -717,6 +715,11 @@ export const JOBS: KitModuleDefinition = {
   requires: [],
   target: "schema",
   version: 3,
+  names: { tables: {}, options: ["backend", "scheduler"] },
+  data: (ctx) =>
+    jobsBackend(ctx) === "pgmq"
+      ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
+      : "",
   upgrades: [
     {
       from: 1,

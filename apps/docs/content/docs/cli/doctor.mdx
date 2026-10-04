@@ -584,6 +584,16 @@ exposed schemas in the dashboard, and call kit functions through wrappers in an
 exposed schema. Doctor reads `[api] schemas` for every exposure check and falls
 back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
 
+### BS313
+
+**Warning: rate limits not wired to PostgREST.** The `rate-limit` module is in
+`sql.kit`, but on the live database `pgrst.db_pre_request` for the
+`authenticator` role is unset, or names a function whose body doesn't call
+`better_supabase.check_request()`, so Data API writes are never counted. Apply
+the migration `better-supabase sql data` writes, which sets the hook when no
+other one is set, or call `check_request()` from your own pre-request
+function. Doctor needs a database connection for this check.
+
 ## Auth config
 
 ### BS401

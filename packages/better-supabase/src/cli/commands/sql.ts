@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
@@ -39,7 +39,7 @@ const SQL_ARGS = {
     type: "positional",
     required: false,
     description:
-      "list (modules and whether they are installed), add <module...>, sync, upgrade or print <module>",
+      "list (modules and whether they are installed), add <module...>, sync, upgrade, data (a migration with the rows a schema diff skips) or print <module>",
   },
   check: {
     type: "boolean",
@@ -131,6 +131,51 @@ async function layoutFor(
   );
 }
 
+/**
+ * The migrations folder next to the `config.toml` found walking up from
+ * `sql.dir`, relative to the root; `supabase/migrations` without one.
+ */
+export function migrationsDir(config: ResolvedConfig): string {
+  const root = resolve(config.root);
+  let dir = resolve(root, config.sql.dir);
+  while (dir.startsWith(root)) {
+    if (existsSync(join(dir, "config.toml"))) {
+      return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
+    }
+    if (dir === root) break;
+    dir = dirname(dir);
+  }
+  return "supabase/migrations";
+}
+
+/** `YYYYMMDDHHMMSS` in UTC, the Supabase CLI's migration prefix. */
+const migrationStamp = (now: Date): string =>
+  now.toISOString().replaceAll(/[-:T]/g, "").slice(0, 14);
+
+/**
+ * A stamp for `now`, or one second after the newest migration when that one
+ * has the same stamp or a later one: the Supabase CLI keys migrations by
+ * stamp, and the data has to run after the schema.
+ */
+function stampAfter(migrations: readonly string[], now: Date): string {
+  const newest = migrations
+    .map((name) => /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name))
+    .filter((match) => match !== null)
+    .map((match) =>
+      Date.UTC(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        Number(match[4]),
+        Number(match[5]),
+        Number(match[6]),
+      ),
+    )
+    .reduce((max, time) => Math.max(max, time), Number.NEGATIVE_INFINITY);
+  const at = Math.floor(now.getTime() / 1000) * 1000;
+  return migrationStamp(new Date(Math.max(at, newest + 1000)));
+}
+
 async function write(
   config: ResolvedConfig,
   args: SqlArgs,
@@ -139,6 +184,7 @@ async function write(
 ): Promise<string[]> {
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
+  let data = false;
   for (const file of renderKit(names, kit)) {
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
@@ -147,9 +193,56 @@ async function write(
       continue;
     }
     const wrote = await writeIfChanged(path, file.contents);
+    if (wrote && file.kind === "data") data = true;
     lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (${file.module})`);
   }
+  if (data) lines.push("", DATA_NEXT);
   return lines;
+}
+
+const DATA_NEXT =
+  "The better-supabase-data files hold rows and settings a schema diff skips: after the schema migration, run `better-supabase sql data`.";
+const DATA_SUFFIX = "_better_supabase_kit_data.sql";
+
+/**
+ * Writes the data files of `sql.kit` into one migration, meant to run after
+ * the schema migration that creates their tables. Every statement is
+ * idempotent, so the migration carries all of them, not only the changes.
+ */
+async function dataMigration(
+  config: ResolvedConfig,
+  args: SqlArgs,
+): Promise<CommandResult> {
+  if (config.sql.kit.length === 0) {
+    return { code: 0, output: "sql.kit is empty; nothing to write." };
+  }
+  const files = renderKit(
+    config.sql.kit,
+    await layoutFor(config, args, config.sql.kit),
+  ).filter((file) => file.kind === "data");
+  const contents = `-- better-supabase sql data: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
+  const dir = migrationsDir(config);
+  const existing: string[] = await readdir(resolve(config.root, dir)).catch(
+    () => [],
+  );
+  const latest = existing
+    .toSorted()
+    .findLast((name) => name.endsWith(DATA_SUFFIX));
+  if (
+    latest !== undefined &&
+    (await readFile(resolve(config.root, dir, latest), "utf8")) === contents
+  ) {
+    return {
+      code: 0,
+      output: `${dir}/${latest} already has these rows; nothing to write.`,
+    };
+  }
+  const path = `${dir}/${stampAfter(existing, new Date())}${DATA_SUFFIX}`;
+  if (args["dry-run"] === true) {
+    return { code: 0, output: `Would write ${path}` };
+  }
+  await writeIfChanged(resolve(config.root, path), contents);
+  return { code: 0, output: `Wrote ${path}` };
 }
 
 /** A note when migra's `schema_paths` is set and misses kit files, which `supabase db diff` would then skip. */
@@ -167,6 +260,7 @@ async function unlistedKitFiles(
   const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
   const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
   const missing = renderKit(names, kit)
+    .filter((file) => file.kind !== "data")
     .map((file) => file.path)
     .filter((path) => path.startsWith(dir) && !listed.has(path));
   if (missing.length === 0) return [];
@@ -180,10 +274,6 @@ async function unlistedKitFiles(
     ),
   ];
 }
-
-/** `YYYYMMDDHHMMSS` in UTC, the Supabase CLI's migration prefix. */
-const migrationStamp = (now: Date): string =>
-  now.toISOString().replaceAll(/[-:T]/g, "").slice(0, 14);
 
 /**
  * Rewrites the kit files of modules behind the current version, and writes
@@ -204,6 +294,7 @@ async function upgrade(
   const stale: KitFile[] = [];
   const diffs: string[] = [];
   for (const file of files) {
+    if (file.kind === "data") continue;
     const current = await readFile(
       resolve(config.root, file.path),
       "utf8",
@@ -268,7 +359,7 @@ async function upgrade(
   );
   const dryRun = args["dry-run"] === true;
   if (steps.length > 0) {
-    const path = `supabase/migrations/${migrationStamp(new Date())}_better_supabase_kit_upgrade.sql`;
+    const path = `${migrationsDir(config)}/${migrationStamp(new Date())}_better_supabase_kit_upgrade.sql`;
     const contents = `-- better-supabase sql upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
     if (dryRun) {
       lines.push(`Would write ${path}`);
@@ -301,10 +392,9 @@ export async function runSql(
     case "list": {
       const kit = await layout(config, args);
       const files = new Map(
-        renderKit(Object.keys(SQL_MODULES), kit).map((file) => [
-          file.module,
-          file.path,
-        ]),
+        renderKit(Object.keys(SQL_MODULES), kit)
+          .filter((file) => file.kind !== "data")
+          .map((file) => [file.module, file.path]),
       );
       const lines = Object.values(SQL_MODULES).map((module) => {
         const path = files.get(module.name);
@@ -424,6 +514,8 @@ export async function runSql(
     }
     case "upgrade":
       return upgrade(config, args, paint);
+    case "data":
+      return dataMigration(config, args);
     case "print": {
       const [name] = names;
       const module = name ? SQL_MODULES[name] : undefined;
@@ -468,7 +560,8 @@ export async function runSql(
 export const sqlCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "sql",
-    description: "Lists, adds, syncs, upgrades and prints SQL kit modules",
+    description:
+      "Lists, adds, syncs, upgrades and prints SQL kit modules, and writes their data migration",
   },
   args: SQL_ARGS,
   run: (args, { config, io }) => runSql(config, args, painter(io.color)),

@@ -725,6 +725,7 @@ export const ACCESS: KitModuleDefinition = {
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   names: {
+    options: ["platformRoleScope", "scope", "tenantRoleScope"],
     tables: {
       roles: {
         name: "roles",
