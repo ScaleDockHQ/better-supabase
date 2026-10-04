@@ -109,7 +109,9 @@ Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for
 Stores and leases jobs for [`createJobs`](/docs/kits/jobs). It has
 `apiVersion: 1`, sends and reads messages, completes, fails and extends them
 by attempt (a stale attempt must get `false` or `null`), and optionally
-claims due schedules for the drain route. Set `leases: false` when `extend`
+claims due schedules for the drain route and replays dead letters
+(`replay`). A message read past its `max_attempts` should be archived as
+dead instead of returned. Set `leases: false` when `extend`
 can't work, so workers skip the heartbeat.
 
 ## SupportSessionStore

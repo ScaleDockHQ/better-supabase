@@ -98,6 +98,12 @@ function fakeHttp(
 
 const ok = () => ({ status: 200, body: "ok" });
 
+const outcomeOf = (calls: readonly Call[], id: string) =>
+  calls.find(
+    (call) =>
+      call.fn === "complete_webhook_delivery" && call.args["delivery"] === id,
+  )?.args["outcome"] as Record<string, unknown> | undefined;
+
 function setup(
   claimed: readonly Record<string, unknown>[],
   respond: Parameters<typeof fakeHttp>[0] = ok,
@@ -167,7 +173,7 @@ describe("createWebhooks: deliver", () => {
   });
 
   it("retries retryable statuses with backoff and dead-letters after maxAttempts", async () => {
-    const { webhooks, outcomes, seen } = setup(
+    const { webhooks, calls, seen } = setup(
       [row(), row({ id: "del-2", attempt: 8 }), row({ id: "del-3" })],
       (request) =>
         request.headers["webhook-id"] === "del-3"
@@ -179,7 +185,9 @@ describe("createWebhooks: deliver", () => {
       failed: 1,
       deadLettered: 2,
     });
-    const [retry, last, gone] = outcomes();
+    const [retry, last, gone] = ["del-1", "del-2", "del-3"].map((id) =>
+      outcomeOf(calls, id),
+    );
     expect(retry).toMatchObject({
       status: "failed",
       attempt: 1,
@@ -201,11 +209,13 @@ describe("createWebhooks: deliver", () => {
       "webhook.failed",
       "webhook.failed",
     ]);
-    expect(seen[0]!.data).toMatchObject({ status: 503, error: "HTTP 503" });
+    expect(seen.map((event) => event.data)).toContainEqual(
+      expect.objectContaining({ status: 503, error: "HTTP 503" }),
+    );
   });
 
   it("retries network errors and never retries a policy rejection", async () => {
-    const { webhooks, outcomes } = setup(
+    const { webhooks, outcomes, calls } = setup(
       [row(), row({ id: "del-2" })],
       (request) =>
         request.headers["webhook-id"] === "del-1"
@@ -216,13 +226,15 @@ describe("createWebhooks: deliver", () => {
       failed: 1,
       deadLettered: 1,
     });
-    expect(outcomes()).toEqual([
-      expect.objectContaining({ status: "failed", error: "socket hang up" }),
-      expect.objectContaining({
-        status: "dead_lettered",
-        error: "Destination URL is not allowed",
-      }),
-    ]);
+    expect(outcomes()).toHaveLength(2);
+    expect(outcomeOf(calls, "del-1")).toMatchObject({
+      status: "failed",
+      error: "socket hang up",
+    });
+    expect(outcomeOf(calls, "del-2")).toMatchObject({
+      status: "dead_lettered",
+      error: "Destination URL is not allowed",
+    });
   });
 
   it("takes a custom retry policy", async () => {
@@ -315,7 +327,7 @@ describe("createWebhooks: deliver", () => {
   });
 
   it("waits as long as Retry-After asks, up to a day", async () => {
-    const { webhooks, outcomes } = setup(
+    const { webhooks, calls } = setup(
       [row(), row({ id: "del-2" })],
       (request) => ({
         status: 429,
@@ -325,8 +337,8 @@ describe("createWebhooks: deliver", () => {
     );
     const before = Date.now();
     await webhooks.deliver();
-    const [short, long] = outcomes().map(
-      (outcome) => Date.parse(String(outcome["retry_at"])) - before,
+    const [short, long] = ["del-1", "del-2"].map(
+      (id) => Date.parse(String(outcomeOf(calls, id)?.["retry_at"])) - before,
     );
     expect(short).toBeGreaterThanOrEqual(599_000);
     expect(short).toBeLessThan(602_000);

@@ -216,12 +216,12 @@ rows per call (10,000 by default), and returns how many it deleted. They
 delete in primary-key order, so they find the oldest rows through the primary
 key index without a full scan. Only `service_role` can call them.
 
-| Function                                           | Deletes                                                                            |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `purge_audit_log(older_than => '1 year')`          | `audit_log` entries older than `older_than`, or than the tenant's own interval     |
-| `purge_webhooks(older_than => '30 days')`          | processed messages; `include_dead => true` also deletes dead ones                  |
-| `purge_job_archive(queue, older_than => '7 days')` | completed and dead jobs (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
-| `purge_idempotency_keys()`                         | expired idempotency keys                                                           |
+| Function                                                                         | Deletes                                                                                                            |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `purge_audit_log(older_than => '1 year')`                                        | `audit_log` entries older than `older_than`, or than the tenant's own interval                                     |
+| `purge_webhooks(older_than => '30 days')`                                        | processed messages; `include_dead => true` also deletes dead ones                                                  |
+| `purge_job_archive(queue, older_than => '7 days', dead_older_than => '30 days')` | completed jobs, and dead jobs after their own retention (`pgmq.a_<queue>`, or `job_messages` on the table backend) |
+| `purge_idempotency_keys()`                                                       | expired idempotency keys                                                                                           |
 
 Schedule them with [pg_cron](https://supabase.com/docs/guides/cron) at a quiet
 hour. Enable the extension once (`create extension pg_cron with schema

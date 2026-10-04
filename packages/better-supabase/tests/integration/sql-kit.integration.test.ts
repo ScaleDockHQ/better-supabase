@@ -934,6 +934,38 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     });
     expect(waitingBy.get("later@example.com")).toMatchObject({ read_ct: 0 });
     expect(waitingBy.get("a@example.com")?.message.last_error).toBe("retry me");
+
+    const deadId = (
+      await pool.query<{ msg_id: string }>(
+        `select msg_id from pgmq.a_${queue} where message ->> 'dead' = 'true'`,
+      )
+    ).rows[0]!.msg_id;
+    const replayed = await jobs.replay(queue, Number(deadId)).orThrow();
+    expect(replayed).toEqual(expect.any(Number));
+    expect(await jobs.replay(queue, Number(deadId)).orThrow()).toBeNull();
+    const back = await pool.query<{ message: { payload: { to: string } } }>(
+      `select message from pgmq.q_${queue} where msg_id = $1`,
+      [replayed],
+    );
+    expect(back.rows[0]!.message.payload.to).toBe("b@example.com");
+  });
+
+  it("dead-letters a pgmq job whose worker died on the last attempt", async () => {
+    const queue = `kit_${RUN}_lost`;
+    const jobs = createJobs(postgres.admin, { [queue]: v.object({}) });
+    await jobs.enqueue(queue, {}, { maxAttempts: 1 }).orThrow();
+    expect(await jobs.claim(queue, { lease: 1 }).orThrow()).toHaveLength(1);
+    await pool.query(
+      `update pgmq.q_${queue} set vt = now() - interval '1 second'`,
+    );
+    expect(await jobs.claim(queue).orThrow()).toEqual([]);
+    const archived = await pool.query<{
+      message: { dead?: boolean; last_error?: string };
+    }>(`select message from pgmq.a_${queue}`);
+    expect(archived.rows[0]!.message).toMatchObject({
+      dead: true,
+      last_error: "The lease ran out on the last attempt",
+    });
   });
 
   it("carries the enqueuing actor and tenant through pgmq", async () => {
@@ -1063,6 +1095,28 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         { dead: false, archived: true },
         { dead: true, archived: true },
       ]);
+      const deadRow = (
+        await pool.query<{ id: string }>(
+          "select id from better_supabase.job_messages where queue = $1 and dead",
+          [queue],
+        )
+      ).rows[0]!.id;
+      const replayed = await jobs.replay(queue, Number(deadRow)).orThrow();
+      expect(replayed).not.toBeNull();
+      expect(await jobs.replay(queue, Number(deadRow)).orThrow()).toBeNull();
+      await pool.query(
+        "update better_supabase.job_messages set attempts = 1, visible_at = now() - interval '1 second' where id = $1",
+        [replayed],
+      );
+      expect(await jobs.claim(queue).orThrow()).toEqual([]);
+      const lost = await pool.query<{ dead: boolean; error: string }>(
+        "select dead, message ->> 'last_error' as error from better_supabase.job_messages where id = $1",
+        [replayed],
+      );
+      expect(lost.rows[0]).toEqual({
+        dead: true,
+        error: "The lease ran out on the last attempt",
+      });
 
       await jobs
         .schedule(
@@ -1271,6 +1325,24 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     expect(await count(`select count(*)::int as n from pgmq.a_${queue}`)).toBe(
       1,
     );
+    await pool.query(
+      `select pgmq.archive($1, pgmq.send($1, '{"dead": true}'::jsonb))`,
+      [queue],
+    );
+    await pool.query(
+      `update pgmq.a_${queue} set archived_at = now() - interval '20 days'`,
+    );
+    expect(
+      await count(
+        "select better_supabase.purge_job_archive($1, '10 days') as n",
+        [queue],
+      ),
+    ).toBe(1);
+    expect(
+      await count(
+        `select count(*)::int as n from pgmq.a_${queue} where message ? 'dead'`,
+      ),
+    ).toBe(1);
 
     const executable = await pool.query<{ role: string; allowed: boolean }>(
       `select r.role, has_function_privilege(r.role, f.fn, 'execute') as allowed
@@ -1279,7 +1351,8 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
               'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
               'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid)',
               'better_supabase.purge_webhooks(interval, boolean, integer)',
-              'better_supabase.purge_job_archive(text, interval, integer)'
+              'better_supabase.purge_job_archive(text, interval, integer, interval)',
+              'better_supabase.replay_dead_job(text, bigint)'
             ]) as f(fn)`,
     );
     for (const row of executable.rows)
