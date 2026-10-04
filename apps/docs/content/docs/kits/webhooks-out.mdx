@@ -104,23 +104,33 @@ export const GET = webhooks.deliverRoute({ secret: process.env.CRON_SECRET });
 
 `deliver` claims due rows with `for update skip locked` and leases them
 (`lease`, two minutes by default), so two runs never send the same delivery.
+The claim counts the attempt, so a worker that dies mid-send still uses one
+up, and the attempt is the lease token: a worker whose lease ran out and was
+claimed again can't record its result. A batch (`batch`, 25) is sent with
+`concurrency` (10) requests in flight, so it finishes inside the lease.
 Each request carries the Standard Webhooks headers (`webhook-id`,
 `webhook-timestamp` and `webhook-signature`) and the body
 `{ type, timestamp, data }`. Receivers check it with
 [`verifyWebhook`](/docs/standards/webhooks) or any Standard Webhooks library.
 The delivery id is the `webhook-id`, the same on every retry.
 
-| Response                       | Result                                                     |
-| ------------------------------ | ---------------------------------------------------------- |
-| 2xx                            | `completed`                                                |
-| 408, 429, 5xx, a network error | `failed`, retried after 30 seconds, doubling up to an hour |
-| Any other status               | `dead_lettered`                                            |
-| A URL `allowUrl` rejects       | `dead_lettered`, never sent                                |
-| The last of `maxAttempts`      | `dead_lettered`                                            |
+| Response                       | Result                                     |
+| ------------------------------ | ------------------------------------------ |
+| 2xx                            | `completed`                                |
+| 408, 429, 5xx, a network error | `failed`, retried on the schedule below    |
+| Any other status               | `dead_lettered`                            |
+| A URL `allowUrl` rejects       | `dead_lettered`, never sent                |
+| The last of `maxAttempts` (8)  | `dead_lettered`, also when the worker died |
 
-After `disableAfter` (10) dead-lettered deliveries in a row, the destination
-is disabled, its pending deliveries are canceled and the outbox gets
-`webhook.disabled`. Setting `enabled` back to `true` clears the streak.
+Retries follow the Svix schedule: 5 seconds, 5 minutes, 30 minutes, 2
+hours, 5 hours, then 10 hours, each with full jitter (a random wait up to
+that long) so failed receivers aren't hit in bursts. A `Retry-After` header
+on the response wins when it asks for longer, up to a day.
+
+A destination whose deliveries keep failing for `disableAfter` (5 days)
+without a success in between is disabled, its pending deliveries are
+canceled and the outbox gets `webhook.disabled`. Setting `enabled` back to
+`true` clears `failing_since`.
 `redeliver(deliveryId)` queues a finished delivery again from its first
 attempt.
 
@@ -192,7 +202,7 @@ export default defineConfig({
       idType: "uuid",
       columns: {
         destinations: {
-          failureCount: null,
+          failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },
@@ -219,28 +229,29 @@ createWebhooks({
 });
 ```
 
-Without the failure columns, destinations are never disabled automatically.
+Without `failingSince`, destinations are never disabled automatically.
 Without `expiresAt`, rotating replaces the secret at once instead of
 overlapping. With `secretStorage: "column"` the secret is stored as plain
 text in a table no client can read.
 
-| Option          | Default | Meaning                                                                    |
-| --------------- | ------- | -------------------------------------------------------------------------- |
-| `secretStorage` | `vault` | `vault` or `column`                                                        |
-| `allowHttp`     | `false` | Allow `http:` destination URLs                                             |
-| `disableAfter`  | `10`    | Dead letters in a row before a destination is disabled; `0` never disables |
-| `eventIdType`   | `text`  | The type of the event id column                                            |
-| `runIdType`     | `text`  | The type of the run id column                                              |
+| Option          | Default  | Meaning                                                             |
+| --------------- | -------- | ------------------------------------------------------------------- |
+| `secretStorage` | `vault`  | `vault` or `column`                                                 |
+| `allowHttp`     | `false`  | Allow `http:` destination URLs                                      |
+| `disableAfter`  | `5 days` | How long a destination fails without a success before it's disabled |
+| `eventIdType`   | `text`   | The type of the event id column                                     |
+| `runIdType`     | `text`   | The type of the run id column                                       |
 
 ## Error codes
 
-| `hint`                          | When                                                     |
-| ------------------------------- | -------------------------------------------------------- |
-| `WEBHOOK_TYPE_REQUIRED`         | `publish` or `dispatch` without an event type            |
-| `WEBHOOK_FORBIDDEN`             | The caller lacks `webhooks.manage` in the organization   |
-| `WEBHOOK_DESTINATION_NOT_FOUND` | No destination with that id                              |
-| `WEBHOOK_DESTINATION_DISABLED`  | Dispatching or redelivering to a disabled destination    |
-| `WEBHOOK_DELIVERY_NOT_FOUND`    | No delivery with that id                                 |
-| `WEBHOOK_DELIVERY_IN_PROGRESS`  | Redelivering a delivery that hasn't finished             |
-| `WEBHOOK_STATUS_UNKNOWN`        | Completing a delivery with a status the kit doesn't know |
-| `WEBHOOK_SECRET_TOO_SHORT`      | Importing a secret shorter than 16 characters            |
+| `hint`                          | When                                                         |
+| ------------------------------- | ------------------------------------------------------------ |
+| `WEBHOOK_TYPE_REQUIRED`         | `publish` or `dispatch` without an event type                |
+| `WEBHOOK_FORBIDDEN`             | The caller lacks `webhooks.manage` in the organization       |
+| `WEBHOOK_DESTINATION_NOT_FOUND` | No destination with that id                                  |
+| `WEBHOOK_DESTINATION_DISABLED`  | Dispatching or redelivering to a disabled destination        |
+| `WEBHOOK_DELIVERY_NOT_FOUND`    | No delivery with that id                                     |
+| `WEBHOOK_DELIVERY_IN_PROGRESS`  | Redelivering a delivery that hasn't finished                 |
+| `WEBHOOK_STATUS_UNKNOWN`        | Completing a delivery with a status the kit doesn't know     |
+| `WEBHOOK_ATTEMPT_REQUIRED`      | Completing a delivery without the attempt its claim returned |
+| `WEBHOOK_SECRET_TOO_SHORT`      | Importing a secret shorter than 16 characters                |

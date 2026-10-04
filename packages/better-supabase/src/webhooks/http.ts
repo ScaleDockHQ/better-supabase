@@ -10,6 +10,8 @@ export interface WebhookRequest {
 export interface WebhookResponse {
   readonly status: number;
   readonly body: string;
+  /** Seconds from the `Retry-After` header, when the receiver sent one. */
+  readonly retryAfter?: number;
 }
 
 /**
@@ -43,6 +45,19 @@ export interface FetchTransportOptions {
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+/** `Retry-After` as seconds from now: delta-seconds or an HTTP date. */
+export function parseRetryAfter(
+  value: string | null,
+  now: number = Date.now(),
+): number | undefined {
+  if (value === null) return undefined;
+  const text = value.trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const at = Date.parse(text);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, Math.ceil((at - now) / 1000));
+}
 
 /** Reads at most `limit` bytes of the body, then cancels the stream. */
 async function readCapped(response: Response, limit: number): Promise<string> {
@@ -102,11 +117,16 @@ export function fetchTransport(
           redirect: "manual",
           signal,
         });
-        if (!REDIRECTS.has(response.status))
+        if (!REDIRECTS.has(response.status)) {
+          const retryAfter = parseRetryAfter(
+            response.headers.get("retry-after"),
+          );
           return {
             status: response.status,
             body: await readCapped(response, maxResponseBytes),
+            ...(retryAfter === undefined ? {} : { retryAfter }),
           };
+        }
         await response.body?.cancel();
         const location = response.headers.get("location");
         if (!location)

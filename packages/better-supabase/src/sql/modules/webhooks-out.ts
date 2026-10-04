@@ -16,7 +16,7 @@ const NAMES: KitNames = {
         url: "url",
         enabled: "enabled",
         eventTypes: "event_kinds",
-        failureCount: "consecutive_failures",
+        failingSince: "failing_since",
         disabledAt: "disabled_at",
         disabledReason: "disabled_reason",
         createdBy: "created_by",
@@ -26,7 +26,7 @@ const NAMES: KitNames = {
       optional: [
         "tenant",
         "name",
-        "failureCount",
+        "failingSince",
         "disabledAt",
         "disabledReason",
         "createdBy",
@@ -113,7 +113,7 @@ create table if not exists ${n.table("destinations")} (
     `${d("url")} text not null ${urlCheck}`,
     `${d("enabled")} boolean not null default true`,
     `${d("eventTypes")} text[] not null default '{}'`,
-    ...opt("destinations", "failureCount", "integer not null default 0"),
+    ...opt("destinations", "failingSince", "timestamptz"),
     ...opt("destinations", "disabledAt", "timestamptz"),
     ...opt("destinations", "disabledReason", "text"),
     ...opt(
@@ -213,8 +213,8 @@ grant select on ${n.table("deliveries")} to authenticated;${policy(
 function reenable(ctx: KitContext, n: HookNames): string {
   const d = (logical: string) => n.col("destinations", logical);
   const resets = [
-    n.has("destinations", "failureCount")
-      ? `new.${d("failureCount")} := 0;`
+    n.has("destinations", "failingSince")
+      ? `new.${d("failingSince")} := null;`
       : "",
     n.has("destinations", "disabledAt")
       ? `new.${d("disabledAt")} := null;`
@@ -293,7 +293,7 @@ function contract(): readonly KitContractFunction[] {
     },
     {
       name: "claim_webhook_deliveries",
-      args: ["integer", "interval"],
+      args: ["integer", "interval", "integer"],
       returns: "jsonb",
     },
     {
@@ -315,7 +315,7 @@ export const WEBHOOKS_OUT: KitModuleDefinition = {
   name: "webhooks-out",
   title: "Outgoing webhooks",
   description:
-    "Outgoing webhooks: destinations subscribed to event types, a delivery log unique per destination and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after repeated failures and redelivery.",
+    "Outgoing webhooks: destinations subscribed to event types, a delivery log unique per destination and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after a destination keeps failing and redelivery.",
   requires: [],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

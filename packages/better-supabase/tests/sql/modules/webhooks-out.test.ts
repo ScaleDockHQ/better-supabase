@@ -17,7 +17,7 @@ const CENTRAKIT: KitsConfig = {
     idType: "uuid",
     columns: {
       destinations: {
-        failureCount: null,
+        failingSince: null,
         disabledAt: null,
         disabledReason: null,
       },
@@ -58,7 +58,7 @@ describe("webhooks-out module", () => {
     const sql = body(CENTRAKIT);
     expect(sql).not.toContain("create table if not exists");
     expect(sql).not.toContain("vault.");
-    expect(sql).not.toContain('"consecutive_failures"');
+    expect(sql).not.toContain('"failing_since"');
     expect(sql).not.toContain('"expires_at"');
     expect(sql).toContain('"public"."webhook_destination_secrets"');
     expect(sql).toContain('"workflow_run_id"');
@@ -98,10 +98,32 @@ describe("webhooks-out module", () => {
     ).toThrow(/vaultId/);
   });
 
-  it("never disables a destination with disableAfter 0", () => {
-    const sql = body({ "webhooks-out": { options: { disableAfter: 0 } } });
-    expect(sql).not.toContain("WEBHOOK_DISABLED_AFTER");
-    expect(sql).not.toContain("'disabled'");
+  it("disables a destination that keeps failing for disableAfter", () => {
+    const sql = body({
+      "webhooks-out": { options: { disableAfter: "3 days" } },
+    });
+    expect(sql).toContain('"failing_since" timestamptz');
+    expect(sql).toContain("v_since <= now() - '3 days'::interval");
+    expect(() =>
+      body({ "webhooks-out": { options: { disableAfter: "soon" } } }),
+    ).toThrow(/disableAfter/);
+    const never = body({
+      "webhooks-out": { columns: { destinations: { failingSince: null } } },
+    });
+    expect(never).not.toContain("v_result := 'disabled'");
+  });
+
+  it("counts the attempt at claim and completes only under the lease", () => {
+    const sql = body();
+    expect(sql).toContain('"attempt" = v."attempt" + 1');
+    expect(sql).toContain("max_attempts integer default 8");
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."claim_webhook_deliveries"(integer, interval);',
+    );
+    expect(sql).toContain('and v."attempt" = v_attempt');
+    expect(sql).toContain(`and v."status" = 'processing'`);
+    expect(sql).toContain("return 'stale';");
+    expect(sql).toContain("WEBHOOK_ATTEMPT_REQUIRED");
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {

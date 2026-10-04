@@ -1,5 +1,6 @@
 import type { KitContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { KIT_PERMISSIONS } from "./access-model.ts";
 
@@ -241,10 +242,21 @@ function claim(ctx: KitContext, n: HookNames): string {
   const v = (logical: string) => n.col("deliveries", logical);
   const optional = (logical: string, key: string) =>
     n.has("deliveries", logical) ? `, '${key}', c.${v(logical)}` : "";
+  const stamp = [
+    n.has("deliveries", "lastError")
+      ? `, ${v("lastError")} = 'The lease ran out on the last attempt'`
+      : "",
+    n.has("deliveries", "processedAt") ? `, ${v("processedAt")} = now()` : "",
+    touched(n, "deliveries"),
+  ].join("");
   return `
--- Leases due deliveries to one worker. Deliveries of disabled destinations
--- are canceled instead, and a lease that ran out is claimed again.
-create or replace function ${fn}(max_items integer default 25, lease interval default '2 minutes')
+drop function if exists ${fn}(integer, interval);
+-- Leases due deliveries to one worker and counts the attempt, so a worker
+-- that dies mid-send still uses one up. The attempt is the lease token that
+-- complete_webhook_delivery checks. Deliveries of disabled destinations are
+-- canceled instead, a lease that ran out is claimed again, and one that ran
+-- out on the last attempt is dead-lettered.
+create or replace function ${fn}(max_items integer default 25, lease interval default '2 minutes', max_attempts integer default 8)
 returns jsonb
 language plpgsql
 security definer
@@ -265,6 +277,12 @@ begin
     and not d.${d("enabled")}
     and v.${v("status")} in ('pending', 'failed');
 
+  update ${n.table("deliveries")} v
+  set ${v("status")} = 'dead_lettered', ${v("leasedUntil")} = null${stamp}
+  where v.${v("status")} = 'processing'
+    and v.${v("leasedUntil")} <= now()
+    and v.${v("attempt")} >= greatest(1, coalesce(claim_webhook_deliveries.max_attempts, 8));
+
   with due as (
     select v.${v("id")} as id
     from ${n.table("deliveries")} v
@@ -278,6 +296,7 @@ begin
   claimed as (
     update ${n.table("deliveries")} v
     set ${v("status")} = 'processing',
+      ${v("attempt")} = v.${v("attempt")} + 1,
       ${v("leasedUntil")} = now() + coalesce(claim_webhook_deliveries.lease, '2 minutes')${touched(n, "deliveries")}
     from due
     where v.${v("id")} = due.id
@@ -298,22 +317,23 @@ begin
   return result;
 end;
 $$;
-${grants(fn, "integer, interval", false)}`;
+${grants(fn, "integer, interval, integer", false)}`;
 }
 
 function complete(ctx: KitContext, n: HookNames): string {
   const fn = ctx.fn("complete_webhook_delivery");
   const d = (logical: string) => n.col("destinations", logical);
   const v = (logical: string) => n.col("deliveries", logical);
-  const disableAfter = ctx.number("disableAfter", 10);
-  if (!Number.isInteger(disableAfter) || disableAfter < 0) {
+  const window = ctx.text("disableAfter", "5 days");
+  if (!/^\d+ (minute|hour|day|week)s?$/.test(window)) {
     throw new TypeError(
-      "kits.webhooks-out.options.disableAfter must be a whole number (0 never disables)",
+      `kits.webhooks-out.options.disableAfter must be an interval such as "5 days", not "${window}"`,
     );
   }
+  const disableAfter = sqlString(window);
   const sets = [
     `${v("status")} = v_status`,
-    `${v("attempt")} = coalesce((complete_webhook_delivery.outcome ->> 'attempt')::integer, v.${v("attempt")} + 1)`,
+    `${v("attempt")} = case when v_status = 'canceled' then greatest(v.${v("attempt")} - 1, 0) else v.${v("attempt")} end`,
     `${v("availableAt")} = case when v_status = 'failed' then coalesce((complete_webhook_delivery.outcome ->> 'retry_at')::timestamptz, now()) else v.${v("availableAt")} end`,
     `${v("leasedUntil")} = null`,
   ];
@@ -339,21 +359,20 @@ function complete(ctx: KitContext, n: HookNames): string {
   const disable = [
     n.has("destinations", "disabledAt") ? `, ${d("disabledAt")} = now()` : "",
     n.has("destinations", "disabledReason")
-      ? `, ${d("disabledReason")} = format('%s deliveries in a row failed', v_count)`
+      ? `, ${d("disabledReason")} = format('Deliveries failed since %s', v_since)`
       : "",
     touched(n, "destinations"),
   ].join("");
-  const streak =
-    n.has("destinations", "failureCount") && disableAfter > 0
-      ? `
+  const streak = n.has("destinations", "failingSince")
+    ? `
   if v_status = 'completed' then
-    update ${n.table("destinations")} d set ${d("failureCount")} = 0
-    where d.${d("id")} = v_destination and d.${d("failureCount")} <> 0;
-  elsif v_status = 'dead_lettered' then
-    update ${n.table("destinations")} d set ${d("failureCount")} = d.${d("failureCount")} + 1
+    update ${n.table("destinations")} d set ${d("failingSince")} = null
+    where d.${d("id")} = v_destination and d.${d("failingSince")} is not null;
+  elsif v_status in ('failed', 'dead_lettered') then
+    update ${n.table("destinations")} d set ${d("failingSince")} = coalesce(d.${d("failingSince")}, now())
     where d.${d("id")} = v_destination
-    returning d.${d("failureCount")}${tenantSelect} into v_count, v_tenant;
-    if v_count >= ${String(disableAfter)} then
+    returning d.${d("failingSince")}${tenantSelect} into v_since, v_tenant;
+    if v_since <= now() - ${disableAfter}::interval then
       update ${n.table("destinations")} d set ${d("enabled")} = false${disable}
       where d.${d("id")} = v_destination and d.${d("enabled")};
       if found then
@@ -361,17 +380,19 @@ function complete(ctx: KitContext, n: HookNames): string {
         ${ctx.emit({
           type: "webhook.disabled",
           payload:
-            "jsonb_build_object('endpointId', v_destination, 'failures', v_count)",
+            "jsonb_build_object('endpointId', v_destination, 'failingSince', v_since)",
           subject: "'webhooks/' || v_destination::text",
           tenant: "v_tenant::text",
         })}
       end if;
     end if;
   end if;`
-      : "";
+    : "";
   return `
--- Records an attempt. 'failed' retries at retry_at; 'dead_lettered' counts
--- toward disabling the destination; 'completed' resets the count.
+-- Records an attempt for the worker that holds the lease: outcome.attempt
+-- must be the attempt the claim returned, and a delivery claimed again in
+-- the meantime returns 'stale' unchanged. 'failed' retries at retry_at, and
+-- a destination that keeps failing for disableAfter is disabled.
 create or replace function ${fn}(delivery uuid, outcome jsonb)
 returns text
 language plpgsql
@@ -381,19 +402,28 @@ as $$
 ${VARIABLES}
 declare
   v_status text := complete_webhook_delivery.outcome ->> 'status';
+  v_attempt integer := (complete_webhook_delivery.outcome ->> 'attempt')::integer;
   v_destination uuid;
   v_tenant ${ctx.idType};
-  v_count integer;
+  v_since timestamptz;
   v_result text := 'ok';
 begin
   if v_status is null or v_status not in ('completed', 'failed', 'dead_lettered', 'canceled') then
     ${fail("WEBHOOK_STATUS_UNKNOWN", "status must be completed, failed, dead_lettered or canceled", "22023")}
   end if;
+  if v_attempt is null then
+    ${fail("WEBHOOK_ATTEMPT_REQUIRED", "outcome.attempt must be the attempt the claim returned", "22023")}
+  end if;
   update ${n.table("deliveries")} v
   set ${sets.join(",\n    ")}
   where v.${v("id")} = complete_webhook_delivery.delivery
+    and v.${v("attempt")} = v_attempt
+    and v.${v("status")} = 'processing'
   returning v.${v("destination")} into v_destination;
   if not found then
+    if exists (select 1 from ${n.table("deliveries")} v where v.${v("id")} = complete_webhook_delivery.delivery) then
+      return 'stale';
+    end if;
     ${fail("WEBHOOK_DELIVERY_NOT_FOUND", "Webhook delivery not found", "P0002")}
   end if;${streak}
   ${ctx.hook("after_webhook_delivery", [

@@ -44,7 +44,7 @@ const USERS = {
 type Who = keyof typeof USERS;
 
 const LAYOUT: KitLayout = {
-  kits: { "webhooks-out": { options: { disableAfter: 2 } } },
+  kits: { "webhooks-out": { options: { disableAfter: "2 days" } } },
 };
 
 class Session {
@@ -311,7 +311,22 @@ describe.skipIf(!live)("webhooks-out", () => {
         { status: "failed", attempt: 1, response_status: 500 },
       ]);
 
-      // A second dead letter in a row disables the destination.
+      // Completing under a lease that is no longer held changes nothing.
+      const done = await s.value<string>(
+        "(select id from better_supabase.webhook_deliveries where status = 'completed')",
+      );
+      expect(
+        await s.value(
+          'better_supabase.complete_webhook_delivery($1, \'{"status": "failed", "attempt": 1}\')',
+          [done],
+        ),
+      ).toBe("stale");
+
+      // A destination that keeps failing for disableAfter is disabled.
+      await client.query(
+        "update better_supabase.webhook_destinations set failing_since = now() - interval '3 days' where id = $1",
+        [all],
+      );
       await webhooks
         .publish({ type: "invoice.void", data: {}, tenant: org, id: "evt-3" })
         .orThrow();
@@ -351,10 +366,10 @@ describe.skipIf(!live)("webhooks-out", () => {
       );
       expect(
         await s.value(
-          "(select consecutive_failures || '/' || coalesce(disabled_at::text, 'null') from better_supabase.webhook_destinations where id = $1)",
+          "(select coalesce(failing_since::text, 'null') || '/' || coalesce(disabled_at::text, 'null') from better_supabase.webhook_destinations where id = $1)",
           [all],
         ),
-      ).toBe("0/null");
+      ).toBe("null/null");
 
       // Redelivering a dead letter queues it again from the first attempt.
       const dead = await s.value<string>(
@@ -369,6 +384,18 @@ describe.skipIf(!live)("webhooks-out", () => {
       ).toBe("WEBHOOK_DELIVERY_IN_PROGRESS");
       await s.as("service");
       expect(await webhooks.deliver()).toMatchObject({ completed: 1 });
+
+      // A worker that died on the last attempt still used it up.
+      await client.query(
+        "insert into better_supabase.webhook_deliveries (organization_id, destination_id, event_kind, status, attempt, leased_until) values ($1, $2, 'crashed', 'processing', 8, now() - interval '1 minute')",
+        [org, orgs],
+      );
+      expect(await webhooks.deliver()).toMatchObject({ completed: 0 });
+      expect(
+        await s.value(
+          "(select status || '/' || attempt from better_supabase.webhook_deliveries where event_kind = 'crashed')",
+        ),
+      ).toBe("dead_lettered/8");
 
       expect(
         await s.value(

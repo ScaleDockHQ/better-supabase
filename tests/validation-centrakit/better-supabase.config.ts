@@ -199,7 +199,7 @@ export default defineConfig({
       },
       columns: {
         destinations: {
-          failureCount: null,
+          failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },

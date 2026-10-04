@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { KitTransport } from "../../src/core/kit-transport.ts";
 import type {
   WebhookRequest,
+  WebhookResponse,
   WebhookTransport,
   WebhooksOptions,
 } from "../../src/webhooks/index.ts";
@@ -31,7 +32,7 @@ function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     url: "https://hooks.example.com/in",
     type: "invoice.paid",
     payload: { id: 7 },
-    attempt: 0,
+    attempt: 1,
     tenant: "org-1",
     event_id: "evt-1",
     run_id: null,
@@ -79,9 +80,7 @@ function fakeKit(
 }
 
 function fakeHttp(
-  respond: (
-    request: WebhookRequest,
-  ) => { status: number; body: string } | Error,
+  respond: (request: WebhookRequest) => WebhookResponse | Error,
 ) {
   const sent: WebhookRequest[] = [];
   const http: WebhookTransport = {
@@ -151,7 +150,7 @@ describe("createWebhooks: deliver", () => {
     expect(calls[0]).toEqual({
       schema: "better_supabase",
       fn: "claim_webhook_deliveries",
-      args: { max_items: 25, lease: "2 minutes" },
+      args: { max_items: 25, lease: "2 minutes", max_attempts: 8 },
     });
     expect(seen).toEqual([
       {
@@ -169,7 +168,7 @@ describe("createWebhooks: deliver", () => {
 
   it("retries retryable statuses with backoff and dead-letters after maxAttempts", async () => {
     const { webhooks, outcomes, seen } = setup(
-      [row(), row({ id: "del-2", attempt: 4 }), row({ id: "del-3" })],
+      [row(), row({ id: "del-2", attempt: 8 }), row({ id: "del-3" })],
       (request) =>
         request.headers["webhook-id"] === "del-3"
           ? { status: 410, body: "gone" }
@@ -189,9 +188,9 @@ describe("createWebhooks: deliver", () => {
     });
     expect(String(retry!["response_body"])).toHaveLength(2000);
     const retryAt = Date.parse(String(retry!["retry_at"]));
-    expect(retryAt - before).toBeGreaterThanOrEqual(29_000);
-    expect(retryAt - before).toBeLessThan(40_000);
-    expect(last).toMatchObject({ status: "dead_lettered", attempt: 5 });
+    expect(retryAt - before).toBeGreaterThanOrEqual(-1000);
+    expect(retryAt - before).toBeLessThan(6000);
+    expect(last).toMatchObject({ status: "dead_lettered", attempt: 8 });
     expect(last).not.toHaveProperty("retry_at");
     expect(gone).toMatchObject({
       status: "dead_lettered",
@@ -228,7 +227,7 @@ describe("createWebhooks: deliver", () => {
 
   it("takes a custom retry policy", async () => {
     const { webhooks, outcomes } = setup(
-      [row({ attempt: 1 })],
+      [row({ attempt: 2 })],
       () => ({ status: 400, body: "" }),
       {
         retry: {
@@ -255,10 +254,13 @@ describe("createWebhooks: deliver", () => {
     );
     expect(await webhooks.deliver()).toMatchObject({ canceled: 2 });
     expect(sent).toHaveLength(0);
-    expect(outcomes()).toEqual([
-      { status: "canceled", attempt: 0, error: "Canceled by shouldDeliver" },
-      { status: "canceled", attempt: 0, error: "tenant suspended" },
-    ]);
+    expect(outcomes()).toHaveLength(2);
+    expect(outcomes()).toEqual(
+      expect.arrayContaining([
+        { status: "canceled", attempt: 1, error: "Canceled by shouldDeliver" },
+        { status: "canceled", attempt: 1, error: "tenant suspended" },
+      ]),
+    );
   });
 
   it("uses transform, headers, signer and secrets from the options", async () => {
@@ -310,6 +312,67 @@ describe("createWebhooks: deliver", () => {
     });
     expect(await broken.webhooks.deliver()).toMatchObject({ failed: 1 });
     expect(broken.sent).toHaveLength(0);
+  });
+
+  it("waits as long as Retry-After asks, up to a day", async () => {
+    const { webhooks, outcomes } = setup(
+      [row(), row({ id: "del-2" })],
+      (request) => ({
+        status: 429,
+        body: "",
+        retryAfter: request.headers["webhook-id"] === "del-1" ? 600 : 999_999,
+      }),
+    );
+    const before = Date.now();
+    await webhooks.deliver();
+    const [short, long] = outcomes().map(
+      (outcome) => Date.parse(String(outcome["retry_at"])) - before,
+    );
+    expect(short).toBeGreaterThanOrEqual(599_000);
+    expect(short).toBeLessThan(602_000);
+    expect(long).toBeLessThan(86_402_000);
+    expect(long).toBeGreaterThan(86_398_000);
+  });
+
+  it("drops the result of a delivery whose lease another worker took", async () => {
+    const { webhooks, seen } = setup(
+      [row()],
+      ok,
+      {},
+      { complete_webhook_delivery: () => "stale" },
+    );
+    expect(await webhooks.deliver()).toMatchObject({ completed: 0 });
+    expect(seen).toEqual([]);
+  });
+
+  it("sends a batch with at most concurrency requests in flight", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const kit = fakeKit(
+      Array.from({ length: 7 }, (_, index) =>
+        row({ id: `del-${String(index)}` }),
+      ),
+    );
+    const webhooks = createWebhooks({
+      transport: kit.transport,
+      http: {
+        apiVersion: 1,
+        name: "slow",
+        async send() {
+          inFlight += 1;
+          peak = Math.max(peak, inFlight);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 5);
+          });
+          inFlight -= 1;
+          return { status: 200, body: "" };
+        },
+      },
+    });
+    expect(await webhooks.deliver({ concurrency: 3 })).toMatchObject({
+      completed: 7,
+    });
+    expect(peak).toBe(3);
   });
 
   it("counts and announces a destination the kit disabled", async () => {

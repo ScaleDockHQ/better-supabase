@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { testWebhookTransport } from "../../src/testing/index.ts";
+import { parseRetryAfter } from "../../src/webhooks/http.ts";
 import {
   fetchTransport,
   WebhookPolicyError,
@@ -39,6 +40,23 @@ describe("fetchTransport", () => {
       body: "{}",
       redirect: "manual",
     });
+  });
+
+  it("returns Retry-After as seconds", async () => {
+    const { fetch } = fakeFetch(
+      () =>
+        new Response("", { status: 429, headers: { "retry-after": "120" } }),
+    );
+    expect(await fetchTransport({ fetch }).send(request)).toEqual({
+      status: 429,
+      body: "",
+      retryAfter: 120,
+    });
+    const now = Date.parse("2026-10-04T12:00:00Z");
+    expect(parseRetryAfter("Sun, 04 Oct 2026 12:01:30 GMT", now)).toBe(90);
+    expect(parseRetryAfter("Sun, 04 Oct 2026 11:00:00 GMT", now)).toBe(0);
+    expect(parseRetryAfter("soon", now)).toBe(undefined);
+    expect(parseRetryAfter(null, now)).toBe(undefined);
   });
 
   it("follows allowed redirects and checks each hop", async () => {
