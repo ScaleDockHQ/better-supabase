@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-Add the `webhooks-out` SQL kit module and outgoing webhooks in `better-supabase/webhooks`. Destinations subscribe to event types (exact, `*` or `prefix.*`), secrets live in Supabase Vault (or a column) and rotate with an overlap, and every delivery is logged with its status, response and duration. `createWebhooks` publishes events idempotently, dispatches to one destination, and `deliver()` or `deliverRoute()` sends due deliveries with leases, retries with backoff, dead letters, redelivery and auto-disable after repeated dead letters. Requests are signed with Standard Webhooks by default or with `hmacSigner` for an existing format, and `publicUrl()` rejects private and local addresses, also on each redirect. `WebhookSigner`, `WebhookTransport` and `WebhookSecretStore` are versioned extension interfaces with conformance kits in `better-supabase/testing`. RLS policies in the `notifications` module now use `better_supabase.can`, which clients may execute, instead of `member_can`.
