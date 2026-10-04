@@ -761,13 +761,18 @@ function accept(ctx: KitContext): string {
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
     end if;`
       : "";
-  const recheck = inviter
-    ? `
+  const recheck =
+    inviter && model === "permdock"
+      ? `
+    -- The permdock model answers for the caller only, so the inviter's
+    -- authority was checked when they invited, not here.`
+      : inviter
+        ? `
     if ${inviter} is not null
       and better_supabase.can_user(${inviter}, ${sqlString(tenantScope(ctx))}, invite.${c("tenant")}, ${invitePermission}) is false then
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer invite members")}
     end if;${assignAs}`
-    : "";
+        : "";
   let platformAccept = "";
   if (p) {
     const pc = (logical: string) => p.col(logical);

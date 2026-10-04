@@ -189,4 +189,25 @@ describe("notifications module", () => {
     });
     expect(minimal!.functions).toHaveLength(7);
   });
+
+  it("skips the recipient read filter under the permdock model", () => {
+    const notify = (kits: KitsConfig) =>
+      renderKit(["access", "notifications"], { kits }).find((file) =>
+        file.path.includes("notifications"),
+      )!.contents;
+    expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");
+    const permdock = notify({
+      access: {
+        model: "permdock",
+        permdock: { schema: "permdock", scope: "organization" },
+      },
+    });
+    expect(permdock).not.toContain("better_supabase.member_can(x,");
+    expect(permdock).toContain(
+      "better_supabase.member_can(auth.uid(), v_tenant,",
+    );
+    expect(permdock).toContain(
+      "-- The permdock model answers for the caller only, so recipients are not",
+    );
+  });
 });

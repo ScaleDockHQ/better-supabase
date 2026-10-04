@@ -130,6 +130,32 @@ describe("access module", () => {
     );
   });
 
+  it("raises 0A000 when the permdock model is asked about another user", () => {
+    const sql = access({
+      model: "permdock",
+      permdock: { schema: "permdock", scope: "organization" },
+    });
+    const caller = (name: string) =>
+      sql
+        .slice(sql.indexOf(`function better_supabase.${name}(`))
+        .split("$$;")[0]!;
+    for (const name of ["member_can", "can_user"]) {
+      expect(caller(name)).toContain("language plpgsql");
+      expect(caller(name)).toContain(
+        "if member is distinct from auth.uid() then",
+      );
+      expect(caller(name)).toContain(
+        "using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY'",
+      );
+    }
+    expect(sql).not.toContain("null::boolean");
+    const roles = access({});
+    expect(roles).not.toContain("ACCESS_CALLER_ONLY");
+    expect(
+      roles.slice(roles.indexOf("function better_supabase.can_user(")),
+    ).toMatch(/^[^$]*language sql/);
+  });
+
   it("wraps the app's functions in the custom model", () => {
     const sql = access({
       model: "custom",

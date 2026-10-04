@@ -2,7 +2,7 @@ import type { KitContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
-import { KIT_PERMISSIONS } from "./access-model.ts";
+import { accessModel, KIT_PERMISSIONS } from "./access-model.ts";
 
 export interface NotifyNames {
   readonly table: (table: string) => string;
@@ -218,15 +218,20 @@ function notify(ctx: KitContext, n: NotifyNames): string {
     );
   end if;`
     : "";
-  const members = access
-    ? `
+  const readFilter =
+    accessModel(ctx) === "permdock"
+      ? `
+  -- The permdock model answers for the caller only, so recipients are not
+  -- filtered by their read permission: the sender and notification_audience
+  -- decide who gets it.`
+      : `
   if v_tenant is not null then
     v_recipients := array(
       select x from unnest(v_recipients) x
       where coalesce(better_supabase.member_can(x, v_tenant, ${n.readPermission}), false)
     );
-  end if;`
-    : "";
+  end if;`;
+  const members = access ? readFilter : "";
   const authorize = access
     ? `
   if not (${SERVICE_CALLER}) then

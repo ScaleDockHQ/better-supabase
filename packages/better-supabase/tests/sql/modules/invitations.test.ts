@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { KitsConfig } from "../../../src/config/kits.ts";
 
-import { moduleBody, upgradePlan } from "../../../src/sql/kit.ts";
+import { moduleBody, renderKit, upgradePlan } from "../../../src/sql/kit.ts";
 
 const body = (kits: KitsConfig) => moduleBody("invitations", { kits })!;
 
@@ -122,5 +122,23 @@ describe("invitations module", () => {
     );
     const plan = upgradePlan([{ module: "invitations", version: 1 }], {});
     expect(plan.map((step) => step.module)).toContain("invitations");
+  });
+
+  it("skips the inviter re-check under the permdock model", () => {
+    const accept = (kits: KitsConfig) =>
+      renderKit(["access", "invitations"], { kits })
+        .map((file) => file.contents)
+        .join("\n");
+    expect(accept({})).toContain("better_supabase.can_user(invite.");
+    const permdock = accept({
+      access: {
+        model: "permdock",
+        permdock: { schema: "permdock", scope: "organization" },
+      },
+    });
+    expect(permdock).not.toContain("better_supabase.can_user(invite.");
+    expect(permdock).toContain(
+      "-- The permdock model answers for the caller only, so the inviter's",
+    );
   });
 });

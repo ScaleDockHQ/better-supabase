@@ -938,6 +938,69 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     }
   });
 
+  it("answers for the caller only under the permdock access model", async () => {
+    const pd = `pd_access_${RUN}`;
+    const me = "00000000-0000-4000-8000-0000000000a1";
+    const other = "00000000-0000-4000-8000-0000000000a2";
+    const sql = moduleBody("access", {
+      kits: {
+        access: {
+          model: "permdock",
+          permdock: { schema: pd, scope: "organization" },
+        },
+      },
+    })!;
+    const client = await pool.connect();
+    const raises = async (query: string, params: unknown[]) => {
+      await client.query("savepoint caller_only");
+      await expect(client.query(query, params)).rejects.toMatchObject({
+        code: "0A000",
+        hint: "ACCESS_CALLER_ONLY",
+      });
+      await client.query("rollback to savepoint caller_only");
+    };
+    try {
+      // The kit's functions are shared, so this runs in a transaction that
+      // rolls back and never replaces them for the other tests.
+      await client.query("begin");
+      await client.query(`
+        create schema ${pd};
+        create function ${pd}.permitted_organization_ids(permission text) returns setof uuid
+        language sql stable as $$ select '${ACME}'::uuid where permission = 'members.read' $$;
+        create function ${pd}.permdock_has(permission text) returns boolean
+        language sql stable as $$ select false $$;`);
+      await client.query(sql);
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ sub: me, role: "authenticated" }),
+      ]);
+      const answer = async (query: string, params: unknown[]) =>
+        (await client.query<{ ok: boolean }>(query, params)).rows[0]!.ok;
+      expect(
+        await answer(
+          "select better_supabase.member_can($1, $2, 'members.read') as ok",
+          [me, ACME],
+        ),
+      ).toBe(true);
+      expect(
+        await answer(
+          "select better_supabase.can_user($1, 'tenant', $2, 'members.update') as ok",
+          [me, ACME],
+        ),
+      ).toBe(false);
+      await raises(
+        "select better_supabase.member_can($1, $2, 'members.read')",
+        [other, ACME],
+      );
+      await raises(
+        "select better_supabase.can_user($1, 'platform', null, 'support.start')",
+        [other],
+      );
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `kit_${RUN}`;
     const jobs = createJobs(postgres.admin, {

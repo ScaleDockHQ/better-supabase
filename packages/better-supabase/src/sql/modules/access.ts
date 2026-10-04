@@ -463,19 +463,24 @@ function permdockFunctions(ctx: KitContext, layout: KitLayout): string {
   const permitted = `${schema}.${sqlIdent(`permitted_${target.scope}_ids`)}`;
   return `
 -- The permdock model: PermDock's ${permitted}() and ${schema}.permdock_has(),
--- from \`permdock rls generate\`. They answer for the caller only.
+-- from \`permdock rls generate\`. They read auth.uid(), so member_can() and
+-- can_user() answer for the caller only and raise 0A000 for anyone else.
 create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select case when member is distinct from auth.uid() then null::boolean
-    else not better_supabase.user_disabled(member)
-      and not better_supabase.tenant_disabled(tenant)
-      and tenant::text in (select t.id::text from ${permitted}(permission) as t(id))
-  end
+begin
+  if member is distinct from auth.uid() then
+    raise exception 'The permdock access model answers for the caller only (kits.access.model)'
+      using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
+  end if;
+  return not better_supabase.user_disabled(member)
+    and not better_supabase.tenant_disabled(tenant)
+    and tenant::text in (select t.id::text from ${permitted}(permission) as t(id));
+end;
 $$;
 
 create or replace function better_supabase.member_permissions(member uuid, tenant ${id})
@@ -680,19 +685,29 @@ as $$
 $$;
 
 -- The same question for another user, for checks such as an inviter's
--- authority at accept time. Null when the model can't answer for others.
+-- authority at accept time. ${model === "permdock" ? "The permdock model can't answer for others." : "Null when the model can't answer for others."}
 create or replace function better_supabase.can_user(member uuid, scope text, scope_id ${id}, permission text)
 returns boolean
-language sql
+language ${model === "permdock" ? "plpgsql" : "sql"}
 stable
 security definer
 set search_path = ''
-as $$
-  select case
+as $$${
+    model === "permdock"
+      ? `
+begin
+  if member is distinct from auth.uid() then
+    raise exception 'The permdock access model answers for the caller only (kits.access.model)'
+      using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
+  end if;
+  return case`
+      : `
+  select case`
+  }
     when can_user.scope = 'platform' then better_supabase.platform_can(can_user.member, can_user.permission)
     when can_user.scope in (${scope}, 'tenant') then better_supabase.member_can(can_user.member, can_user.scope_id, can_user.permission)
     else false
-  end
+  end${model === "permdock" ? ";\nend;" : ""}
 $$;
 
 create or replace function better_supabase.is_platform(permission text)
