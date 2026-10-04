@@ -30,9 +30,26 @@ describe("guard and anonymous users", () => {
     });
   });
 
-  it("admits them when allow lists anonymous or anon", () => {
+  it("admits them only when allow lists anonymous", () => {
     expect(guard(anonymous, ["user", "anonymous"])).toBeUndefined();
-    expect(guard(anonymous, ["user", "anon"])).toBeUndefined();
+    expect(guard(anonymous, ["anonymous"])).toBeUndefined();
+    expect(guard(anonymous, ["user", "anon"])).toMatchObject({
+      code: "ANONYMOUS_USER",
+    });
+    expect(guard(anonymous, ["anon"])).toMatchObject({
+      code: "ANONYMOUS_USER",
+    });
+  });
+
+  it("keeps anonymous apart from full users and from no session", () => {
+    const full = user({});
+    const none = { kind: "anon", reason: "none" } as unknown as AuthState;
+    expect(guard(full, ["anonymous"])).toMatchObject({ kind: "forbidden" });
+    expect(guard(full, ["user", "anonymous"])).toBeUndefined();
+    expect(guard(none, ["anonymous"])).toMatchObject({
+      code: "MISSING_CREDENTIALS",
+    });
+    expect(guard(none, ["user", "anon"])).toBeUndefined();
   });
 
   it("lets permanent users through", () => {

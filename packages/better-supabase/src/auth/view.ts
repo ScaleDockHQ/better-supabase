@@ -37,7 +37,8 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly aal: Aal;
       /**
        * Signed in with `signInAnonymously()` (the `is_anonymous` claim). Guards
-       * refuse these users unless `allow` lists `'anonymous'`.
+       * refuse these users unless `allow` lists `'anonymous'`; `'anon'` means
+       * no session and never admits them.
        */
       readonly anonymous: boolean;
       /** How the user signed in (`password`, `totp`, `sso/saml`, ...). */

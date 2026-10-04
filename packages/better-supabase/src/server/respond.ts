@@ -10,13 +10,19 @@ import { toDbError } from "../core/result.ts";
 
 export type AuthKind = AuthState["kind"];
 
-/** An auth kind a guard lets through; `anonymous` admits `signInAnonymously()` users. */
+/**
+ * An auth kind a guard lets through. `anonymous` admits users signed in with
+ * `signInAnonymously()` (`is_anonymous`); `anon` admits callers without a
+ * session only.
+ */
 export type AllowedCaller = Exclude<AuthKind, "invalid"> | "anonymous";
 
 export interface GuardOptions {
   /**
    * Callers allowed through. Defaults to `['user']`, which refuses anonymous
-   * users (`is_anonymous`); add `'anonymous'` (or `'anon'`) to admit them.
+   * sign-ins. Only `'anonymous'` admits them: `['anonymous']` alone admits
+   * anonymous sign-ins and refuses other users, and `'anon'` (no session)
+   * never admits them.
    */
   readonly allow?: readonly AllowedCaller[];
   /**
@@ -65,18 +71,10 @@ export function guard(
   scopes: readonly string[] = [],
 ): DbError | undefined {
   if (auth.kind === "invalid") return auth.error;
-  if (allow.includes(auth.kind)) {
+  const anonymous = auth.kind === "user" && isAnonymousUser(auth.claims);
+  if (anonymous ? allow.includes("anonymous") : allow.includes(auth.kind)) {
     const denied = checkAal(auth, aal);
     if (denied || auth.kind !== "user") return denied;
-    if (
-      isAnonymousUser(auth.claims) &&
-      !allow.includes("anonymous") &&
-      !allow.includes("anon")
-    ) {
-      return dbError("forbidden", "Sign up to continue", {
-        code: "ANONYMOUS_USER",
-      });
-    }
     const missing = missingScopes(auth, scopes);
     return missing.length > 0
       ? dbError("forbidden", `The token lacks the scope ${missing.join(" ")}`, {
@@ -84,6 +82,11 @@ export function guard(
           scopes,
         })
       : undefined;
+  }
+  if (anonymous) {
+    return dbError("forbidden", "Sign up to continue", {
+      code: "ANONYMOUS_USER",
+    });
   }
   return auth.kind === "anon"
     ? dbError("unauthorized", "Sign in to continue", {

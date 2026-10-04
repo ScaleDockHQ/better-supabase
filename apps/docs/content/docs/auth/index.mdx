@@ -40,8 +40,21 @@ switch (auth.kind) {
 A user from `signInAnonymously()` is a `user` with `is_anonymous: true` in
 the token, and `toSession(auth).anonymous` is `true`. Every adapter's guard
 refuses these users with a 403 (`code: "ANONYMOUS_USER"`) unless `allow` lists
-`'anonymous'` or `'anon'`, so a guest session never reaches a route meant for
-accounts. The `realtime-tables` SQL kit module sends them no change signals.
+`'anonymous'`, so a guest session never reaches a route meant for accounts.
+The `realtime-tables` SQL kit module sends them no change signals.
+
+| `allow`                  | Full users | Anonymous sign-ins   | No session |
+| ------------------------ | ---------- | -------------------- | ---------- |
+| `['user']` (the default) | admitted   | 403 `ANONYMOUS_USER` | 401        |
+| `['user', 'anon']`       | admitted   | 403 `ANONYMOUS_USER` | admitted   |
+| `['user', 'anonymous']`  | admitted   | admitted             | 401        |
+| `['anonymous']`          | 403        | admitted             | 401        |
+
+`'anon'` is the caller without a session and never admits an anonymous
+sign-in; until 0.5.1 it did. PermDock draws the same line in the database:
+`rls.anonymousSignIns: 'deny'` in `permdock.config.ts` keeps an
+`is_anonymous` token out of every policy branch except `anyone()`'s. Pair it
+with an `allow` without `'anonymous'` (see [PermDock](/docs/auth/permdock)).
 
 ```ts
 app.use("/cart/*", bs.middleware({ allow: ["user", "anonymous"] }));

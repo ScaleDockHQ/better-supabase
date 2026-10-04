@@ -101,7 +101,9 @@ export const GET = bs.route<{ id: string }>((request, { db, params }) =>
 - `allow` controls who gets in; the default is `['user']`. Use
   `['user', 'anon']` for public routes or `['service']` for machine callers.
   Anonymous users (`signInAnonymously()`) get a 403 with
-  `code: "ANONYMOUS_USER"` unless `allow` also lists `'anonymous'` (or `'anon'`).
+  `code: "ANONYMOUS_USER"` unless `allow` lists `'anonymous'`; `'anon'` means
+  no session and never admits them, so a public route that serves guests too
+  uses `['user', 'anonymous', 'anon']`.
 - Return a `Result` or `AsyncResult` (as above, no `await` needed), a plain
   value, or a `Response`. Errors,
   thrown `DbException`s and rejected callers become
