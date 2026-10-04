@@ -509,8 +509,10 @@ as $$
     and not better_supabase.tenant_disabled(t.id::${id})
 $$;
 
--- kits.access.functions.canAssign decides who assigns which role. Without
--- it, only owners assign the owner role, and only with the tenant module.
+-- kits.access.functions.canAssign decides who assigns which role, usually
+-- ${schema}.permdock_can_assign({role}, {tenant}::text). Without it, only the
+-- service role assigns roles, unless the tenant module is installed: then
+-- only owners assign the owner role and this check passes other roles.
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
 returns boolean
 language sql

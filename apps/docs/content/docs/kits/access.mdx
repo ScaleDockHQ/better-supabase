@@ -148,14 +148,62 @@ export default defineConfig({
 ### permdock
 
 With [PermDock](/docs/auth/permdock), `can()` and `tenant_ids_with()` call
-PermDock's `permitted_<scope>_ids` and `permdock_has`. `kits.access.permdock`
-names PermDock's schema and the scope tenants are.
+PermDock's `<schema>.permitted_<scope>_ids(permission)`, and `platform_can()`
+calls `<schema>.permdock_has(permission)`. `better-supabase sql add` reads the
+schema, the scope and its id type from `permdock.manifest.json` (written by
+`permdock supabase inspect --out`), whether or not the entitlements module
+uses PermDock:
 
-PermDock has no role catalog to compare roles against, so `can_assign()`
-comes from `kits.access.functions.canAssign` when you set it. Without it,
-`can_assign()` allows every role except the owner role, which only owners
-assign. That default reads roles from the `tenant` module; without the `tenant`
-module, `can_assign()` returns false and only the service role assigns roles.
+| Setting | From the manifest                                          |
+| ------- | ---------------------------------------------------------- |
+| Schema  | `rls.schema`                                               |
+| Scope   | the `rls.scopes` entry without `within` (the root scope)   |
+| Id type | that scope's `type`: `uuid`, `text`, `bigint` or `integer` |
+
+A manifest with `rls.schema: "authz"` and a root scope `tenant` renders
+`authz.permitted_tenant_ids`. `kits.access.permdock.scope` picks another
+declared scope. `sql add` refuses, instead of guessing, when the manifest is
+missing, has no `rls` block or no single root scope, names a scope it doesn't
+declare, or disagrees with `kits.access.permdock.schema` or
+`kits.access.idType`. Code that renders the kit without the CLI
+(`renderKit`, `moduleBody`) sets both `kits.access.permdock.schema` and
+`kits.access.permdock.scope`.
+
+PermDock's helpers check role and scope, never row conditions. Every
+permission key a kit module checks must be `rowConditions: false` in
+`permissions.catalog.json`, or `sql add` and [doctor](/docs/cli/doctor#bs411)
+stop. Map an action to another key with `kits.<module>.permissions`.
+
+PermDock has no role catalog the kit can compare roles against, so set
+`canAssign` to PermDock's assignment rule, `permdock_can_assign` (PermDock
+writes it when a role declares `assigns`):
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["access", "organizations", "invitations"] },
+  kits: {
+    access: {
+      model: "permdock",
+      functions: {
+        canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
+      },
+    },
+  },
+});
+```
+
+Use the manifest's `rls.schema` in place of `permdock`. Without `canAssign`,
+only the service role assigns roles: PermDock projects don't install the
+`tenant` module (doctor BS407), whose owner-role rule is the only other
+fallback, and doctor BS411 warns.
+
+Under the permdock model, `can_user()` and `member_can()` answer for the
+caller only, because PermDock's helpers read `auth.uid()`. For another user
+they raise SQLSTATE `0A000` instead of returning `null`. The invitations
+module then skips its check that the inviter still holds the permission when
+the invite is accepted, and the notifications module skips its check that
+each recipient may read the notification's kind; check both in your app if
+they matter.
 
 ### custom
 

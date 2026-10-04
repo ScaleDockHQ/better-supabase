@@ -108,9 +108,13 @@ export interface AccessKitConfig extends KitModuleConfig {
     readonly canUser?: string;
     /**
      * `{tenant}` and `{role}`: whether the caller may assign the role.
-     * Required by the `custom` model. Without it, the `permdock` model lets
-     * only owners assign the owner role when the `tenant` module is
-     * installed, and lets only the service role assign roles when it is not.
+     * Required by the `custom` model. For the `permdock` model, use
+     * PermDock's assignment rule:
+     * `'permdock.permdock_can_assign({role}, {tenant}::text)'` (with the
+     * manifest's `rls.schema`). Without it, the `permdock` model lets only
+     * the service role assign roles: PermDock projects don't install the
+     * `tenant` module (doctor BS407), whose owner-role fallback is the only
+     * other rule, and doctor BS411 warns.
      */
     readonly canAssign?: string;
     /** `{user}`: the permission claim for the access token hook. */
