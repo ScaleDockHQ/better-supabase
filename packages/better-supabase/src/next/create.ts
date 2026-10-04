@@ -16,7 +16,7 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { SupportStartRequest } from "../server/support.ts";
 
 import { type Aal, checkAal } from "../auth/mfa.ts";
-import { SUPPORT_COOKIE } from "../auth/support.ts";
+import { SUPPORT_COOKIE } from "../auth/support-cookie.ts";
 import { toSession } from "../auth/view.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
@@ -512,12 +512,13 @@ export function createNext<
     ),
   );
 
-  const supportCookieName = options.support?.cookie?.name ?? SUPPORT_COOKIE;
+  const supportCookieName =
+    options.support?.options.cookie?.name ?? SUPPORT_COOKIE;
   const supportCookieOptions = {
     httpOnly: true,
     sameSite: "lax",
-    path: options.support?.cookie?.path ?? "/",
-    secure: options.support?.cookie?.secure ?? true,
+    path: options.support?.options.cookie?.path ?? "/",
+    secure: options.support?.options.cookie?.secure ?? true,
   } as const;
 
   const contextForSession = async (

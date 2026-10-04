@@ -6,9 +6,11 @@ import type { EventHub } from "../core/events.ts";
 import {
   clearSupportCookie,
   type SupportCookieOptions,
-  supportClaims,
   supportCookie,
   supportCookieValue,
+} from "../auth/support-cookie.ts";
+import {
+  supportClaims,
   type SupportListFilter,
   type SupportSession,
   type SupportSessionStore,
@@ -127,19 +129,37 @@ function storeError(cause: unknown): DbError {
   return raw ? mapDbError(raw) : toDbError(cause);
 }
 
-const NOT_CONFIGURED =
-  "Support sessions need createServer(betterSupabase, { support: { store } })";
+/** `ServerOptions.support`, from `supportSessions(options)`. */
+export interface SupportSessions {
+  readonly options: SupportOptions;
+  /** Builds `bs.support`; `createServer` calls it once. */
+  readonly create: (
+    events: EventHub,
+    claimsSchema: StandardSchemaV1 | undefined,
+  ) => SupportApi;
+}
 
-/** The support API over `options`; every method fails when support is not configured. */
-export function createSupport(
-  options: SupportOptions | undefined,
+/**
+ * Support sessions for `createServer(betterSupabase, { support })`. Apps that
+ * never import it don't bundle the support code.
+ */
+export function supportSessions(options: SupportOptions): SupportSessions {
+  return {
+    options,
+    create: (events, claimsSchema) =>
+      createSupport(options, events, claimsSchema),
+  };
+}
+
+function createSupport(
+  options: SupportOptions,
   events: EventHub,
   claimsSchema: StandardSchemaV1 | undefined,
 ): SupportApi {
-  const policy = options?.policy ?? {};
+  const policy = options.policy ?? {};
   const ttl = policy.ttl ?? 1800;
   const maxTtl = policy.maxTtl ?? 14_400;
-  const cookieName = options?.cookie?.name;
+  const cookieName = options.cookie?.name;
 
   const emit = (
     type: "support.started" | "support.ended" | "support.denied",
@@ -157,7 +177,7 @@ export function createSupport(
     store: SupportSessionStore,
     targetUserId: string,
   ): Promise<Readonly<Record<string, unknown>>> => {
-    if (options?.claims) return options.claims(targetUserId);
+    if (options.claims) return options.claims(targetUserId);
     if (store.claims) return store.claims(targetUserId);
     return { role: "authenticated" };
   };
@@ -189,7 +209,7 @@ export function createSupport(
   };
 
   const authorized = async (input: SupportAuthorizeInput): Promise<boolean> => {
-    if (!options?.authorize) return true;
+    if (!options.authorize) return true;
     try {
       return await options.authorize(input);
     } catch {
@@ -200,7 +220,6 @@ export function createSupport(
   return {
     start(admin, request) {
       return AsyncResult.from(async () => {
-        if (!options) return err(dbError("unexpected", NOT_CONFIGURED));
         if (admin.kind !== "user")
           return err(
             dbError("unauthorized", "Sign in to start a support session"),
@@ -270,7 +289,6 @@ export function createSupport(
 
     stop(admin, sessionId) {
       return AsyncResult.from(async () => {
-        if (!options) return err(dbError("unexpected", NOT_CONFIGURED));
         const cookie = clearSupportCookie(options.cookie);
         if (admin.kind !== "user")
           return err(
@@ -297,7 +315,6 @@ export function createSupport(
 
     revoke(sessionId) {
       return AsyncResult.from(async () => {
-        if (!options) return err(dbError("unexpected", NOT_CONFIGURED));
         try {
           return ok(await options.store.end(sessionId, "revoked"));
         } catch (cause) {
@@ -307,7 +324,7 @@ export function createSupport(
     },
 
     async current(request, auth) {
-      if (!options || auth.kind !== "user") return;
+      if (auth.kind !== "user") return;
       // A support session's own token never nests another one.
       if (auth.claims["act"] !== undefined) return;
       const id = supportCookieValue(request.headers.get("cookie"), cookieName);
@@ -353,7 +370,6 @@ export function createSupport(
 
     list(filter) {
       return AsyncResult.from(async () => {
-        if (!options) return err(dbError("unexpected", NOT_CONFIGURED));
         try {
           return ok(await options.store.list(filter));
         } catch (cause) {
@@ -364,6 +380,6 @@ export function createSupport(
 
     sessionIdOf: (request) =>
       supportCookieValue(request.headers.get("cookie"), cookieName),
-    clearCookie: () => clearSupportCookie(options?.cookie),
+    clearCookie: () => clearSupportCookie(options.cookie),
   };
 }

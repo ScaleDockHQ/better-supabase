@@ -1,4 +1,10 @@
-import { isPlainObject } from "../ir/build.ts";
+export function isPlainObject(
+  value: unknown,
+): value is Readonly<Record<string, unknown>> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
 
 /**
  * Copies plain objects and arrays so hooks and listeners cannot change the

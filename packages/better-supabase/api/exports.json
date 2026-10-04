@@ -378,6 +378,7 @@
       "supportCookie",
       "supportCookieValue",
       "supportOf",
+      "supportSessions",
       "TENANT_HEADER",
       "toProblem",
       "toSession",
@@ -437,6 +438,7 @@
       "SupportOptions",
       "SupportPolicy",
       "SupportSession",
+      "SupportSessions",
       "SupportSessionStore",
       "SupportStartInput",
       "SupportStartRequest",
@@ -508,6 +510,7 @@
       "shouldRefresh",
       "STATS_URL_HEADER",
       "supportOf",
+      "supportSessions",
       "supportTag",
       "tagFor",
       "toSession"
@@ -537,6 +540,7 @@
       "SessionStaleOptions",
       "SupportOptions",
       "SupportPolicy",
+      "SupportSessions",
       "SupportStarted",
       "SupportStartRequest",
       "SupportView"

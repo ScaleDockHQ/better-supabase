@@ -18,17 +18,25 @@ npx better-supabase sql add support-sessions
 ```
 
 ```ts title="src/lib/better-supabase.ts"
-import { createServer, sqlSupportStore } from "better-supabase/server";
+import {
+  createServer,
+  sqlSupportStore,
+  supportSessions,
+} from "better-supabase/server";
 
 export const bs = createServer(betterSupabase, {
   env,
   postgres,
-  support: {
+  support: supportSessions({
     store: sqlSupportStore(postgres),
     policy: { ttl: 30 * 60, requireReason: true },
-  },
+  }),
 });
 ```
+
+`supportSessions` lives in its own function so apps without support mode
+don't bundle it. `createNext` takes the same option, and `better-supabase/next`
+exports `supportSessions` too.
 
 The module adds a `support_sessions` table and four functions:
 `start_support_session`, `end_support_session`, `active_support_session` and
@@ -85,11 +93,11 @@ and the reason. Returning `false` (or throwing) refuses the start with
 `SUPPORT_FORBIDDEN`:
 
 ```ts
-support: {
+support: supportSessions({
   store: sqlSupportStore(postgres),
   authorize: ({ admin, targetUserId }) =>
     admin.claims.app_metadata?.role === "support" && targetUserId !== OWNER_ID,
-},
+}),
 ```
 
 In SQL, the `before_support_start(admin, target, reason, metadata)` hook can

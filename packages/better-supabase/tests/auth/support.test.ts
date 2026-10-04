@@ -5,13 +5,16 @@ import type { SqlClaims } from "../../src/postgres/pool.ts";
 import { impersonatorOf } from "../../src/auth/impersonation.ts";
 import {
   clearSupportCookie,
-  sqlSupportStore,
-  supportClaims,
   supportCookie,
   supportCookieValue,
+} from "../../src/auth/support-cookie.ts";
+import { supportOf } from "../../src/auth/support-view.ts";
+import {
+  sqlSupportStore,
+  supportClaims,
   supportSessionFromRow,
 } from "../../src/auth/support.ts";
-import { supportOf, toSession } from "../../src/auth/view.ts";
+import { toSession } from "../../src/auth/view.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 
 const ROW = {

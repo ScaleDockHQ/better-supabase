@@ -7,23 +7,23 @@ Every integration point is a small interface. The built-in behavior is one
 implementation of it, and yours can replace or sit next to it. Each interface
 has a [conformance kit](/docs/extending/conformance).
 
-| Interface                                     | Built in                                                  | Plug in with                                            |
-| --------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------- |
-| [`Executor`](#executor)                       | `postgrestExecutor`, `postgresExecutor`                   | `betterSupabase.connect(executor)`                      |
-| [`Compiler`](#compiler)                       | `postgrestCompiler`, `sqlCompiler`                        | your executor                                           |
-| [`CacheAdapter`](#cacheadapter)               | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `betterSupabase.cache(adapter)`                         |
-| [`EventSink`](#eventsink)                     | `httpSink()`                                              | `forwardMutations(betterSupabase, sink, { source })`    |
-| [`AuthResolver`](#authresolver)               | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(betterSupabase, { auth: { resolvers } })` |
-| [`Generator`](#generator)                     | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                              |
-| [`Logger`](#logger)                           | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                    |
-| [`QueueBackend`](#queuebackend)               | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`       | `createJobs(backend, queues)`                           |
-| [`SupportSessionStore`](#supportsessionstore) | `sqlSupportStore(postgres)`                               | `createServer(betterSupabase, { support: { store } })`  |
-| [`NotificationChannel`](#notificationchannel) | none (bring your email or push provider)                  | `createNotifications({ channels })`                     |
-| [`WebhookSigner`](#webhooksigner)             | `standardWebhooks()`, `hmacSigner(options)`               | `createWebhooks({ signer })`                            |
-| [`WebhookTransport`](#webhooktransport)       | `fetchTransport({ allowUrl })`                            | `createWebhooks({ http })`                              |
-| [`WebhookSecretStore`](#webhooksecretstore)   | `sqlSecretStore(transport)`                               | `createWebhooks({ secrets })`                           |
-| `EnvSource`                                   | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                      |
-| [`Plugin`](/docs/extending/plugins)           | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                            |
+| Interface                                     | Built in                                                  | Plug in with                                                            |
+| --------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`Executor`](#executor)                       | `postgrestExecutor`, `postgresExecutor`                   | `betterSupabase.connect(executor)`                                      |
+| [`Compiler`](#compiler)                       | `postgrestCompiler`, `sqlCompiler`                        | your executor                                                           |
+| [`CacheAdapter`](#cacheadapter)               | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `betterSupabase.cache(adapter)`                                         |
+| [`EventSink`](#eventsink)                     | `httpSink()`                                              | `forwardMutations(betterSupabase, sink, { source })`                    |
+| [`AuthResolver`](#authresolver)               | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(betterSupabase, { auth: { resolvers } })`                 |
+| [`Generator`](#generator)                     | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                                              |
+| [`Logger`](#logger)                           | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                                    |
+| [`QueueBackend`](#queuebackend)               | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`       | `createJobs(backend, queues)`                                           |
+| [`SupportSessionStore`](#supportsessionstore) | `sqlSupportStore(postgres)`                               | `createServer(betterSupabase, { support: supportSessions({ store }) })` |
+| [`NotificationChannel`](#notificationchannel) | none (bring your email or push provider)                  | `createNotifications({ channels })`                                     |
+| [`WebhookSigner`](#webhooksigner)             | `standardWebhooks()`, `hmacSigner(options)`               | `createWebhooks({ signer })`                                            |
+| [`WebhookTransport`](#webhooktransport)       | `fetchTransport({ allowUrl })`                            | `createWebhooks({ http })`                                              |
+| [`WebhookSecretStore`](#webhooksecretstore)   | `sqlSecretStore(transport)`                               | `createWebhooks({ secrets })`                                           |
+| `EnvSource`                                   | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                                      |
+| [`Plugin`](/docs/extending/plugins)           | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                                            |
 
 ## Executor
 

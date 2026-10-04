@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BetterPostgres, SqlClaims } from "../../src/postgres/pool.ts";
 
-import { supportOf } from "../../src/auth/view.ts";
+import { supportOf } from "../../src/auth/support-view.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { createNext, sessionTag, supportTag } from "../../src/next/index.ts";
+import {
+  createNext,
+  sessionTag,
+  supportSessions,
+  supportTag,
+} from "../../src/next/index.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
@@ -59,7 +64,7 @@ function setup() {
     env,
     auth: { jwks: signer.jwks as never },
     postgres,
-    support: { store, cookie: { secure: false } },
+    support: supportSessions({ store, cookie: { secure: false } }),
   });
   return { bs, store, claims };
 }

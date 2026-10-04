@@ -15,7 +15,7 @@ import { AsyncResult, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { nowInstant } from "../core/temporal.ts";
-import { verifySharedSecret } from "../webhooks/index.ts";
+import { verifySharedSecret } from "../webhooks/verify.ts";
 import { nextCronRun } from "./cron.ts";
 import { errorText, run, sleep, toInstant } from "./shared.ts";
 

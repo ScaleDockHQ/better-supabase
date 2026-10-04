@@ -5,7 +5,7 @@ import { type DbError, dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { type AsyncResult, toDbError } from "../core/result.ts";
 import { sqlIdent } from "../core/template.ts";
-import { verifySharedSecret } from "../webhooks/index.ts";
+import { verifySharedSecret } from "../webhooks/verify.ts";
 import { asDbError, run, toInstant, workerId } from "./shared.ts";
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import type {
   SqlClaims,
 } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 
 import {
   actClaim,
@@ -48,12 +49,7 @@ import {
   withPrimaryPin,
 } from "./replicas.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
-import {
-  type ActiveSupport,
-  createSupport,
-  type SupportApi,
-  type SupportOptions,
-} from "./support.ts";
+import { supportOff } from "./support-off.ts";
 
 export interface ServerOptions {
   /** Defaults to `loadEnv()`. */
@@ -101,11 +97,11 @@ export interface ServerOptions {
     auth: AuthState,
   ) => string | undefined | PromiseLike<string | undefined>;
   /**
-   * Support sessions ("view as user"): a platform admin's requests that carry
+   * Support sessions ("view as user") from `supportSessions(options)`: a platform admin's requests that carry
    * the support cookie run as the target user, read-only by default. Needs
    * `postgres`, since the target's queries run over direct Postgres.
    */
-  readonly support?: SupportOptions;
+  readonly support?: SupportSessions;
 }
 
 /** The header `current_tenant_id()` reads over the Data API. */
@@ -459,11 +455,12 @@ export function createServer<
       "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
     );
   }
-  const support = createSupport(
-    options.support,
-    betterSupabase.events,
-    options.auth?.claims ?? betterSupabase.claimsSchema,
-  );
+  const support = options.support
+    ? options.support.create(
+        betterSupabase.events,
+        options.auth?.claims ?? betterSupabase.claimsSchema,
+      )
+    : supportOff;
 
   /**
    * The target's context in a support session. Queries run over direct

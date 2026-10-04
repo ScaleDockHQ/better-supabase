@@ -8,7 +8,9 @@ import {
   useContext,
 } from "react";
 
-import { type AuthSession, supportOf, type SupportView } from "../auth/view.ts";
+import type { AuthSession } from "../auth/view.ts";
+
+import { supportOf, type SupportView } from "../auth/support-view.ts";
 
 const SessionContext = createContext<Promise<AuthSession> | null>(null);
 

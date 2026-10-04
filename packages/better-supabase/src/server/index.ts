@@ -11,27 +11,28 @@ export type {
   SupportAuthorizeInput,
   SupportOptions,
   SupportPolicy,
+  SupportSessions,
   SupportStartRequest,
 } from "./support.ts";
+export { supportSessions } from "./support.ts";
 export {
   clearSupportCookie,
-  sqlSupportStore,
   SUPPORT_COOKIE,
-  supportClaims,
   supportCookie,
   supportCookieValue,
-} from "../auth/support.ts";
+} from "../auth/support-cookie.ts";
+export type { SupportCookieOptions } from "../auth/support-cookie.ts";
+export { sqlSupportStore, supportClaims } from "../auth/support.ts";
 export type {
   SqlSupportStoreOptions,
-  SupportCookieOptions,
   SupportEndedBy,
   SupportListFilter,
   SupportSession,
   SupportSessionStore,
   SupportStartInput,
 } from "../auth/support.ts";
-export { supportOf } from "../auth/view.ts";
-export type { SupportView } from "../auth/view.ts";
+export { supportOf } from "../auth/support-view.ts";
+export type { SupportView } from "../auth/support-view.ts";
 export type {
   BetterServer,
   ContextOptions,

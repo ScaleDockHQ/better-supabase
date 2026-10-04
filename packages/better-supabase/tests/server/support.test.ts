@@ -12,6 +12,7 @@ import type {
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
+import { supportSessions } from "../../src/server/support.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -65,7 +66,7 @@ function setup(options: Parameters<typeof createServer>[1] = {}) {
     env,
     auth: { jwks: signer.jwks as never },
     postgres: pg.postgres,
-    support: { store },
+    support: supportSessions({ store }),
     ...options,
   });
   return { server, store, events, pg };
@@ -84,7 +85,7 @@ describe("support sessions on the server", () => {
     expect(() =>
       createServer(defineSupabase(schema), {
         env,
-        support: { store: memorySupportStore() },
+        support: supportSessions({ store: memorySupportStore() }),
       }),
     ).toThrow(/postgres/);
   });
@@ -95,21 +96,27 @@ describe("support sessions on the server", () => {
       targetUserId: TARGET,
       reason: "r",
     });
-    expect(started.error?.message).toMatch(/support: \{ store \}/);
+    expect(started.error?.message).toMatch(/supportSessions\(\{ store \}\)/);
     expect((await server.support.stop(admin(), "s")).ok).toBe(false);
     expect((await server.support.revoke("s")).ok).toBe(false);
     expect((await server.support.list()).ok).toBe(false);
     expect(
       await server.support.current(new Request("https://a.test/"), admin()),
     ).toBeUndefined();
+    expect(
+      server.support.sessionIdOf(
+        new Request("https://a.test/", { headers: { cookie: "bs-support=s" } }),
+      ),
+    ).toBeUndefined();
+    expect(server.support.clearCookie()).toMatch(/Max-Age=0/);
   });
 
   it("refuses starts that break the policy and reports them", async () => {
     const { server, events } = setup({
-      support: {
+      support: supportSessions({
         store: memorySupportStore(),
         policy: { maxTtl: 600 },
-      },
+      }),
     });
     const codes = [];
     for (const [auth, input] of [
@@ -147,13 +154,13 @@ describe("support sessions on the server", () => {
       },
     ]) {
       const { server, events } = setup({
-        support: {
+        support: supportSessions({
           store: memorySupportStore(),
           authorize: (input) => {
             calls.push(input.targetUserId);
             return authorize();
           },
-        },
+        }),
       });
       const result = await server.support.start(admin(), {
         targetUserId: TARGET,
@@ -171,7 +178,7 @@ describe("support sessions on the server", () => {
   it("reports a refusal by the store's permission check", async () => {
     const store = memorySupportStore();
     const { server, events } = setup({
-      support: {
+      support: supportSessions({
         store: {
           ...store,
           start: () =>
@@ -179,7 +186,7 @@ describe("support sessions on the server", () => {
               pgError("42501", "Not allowed", { hint: "SUPPORT_FORBIDDEN" }),
             ),
         },
-      },
+      }),
     });
     const result = await server.support.start(admin(), {
       targetUserId: TARGET,
@@ -262,11 +269,11 @@ describe("support sessions on the server", () => {
 
   it("allows writes only when the policy and the start agree", async () => {
     const { server, pg } = setup({
-      support: {
+      support: supportSessions({
         store: memorySupportStore(),
         policy: { readOnly: "default" },
         claims: () => ({ role: "authenticated", custom: true }),
-      },
+      }),
     });
     const { session } = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "fix", readOnly: false })
@@ -319,9 +326,9 @@ describe("support sessions on the server", () => {
   it("keeps the admin's own view when the store fails", async () => {
     const store = memorySupportStore();
     const { server } = setup({
-      support: {
+      support: supportSessions({
         store: { ...store, get: () => Promise.reject(new Error("down")) },
-      },
+      }),
     });
     const ctx = await server.context(await request("bs-support=x"));
     expect(ctx.support).toBeUndefined();
