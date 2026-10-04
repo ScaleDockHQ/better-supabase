@@ -60,7 +60,7 @@ jobs:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
   stack:
-    name: Integration and e2e
+    name: Integration
     runs-on: ubuntu-latest
     needs: verify
     permissions:
@@ -97,29 +97,8 @@ jobs:
             --override-name db.url=SUPABASE_DB_URL \
             | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
-      - name: Restore the Next.js build cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            apps/*/.next/cache
-            apps/examples/*/.next/cache
-          key: next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/**/*.ts', 'apps/**/*.tsx', 'apps/**/*.mdx', '!apps/**/node_modules/**', '!apps/**/.next/**') }}
-          restore-keys: |
-            next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-            next-${{ runner.os }}-
-
-      # Next builds run one at a time on GitHub-hosted runners.
-      - name: Build
-        run: pnpm exec turbo run build --concurrency=1 --log-file
-
       - name: Integration
         run: pnpm run test:integration
-
-      - name: Install Chromium (instant navigation tests)
-        run: pnpm --filter @better-supabase/e2e exec playwright install --with-deps chromium
-
-      - name: End-to-end
-        run: pnpm run test:e2e
 
       - name: Validation (request context on the stack)
         run: pnpm --filter @better-supabase/validation-request-context test

@@ -11,9 +11,6 @@ dist/
 
 # testing
 coverage/
-playwright-report/
-test-results/
-blob-report/
 tmp/
 packages/better-supabase/tmp/
 

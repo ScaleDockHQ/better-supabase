@@ -90,9 +90,9 @@ backlogs too large to clear in the upgrade.
 - The library's unit tests stub `fetch` instead of mocking a feature hook or
   service. `fetch` is the library's public boundary: what it sends to
   PostgREST, Auth and Storage is the behavior under test.
-- `pnpm test:integration` and `pnpm test:e2e` run in CI only (the `stack`
-  job in `ci.yml` and `database.yml`), not in `pnpm verify`. They need a
-  running Supabase stack, which a pre-push hook cannot assume.
+- `pnpm test:integration` runs in CI only (the `stack` job in `ci.yml`
+  and `database.yml`), not in `pnpm verify`. It needs a running Supabase
+  stack, which a pre-push hook cannot assume.
 
 ### Workflow
 

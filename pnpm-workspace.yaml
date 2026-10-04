@@ -8,7 +8,6 @@ packages:
 catalog:
   "@ai-sdk/react": 4.0.130
   "@arethetypeswrong/cli": 0.18.5
-  "@axe-core/playwright": 4.13.0
   "@base-ui/react": 1.8.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/changelog-github": 1.0.1
@@ -24,10 +23,8 @@ catalog:
   "@manypkg/get-packages": 3.1.0
   "@modelcontextprotocol/client": 2.3.0
   "@modelcontextprotocol/server": 2.3.0
-  "@next/playwright": 16.3.8
   "@opentelemetry/api": 1.9.1
   "@orpc/server": 2.0.0-beta.41
-  "@playwright/test": 1.63.0
   "@supabase/config": 0.11.1
   "@supabase/middleware": 1.0.0
   "@supabase/postgrest-typegen": 0.4.0
@@ -78,7 +75,6 @@ catalog:
   oxfmt: 0.71.0
   "@oxlint/plugins": 1.86.0
   "@shadcn/lint": 0.2.0
-  eslint-plugin-playwright: 2.12.0
   eslint-plugin-turbo: 2.11.7
   oxlint-plugin-react-doctor: 0.9.14
   oxlint: 1.86.0
@@ -163,7 +159,7 @@ nodeOptions: "${NODE_OPTIONS:- } --disable-warning=MODULE_TYPELESS_PACKAGE_JSON"
 
 # `typescript` is deliberately not overridden: tests/types/ts-6 pins 6 through
 # the ts6 catalog for the compatibility matrix.
-# Fumadocs, @next/playwright and the examples peer on wide next and react
+# Fumadocs and the examples peer on wide next and react
 # ranges; one version keeps every app on the same runtime.
 overrides:
   next: "catalog:"

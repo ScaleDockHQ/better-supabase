@@ -6,7 +6,7 @@ Thanks for contributing to better-supabase. This repository is a pnpm and Turbor
 
 - Node.js 24 or later (CI runs 24 LTS)
 - pnpm 12.8.1, the version pinned in `packageManager`
-- Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), for the integration and end-to-end suites
+- Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), for the integration suites
 - The Vercel CLI, to pull the hosted environment variables (maintainers only; everything runs without them)
 
 `devEngines` in `package.json` downloads the right Node version for pnpm. npm and Yarn are not supported. Any pnpm 11 or later switches to the pinned version on its own. Install pnpm with its [standalone installer](https://pnpm.io/installation) rather than Corepack, because pnpm does not switch versions when Corepack runs it.
@@ -53,7 +53,6 @@ The seed creates two users in the Acme organization, both with the password `pas
 | `pnpm typecheck:perf`    | Type-instantiation benchmark on 150- and 250-table schemas                |
 | `pnpm size`              | Bundle size baselines and the WinterTC import check                       |
 | `pnpm test:integration`  | Integration tests against a running `supabase start` stack                |
-| `pnpm test:e2e`          | The example apps against a running `supabase start` stack                 |
 | `pnpm supabase:reset`    | Rebuilds the local database from the migrations and the seed              |
 | `pnpm supabase:test`     | pgTAP tests in `supabase/tests`                                           |
 | `pnpm db:gen`            | Regenerates the typed client in every example and validation project      |
@@ -75,7 +74,7 @@ packages/typescript-config tsconfig presets
 apps/docs                  bettersupabase.com/docs (Fumadocs)
 apps/marketing             bettersupabase.com
 apps/examples/*            one runnable app per adapter
-tests/*                    bundle size, the TypeScript matrix, e2e and validation ports
+tests/*                    bundle size, the TypeScript matrix and validation ports
 supabase/                  the local stack: schemas, migrations, seed and pgTAP tests
 docs/                      agent notes and architecture decision records
 ```

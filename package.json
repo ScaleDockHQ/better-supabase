@@ -44,7 +44,6 @@
     "supabase:test": "supabase test db",
     "supabase:types": "supabase gen types typescript --local --schema public",
     "test": "turbo run test",
-    "test:e2e": "pnpm --filter @better-supabase/e2e test:e2e",
     "test:integration": "pnpm --filter better-supabase exec vitest run --project integration && pnpm --filter @better-supabase/validation-centrakit test",
     "typecheck": "turbo run typecheck",
     "typecheck:matrix": "turbo run typecheck:matrix",

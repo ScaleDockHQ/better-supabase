@@ -1,11 +1,11 @@
 ---
 title: Examples
-description: Runnable apps for every integration, tested end to end against a local stack.
+description: Runnable apps for every integration, built against a local stack.
 ---
 
 Each example in [`apps/examples`](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples)
 was set up with `better-supabase init`, generates its types from the same
-schema, and has end-to-end tests in `tests/e2e` that sign in real users.
+schema, and runs against the local stack from `supabase/config.toml`.
 
 | Example      | Shows                                                                         |
 | ------------ | ----------------------------------------------------------------------------- |
@@ -20,11 +20,11 @@ schema, and has end-to-end tests in `tests/e2e` that sign in real users.
 
 ```bash
 supabase start
-pnpm build
-pnpm test:e2e
+pnpm build:packages
+pnpm --filter @better-supabase/example-nextjs dev
 ```
 
-The tests use the stack from `supabase/config.toml` (API on port 55421).
+The examples use the stack from `supabase/config.toml` (API on port 55421).
 To use another stack, set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and
 `SUPABASE_SECRET_KEY`.
 

@@ -5,7 +5,6 @@
   "tasks": {
     "build": {
       "env": [
-        "NEXT_E2E",
         "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
         "NEXT_PUBLIC_SUPABASE_URL"
       ],

@@ -22,4 +22,4 @@ Supabase stays at `http://127.0.0.1:55421` (`pnpm supabase:start`).
   without asking; `pnpm dev:cleanup` removes stale routes.
 - The nextjs example signs in with the seeded users `admin@acme.test` and
   `member@acme.test`, both with password `password123`.
-- Unit, integration and CI e2e runs do not need Portless.
+- Unit and integration runs do not need Portless.
