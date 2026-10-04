@@ -9,6 +9,8 @@ Applies to product repos with Database or Roles and permissions set to yes. Offl
 - **`@supabase/server`** verifies bearer tokens over JWKS and builds the request context: `createRequestSupabaseContext(request, { env, auth: "user" })`. Nothing else verifies tokens.
 - **`@supabase/ssr`** owns web session cookies, and only the proxy refreshes them.
 - **better-supabase** wraps those contexts with the generated types and `Result` repositories through its framework subpaths. Apps import the subpath, not `@supabase/server` directly.
+  - The definition is named `betterSupabase`, and every runtime instance an adapter creates is named `bs`, in code and docs alike. Adapter factories return `Better<Thing>` (`BetterNext`, `BetterClient`, `BetterPostgres`), and the `./client` subpath exports `createClient`.
+  - Each app keeps its instances in `lib/supabase/` as described in the naming rules in [`architecture.md`](architecture.md).
 - **`packages/supabase`** re-exports the typed clients and holds the one `createAdminContext()` (`server` subpath), the only place `sb_secret_` is read.
 - **`@supabase/supabase-js`** follows better-supabase's peer range. The next major is published on the `next` tag; adopt it only once that peer range allows it, and record a `blocked` row until then.
 
@@ -26,10 +28,15 @@ Applies to product repos with Database or Roles and permissions set to yes. Offl
 
 ## Supabase
 
-- Provisioned through the Marketplace.
-- Declarative, numbered `supabase/schemas/*.sql` files listed in `[db.migrations] schema_paths`. Migrations come from `supabase db diff` and are reviewed.
+- Provisioned through the Marketplace. Look up the minimum Supabase CLI version at run time; the local stack, `pg-delta` and asymmetric local keys need a recent one.
+- **Local stack.** `config.toml` sets `[experimental] stack = true`. The stack runs as native processes, without Docker, and each directory gets its own, so worktrees, agent sandboxes and CI runners each start one. Docker still works where it exists.
+- **Declarative schemas on `pg-delta`.** `config.toml` sets `[experimental.pgdelta] enabled = true`.
+  - The files in `supabase/schemas/` are the source of truth, in the per-schema layout (`schemas/public/tables/<table>.sql`). `pg-delta` orders statements by their dependencies, so files are not numbered and `[db.migrations] schema_paths` is not set.
+  - Migrations come from `pnpm supabase:diff` (`supabase db schema declarative sync -f <name>`) and are reviewed. Never `supabase db diff`, and never change the schema in Studio, the SQL editor or `psql`; the diff does not see those changes.
+  - Data changes (including storage buckets) go in seeds or hand-written migrations. Objects `pg-delta` does not track go in `supabase/schemas/_custom/`, delivered by a versioned migration that sorts before the migration that depends on them.
+- **Config in code.** Auth, API and storage settings live in `config.toml`. `pnpm supabase:pull` (`supabase config pull`) brings a dashboard change back into the file; no setting lives only in the dashboard.
 - `[remotes.main]` and `[remotes.develop]`. The GitHub integration applies migrations; never `db push` from CI.
-- ES256 signing key from `pnpm supabase:signing-key`, gitignored.
+- ES256 signing key from `pnpm supabase:signing-key`, gitignored. Legacy HS256 tokens are rejected by `@supabase/server`.
 - RLS on every table, with pgTAP tests.
 - Regenerate the types for `public` and `graphql_public` together.
 
