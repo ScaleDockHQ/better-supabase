@@ -1,9 +1,10 @@
 import type { DbError } from "better-supabase";
 
-import { Result as BetterResult } from "better-result";
+import { Result as BetterResult, matchError, TaggedError } from "better-result";
 import {
   AsyncResult,
   dbError,
+  defineBetterResultErrors,
   err,
   fromBetterResult,
   ok,
@@ -78,5 +79,51 @@ describe("better-result 3.0.1 round trip", () => {
 
     const value = await toBetterResult(AsyncResult.ok(2), BetterResult);
     expect(fromBetterResult(value)).toEqual(ok(2));
+  });
+});
+
+class NotFound extends TaggedError("NotFound")<{
+  message: string;
+  error: DbError;
+}> {}
+class Conflict extends TaggedError("Conflict")<{
+  message: string;
+  error: DbError;
+}> {}
+class DbFailure extends TaggedError("DbFailure")<{ message: string }> {}
+
+describe("defineBetterResultErrors with TaggedError classes", () => {
+  const toResult = defineBetterResultErrors(
+    BetterResult,
+    { not_found: NotFound, conflict: Conflict },
+    DbFailure,
+  );
+
+  it("returns better-result values with tagged errors", async () => {
+    const found: BetterResult<number, NotFound | Conflict | DbFailure> =
+      toResult(ok(1));
+    expect(found.unwrap()).toBe(1);
+
+    const load = async (): Promise<
+      BetterResult<number, NotFound | Conflict | DbFailure>
+    > => toResult(AsyncResult.err(dbError("conflict", "duplicate key")));
+    const failed = await load();
+    expect(failed.isErr()).toBe(true);
+    if (!failed.isErr()) return;
+    expect(TaggedError.is(failed.error)).toBe(true);
+    expect(
+      matchError(failed.error, {
+        NotFound: () => "missing",
+        Conflict: (error) => `conflict: ${error.error.kind}`,
+        DbFailure: (error) => error.message,
+      }),
+    ).toBe("conflict: conflict");
+  });
+
+  it("uses the fallback for kinds without a class", () => {
+    const error = toResult.map(dbError("forbidden", "Not yours"));
+    expect(error).toBeInstanceOf(DbFailure);
+    expect(DbFailure.is(error)).toBe(true);
+    expect(error.message).toBe("Not yours");
   });
 });

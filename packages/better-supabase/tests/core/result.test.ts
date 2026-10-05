@@ -10,6 +10,7 @@ import {
 } from "../../src/core/errors.ts";
 import {
   AsyncResult,
+  defineBetterResultErrors,
   err,
   fromBetterResult,
   ok,
@@ -168,5 +169,50 @@ describe("fromBetterResult", () => {
     expect(fromBetterResult(toBetterResult(original, Result))).toEqual(
       original,
     );
+  });
+});
+
+class NotFound {
+  readonly _tag = "NotFound";
+  readonly message: string;
+  readonly error: DbError;
+  constructor(props: { message: string; error: DbError }) {
+    this.message = props.message;
+    this.error = props.error;
+  }
+}
+class DbFailure {
+  readonly _tag = "DbFailure";
+  readonly message: string;
+  constructor(props: { message: string }) {
+    this.message = props.message;
+  }
+}
+
+describe("defineBetterResultErrors", () => {
+  const toResult = defineBetterResultErrors(
+    Result,
+    { not_found: NotFound },
+    DbFailure,
+  );
+
+  it("maps each kind to its class and the rest to the fallback", () => {
+    const missing = dbError("not_found", "No customer c1");
+    const mapped = toResult.map(missing);
+    expect(mapped).toBeInstanceOf(NotFound);
+    expect(mapped).toMatchObject({ message: "No customer c1", error: missing });
+    expect(toResult.map(dbError("forbidden", "Not yours"))).toBeInstanceOf(
+      DbFailure,
+    );
+  });
+
+  it("converts sync and async results", async () => {
+    expect(toResult(ok(1))).toEqual(new StandInOk(1));
+    const failed = toResult(err(dbError("not_found", "gone")));
+    expect(failed).toBeInstanceOf(StandInErr);
+    expect((failed as StandInErr<unknown>).error).toBeInstanceOf(NotFound);
+    const later = await toResult(AsyncResult.err(dbError("conflict", "dup")));
+    expect((later as StandInErr<unknown>).error).toBeInstanceOf(DbFailure);
+    expect(await toResult(AsyncResult.ok("x"))).toEqual(new StandInOk("x"));
   });
 });

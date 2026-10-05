@@ -1,10 +1,11 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { DbError } from "../../src/core/errors.ts";
+import type { DbError, DbErrorOf } from "../../src/core/errors.ts";
 
 import {
   AsyncResult,
   type BetterResultValue,
+  defineBetterResultErrors,
   fromBetterResult,
   ok,
   type Result,
@@ -132,5 +133,71 @@ describe("fromBetterResult", () => {
     expectTypeOf(fromBetterResult(Br.ok(ok(1).data))).toEqualTypeOf<
       Result<number>
     >();
+  });
+});
+
+declare class NotFound {
+  readonly _tag: "NotFound";
+  constructor(props: { message: string; error: DbError });
+}
+declare class Conflict {
+  readonly _tag: "Conflict";
+  constructor(props: { message: string; error: DbErrorOf<"conflict"> });
+}
+declare class DbFailure {
+  readonly _tag: "DbFailure";
+  constructor(props: { message: string });
+}
+declare const asyncResult: AsyncResult<{ id: string }>;
+
+describe("defineBetterResultErrors", () => {
+  const toResult = defineBetterResultErrors(
+    Br,
+    { not_found: NotFound, conflict: Conflict },
+    DbFailure,
+  );
+
+  it("types each kind's error", () => {
+    expectTypeOf(
+      toResult.map({} as DbErrorOf<"not_found">),
+    ).toEqualTypeOf<NotFound>();
+    expectTypeOf(
+      toResult.map({} as DbErrorOf<"forbidden">),
+    ).toEqualTypeOf<DbFailure>();
+    expectTypeOf(toResult.map({} as DbError)).toEqualTypeOf<
+      NotFound | Conflict | DbFailure
+    >();
+  });
+
+  it("returns better-result's Result from the expected type", async () => {
+    const found: BrResult<{ id: string }, NotFound | Conflict | DbFailure> =
+      toResult(result);
+    expectTypeOf(found.map((row) => row.id)).toEqualTypeOf<
+      BrResult<string, NotFound | Conflict | DbFailure>
+    >();
+    const later: BrResult<{ id: string }, NotFound | Conflict | DbFailure> =
+      await toResult(asyncResult);
+    expectTypeOf(later).not.toBeAny();
+    expectTypeOf(toResult(result)).toEqualTypeOf<
+      BetterResultValue<{ id: string }, NotFound | Conflict | DbFailure>
+    >();
+  });
+
+  it("rejects an expected error type that misses a mapped class", () => {
+    // @ts-expect-error DbFailure is not part of the expected error type
+    const narrow: BrResult<{ id: string }, NotFound | Conflict> =
+      toResult(result);
+    expectTypeOf(narrow).not.toBeAny();
+  });
+
+  it("rejects a class whose constructor needs other props", () => {
+    class Needy {
+      readonly id: number;
+      constructor(props: { id: number }) {
+        this.id = props.id;
+      }
+    }
+    // @ts-expect-error Needy's constructor does not take { message, error }
+    defineBetterResultErrors(Br, { not_found: Needy }, DbFailure);
   });
 });

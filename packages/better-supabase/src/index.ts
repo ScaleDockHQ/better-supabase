@@ -8,6 +8,7 @@ export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
 export type { DbStats } from "./core/stats.ts";
 export {
   AsyncResult,
+  defineBetterResultErrors,
   err,
   fromBetterResult,
   ok,
@@ -17,9 +18,13 @@ export {
 export type {
   BetterResultApi,
   BetterResultErr,
+  BetterResultErrors,
   BetterResultOk,
   BetterResultValue,
+  DbErrorClass,
+  DbErrorClasses,
   Err,
+  MappedDbError,
   Ok,
   Result,
 } from "./core/result.ts";

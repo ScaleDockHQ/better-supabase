@@ -1,4 +1,11 @@
-import { type DbError, DbException, dbError, dbErrorOf } from "./errors.ts";
+import {
+  type DbError,
+  type DbErrorKind,
+  type DbErrorOf,
+  DbException,
+  dbError,
+  dbErrorOf,
+} from "./errors.ts";
 
 /** Turns a `DbError` into the error `.orThrow()` throws; set with `betterSupabase.mapError()`. */
 export type ThrowMapper = (error: DbError) => unknown;
@@ -230,6 +237,95 @@ export function toBetterResult(
     return result.then((settled) => build(settled, mapper));
   }
   return build(result, mapError);
+}
+
+/**
+ * An error class for one `DbError` kind. better-result's
+ * `class NotFound extends TaggedError("NotFound")<{ message: string; error: DbError }> {}`
+ * fits, as does any class whose constructor takes `{ message, error }`.
+ */
+export type DbErrorClass<K extends DbErrorKind = DbErrorKind> = new (props: {
+  readonly message: string;
+  readonly error: DbErrorOf<K>;
+}) => unknown;
+
+/** Error classes by `DbError` kind; kinds left out use the fallback class. */
+export type DbErrorClasses = { readonly [K in DbErrorKind]?: DbErrorClass<K> };
+
+/** The error a `DbError` of kind `K` becomes. */
+export type MappedDbError<
+  M extends DbErrorClasses,
+  F extends DbErrorClass,
+  K extends DbErrorKind = DbErrorKind,
+> = K extends keyof M
+  ? M[K] extends abstract new (...args: never[]) => infer I
+    ? I
+    : F extends abstract new (...args: never[]) => infer I
+      ? I
+      : never
+  : F extends abstract new (...args: never[]) => infer I
+    ? I
+    : never;
+
+/**
+ * Converts results with a fixed `Result` namespace and error mapping. Like
+ * `toBetterResult`, the value is typed as better-result's `Result<T, E>`
+ * when the call has one as its expected type, and `E` must accept every
+ * error the mapping returns.
+ */
+export interface BetterResultErrors<
+  M extends DbErrorClasses,
+  F extends DbErrorClass,
+> {
+  <R extends BetterResultValue<unknown, unknown> = never>(
+    result: Result<BetterResultOk<R>> &
+      (MappedDbError<M, F> extends BetterResultErr<R> ? unknown : never),
+  ): R;
+  <R extends BetterResultValue<unknown, unknown> = never>(
+    result: AsyncResult<BetterResultOk<R>> &
+      (MappedDbError<M, F> extends BetterResultErr<R> ? unknown : never),
+  ): Promise<R>;
+  <T>(result: Result<T>): BetterResultValue<T, MappedDbError<M, F>>;
+  <T>(
+    result: AsyncResult<T>,
+  ): Promise<BetterResultValue<T, MappedDbError<M, F>>>;
+  /** The error instance for one `DbError`, typed by its kind. */
+  map<E extends DbError>(error: E): MappedDbError<M, F, E["kind"]>;
+}
+
+/**
+ * A typed mapping from `DbError` kinds to error classes, usually
+ * better-result `TaggedError` classes, bound to better-result's `Result`
+ * namespace. Kinds without a class use `fallback`. Each instance gets the
+ * error's `message` and the `DbError` itself as `error`.
+ *
+ * ```ts
+ * import { Result, TaggedError } from 'better-result';
+ * class NotFound extends TaggedError('NotFound')<{ message: string; error: DbError }> {}
+ * class DbFailure extends TaggedError('DbFailure')<{ message: string; error: DbError }> {}
+ * const toResult = defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure);
+ * const customer: Result<Customer, NotFound | DbFailure> = await toResult(db.customers.findById(id));
+ * ```
+ */
+export function defineBetterResultErrors<
+  const M extends DbErrorClasses,
+  F extends DbErrorClass,
+>(
+  api: BetterResultApi<unknown, unknown>,
+  classes: M,
+  fallback: F,
+): BetterResultErrors<M, F> {
+  const map = (error: DbError): unknown => {
+    // SAFETY: classes[kind] is the class for that kind, so it takes this error.
+    const Class = (classes[error.kind] ?? fallback) as DbErrorClass;
+    return new Class({ message: error.message, error });
+  };
+  const convert = (result: Result<unknown> | AsyncResult<unknown>): unknown =>
+    result instanceof AsyncResult
+      ? toBetterResult(result, api, map)
+      : toBetterResult(result, api, map);
+  // SAFETY: convert implements every call signature; map returns the class for the error's kind.
+  return Object.assign(convert, { map }) as BetterResultErrors<M, F>;
 }
 
 /**
