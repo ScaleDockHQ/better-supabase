@@ -113,6 +113,7 @@ export function quoteSqliteIdent(name: string): string {
 }
 
 const TIMESTAMPS = new Set(["timestamptz", "timestamp"]);
+const TEXT = new Set(["text", "varchar", "bpchar", "citext", "name"]);
 // SQLite binds at most 32766 parameters; keyed statements stay well below.
 const KEYS_PER_STATEMENT = 500;
 
@@ -356,6 +357,24 @@ class SqliteCompiler {
       : `(${parts.join(" and ")})`;
   }
 
+  /**
+   * A column as sorted. Postgres sorts text by the database collation, which
+   * ignores case at the first level, and enum types by their declared order.
+   */
+  sortable(table: TableMeta, alias: string, name: string): string {
+    const meta = columnMeta(table, name);
+    const column = this.column(alias, name);
+    if (meta?.enum && !TEXT.has(meta.type)) {
+      const cases = meta.enum
+        .map((value, index) => `when ${this.param(value)} then ${index}`)
+        .join(" ");
+      return `case ${column} ${cases} end`;
+    }
+    if (meta && TEXT.has(meta.type) && !meta.array && !meta.json)
+      return `${column} collate nocase`;
+    return this.comparable(table, alias, name);
+  }
+
   /** Postgres sorts nulls last ascending and first descending; SQLite does the opposite. */
   orderBy(
     terms: readonly OrderTerm[],
@@ -366,7 +385,7 @@ class SqliteCompiler {
       .map((term) => {
         const nulls =
           term.nulls ?? (term.direction === "asc" ? "last" : "first");
-        return `${this.comparable(table, alias, term.column)} ${term.direction} nulls ${nulls}`;
+        return `${this.sortable(table, alias, term.column)} ${term.direction} nulls ${nulls}`;
       })
       .join(", ");
   }

@@ -89,7 +89,7 @@ describe("compileSqlite", () => {
       ),
     );
     expect(plan.rows?.text).toBe(
-      'select t0."id" as "id" from "customers" as t0 where (t0."name" like ? escape \'\\\' and t0."kvk" glob ? and t0."status" in (?, ?) and not t0."archived_at" is null and julianday(t0."created_at") >= julianday(?)) order by t0."name" asc nulls last, julianday(t0."created_at") desc nulls first limit 10 offset 20',
+      'select t0."id" as "id" from "customers" as t0 where (t0."name" like ? escape \'\\\' and t0."kvk" glob ? and t0."status" in (?, ?) and not t0."archived_at" is null and julianday(t0."created_at") >= julianday(?)) order by t0."name" collate nocase asc nulls last, julianday(t0."created_at") desc nulls first limit 10 offset 20',
     );
     expect(plan.rows?.params).toEqual([
       "%a\\%%",
@@ -343,6 +343,27 @@ describe("SQLite semantics", () => {
     expect(
       ids(col("created_at", "eq", "2026-03-08T07:30:00.000Z"), customers),
     ).toEqual(["c2"]);
+  });
+
+  it("sorts enum types by their declared order", () => {
+    const plan = selectPlan(
+      compileSqlite(
+        select({
+          table: notes,
+          orderBy: [
+            { column: "kind", direction: "asc" },
+            { column: "id", direction: "asc" },
+          ],
+        }),
+      ),
+    );
+    expect(plan.rows?.params).toEqual(["call", "meeting", "email"]);
+    expect(
+      sqlite
+        .prepare(plan.rows!.text)
+        .all(...(plan.rows!.params as never[]))
+        .map((row) => row["id"]),
+    ).toEqual([1, 2, 3, 4]);
   });
 
   it("filters through relations with exists", () => {
