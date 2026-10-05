@@ -29,16 +29,38 @@ export interface SupabaseToml {
 const CONFIG_TOML = "supabase/config.toml";
 
 /**
- * The nearest directory at or above `start` that has `supabase/config.toml`,
- * like the Supabase CLI's search. It stops after the first directory with
- * `.git`, so a checkout never picks up a project outside it.
+ * The nearest directory at or above `start` where `found` is true. The search
+ * stops after the first directory with `.git`, so a checkout never picks up a
+ * project outside it.
  */
-export function findSupabaseRoot(start: string): string | undefined {
+export function findUp(
+  start: string,
+  found: (dir: string) => boolean,
+): string | undefined {
   let dir = start;
   for (;;) {
-    if (existsSync(join(dir, CONFIG_TOML))) return dir;
+    if (found(dir)) return dir;
     const parent = dirname(dir);
     if (parent === dir || existsSync(join(dir, ".git"))) return undefined;
+    dir = parent;
+  }
+}
+
+/**
+ * The nearest directory at or above `start` that has `supabase/config.toml`,
+ * like the Supabase CLI's search, within the same `.git` boundary.
+ */
+export function findSupabaseRoot(start: string): string | undefined {
+  return findUp(start, (dir) => existsSync(join(dir, CONFIG_TOML)));
+}
+
+/** The repository root for `start`: the directory with `.git`, else the Supabase project root, else `start`. */
+export function findRepoRoot(start: string): string {
+  let dir = start;
+  for (;;) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return findSupabaseRoot(start) ?? start;
     dir = parent;
   }
 }

@@ -2698,6 +2698,43 @@ describe("doctor command", () => {
     ).toMatchObject({ version: "2.1.0" });
   });
 
+  it("reports github and sarif paths from the repository root in a subdirectory", async () => {
+    const snap = snapshot((tables) => {
+      edit(table(tables, "notes").policies).push({
+        name: "anyone",
+        command: "insert",
+        roles: ["anon"],
+        permissive: true,
+        using: null,
+        check: "true",
+      });
+    });
+    await mkdir(join(dir, ".git"));
+    await write("packages/db/snapshot.json", JSON.stringify(snap));
+    await write("supabase/config.toml", "[db]\nport = 54322\n");
+    await write(
+      "supabase/migrations/001_init.sql",
+      'create policy "anyone" on public.notes;\n',
+    );
+    await write(
+      "packages/db/better-supabase.config.json",
+      JSON.stringify({ doctor: { ignore: ["BS303"] } }),
+    );
+    const cwd = join(dir, "packages/db");
+    const args = ["doctor", "--snapshot", "snapshot.json", "--only", "BS103"];
+
+    const text = await run([...args, "--cwd", cwd]);
+    expect(text.stdout).toContain("../../supabase/migrations/001_init.sql");
+
+    const github = await run([...args, "--format", "github", "--cwd", cwd]);
+    expect(github.stdout).toMatch(
+      /^::error file=supabase\/migrations\/001_init\.sql,line=1,/,
+    );
+
+    const sarif = await run([...args, "--format", "sarif", "--cwd", cwd]);
+    expect(sarif.stdout).toContain('"uri": "supabase/migrations/001_init.sql"');
+  });
+
   it("locates functions and policies", () => {
     const files = [
       {

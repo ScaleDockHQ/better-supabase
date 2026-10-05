@@ -46,6 +46,11 @@ request diff:
 - run: pnpm better-supabase doctor --format github --strict
 ```
 
+The `github` and `sarif` formats write file paths relative to the repository
+root (the directory that holds `.git`, else the Supabase project root), so
+annotations land on the right files when the CLI runs from a package. The text
+format keeps paths relative to the project directory.
+
 For GitHub code scanning, upload SARIF:
 
 ```yaml
