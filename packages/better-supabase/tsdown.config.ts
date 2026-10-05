@@ -20,6 +20,7 @@ const entries = [
   "edge/index",
   "expo/index",
   "mcp/index",
+  "mcp/sdk/index",
   "jobs/index",
   "orgs/index",
   "notifications/index",

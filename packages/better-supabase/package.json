@@ -132,6 +132,11 @@
       "types": "./dist/mcp/index.d.ts",
       "default": "./dist/mcp/index.js"
     },
+    "./mcp/sdk": {
+      "@better-supabase/source": "./src/mcp/sdk/index.ts",
+      "types": "./dist/mcp/sdk/index.d.ts",
+      "default": "./dist/mcp/sdk/index.js"
+    },
     "./jobs": {
       "@better-supabase/source": "./src/jobs/index.ts",
       "types": "./dist/jobs/index.d.ts",
@@ -310,6 +315,10 @@
         "types": "./dist/mcp/index.d.ts",
         "default": "./dist/mcp/index.js"
       },
+      "./mcp/sdk": {
+        "types": "./dist/mcp/sdk/index.d.ts",
+        "default": "./dist/mcp/sdk/index.js"
+      },
       "./jobs": {
         "types": "./dist/jobs/index.d.ts",
         "default": "./dist/jobs/index.js"
@@ -420,6 +429,8 @@
     "@better-supabase/typescript-config": "workspace:*",
     "@clack/prompts": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@modelcontextprotocol/client": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase/config": "catalog:",
@@ -459,6 +470,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/server": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
     "@supabase/config": "catalog:peers",
@@ -473,6 +485,9 @@
     "temporal-polyfill": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@modelcontextprotocol/server": {
+      "optional": true
+    },
     "@opentelemetry/api": {
       "optional": true
     },

@@ -706,6 +706,25 @@
       "ToolResult"
     ]
   },
+  "./mcp/sdk": {
+    "values": [
+      "createMcpAuth",
+      "withBetterSupabase"
+    ],
+    "types": [
+      "AllowedCaller",
+      "BetterMcpAuth",
+      "BetterMcpServer",
+      "BetterToolCallback",
+      "BetterToolConfig",
+      "BetterToolContext",
+      "BetterToolExtra",
+      "GuardOptions",
+      "McpAuthOptions",
+      "McpFetchHandler",
+      "ToolRegistrar"
+    ]
+  },
   "./jobs": {
     "values": [
       "assertCron",

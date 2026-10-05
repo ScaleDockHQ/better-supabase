@@ -13,6 +13,7 @@ const PURE_BARRELS = [
   "jobs",
   "list",
   "mcp",
+  "mcp/sdk",
   "next",
   "powersync",
   "query",

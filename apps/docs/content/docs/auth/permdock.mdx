@@ -319,7 +319,9 @@ type tests yet.
 ## MCP tools
 
 `permdock/mcp` wraps the official MCP SDK's server, so it can't wrap
-`createMcp`. Use `createMcp`'s [`authorize` and `visible`
+`createMcp`. On the official SDK, wrap the server with `protectServer` and then
+with [`withBetterSupabase`](/docs/frameworks/mcp#official-mcp-sdk), so
+PermDock refuses a tool before its repositories are built. With `createMcp`, use `createMcp`'s [`authorize` and `visible`
 hooks](/docs/frameworks/mcp#authorizing-tools) instead: put the PermDock
 permission in each tool's `meta`, answer `visible` with PermDock's `mayUse`
 and `authorize` with `can`. `meta` is `unknown` to better-supabase, which
@@ -392,7 +394,9 @@ grant with a row condition. `can` decides without a row, so `authorize` still
 refuses a permission granted only on some rows; check those inside `run`,
 where the row is known, or rely on RLS. A permission that needs human
 approval is refused too, because `createMcp` has no approval store: serve
-those tools through `permdock/mcp` on the official MCP SDK.
+those tools through `permdock/mcp` and
+[`withBetterSupabase`](/docs/frameworks/mcp#official-mcp-sdk) on the official
+MCP SDK.
 
 ## Sessions in Next.js and React
 

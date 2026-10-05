@@ -37,7 +37,7 @@ function defaultOf(column: ColumnMeta): string {
 const quote = (name: string): string => `"${name}"`;
 
 /** SQLite tables shaped like the schema, as PowerSync's views would be. */
-export function sqliteDdl(meta: SchemaMeta): string[] {
+function sqliteDdl(meta: SchemaMeta): string[] {
   return Object.values(meta.tables)
     .filter((table) => table.kind === "table")
     .map((table) => {

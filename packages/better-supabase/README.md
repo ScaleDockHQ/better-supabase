@@ -182,6 +182,7 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/next`, `/next/image`                      | Proxy, Server Components, route handlers, server actions, Storage images |
 | `better-supabase/hono`, `/orpc`, `/edge`, `/expo`          | Framework adapters                                                       |
 | `better-supabase/mcp`                                      | MCP servers whose tools run as the signed-in user                        |
+| `better-supabase/mcp/sdk`                                  | Bearer auth and caller-bound `db` for the official MCP SDK               |
 | `better-supabase/jobs`                                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
 | `better-supabase/orgs`                                     | Organizations, members, invitations and switching from the SQL kit       |
 | `better-supabase/notifications`                            | Sending, listing and delivering notifications from the SQL kit           |

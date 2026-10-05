@@ -254,3 +254,83 @@ export const bs = createMcp(betterSupabase, {
 `resourceDocumentation` is published as `resource_documentation` in the
 protected resource metadata, so a client that hits the 401 can link the user
 to the page that explains how to connect.
+
+## Official MCP SDK
+
+When the server already runs on the official SDK (`@modelcontextprotocol/server`
+2.3 or later), keep its `McpServer` and add better-supabase through
+`better-supabase/mcp/sdk`. `createMcpAuth` verifies the Supabase access token
+locally and serves the RFC 9728 metadata; `withBetterSupabase` wraps
+`registerTool` so every tool callback gets `db`, `auth` and `bs` for the
+verified caller:
+
+```ts title="src/mcp.ts"
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import { createMcpAuth, withBetterSupabase } from "better-supabase/mcp/sdk";
+import * as v from "valibot";
+import { betterSupabase } from "./lib/supabase/schema";
+
+const auth = createMcpAuth(betterSupabase, {
+  resource: "https://crm.example.com/mcp",
+  advertisedScopes: ["crm:read"],
+});
+
+const handler = createMcpHandler(() => {
+  const server = withBetterSupabase(
+    new McpServer({ name: "crm", version: "1.0.0" }),
+    auth,
+  );
+  server.registerTool(
+    "archive_customer",
+    {
+      description: "Archive a customer.",
+      inputSchema: toStandardJsonSchema(v.object({ id: v.string() })),
+    },
+    async ({ id }, { db }) => {
+      await db.customers.update(id, { status: "archived" }).orThrow();
+      return { content: [{ type: "text", text: `Archived ${id}` }] };
+    },
+  );
+  return server;
+});
+
+export default { fetch: auth.serve(handler) };
+```
+
+`auth.serve(handler)` answers the metadata at
+`/.well-known/oauth-protected-resource/mcp`, refuses a missing or invalid
+token with a 401 that points to it, and passes the verified `AuthInfo` to
+`handler.fetch(request, { authInfo })`. The `allow`, `aal` and
+`requiredScopes` options work as they do for `createMcp`: a delegated token
+without a required scope gets a 403 `insufficient_scope` challenge, and the
+user's own session is not limited by scopes.
+
+To keep your own HTTP wiring, use the pieces instead: `auth.verifier` is an
+`OAuthTokenVerifier` for the SDK's `requireBearerAuth` and
+`verifyBearerToken`, `auth.metadata(request)` is the metadata response, and
+`auth.contextOf(ctx)` returns the caller's context from a tool's `ctx`. A tool
+call whose `authInfo` did not come from `auth.verifier` is verified again from
+its token, and one without a token runs as `anon`.
+
+To check permissions with PermDock, wrap the server with `permdock/mcp`'s
+`protectServer` first and `withBetterSupabase` second. PermDock then refuses a
+tool before the repositories are built, and the tool config keeps its
+`permission` key:
+
+```ts
+const server = withBetterSupabase(
+  protectServer(new McpServer(info), dock),
+  auth,
+);
+```
+
+### Which one to use
+
+| You need                                                      | Use                                      |
+| ------------------------------------------------------------- | ---------------------------------------- |
+| Tools generated from tables and list definitions              | `createMcp`                              |
+| No MCP dependency, or the smallest bundle on an edge function | `createMcp`                              |
+| The `authorize` and `visible` hooks                           | `createMcp`                              |
+| An existing `McpServer`, prompts, resources or SDK features   | `createMcpAuth` and `withBetterSupabase` |
+| PermDock approvals through `permdock/mcp`                     | `createMcpAuth` and `withBetterSupabase` |
