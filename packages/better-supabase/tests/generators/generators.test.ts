@@ -7,6 +7,7 @@ import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
 import { resolveConfig } from "../../src/config/index.ts";
+import { jsonSchema } from "../../src/generators/json-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
@@ -303,5 +304,29 @@ describe("valibot()", () => {
   it("honours a custom output path", async () => {
     const [file] = await valibot({ output: "lib/v.ts" }).generate(input);
     expect(file!.path).toBe("lib/v.ts");
+  });
+});
+
+describe("jsonSchema()", () => {
+  it("writes a property per scalar kind", async () => {
+    const [file] = await jsonSchema({ id: "urn:test" }).generate(input);
+    const doc = JSON.parse(file!.contents) as {
+      $id: string;
+      $defs: Record<string, { properties: Record<string, unknown> }>;
+    };
+    expect(doc.$id).toBe("urn:test");
+    expect(doc.$defs["eventsRow"]?.properties).toMatchObject({
+      id: { type: "integer" },
+      amount: { type: ["number", "null"] },
+      big: { type: "string", pattern: "^-?\\d+$" },
+      exact: { type: "string" },
+      at: { type: "string", format: "date-time" },
+      local: { type: "string" },
+      day: { type: "string", format: "date" },
+      flag: { type: "boolean" },
+      labels: { type: "array", items: { type: "string" } },
+      payload: {},
+      rec: {},
+    });
   });
 });

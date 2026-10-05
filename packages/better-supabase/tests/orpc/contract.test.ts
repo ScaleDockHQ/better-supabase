@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
-import { err, ok } from "../../src/core/result.ts";
+import { err, ok, type Result } from "../../src/core/result.ts";
 import { createOrpc, type OrpcRequestContext } from "../../src/orpc/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -41,6 +41,12 @@ const contract = {
   },
 };
 
+type Customer = { id: string; name: string };
+const failed = (
+  kind: "not_found" | "forbidden",
+  message: string,
+): Result<Customer> => err(dbError(kind, message));
+
 describe("a contract-first router under Hono", () => {
   const bs = createOrpc(defineSupabase(schema), {
     env,
@@ -56,14 +62,12 @@ describe("a contract-first router under Hono", () => {
     customers: {
       get: os.customers.get.handler(({ input }) =>
         input.id === "missing"
-          ? bs.unwrap(err(dbError("not_found", "No such customer")))
+          ? bs.unwrap(failed("not_found", "No such customer"))
           : bs.unwrap(ok({ id: input.id, name: "Acme" })),
       ),
       rename: os.customers.rename.handler(() =>
         bs.unwrap(
-          err(
-            dbError("forbidden", "new row violates row-level security policy"),
-          ),
+          failed("forbidden", "new row violates row-level security policy"),
         ),
       ),
     },

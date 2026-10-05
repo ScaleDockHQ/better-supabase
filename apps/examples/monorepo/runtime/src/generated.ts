@@ -2,21 +2,12 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import type { EnrichDatabase } from "better-supabase";
-
 import { defineSchema, type Schema } from "better-supabase";
-
+import type { EnrichDatabase } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
-
 import meta from "./generated.meta.js";
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = EnrichDatabase<
   SupabaseDatabase,
@@ -104,10 +95,7 @@ export type Models = {
     PrimaryKey: "customerId" | "tagId";
     UniqueKeys: Record<never, never>;
     Checks: never;
-    ForeignKeys:
-      | "customer_tags_customer_id_fkey"
-      | "customer_tags_organization_id_fkey"
-      | "customer_tags_tag_id_fkey";
+    ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
     Flags: Record<never, never>;
   };
   customers: {
@@ -169,9 +157,7 @@ export type Models = {
       customers_organization_id_kvk_key: readonly ["organizationId", "kvk"];
     };
     Checks: "customers_name_check" | "customers_status_check";
-    ForeignKeys:
-      | "customers_organization_id_fkey"
-      | "customers_primary_contact_id_fkey";
+    ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: Record<never, never>;
   };
   locations: {
@@ -212,9 +198,7 @@ export type Models = {
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
     Checks: never;
-    ForeignKeys:
-      | "locations_customer_id_fkey"
-      | "locations_organization_id_fkey";
+    ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
     Flags: Record<never, never>;
   };
   notes: {
@@ -295,9 +279,7 @@ export type Models = {
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
     Checks: never;
-    ForeignKeys:
-      | "notifications_organization_id_fkey"
-      | "notifications_user_id_fkey";
+    ForeignKeys: "notifications_organization_id_fkey" | "notifications_user_id_fkey";
     Flags: Record<never, never>;
   };
   organizations: {
@@ -391,19 +373,17 @@ export type Functions = {
       k?: number;
       query: string;
     };
-    Returns: Database["public"]["Tables"]["notes"]["Row"][];
+    Returns: (Database["public"]['Tables']["notes"]['Row'])[];
   };
 };
 
 export type TableName = keyof Models;
 /** Constraint names for `isConflict`, `isCheck` and `isForeignKey`. */
-export type UniqueConstraint = {
-  [T in TableName]: Extract<keyof Models[T]["UniqueKeys"], string>;
-}[TableName];
-export type CheckConstraint = Models[TableName]["Checks"];
-export type ForeignKeyConstraint = Models[TableName]["ForeignKeys"];
-export type RowOf<T extends TableName> = Models[T]["Row"];
-export type InsertOf<T extends TableName> = Models[T]["Insert"];
-export type UpdateOf<T extends TableName> = Models[T]["Update"];
+export type UniqueConstraint = { [T in TableName]: Extract<keyof Models[T]['UniqueKeys'], string> }[TableName];
+export type CheckConstraint = Models[TableName]['Checks'];
+export type ForeignKeyConstraint = Models[TableName]['ForeignKeys'];
+export type RowOf<T extends TableName> = Models[T]['Row'];
+export type InsertOf<T extends TableName> = Models[T]['Insert'];
+export type UpdateOf<T extends TableName> = Models[T]['Update'];
 
 export const schema: Schema<Models, Database, Functions> = defineSchema(meta);

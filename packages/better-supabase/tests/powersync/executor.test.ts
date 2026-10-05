@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { Executor } from "../../src/core/executor.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
@@ -186,6 +188,100 @@ describe("powersyncExecutor", () => {
       .create({ organizationId: ORG, name: "a" })
       .orThrow();
     expect(tag.id).toBe("00000000-0000-4000-8000-000000000001");
+  });
+
+  it("falls back to SQLite's uuid() without crypto, and fails without a row", async () => {
+    const { db } = setup();
+    vi.stubGlobal("crypto", undefined);
+    try {
+      const tag = await betterSupabase
+        .connect(powersyncExecutor(db))
+        .tags.create({ organizationId: ORG, name: "a" })
+        .orThrow();
+      expect(tag.id).toMatch(/^[0-9a-f-]{36}$/);
+      const empty: PowerSyncDatabaseLike = {
+        ...db,
+        getAll: <T>(sql: string, parameters?: unknown[]) =>
+          sql === "select uuid() as id"
+            ? Promise.resolve<T[]>([])
+            : db.getAll<T>(sql, parameters),
+      };
+      const failed = await betterSupabase
+        .connect(powersyncExecutor(empty))
+        .tags.create({ organizationId: ORG, name: "b" });
+      expect(failed.error?.message).toMatch(/uuid\(\) returned no row/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("decodes values however the sync stored them", async () => {
+    const { client, sqlite } = setup();
+    const customer = await client.customers
+      .create({ organizationId: ORG, name: "Acme" })
+      .orThrow();
+    await client.locations
+      .create({ organizationId: ORG, customerId: customer.id, label: "HQ" })
+      .orThrow();
+    sqlite.exec(
+      "update customers set metadata = 'not json', created_at = 12345, kvk = null",
+    );
+    sqlite.exec("update locations set is_primary = 'true'");
+    const read = await client.customers
+      .findById(customer.id, { select: ["metadata", "createdAt", "kvk"] })
+      .orThrow();
+    expect(read).toEqual({
+      metadata: "not json",
+      createdAt: "12345",
+      kvk: null,
+    });
+    const [location] = await client.locations
+      .findMany({ select: ["isPrimary"] })
+      .orThrow();
+    expect(location).toEqual({ isPrimary: true });
+  });
+
+  it("checks the row count of single reads and honors an aborted signal", async () => {
+    const { db, client } = setup();
+    const singled = (
+      single: "one" | "maybe",
+      source: PowerSyncDatabaseLike,
+    ): Executor => {
+      const inner = powersyncExecutor(source);
+      return {
+        ...inner,
+        execute: (op, context) =>
+          inner.execute(op.kind === "select" ? { ...op, single } : op, context),
+      };
+    };
+    const one = betterSupabase.connect(singled("one", db));
+    expect((await one.tags.findMany()).error?.kind).toBe("not_found");
+    const doubled: PowerSyncDatabaseLike = {
+      ...db,
+      getAll: <T>() => Promise.resolve([{ id: "a" }, { id: "b" }] as T[]),
+    };
+    const twice = await betterSupabase
+      .connect(singled("maybe", doubled))
+      .tags.findMany({ select: ["id"] });
+    expect(twice.error?.kind).toBe("multiple_rows");
+    const controller = new AbortController();
+    controller.abort();
+    const aborted = await client.tags.delete("a", {
+      signal: controller.signal,
+    });
+    expect(aborted.error?.kind).toBe("aborted");
+  });
+
+  it("maps errors that aren't SQLite constraints", async () => {
+    const { db } = setup();
+    const broken: PowerSyncDatabaseLike = {
+      ...db,
+      getAll: () => Promise.reject(new Error("disk I/O error")),
+    };
+    const result = await betterSupabase
+      .connect(powersyncExecutor(broken))
+      .tags.findMany();
+    expect(result.error?.kind).toBe("unexpected");
   });
 });
 

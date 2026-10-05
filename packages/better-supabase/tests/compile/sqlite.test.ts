@@ -130,6 +130,23 @@ describe("compileSqlite", () => {
     ).toContain('where t0."name" = ?');
   });
 
+  it("compiles neq, boolean is, and empty groups under not", () => {
+    const where = (condition: Condition) =>
+      selectPlan(compileSqlite(select({ where: condition }))).rows?.text;
+    expect(where(col("name", "neq", "A"))).toMatch(/where t0\."name" <> \?$/);
+    expect(where(col("archived_at", "is", true))).toMatch(/is 1$/);
+    expect(where(col("archived_at", "is", false))).toMatch(/is 0$/);
+    const all = 'select t0."id" as "id" from "customers" as t0';
+    expect(where({ kind: "not", item: col("status", "in", []) })).toBe(all);
+    expect(where({ kind: "and", items: [] })).toBe(all);
+    expect(where({ kind: "not", item: { kind: "or", items: [] } })).toBe(all);
+    expect(
+      compileSqlite(
+        select({ where: { kind: "not", item: { kind: "and", items: [] } } }),
+      ),
+    ).toEqual({ kind: "never" });
+  });
+
   it("names tables through tableName", () => {
     expect(
       selectPlan(
