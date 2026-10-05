@@ -433,12 +433,14 @@ describe("testPlugin", () => {
           return result.ok ? ok({ ...result.data, rows: [] }) : result;
         },
       }),
+      context: (context) => ({ ...context, tenant: crypto.randomUUID() }),
     });
     expect(
       await failures(testPlugin(sneaky, { betterSupabase, table: "tags" })),
     ).toEqual([
       "transformQuery is pure and deterministic",
       "wrapExecutor keeps results intact",
+      "context is pure and deterministic",
     ]);
   });
 

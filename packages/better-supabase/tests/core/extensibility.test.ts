@@ -8,6 +8,7 @@ import { defineRepository } from "../../src/core/define-repository.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
+import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -111,6 +112,66 @@ describe("logger", () => {
       '"query" handler threw',
       'plugin "noisy" afterMutation threw',
     ]);
+  });
+});
+
+describe("per-definition state", () => {
+  const ORG = "00000000-0000-4000-8000-000000000002";
+  const claims = { sub: "u1", org_id: ACME, app_metadata: { tenant: ORG } };
+
+  it("resolves each definition's tenant from its own claim paths", () => {
+    const byOrg = defineSupabase(schema).use(tenant({ claim: "org_id" }));
+    const byMetadata = defineSupabase(schema).use(
+      tenant({ claim: "app_metadata.tenant" }),
+    );
+    expect(byOrg.connect(echo(), { claims }).$context.tenant).toBe(ACME);
+    expect(byMetadata.connect(echo(), { claims }).$context.tenant).toBe(ORG);
+    expect(byOrg.connect(echo(), { claims }).$context.tenant).toBe(ACME);
+  });
+
+  it("derives the context again for $with and drops it for $withoutPlugins", () => {
+    const db = defineSupabase(schema)
+      .use(tenant({ claim: "org_id" }))
+      .connect(echo(), { claims });
+    expect(
+      db.$with({ claims: { sub: "u1", org_id: ORG } }).$context.tenant,
+    ).toBe(ORG);
+    expect(db.$withoutPlugins().$context.tenant).toBeUndefined();
+  });
+
+  it("logs a context hook that throws and keeps the caller's context", () => {
+    const logger = recordingLogger();
+    const db = defineSupabase(schema, { logger })
+      .use(
+        definePlugin({
+          name: "broken",
+          context: () => {
+            throw new Error("boom");
+          },
+        }),
+      )
+      .connect(echo(), { tenant: ACME });
+    expect(db.$context.tenant).toBe(ACME);
+    expect(logger.messages).toEqual(['plugin "broken" context threw']);
+  });
+
+  it("warns when a second definition provides a different Temporal", () => {
+    const previous = providedTemporal();
+    try {
+      const logger = recordingLogger();
+      // SAFETY: the copy only needs to be a distinct namespace object.
+      const first = Object.create(Temporal) as typeof Temporal;
+      // SAFETY: as above.
+      const second = Object.create(Temporal) as typeof Temporal;
+      defineSupabase(schema, { logger, temporal: first });
+      defineSupabase(schema, { logger, temporal: first });
+      expect(logger.messages).toEqual([]);
+      defineSupabase(schema, { logger, temporal: second });
+      expect(logger.messages).toHaveLength(1);
+      expect(logger.messages[0]).toMatch(/different `temporal` namespace/);
+    } finally {
+      provideTemporal(previous);
+    }
   });
 });
 

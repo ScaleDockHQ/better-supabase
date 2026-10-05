@@ -36,7 +36,6 @@ import {
   type MutationEvent,
   type MutationKind,
   type RequestContext,
-  tenantOf,
 } from "./plugin.ts";
 import { AsyncResult, err, ok, type Result } from "./result.ts";
 
@@ -308,7 +307,7 @@ export class OperationRunner {
     const kind = mutationKind(op);
     const rows = cloneRows(data.rows);
     const keys = keysOf(op, rows);
-    const tenant = tenantOf(runtime.context);
+    const { tenant } = runtime.context;
     const event: MutationEvent = {
       table: op.table,
       kind,

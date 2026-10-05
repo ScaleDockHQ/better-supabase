@@ -747,6 +747,22 @@ describe("createNext", () => {
     );
     expect(mocks.cacheTag).toHaveBeenLastCalledWith("bs:customers", "bs:notes");
   });
+
+  it("invalidates each tag once when createNext runs again for a definition", async () => {
+    createNext(betterSupabase, { env, auth: { jwks: signer.jwks as never } });
+    const executor: Executor = {
+      name: "fake",
+      execute: () => Promise.resolve(ok({ rows: [{ id: "c1" }], count: 1 })),
+    };
+    await betterSupabase
+      .connect(executor)
+      .customers.update("c1", { name: "Acme" })
+      .orThrow();
+    expect(mocks.updateTag.mock.calls).toEqual([
+      [tagFor("customers")],
+      [tagFor("customers", "c1")],
+    ]);
+  });
 });
 
 describe("next.liveCount", () => {

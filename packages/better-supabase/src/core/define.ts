@@ -57,7 +57,12 @@ import {
 } from "./spec.ts";
 import { type StandardSchemaV1, validate } from "./standard.ts";
 import { recordStats, StatsRecorder } from "./stats.ts";
-import { nowInstant, optionalTemporal, provideTemporal } from "./temporal.ts";
+import {
+  nowInstant,
+  optionalTemporal,
+  providedTemporal,
+  provideTemporal,
+} from "./temporal.ts";
 
 export interface SupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
@@ -140,11 +145,27 @@ export class BetterSupabase<
     this.plugins = orderPlugins(plugins);
     this.options = options;
     this.events = events;
-    if (options.temporal !== undefined) provideTemporal(options.temporal);
+    const { temporal } = options;
+    if (temporal !== undefined) {
+      const previous = providedTemporal();
+      if (previous !== undefined && previous !== temporal) {
+        events.logger.warn(
+          "defineSupabase got a different `temporal` namespace than the one already provided; decoded rows, jobs and webhooks in this process now use the newer one. Pass the same namespace to every definition.",
+        );
+      }
+      provideTemporal(temporal);
+    }
   }
 
   get meta(): SchemaMeta {
     return this.schema.meta;
+  }
+
+  /** The `now` option, else this definition's own `Temporal` clock. */
+  #now(): () => Temporal.Instant {
+    const { now, temporal } = this.options;
+    if (now) return now;
+    return temporal ? () => temporal.Now.instant() : nowInstant;
   }
 
   /** The `Temporal` this definition uses: the `temporal` option, else the global. */
@@ -374,14 +395,34 @@ export class BetterSupabase<
     return this.#db(client, base, context, this.plugins, recorder);
   }
 
+  /** The caller's context with every plugin's `context` hook applied. */
+  #derive(
+    given: RequestContext,
+    plugins: readonly AnyPlugin[],
+  ): RequestContext {
+    let context = given;
+    for (const plugin of plugins) {
+      if (!plugin.context) continue;
+      try {
+        context = plugin.context(context, { schema: this.meta });
+      } catch (cause) {
+        this.events.logger.error(`plugin "${plugin.name}" context threw`, {
+          cause,
+        });
+      }
+    }
+    return context;
+  }
+
   #db(
     client: unknown,
     base: Executor,
-    context: RequestContext,
+    given: RequestContext,
     plugins: readonly AnyPlugin[],
     recorder: StatsRecorder,
     events: EventHub = this.events,
   ): object {
+    const context = this.#derive(given, plugins);
     let executor = base;
     for (const plugin of plugins) {
       if (plugin.wrapExecutor) executor = plugin.wrapExecutor(executor);
@@ -396,7 +437,7 @@ export class BetterSupabase<
       context,
       events,
       errorMappers,
-      now: this.options.now ?? nowInstant,
+      now: this.#now(),
       maxRows: this.options.maxRows ?? 1000,
       truncatedTables: this.#truncatedTables,
     });
@@ -422,8 +463,8 @@ export class BetterSupabase<
           return data;
         }),
       $with: (extra: RequestContext) =>
-        this.#db(client, base, { ...context, ...extra }, plugins, recorder),
-      $withoutPlugins: () => this.#db(client, base, context, [], recorder),
+        this.#db(client, base, { ...given, ...extra }, plugins, recorder),
+      $withoutPlugins: () => this.#db(client, base, given, [], recorder),
       $stats: () => recorder.snapshot(),
       $table: (name: string) => {
         if (!Object.hasOwn(this.meta.tables, name)) {
@@ -544,10 +585,10 @@ export class BetterSupabase<
         // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
         const target = (
           batching
-            ? this.#db(client, batching.executor, context, active, recorder)
+            ? this.#db(client, batching.executor, given, active, recorder)
             : usePlugins
               ? db
-              : this.#db(client, base, context, [], recorder)
+              : this.#db(client, base, given, [], recorder)
         ) as Record<string, unknown>;
         const results = await Promise.all(
           specs.map(async (spec) => {

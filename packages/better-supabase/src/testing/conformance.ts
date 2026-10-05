@@ -886,8 +886,8 @@ export interface TestPluginOptions {
 }
 
 /**
- * Proves a `Plugin` targets API v1, installs cleanly, keeps `transformQuery`
- * and `beforeMutation` pure and deterministic, and keeps executors'
+ * Proves a `Plugin` targets API v1, installs cleanly, keeps `context`,
+ * `transformQuery` and `beforeMutation` pure and deterministic, and keeps executors'
  * results intact when it wraps them.
  */
 export function testPlugin(
@@ -1008,6 +1008,20 @@ export function testPlugin(
           result.ok && same(result.data, data),
           "the wrapped executor changed the result",
         );
+      },
+    ],
+    plugin.context && [
+      "context is pure and deterministic",
+      () => {
+        const args = { schema: betterSupabase.meta };
+        const first = plugin.context!(frozenCopy(context), args);
+        const second = plugin.context!(frozenCopy(context), args);
+        expect(
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- the kit checks plugins written in JavaScript too.
+          typeof first === "object" && first !== null,
+          "must return a context object",
+        );
+        expect(same(first, second), "two calls with the same input differ");
       },
     ],
     plugin.mapError && [

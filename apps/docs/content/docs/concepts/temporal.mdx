@@ -50,6 +50,12 @@ rows, the default clock, plugins, jobs, webhooks and storage. The global stays
 the fallback when you leave the option out. `betterSupabase.temporal` returns
 the namespace in use.
 
+The option also sets one process-wide namespace for code that runs without a
+definition. Pass the same namespace to every definition in a process: when a
+second definition passes a different one, better-supabase logs a warning and
+the newer one wins for decoding. Each definition's default clock always uses
+its own `temporal` option.
+
 Helpers you call without a definition, such as `verifyWebhook` in a separate
 worker, read the same setting. Call `provideTemporal(Temporal)` from
 `better-supabase` once at startup in that process.

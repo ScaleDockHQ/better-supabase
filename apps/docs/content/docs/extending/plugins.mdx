@@ -22,6 +22,7 @@ another version, and installing two plugins with the same name.
 
 | Hook                       | Level      | Use it to                                                                   |
 | -------------------------- | ---------- | --------------------------------------------------------------------------- |
+| `context(context, args)`   | Context    | Derive values from the claims once per `connect()`, such as the tenant      |
 | `transformQuery(op, args)` | IR         | Add filters, rewrite selections                                             |
 | `beforeMutation(op, args)` | Mutation   | Fill columns, reject writes, change the kind (turn a delete into an update) |
 | `afterMutation(event)`     | Mutation   | Audit, cache invalidation, outbox. Cannot change the result                 |
@@ -33,6 +34,13 @@ Hooks receive `args` with the table metadata, the request context, the
 per-call options (any argument the repository does not know, like
 `withDeleted`) and the clock. Throw a `DbException` to fail the call with a
 typed error; nothing is sent.
+
+`context` runs once per `connect()` and `$with()`, in plugin order, and its
+result is the `db.$context` that every other hook, `db.$context` readers
+(jobs, storage) and `afterMutation` events see. `tenant()` uses it to set
+`context.tenant` from its own claim paths, so two definitions with different
+paths never share a resolved tenant. A `context` hook that throws is logged
+and leaves the context unchanged; `$withoutPlugins()` skips it.
 
 `enforce: 'pre' | 'post'` moves a plugin to the start or end of the chain.
 

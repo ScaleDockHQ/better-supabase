@@ -7,7 +7,6 @@ import {
   definePlugin,
   type HasFlag,
   type Plugin,
-  recordTenant,
   spansAllTenants,
   type RepositoryExtension,
   type RequestContext,
@@ -128,7 +127,6 @@ export function tenant<C = unknown>(
     if (id === undefined && !resolved.has(context)) {
       id = resolveTenant(context, options, schema);
       resolved.set(context, id);
-      if (id !== undefined) recordTenant(context, id);
     }
     return id;
   };
@@ -156,6 +154,14 @@ export function tenant<C = unknown>(
 
   return definePlugin<"tenant", TenantExtension>({
     name: "tenant",
+    context(context, { schema }): RequestContext {
+      if (spansAllTenants(context)) return context;
+      const id = resolvedFor(context, schema);
+      if (id === undefined || id === context.tenant) return context;
+      const derived = { ...context, tenant: id };
+      resolved.set(derived, id);
+      return derived;
+    },
     transformQuery(op, { context, schema, options: call }): Operation {
       if (call["allTenants"] === true || spansAllTenants(context)) return op;
       const id = resolvedFor(context, schema);

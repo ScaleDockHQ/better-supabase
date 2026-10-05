@@ -13,6 +13,7 @@ import type {
   AnyPlugin,
   MutationEvent,
   MutationIntent,
+  RequestContext,
 } from "../../src/core/plugin.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { EventSink } from "../../src/events/index.ts";
@@ -101,6 +102,16 @@ describe("extension interfaces", () => {
     expectTypeOf<Executor["functionSources"]>().toEqualTypeOf<
       boolean | undefined
     >();
+  });
+
+  it("keeps the Plugin context hook optional and context-shaped", () => {
+    expectTypeOf<{ name: "bare"; apiVersion: 1 }>().toExtend<AnyPlugin>();
+    expectTypeOf<NonNullable<AnyPlugin["context"]>>()
+      .parameter(0)
+      .toEqualTypeOf<RequestContext>();
+    expectTypeOf<
+      NonNullable<AnyPlugin["context"]>
+    >().returns.toEqualTypeOf<RequestContext>();
   });
 });
 

@@ -20,6 +20,11 @@ export function provideTemporal(namespace: typeof Temporal | undefined): void {
   provided = namespace;
 }
 
+/** The namespace `provideTemporal` set, without the global fallback. */
+export function providedTemporal(): typeof Temporal | undefined {
+  return provided;
+}
+
 /** The provided `Temporal`, else the runtime's, or `undefined` when neither exists. */
 export function optionalTemporal(): typeof Temporal | undefined {
   if (provided !== undefined) return provided;

@@ -54,7 +54,7 @@ export interface MutationEvent {
    * returned (soft deletes, `returning: false`).
    */
   readonly keys?: readonly Readonly<Record<string, unknown>>[];
-  /** The tenant of the write: `context.tenant`, or the one `tenant()` resolved. */
+  /** The tenant of the write: `context.tenant`, which `tenant()` fills from the claims. */
   readonly tenant?: string;
   readonly context: RequestContext;
 }
@@ -138,6 +138,16 @@ export interface Plugin<
    * `use()` order. Validation is `post` so it sees columns other plugins fill.
    */
   readonly enforce?: "pre" | "post";
+  /**
+   * `context`: derive values from the connection's context once per
+   * `connect()` and `$with()`, so `db.$context` carries them (`tenant()`
+   * adds the tenant it resolved). Runs in hook order on the context the
+   * caller passed. A throw is logged and leaves the context unchanged.
+   */
+  readonly context?: (
+    context: RequestContext,
+    args: { readonly schema: SchemaMeta },
+  ) => RequestContext;
   /** `ir`: rewrite an operation before it runs (filters, defaults). */
   readonly transformQuery?: (op: Operation, args: HookArgs) => Operation;
   /** `mutation`: rewrite a mutation or reject it by throwing a `DbException`. */
@@ -209,19 +219,6 @@ export function definePlugin<
   plugin: Omit<Plugin<Name, Ext>, "apiVersion"> & { readonly apiVersion?: 1 },
 ): Plugin<Name, Ext> {
   return { ...plugin, apiVersion: 1 };
-}
-
-/** Tenants that `tenant()` resolved from claims, per connection context. */
-const resolvedTenants = new WeakMap<RequestContext, string>();
-
-/** Records the tenant a plugin resolved for `context`, so mutation notices carry it. */
-export function recordTenant(context: RequestContext, tenant: string): void {
-  resolvedTenants.set(context, tenant);
-}
-
-/** `context.tenant`, else the tenant a plugin resolved for this connection. */
-export function tenantOf(context: RequestContext): string | undefined {
-  return context.tenant ?? resolvedTenants.get(context);
 }
 
 /**

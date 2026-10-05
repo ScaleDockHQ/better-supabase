@@ -411,6 +411,14 @@ export function shouldRefresh(request: Request): boolean {
 }
 
 /**
+ * Event hubs that already invalidate Next.js cache tags. Every instance a
+ * definition derives shares its hub, and `createNext` can run again for one
+ * definition (hot reload, a definition in another package), so tags are
+ * invalidated once per mutation.
+ */
+const nextCacheAttached = new WeakSet<object>();
+
+/**
  * The Next.js adapter: proxy, Server Components, route handlers, server
  * actions and cache tags, on top of `createServer`.
  *
@@ -433,7 +441,13 @@ export function createNext<
   const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
   const expose = options.exposeErrors ?? defaultExpose();
 
-  if (options.cacheTags !== false) betterSupabase.cache(nextCache());
+  if (
+    options.cacheTags !== false &&
+    !nextCacheAttached.has(betterSupabase.events)
+  ) {
+    nextCacheAttached.add(betterSupabase.events);
+    betterSupabase.cache(nextCache());
+  }
 
   const debug = options.debug;
   const statsHeader = debug?.header ?? "x-bs-db-calls";

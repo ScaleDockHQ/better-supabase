@@ -26,6 +26,7 @@ export interface CollectorOptions {
 interface Entry {
   readonly recorder: StatsRecorder;
   readonly created: number;
+  readonly options: CollectorOptions;
   timer?: ReturnType<typeof setTimeout> | undefined;
 }
 
@@ -55,13 +56,17 @@ export class StatsCollector {
     this.#options = options;
   }
 
-  /** The recorder for a request id, created on first use. */
-  recorderFor(id: string): StatsRecorder {
+  /**
+   * The recorder for a request id, created on first use. `options` sets the
+   * budget and logger of a new entry; the collector's own are the default.
+   */
+  recorderFor(id: string, options?: CollectorOptions): StatsRecorder {
     const existing = this.#entries.get(id);
     if (existing) return existing.recorder;
     this.#prune();
     const entry: Entry = {
       created: Date.now(),
+      options: options ?? this.#options,
       recorder: new CollectedRecorder(() => {
         this.#schedule(id);
       }),
@@ -75,19 +80,20 @@ export class StatsCollector {
   }
 
   #schedule(id: string): void {
-    const { budget, warn } = this.#options;
     const entry = this.#entries.get(id);
-    if (!entry || !warn || !budget) return;
+    if (!entry) return;
+    const { budget, warn, logger, idleMs } = entry.options;
+    if (!warn || !budget) return;
     if (entry.timer) clearTimeout(entry.timer);
     entry.timer = setTimeout(() => {
       entry.timer = undefined;
       const stats = entry.recorder.snapshot();
       if (!overBudget(stats, budget)) return;
-      this.#options.logger.warn(
+      logger.warn(
         `request ${id} made ${stats.calls} database calls in ${stats.waves} waves, over the budget of ${describeBudget(budget)}`,
         { requestId: id, ...stats },
       );
-    }, this.#options.idleMs ?? 250);
+    }, idleMs ?? 250);
   }
 
   #prune(): void {
@@ -103,15 +109,26 @@ export class StatsCollector {
 
 const SHARED = Symbol.for("better-supabase.next.stats-collector");
 
+/** A view of the shared collector that applies one app's budget and logger. */
+export interface CollectorView {
+  recorderFor(id: string): StatsRecorder;
+  get(id: string): DbStats | undefined;
+}
+
 /**
- * One collector per process. Next.js can load the proxy, pages and route
- * handlers as separate module instances, and they must see the same totals.
+ * One store of request totals per process. Next.js can load the proxy, pages
+ * and route handlers as separate module instances, and they must see the
+ * same totals. Each caller's budget and logger apply to the requests it
+ * starts, so a second app in the process keeps its own.
  */
-export function sharedCollector(options: CollectorOptions): StatsCollector {
+export function sharedCollector(options: CollectorOptions): CollectorView {
   // SAFETY: SHARED is a module symbol, so nothing else writes to that global slot.
   const scope = globalThis as { [SHARED]?: StatsCollector };
-  scope[SHARED] ??= new StatsCollector(options);
-  return scope[SHARED];
+  const shared = (scope[SHARED] ??= new StatsCollector(options));
+  return {
+    recorderFor: (id) => shared.recorderFor(id, options),
+    get: (id) => shared.get(id),
+  };
 }
 
 function overBudget(stats: DbStats, budget: DbBudget): boolean {

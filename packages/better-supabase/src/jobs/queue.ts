@@ -9,7 +9,6 @@ import {
   type Actor,
   allTenantsContext,
   type RequestContext,
-  tenantOf,
 } from "../core/plugin.ts";
 import { problemResponse } from "../core/problem.ts";
 import { AsyncResult, toDbError } from "../core/result.ts";
@@ -552,7 +551,7 @@ function withContext(
 ): unknown {
   if (!context) return payload;
   const tenant =
-    tenantOf(context) ??
+    context.tenant ??
     tenantClaimPaths()
       .map((path) => claimAt(context.claims, path))
       .find((id) => id !== undefined);

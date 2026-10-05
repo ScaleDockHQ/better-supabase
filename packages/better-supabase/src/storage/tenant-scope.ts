@@ -1,10 +1,6 @@
 import { claimAt, tenantClaimPaths } from "../core/claims.ts";
 import { dbError, DbException } from "../core/errors.ts";
-import {
-  type RequestContext,
-  spansAllTenants,
-  tenantOf,
-} from "../core/plugin.ts";
+import { type RequestContext, spansAllTenants } from "../core/plugin.ts";
 
 export interface TenantScopeOptions {
   readonly context?: RequestContext | undefined;
@@ -31,8 +27,7 @@ function resolveTenant(
   const { context } = options;
   if (options.tenant !== undefined) return options.tenant;
   if (!context) return undefined;
-  const tenant = tenantOf(context);
-  if (tenant !== undefined) return tenant;
+  if (context.tenant !== undefined) return context.tenant;
   const paths =
     typeof claim === "string" ? [claim] : (claim ?? tenantClaimPaths());
   for (const path of paths) {

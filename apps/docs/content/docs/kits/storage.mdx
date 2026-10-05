@@ -294,8 +294,9 @@ await storage.upload({ orgId: otherOrg, customerId, version }, file);
 // { ok: false, error: { kind: "forbidden" } }, no request made
 ```
 
-The tenant comes from `{ tenant }`, else from `context`: `context.tenant`,
-the tenant the `tenant()` plugin resolved, then the `tenant.claim` claims. A
+The tenant comes from `{ tenant }`, else from `context`: `context.tenant`
+(which the `tenant()` plugin fills from its claims in `db.$context`), then
+the `tenant.claim` claims. A
 connection without a tenant gets `forbidden` for every call. Cross-tenant
 admin work (account deletion does this) connects with `{ allTenants: true }`.
 `storage.path(target)` returns the checked path as a `Result`, and

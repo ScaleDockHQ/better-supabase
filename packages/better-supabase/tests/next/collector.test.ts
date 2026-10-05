@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Logger } from "../../src/core/logger.ts";
 
-import { formatStats, StatsCollector } from "../../src/next/collector.ts";
+import {
+  formatStats,
+  sharedCollector,
+  StatsCollector,
+} from "../../src/next/collector.ts";
 
 const logger = () => ({
   debug: vi.fn<Logger["debug"]>(),
@@ -52,5 +56,29 @@ describe("StatsCollector", () => {
     expect(log.warn).not.toHaveBeenCalled();
     expect(collector.get("a")).toBeUndefined();
     expect(collector.get("c")).toMatchObject({ calls: 0 });
+  });
+});
+
+describe("sharedCollector", () => {
+  it("shares totals across views but warns with each view's own budget", () => {
+    vi.useFakeTimers();
+    const strictLog = logger();
+    const quietLog = logger();
+    const strict = sharedCollector({
+      logger: strictLog,
+      warn: true,
+      budget: { calls: 1 },
+    });
+    const quiet = sharedCollector({ logger: quietLog, warn: false });
+    const strictRecorder = strict.recorderFor("shared-strict");
+    strictRecorder.begin("customers")();
+    strictRecorder.begin("notes")();
+    const quietRecorder = quiet.recorderFor("shared-quiet");
+    quietRecorder.begin("customers")();
+    quietRecorder.begin("notes")();
+    vi.advanceTimersByTime(300);
+    expect(strictLog.warn).toHaveBeenCalledTimes(1);
+    expect(quietLog.warn).not.toHaveBeenCalled();
+    expect(strict.get("shared-quiet")).toMatchObject({ calls: 2 });
   });
 });
