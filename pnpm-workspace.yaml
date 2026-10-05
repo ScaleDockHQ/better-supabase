@@ -218,6 +218,10 @@ auditConfig:
     # shadcn in apps/marketing (dev tooling, never shipped). Remove it once a
     # fixed braces ships or shadcn drops micromatch (ADR 0002).
     - GHSA-vfj7-8cjw-p6xm
+    # node-forge <=1.4.0 has no patched release. It reaches the tree only
+    # through @expo/cli in apps/examples/expo-powersync (dev tooling, never
+    # shipped). Remove it once a fixed node-forge ships (ADR 0002).
+    - GHSA-86w9-cpqp-85rv
 
 allowBuilds:
   # tsdown and vite bundle through esbuild's platform binary.
