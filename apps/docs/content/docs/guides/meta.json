@@ -6,6 +6,7 @@
     "data-api-grants",
     "read-replicas",
     "offline-first",
+    "without-a-session",
     "limitations"
   ]
 }

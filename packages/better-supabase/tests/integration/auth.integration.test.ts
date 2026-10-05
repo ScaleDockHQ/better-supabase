@@ -196,6 +196,25 @@ describe.skipIf(!live)("auth against the local stack", () => {
     expect(all).toBeGreaterThanOrEqual(acting);
   });
 
+  it("runs a recorded job context as the user, with RLS", async () => {
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    const ctx = await server.context(toRequest(await signInCookies()));
+    const own = await ctx.db.customers.count().orThrow();
+    const actor = ctx.db.$context.actor!;
+    const asUser = await server.forContext({ actor, tenant: ACME }).orThrow();
+    expect(await asUser.customers.count().orThrow()).toBe(own);
+
+    const elsewhere = await server
+      .forContext({ actor, tenant: crypto.randomUUID() })
+      .orThrow();
+    expect(await elsewhere.customers.count().orThrow()).toBe(0);
+    expect(own).toBeGreaterThan(0);
+    expect(await server.admin().customers.count().orThrow()).toBeGreaterThan(0);
+
+    const refused = await server.forContext(server.admin().$context);
+    expect(refused.error).toMatchObject({ kind: "forbidden" });
+  });
+
   it("records the impersonating admin in the audit log", async () => {
     const betterSupabase = defineSupabase(schema).use(tenant());
     const server = createServer(betterSupabase, { env, postgres });

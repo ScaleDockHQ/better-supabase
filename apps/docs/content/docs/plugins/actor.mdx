@@ -27,10 +27,11 @@ const db = defineSupabase(schema)
   `invalid_request`, so a caller cannot sign a row as someone else. Pass
   `{ override: true }` for imports and backfills.
 
-Server adapters fill `actor` from the verified JWT; jobs use
-`db.$with(job.context)` (see [jobs](/docs/kits/jobs#actor-and-tenant)),
-`betterSupabase.actingAs(userId)` or a service actor. Pass `resolve(context)` to read the
-id from somewhere else.
+Server adapters fill `actor` from the verified JWT. Jobs run as the user who
+enqueued them with `bs.forContext(job.context)` (see
+[jobs](/docs/kits/jobs#actor-and-tenant)), webhooks and scripts with
+`bs.actingAs(userId)`, and work no user owns with `bs.admin()`, whose actor
+is `service`. Pass `resolve(context)` to read the id from somewhere else.
 
 For a tamper-proof trail, add the `actor` and `audit` SQL kit triggers, which
 read `auth.uid()` inside the database.

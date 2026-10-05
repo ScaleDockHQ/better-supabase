@@ -37,6 +37,7 @@ export type { SupportView } from "../auth/support-view.ts";
 export type {
   BetterServer,
   ContextOptions,
+  ForContextOptions,
   ServerContext,
   ServerOptions,
 } from "./server.ts";
