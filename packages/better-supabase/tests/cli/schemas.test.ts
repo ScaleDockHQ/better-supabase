@@ -205,6 +205,7 @@ describe("shipped JSON Schemas", () => {
       casing: "camel",
       output: "src/lib/supabase/generated.ts",
       postgrestVersion: "13",
+      tables: { audit_logs: { serviceRole: true } },
       doctor: { ignore: ["BS204"], strict: true, sources: ["app/**/*.tsx"] },
     };
     expect(await errorsFor("config-v1.json", config)).toEqual([]);

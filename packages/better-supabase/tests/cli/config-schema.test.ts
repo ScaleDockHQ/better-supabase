@@ -14,6 +14,7 @@ describe("configIssues", () => {
         codecs: { timestamptz: "instant", int8: "bigint" },
         plugins: { tenant: { column: "org_id" }, timestamps: true },
         expose: { notes: ["select"], tags: { anon: ["select"] } },
+        tables: { audit_logs: { serviceRole: true }, jobs: { exclude: true } },
         generators: [{ name: "zod", generate: () => [] }],
         doctor: { ignore: ["BS303"], strict: true },
       }),

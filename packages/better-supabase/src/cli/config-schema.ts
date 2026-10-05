@@ -98,6 +98,7 @@ const ConfigSchema = v.strictObject({
       v.strictObject({
         casing: v.optional(v.picklist(["snake", "camel"])),
         exclude: v.optional(v.boolean()),
+        serviceRole: v.optional(v.boolean()),
         relations: v.optional(stringRecord),
       }),
     ),

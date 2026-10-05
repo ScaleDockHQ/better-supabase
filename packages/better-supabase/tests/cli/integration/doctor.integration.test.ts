@@ -96,6 +96,13 @@ describe.skipIf(!source)("doctor against the local stack", () => {
         using (user_id = (select auth.uid()));
       grant select on ${SCHEMA}.members to authenticated;
       grant update (role, note) on ${SCHEMA}.members to authenticated;
+      create table ${SCHEMA}.audit_events (
+        id bigint generated always as identity primary key,
+        payload jsonb not null
+      );
+      alter table ${SCHEMA}.audit_events enable row level security;
+      revoke all on ${SCHEMA}.audit_events from public, anon, authenticated;
+      grant select, insert on ${SCHEMA}.audit_events to service_role;
     `);
     snapshot = await introspect(db.queryable, [SCHEMA]);
   });
@@ -171,6 +178,29 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     expect(findings[0]!.message).toContain(
       `revoke update (role) on ${SCHEMA}.members from authenticated;`,
     );
+  });
+
+  it("accepts a service-role table and flags one the Data API reaches (BS106)", async () => {
+    const config = (serviceRole: readonly string[]) =>
+      resolveConfig(
+        {
+          schemas: [SCHEMA],
+          tables: Object.fromEntries(
+            serviceRole.map((name) => [name, { serviceRole: true }]),
+          ),
+        },
+        "/project",
+      );
+    const targets = async (serviceRole: readonly string[]) =>
+      (
+        await runRules(context({ config: config(serviceRole) }), only("BS106"))
+      ).map((finding) => finding.target);
+
+    expect(await targets([])).toEqual([`${SCHEMA}.audit_events:authenticated`]);
+    expect(await targets(["audit_events"])).toEqual([]);
+    expect(await targets(["audit_events", "projects"])).toEqual([
+      `${SCHEMA}.projects:authenticated`,
+    ]);
   });
 
   it("reads statistics without failing", async () => {

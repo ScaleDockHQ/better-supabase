@@ -206,6 +206,40 @@ describe("doctor rules", () => {
     expect(exposed[0]!.message).toContain("auto_expose_new_tables = false");
   });
 
+  it("accepts service-role tables without grants and flags granted ones", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "tags").grants = [
+        { role: "service_role", privileges: ["SELECT", "INSERT"] },
+      ];
+      table(tables, "notes").grants = [
+        { role: "service_role", privileges: ["SELECT"] },
+        { role: "PUBLIC", privileges: ["SELECT"] },
+      ];
+    });
+    const only = RULES.filter((rule) => rule.code === "BS106");
+    const findings = await runRules(
+      context(snap, {
+        config: resolveConfig(
+          {
+            tables: {
+              tags: { serviceRole: true },
+              notes: { serviceRole: true },
+            },
+          },
+          "/project",
+        ),
+      }),
+      only,
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "public.notes:anon",
+      "public.notes:authenticated",
+    ]);
+    expect(findings[0]!.message).toContain(
+      "revoke all on table public.notes from anon, public;",
+    );
+  });
+
   it("flags tenant tables whose policies skip a command", async () => {
     const policy = (
       name: string,
@@ -233,6 +267,16 @@ describe("doctor rules", () => {
     const findings = await runRules(context(snap), only);
     expect(findings.map((finding) => finding.target)).toEqual(["public.tags"]);
     expect(findings[0]!.message).toContain("no update, delete policy");
+    const serviceRole = await runRules(
+      context(snap, {
+        config: resolveConfig(
+          { tables: { tags: { serviceRole: true } } },
+          "/project",
+        ),
+      }),
+      only,
+    );
+    expect(serviceRole).toEqual([]);
   });
 
   describe("self-grant columns (BS213)", () => {

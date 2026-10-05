@@ -408,7 +408,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Table not granted to the Data API",
     description:
-      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated.",
+      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated. Tables marked `serviceRole` in `tables` must have no grants for either role.",
     check: (context) => {
       const auto = context.configToml
         ? tomlGet(context.configToml.document, [
@@ -421,12 +421,8 @@ const OWN_RULES: readonly Rule[] = [
           ? " config.toml sets [api] auto_expose_new_tables = false, so new tables start without grants."
           : "";
       return exposed(context).flatMap((table) => {
-        if (context.config.tables[table.name]?.exclude) return [];
-        const wanted = context.config.expose[qualified(table)] ??
-          context.config.expose[table.name] ?? {
-            anon: [],
-            authenticated: ["select" as const],
-          };
+        const options = context.config.tables[table.name];
+        if (options?.exclude) return [];
         const granted = (role: string): Set<string> =>
           new Set(
             table.grants
@@ -435,6 +431,28 @@ const OWN_RULES: readonly Rule[] = [
                 grant.privileges.map((privilege) => privilege.toLowerCase()),
               ),
           );
+        if (options?.serviceRole) {
+          const fromPublic = table.grants.some(
+            (grant) => grant.role === "PUBLIC" && grant.privileges.length > 0,
+          );
+          return (["anon", "authenticated"] as const).flatMap((role) => {
+            const have = [...granted(role)];
+            if (have.length === 0) return [];
+            const from = fromPublic ? `${role}, public` : role;
+            return [
+              {
+                message: `${qualified(table)} has \`serviceRole: true\` in \`tables\`, but ${role} has ${have.join(", ")} on it, so the Data API reaches it. Remove it from \`expose\` and run \`revoke all on table ${qualified(table)} from ${from};\`.`,
+                target: `${qualified(table)}:${role}`,
+                object: tableObject(table),
+              },
+            ];
+          });
+        }
+        const wanted = context.config.expose[qualified(table)] ??
+          context.config.expose[table.name] ?? {
+            anon: [],
+            authenticated: ["select" as const],
+          };
         return (["anon", "authenticated"] as const).flatMap((role) => {
           const have = granted(role);
           const missing = wanted[role].filter(
@@ -477,7 +495,8 @@ const OWN_RULES: readonly Rule[] = [
       return tables.flatMap((table) => {
         if (table.kind !== "table" || !table.rls) return [];
         if (roots.has(qualified(table))) return [];
-        if (context.config.tables[table.name]?.exclude) return [];
+        const options = context.config.tables[table.name];
+        if (options?.exclude || options?.serviceRole) return [];
         const granting = table.policies.filter(
           (policy) =>
             policy.permissive &&

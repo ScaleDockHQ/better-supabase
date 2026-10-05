@@ -45,6 +45,10 @@
         "properties": {
           "casing": { "$ref": "#/$defs/casing" },
           "exclude": { "type": "boolean" },
+          "serviceRole": {
+            "type": "boolean",
+            "description": "Only service_role reaches the table. Models are still generated; doctor (BS106) checks that anon and authenticated have no grants."
+          },
           "relations": {
             "type": "object",
             "additionalProperties": { "type": "string" }
