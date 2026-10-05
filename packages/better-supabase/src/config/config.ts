@@ -236,6 +236,46 @@ export interface GeneratorInput {
   readonly output: string;
   /** Import path from `from` (a generated file) to `to`, with extension. */
   readonly importPath: (from: string, to: string) => string;
+  /**
+   * The tables and enums `gen` emits, with the TypeScript type it wrote for
+   * each column (after `json` overrides, codecs and enum unions). Frozen.
+   */
+  readonly model: GeneratorModel;
+}
+
+export interface GeneratorColumn {
+  /** Name in rows, after casing. */
+  readonly app: string;
+  /** Database name. */
+  readonly db: string;
+  /** TypeScript type without `| null`. */
+  readonly tsType: string;
+  readonly nullable: boolean;
+  /** Optional on insert. */
+  readonly optional: boolean;
+  /** Generated or identity always: never written. */
+  readonly readonly: boolean;
+  /** Enum or check-constraint values, when the column has a closed set. */
+  readonly values: readonly string[] | undefined;
+  readonly json: boolean;
+}
+
+export interface GeneratorTable {
+  /** Key in `schema.tables` and on the client. */
+  readonly key: string;
+  readonly schema: string;
+  readonly name: string;
+  readonly casing: Casing;
+  readonly columns: readonly GeneratorColumn[];
+}
+
+export interface GeneratorModel {
+  readonly tables: readonly GeneratorTable[];
+  readonly enums: readonly {
+    readonly schema: string;
+    readonly name: string;
+    readonly values: readonly string[];
+  }[];
 }
 
 /**
@@ -243,6 +283,8 @@ export interface GeneratorInput {
  * `jsonSchema()`. Prove custom ones with `testGenerator`.
  */
 export interface Generator {
+  /** The generator contract it targets. `gen` refuses versions it doesn't know. */
+  readonly apiVersion?: 1;
   readonly name: string;
   generate(
     input: GeneratorInput,
@@ -506,6 +548,20 @@ function resolveExpose(entry: ExposeConfig): ResolvedExpose {
   return { anon: roles.anon ?? [], authenticated: roles.authenticated ?? [] };
 }
 
+function generatorsOf(
+  generators: readonly Generator[] | undefined,
+): readonly Generator[] {
+  for (const generator of generators ?? []) {
+    const version: unknown = generator.apiVersion;
+    if (version !== undefined && version !== 1) {
+      throw new TypeError(
+        `generator "${generator.name}" targets generator API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the generator for API 1.`,
+      );
+    }
+  }
+  return generators ?? [];
+}
+
 /** Applies defaults. Paths stay relative to `root`. */
 export function resolveConfig(
   config: BetterSupabaseConfig,
@@ -536,7 +592,7 @@ export function resolveConfig(
       ]),
     ),
     readSets: config.readSets ?? [],
-    generators: config.generators ?? [],
+    generators: generatorsOf(config.generators),
     plugins: {
       timestamps: pick(config.plugins?.timestamps, {
         createdAt: "created_at",

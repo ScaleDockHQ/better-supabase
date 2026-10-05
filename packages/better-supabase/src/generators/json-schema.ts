@@ -128,6 +128,7 @@ export function jsonSchema(
   options: JsonSchemaGeneratorOptions = {},
 ): Generator {
   return {
+    apiVersion: 1,
     name: "json-schema",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

@@ -1,3 +1,4 @@
+import { existsSync, utimesSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -406,6 +407,63 @@ describe("run", () => {
     const counter = globalThis as { flakyGeneratorRuns?: number };
     expect(counter.flakyGeneratorRuns).toBe(3);
     delete counter.flakyGeneratorRuns;
+  });
+
+  it("watches: reloads a changed config, regenerates and removes the files it no longer writes", async () => {
+    const configPath = join(dir, "better-supabase.config.mjs");
+    await writeFile(
+      configPath,
+      `export default { output: "a/generated.ts" };\n`,
+    );
+    const controller = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      fakeFetch((call) =>
+        call.body?.includes("as fingerprint")
+          ? { body: [{ fingerprint: "a" }] }
+          : { body: [] },
+      ).fetch,
+    );
+    const stdout: string[] = [];
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({
+          stdout: (text) => {
+            stdout.push(text);
+            if (stdout.length === 2) {
+              controller.abort();
+              return;
+            }
+            writeFileSync(
+              configPath,
+              `export default { output: "b/generated.ts" };\n`,
+            );
+            const later = new Date(Date.now() + 5000);
+            utimesSync(configPath, later, later);
+          },
+        }),
+      },
+    );
+    expect(result.code).toBe(0);
+    expect(stdout[0]).toContain("a/generated.ts");
+    expect(stdout[1]).toContain("  b/generated.ts\n");
+    expect(stdout[1]).toContain(
+      "  a/generated.ts (removed, no longer generated)",
+    );
+    expect(existsSync(join(dir, "a/generated.ts"))).toBe(false);
+    expect(existsSync(join(dir, "b/generated.ts"))).toBe(true);
   });
 
   it("refuses a watch interval that isn't a positive number", async () => {

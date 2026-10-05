@@ -8,6 +8,8 @@ import {
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
+import type { ResolvedConfig } from "../config/index.ts";
+
 import {
   type AnyCommand,
   type CliContext,
@@ -117,6 +119,14 @@ const COMMANDS = new Map<string, Entry>([
     {
       load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
       description: "Lists, adds, syncs, upgrades and prints SQL kit modules",
+    },
+  ],
+  [
+    "config",
+    {
+      load: () => import("./commands/config.ts").then((m) => m.configCommand),
+      description:
+        "Prints the resolved config: the file it came from and every option with its default",
     },
   ],
   [
@@ -335,29 +345,29 @@ export async function run(
   let command: CommandDef;
   try {
     // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
-    const [loaded, { loadConfig }, { parseEnv }] = await Promise.all([
-      load(),
-      import("./config.ts"),
-      import("./env.ts"),
-    ]);
+    const [loaded, { discoverConfig, loadConfig }, { parseEnv }] =
+      await Promise.all([load(), import("./config.ts"), import("./env.ts")]);
     command = loaded;
     const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
     const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
     const env = parseEnv(options.env ?? {});
-    const config = await loadConfig(cwd, globals.config).catch(
-      (cause: unknown) => {
+    const reloadConfig = (): Promise<ResolvedConfig> =>
+      loadConfig(cwd, globals.config).catch((cause: unknown) => {
         throw cause instanceof CliError
           ? cause
           : new CliError("config_invalid", toCliError(cause).message, {
               cause,
             });
-      },
-    );
+      });
+    const config = await reloadConfig();
+    const configFile = discoverConfig(cwd, globals.config);
     const interactive =
       globals.json !== true && globals.yes !== true && env.CI === undefined;
     context = {
       cwd,
       config,
+      ...(configFile ? { configFile } : {}),
+      reloadConfig,
       io: interactive ? io : withoutPrompts(io),
       env,
       json: globals.json === true,

@@ -111,6 +111,7 @@ function field(
 /** Zod 4 schemas for every table's Row, Insert and Update shape. */
 export function zod(options: ZodGeneratorOptions = {}): Generator {
   return {
+    apiVersion: 1,
     name: "zod",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path = options.output ?? siblingPath(input.config.output, "zod.ts");

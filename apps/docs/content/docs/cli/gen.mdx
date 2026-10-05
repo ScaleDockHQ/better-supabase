@@ -52,12 +52,16 @@ same files.
 Before reading a database, `gen` runs one query that hashes the system
 catalogs (tables, columns, constraints, policies, functions, grants, comments
 and role settings; planner statistics are left out). When the hash, the
-schemas and the better-supabase version match the last run, it reuses the
+schemas, the better-supabase version and the pinned typegen version match the
+last run, it reuses the
 snapshot cached in `node_modules/.cache/better-supabase` and skips
 introspection. Deleting that folder clears the cache.
 
 `--watch` keeps one connection open and runs that query every `--interval`
-milliseconds, so it reads the full schema only after a change. Ctrl-C ends the
+milliseconds, so it reads the full schema only after a change. It also checks
+the config file's modification time, and when the file changes it loads it
+again and regenerates; a config that fails to load is reported once and kept
+until the next edit fixes it. Ctrl-C ends the
 connection, including a query in flight. Connecting gives up after 10 seconds,
 and each introspection query after 2 minutes.
 
@@ -66,7 +70,7 @@ and each introspection query after 2 minutes.
 | Option                | Effect                                                                                                    |
 | --------------------- | --------------------------------------------------------------------------------------------------------- |
 | `--check`             | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI. |
-| `--watch`             | Regenerates when the schema changes (polls every `--interval` ms, default 2000).                          |
+| `--watch`             | Regenerates when the schema or the config file changes (polls every `--interval` ms, default 2000).       |
 | `--snapshot <file>`   | Reads a saved snapshot instead of connecting.                                                             |
 | `--db-url-stdin`      | Reads the connection string from stdin; overrides the config and `$DATABASE_URL`.                         |
 | `--project-ref <ref>` | Reads a hosted project through the Management API.                                                        |

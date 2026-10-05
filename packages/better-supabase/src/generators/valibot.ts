@@ -123,6 +123,7 @@ function field(
 /** Valibot schemas for every table's Row, Insert and Update shape. */
 export function valibot(options: ValibotGeneratorOptions = {}): Generator {
   return {
+    apiVersion: 1,
     name: "valibot",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

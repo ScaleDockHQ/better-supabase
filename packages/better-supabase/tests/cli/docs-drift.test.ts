@@ -27,6 +27,7 @@ const PAGES: Readonly<Record<string, string>> = {
   sql: "kits/sql.mdx",
   skills: "for-ai-agents.mdx",
   codemod: "cli/codemod.mdx",
+  config: "cli/config.mdx",
 };
 
 const globals = new Set(["help", "version", ...Object.keys(GLOBAL_ARGS)]);

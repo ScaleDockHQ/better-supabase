@@ -1,4 +1,12 @@
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,7 +17,10 @@ import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 import {
   CACHE_DIR,
   cachedIntrospect,
+  writeAtomic,
 } from "../../../src/cli/introspect/cache.ts";
+import { TYPEGEN_VERSION } from "../../../src/cli/introspect/typegen-version.ts";
+import { VERSION } from "../../../src/cli/version.ts";
 
 const snapshot = (name: string) =>
   ({ version: 2, schemas: [name] }) as unknown as Snapshot;
@@ -108,5 +119,40 @@ describe("cachedIntrospect", () => {
       snapshot("fresh"),
     );
     expect(calls()).toBe(2);
+  });
+
+  it("keys the entry on the typegen version and leaves no temporary files", async () => {
+    const db = source(() => "a");
+    const { read } = reader("typed");
+    await cachedIntrospect(root, db, [], read);
+    const files = await readdir(join(root, CACHE_DIR));
+    expect(files).toEqual([expect.stringMatching(/^snapshot-\w+\.json$/)]);
+    const entry = JSON.parse(
+      await readFile(join(root, CACHE_DIR, files[0]!), "utf8"),
+    ) as { key: string };
+    const key = (typegen: string) =>
+      createHash("sha256")
+        .update(JSON.stringify([VERSION, typegen, db.describe, [], "a"]))
+        .digest("hex");
+    expect(entry.key).toBe(key(TYPEGEN_VERSION));
+    expect(entry.key).not.toBe(key("0.0.0"));
+  });
+});
+
+describe("writeAtomic", () => {
+  it("replaces the file and removes the temporary one when the rename fails", async () => {
+    const file = join(root, "nested/out.json");
+    await writeAtomic(file, "one");
+    await writeAtomic(file, "two");
+    expect(await readFile(file, "utf8")).toBe("two");
+
+    const folder = join(root, "folder");
+    await mkdir(join(folder, "child"), { recursive: true });
+    await expect(writeAtomic(folder, "x")).rejects.toMatchObject({
+      code: expect.any(String),
+    });
+    expect(await readdir(root)).toEqual(
+      expect.not.arrayContaining([expect.stringMatching(/\.tmp$/)]),
+    );
   });
 });

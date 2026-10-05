@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { GeneratorModel, ResolvedConfig } from "../../config/index.ts";
 import type {
   Casing,
   ClaimsMeta,
@@ -103,6 +103,8 @@ export interface Model {
   readonly catalog: Catalog;
   /** Typegen metadata restricted to the configured schemas. */
   readonly introspection: GeneratorMetadata;
+  /** Config entries that matched nothing in the schema. */
+  readonly warnings: readonly string[];
 }
 
 function tableKey(
@@ -190,9 +192,11 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   }
 
   const jsonImports = new Map<string, JsonImport>();
+  const unusedJson = new Set(Object.keys(config.json));
   const jsonTypeFor = (table: string, column: string): string | undefined => {
     const override = config.json[`${table}.${column}`];
     if (!override) return undefined;
+    unusedJson.delete(`${table}.${column}`);
     if ("type" in override) return override.type;
     const [from, name] = override.import.split("#");
     if (!from || !name) {
@@ -280,6 +284,23 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     return { table, casing, columns };
   });
   storagePaths.assertUsed();
+  const known = new Set(
+    catalog.tables
+      .filter((table) => config.schemas.includes(table.schema))
+      .map((table) => table.name),
+  );
+  const warnings = [
+    ...Object.keys(config.tables)
+      .filter((name) => !known.has(name))
+      .map(
+        (name) =>
+          `tables["${name}"]: no table by that name in ${config.schemas.join(", ")}, so the entry does nothing.`,
+      ),
+    ...[...unusedJson].map(
+      (key) =>
+        `json["${key}"]: no json or jsonb column by that name, so the type is not used. Keys are \`table.column\` with database names.`,
+    ),
+  ];
 
   const byKey = new Map<string, (typeof tables)[number]>();
   for (const entry of tables) {
@@ -615,7 +636,43 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     config,
     catalog,
     introspection,
+    warnings,
   };
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const entry of Object.values(value)) deepFreeze(entry);
+  }
+  return value;
+}
+
+/** The public, frozen view of the model that generators receive. */
+export function generatorModel(model: Model): GeneratorModel {
+  return deepFreeze({
+    tables: model.tables.map((table) => ({
+      key: table.key,
+      schema: table.snapshot.schema,
+      name: table.snapshot.name,
+      casing: table.casing,
+      columns: table.columns.map((column) => ({
+        app: column.app,
+        db: column.db,
+        tsType: column.tsType,
+        nullable: column.nullable,
+        optional: column.optional,
+        readonly: column.readonly,
+        values: column.values === undefined ? undefined : [...column.values],
+        json: column.json,
+      })),
+    })),
+    enums: model.enums.map((entry) => ({
+      schema: entry.schema,
+      name: entry.name,
+      values: [...entry.values],
+    })),
+  });
 }
 
 /**

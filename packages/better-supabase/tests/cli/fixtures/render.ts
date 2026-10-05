@@ -4,11 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 
+import { renderFiles } from "../../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import { emitMeta, emitModule, metaPaths } from "../../../src/cli/gen/emit.ts";
-import { buildModel } from "../../../src/cli/gen/model.ts";
-import { generateDatabaseTypes } from "../../../src/cli/introspect/typegen.ts";
-import { importPath } from "../../../src/cli/io.ts";
 import {
   type BetterSupabaseConfig,
   jsonSchema,
@@ -57,67 +54,29 @@ export async function loadFixtureSnapshot(): Promise<Snapshot> {
   );
 }
 
-/** The fixture modules, generated with the runtime imported from source. */
+/** The fixture modules, rendered by `gen` with the runtime imported from source. */
 export async function renderFixtures(): Promise<
   { path: string; contents: string }[]
 > {
   const snapshot = await loadFixtureSnapshot();
-  const variants = [
-    { file: "./generated.ts", casing: "snake" as const },
-    { file: "./generated-camel.ts", casing: "camel" as const },
-  ];
   const root = here("../..");
-  const files = variants.flatMap(({ file, casing }) => {
-    const config = resolveConfig({ ...fixtureConfig, casing }, root);
-    const model = buildModel(snapshot, config);
-    const paths = metaPaths(file);
-    const meta = emitMeta(model, {
-      runtimeImport: "../../src/index.ts",
-      types: paths.dts,
-    });
-    return [
-      {
-        path: here(file),
-        contents: emitModule(model, {
-          runtimeImport: "../../src/index.ts",
-          importPathFor: (from) => from,
-          metaImport: paths.js,
-        }),
-      },
-      { path: here(paths.js), contents: meta.js },
-      { path: here(paths.dts), contents: meta.dts },
-    ];
-  });
-  files.unshift({
-    path: here("./database.types.ts"),
-    contents: await generateDatabaseTypes(snapshot.generator, {
-      schemas: ["public"],
-      postgrestVersion: "13",
-    }),
-  });
-
-  const config = resolveConfig(
+  const variants: BetterSupabaseConfig[] = [
+    { ...fixtureConfig, casing: "snake" },
     {
       ...fixtureConfig,
       casing: "camel",
       output: "tests/fixtures/generated-camel.ts",
+      generators: [zod(), valibot(), jsonSchema()],
     },
-    root,
-  );
-  const model = buildModel(snapshot, config);
-  const input = {
-    meta: model.meta,
-    introspection: model.introspection,
-    extras: snapshot.extras,
-    config,
-    output: resolve(root, config.output),
-    importPath: (from: string, to: string) =>
-      importPath(resolve(root, from), resolve(root, to)),
-  };
-  for (const generator of [zod(), valibot(), jsonSchema()]) {
-    for (const file of await generator.generate(input)) {
-      files.push({ path: resolve(root, file.path), contents: file.contents });
+  ];
+  const files = new Map<string, string>();
+  for (const variant of variants) {
+    const rendered = await renderFiles(resolveConfig(variant, root), snapshot, {
+      runtimeImport: "../../src/index.ts",
+    });
+    for (const file of rendered) {
+      files.set(resolve(root, file.path), file.contents);
     }
   }
-  return files;
+  return [...files].map(([path, contents]) => ({ path, contents }));
 }

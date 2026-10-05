@@ -1,9 +1,13 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { basename, isAbsolute, relative, resolve } from "node:path";
+import { readFile, rm, stat } from "node:fs/promises";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type {
+  GeneratedFile,
+  GeneratorModel,
+  ResolvedConfig,
+} from "../../config/index.ts";
 import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
 import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
@@ -20,7 +24,8 @@ import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
 import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
-import { buildModel } from "../gen/model.ts";
+import { buildModel, generatorModel } from "../gen/model.ts";
+import { CACHE_DIR, writeAtomic } from "../introspect/cache.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import {
   generateDatabaseTypes,
@@ -54,6 +59,17 @@ export interface GenOptions extends SnapshotSource {
   readonly snapshot?: Snapshot;
 }
 
+export interface RenderOptions {
+  /** Where the generated module imports the runtime from. Defaults to `better-supabase`. */
+  readonly runtimeImport?: string;
+}
+
+export interface Rendered {
+  readonly files: GeneratedFile[];
+  /** Config entries that matched nothing in the schema. */
+  readonly warnings: readonly string[];
+}
+
 /**
  * Renders every generated file for a snapshot, without touching disk:
  * `database.types.ts` (what `supabase gen types` prints), the main module,
@@ -62,8 +78,20 @@ export interface GenOptions extends SnapshotSource {
 export async function renderFiles(
   config: ResolvedConfig,
   snapshot: Snapshot,
+  options: RenderOptions = {},
 ): Promise<GeneratedFile[]> {
+  return (await render(config, snapshot, options)).files;
+}
+
+export async function render(
+  config: ResolvedConfig,
+  snapshot: Snapshot,
+  options: RenderOptions = {},
+): Promise<Rendered> {
   const model = buildModel(snapshot, config);
+  const runtime = options.runtimeImport
+    ? { runtimeImport: options.runtimeImport }
+    : {};
   const output = resolve(config.root, config.output);
   const databaseTypes = await generateDatabaseTypes(snapshot.generator, {
     schemas: config.schemas,
@@ -77,8 +105,12 @@ export async function renderFiles(
     ),
     importPathFor: (from) => importPath(output, resolve(config.root, from)),
     metaImport: `./${basename(metaFiles.js)}`,
+    ...runtime,
   });
-  const meta = emitMeta(model, { types: `./${basename(metaFiles.dts)}` });
+  const meta = emitMeta(model, {
+    types: `./${basename(metaFiles.dts)}`,
+    ...runtime,
+  });
   const files: GeneratedFile[] = [
     { path: config.databaseTypesOutput, contents: databaseTypes },
     { path: config.output, contents: main },
@@ -88,6 +120,7 @@ export async function renderFiles(
   const owners = new Map(
     files.map((file) => [resolve(config.root, file.path), "gen"]),
   );
+  let view: GeneratorModel | undefined;
   for (const generator of config.generators) {
     let extra: readonly GeneratedFile[];
     try {
@@ -99,6 +132,7 @@ export async function renderFiles(
         output,
         importPath: (from, to) =>
           importPath(resolve(config.root, from), resolve(config.root, to)),
+        model: (view ??= generatorModel(model)),
       });
     } catch (cause) {
       throw new Error(
@@ -124,7 +158,7 @@ export async function renderFiles(
       files.push(file);
     }
   }
-  return files;
+  return { files, warnings: model.warnings };
 }
 
 /** The `read-sets` SQL kit file for `config.readSets`, if any are configured. */
@@ -168,6 +202,55 @@ async function rowConditionedBuckets(
   );
 }
 
+/** The files the last `gen` wrote, so the next one can remove those it no longer writes. */
+const MANIFEST = `${CACHE_DIR}/gen-manifest.json`;
+
+const manifestPath = (root: string, path: string): string =>
+  relative(root, resolve(root, path)).split(sep).join("/");
+
+async function readManifest(root: string): Promise<readonly string[]> {
+  const parsed: unknown = await readFile(resolve(root, MANIFEST), "utf8")
+    .then((text): unknown => JSON.parse(text))
+    .catch(() => undefined);
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("version" in parsed) ||
+    parsed.version !== 1 ||
+    !("files" in parsed) ||
+    !Array.isArray(parsed.files)
+  ) {
+    return [];
+  }
+  return parsed.files.filter(
+    (path): path is string => typeof path === "string",
+  );
+}
+
+/** Files in the last manifest that this run doesn't generate and that still exist inside the root. */
+async function leftoverFiles(
+  root: string,
+  generated: readonly string[],
+): Promise<string[]> {
+  const current = new Set(generated);
+  return (await readManifest(root)).filter((path) => {
+    const inside = relative(root, resolve(root, path));
+    return (
+      !current.has(path) &&
+      inside !== "" &&
+      !inside.startsWith("..") &&
+      !isAbsolute(inside) &&
+      existsSync(resolve(root, path))
+    );
+  });
+}
+
+const writeManifest = (root: string, files: readonly string[]): Promise<void> =>
+  writeAtomic(
+    resolve(root, MANIFEST),
+    `${JSON.stringify({ version: 1, files: [...files].sort() }, null, 2)}\n`,
+  ).catch(() => undefined);
+
 const UNFORMATTED =
   'oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install it: pnpm add -D oxfmt. @supabase/postgrest-typegen pins oxfmt 0.66.0 as its peer; to allow a newer one, add it to peerDependencyRules.allowedVersions in pnpm-workspace.yaml, keyed "@supabase/postgrest-typegen>oxfmt".';
 
@@ -182,10 +265,17 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   }
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
-  const files = await renderFiles(config, snapshot);
-  const notice = (await oxfmtInstalled()) ? "" : `\n${UNFORMATTED}`;
+  const { files, warnings } = await render(config, snapshot);
+  const pathsOf = (readSets: KitFile | undefined): string[] =>
+    [...files, ...(readSets ? [readSets] : [])].map((file) =>
+      manifestPath(config.root, file.path),
+    );
+  const notice = `${(await oxfmtInstalled()) ? "" : `\n${UNFORMATTED}`}${warnings.map((warning) => `\nWarning: ${warning}`).join("")}`;
 
   if (options.check) {
+    const readSets = await readSetFile(config);
+    const generated = pathsOf(readSets);
+    const leftovers = await leftoverFiles(config.root, generated);
     const stale: string[] = [];
     const diffs: string[] = [];
     const compare = (
@@ -203,7 +293,6 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         : undefined;
       if (current !== file.contents) compare(file, current);
     }
-    const readSets = await readSetFile(config);
     if (readSets) {
       const path = resolve(config.root, readSets.path);
       const current = existsSync(path)
@@ -211,18 +300,22 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         : undefined;
       if (!sameKitFile(current, readSets.contents)) compare(readSets, current);
     }
-    if (stale.length > 0) {
+    if (stale.length > 0 || leftovers.length > 0) {
+      const lines = [
+        ...stale.map((path) => `  ${path}`),
+        ...leftovers.map((path) => `  ${path} (no longer generated)`),
+      ];
       return {
         code: 1,
-        output: diffs.join("\n\n"),
-        error: `Generated files are out of date:\n${stale.map((path) => `  ${path}`).join("\n")}\nRun \`better-supabase gen\`.`,
-        data: { upToDate: false, stale },
+        output: `${diffs.join("\n\n")}${notice}`,
+        error: `Generated files are out of date:\n${lines.join("\n")}\nRun \`better-supabase gen\`.`,
+        data: { upToDate: false, stale, leftovers, warnings },
       };
     }
     return {
       code: 0,
-      output: `Generated files are up to date (${files.length + (readSets ? 1 : 0)}).${notice}`,
-      data: { upToDate: true, stale: [] },
+      output: `Generated files are up to date (${generated.length}).${notice}`,
+      data: { upToDate: true, stale: [], leftovers: [], warnings },
     };
   }
 
@@ -243,16 +336,28 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   ) {
     written.push(display(config.root, readSets.path));
   }
+  const generated = pathsOf(readSets);
+  const removed: string[] = [];
+  for (const path of await leftoverFiles(config.root, generated)) {
+    await rm(resolve(config.root, path), { force: true });
+    removed.push(path);
+  }
+  await writeManifest(config.root, generated);
   const tables = snapshot.extras.tables.filter((table) =>
     config.schemas.includes(table.schema),
   ).length;
+  const changes = [
+    ...written.map((path) => `  ${path}`),
+    ...removed.map((path) => `  ${path} (removed, no longer generated)`),
+  ];
   return {
     code: 0,
-    output:
-      written.length === 0
+    output: `${
+      changes.length === 0
         ? `No changes (${tables} tables).`
-        : `Generated ${tables} tables:\n${written.map((path) => `  ${path}`).join("\n")}${notice}`,
-    data: { tables, written },
+        : `Generated ${tables} tables:\n${changes.join("\n")}`
+    }${notice}`,
+    data: { tables, written, removed, warnings },
   };
 }
 
@@ -296,7 +401,7 @@ const ARGS = {
   },
   watch: {
     type: "boolean",
-    description: "Regenerate whenever the schema changes",
+    description: "Regenerate whenever the schema or the config file changes",
   },
   interval: {
     type: "string",
@@ -344,39 +449,66 @@ const regenerate = (
     error: cause instanceof Error ? cause.message : String(cause),
   }));
 
+const modified = (file: string | undefined): Promise<number | undefined> =>
+  file
+    ? stat(file).then(
+        (stats) => stats.mtimeMs,
+        () => undefined,
+      )
+    : Promise.resolve(undefined);
+
 /**
- * Regenerates whenever the schema changes. A database source keeps one
- * connection open and polls the catalog fingerprint, so an unchanged schema
- * costs one small query per interval; a source without a fingerprint is
- * introspected each time and compared. A failed run is retried every
- * interval until it succeeds, and the same error is printed once.
+ * Regenerates whenever the schema or the config file changes. A database
+ * source keeps one connection open and polls the catalog fingerprint, so an
+ * unchanged schema costs one small query per interval; a source without a
+ * fingerprint is introspected each time and compared. A changed config file
+ * is loaded again and forces a run. A failed run is retried every interval
+ * until it succeeds, and the same error is printed once.
  */
 async function watch(
-  options: GenOptions,
+  initial: GenOptions,
   interval: number,
-  { io, signal }: CliContext,
+  { io, signal, configFile, reloadConfig }: CliContext,
 ): Promise<CommandResult> {
+  let options = initial;
   let last = "";
   let reported = "";
+  let stamp = await modified(configFile);
   let db: IntrospectionSource | undefined;
   const aborted = (): boolean => signal?.aborted ?? false;
-  const fromFile = snapshotFile(options.config, options) !== undefined;
   const report = (message: string): void => {
     if (message !== reported) io.stderr(`${message}\n`);
     reported = message;
   };
+  const closeDb = async (): Promise<void> => {
+    await db?.close().catch(() => undefined);
+    db = undefined;
+  };
   try {
     while (!aborted()) {
+      const changed = await modified(configFile);
+      if (reloadConfig && changed !== stamp) {
+        try {
+          options = { ...options, config: await reloadConfig() };
+          stamp = changed;
+          last = "";
+          await closeDb();
+        } catch (cause) {
+          report(cause instanceof Error ? cause.message : String(cause));
+          await sleep(interval, signal);
+          continue;
+        }
+      }
       let polled: { marker: string; snapshot?: Snapshot } | undefined;
       try {
-        db ??= fromFile
-          ? undefined
-          : await openSource(options.config, options.env, options);
+        db ??=
+          snapshotFile(options.config, options) === undefined
+            ? await openSource(options.config, options.env, options)
+            : undefined;
         polled = await poll(options, db, last);
       } catch (cause) {
         report(cause instanceof Error ? cause.message : String(cause));
-        await db?.close().catch(() => undefined);
-        db = undefined;
+        await closeDb();
       }
       const result = polled?.snapshot
         ? await regenerate(options, polled.snapshot)
@@ -391,7 +523,7 @@ async function watch(
       await sleep(interval, signal);
     }
   } finally {
-    await db?.close().catch(() => undefined);
+    await closeDb();
   }
   return { code: 0 };
 }

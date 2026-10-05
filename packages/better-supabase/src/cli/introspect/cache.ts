@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { IntrospectionSource } from "./source.ts";
@@ -7,6 +7,7 @@ import type { Snapshot } from "./types.ts";
 
 import { VERSION } from "../version.ts";
 import { catalogFingerprint } from "./fingerprint.ts";
+import { TYPEGEN_VERSION } from "./typegen-version.ts";
 
 /** Shared with the splinter download cache. */
 export const CACHE_DIR = "node_modules/.cache/better-supabase";
@@ -32,8 +33,8 @@ function isEntry(value: unknown): value is CacheEntry {
 
 /**
  * Calls `read`, or returns the snapshot cached under `root` when the catalog
- * fingerprint, the `inputs` (schemas and hooks) and the CLI version all
- * match. One file per source keeps the cache from growing. A source that
+ * fingerprint, the `inputs` (schemas and hooks), the CLI version and the
+ * typegen version all match. One file per source keeps the cache from growing. A source that
  * cannot report a fingerprint is read every time.
  */
 export async function cachedIntrospect(
@@ -47,7 +48,13 @@ export async function cachedIntrospect(
   );
   if (fingerprint === undefined) return read();
   const key = sha256(
-    JSON.stringify([VERSION, source.describe, inputs, fingerprint]),
+    JSON.stringify([
+      VERSION,
+      TYPEGEN_VERSION,
+      source.describe,
+      inputs,
+      fingerprint,
+    ]),
   );
   const file = resolve(
     root,
@@ -60,8 +67,22 @@ export async function cachedIntrospect(
   if (isEntry(cached) && cached.key === key) return cached.snapshot;
   const snapshot = await read();
   const entry: CacheEntry = { key, snapshot };
-  await mkdir(dirname(file), { recursive: true })
-    .then(() => writeFile(file, JSON.stringify(entry)))
-    .catch(() => undefined);
+  await writeAtomic(file, JSON.stringify(entry)).catch(() => undefined);
   return snapshot;
+}
+
+/** Writes through a temporary file, so a concurrent reader never sees half a file. */
+export async function writeAtomic(
+  file: string,
+  contents: string,
+): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}-${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, contents);
+    await rename(temporary, file);
+  } catch (cause) {
+    await rm(temporary, { force: true });
+    throw cause;
+  }
 }

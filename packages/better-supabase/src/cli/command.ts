@@ -16,6 +16,10 @@ import type { CliIo, CommandResult } from "./io.ts";
 export interface CliContext {
   readonly cwd: string;
   readonly config: ResolvedConfig;
+  /** The config file `config` came from, when there is one. */
+  readonly configFile?: string;
+  /** Loads the config file again, for commands that run until stopped. */
+  readonly reloadConfig?: () => Promise<ResolvedConfig>;
   /** `prompts` is unset in CI and under `--json` or `--yes`. */
   readonly io: CliIo;
   readonly env: CliEnv;

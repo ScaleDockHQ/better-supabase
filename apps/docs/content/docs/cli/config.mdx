@@ -118,21 +118,56 @@ The JSON Schema gives editor completion and validation. Generators and
 Standard Schema values in `json[...].schema` need a TypeScript or JavaScript
 config; a JSON config can use plain JSON Schema objects.
 
+## Print the resolved config
+
+```bash
+pnpm better-supabase config
+```
+
+`config` prints the file it loaded, then the config with every default
+filled in, as JSON (`--json` wraps both in one document). Generators show as
+their name and `apiVersion`, and the password in `source.dbUrl` is redacted.
+Use it to check which file the CLI found and what an option resolved to.
+
+`gen` warns about `tables` and `json` keys that match nothing in the
+configured schemas, such as a misspelled table name, instead of ignoring them.
+
 ## Custom generators
 
 ```ts
 import type { Generator } from "better-supabase/config";
 
 export const tableList: Generator = {
+  apiVersion: 1,
   name: "table-list",
-  generate: ({ meta }) => [
+  generate: ({ model }) => [
     {
       path: "src/lib/tables.json",
-      contents: JSON.stringify(Object.keys(meta.tables)),
+      contents: JSON.stringify(
+        model.tables.map((table) => ({
+          key: table.key,
+          columns: table.columns.map((column) => [column.app, column.tsType]),
+        })),
+      ),
     },
   ],
 };
 ```
 
-A generator receives the schema metadata, the resolved config and an
-`importPath` helper, and returns files. `gen --check` covers its output too.
+A generator receives the schema metadata (`meta`), the typegen introspection,
+the resolved config, an `importPath` helper and `model`: the tables and enums
+`gen` emitted, with the TypeScript type it wrote for each column after `json`
+overrides, codecs and enum unions. `model` is frozen. The generator returns
+files, and `gen --check` covers them too.
+
+`apiVersion: 1` names the generator contract it targets. `gen` refuses a
+generator that declares a version it doesn't know, so a generator written for
+a later contract fails with a message instead of misreading its input.
+Leaving it out means version 1.
+
+`gen` records the files it wrote in
+`node_modules/.cache/better-supabase/gen-manifest.json`. When a later run no
+longer writes one of them (you removed a generator or changed `output`), it
+deletes the file and lists it as removed, and `gen --check` reports it as no
+longer generated. Files that no earlier run wrote are never touched. Prove a
+generator with [`testGenerator`](/docs/extending/conformance).

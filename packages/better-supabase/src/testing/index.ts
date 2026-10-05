@@ -35,12 +35,13 @@ export {
   testCacheAdapter,
   testEventSink,
   testExecutor,
-  testGenerator,
   testPlugin,
   testQueueBackend,
   testSupportSessionStore,
 } from "./conformance.ts";
 export { testAdapter } from "./adapter.ts";
+export { testGenerator } from "./generator.ts";
+export type { TestGeneratorOptions } from "./generator.ts";
 export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";
 export type {
   ConformanceCheck,
@@ -48,7 +49,6 @@ export type {
   TestAuthResolverOptions,
   TestEventSinkOptions,
   TestExecutorOptions,
-  TestGeneratorOptions,
   TestPluginOptions,
   TestQueueBackendOptions,
   TestSupportSessionStoreOptions,

@@ -12,6 +12,7 @@ import {
   jsonSchema,
   resolveConfig,
   type Generator,
+  type GeneratorInput,
 } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -35,11 +36,11 @@ import {
   testCacheAdapter,
   testEventSink,
   testExecutor,
-  testGenerator,
   testPlugin,
   testQueueBackend,
   testSupportSessionStore,
 } from "../../src/testing/conformance.ts";
+import { testGenerator } from "../../src/testing/generator.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
 import { memorySupportStore } from "../fixtures/support-store.ts";
@@ -849,5 +850,27 @@ describe("testGenerator imports", () => {
     expect(
       await failures(testGenerator(malformed, { meta: schema.meta })),
     ).toContain("writes files inside the project");
+  });
+
+  it("passes a frozen model built from meta and fails unknown API versions", async () => {
+    let model: GeneratorInput["model"] | undefined;
+    const reader: Generator = {
+      apiVersion: 1,
+      name: "reader",
+      generate: (input) => {
+        model = input.model;
+        return [];
+      },
+    };
+    await testGenerator(reader, { meta: schema.meta });
+    expect(model?.tables.map((table) => table.key)).toEqual(
+      Object.keys(schema.meta.tables),
+    );
+    expect(Object.isFrozen(model?.tables[0]?.columns[0])).toBe(true);
+
+    const future = { ...reader, apiVersion: 2 } as unknown as Generator;
+    expect(
+      await failures(testGenerator(future, { meta: schema.meta })),
+    ).toEqual(["targets generator API 1"]);
   });
 });

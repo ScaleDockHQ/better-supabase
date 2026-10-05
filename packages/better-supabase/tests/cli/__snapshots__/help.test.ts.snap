@@ -39,6 +39,20 @@ OPTIONS
 "
 `;
 
+exports[`help > documents config 1`] = `
+"Prints the resolved config: the file it came from and every option with its default (better-supabase config v<version>)
+
+USAGE better-supabase config [OPTIONS] 
+
+OPTIONS
+
+      --cwd=<dir>    Project directory                                           
+  --config=<file>    Config file, relative to --cwd                              
+           --json    Print one JSON document on stdout; errors as Problem Details
+        -y, --yes    Ask nothing; use the flags and the defaults                 
+"
+`;
+
 exports[`help > documents doctor 1`] = `
 "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict (better-supabase doctor v<version>)
 
@@ -92,7 +106,7 @@ USAGE better-supabase gen [OPTIONS]
 OPTIONS
 
               --check    Fail when a generated file is out of date                                   
-              --watch    Regenerate whenever the schema changes                                      
+              --watch    Regenerate whenever the schema or the config file changes                   
       --interval=<ms>    Milliseconds between checks in --watch. Defaults to 2000                    
     --snapshot=<file>    Read a saved snapshot instead of the database                               
        --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config
@@ -247,7 +261,7 @@ OPTIONS
 exports[`help > lists the commands and the global options 1`] = `
 "Typed Supabase: codegen, doctor, the SQL kit and project setup (better-supabase v<version>)
 
-USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql|codemod
+USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql|config|codemod
 
 OPTIONS
 
@@ -269,6 +283,7 @@ COMMANDS
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict 
          sql    Lists, adds, syncs, upgrades and prints SQL kit modules                                                
+      config    Prints the resolved config: the file it came from and every option with its default                    
      codemod    Rewrites imports and calls for renamed better-supabase APIs                                            
 
 Use better-supabase <command> --help for more information about a command."

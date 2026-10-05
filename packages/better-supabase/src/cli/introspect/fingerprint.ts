@@ -29,12 +29,14 @@ const digest = (from: string): string =>
 /**
  * One cheap query whose result changes whenever introspection could. pg_class
  * leaves out the planner statistics that VACUUM and ANALYZE rewrite, except
- * the row-count threshold the snapshot records. Bucket rows are data, so they
+ * the row-count threshold the snapshot records. pg_depend is limited to the
+ * policies' rows, which name the tables and functions each policy uses. Bucket rows are data, so they
  * are hashed when `storage.buckets` exists.
  */
 const FINGERPRINT_SQL = `select md5(concat_ws('|',
   ${digest(`(select oid, relname, relnamespace, relkind, relacl, reloptions, relrowsecurity, relforcerowsecurity, relreplident, relispartition, reltuples >= ${LARGE_TABLE_ROWS} as large from pg_catalog.pg_class)`)},
   ${CATALOGS.map((name) => digest(`pg_catalog.${name}`)).join(",\n  ")},
+  ${digest(`(select objid, refclassid, refobjid, refobjsubid, deptype from pg_catalog.pg_depend where classid = 'pg_catalog.pg_policy'::regclass)`)},
   (select md5(coalesce(string_agg(rolname, ',' order by rolname), '')) from pg_catalog.pg_roles),
   case when to_regclass('storage.buckets') is not null
     then md5(query_to_xml('select id, public, file_size_limit, allowed_mime_types from storage.buckets order by id', false, false, '')::text)

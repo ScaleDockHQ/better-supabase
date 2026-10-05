@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +9,7 @@ import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import {
   type BetterSupabaseConfig,
   type Generator,
+  type GeneratorModel,
   resolveConfig,
 } from "../../../src/config/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
@@ -147,7 +149,7 @@ describe("gen", () => {
 
     expect(await gen(true)).toEqual({
       code: 0,
-      data: { stale: [], upToDate: true },
+      data: { stale: [], leftovers: [], upToDate: true, warnings: [] },
       output: "Generated files are up to date (5).",
     });
     expect((await gen(false)).output).toMatch(/^No changes \(\d+ tables\)\.$/);
@@ -164,6 +166,114 @@ describe("gen", () => {
     expect(stale.output).toContain(
       "-create or replace function public.rs_other(p jsonb)\n+create or replace function public.rs_chrome(p jsonb)",
     );
+  });
+
+  it("gives generators a frozen model with the column types gen wrote", async () => {
+    let model: GeneratorModel | undefined;
+    const config = configure({
+      json: { "customers.metadata": { type: "{ tier: string }" } },
+      generators: [
+        {
+          apiVersion: 1,
+          name: "spy",
+          generate: (input) => {
+            model = input.model;
+            return [];
+          },
+        },
+      ],
+    });
+    await renderFiles(config, snapshot);
+    const customers = model?.tables.find((table) => table.name === "customers");
+    expect(customers?.key).toBe("customers");
+    expect(
+      customers?.columns.find((column) => column.db === "metadata"),
+    ).toMatchObject({
+      app: "metadata",
+      tsType: "{ tier: string }",
+      json: true,
+    });
+    expect(
+      customers?.columns.find((column) => column.db === "organization_id")?.app,
+    ).toBe("organizationId");
+    expect(Object.isFrozen(model)).toBe(true);
+    expect(Object.isFrozen(customers?.columns[0])).toBe(true);
+  });
+
+  it("refuses a generator that targets an unknown API version", () => {
+    const future = {
+      apiVersion: 2,
+      name: "future",
+      generate: () => [],
+    } as unknown as Generator;
+    expect(() => configure({ generators: [future] })).toThrow(
+      'generator "future" targets generator API 2',
+    );
+  });
+
+  it("warns about tables and json entries that match nothing", async () => {
+    const result = await runGen({
+      config: configure({
+        tables: { ghosts: { exclude: true }, customers: { casing: "snake" } },
+        json: {
+          "customers.name": { type: "string" },
+          "ghosts.data": { type: "string" },
+          "customers.metadata": { type: "{ tier: string }" },
+        },
+      }),
+      env: {},
+      check: false,
+      snapshot,
+    });
+    expect(result.data).toMatchObject({
+      warnings: [
+        expect.stringContaining('tables["ghosts"]: no table by that name'),
+        expect.stringContaining('json["customers.name"]: no json or jsonb'),
+        expect.stringContaining('json["ghosts.data"]'),
+      ],
+    });
+    expect(result.output).toContain('\nWarning: tables["ghosts"]');
+  });
+
+  it("removes files an earlier gen wrote and this one doesn't, and reports them with --check", async () => {
+    const extra: Generator = {
+      name: "extra",
+      generate: () => [{ path: "src/db/extra.ts", contents: "x\n" }],
+    };
+    await runGen({
+      config: configure({ generators: [extra] }),
+      env: {},
+      check: false,
+      snapshot,
+    });
+    await writeFile(join(root, "src/db/mine.ts"), "hand written\n");
+
+    const check = await runGen({
+      config: configure({}),
+      env: {},
+      check: true,
+      snapshot,
+    });
+    expect(check.code).toBe(1);
+    expect(check.error).toBe(
+      "Generated files are out of date:\n  src/db/extra.ts (no longer generated)\nRun `better-supabase gen`.",
+    );
+
+    const written = await runGen({
+      config: configure({}),
+      env: {},
+      check: false,
+      snapshot,
+    });
+    expect(written.output).toContain(
+      "  src/db/extra.ts (removed, no longer generated)",
+    );
+    expect(existsSync(join(root, "src/db/extra.ts"))).toBe(false);
+    expect(existsSync(join(root, "src/db/mine.ts"))).toBe(true);
+    expect(
+      (await runGen({ config: configure({}), env: {}, check: true, snapshot }))
+        .code,
+    ).toBe(0);
   });
 
   it("reports missing files with --check", async () => {
