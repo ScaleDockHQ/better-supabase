@@ -257,10 +257,11 @@ standard or sets how the repo works.
 
 ## Pre-release pins
 
-| Package        | Version       | Why                                                                        |
-| -------------- | ------------- | -------------------------------------------------------------------------- |
-| `@orpc/server` | 2.0.0-beta.41 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
-| `c12`          | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
+| Package                           | Version       | Why                                                                        |
+| --------------------------------- | ------------- | -------------------------------------------------------------------------- |
+| `@orpc/server`                    | 2.0.0-beta.41 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.41 | the contract-first tests and example; they move with `@orpc/server`        |
+| `c12`                             | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
 
 Move each to its stable release when it ships, and update this list with
 every bump.

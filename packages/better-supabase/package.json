@@ -431,6 +431,8 @@
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
     "@opentelemetry/api": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase/config": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",

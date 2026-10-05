@@ -82,6 +82,25 @@ export const router = {
 };
 ```
 
+For a contract from `@orpc/contract`, use the same middleware on the
+implementer and serve it with `OpenAPIHandler`, so errors keep their HTTP
+status (RLS denials answer 403):
+
+```ts title="src/server.ts"
+const os = implement(contract)
+  .$context<OrpcRequestContext>()
+  .use(bs.middleware());
+const router = os.router({
+  customers: {
+    get: os.customers.get.handler(({ context, input }) =>
+      bs.unwrap(context.db.customers.findById(input.id)),
+    ),
+  },
+});
+const handle = bs.fetchHandler(new OpenAPIHandler(router), { prefix: "/api" });
+const app = new Hono().all("/api/*", (c) => handle(c.req.raw));
+```
+
 ## Edge Functions
 
 ```ts title="supabase/functions/api/index.ts"
