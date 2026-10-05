@@ -116,28 +116,31 @@ import { Result } from "better-result";
 import { fromBetterResult, toBetterResult } from "better-supabase";
 
 // Result<T> -> better-result, with your error type
-const found = toBetterResult(
+const found: Result<Customer, AppError> = toBetterResult(
   await db.customers.findById(id),
   Result,
   toAppError,
 );
-if (found.status === "error") return found.error; // AppError
+const name = found.map((customer) => customer.name);
 
 // An AsyncResult works too, and awaits it
-const listed = await toBetterResult(
-  db.customers.findMany(),
-  Result,
-  toAppError,
-);
+async function listCustomers(): Promise<Result<Customer[], AppError>> {
+  return toBetterResult(db.customers.findMany(), Result, toAppError);
+}
 
 // And back: DbErrors pass through, other errors become `unexpected`
 const result = fromBetterResult(Result.ok(42)); // Result<number>
 ```
 
-`toBetterResult` returns the real `Ok` or `Err`, typed by its `status`,
-`value` and `error` fields. Cast it for better-result's methods in types:
-`found as Result<Customer, AppError>`. The cast is not checked against the
-row type, so keep it next to the call.
+`toBetterResult` returns the real `Ok` or `Err`. When the call has an
+expected type, such as a variable annotation or the function's return
+type, the value has that better-result type with all its methods, and no
+cast is needed. The expected type is checked: a row type that differs
+from the query's, or an error type that `mapError` does not return, is a
+type error. Pass the type as a type argument when there is no expected
+type: `toBetterResult<Result<Customer, AppError>>(row, Result, toAppError)`.
+Without either, the value is typed by its `status`, `value` and `error`
+fields (`BetterResultValue<T, E>`).
 
 Without the third argument, a result from a `db` of `betterSupabase.mapError(fn)`
 goes through `fn`, and its error is typed `unknown`; pass the mapper to
