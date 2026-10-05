@@ -136,8 +136,16 @@ projects from October 30, 2026). Without a grant, every request fails with
 `42501` before RLS runs. Tables listed in [`expose`](/docs/guides/data-api-grants)
 need exactly the privileges listed; other tables in the generated schemas need
 `select` for `authenticated`. Add the table to `expose` and run
-`better-supabase sql add grants`, or exclude it in `tables`. When `config.toml`
-sets `[api] auto_expose_new_tables = false`, the finding says so.
+`better-supabase sql add grants`. When `config.toml` sets
+`[api] auto_expose_new_tables = false`, the finding says so.
+
+A table that only the server reads, such as an audit log written with the
+secret key, is kept off the Data API on purpose. Mark it
+`tables: { audit_logs: { serviceRole: true } }`: BS106 then checks the
+opposite, that `anon` and `authenticated` (directly or through `public`) have
+no grant on it, and reports any they have. Its models are still generated, so
+an admin client keeps its types. `exclude` also silences BS106, but leaves
+the table out of the generated models.
 
 ### BS107
 

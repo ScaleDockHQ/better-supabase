@@ -82,6 +82,13 @@ export interface TableConfig {
   readonly casing?: Casing;
   /** Leave the table out of the generated models. */
   readonly exclude?: boolean;
+  /**
+   * Keep the table off the Data API on purpose: only `service_role` reaches
+   * it. The models are still generated for admin clients, and doctor (BS106)
+   * checks that `anon` and `authenticated` have no grants instead of
+   * requiring them.
+   */
+  readonly serviceRole?: boolean;
   /** Rename generated relations: `{ primaryContact: 'contact' }`. */
   readonly relations?: Readonly<Record<string, string>>;
 }

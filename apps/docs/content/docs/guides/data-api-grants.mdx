@@ -56,8 +56,27 @@ Tables with a `serial` column also need `usage` on the sequence for inserts
 `better-supabase doctor` reports [BS106](/docs/cli/doctor#bs106) for every
 table the Data API roles can't reach. Tables in `expose` need the privileges
 listed there. Other tables in the generated schemas need at least `select`
-for `authenticated`. Exclude a table on purpose with
-`tables: { internal_x: { exclude: true } }`.
+for `authenticated`.
+
+Some tables are for the server only: an audit log or a job queue that only
+`service_role` reads and writes. Revoke the Data API roles and set
+`serviceRole: true` on the table, which keeps its generated types for the
+admin client:
+
+```sql title="supabase/schemas/audit_logs.sql"
+revoke all on table public.audit_logs from public, anon, authenticated;
+grant select, insert on table public.audit_logs to service_role;
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  tables: { audit_logs: { serviceRole: true } },
+});
+```
+
+Doctor then reports BS106 if `anon` or `authenticated` can still reach the
+table. `tables: { internal_x: { exclude: true } }` also silences BS106, and
+also leaves the table out of the generated models.
 
 If `supabase/config.toml` sets `[api] auto_expose_new_tables = false`, the
 finding says so: that's the local equivalent of the new hosted default, and

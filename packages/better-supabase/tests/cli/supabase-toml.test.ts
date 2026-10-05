@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { readSupabasePort } from "../../src/cli/config.ts";
 import {
+  declarativeSchemasDir,
   diffEngine,
   findSupabaseRoot,
   migrationCommand,
@@ -280,5 +281,23 @@ describe("migrationCommand", () => {
         "add_tags",
       ),
     ).toBe("supabase db schema declarative sync -f add_tags");
+  });
+});
+
+describe("declarativeSchemasDir", () => {
+  const tomlAt = (dir: string, text = ""): SupabaseToml => ({
+    path: `${dir}/config.toml`,
+    dir,
+    text,
+    document: parseToml(text),
+    parser: "smol-toml",
+  });
+
+  it("resolves the schemas folder next to the config.toml it found", () => {
+    expect(declarativeSchemasDir(undefined)).toBe("supabase/schemas");
+    expect(declarativeSchemasDir(tomlAt("supabase"))).toBe("supabase/schemas");
+    expect(declarativeSchemasDir(tomlAt("../../supabase"))).toBe(
+      "../../supabase/schemas",
+    );
   });
 });
