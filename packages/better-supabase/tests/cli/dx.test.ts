@@ -105,6 +105,76 @@ describe("init and add", () => {
     expect(await readFile(join(dir, "src/proxy.ts"), "utf8")).toBe("// mine\n");
   });
 
+  it("writes into the workspace package passed with --package", async () => {
+    await project(
+      {},
+      {
+        "pnpm-workspace.yaml": "packages:\n  - apps/*\n  - packages/*\n",
+        "apps/web/package.json": JSON.stringify({
+          name: "@acme/web",
+          dependencies: { next: "16.0.0" },
+        }),
+        "apps/web/src/app/page.tsx": "export default function Page() {}\n",
+        "packages/runtime/package.json": JSON.stringify({
+          name: "@acme/runtime",
+        }),
+        "supabase/config.toml": "",
+      },
+    );
+    const refused = await run(["init", "--cwd", dir]);
+    expect(refused.code).toBe(2);
+    expect(refused.stderr).toContain(
+      "pnpm-workspace.yaml makes this a workspace root. Pass --package with the package that owns the runtime (apps/web, packages/runtime)",
+    );
+    expect(
+      (await run(["init", "--package", "apps/nope", "--cwd", dir])).code,
+    ).toBe(2);
+
+    const init = await run(["init", "--package", "apps/web/", "--cwd", dir]);
+    expect(init.code).toBe(0);
+    expect(init.stdout).toContain("Found next in apps/web.");
+    expect(init.stdout).toContain("Wrote   apps/web/better-supabase.config.ts");
+    expect(existsSync(join(dir, "apps/web/src/lib/supabase/index.ts"))).toBe(
+      true,
+    );
+    expect(existsSync(join(dir, "better-supabase.config.ts"))).toBe(false);
+    expect(init.stdout).toContain(
+      "pnpm --filter @acme/web add better-supabase @supabase/supabase-js @supabase/ssr",
+    );
+    expect(init.stdout).toContain("pnpm --filter @acme/web add -D pg");
+    expect(init.stdout).not.toContain("supabase init");
+    expect(init.stdout).toContain("better-supabase gen --cwd apps/web");
+
+    await writeFile(
+      join(dir, "apps/web/better-supabase.config.json"),
+      '{"output": "src/db/generated.ts"}',
+    );
+    await rm(join(dir, "apps/web/better-supabase.config.ts"));
+    const again = await run([
+      "init",
+      "--package",
+      "apps/web",
+      "--force",
+      "--cwd",
+      dir,
+    ]);
+    expect(again.code).toBe(0);
+    expect(
+      await readFile(join(dir, "apps/web/src/lib/supabase/index.ts"), "utf8"),
+    ).toContain("from '../../db/generated'");
+
+    const here = await run([
+      "init",
+      "--package",
+      ".",
+      "--dry-run",
+      "--cwd",
+      dir,
+    ]);
+    expect(here.code).toBe(0);
+    expect(here.stdout).toContain("Would write better-supabase.config.ts");
+  });
+
   it("adds integrations with their dependencies", async () => {
     await project({ hono: "4" });
     const add = await run(["add", "mcp", "orpc", "--cwd", dir, "--dry-run"]);

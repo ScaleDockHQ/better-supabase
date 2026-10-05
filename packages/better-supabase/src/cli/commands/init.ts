@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { posix, resolve } from "node:path";
+import { join, posix, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
@@ -7,9 +7,14 @@ import type { CommandResult } from "../io.ts";
 import type { Prompter } from "../prompts.ts";
 
 import { defineCliCommand, list } from "../command.ts";
-import { findConfig } from "../config.ts";
+import { findConfig, loadConfig } from "../config.ts";
 import { display, writeIfChanged } from "../io.ts";
-import { detectProject, installCommand, type Project } from "../project.ts";
+import {
+  detectProject,
+  installCommand,
+  type InstallTarget,
+  type Project,
+} from "../project.ts";
 import {
   baseFiles,
   INTEGRATIONS,
@@ -24,6 +29,7 @@ import {
   TEMPLATES,
 } from "../templates.ts";
 import { VERSION } from "../version.ts";
+import { detectWorkspace, suggestedPackage } from "../workspace.ts";
 
 const WRITE_ARGS = {
   force: { type: "boolean", description: "Overwrite files that exist" },
@@ -42,6 +48,11 @@ const INIT_ARGS = {
     description:
       "Integrations to add next to the detected ones: next, hono, orpc, edge, mcp, client, react",
     valueHint: "integration,...",
+  },
+  package: {
+    type: "string",
+    description: "Workspace package to write to, relative to --cwd",
+    valueHint: "dir",
   },
   force: { type: "boolean", description: "Overwrite files that exist" },
   "dry-run": { type: "boolean", description: "Show what would be written" },
@@ -69,6 +80,7 @@ async function overwrite(
   files: readonly TemplateFile[],
   args: WriteArgs,
   prompts: Prompter | undefined,
+  base: string = root,
 ): Promise<boolean | undefined> {
   if (args.force === true) return true;
   const existing = [
@@ -80,7 +92,7 @@ async function overwrite(
   ];
   if (!prompts || existing.length === 0) return false;
   return prompts.confirm(
-    `${existing.map((path) => display(root, path)).join(", ")} ${existing.length === 1 ? "exists" : "exist"}. Overwrite?`,
+    `${existing.map((path) => display(base, resolve(root, path))).join(", ")} ${existing.length === 1 ? "exists" : "exist"}. Overwrite?`,
   );
 }
 
@@ -89,6 +101,7 @@ async function writeFiles(
   files: readonly TemplateFile[],
   args: WriteArgs,
   force: boolean,
+  base: string = root,
 ): Promise<string[]> {
   const dryRun = args["dry-run"] === true;
   const lines: string[] = [];
@@ -97,7 +110,7 @@ async function writeFiles(
     if (seen.has(file.path)) continue;
     seen.add(file.path);
     const path = resolve(root, file.path);
-    const shown = display(root, file.path);
+    const shown = display(base, path);
     if (existsSync(path) && !force) {
       lines.push(`Kept    ${shown} (exists)`);
       continue;
@@ -169,6 +182,46 @@ function parseIntegrations(values: readonly string[]): Integration[] | string {
   return values.filter(isIntegration);
 }
 
+/** Where `init` writes: `--cwd`, `--package`, or the workspace package the person picks. */
+async function initTarget(
+  cwd: string,
+  args: InitArgs,
+  prompts: Prompter | undefined,
+): Promise<{ readonly dir: string } | CommandResult> {
+  if (args.package !== undefined) {
+    const dir = posix.normalize(args.package.replaceAll("\\", "/"));
+    if (!existsSync(join(cwd, dir, "package.json"))) {
+      return {
+        code: 2,
+        error: `--package ${args.package} has no package.json. Pass the directory of a workspace package, relative to --cwd.`,
+      };
+    }
+    return { dir: dir.replace(/\/$/, "") || "." };
+  }
+  const workspace = await detectWorkspace(cwd);
+  if (!workspace || workspace.packages.length === 0) return { dir: "." };
+  const suggested = suggestedPackage(workspace) ?? ".";
+  if (!prompts) {
+    return {
+      code: 2,
+      error: `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
+    };
+  }
+  const dir = await prompts.select(
+    "Package that owns the runtime",
+    [
+      ...workspace.packages.map((entry) => ({
+        value: entry.dir,
+        label: entry.dir,
+        ...(entry.project.name ? { hint: entry.project.name } : {}),
+      })),
+      { value: ".", label: ".", hint: "the workspace root" },
+    ],
+    suggested,
+  );
+  return dir === undefined ? CANCELLED : { dir };
+}
+
 export async function runInit(
   config: ResolvedConfig,
   args: InitArgs,
@@ -194,7 +247,20 @@ export async function runInit(
   if (casing !== "camel" && casing !== "snake") {
     return { code: 2, error: '--casing must be "camel" or "snake"' };
   }
-  const project = await detectProject(config.root);
+  const target = await initTarget(config.root, args, prompts);
+  if ("code" in target) return target;
+  const root = resolve(config.root, target.dir);
+  const inPackage = target.dir !== ".";
+  const workspaceProject = await detectProject(config.root);
+  const project: Project = inPackage
+    ? {
+        ...(await detectProject(root)),
+        packageManager: workspaceProject.packageManager,
+      }
+    : workspaceProject;
+  const installTarget: InstallTarget | undefined = inPackage
+    ? { dir: target.dir, name: project.name }
+    : undefined;
   const requested = parseIntegrations(list(args.with));
   if (typeof requested === "string") return { code: 2, error: requested };
   const detected = resolveIntegrations([
@@ -207,37 +273,43 @@ export async function runInit(
       : detected;
   if (chosen === undefined) return CANCELLED;
   const integrations = resolveIntegrations(chosen);
-  const hasConfig = findConfig(config.root) !== undefined;
-  const generated = hasConfig
-    ? config.output
-    : posix.normalize(posix.join(project.srcDir, "lib/supabase/generated.ts"));
+  const hasConfig = findConfig(root) !== undefined;
+  let generated = posix.normalize(
+    posix.join(project.srcDir, "lib/supabase/generated.ts"),
+  );
+  if (hasConfig)
+    generated = inPackage ? (await loadConfig(root)).output : config.output;
   const templateContext = context(project, generated);
 
   const files = [
     ...baseFiles(templateContext, casing, needsLib(integrations)),
     ...integrationFiles(integrations, templateContext),
   ];
-  const force = await overwrite(config.root, files, args, prompts);
+  const force = await overwrite(root, files, args, prompts, config.root);
   if (force === undefined) return CANCELLED;
+  const where = inPackage ? ` in ${target.dir}` : "";
   const lines = [
     project.frameworks.length > 0
-      ? `Found ${project.frameworks.join(", ")}.`
-      : "No framework found.",
+      ? `Found ${project.frameworks.join(", ")}${where}.`
+      : `No framework found${where}.`,
     "",
-    ...(await writeFiles(config.root, files, args, force)),
+    ...(await writeFiles(root, files, args, force, config.root)),
   ];
   const packages = packagesFor(project, integrations);
+  const cwdFlag = inPackage ? ` --cwd ${target.dir}` : "";
   const steps = [
     ...(packages.length > 0
-      ? [installCommand(project.packageManager, packages)]
+      ? [installCommand(project.packageManager, packages, false, installTarget)]
       : []),
     ...devPackages(project).map((names) =>
-      installCommand(project.packageManager, names, true),
+      installCommand(project.packageManager, names, true, installTarget),
     ),
-    ...(project.hasSupabase ? [] : ["supabase init"]),
+    ...(project.hasSupabase || workspaceProject.hasSupabase
+      ? []
+      : ["supabase init"]),
     "supabase start",
-    "better-supabase env",
-    "better-supabase gen",
+    `better-supabase env${cwdFlag}`,
+    `better-supabase gen${cwdFlag}`,
   ];
   lines.push(
     "",

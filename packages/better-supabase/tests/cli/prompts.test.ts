@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -102,6 +102,34 @@ describe("init prompts", () => {
       await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
     ).toContain("snake");
     expect(existsSync(join(dir, "supabase/functions/mcp/index.ts"))).toBe(true);
+  });
+
+  it("asks for the package at a workspace root", async () => {
+    await writeFile(
+      join(dir, "pnpm-workspace.yaml"),
+      "packages:\n  - apps/*\n",
+    );
+    await mkdir(join(dir, "apps/api"), { recursive: true });
+    await writeFile(
+      join(dir, "apps/api/package.json"),
+      JSON.stringify({ name: "api", dependencies: { hono: "4" } }),
+    );
+    const prompts = fake(["camel", "apps/api", ["hono"]]);
+    const result = await runWith(["init"], prompts);
+    expect(result.code).toBe(0);
+    expect(prompts.asked).toEqual([
+      { kind: "select", message: "Row keys", initial: "camel" },
+      {
+        kind: "select",
+        message: "Package that owns the runtime",
+        initial: "apps/api",
+      },
+      { kind: "multiselect", message: "Integrations", initial: ["hono"] },
+    ]);
+    expect(existsSync(join(dir, "apps/api/better-supabase.config.ts"))).toBe(
+      true,
+    );
+    expect((await runWith(["init"], fake(["camel", undefined]))).code).toBe(1);
   });
 
   it("asks nothing with --yes or when the flags answer", async () => {

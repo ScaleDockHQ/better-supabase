@@ -113,6 +113,7 @@ OPTIONS
 
     --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)          
   --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, mcp, client, react
+           --package=<dir>    Workspace package to write to, relative to --cwd                                         
                    --force    Overwrite files that exist                                                               
                  --dry-run    Show what would be written                                                               
                --cwd=<dir>    Project directory                                                                        

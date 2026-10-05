@@ -92,21 +92,38 @@ export async function detectProject(root: string): Promise<Project> {
   };
 }
 
+/** A workspace package that an install command targets from the workspace root. */
+export interface InstallTarget {
+  /** Relative to the workspace root, with forward slashes. */
+  readonly dir: string;
+  readonly name: string | undefined;
+}
+
 export function installCommand(
   manager: PackageManager,
   packages: readonly string[],
   dev = false,
+  target?: InstallTarget,
 ): string {
   const list = packages.join(" ");
   switch (manager) {
-    case "pnpm":
-      return `pnpm add ${dev ? "-D " : ""}${list}`;
+    case "pnpm": {
+      const filter = target
+        ? `--filter ${target.name ?? `./${target.dir}`} `
+        : "";
+      return `pnpm ${filter}add ${dev ? "-D " : ""}${list}`;
+    }
     case "bun":
-      return `bun add ${dev ? "-d " : ""}${list}`;
-    case "yarn":
-      return `yarn add ${dev ? "-D " : ""}${list}`;
+      return `bun add ${dev ? "-d " : ""}${list}${target ? ` --cwd ${target.dir}` : ""}`;
+    case "yarn": {
+      const command = `add ${dev ? "-D " : ""}${list}`;
+      if (!target) return `yarn ${command}`;
+      return target.name
+        ? `yarn workspace ${target.name} ${command}`
+        : `cd ${target.dir} && yarn ${command}`;
+    }
     case "npm":
-      return `npm install ${dev ? "-D " : ""}${list}`;
+      return `npm install ${dev ? "-D " : ""}${list}${target ? ` -w ${target.dir}` : ""}`;
     default: {
       const unreachable: never = manager;
       return unreachable;
