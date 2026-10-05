@@ -1,5 +1,6 @@
 import { parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
 
+import type { CookieWrite } from "../auth/session.ts";
 import type { Executor } from "../core/executor.ts";
 
 /** Cookie holding the epoch ms until which reads stay on the primary. */
@@ -49,8 +50,8 @@ export function pinnedUntil(
   return value !== undefined && Number.isFinite(until) ? until : 0;
 }
 
-/** Options of the `bs-primary-until` cookie, for frameworks that set cookies themselves. */
-export function primaryCookieOptions(pinMs: number): {
+/** Options of the `bs-primary-until` cookie. */
+function primaryCookieOptions(pinMs: number): {
   readonly path: "/";
   readonly maxAge: number;
   readonly httpOnly: true;
@@ -61,6 +62,20 @@ export function primaryCookieOptions(pinMs: number): {
     maxAge: Math.max(1, Math.ceil(pinMs / 1000)),
     httpOnly: true,
     sameSite: "lax",
+  };
+}
+
+/** The `bs-primary-until` cookie write after a write, for cookie-jar APIs. */
+export function primaryCookieWrite(
+  replica: ReplicaState | undefined,
+  pinMs: number,
+  now: number = Date.now(),
+): CookieWrite | undefined {
+  if (!replica?.wrote) return undefined;
+  return {
+    name: PRIMARY_COOKIE,
+    value: String(now + pinMs),
+    options: primaryCookieOptions(pinMs),
   };
 }
 

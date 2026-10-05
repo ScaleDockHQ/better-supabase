@@ -12,8 +12,9 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
-import { dbError, dbErrorOf } from "../core/errors.ts";
+import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import {
   defineResource,
   type ResourceRouteOptions,
@@ -47,6 +48,11 @@ export interface HonoEnv<
 export interface HonoOptions extends ServerOptions {
   /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
   readonly exposeErrors?: boolean;
+  /**
+   * Keeps the invocation alive for event sink sends a handler started.
+   * Defaults to `c.executionCtx.waitUntil` when the runtime passes one (Workers).
+   */
+  readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 export interface BetterHono<
@@ -124,12 +130,22 @@ export function createHono<
     const instance = new URL(c.req.url).pathname;
     const thrown = dbErrorOf(cause);
     if (thrown) return problemResponse(thrown, { instance, expose });
-    const error = dbError(
-      "unexpected",
-      expose ? cause.message : "Internal server error",
-      { status: 500 },
-    );
-    return problemResponse(error, { instance, expose });
+    return unexpectedResponse(cause, { instance, expose });
+  };
+
+  const waitUntilOf = (
+    c: Context<HonoEnv<M, F, E, C, P>>,
+  ): ((promise: Promise<unknown>) => void) | undefined => {
+    if (options.waitUntil) return options.waitUntil;
+    try {
+      const executionContext = c.executionCtx;
+      return (promise) => {
+        executionContext.waitUntil(promise);
+      };
+    } catch {
+      // Hono throws when the runtime passed no execution context (Node, Bun).
+      return undefined;
+    }
   };
 
   return extendServer<BetterHono<M, F, E, C, P>>(server, {
@@ -167,6 +183,7 @@ export function createHono<
         c.set("auth", ctx.auth);
         await next();
         c.res = ctx.apply(c.res);
+        flushEvents(server, waitUntilOf(c));
         return;
       };
     },

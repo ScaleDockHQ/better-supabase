@@ -67,6 +67,8 @@ before it finishes. `forwardMutations` tracks each send on
 `betterSupabase.events`: `events.pending` says whether one is running and
 `events.settled()` resolves when they all have, failed ones included. The
 adapters wait for them for you. `bs.route` and `bs.action` in Next.js pass
-them to `after()`, and the edge handlers pass them to `waitUntil` (see
-[Edge Functions](/docs/frameworks/edge#background-work)). Elsewhere, await
+them to `after()`. The edge handlers, the Hono middleware, oRPC's
+`fetchHandler` and both MCP adapters pass them to the `waitUntil` option (see
+[Edge Functions](/docs/frameworks/edge#background-work)); Hono also uses
+`c.executionCtx` on Workers. Elsewhere, await
 `betterSupabase.events.settled()` before the process exits.

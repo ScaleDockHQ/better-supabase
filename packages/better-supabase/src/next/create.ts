@@ -16,25 +16,19 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { SupportStartRequest } from "../server/support.ts";
 
 import { type Aal, checkAal } from "../auth/mfa.ts";
-import { SUPPORT_COOKIE } from "../auth/support-cookie.ts";
+import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { toSession } from "../auth/view.ts";
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
 import { problemResponse } from "../core/problem.ts";
 import { isReadSet, type ReadSet } from "../core/read-set.ts";
 import { validate } from "../core/standard.ts";
-import { EMPTY_STATS } from "../core/stats.ts";
-import {
-  DEFAULT_PIN_MS,
-  PRIMARY_COOKIE,
-  primaryCookieOptions,
-  withPrimaryPin,
-} from "../server/replicas.ts";
+import { type DbStats, EMPTY_STATS } from "../core/stats.ts";
+import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
-  respond,
   settle,
 } from "../server/respond.ts";
 import {
@@ -438,7 +432,6 @@ export function createNext<
   options: NextOptions = {},
 ): BetterNext<M, F, E, C, P> {
   const base = createServer(betterSupabase, options);
-  const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
   const expose = options.exposeErrors ?? defaultExpose();
 
   if (
@@ -465,18 +458,20 @@ export function createNext<
     return id ? { stats: collector.recorderFor(id) } : {};
   };
 
-  /** Keeps the function alive for event sink sends the handler started. */
-  const flushAfter = (): void => {
-    const { events } = betterSupabase;
-    if (!events.pending) return;
+  const waitUntil = (work: Promise<unknown>): void => {
     try {
-      after(() => events.settled());
+      after(() => work);
     } catch (cause) {
       // after() only works inside a request scope; the sends still run.
-      events.logger.warn("after() is unavailable; event sends may be cut off", {
-        cause,
-      });
+      betterSupabase.events.logger.warn(
+        "after() is unavailable; event sends may be cut off",
+        { cause },
+      );
     }
+  };
+  /** Keeps the function alive for event sink sends the handler started. */
+  const flushAfter = (): void => {
+    flushEvents(betterSupabase, waitUntil);
   };
 
   const incomingRequest = async (): Promise<Request> =>
@@ -539,10 +534,7 @@ export function createNext<
     view: AuthSession<C, P>,
     { token }: { readonly token: string | null },
   ): Promise<ServerContext<M, F, E, C, P>> => {
-    const request = new Request("http://next.local/", {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-    });
-    const ctx = await base.context(request);
+    const ctx = await base.context(bearerRequest(token));
     const matches =
       ctx.auth.kind === "user"
         ? view.kind === "user" && view.user.id === ctx.auth.user.id
@@ -671,40 +663,28 @@ export function createNext<
 
     route(handler, guardOptions = {}) {
       return async (request, segment) => {
-        const ctx = await base.context(request, statsFor(request));
-        const denied = guard(
-          ctx.auth,
-          guardOptions.allow,
-          guardOptions.aal,
-          guardOptions.scopes,
+        let stats: (() => DbStats) | undefined;
+        const response = await handle(
+          base,
+          request,
+          async (ctx) => {
+            stats = () => ctx.stats();
+            const params = await segment.params;
+            return handler(request, withExtra(ctx, { params }));
+          },
+          {
+            ...guardOptions,
+            expose,
+            instance: request.nextUrl.pathname,
+            context: statsFor(request),
+            waitUntil,
+            // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
+            rethrow: rethrowNextControlFlow,
+          },
         );
-        const instance = request.nextUrl.pathname;
-        if (denied) return problemResponse(denied, { instance, expose });
-        const params = await segment.params;
-        let response: Response;
-        try {
-          response = await respond(
-            () => handler(request, withExtra(ctx, { params })),
-            { instance, expose },
-          );
-        } catch (cause) {
-          // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
-          rethrowNextControlFlow(cause);
-          response = problemResponse(
-            dbError(
-              "unexpected",
-              expose && cause instanceof Error
-                ? cause.message
-                : "Internal server error",
-            ),
-            { instance, expose },
-          );
-        }
-        response = withPrimaryPin(response, ctx.replica, pinMs);
-        flushAfter();
-        if (collector) {
+        if (collector && stats) {
           try {
-            response.headers.set(statsHeader, formatStats(ctx.stats()));
+            response.headers.set(statsHeader, formatStats(stats()));
           } catch {
             // A handler returned a Response with immutable headers.
           }
@@ -760,12 +740,11 @@ export function createNext<
         // action has no schema.
         const settled = await settle(() => fn(parsed as never, ctx));
         flushAfter();
-        if (ctx.replica?.wrote) {
-          (await cookies()).set(
-            PRIMARY_COOKIE,
-            String(Date.now() + pinMs),
-            primaryCookieOptions(pinMs),
-          );
+        const writes = ctx.cookies();
+        if (writes.length > 0) {
+          const jar = await cookies();
+          for (const write of writes)
+            jar.set(write.name, write.value, write.options);
         }
         // SAFETY: Out is the Result of the action's return type, which both branches build.
         return (
@@ -784,10 +763,7 @@ export function createNext<
       const { session: support } = started.data;
       (await cookies()).set(supportCookieName, support.id, {
         ...supportCookieOptions,
-        maxAge: Math.max(
-          0,
-          Math.floor((support.expiresAt.epochMilliseconds - Date.now()) / 1000),
-        ),
+        maxAge: supportCookieMaxAge(support),
       });
       if (resolution.auth.kind === "user") {
         invalidate(sessionTag(resolution.auth.user.id));

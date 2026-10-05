@@ -1,6 +1,6 @@
 ---
-title: h3, Elysia and NestJS
-description: Use @supabase/server's adapters with withBetterSupabase.
+title: Other frameworks
+description: Use @supabase/server's adapters with withBetterSupabase, or write an adapter with handle().
 ---
 
 `@supabase/server` ships adapters for h3, Elysia and NestJS. They run
@@ -21,11 +21,88 @@ Pass `middleware` to the adapter you use (`@supabase/server/adapters/h3`,
 `/elysia` or `/nestjs`); see the `@supabase/server` docs for each adapter's
 signature.
 
-The pieces are also available without an adapter:
+## Write an adapter
 
-- `createServer(betterSupabase).context(request)` gives the caller's `db`, `auth` and
-  `supabase` in any framework.
-- `problemResponse(error)` sends a `DbError` as Problem Details.
-- `defineResource(betterSupabase, table)` from `better-supabase/server` serves the REST
-  resource routes from any router: call
-  `resource.handle(request, ctx.db, id)`.
+The built-in adapters share their request handling through
+`better-supabase/server`, so an adapter for another framework is a thin layer:
+
+| Export                                            | What it does                                                                                                                                                                                                                  |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handle(server, request, run, options)`           | resolves the caller, applies the guard (401 or 403 Problem Details), answers `run`'s value as JSON or Problem Details, turns other errors into a 500, adds the context's cookies and hands pending event sends to `waitUntil` |
+| `extendServer(server, extra)`                     | the adapter's server: every `BetterServer` method plus the adapter's own, without loading the environment early                                                                                                               |
+| `flushEvents(server, waitUntil)`                  | hands event sink sends still running to `waitUntil`, for adapters that build their own responses                                                                                                                              |
+| `unexpectedResponse(cause, { instance, expose })` | the 500 for a thrown error, with its message only when `expose` is set                                                                                                                                                        |
+| `resolveToken(server, token)`                     | verifies a bare access token (a WebSocket's, a queue message's) without cookies                                                                                                                                               |
+| `ctx.cookies()`                                   | the cookies `ctx.apply(response)` would add, for frameworks that set cookies through their own API                                                                                                                            |
+
+An adapter for a framework whose handlers take a `Request` and return a
+`Response`:
+
+```ts title="better-supabase-acme.ts"
+import type { AnyFunctions, AnyModels, BetterSupabase } from "better-supabase";
+import {
+  type BetterServer,
+  createServer,
+  extendServer,
+  handle,
+  type MiddlewareOptions,
+  type ServerContext,
+  type ServerOptions,
+} from "better-supabase/server";
+import type { AcmeContext } from "acme";
+
+export interface BetterAcme<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+> extends BetterServer<M, F, E> {
+  route(
+    fn: (c: AcmeContext, ctx: ServerContext<M, F, E>) => unknown,
+    options?: MiddlewareOptions,
+  ): (c: AcmeContext) => Promise<Response>;
+}
+
+export function createAcme<M extends AnyModels, D, F extends AnyFunctions, E>(
+  betterSupabase: BetterSupabase<M, D, F, E>,
+  options: ServerOptions & { readonly exposeErrors?: boolean } = {},
+): BetterAcme<M, F, E> {
+  const bs = createServer(betterSupabase, options);
+  return extendServer<BetterAcme<M, F, E>>(bs, {
+    route(fn, routeOptions = {}) {
+      return (c) =>
+        handle(bs, c.request, (ctx) => fn(c, ctx), {
+          ...routeOptions,
+          ...(options.exposeErrors === undefined
+            ? {}
+            : { expose: options.exposeErrors }),
+          waitUntil: (promise) => c.waitUntil(promise),
+        });
+    },
+  });
+}
+```
+
+Then prove it behaves like the built-in adapters with
+[`testAdapter`](/docs/extending/conformance):
+
+```ts title="better-supabase-acme.test.ts"
+import { testAdapter } from "better-supabase/testing";
+import { it } from "vitest";
+
+it("conforms", () =>
+  testAdapter("acme", {
+    betterSupabase,
+    serve: (server, run, { allow, waitUntil }) => {
+      const route = createAcme(betterSupabase, server).route(
+        (_c, ctx) => run(ctx),
+        { allow },
+      );
+      return (request) => route({ request, waitUntil });
+    },
+  }));
+```
+
+Without an adapter, `createServer(betterSupabase).context(request)` gives the
+caller's `db`, `auth` and `supabase` in any framework, and
+`defineResource(betterSupabase, table)` serves the REST resource routes from
+any router through `resource.handle(request, ctx.db, id)`.

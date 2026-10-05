@@ -17,6 +17,7 @@ import type {
 
 import { type DbError, dbErrorOf } from "../core/errors.ts";
 import { type ProblemDetails, toProblem } from "../core/problem.ts";
+import { flushEvents } from "../server/adapter.ts";
 import {
   defaultExpose,
   guard,
@@ -48,6 +49,11 @@ export interface OrpcContext<
 export interface OrpcOptions extends ServerOptions {
   /** Include internal error messages. Defaults to `NODE_ENV === 'development'`. */
   readonly exposeErrors?: boolean;
+  /**
+   * Keeps the invocation alive for event sink sends a procedure started,
+   * e.g. `EdgeRuntime.waitUntil` or Next's `after`. `fetchHandler` calls it.
+   */
+  readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 /** The part of an oRPC fetch handler (`RPCHandler`, `OpenAPIHandler`) `fetchHandler` calls. */
@@ -190,6 +196,7 @@ export function createOrpc<
         });
         const ctx = contexts.get(request);
         const answer = response ?? new Response("Not found", { status: 404 });
+        flushEvents(server, options.waitUntil);
         return ctx ? ctx.apply(answer) : answer;
       };
     },

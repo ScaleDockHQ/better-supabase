@@ -16,6 +16,7 @@ import {
   shouldRefresh,
   tagFor,
 } from "../../src/next/index.ts";
+import { testAdapter } from "../../src/testing/adapter.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -762,6 +763,27 @@ describe("createNext", () => {
       [tagFor("customers")],
       [tagFor("customers", "c1")],
     ]);
+  });
+});
+
+describe("next.route conformance", () => {
+  it("passes testAdapter", async () => {
+    const betterSupabase = defineSupabase(schema);
+    await testAdapter("next", {
+      betterSupabase,
+      serve: (server, run, { allow, waitUntil }) => {
+        mocks.after.mockImplementation((task) => {
+          waitUntil(Promise.resolve(task()));
+        });
+        const route = createNext(betterSupabase, server).route(
+          (_request, ctx) => run(ctx),
+          { allow },
+        );
+        return (request) =>
+          route(new NextRequest(request), { params: Promise.resolve({}) });
+      },
+    });
+    mocks.after.mockReset();
   });
 });
 

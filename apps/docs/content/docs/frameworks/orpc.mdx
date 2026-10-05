@@ -49,6 +49,11 @@ export default {
 Calling `handler.handle(request, { context: { request } })` yourself also
 works, but then those cookies never reach the client.
 
+On runtimes that stop the invocation after the response, pass `waitUntil` to
+`createOrpc`; `fetchHandler` hands it the
+[event sink sends](/docs/standards/events#sends-after-the-response) a
+procedure started.
+
 ## Contract-first routers
 
 With a contract from `@orpc/contract`, apply the same middleware to the

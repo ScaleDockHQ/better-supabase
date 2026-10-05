@@ -12,17 +12,28 @@ export interface SupportCookieOptions {
   readonly secure?: boolean;
 }
 
+/** Seconds until the session expires, rounded up so the cookie never outlives it by less than a second. */
+export function supportCookieMaxAge(
+  session: Pick<SupportSession, "expiresAt">,
+  now: number = Date.now(),
+): number {
+  return Math.max(
+    0,
+    Math.ceil((session.expiresAt.epochMilliseconds - now) / 1000),
+  );
+}
+
 /** `Set-Cookie` for a session: HttpOnly, SameSite=Lax, gone when the session expires. */
 export function supportCookie(
   session: Pick<SupportSession, "id" | "expiresAt">,
   options: SupportCookieOptions = {},
   now: number = Date.now(),
 ): string {
-  const maxAge = Math.max(
-    0,
-    Math.ceil((session.expiresAt.epochMilliseconds - now) / 1000),
+  return cookieLine(
+    options,
+    encodeURIComponent(session.id),
+    supportCookieMaxAge(session, now),
   );
-  return cookieLine(options, encodeURIComponent(session.id), maxAge);
 }
 
 /** `Set-Cookie` that removes the support cookie. */

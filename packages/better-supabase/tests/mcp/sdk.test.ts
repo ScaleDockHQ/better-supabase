@@ -271,6 +271,25 @@ describe("createMcpAuth guard options", () => {
     expect(seen).toBeUndefined();
   });
 
+  it("hands event sends a tool started to waitUntil", async () => {
+    const waited: Promise<unknown>[] = [];
+    const open = createMcpAuth(betterSupabase, {
+      env,
+      allow: ["anon"],
+      waitUntil: (promise) => waited.push(promise),
+    });
+    const { promise: send, resolve } = Promise.withResolvers<void>();
+    await open.serve({
+      fetch: async () => {
+        betterSupabase.events.track(send);
+        return new Response("ok");
+      },
+    })(new Request(ENDPOINT, { method: "POST" }));
+    expect(waited).toHaveLength(1);
+    resolve();
+    await Promise.all(waited);
+  });
+
   it("doesn't trust auth that another instance verified", async () => {
     const scoped = createMcpAuth(betterSupabase, {
       env,

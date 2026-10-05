@@ -4,7 +4,14 @@ export type {
 } from "./delete-account.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
-export { createServer, TENANT_HEADER } from "./server.ts";
+export { createServer, extendServer, TENANT_HEADER } from "./server.ts";
+export {
+  flushEvents,
+  handle,
+  resolveToken,
+  unexpectedResponse,
+} from "./adapter.ts";
+export type { HandleOptions } from "./adapter.ts";
 export type {
   ActiveSupport,
   SupportApi,

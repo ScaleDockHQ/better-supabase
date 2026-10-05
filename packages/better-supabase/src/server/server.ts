@@ -3,7 +3,9 @@ import type { JWTClaims, UserClaims } from "@supabase/server";
 import { PostgrestClient } from "@supabase/postgrest-js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import type { CookieWrite } from "../auth/session.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type {
@@ -45,6 +47,7 @@ import {
 import {
   DEFAULT_PIN_MS,
   pinnedUntil,
+  primaryCookieWrite,
   type ReplicaState,
   replicaState,
   routedExecutor,
@@ -152,6 +155,12 @@ export interface ServerContext<
    */
   apply(response: Response): Response;
   /**
+   * The cookies `apply` would set, for frameworks that write cookies through
+   * a cookie store instead of a response (`cookies().set`, `setResponseHeaders`).
+   * Read it after the handler ran: a write adds `bs-primary-until`.
+   */
+  cookies(): readonly CookieWrite[];
+  /**
    * Set while an admin views the app as another user: `auth`, `db` and
    * `sql` are the target's, and `resolution` stays the admin's.
    */
@@ -183,6 +192,8 @@ export interface BetterServer<
   P = unknown,
 > {
   readonly env: BetterSupabaseEnv;
+  /** The definition's events; adapters pass `events.settled()` to `waitUntil`. */
+  readonly events: EventHub;
   resolve(
     request: Request,
     options?: { readonly refresh?: boolean; readonly cookies?: boolean },
@@ -259,7 +270,11 @@ const STATELESS = {
 
 type ServerKeys = keyof BetterServer<AnyModels, AnyFunctions, unknown>;
 
-/** `{ ...server, ...extra }` without reading the lazy `env` getter. */
+/**
+ * A framework adapter's server: `server` plus the adapter's own methods,
+ * without reading the lazy `env` getter. `extra` can't replace a
+ * `BetterServer` method.
+ */
 export function extendServer<R extends object>(
   server: object,
   extra: Omit<R, ServerKeys>,
@@ -574,6 +589,7 @@ export function createServer<
       replica: undefined,
       stats: () => recorder.snapshot(),
       apply: (response) => resolution.apply(response),
+      cookies: () => resolution.cookies,
     };
   };
 
@@ -657,6 +673,10 @@ export function createServer<
       stats: () => recorder.snapshot(),
       apply: (response) =>
         withPrimaryPin(resolution.apply(response), replica, pinMs),
+      cookies: () => {
+        const pin = primaryCookieWrite(replica, pinMs);
+        return pin ? [...resolution.cookies, pin] : resolution.cookies;
+      },
     };
   };
 
@@ -734,6 +754,7 @@ export function createServer<
     get env() {
       return env();
     },
+    events: betterSupabase.events,
     resolve,
     supabaseFor,
     dbFor,

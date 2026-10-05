@@ -12,14 +12,15 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
-import { dbError, DbException } from "../core/errors.ts";
-import { problemResponse, toProblem } from "../core/problem.ts";
+import { serializeCookie } from "../auth/session.ts";
+import { DbException } from "../core/errors.ts";
+import { toProblem } from "../core/problem.ts";
+import { handle } from "../server/adapter.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   type MiddlewareOptions,
-  respond,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
@@ -112,14 +113,13 @@ function toRequest(request: ExpoRequest): Request {
 }
 
 /** Sends the cookies and headers `ctx.apply` would add to a response. */
-function writeHeaders(ctx: { apply(response: Response): Response }): void {
-  const applied = ctx.apply(new Response(null));
-  const cookies = applied.headers.getSetCookie();
-  const others: [string, string][] = [];
-  applied.headers.forEach((value, name) => {
-    if (name !== "set-cookie" && name !== "content-type")
-      others.push([name, value]);
-  });
+function writeHeaders(
+  ctx: Pick<ServerContext<AnyModels, AnyFunctions, unknown>, "cookies"> & {
+    readonly resolution: { readonly headers: Readonly<Record<string, string>> };
+  },
+): void {
+  const cookies = ctx.cookies().map(serializeCookie);
+  const others = Object.entries(ctx.resolution.headers);
   if (cookies.length === 0 && others.length === 0) return;
   setResponseHeaders((headers) => {
     const sent = new Set(headers.getSetCookie());
@@ -192,38 +192,11 @@ export function createExpo<
     },
 
     handler(fn, handlerOptions = {}) {
-      return async (incoming, params = {}) => {
-        const instance = new URL(incoming.url).pathname;
-        const ctx = await server.context(incoming, {
-          refresh: handlerOptions.refresh ?? false,
+      return (incoming, params = {}) =>
+        handle(server, incoming, (ctx) => fn(incoming, ctx, params), {
+          ...handlerOptions,
+          expose,
         });
-        const denied = guard(
-          ctx.auth,
-          handlerOptions.allow,
-          handlerOptions.aal,
-          handlerOptions.scopes,
-        );
-        let response: Response;
-        try {
-          response = denied
-            ? problemResponse(denied, { instance, expose })
-            : await respond(() => fn(incoming, ctx, params), {
-                instance,
-                expose,
-              });
-        } catch (cause) {
-          response = problemResponse(
-            dbError(
-              "unexpected",
-              expose && cause instanceof Error
-                ? cause.message
-                : "Internal server error",
-            ),
-            { instance, expose },
-          );
-        }
-        return ctx.apply(response);
-      };
     },
 
     middleware(middlewareOptions = {}) {

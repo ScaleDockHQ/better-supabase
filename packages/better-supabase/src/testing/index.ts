@@ -40,6 +40,8 @@ export {
   testQueueBackend,
   testSupportSessionStore,
 } from "./conformance.ts";
+export { testAdapter } from "./adapter.ts";
+export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";
 export type {
   ConformanceCheck,
   ConformanceReport,

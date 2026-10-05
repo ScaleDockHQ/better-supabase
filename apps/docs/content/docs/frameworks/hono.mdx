@@ -126,6 +126,17 @@ app.post(
 `HTTPException` unchanged, and sends anything else as a 500 without internal
 details (unless `exposeErrors`).
 
+Event sink sends a handler started (see
+[event sinks](/docs/standards/events#sends-after-the-response)) go to
+`c.executionCtx.waitUntil` on Workers. On other runtimes that stop the
+invocation after the response, pass the runtime's function:
+
+```ts
+const bs = createHono(betterSupabase, {
+  waitUntil: (promise) => EdgeRuntime.waitUntil(promise),
+});
+```
+
 ## Resources
 
 `bs.resource(table)` mounts REST routes that match what

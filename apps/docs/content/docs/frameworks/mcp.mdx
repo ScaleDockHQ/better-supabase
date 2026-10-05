@@ -260,6 +260,11 @@ export const bs = createMcp(betterSupabase, {
 protected resource metadata, so a client that hits the 401 can link the user
 to the page that explains how to connect.
 
+On runtimes that stop the invocation after the response, pass `waitUntil` to
+`createMcp` (or `createMcpAuth`); it receives the
+[event sink sends](/docs/standards/events#sends-after-the-response) a tool
+started.
+
 ## Official MCP SDK
 
 When the server already runs on the official SDK (`@modelcontextprotocol/server`

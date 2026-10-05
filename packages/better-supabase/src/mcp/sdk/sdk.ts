@@ -28,6 +28,7 @@ import type {
 } from "../../server/server.ts";
 
 import { delegationOf } from "../../auth/actor.ts";
+import { flushEvents, resolveToken } from "../../server/adapter.ts";
 import { guard, type GuardOptions } from "../../server/respond.ts";
 import { createServer, extendServer, withExtra } from "../../server/server.ts";
 
@@ -55,6 +56,11 @@ export interface McpAuthOptions
   readonly requiredScopes?: readonly string[];
   /** Published as `resource_documentation`. */
   readonly resourceDocumentation?: string;
+  /**
+   * Keeps the invocation alive for event sink sends a tool started, e.g.
+   * `EdgeRuntime.waitUntil` or Next's `after`.
+   */
+  readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 /** A fetch handler that takes verified auth, like the SDK's `createMcpHandler(...)`. */
@@ -250,12 +256,7 @@ export function createMcpAuth<
 
   const verifier: OAuthTokenVerifier = {
     async verifyAccessToken(token) {
-      const { auth } = await server.resolve(
-        new Request("https://mcp.invalid/", {
-          headers: { authorization: `Bearer ${token}` },
-        }),
-        { cookies: false },
-      );
+      const auth = await resolveToken(server, token);
       if (auth.kind !== "user") {
         throw new OAuthError("invalid_token", "The access token is not valid");
       }
@@ -296,12 +297,7 @@ export function createMcpAuth<
     const state = info?.extra?.[STATE_KEY];
     if (isUserState<C, P>(state, verified)) return server.contextFor(state);
     if (info?.token) {
-      const { auth } = await server.resolve(
-        new Request("https://mcp.invalid/", {
-          headers: { authorization: `Bearer ${info.token}` },
-        }),
-        { cookies: false },
-      );
+      const auth = await resolveToken(server, info.token);
       const allowed =
         auth.kind === "user" &&
         guard(auth, allow, options.aal, scopes) === undefined;
@@ -313,38 +309,47 @@ export function createMcpAuth<
   const serve =
     (handler: McpFetchHandler) =>
     async (request: Request): Promise<Response> => {
-      const path = new URL(request.url).pathname;
-      if (path === WELL_KNOWN || path.startsWith(`${WELL_KNOWN}/`)) {
-        if (request.method === "OPTIONS") {
-          return new Response(null, {
-            status: 204,
-            headers: {
-              "access-control-allow-origin": "*",
-              "access-control-allow-methods": "GET, OPTIONS",
-            },
-          });
-        }
-        return metadata(request);
-      }
-      const header = request.headers.get("authorization");
-      if (!header && allow.includes("anon")) return handler.fetch(request);
-      const resourceMetadataUrl = metadataUrl(request);
-      try {
-        const authInfo = await verifyBearerToken(header, {
-          verifier,
-          resourceMetadataUrl,
-        });
-        return await handler.fetch(request, { authInfo });
-      } catch (error) {
-        if (!(error instanceof OAuthError)) throw error;
-        return bearerAuthChallengeResponse(error, {
-          resourceMetadataUrl,
-          ...(scopes.length > 0 || advertised.length > 0
-            ? { requiredScopes: [...new Set([...advertised, ...scopes])] }
-            : {}),
-        });
-      }
+      const response = await answer(handler, request);
+      flushEvents(server, options.waitUntil);
+      return response;
     };
+
+  const answer = async (
+    handler: McpFetchHandler,
+    request: Request,
+  ): Promise<Response> => {
+    const path = new URL(request.url).pathname;
+    if (path === WELL_KNOWN || path.startsWith(`${WELL_KNOWN}/`)) {
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET, OPTIONS",
+          },
+        });
+      }
+      return metadata(request);
+    }
+    const header = request.headers.get("authorization");
+    if (!header && allow.includes("anon")) return handler.fetch(request);
+    const resourceMetadataUrl = metadataUrl(request);
+    try {
+      const authInfo = await verifyBearerToken(header, {
+        verifier,
+        resourceMetadataUrl,
+      });
+      return await handler.fetch(request, { authInfo });
+    } catch (error) {
+      if (!(error instanceof OAuthError)) throw error;
+      return bearerAuthChallengeResponse(error, {
+        resourceMetadataUrl,
+        ...(scopes.length > 0 || advertised.length > 0
+          ? { requiredScopes: [...new Set([...advertised, ...scopes])] }
+          : {}),
+      });
+    }
+  };
 
   return extendServer<BetterMcpAuth<M, F, E, C, P>>(server, {
     verifier,

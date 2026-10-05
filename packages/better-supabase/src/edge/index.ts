@@ -8,17 +8,13 @@ import type {
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { handle } from "../server/adapter.ts";
 import {
   defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
 } from "../server/resource.ts";
-import {
-  defaultExpose,
-  guard,
-  type MiddlewareOptions,
-  respond,
-} from "../server/respond.ts";
+import { defaultExpose, type MiddlewareOptions } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
@@ -158,10 +154,7 @@ export function createEdge<
   const corsHeaders = cors ? corsFor(cors) : undefined;
 
   const serve = (
-    run: (
-      request: Request,
-      ctx: ServerContext<M, F, E, C, P>,
-    ) => Promise<Response>,
+    run: (request: Request, ctx: ServerContext<M, F, E, C, P>) => unknown,
     handlerOptions: MiddlewareOptions,
     /** Answers before auth resolves, e.g. a 404 for an unknown route. */
     early?: (request: Request) => Response | undefined,
@@ -173,51 +166,25 @@ export function createEdge<
       }
       const answered = early?.(request);
       if (answered) return extra ? withHeaders(answered, extra) : answered;
-      const ctx = await server.context(request, {
-        refresh: handlerOptions.refresh ?? false,
-      });
-      const instance = new URL(request.url).pathname;
-      const denied = guard(
-        ctx.auth,
-        handlerOptions.allow,
-        handlerOptions.aal,
-        handlerOptions.scopes,
-      );
-      let response: Response;
-      try {
-        response = denied
-          ? problemResponse(denied, { instance, expose })
-          : await run(request, ctx);
-      } catch (cause) {
-        response = problemResponse(
-          dbError(
-            "unexpected",
-            expose && cause instanceof Error
-              ? cause.message
-              : "Internal server error",
-          ),
-          { instance, expose },
-        );
-      }
-      response = ctx.apply(response);
-      const { events } = betterSupabase;
       const waitUntil =
         options.waitUntil ?? executionContext?.waitUntil.bind(executionContext);
-      if (events.pending && waitUntil) waitUntil(events.settled());
+      const response = await handle(
+        server,
+        request,
+        (ctx) => run(request, ctx),
+        {
+          ...handlerOptions,
+          expose,
+          ...(waitUntil ? { waitUntil } : {}),
+        },
+      );
       return extra ? withHeaders(response, extra) : response;
     };
   };
 
   return extendServer<BetterEdge<M, F, E, C, P>>(server, {
     handler(fn, handlerOptions = {}) {
-      return serve(
-        (request, ctx) =>
-          respond(() => fn(request, ctx), {
-            instance: new URL(request.url).pathname,
-            expose,
-          }),
-        handlerOptions,
-      );
+      return serve(fn, handlerOptions);
     },
 
     resources(map, resourcesOptions = {}) {

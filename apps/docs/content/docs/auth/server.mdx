@@ -27,6 +27,7 @@ ctx.db; // repositories over PostgREST as the caller (RLS applies)
 ctx.sql; // the same repositories over direct Postgres as the caller
 ctx.supabase; // a stateless supabase-js client for storage, functions, …
 ctx.apply(response); // refreshed session cookies, and bs-primary-until after a write
+ctx.cookies(); // the same cookies as CookieWrite objects, for a framework's cookie API
 ```
 
 Each client is built on first access. For a signed-in user, `ctx.db` runs on
@@ -39,7 +40,10 @@ that browsers call with cookies outside a proxy, `context(request, { refresh: tr
 refreshes an expiring session; send the new cookies with
 `ctx.apply(response)`, which also sets `bs-primary-until` after a write when
 read replicas are configured. The Hono, edge and oRPC (`bs.fetchHandler`)
-adapters do this for you. The supabase-js client is built from the verified
+adapters do this for you, and so does
+[`handle()`](/docs/frameworks/other#write-an-adapter) in your own. To verify
+a bare access token (a WebSocket's, a queue message's), use
+`resolveToken(bs, token)`. The supabase-js client is built from the verified
 token, so it makes no auth calls and keeps no state between requests.
 
 To build several contexts from one request without verifying the token
