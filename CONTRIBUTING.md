@@ -50,7 +50,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | `pnpm run build`         | `turbo run build`                                                         |
 | `pnpm run test`          | Unit and type tests                                                       |
 | `pnpm typecheck:matrix`  | Published types against TypeScript 6 and 7                                |
-| `pnpm typecheck:perf`    | Type-instantiation benchmark on 150- and 250-table schemas                |
+| `pnpm typecheck:perf`    | Type-instantiation and `gen` time benchmark on 150- and 250-table schemas |
 | `pnpm size`              | Bundle size baselines and the WinterTC import check                       |
 | `pnpm test:integration`  | Integration tests against a running `supabase start` stack                |
 | `pnpm supabase:reset`    | Rebuilds the local database from the migrations and the seed              |

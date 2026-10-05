@@ -34,6 +34,7 @@ interface Profile {
 
 interface BaselineEntry extends Profile {
   readonly measurement: Readonly<Record<Compiler, Measurement>>;
+  readonly gen?: GenTimes;
 }
 
 interface Baseline {
@@ -165,7 +166,8 @@ const GRAPHQL: CatalogFunction = {
   searchPath: null,
 };
 
-function snapshot(profile: Profile): Snapshot {
+/** `extraColumnOn` names a table that gets one more column, for incremental gen. */
+function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
   const tables = [
     table(
       "organizations",
@@ -194,6 +196,8 @@ function snapshot(profile: Profile): Snapshot {
     ];
     for (let c = 0; c < 8; c++)
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
+    if (tableName === extraColumnOn)
+      columns.push(column("extra", "text", { nullable: true }));
     const keys = [foreignKey(tableName, ["organization_id"], "organizations")];
     if (i > 0)
       keys.push(
@@ -317,9 +321,27 @@ function measure(tsc: string): Measurement {
   };
 }
 
+/** Seconds for `better-supabase gen`; machine-dependent, so gated loosely. */
+interface GenTimes {
+  /** A fresh directory with no generated files. */
+  readonly cold: number;
+  /** Again with nothing changed. */
+  readonly warm: number;
+  /** After one column is added to one table. */
+  readonly incremental: number;
+}
+
 interface Run {
   readonly measurement: Readonly<Record<Compiler, Measurement>>;
-  readonly genTime: string;
+  readonly gen: GenTimes;
+}
+
+function gen(): number {
+  const started = performance.now();
+  execFileSync(process.execPath, [cli, "gen", "--cwd", work], {
+    stdio: "pipe",
+  });
+  return Number(((performance.now() - started) / 1000).toFixed(2));
 }
 
 function run(profile: Profile): Run {
@@ -359,15 +381,18 @@ function run(profile: Profile): Run {
       files: ["consumer.ts"],
     }),
   );
-  const started = performance.now();
-  execFileSync(process.execPath, [cli, "gen", "--cwd", work], {
-    stdio: "pipe",
-  });
-  const genTime = `${((performance.now() - started) / 1000).toFixed(2)}s`;
-  return {
-    measurement: { ts6: measure(compilers.ts6), ts7: measure(compilers.ts7) },
-    genTime,
+  const cold = gen();
+  const measurement = {
+    ts6: measure(compilers.ts6),
+    ts7: measure(compilers.ts7),
   };
+  const warm = gen();
+  writeFileSync(
+    join(work, "snapshot.json"),
+    JSON.stringify(snapshot(profile, name(1))),
+  );
+  const incremental = gen();
+  return { measurement, gen: { cold, warm, incremental } };
 }
 
 const baselinePath = join(here, "baseline.json");
@@ -385,9 +410,13 @@ const describe = (measurement: Measurement): string =>
 
 for (const [profileName, profile] of Object.entries(PROFILES)) {
   const current = run(profile);
-  next[profileName] = { ...profile, measurement: current.measurement };
+  next[profileName] = {
+    ...profile,
+    measurement: current.measurement,
+    gen: current.gen,
+  };
   console.log(
-    `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen ${current.genTime}`,
+    `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen cold ${current.gen.cold.toFixed(2)}s, warm ${current.gen.warm.toFixed(2)}s, incremental ${current.gen.incremental.toFixed(2)}s`,
   );
   for (const compiler of ["ts6", "ts7"] as const) {
     console.log(`  ${compiler}: ${describe(current.measurement[compiler])}`);
@@ -423,6 +452,35 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
       );
       process.exitCode = 1;
     }
+  }
+  checkGen(profileName, current.gen, previous.gen);
+}
+
+/**
+ * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is
+ * the closer measure of how much slower this machine is.
+ */
+function checkGen(
+  profileName: string,
+  now: GenTimes,
+  before: GenTimes | undefined,
+): void {
+  if (!before) {
+    console.error(
+      `${profileName} has no gen baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const speed = Math.max(1, calibration.ts6 / baseline.calibration.ts6);
+  for (const phase of ["cold", "warm", "incremental"] as const) {
+    const expected = before[phase] * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
+    if (now[phase] <= limit) continue;
+    console.error(
+      `${profileName}: ${phase} gen grew from ${expected.toFixed(2)}s to ${now[phase].toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+    );
+    process.exitCode = 1;
   }
 }
 

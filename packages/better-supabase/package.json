@@ -406,7 +406,7 @@
     "provenance": true
   },
   "scripts": {
-    "bench": "node tests/next/next.bench.ts",
+    "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/server/context.bench.ts",
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
