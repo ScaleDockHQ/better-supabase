@@ -81,6 +81,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
     name: "softDelete",
     // Runs first so other plugins see the delete as the update it becomes.
     enforce: "pre",
+    scopes: ["softDelete"],
     transformQuery(op, { options }): Operation {
       const hardDelete = op.kind === "delete" && options["hard"] === true;
       const withDeleted = options["withDeleted"] === true || hardDelete;
@@ -105,6 +106,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
       if (op.kind !== "delete" || options["hard"] === true) return op;
       return {
         kind: "update",
+        intent: "softDelete",
         table,
         set: { [column]: now().toString() },
         where: op.where,

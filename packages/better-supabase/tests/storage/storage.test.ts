@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 
+import { defineSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
+import { tenant } from "../../src/plugins/tenant/index.ts";
 import {
   defineBucket,
   fromStorageError,
@@ -12,6 +14,7 @@ import {
   TTL,
 } from "../../src/storage/index.ts";
 import { fakeStorage, storageError } from "../fixtures/fake-storage.ts";
+import { schema } from "../fixtures/generated-camel.ts";
 
 const logos = defineBucket({
   id: "customer-logos",
@@ -1400,6 +1403,27 @@ describe("tenant-scoped buckets", () => {
       error: { kind: "forbidden" },
     });
     expect(calls).toHaveLength(before);
+  });
+
+  it("uses the tenant tenant() resolved from a custom claim path", async () => {
+    const { client } = fakeStorage();
+    const db = defineSupabase(schema)
+      .use(tenant({ claim: "app_metadata.org" }))
+      .connect(
+        {
+          name: "echo",
+          execute: () => Promise.resolve(ok({ rows: [], count: null })),
+        },
+        { claims: { tenant_id: "o1", app_metadata: { org: "o9" } } },
+      );
+    const storage = scoped.connect(client, { context: db.$context });
+    expect(storage.path({ orgId: "o9", userId: "u1", file: "a" }).ok).toBe(
+      true,
+    );
+    expect(storage.path(mine)).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
   });
 
   it("lets admin work cross tenants with allTenants", async () => {

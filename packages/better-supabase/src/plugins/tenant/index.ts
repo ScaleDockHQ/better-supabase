@@ -1,7 +1,7 @@
 import type { MutationOp, Operation } from "../../ir/types.ts";
 import type { SchemaMeta, TableMeta } from "../../schema/types.ts";
 
-import { claimAt, claimsOf, tenantClaimPaths } from "../../core/claims.ts";
+import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import {
   definePlugin,
@@ -77,19 +77,10 @@ export function resolveTenant<C = unknown>(
   schema?: Pick<SchemaMeta, "claims">,
 ): string | undefined {
   if (options.resolve) return options.resolve(context);
-  if (typeof context.tenant === "string") return context.tenant;
   // SAFETY: TenantOptions types claim as ClaimPath<C> or a list of them, and
   // both are strings at runtime.
   const claim = options.claim as string | readonly string[] | undefined;
-  const paths =
-    typeof claim === "string"
-      ? [claim]
-      : (claim ?? tenantClaimPaths(claimsOf(schema).tenant));
-  for (const path of paths) {
-    const value = claimAt(context.claims, path);
-    if (value !== undefined) return value;
-  }
-  return undefined;
+  return tenantFrom(context, tenantPathsFor(claim, schema));
 }
 
 /** Tenant columns may be numeric; the resolved tenant is always a string. */
@@ -154,6 +145,7 @@ export function tenant<C = unknown>(
 
   return definePlugin<"tenant", TenantExtension>({
     name: "tenant",
+    scopes: ["tenant"],
     context(context, { schema }): RequestContext {
       if (spansAllTenants(context)) return context;
       const id = resolvedFor(context, schema);

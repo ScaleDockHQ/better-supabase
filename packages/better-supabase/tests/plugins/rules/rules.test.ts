@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../../src/core/define.ts";
-import { definePlugin } from "../../../src/core/plugin.ts";
+import { definePlugin, orderPlugins } from "../../../src/core/plugin.ts";
 import {
   recommended,
   rules,
@@ -195,6 +195,25 @@ describe("rules()", () => {
       .connect(client, context)
       .customers.findMany({ limit: 1 });
     expect(violations).toEqual([]);
+  });
+
+  it("orders by enforce, not by name", () => {
+    const named = (name: string, enforce?: "first" | "pre" | "post") =>
+      definePlugin({ name, ...(enforce ? { enforce } : {}) });
+    const order = orderPlugins([
+      named("rules"),
+      named("late", "post"),
+      named("checker", "first"),
+      named("rewriter", "pre"),
+      rules(),
+    ]).map((plugin) => `${plugin.name}:${plugin.enforce ?? "normal"}`);
+    expect(order).toEqual([
+      "checker:first",
+      "rules:first",
+      "rewriter:pre",
+      "rules:normal",
+      "late:post",
+    ]);
   });
 
   it("flags storage objects written to *_url columns", async () => {

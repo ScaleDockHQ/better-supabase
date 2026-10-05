@@ -5,6 +5,7 @@ import type { Operation } from "../../src/ir/types.ts";
 
 import { batchingExecutor } from "../../src/core/batch.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
 import { ok, type Result } from "../../src/core/result.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
@@ -108,6 +109,34 @@ describe("defineReadSet", () => {
       customers: s.customers.count(),
     }));
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("names plugins by the flags they declare in scopes", () => {
+    const warn = vi.fn();
+    const logger = { debug() {}, info() {}, warn, error() {} };
+    const transformQuery = (op: Operation): Operation => op;
+    const inspector = definePlugin({
+      name: "inspector",
+      scopes: [],
+      transformQuery,
+    });
+    const versioned = definePlugin({
+      name: "versioned",
+      scopes: ["version"],
+      transformQuery,
+    });
+    const opaque = definePlugin({ name: "opaque", transformQuery });
+    const base = defineSupabase(schema, { logger });
+    defineReadSet(base.use(inspector).use(versioned), "quiet", {}, (s) => ({
+      tags: s.tags.count(),
+    }));
+    expect(warn).not.toHaveBeenCalled();
+    defineReadSet(base.use(inspector).use(opaque), "loud", {}, (s) => ({
+      tags: s.tags.count(),
+    }));
+    expect(warn.mock.calls[0]?.[0]).toContain(
+      'read set "loud" reads tags, which opaque scope at runtime',
+    );
   });
 
   it("lists every table the set reads", () => {

@@ -1,5 +1,15 @@
-import type { MutationOp, Operation } from "../ir/types.ts";
-import type { AnyModels, SchemaMeta, TableMeta } from "../schema/types.ts";
+import type {
+  MutationIntent,
+  MutationKind,
+  MutationOp,
+  Operation,
+} from "../ir/types.ts";
+import type {
+  AnyModels,
+  SchemaMeta,
+  TableFlags,
+  TableMeta,
+} from "../schema/types.ts";
 import type { ErrorMapper } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 
@@ -35,10 +45,7 @@ export interface HookArgs {
   readonly now: () => Temporal.Instant;
 }
 
-export type MutationKind = "insert" | "upsert" | "update" | "delete";
-
-/** What the caller asked for: `softDelete` is a `delete` that a plugin turned into an update. */
-export type MutationIntent = MutationKind | "softDelete";
+export type { MutationIntent, MutationKind };
 
 export interface MutationEvent {
   readonly table: TableMeta;
@@ -134,10 +141,21 @@ export interface Plugin<
   readonly apiVersion: 1;
   readonly name: Name;
   /**
-   * Hook order: `pre` plugins run first, `post` plugins last, the rest in
-   * `use()` order. Validation is `post` so it sees columns other plugins fill.
+   * Hook order: `first`, then `pre`, then unmarked plugins, then `post`;
+   * plugins at the same level keep `use()` order. `first` is for plugins
+   * that check the query as the caller wrote it, before a `pre` plugin
+   * rewrites it (`rules()`). Validation is `post` so it sees columns other
+   * plugins fill.
    */
-  readonly enforce?: "pre" | "post";
+  readonly enforce?: "first" | "pre" | "post";
+  /**
+   * The table flags whose tables this plugin's `transformQuery` filters
+   * (`tenant()` declares `['tenant']`). Read sets warn when they read such a
+   * table, because their generated SQL function runs without the plugin.
+   * `[]` means the plugin only inspects queries. A plugin with
+   * `transformQuery` that leaves this out is assumed to filter every table.
+   */
+  readonly scopes?: readonly (keyof TableFlags)[];
   /**
    * `context`: derive values from the connection's context once per
    * `connect()` and `$with()`, so `db.$context` carries them (`tenant()`
@@ -189,20 +207,15 @@ export type WithExtension<E, X> = unknown extends X
       ? readonly [X]
       : readonly [E, X];
 
-const RANK = { pre: 0, normal: 1, post: 2 } as const;
+const RANK = { first: 0, pre: 1, normal: 2, post: 3 } as const;
 
-/**
- * `rules()` checks the query as the caller wrote it, so it runs before every
- * other `pre` plugin (soft delete turns deletes into updates, tenant adds
- * filters).
- */
 function rankOf(plugin: AnyPlugin): number {
-  return plugin.name === "rules" ? -1 : RANK[plugin.enforce ?? "normal"];
+  return RANK[plugin.enforce ?? "normal"];
 }
 
 /**
- * Plugins in hook order: `rules`, then `pre`, then unmarked in `use()` order,
- * then `post`.
+ * Plugins in hook order: `first`, `pre`, unmarked, then `post`, each level
+ * in `use()` order.
  */
 export function orderPlugins(plugins: readonly AnyPlugin[]): AnyPlugin[] {
   return plugins

@@ -42,7 +42,24 @@ result is the `db.$context` that every other hook, `db.$context` readers
 paths never share a resolved tenant. A `context` hook that throws is logged
 and leaves the context unchanged; `$withoutPlugins()` skips it.
 
-`enforce: 'pre' | 'post'` moves a plugin to the start or end of the chain.
+`enforce` sets the hook order: `first`, then `pre`, then plugins without
+`enforce`, then `post`; plugins at the same level keep their `use()` order.
+Use `first` for a plugin that checks the query as the caller wrote it
+(`rules()` does), and `pre` for one whose rewrite others should see
+(`softDelete()` turns a delete into an update).
+
+A plugin that rewrites a mutation into another kind sets `intent` on the
+operation it returns, and mutation events report it. `softDelete()` returns
+`{ kind: 'update', intent: 'softDelete', ... }`, which becomes the
+`row.softdeleted` CloudEvent. Without `intent`, the event reports the kind
+that ran.
+
+`scopes` lists the table flags whose tables a plugin's `transformQuery`
+filters (`tenant()` declares `['tenant']`). [Read sets](/docs/repository/read-sets)
+run as SQL functions without plugins, so `defineReadSet` warns when a set
+reads a table a plugin filters. Declare `scopes: []` for a plugin that only
+inspects queries; a plugin with `transformQuery` and no `scopes` is assumed
+to filter every table.
 
 ## Scoping helpers
 
@@ -99,7 +116,10 @@ compose.
 - `afterMutation` and event handlers cannot change results: they get a copy
   of the rows, and `testPlugin` checks it. Errors they throw go to the
   [`Logger`](/docs/extending/interfaces#logger), not the caller.
-- `rules()` runs before every other plugin; `enforce: 'pre'` plugins run
-  next, in `use()` order.
-- Prove a plugin with [`testPlugin`](/docs/extending/conformance).
+- Hook order depends only on `enforce` and `use()` order, never on a
+  plugin's name.
+- Prove a plugin with [`testPlugin`](/docs/extending/conformance). It also
+  installs the plugin next to `timestamps()`, `softDelete()`, `tenant()` and
+  `actor()` in both orders, and fails a `repository` hook that replaces a
+  base method.
 - A plugin must leave tables without its flag untouched.

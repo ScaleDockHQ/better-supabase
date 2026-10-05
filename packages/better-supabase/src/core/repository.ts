@@ -290,13 +290,12 @@ export class OperationRunner {
     if (!result.ok) return this.fail(op.table, result.error);
 
     if (current.kind !== "select") {
-      await this.afterMutation(op, current, result.data);
+      await this.afterMutation(current, result.data);
     }
     return result;
   }
 
   private async afterMutation(
-    requested: Operation,
     op: MutationOp,
     data: ExecuteResult,
   ): Promise<void> {
@@ -311,10 +310,7 @@ export class OperationRunner {
     const event: MutationEvent = {
       table: op.table,
       kind,
-      intent:
-        requested.kind === "delete" && op.kind === "update"
-          ? "softDelete"
-          : kind,
+      intent: op.intent ?? kind,
       rows,
       ...(keys ? { keys } : {}),
       ...(tenant === undefined ? {} : { tenant }),

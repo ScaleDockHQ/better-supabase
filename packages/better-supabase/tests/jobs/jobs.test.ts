@@ -2,7 +2,9 @@ import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DbError } from "../../src/core/errors.ts";
+import type { Executor } from "../../src/core/executor.ts";
 
+import { defineSupabase } from "../../src/core/define.ts";
 import { spansAllTenants } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
 import {
@@ -18,9 +20,16 @@ import {
   type QueueRpcClient,
   sqlQueueBackend,
 } from "../../src/jobs/index.ts";
+import { tenant } from "../../src/plugins/tenant/index.ts";
 import { signWebhook } from "../../src/webhooks/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { fakeSql, pgError, type SqlAnswer } from "../fixtures/fake-sql.ts";
+import { schema } from "../fixtures/generated-camel.ts";
+
+const echoExecutor: Executor = {
+  name: "echo",
+  execute: () => Promise.resolve(ok({ rows: [], count: null })),
+};
 
 interface Call {
   readonly schema: string;
@@ -403,6 +412,23 @@ describe("job context", () => {
     ).toEqual([
       { $bs: 1, context: { tenant: "o2" }, payload: { to: "a@example.com" } },
       { to: "b@example.com" },
+    ]);
+  });
+
+  it("records the tenant tenant() resolved from a custom claim path", async () => {
+    const { client, sent } = memoryQueue();
+    const db = defineSupabase(schema)
+      .use(tenant({ claim: "app_metadata.org" }))
+      .connect(echoExecutor, {
+        claims: { tenant_id: "o1", app_metadata: { org: "o9" } },
+      });
+    await createJobs(client, queues)
+      .enqueue("emails", { to: "a@example.com" }, { context: db.$context })
+      .orThrow();
+    expect(
+      sent.map((message) => (message as { payload: unknown }).payload),
+    ).toEqual([
+      { $bs: 1, context: { tenant: "o9" }, payload: { to: "a@example.com" } },
     ]);
   });
 

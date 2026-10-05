@@ -144,7 +144,22 @@ export interface FunctionSource {
   readonly args: Readonly<Record<string, unknown>>;
 }
 
-export interface InsertOp {
+/** The statement a mutation runs. */
+export type MutationKind = "insert" | "upsert" | "update" | "delete";
+
+/** What the caller asked for: `softDelete` is a `delete` that a plugin turned into an update. */
+export type MutationIntent = MutationKind | "softDelete";
+
+interface MutationBase {
+  /**
+   * What the caller asked for, when a plugin rewrote the mutation into
+   * another kind. The plugin that rewrites it sets this; mutation events
+   * report it.
+   */
+  readonly intent?: MutationIntent;
+}
+
+export interface InsertOp extends MutationBase {
   readonly kind: "insert";
   readonly table: TableMeta;
   /** Rows keyed by database column names. */
@@ -160,7 +175,7 @@ export interface InsertOp {
   readonly defaultToNull: boolean;
 }
 
-export interface UpdateOp {
+export interface UpdateOp extends MutationBase {
   readonly kind: "update";
   readonly table: TableMeta;
   /** Keyed by database column names. */
@@ -169,7 +184,7 @@ export interface UpdateOp {
   readonly returning: Selection | undefined;
 }
 
-export interface DeleteOp {
+export interface DeleteOp extends MutationBase {
   readonly kind: "delete";
   readonly table: TableMeta;
   readonly where: Condition | undefined;

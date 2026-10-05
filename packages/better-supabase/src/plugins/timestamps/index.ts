@@ -5,7 +5,9 @@ import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 
 /**
  * Stamps the columns generated as `Flags.timestamps`: `createdAt` on insert,
- * `updatedAt` on insert and update. Values the caller passes win. Pair it with
+ * `updatedAt` on insert and update. A call that sets either column fails with
+ * `invalid_request` unless it passes `{ override: true }`, which keeps the
+ * caller's values. Pair it with
  * the `updated-at` SQL kit trigger to cover writes that bypass the app.
  */
 export function timestamps(): Plugin<"timestamps"> {

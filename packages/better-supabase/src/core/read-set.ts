@@ -1,5 +1,6 @@
 import type { AnyFunctions, AnyModels, SchemaMeta } from "../schema/types.ts";
 import type { BetterSupabase } from "./define.ts";
+import type { AnyPlugin } from "./plugin.ts";
 import type { InferResult, QuerySpec, Specs } from "./spec.ts";
 
 import { isQuerySpec, specTables } from "./spec.ts";
@@ -199,21 +200,29 @@ function warnUnscopedReads(
   name: string,
   specs: Readonly<Record<string, QuerySpec>>,
 ): void {
-  const scoping = betterSupabase.plugins
-    .filter(
-      (plugin) =>
-        plugin.transformQuery !== undefined && plugin.name !== "rules",
-    )
-    .map((plugin) => plugin.name);
-  if (scoping.length === 0) return;
+  const filtering = betterSupabase.plugins.filter(
+    (plugin) =>
+      plugin.transformQuery !== undefined && plugin.scopes?.length !== 0,
+  );
+  if (filtering.length === 0) return;
   const { meta } = betterSupabase;
-  const tables = [
-    ...new Set(Object.values(specs).flatMap((spec) => specTables(meta, spec))),
-  ].filter((key) => {
+  const filters = (plugin: AnyPlugin, key: string): boolean => {
     const flags = meta.tables[key]?.flags;
-    return flags?.tenant !== undefined || flags?.softDelete !== undefined;
-  });
+    return (
+      plugin.scopes === undefined ||
+      plugin.scopes.some((flag) => flags?.[flag] !== undefined)
+    );
+  };
+  const read = [
+    ...new Set(Object.values(specs).flatMap((spec) => specTables(meta, spec))),
+  ];
+  const tables = read.filter((key) =>
+    filtering.some((plugin) => filters(plugin, key)),
+  );
   if (tables.length === 0) return;
+  const scoping = filtering
+    .filter((plugin) => tables.some((key) => filters(plugin, key)))
+    .map((plugin) => plugin.name);
   betterSupabase.events.logger.warn(
     `read set "${name}" reads ${tables.join(", ")}, which ${scoping.join(", ")} scope at runtime; its generated function only sees those filters when the specs spell them out (or RLS enforces them)`,
     { readSet: name, tables, plugins: scoping },

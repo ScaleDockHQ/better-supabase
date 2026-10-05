@@ -20,6 +20,10 @@ import { isList } from "../core/guards.ts";
 import { ok } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { toCloudEvents } from "../events/index.ts";
+import { actor } from "../plugins/actor/index.ts";
+import { softDelete } from "../plugins/soft-delete/index.ts";
+import { tenant } from "../plugins/tenant/index.ts";
+import { timestamps } from "../plugins/timestamps/index.ts";
 
 export interface ConformanceCheck {
   readonly name: string;
@@ -886,8 +890,10 @@ export interface TestPluginOptions {
 }
 
 /**
- * Proves a `Plugin` targets API v1, installs cleanly, keeps `context`,
- * `transformQuery` and `beforeMutation` pure and deterministic, and keeps executors'
+ * Proves a `Plugin` targets API v1, installs cleanly on its own and next to
+ * the first-party plugins in either order, adds repository methods without
+ * replacing base ones, keeps `context`, `transformQuery` and
+ * `beforeMutation` pure and deterministic, and keeps executors'
  * results intact when it wraps them.
  */
 export function testPlugin(
@@ -928,6 +934,66 @@ export function testPlugin(
           .connect(recorder([]), context) as unknown as AnyDb;
         for (const key of Object.keys(betterSupabase.meta.tables))
           expect(db[key], `db.${key} is missing`);
+      },
+    ],
+    [
+      "declares a known hook order",
+      () => {
+        const enforce: unknown = plugin.enforce;
+        expect(
+          enforce === undefined ||
+            enforce === "first" ||
+            enforce === "pre" ||
+            enforce === "post",
+          `enforce is ${String(enforce)}; use "first", "pre", "post" or leave it out`,
+        );
+      },
+    ],
+    [
+      "installs next to the first-party plugins in either order",
+      () => {
+        const others = [timestamps(), softDelete(), tenant(), actor()].filter(
+          (other) => other.name !== plugin.name,
+        );
+        let before: AnySupabase = betterSupabase;
+        for (const other of others) before = before.use(other);
+        let after: AnySupabase = betterSupabase.use(plugin);
+        for (const other of others) after = after.use(other);
+        for (const installed of [before.use(plugin), after]) {
+          // SAFETY: the kit runs against any schema, so it indexes repositories
+          // by table name.
+          // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
+          const db = installed.connect(
+            recorder([]),
+            context,
+          ) as unknown as AnyDb;
+          for (const key of Object.keys(betterSupabase.meta.tables))
+            expect(db[key], `db.${key} is missing`);
+        }
+      },
+    ],
+    plugin.repository && [
+      "repository adds functions and keeps the base methods",
+      () => {
+        // SAFETY: the kit runs against any schema, so it indexes repositories
+        // by table name.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
+        const db = betterSupabase.connect(
+          recorder([]),
+          context,
+        ) as unknown as AnyDb;
+        for (const [key, table] of Object.entries(betterSupabase.meta.tables)) {
+          const base = db[key]!;
+          const added = plugin.repository!({ table, base });
+          if (added === undefined) continue;
+          for (const [name, method] of Object.entries(added)) {
+            expect(
+              typeof method === "function",
+              `${key}.${name} is not a function`,
+            );
+            expect(!(name in base), `${key}.${name} replaces a base method`);
+          }
+        }
       },
     ],
     plugin.transformQuery && [

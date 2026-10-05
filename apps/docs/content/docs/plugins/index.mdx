@@ -39,9 +39,11 @@ A table without the columns is left alone, and the types follow suit:
 
 ## Order
 
-Hooks run in `use()` order, with two exceptions:
+Hooks run in `use()` order, with three exceptions:
 
-- `softDelete()` runs first (`enforce: 'pre'`), so `timestamps()` and
+- `rules()` runs first (`enforce: 'first'`), so it checks the query as you
+  wrote it.
+- `softDelete()` runs next (`enforce: 'pre'`), so `timestamps()` and
   `actor()` see a soft delete as the update it becomes and stamp it.
 - `validation()` runs last (`enforce: 'post'`), so it validates the row
   after `tenant()` filled `organizationId`.

@@ -1,7 +1,7 @@
 import type { Operation, Selection } from "../../ir/types.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../../schema/types.ts";
 
-import { claimAt, claimsOf, tenantClaimPaths } from "../../core/claims.ts";
+import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { dbError, DbException } from "../../core/errors.ts";
 import {
   definePlugin,
@@ -309,18 +309,13 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
     },
     requireTenantContext: (op, { context, schema }) => {
       if (!op.table.flags.tenant || context.actor?.kind === "service") return;
-      if (typeof context.tenant === "string") return;
       const claim = optionOf<string | undefined>(
         rules.requireTenantContext,
         undefined,
       );
-      const paths =
-        claim === undefined
-          ? tenantClaimPaths(claimsOf(schema).tenant)
-          : [claim];
-      return paths.some((path) => claimAt(context.claims, path) !== undefined)
-        ? undefined
-        : `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim ${paths.map((path) => `"${path}"`).join(" or ")})`;
+      const paths = tenantPathsFor(claim, schema);
+      if (tenantFrom(context, paths) !== undefined) return;
+      return `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim ${paths.map((path) => `"${path}"`).join(" or ")})`;
     },
     noAdminInBrowser: (_op, { context }) =>
       context.actor?.kind === "service" && isBrowser()
@@ -353,10 +348,10 @@ function defaultReport(violation: RuleViolation): void {
  * Runtime query rules, checked before each request is built:
  *
  * ```ts
- * defineSupabase(schema, { plugins: [rules({ rules: recommended() })] });
+ * defineSupabase(schema).use(rules({ rules: recommended() }));
  * ```
  *
- * Runs first (`enforce: 'pre'`) so it sees the query as written, before
+ * Runs first (`enforce: 'first'`) so it sees the query as written, before
  * tenant or soft-delete filters are added. Pair with the static
  * `better-supabase/lint` plugin to catch the same mistakes in the editor.
  */
@@ -375,7 +370,8 @@ export function rules(
 
   return definePlugin<"rules", RulesExtension>({
     name: "rules",
-    enforce: "pre",
+    enforce: "first",
+    scopes: [],
     transformQuery(op, hook): Operation {
       for (const { rule, level, check } of active) {
         const message = check(op, hook);

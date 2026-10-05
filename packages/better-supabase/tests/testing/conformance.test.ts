@@ -444,6 +444,25 @@ describe("testPlugin", () => {
     ]);
   });
 
+  it("fails plugins that clash with base methods, other plugins or the hook order", async () => {
+    const clashing = definePlugin({
+      name: "clashing",
+      enforce: "last" as never,
+      repository: ({ table }) =>
+        table.key === "tags"
+          ? { findMany: () => 1, restore: () => 2, label: "x" as never }
+          : undefined,
+    });
+    expect(
+      await failures(testPlugin(clashing, { betterSupabase, table: "tags" })),
+    ).toEqual([
+      "installs and builds repositories",
+      "declares a known hook order",
+      "installs next to the first-party plugins in either order",
+      "repository adds functions and keeps the base methods",
+    ]);
+  });
+
   it("checks mapError and beforeMutation when the plugin has them", async () => {
     const mappers = definePlugin({
       name: "mappers",
@@ -460,6 +479,8 @@ describe("testPlugin", () => {
       "has a name",
       "targets plugin API v1",
       "installs and builds repositories",
+      "declares a known hook order",
+      "installs next to the first-party plugins in either order",
       "beforeMutation is pure and deterministic",
       "mapError returns a DbError or undefined",
     ]);
@@ -516,6 +537,7 @@ describe("testPlugin", () => {
     expect(await failures(testPlugin(old, { betterSupabase }))).toEqual([
       "targets plugin API v1",
       "installs and builds repositories",
+      "installs next to the first-party plugins in either order",
     ]);
   });
 });

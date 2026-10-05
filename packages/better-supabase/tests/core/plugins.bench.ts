@@ -56,7 +56,7 @@ const SETS: Readonly<Record<string, readonly AnyPlugin[]>> = {
 };
 const context = { claims: { sub: "u1", org_id: ORG }, tenant: ORG };
 
-async function measure(work: () => Promise<unknown>): Promise<number> {
+async function measure(work: () => PromiseLike<unknown>): Promise<number> {
   for (let warm = 0; warm < 2000; warm++) await work();
   const started = performance.now();
   for (let run = 0; run < RUNS; run++) await work();

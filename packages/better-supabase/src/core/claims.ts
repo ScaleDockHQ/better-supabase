@@ -1,4 +1,5 @@
 import type { ClaimsMeta, SchemaMeta } from "../schema/types.ts";
+import type { RequestContext } from "./plugin.ts";
 
 export const DEFAULT_CLAIMS: ClaimsMeta = {
   tenant: "tenant_id",
@@ -34,6 +35,35 @@ export function tenantClaimPaths(
 }
 
 const tenantPaths = new Map<string, readonly [string, string]>();
+
+/**
+ * The claim paths a tenant option names: one path, a list, or the configured
+ * default (`config.claims.tenant`, then the same key in `app_metadata`).
+ */
+export function tenantPathsFor(
+  claim: string | readonly string[] | undefined,
+  meta?: Pick<SchemaMeta, "claims">,
+): readonly string[] {
+  if (typeof claim === "string") return [claim];
+  return claim ?? tenantClaimPaths(claimsOf(meta).tenant);
+}
+
+/**
+ * The tenant of a request: `context.tenant`, then the first of `paths` that
+ * holds a non-empty string. Every tenant-aware module resolves through this,
+ * so they agree on precedence.
+ */
+export function tenantFrom(
+  context: Pick<RequestContext, "tenant" | "claims">,
+  paths: readonly string[],
+): string | undefined {
+  if (typeof context.tenant === "string") return context.tenant;
+  for (const path of paths) {
+    const value = claimAt(context.claims, path);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
 /** Claim paths come from configuration, so this stays small. */
 const segmentsByPath = new Map<string, readonly string[]>();
 

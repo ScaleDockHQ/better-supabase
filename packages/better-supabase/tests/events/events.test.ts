@@ -170,6 +170,39 @@ describe("CloudEvents", () => {
     });
   });
 
+  it("reports the intent the rewriting plugin sets, not one core guesses", async () => {
+    const archiving = (intent?: "softDelete") =>
+      definePlugin({
+        name: "archiving",
+        beforeMutation: (op) =>
+          op.kind === "delete"
+            ? {
+                kind: "update",
+                table: op.table,
+                set: { name: "archived" },
+                where: op.where,
+                returning: undefined,
+                ...(intent ? { intent } : {}),
+              }
+            : op,
+      });
+    const intents = async (plugin: ReturnType<typeof archiving>) => {
+      const betterSupabase = defineSupabase(schema).use(plugin);
+      const notices: MutationNotice[] = [];
+      betterSupabase.events.on("mutation", (notice) => notices.push(notice));
+      const { client } = capturingClient(() => ({
+        status: 204,
+        headers: { "content-range": "*/1" },
+      }));
+      await betterSupabase.connect(client).tags.delete("t1").orThrow();
+      return notices.map((notice) => [notice.kind, notice.intent]);
+    };
+    expect(await intents(archiving())).toEqual([["update", "update"]]);
+    expect(await intents(archiving("softDelete"))).toEqual([
+      ["update", "softDelete"],
+    ]);
+  });
+
   it("hands hooks and listeners a copy of the rows", async () => {
     const tamper = definePlugin({
       name: "tamper",

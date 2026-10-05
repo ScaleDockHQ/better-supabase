@@ -3,7 +3,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SqlClient } from "../postgres/executor.ts";
 
 import { impersonatorClaim, impersonatorOf } from "../auth/impersonation.ts";
-import { claimAt, tenantClaimPaths } from "../core/claims.ts";
+import { tenantFrom, tenantPathsFor } from "../core/claims.ts";
 import { type DbError, dbError, DbException } from "../core/errors.ts";
 import {
   type Actor,
@@ -550,11 +550,7 @@ function withContext(
   context: RequestContext | undefined,
 ): unknown {
   if (!context) return payload;
-  const tenant =
-    context.tenant ??
-    tenantClaimPaths()
-      .map((path) => claimAt(context.claims, path))
-      .find((id) => id !== undefined);
+  const tenant = tenantFrom(context, tenantPathsFor(undefined));
   const impersonator = context.claims
     ? impersonatorOf(context.claims)
     : undefined;
