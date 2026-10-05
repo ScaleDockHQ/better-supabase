@@ -36,24 +36,11 @@ const customers = await bs.db.customers
 | `cookies` (default) | apps with a server (Next.js, SvelteKit, …): the session is shared via `@supabase/ssr` cookies |
 | `local`             | SPAs without a server: the session lives in localStorage                                      |
 
-For React Native and Expo, pass your own client:
-
-```ts title="src/lib/supabase/client.ts"
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "better-supabase/client";
-import { betterSupabase } from "./index";
-
-export const bs = createClient(betterSupabase, {
-  client: createSupabaseClient(url, publishableKey, {
-    auth: {
-      storage: AsyncStorage,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  }),
-});
-```
+For React Native and Expo, use
+[`better-supabase/client/native`](/docs/frontend/react-native) with your own
+supabase-js client. It has the same `bs.db`, `bs.queries` and `bs.auth`, never
+imports `@supabase/ssr`, and stores the session in the device keychain with
+`secureStorage`.
 
 The publishable key and URL are validated like on the server: a secret key
 or a legacy JWT key is rejected before any request is made.

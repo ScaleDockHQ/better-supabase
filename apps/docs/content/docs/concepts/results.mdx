@@ -54,7 +54,7 @@ const name = await db.customers
 | `multiple_rows`   | 409    | A single-row call matched several rows                                                              |
 | `stale`           | 412    | `update(..., { expect })` found a newer row                                                         |
 | `rate_limited`    | 429    | Over a [write rate limit](/docs/kits/sql#rate-limiting-writes); `retryAfter` is the seconds to wait |
-| `unsupported`     | 501    | The executor can't run the operation, such as an include on [SQLite](/docs/frontend/powersync)      |
+| `unsupported`     | 501    | The executor can't run the operation, such as an include on [SQLite](/docs/repository/powersync)    |
 | `unexpected`      | 500    | Anything else                                                                                       |
 
 The `status` field feeds the [RFC 9457](/docs/standards) problem details

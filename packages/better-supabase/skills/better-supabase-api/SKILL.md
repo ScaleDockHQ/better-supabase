@@ -57,13 +57,14 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 
 ## Adapters
 
-| Where          | Setup                                                           | Handler                                                                                  |
-| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`        | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
-| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())` | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
-| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`       | `bs.unwrap(context.db.customers.findMany(...))`                                          |
-| Edge Functions | `createEdge(betterSupabase, { cors: true })`                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
-| MCP            | `createMcp(betterSupabase, { name, version, resources })`       | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
+| Where          | Setup                                                                 | Handler                                                                                  |
+| -------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`              | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
+| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`       | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
+| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`             | `bs.unwrap(context.db.customers.findMany(...))`                                          |
+| Expo Router    | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()` | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`       |
+| Edge Functions | `createEdge(betterSupabase, { cors: true })`                          | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
+| MCP            | `createMcp(betterSupabase, { name, version, resources })`             | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
 
 Don't build error JSON by hand; errors become Problem Details.
 
@@ -86,6 +87,13 @@ for lists that clients read page by page: the list takes `after` instead of
 - `scopes` on `createMcp` only advertises scopes. Refuse calls in `authorize`, reading `toSession(ctx.auth).delegation?.scopes`.
 - Set `allowedOrigins` and `allowedHosts` (every host the server answers on, previews and local included) against DNS rebinding, and `resourceDocumentation` to a page that explains how to connect.
 - On the official MCP SDK, keep its `McpServer`: `createMcpAuth(betterSupabase, { resource })` from `better-supabase/mcp/sdk` verifies the token and serves the metadata (`auth.serve(createMcpHandler(factory))`), and `withBetterSupabase(server, auth)` gives every `registerTool` callback `db`, `auth` and `bs`. With PermDock, wrap `protectServer` first, then `withBetterSupabase`.
+
+## Native and offline apps
+
+For Expo and React Native, follow [references/expo.md](references/expo.md):
+server loaders for the web, `better-supabase/client/native` on the device.
+To read and write offline, run the same repositories on a PowerSync database
+and upload through `bs.db`, as in [references/powersync.md](references/powersync.md).
 
 ## Background work (`better-supabase/jobs`, needs `sql add jobs idempotency webhook-inbox`)
 
@@ -118,6 +126,7 @@ Sign tokens with `signLocalJwt` or `asUser` from `better-supabase/testing`;
 the adapter verifies them against the local JWKS. See the `better-supabase-testing` skill.
 
 Docs: https://bettersupabase.com/docs/frameworks/hono.md (and `next`,
-`orpc`, `edge`, `mcp` under `/docs/frameworks/`),
+`orpc`, `expo`, `edge`, `mcp` under `/docs/frameworks/`),
+https://bettersupabase.com/docs/repository/powersync.md,
 https://bettersupabase.com/docs/kits/jobs.md and
 https://bettersupabase.com/docs/auth/postgres.md.

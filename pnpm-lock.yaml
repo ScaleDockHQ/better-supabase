@@ -887,6 +887,98 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  apps/examples/monorepo/api:
+    dependencies:
+      '@better-supabase/example-monorepo-billing':
+        specifier: workspace:*
+        version: link:../billing
+      '@better-supabase/example-monorepo-crm':
+        specifier: workspace:*
+        version: link:../crm
+      '@better-supabase/example-monorepo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      better-supabase:
+        specifier: workspace:*
+        version: link:../../../../packages/better-supabase
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.12
+    devDependencies:
+      '@better-supabase/ox-config':
+        specifier: workspace:*
+        version: link:../../../../packages/ox-config
+      '@better-supabase/typescript-config':
+        specifier: workspace:*
+        version: link:../../../../packages/typescript-config
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.86.0(oxlint-tsgolint@7.0.2003)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  apps/examples/monorepo/billing:
+    devDependencies:
+      '@better-supabase/example-monorepo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@better-supabase/ox-config':
+        specifier: workspace:*
+        version: link:../../../../packages/ox-config
+      '@better-supabase/typescript-config':
+        specifier: workspace:*
+        version: link:../../../../packages/typescript-config
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.86.0(oxlint-tsgolint@7.0.2003)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  apps/examples/monorepo/crm:
+    devDependencies:
+      '@better-supabase/example-monorepo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@better-supabase/ox-config':
+        specifier: workspace:*
+        version: link:../../../../packages/ox-config
+      '@better-supabase/typescript-config':
+        specifier: workspace:*
+        version: link:../../../../packages/typescript-config
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.86.0(oxlint-tsgolint@7.0.2003)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  apps/examples/monorepo/runtime:
+    dependencies:
+      '@supabase/server':
+        specifier: 'catalog:'
+        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
+      '@supabase/supabase-js':
+        specifier: 'catalog:'
+        version: 2.117.2(@opentelemetry/api@1.9.1)
+      better-supabase:
+        specifier: workspace:*
+        version: link:../../../../packages/better-supabase
+    devDependencies:
+      '@better-supabase/ox-config':
+        specifier: workspace:*
+        version: link:../../../../packages/ox-config
+      '@better-supabase/typescript-config':
+        specifier: workspace:*
+        version: link:../../../../packages/typescript-config
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.86.0(oxlint-tsgolint@7.0.2003)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
   apps/examples/nextjs:
     dependencies:
       '@supabase/server':

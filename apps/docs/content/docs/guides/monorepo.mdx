@@ -90,8 +90,23 @@ the function returns a `Result`, so a route handler can return it as is.
 Because `Db` is a type import, the domain package has no runtime dependency
 on the generated client and no import cycle with the app.
 
-To keep the boundary, add a test that fails when a domain file imports
-anything but the runtime. The
+The
+[monorepo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/monorepo)
+has this layout as workspace packages: `runtime`, `crm` and `billing`, and a
+Hono `api` that passes the caller's `db` to both. Its domain packages carry a
+Turbo boundaries tag that rejects a dependency from one domain package on
+another:
+
+```json title="turbo.json"
+{
+  "boundaries": {
+    "tags": { "domain": { "dependencies": { "deny": ["domain"] } } }
+  }
+}
+```
+
+To keep the boundary inside one package, add a test that fails when a domain
+file imports anything but the runtime. The
 [`validation-monorepo`](https://github.com/ScaleDockHQ/better-supabase/tree/main/tests/validation-monorepo)
 workspace in this repository has one, plus type tests that pin each
 repository's parameter to the runtime's `Db`.

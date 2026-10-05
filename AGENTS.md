@@ -23,6 +23,7 @@ apps/
   docs/                Fumadocs site at /docs, plus /llms.txt, /llms-full.txt and /mcp
   marketing/           bettersupabase.com (everything outside /docs)
   examples/*           one app per adapter, generated from supabase/
+  examples/monorepo/*  runtime, crm, billing and api as separate workspace packages
 tests/
   bundle/              size baselines, export snapshot, WinterTC import check
   types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark

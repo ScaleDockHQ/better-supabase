@@ -22,8 +22,9 @@ Branch on `result.error.kind`, not on the message.
 | `multiple_rows`                                       | `findUnique` or a single-row write matched more than one row                   | Filter by a unique key                                                        |
 | `stale`                                               | `update(..., { expect })` found a newer row                                    | Reload the row and retry                                                      |
 | `serialization`, `timeout`, `network`, `rate_limited` | Transient                                                                      | Retry with backoff, or surface the error                                      |
+| `unsupported`                                         | The executor can't run the query, such as an include on SQLite (PowerSync)     | Read it on the server, or check list definitions with `checkSqlite` in a test |
 | `raised`                                              | A database function raised an exception                                        | Read `message` and `code` from the function                                   |
-| `unexpected` naming `temporal-polyfill/global`        | The runtime has no `Temporal` (Node 24, Safari)                                | Install `temporal-polyfill` and import `temporal-polyfill/global` at startup  |
+| `unexpected` naming `temporal-polyfill/global`        | The runtime has no `Temporal` (Node 24, Safari)                                | Pass `temporal: Temporal` from `temporal-polyfill` to `defineSupabase`        |
 
 ## By error `code`
 

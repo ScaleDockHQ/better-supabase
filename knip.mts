@@ -75,6 +75,7 @@ const config: KnipConfig = {
       entry: ["better-supabase.config.ts", "src/image-loader.ts"],
     },
     "apps/examples/vite-react": browserExample,
+    "apps/examples/monorepo/runtime": serverExample,
     // Expo Router loads the routes by file name and Metro picks the
     // `.native` files on iOS and Android.
     "apps/examples/expo-powersync": {

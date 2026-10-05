@@ -7,14 +7,15 @@ Each example in [`apps/examples`](https://github.com/ScaleDockHQ/better-supabase
 was set up with `better-supabase init`, generates its types from the same
 schema, and runs against the local stack from `supabase/config.toml`.
 
-| Example      | Shows                                                                         |
-| ------------ | ----------------------------------------------------------------------------- |
-| `nextjs`     | Proxy session refresh, a Server Component, route handlers and a server action |
-| `hono-api`   | `createHono`, `bs.resource` with a list query, and a custom route             |
-| `orpc-api`   | An oRPC router with valibot inputs and `bs.unwrap`                            |
-| `edge`       | An Edge Function with `createEdge` and `bs.resources`                         |
-| `mcp`        | An MCP server as an Edge Function, exposing tables as tools                   |
-| `vite-react` | An SPA with `createClient`, TanStack Query and sign-in                        |
+| Example          | Shows                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `nextjs`         | Proxy session refresh, a Server Component, route handlers and a server action                                            |
+| `hono-api`       | `createHono`, `bs.resource` with a list query, and a custom route                                                        |
+| `orpc-api`       | An oRPC router with valibot inputs and `bs.unwrap`, and a contract-first OpenAPI server on Hono                          |
+| `expo-powersync` | An Expo Router app: web reads in server loaders, iOS and Android read a PowerSync database with the same list definition |
+| `edge`           | An Edge Function with `createEdge` and `bs.resources`                                                                    |
+| `mcp`            | An MCP server as an Edge Function, exposing tables as tools                                                              |
+| `vite-react`     | An SPA with `createClient`, TanStack Query and sign-in                                                                   |
 
 ## Run them
 

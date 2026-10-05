@@ -5,6 +5,7 @@
     "next-cache-components",
     "hono",
     "orpc",
+    "expo",
     "edge",
     "mcp",
     "other"

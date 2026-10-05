@@ -1,0 +1,104 @@
+---
+title: Expo Router
+description: Server loaders, API routes and middleware that verify the caller and run as them.
+---
+
+```ts title="src/lib/supabase/server.ts"
+import { createExpo } from "better-supabase/expo";
+import { betterSupabase } from "./index";
+
+export const bs = createExpo(betterSupabase);
+```
+
+`createExpo(betterSupabase)` is [`createServer`](/docs/auth/server) plus the
+pieces Expo Router's server output needs. It reads the bearer token first and
+the session cookie second, and verifies the JWT locally. Install
+`expo-server` (55 or later) next to `better-supabase`, and turn on the server
+features in `app.json`:
+
+```json title="app.json"
+{
+  "expo": {
+    "web": { "bundler": "metro", "output": "server" },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "unstable_useServerDataLoaders": true,
+          "unstable_useServerMiddleware": true
+        }
+      ]
+    ]
+  }
+}
+```
+
+## Loaders
+
+`bs.loader(fn, options)` returns a route `loader` that runs `fn` as the
+caller, so RLS applies to every read:
+
+```tsx title="src/app/customers/index.tsx"
+import { useLoaderData } from "expo-router";
+import { bs } from "../../lib/supabase/server";
+
+export const loader = bs.loader(
+  ({ db }) => db.customers.findMany({ select: ["id", "name"] }).orThrow(),
+  { allow: ["user"] },
+);
+
+export default function Customers() {
+  const customers = useLoaderData<typeof loader>();
+  // ...
+}
+```
+
+- A caller `allow` refuses throws a `StatusError` (401 or 403) that Expo
+  Router answers.
+- A `DbException` from `.orThrow()` becomes a `StatusError` with the error's
+  status, so a missing row answers 404 with the Problem Details as the body.
+- During static rendering there is no request, so the loader throws. Read
+  public data without a caller in a separate loader there.
+- Loader data is serialized to JSON. Select the columns the screen shows, and
+  convert Temporal values to strings before returning them.
+
+`bs.request(request, options)` returns the same server context for code that
+isn't a loader.
+
+## API routes
+
+`bs.handler(fn, options)` turns a function into an API route handler.
+`Result`s become JSON or [Problem Details](/docs/concepts/results), and
+`undefined` becomes 204:
+
+```ts title="src/app/api/customers+api.ts"
+import { bs } from "../../lib/supabase/server";
+
+export const GET = bs.handler((_request, { db }) =>
+  db.customers.findMany({ select: ["id", "name"] }),
+);
+```
+
+## Middleware
+
+`bs.middleware()` in `+middleware.ts` refreshes an expired cookie session once
+per request, before loaders run, and writes the new cookies with
+`setResponseHeaders`. Loaders never refresh on their own.
+
+```ts title="src/app/+middleware.ts"
+import { bs } from "../lib/supabase/server";
+
+export default bs.middleware({ redirectTo: "/sign-in", allow: ["user"] });
+```
+
+With `redirectTo`, a caller `allow` refuses is sent there with the original
+path in `next`. Without it the middleware only refreshes the session. Bearer
+tokens are never refreshed.
+
+## Native screens
+
+Loaders and middleware run on the server for web requests. iOS and Android
+use the [React Native client](/docs/frontend/react-native) and, for offline
+reads, a [PowerSync database](/docs/repository/powersync). The
+[Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
+runs one list definition on both.
