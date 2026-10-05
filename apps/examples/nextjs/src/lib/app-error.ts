@@ -23,7 +23,5 @@ export const toAppError = (error: DbError): AppError => new AppError(error);
 
 /** A database `Result` as a better-result value with an `AppError`. */
 export function toAppResult<T>(result: DbResult<T>): Result<T, AppError> {
-  // SAFETY: toBetterResult builds the value with the Result class passed in,
-  // and toAppError maps every error to AppError.
-  return toBetterResult(result, Result, toAppError) as Result<T, AppError>;
+  return toBetterResult(result, Result, toAppError);
 }

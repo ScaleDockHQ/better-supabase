@@ -135,18 +135,69 @@ export interface BetterResultApi<T, E> {
   err(error: NoInfer<E>): unknown;
 }
 
+/** The value type of a better-result `Result` type. */
+export type BetterResultOk<R> = R extends {
+  readonly status: "ok";
+  readonly value: infer T;
+}
+  ? T
+  : never;
+
+/** The error type of a better-result `Result` type. */
+export type BetterResultErr<R> = R extends {
+  readonly status: "error";
+  readonly error: infer E;
+}
+  ? E
+  : never;
+
 /**
  * Builds a better-result value with the `Result` namespace you pass, so
  * better-result stays your dependency. Errors go through `mapError`, or, for a
  * result from a `db` of `betterSupabase.mapError(fn)`, through `fn` (typed `unknown`).
- * The value is a real `Ok`/`Err`: cast it (`as Result<T, E>`) for its
- * methods in types; the cast itself is not checked against `T`.
+ *
+ * The value is typed as better-result's `Result<T, E>` when the call has one
+ * as its expected type (an annotation or a function's return type) or as its
+ * type argument. That type is checked against the row type and `mapError`.
+ * Without one, it is a `BetterResultValue<T, E>`.
  *
  * ```ts
  * import { Result } from 'better-result';
- * const customer = toBetterResult(await db.customers.findById(id), Result, toAppError);
+ * const customer: Result<Customer, AppError> = toBetterResult(
+ *   await db.customers.findById(id),
+ *   Result,
+ *   toAppError,
+ * );
  * ```
  */
+export function toBetterResult<
+  R extends BetterResultValue<unknown, unknown> = never,
+>(
+  result: Result<BetterResultOk<R>>,
+  api: BetterResultApi<BetterResultOk<R>, BetterResultErr<R>>,
+  mapError: (error: DbError) => BetterResultErr<R>,
+): R;
+export function toBetterResult<
+  R extends BetterResultValue<unknown, unknown> = never,
+>(
+  result: Result<BetterResultOk<R>> &
+    (DbError extends BetterResultErr<R> ? unknown : never),
+  api: BetterResultApi<BetterResultOk<R>, DbError>,
+): R;
+export function toBetterResult<
+  R extends BetterResultValue<unknown, unknown> = never,
+>(
+  result: AsyncResult<BetterResultOk<R>>,
+  api: BetterResultApi<BetterResultOk<R>, BetterResultErr<R>>,
+  mapError: (error: DbError) => BetterResultErr<R>,
+): Promise<R>;
+export function toBetterResult<
+  R extends BetterResultValue<unknown, unknown> = never,
+>(
+  result: AsyncResult<BetterResultOk<R>> &
+    (unknown extends BetterResultErr<R> ? unknown : never),
+  api: BetterResultApi<BetterResultOk<R>, unknown>,
+): Promise<R>;
 export function toBetterResult<T, E>(
   result: Result<T>,
   api: BetterResultApi<T, E>,

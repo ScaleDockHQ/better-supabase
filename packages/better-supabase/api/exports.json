@@ -76,6 +76,8 @@
       "ApplyExtension",
       "AuthEvent",
       "BetterResultApi",
+      "BetterResultErr",
+      "BetterResultOk",
       "BetterResultValue",
       "BetterSupabaseEvents",
       "CacheAdapter",
