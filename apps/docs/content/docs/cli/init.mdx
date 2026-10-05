@@ -37,6 +37,27 @@ Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
 `src/lib/supabase/index.ts`: Edge Functions import `betterSupabase` from
 `supabase/functions/_shared/supabase.ts`.
 
+## Workspaces
+
+At the root of a pnpm, npm, yarn or bun workspace (a `pnpm-workspace.yaml`,
+or `workspaces` in `package.json`), `init` writes into one package instead of
+the root. In a terminal it asks which package owns the runtime, with the one
+that already depends on better-supabase (or else the first with a framework)
+selected. Otherwise pass it:
+
+```bash
+pnpm better-supabase init --package packages/runtime
+```
+
+`init` then detects the frameworks and `tsconfig.json` of that package, writes
+the config and the glue there, and prints next steps that target it:
+`pnpm --filter @acme/runtime add ...` (or `npm install -w`, `yarn workspace`,
+`bun add --cwd`) and `better-supabase gen --cwd packages/runtime`. Without
+`--package` and without a terminal, `init` stops with an error that lists the
+packages; `--package .` writes at the root as before. See
+[monorepos](/docs/guides/monorepo) for how to split the runtime from domain
+packages.
+
 ## add
 
 ```bash

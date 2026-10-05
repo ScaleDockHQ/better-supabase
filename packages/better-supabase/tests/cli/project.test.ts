@@ -117,6 +117,37 @@ describe("installCommand", () => {
     expect(installCommand(manager, ["a", "b"])).toBe(prod);
   });
 
+  it.each([
+    [
+      "pnpm",
+      "pnpm --filter @acme/runtime add -D a",
+      "pnpm --filter ./packages/runtime add a",
+    ],
+    [
+      "bun",
+      "bun add -d a --cwd packages/runtime",
+      "bun add a --cwd packages/runtime",
+    ],
+    [
+      "yarn",
+      "yarn workspace @acme/runtime add -D a",
+      "cd packages/runtime && yarn add a",
+    ],
+    [
+      "npm",
+      "npm install -D a -w packages/runtime",
+      "npm install a -w packages/runtime",
+    ],
+  ] as const)("%s in a workspace package", (manager, named, unnamed) => {
+    const dir = "packages/runtime";
+    expect(
+      installCommand(manager, ["a"], true, { dir, name: "@acme/runtime" }),
+    ).toBe(named);
+    expect(
+      installCommand(manager, ["a"], false, { dir, name: undefined }),
+    ).toBe(unnamed);
+  });
+
   it("returns the value for a manager it does not know", () => {
     // SAFETY: simulates a manager value outside the union.
     const deno = "deno" as PackageManager;
