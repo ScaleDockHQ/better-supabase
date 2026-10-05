@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import { dbError } from "../../src/core/errors.ts";
+import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createExpo } from "../../src/expo/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -120,6 +120,23 @@ describe("createExpo", () => {
     expect(refused).toBeInstanceOf(StatusError);
     expect(refused).toMatchObject({ status: 401 });
     await expect(loader(undefined, {})).rejects.toThrow(/static rendering/);
+  });
+
+  it("answers a DbException from a loader with its status", async () => {
+    const missing = bs.loader(() => {
+      throw new DbException(dbError("not_found", "No customer"));
+    });
+    const refused = await missing(immutable("https://app.test/"), {}).catch(
+      (cause: unknown) => cause,
+    );
+    expect(refused).toBeInstanceOf(StatusError);
+    expect(refused).toMatchObject({ status: 404 });
+    const failing = bs.loader(() => {
+      throw new TypeError("boom");
+    });
+    await expect(failing(immutable("https://app.test/"), {})).rejects.toThrow(
+      TypeError,
+    );
   });
 
   it("redirects refused callers from middleware", async () => {

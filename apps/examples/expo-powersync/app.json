@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "better-supabase example",
+    "slug": "better-supabase-expo-powersync",
+    "scheme": "bsexample",
+    "web": {
+      "bundler": "metro",
+      "output": "server"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "root": "./src/app",
+          "unstable_useServerDataLoaders": true,
+          "unstable_useServerMiddleware": true,
+          "unstable_useServerRendering": true
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "updates": {
+      "enabled": false
+    }
+  }
+}

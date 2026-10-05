@@ -20,13 +20,19 @@ catalog:
   "@commitlint/config-conventional": 21.2.3
   "@commitlint/types": 21.2.3
   "@effect/platform-node": 4.0.0
+  "@expo/log-box": 57.0.4
+  "@expo/metro-runtime": 57.0.16
   "@manypkg/get-packages": 3.1.0
   "@modelcontextprotocol/client": 2.3.0
   "@modelcontextprotocol/server": 2.3.0
+  "@op-engineering/op-sqlite": 18.2.5
   "@opentelemetry/api": 1.9.1
   "@orpc/contract": 2.0.0-beta.41
   "@orpc/openapi": 2.0.0-beta.41
   "@orpc/server": 2.0.0-beta.41
+  "@powersync/common": 2.3.1
+  "@powersync/react-native": 2.3.1
+  "@react-native/metro-config": 0.86.3
   "@supabase/config": 0.11.1
   "@supabase/middleware": 1.0.0
   "@supabase/postgrest-typegen": 0.4.0
@@ -62,6 +68,11 @@ catalog:
   diff: 9.0.0
   dotenv-cli: 11.0.0
   effect: 4.0.0
+  expo: 57.0.26
+  expo-constants: 57.0.20
+  expo-linking: 57.0.11
+  expo-router: 57.0.24
+  expo-secure-store: 57.0.4
   expo-server: 57.0.3
   fastest-levenshtein: 1.0.16
   fumadocs-core: 16.15.18
@@ -88,6 +99,12 @@ catalog:
   publint: 0.3.25
   react: 19.3.0
   react-dom: 19.3.0
+  # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
+  # React Native 0.86 only.
+  react-native: 0.86.3
+  react-native-safe-area-context: 5.7.0
+  react-native-screens: 4.26.2
+  react-native-web: 0.21.3
   rolldown: 1.2.12
   server-only: 0.0.1
   shadcn: 4.21.1
@@ -174,6 +191,10 @@ overrides:
   next: "catalog:"
   react: "catalog:"
   react-dom: "catalog:"
+  # React Native 0.86 ships a renderer built for React 19.2.3 and refuses to
+  # start with another React; the Expo example stays on it.
+  "@better-supabase/example-expo-powersync>react": 19.2.3
+  "@better-supabase/example-expo-powersync>react-dom": 19.2.3
   # One shiki, so fumadocs-ui and the docs transformers share ShikiTransformer.
   shiki: "catalog:"
 
@@ -182,6 +203,13 @@ peerDependencyRules:
     # postgrest-typegen pins its optional oxfmt peer exactly; it formats the
     # generated types with whichever oxfmt the CLI installs.
     "@supabase/postgrest-typegen>oxfmt": "0.71.0"
+    # Expo SDK 57's @expo/ui depends on worklets 0.13 while expo-modules-core
+    # still lists an optional peer range that ends at 0.10.
+    "expo-modules-core>react-native-worklets": "0.13.0"
+    # The Expo example overrides React to 19.2.3 (see overrides); the global
+    # React override rewrites every React peer range to the catalog version.
+    react: 19.2.3
+    react-dom: 19.2.3
 
 auditConfig:
   ignoreGhsas:

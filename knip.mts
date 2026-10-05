@@ -75,6 +75,23 @@ const config: KnipConfig = {
       entry: ["better-supabase.config.ts", "src/image-loader.ts"],
     },
     "apps/examples/vite-react": browserExample,
+    // Expo Router loads the routes by file name and Metro picks the
+    // `.native` files on iOS and Android.
+    "apps/examples/expo-powersync": {
+      entry: [
+        "better-supabase.config.ts",
+        "src/app/**/*.{ts,tsx}",
+        "src/**/*.native.{ts,tsx}",
+      ],
+      ignore: exampleIgnore,
+      // @react-native/metro-config pins the optional peer of React Native's
+      // CLI plugin to the React Native version.
+      ignoreDependencies: [
+        "@supabase/server",
+        "@supabase/ssr",
+        "@react-native/metro-config",
+      ],
+    },
     "tests/bundle": {
       // The size checks read the built packages from disk; the dependencies
       // make Turbo build them first.

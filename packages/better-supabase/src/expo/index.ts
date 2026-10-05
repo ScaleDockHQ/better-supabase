@@ -12,7 +12,7 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
-import { dbError } from "../core/errors.ts";
+import { dbError, DbException } from "../core/errors.ts";
 import { problemResponse, toProblem } from "../core/problem.ts";
 import {
   defaultExpose,
@@ -72,7 +72,8 @@ export interface BetterExpo<
   ): Promise<ServerContext<M, F, E, C, P>>;
   /**
    * A server loader (`export const loader = bs.loader(...)`) that runs `fn`
-   * as the caller. Throws during static rendering, which has no request.
+   * as the caller. A `DbException` from `.orThrow()` becomes a `StatusError`
+   * with the error's status. Throws during static rendering, which has no request.
    */
   loader<T>(
     fn: (
@@ -180,7 +181,13 @@ export function createExpo<
           );
         }
         const ctx = await request(incoming, loaderOptions);
-        return fn(ctx, params, incoming);
+        try {
+          return await fn(ctx, params, incoming);
+        } catch (cause) {
+          if (cause instanceof DbException)
+            throw statusError(cause.error, expose);
+          throw cause;
+        }
       };
     },
 
