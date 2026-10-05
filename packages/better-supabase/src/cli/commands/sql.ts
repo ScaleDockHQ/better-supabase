@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -7,6 +7,8 @@ import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
 import {
+  type AuditedTable,
+  auditRegistrations,
   contractSignature,
   customContracts,
   type InstalledKitModule,
@@ -170,26 +172,90 @@ async function layout(
   };
 }
 
-/** The layout, with `config.readSets` compiled when `names` includes `read-sets`. */
+/**
+ * The `better_supabase.audit(...)` calls in the declarative schemas, then
+ * the migrations oldest first, so a later call or `unaudit` wins.
+ */
+async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+  const toml = await readSupabaseToml(config.root);
+  const migrations = resolve(config.root, migrationsDir(config));
+  const paths = [
+    ...(await schemaPaths(config.root, toml)).files,
+    ...(existsSync(migrations)
+      ? (await readdir(migrations))
+          .filter((name) => name.endsWith(".sql"))
+          .toSorted()
+          .map((name) => join(migrations, name))
+      : []),
+  ];
+  return auditRegistrations(
+    await Promise.all(
+      paths.map(async (path) => ({
+        text: await readFile(resolve(config.root, path), "utf8"),
+      })),
+    ),
+  );
+}
+
+/**
+ * The layout, with `config.readSets` compiled when `names` includes
+ * `read-sets` and the audited tables when it includes `audit`.
+ */
 async function layoutFor(
   config: ResolvedConfig,
   args: SqlArgs,
   names: readonly string[],
 ): Promise<KitLayout> {
   const permdock = await permdockFor(config, names);
-  const needsReadSets = resolveModules(names, {
-    ...(permdock ? { permdock } : {}),
-  }).some((module) => module.name === "read-sets");
+  const resolved = new Set(
+    resolveModules(names, {
+      ...(permdock ? { permdock } : {}),
+    }).map((module) => module.name),
+  );
   return {
     ...kitLayout(
       config,
       args["tests-dir"],
-      needsReadSets ? await compiledReadSets(config) : [],
+      resolved.has("read-sets") ? await compiledReadSets(config) : [],
       permdock,
       await accessPermdockFor(config, names),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
+    ...(resolved.has("audit")
+      ? { auditedTables: await auditedTables(config) }
+      : {}),
   };
+}
+
+const KIT_TEST_MARKER = /^-- @bs-kit-test ([a-z0-9-]+)$/m;
+
+/**
+ * Test files a kit module wrote for an earlier layout (a table that is no
+ * longer audited), for the modules in `names`.
+ */
+async function staleKitTests(
+  config: ResolvedConfig,
+  names: readonly string[],
+  kit: KitLayout,
+  files: readonly KitFile[],
+): Promise<string[]> {
+  const dir = (kit.testsDir ?? "supabase/tests").replace(/\/$/, "");
+  const entries: string[] = await readdir(resolve(config.root, dir)).catch(
+    () => [],
+  );
+  const current = new Set(files.map((file) => file.path));
+  const modules = new Set(
+    resolveModules(names, kit).map((module) => module.name),
+  );
+  const stale: string[] = [];
+  for (const name of entries.toSorted()) {
+    const path = `${dir}/${name}`;
+    if (!name.endsWith(".test.sql") || current.has(path)) continue;
+    const text = await readFile(resolve(config.root, path), "utf8");
+    const module = KIT_TEST_MARKER.exec(text)?.[1];
+    if (module !== undefined && modules.has(module)) stale.push(path);
+  }
+  return stale;
 }
 
 /**
@@ -251,7 +317,17 @@ async function write(
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
   let data = false;
-  for (const file of renderKit(names, kit)) {
+  const files = renderKit(names, kit);
+  for (const path of await staleKitTests(config, names, kit, files)) {
+    const shown = display(config.root, path);
+    if (dryRun) {
+      lines.push(`Would remove ${shown}`);
+      continue;
+    }
+    await rm(resolve(config.root, path));
+    lines.push(`Removed ${shown}`);
+  }
+  for (const file of files) {
     const path = resolve(config.root, file.path);
     const shown = display(config.root, file.path);
     if (dryRun) {
@@ -549,12 +625,15 @@ export async function runSql(
           ).join("\n"),
         };
       }
-      const stale: string[] = [];
-      const diffs: string[] = [];
-      for (const file of renderKit(
-        config.sql.kit,
-        await layoutFor(config, args, config.sql.kit),
-      )) {
+      const kit = await layoutFor(config, args, config.sql.kit);
+      const files = renderKit(config.sql.kit, kit);
+      const stale: string[] = (
+        await staleKitTests(config, config.sql.kit, kit, files)
+      ).map((path) => display(config.root, path));
+      const diffs: string[] = stale.map(
+        (path) => `${path} is no longer written; \`sql sync\` removes it.`,
+      );
+      for (const file of files) {
         const current = await readFile(
           resolve(config.root, file.path),
           "utf8",

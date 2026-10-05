@@ -1154,6 +1154,7 @@
   },
   "./sql": {
     "values": [
+      "auditRegistrations",
       "compileReadSet",
       "compileReadSets",
       "contractSignature",
@@ -1179,6 +1180,7 @@
       "upgradePlan"
     ],
     "types": [
+      "AuditedTable",
       "CompiledReadSet",
       "InstalledKitModule",
       "KitAccessPermdock",
@@ -1192,6 +1194,7 @@
       "KitPermdock",
       "KitPermissionKey",
       "KitTableSpec",
+      "KitTestFile",
       "KitUpgrade",
       "KitUpgradePlan",
       "MigrationOptionUse",

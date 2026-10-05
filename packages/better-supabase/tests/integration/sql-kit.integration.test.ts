@@ -19,6 +19,7 @@ import { purgeAuditLog } from "../../src/jobs/jobs.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
+import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
 import { moduleBody, renderKit, SQL_MODULES } from "../../src/sql/kit.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { asUser } from "../../src/testing/as-user.ts";
@@ -1543,6 +1544,63 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     );
     for (const row of executable.rows)
       expect(row.allowed).toBe(row.role === "service_role");
+  });
+
+  it("passes the pgTAP file it writes for an audited table", async () => {
+    const name = `public.bs_audit_tap_${RUN}`;
+    const register = `select better_supabase.audit('${name}', ignore => '{updated_at}', redact => '{api_key}');`;
+    await pool.query(`
+      create table ${name} (
+        id bigint generated always as identity primary key,
+        organization_id uuid not null references public.organizations (id),
+        status public.note_kind not null,
+        api_key text not null check (api_key <> ''),
+        settings jsonb not null default '{}',
+        amount numeric(4, 2),
+        due date,
+        updated_at timestamptz not null default now()
+      );
+      ${register}
+    `);
+    const file = (tables: Parameters<typeof renderKit>[1]) =>
+      renderKit(["audit"], tables).find((entry) => entry.kind === "test")!;
+    const tap = async (contents: string): Promise<string[]> => {
+      const client = await pool.connect();
+      try {
+        const results = await client.query(contents);
+        return (Array.isArray(results) ? results : [results]).flatMap(
+          (result: { rows: Record<string, unknown>[] }) =>
+            result.rows.flatMap((row) => Object.values(row).map(String)),
+        );
+      } finally {
+        client.release();
+      }
+    };
+    try {
+      const passing = await tap(
+        file({ auditedTables: auditRegistrations([{ text: register }]) })
+          .contents,
+      );
+      expect(passing.filter((line) => /^not ok/m.test(line))).toEqual([]);
+      expect(passing.filter((line) => line.startsWith("ok "))).toHaveLength(7);
+      const drifted = await tap(
+        file({
+          auditedTables: [{ target: name, ignore: [], redact: ["status"] }],
+        }).contents,
+      );
+      expect(
+        drifted
+          .filter((line) => /^not ok/m.test(line))
+          .map((line) => line.split("\n")[0]),
+      ).toEqual([
+        `not ok 3 - ${name} is registered with its ignored columns`,
+        `not ok 4 - ${name} is registered with its redacted columns`,
+      ]);
+    } finally {
+      await pool.query(`select better_supabase.unaudit('${name}')`);
+      await pool.query(`drop table if exists ${name}`);
+      await pool.query(deleteAudit("table_name like $1"), ["pg_temp%"]);
+    }
   });
 
   it("redacts columns, names events and records idempotent semantic events", async () => {

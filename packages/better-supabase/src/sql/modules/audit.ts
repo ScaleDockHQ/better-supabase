@@ -9,6 +9,7 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 import { KIT_PERMISSIONS } from "./access-model.ts";
+import { auditTests } from "./audit-tests.ts";
 
 const NAMES: KitNames = {
   options: [
@@ -16,6 +17,7 @@ const NAMES: KitNames = {
     "eventCategory",
     "eventRoles",
     "eventSource",
+    "exempt",
     "impersonators",
     "readPolicy",
     "restricted",
@@ -826,4 +828,6 @@ export const AUDIT: KitModuleDefinition = {
     },
   ],
   build: auditSql,
+  tests: (ctx, layout) =>
+    auditTests(ctx, layout.auditedTables ?? [], restrictedOn(ctx)),
 };
