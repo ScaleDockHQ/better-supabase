@@ -100,4 +100,6 @@ Errors still fail the call after `report` runs.
 
 `db.$withoutPlugins()` returns the same connection with no plugins at all:
 no rules, tenant scoping, soft-delete filters or executor wrappers. Use it for
-migrations and admin scripts, never for user requests.
+migrations and admin scripts, never for user requests. Pass
+`{ keep: ['otel'] }` to keep tracing (or any plugin by name); a name that
+isn't installed throws, so a typo can't drop a plugin silently.

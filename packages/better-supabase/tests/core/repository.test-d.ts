@@ -216,6 +216,9 @@ describe("_count, $table and $withoutPlugins", () => {
     // @ts-expect-error unknown table
     void db.$table("nope");
     expectTypeOf(db.$withoutPlugins().tags).toHaveProperty("findMany");
+    expectTypeOf(db.$withoutPlugins({ keep: ["otel"] }).tags).toHaveProperty(
+      "findMany",
+    );
   });
 
   it("accepts the rules sensitive opt-in", () => {

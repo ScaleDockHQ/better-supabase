@@ -32,8 +32,17 @@ another version, and installing two plugins with the same name.
 
 Hooks receive `args` with the table metadata, the request context, the
 per-call options (any argument the repository does not know, like
-`withDeleted`) and the clock. Throw a `DbException` to fail the call with a
-typed error; nothing is sent.
+`withDeleted`), the clock and the caller's `signal` when it passed one. A hook
+that does I/O (a permission lookup, say) should pass `signal` on, so a
+cancelled request stops it. Throw a `DbException` to fail the call with a
+typed error; nothing is sent. Any other throw from `transformQuery` or
+`beforeMutation` fails the call too: the result is
+an `unexpected` error with the thrown message, the `table`, and `details`
+naming the plugin and hook (`plugin "audit" beforeMutation threw`), and the
+`error` event fires.
+
+`defineSupabase().use()` and `new BetterSupabase(schema, plugins)` both
+refuse a plugin with another `apiVersion` and two plugins with the same name.
 
 `context` runs once per `connect()` and `$with()`, in plugin order, and its
 result is the `db.$context` that every other hook, `db.$context` readers

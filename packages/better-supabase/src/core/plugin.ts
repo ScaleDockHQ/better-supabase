@@ -43,6 +43,8 @@ export interface HookArgs {
   readonly context: RequestContext;
   readonly options: CallOptions;
   readonly now: () => Temporal.Instant;
+  /** The caller's `signal`, when it passed one. Hooks that do I/O should honor it. */
+  readonly signal?: AbortSignal;
 }
 
 export type { MutationIntent, MutationKind };

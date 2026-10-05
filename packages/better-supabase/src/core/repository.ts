@@ -37,7 +37,7 @@ import {
   type MutationKind,
   type RequestContext,
 } from "./plugin.ts";
-import { AsyncResult, err, ok, type Result } from "./result.ts";
+import { AsyncResult, err, ok, type Result, toDbError } from "./result.ts";
 
 export interface Runtime {
   readonly meta: SchemaMeta;
@@ -203,13 +203,18 @@ export class OperationRunner {
     this.#hooks = hooksOf(runtime.plugins);
   }
 
-  hookArgs(table: TableMeta, options: CallOptions): HookArgs {
+  hookArgs(
+    table: TableMeta,
+    options: CallOptions,
+    signal?: AbortSignal,
+  ): HookArgs {
     return {
       table,
       schema: this.runtime.meta,
       context: this.runtime.context,
       options,
       now: this.runtime.now,
+      ...(signal ? { signal } : {}),
     };
   }
 
@@ -222,13 +227,17 @@ export class OperationRunner {
     const hooks = this.#hooks;
     let current = op;
     if (hooks.transformQuery.length > 0 || hooks.beforeMutation.length > 0) {
-      const hook = this.hookArgs(op.table, options);
+      const hook = this.hookArgs(op.table, options, signal);
+      let active = "";
       try {
-        for (const plugin of hooks.transformQuery)
+        for (const plugin of hooks.transformQuery) {
+          active = `plugin "${plugin.name}" transformQuery`;
           current = plugin.transformQuery!(current, hook);
+        }
         if (current.kind !== "select") {
           let mutation: MutationOp = current;
           for (const plugin of hooks.beforeMutation) {
+            active = `plugin "${plugin.name}" beforeMutation`;
             const next = plugin.beforeMutation!(mutation, hook);
             mutation = isThenable(next) ? await next : next;
           }
@@ -237,7 +246,10 @@ export class OperationRunner {
       } catch (cause) {
         if (cause instanceof DbException)
           return this.fail(op.table, cause.error);
-        throw cause;
+        return this.fail(op.table, {
+          ...toDbError(cause),
+          details: `${active} threw`,
+        });
       }
     }
 

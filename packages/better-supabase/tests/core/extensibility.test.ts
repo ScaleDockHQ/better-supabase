@@ -5,7 +5,7 @@ import type { Logger } from "../../src/core/logger.ts";
 
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineRepository } from "../../src/core/define-repository.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { BetterSupabase, defineSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
 import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
@@ -204,5 +204,99 @@ describe("defineRepository", () => {
     expect(() => defineRepository(base, "nope", () => ({}))).toThrow(
       /unknown table "nope"/,
     );
+  });
+});
+
+describe("pipeline consistency", () => {
+  it("passes the caller's signal to transformQuery and beforeMutation", async () => {
+    const seen: (AbortSignal | undefined)[] = [];
+    const db = defineSupabase(schema)
+      .use(
+        definePlugin({
+          name: "spy",
+          transformQuery: (op, { signal }) => {
+            seen.push(signal);
+            return op;
+          },
+          beforeMutation: (op, { signal }) => {
+            seen.push(signal);
+            return op;
+          },
+        }),
+      )
+      .connect(echo());
+    const controller = new AbortController();
+    await db.tags
+      .create(
+        { id: "t1", name: "a", organizationId: ACME },
+        { signal: controller.signal },
+      )
+      .orThrow();
+    await db.tags.findMany({ limit: 1 }).orThrow();
+    expect(seen).toEqual([controller.signal, controller.signal, undefined]);
+  });
+
+  it("reports a hook's unexpected throw as an error result with the table and plugin", async () => {
+    const errors: unknown[] = [];
+    const betterSupabase = defineSupabase(schema).use(
+      definePlugin({
+        name: "buggy",
+        beforeMutation: () => {
+          throw new TypeError("cannot read x");
+        },
+      }),
+    );
+    betterSupabase.on("error", (event) => errors.push(event));
+    const result = await betterSupabase
+      .connect(echo())
+      .tags.create({ id: "t1", name: "a", organizationId: ACME });
+    expect(result.ok ? undefined : result.error).toMatchObject({
+      kind: "unexpected",
+      message: "cannot read x",
+      table: "tags",
+      details: 'plugin "buggy" beforeMutation threw',
+    });
+    expect(errors).toEqual([
+      expect.objectContaining({
+        table: "tags",
+        error: expect.objectContaining({ kind: "unexpected" }),
+      }),
+    ]);
+  });
+
+  it("keeps the named plugins in $withoutPlugins and refuses unknown names", async () => {
+    const calls: string[] = [];
+    const named = (name: string) =>
+      definePlugin({
+        name,
+        transformQuery: (op) => {
+          calls.push(name);
+          return op;
+        },
+      });
+    const db = defineSupabase(schema)
+      .use(named("trace"))
+      .use(named("scope"))
+      .connect(echo());
+    await db
+      .$withoutPlugins({ keep: ["trace"] })
+      .tags.findMany()
+      .orThrow();
+    await db.$withoutPlugins().tags.findMany().orThrow();
+    expect(calls).toEqual(["trace"]);
+    expect(() => db.$withoutPlugins({ keep: ["trcae"] })).toThrow(
+      '$withoutPlugins({ keep }) names "trcae", which is not installed',
+    );
+  });
+
+  it("validates plugins in the constructor, not only in use()", () => {
+    const plugin = definePlugin({ name: "twice" });
+    expect(
+      () => new BetterSupabase(defineSupabase(schema).schema, [plugin, plugin]),
+    ).toThrow('plugin "twice" is already installed');
+    const future = { ...plugin, name: "future", apiVersion: 2 } as never;
+    expect(
+      () => new BetterSupabase(defineSupabase(schema).schema, [future]),
+    ).toThrow('plugin "future" targets plugin API v2');
   });
 });

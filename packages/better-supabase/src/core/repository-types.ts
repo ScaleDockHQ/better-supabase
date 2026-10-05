@@ -294,8 +294,12 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   /**
    * Same connection without plugins: no tenant scoping, soft-delete filters,
    * timestamps, rules or executor wrappers. For migrations and admin tools.
+   * `keep` names plugins to leave installed, such as tracing (`keep: ["otel"]`);
+   * a name that isn't installed throws a `TypeError`.
    */
-  $withoutPlugins(): Db<M, F, unknown, C>;
+  $withoutPlugins(options?: {
+    readonly keep?: readonly string[];
+  }): Db<M, F, unknown, C>;
   /**
    * The repository for a table named at runtime (MCP tools, admin screens).
    * Throws a `TypeError` for unknown names.

@@ -47,7 +47,8 @@ Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`
 - `db.$table(name)` returns the repository for a table key known only at
   runtime, and throws a `TypeError` for unknown names.
 - `db.$withoutPlugins()` returns the same connection without any plugins,
-  for migrations and admin scripts.
+  for migrations and admin scripts. `db.$withoutPlugins({ keep: ['otel'] })`
+  keeps the named plugins, such as tracing.
 - `db.$run(spec)` runs a serializable [query spec](/docs/concepts/caching#query-specs).
 - `db.$many([specA, specB])` runs specs together and returns a tuple;
   `db.$many(readSet, params)` runs a [read set](/docs/repository/read-sets)

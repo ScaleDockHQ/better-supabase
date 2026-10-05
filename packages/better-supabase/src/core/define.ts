@@ -118,6 +118,21 @@ function isExecutor(value: unknown): value is Executor {
   );
 }
 
+/** The installed plugins named in `keep`; a name that isn't installed throws, so a typo can't drop tracing silently. */
+function keptPlugins(
+  plugins: readonly AnyPlugin[],
+  keep: readonly string[],
+): readonly AnyPlugin[] {
+  for (const name of keep) {
+    if (!plugins.some((plugin) => plugin.name === name)) {
+      throw new TypeError(
+        `better-supabase: $withoutPlugins({ keep }) names "${name}", which is not installed. Installed: ${plugins.map((plugin) => plugin.name).join(", ") || "none"}`,
+      );
+    }
+  }
+  return plugins.filter((plugin) => keep.includes(plugin.name));
+}
+
 /**
  * The isomorphic definition of your data layer: schema plus plugins. Holds no
  * secrets and no connection; `connect()` binds it to a client per request.
@@ -141,6 +156,21 @@ export class BetterSupabase<
     options: SupabaseOptions = {},
     events: EventHub = new EventHub(options.logger),
   ) {
+    const names = new Set<string>();
+    for (const plugin of plugins) {
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- plugins from JavaScript can target another API version.
+      if (plugin.apiVersion !== 1) {
+        throw new TypeError(
+          `better-supabase: plugin "${plugin.name}" targets plugin API v${String(plugin.apiVersion)}; this version supports v1`,
+        );
+      }
+      if (names.has(plugin.name)) {
+        throw new TypeError(
+          `better-supabase: plugin "${plugin.name}" is already installed`,
+        );
+      }
+      names.add(plugin.name);
+    }
     this.schema = schema;
     this.plugins = orderPlugins(plugins);
     this.options = options;
@@ -282,17 +312,6 @@ export class BetterSupabase<
   use<Q extends AnyPlugin>(
     plugin: Q,
   ): BetterSupabase<M, D, F, WithExtension<E, ExtensionOf<Q>>, C, P> {
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- plugins from JavaScript can target another API version.
-    if (plugin.apiVersion !== 1) {
-      throw new TypeError(
-        `better-supabase: plugin "${plugin.name}" targets plugin API v${String(plugin.apiVersion)}; this version supports v1`,
-      );
-    }
-    if (this.plugins.some((existing) => existing.name === plugin.name)) {
-      throw new TypeError(
-        `better-supabase: plugin "${plugin.name}" is already installed`,
-      );
-    }
     return new BetterSupabase(
       this.schema,
       [...this.plugins, plugin],
@@ -464,7 +483,14 @@ export class BetterSupabase<
         }),
       $with: (extra: RequestContext) =>
         this.#db(client, base, { ...given, ...extra }, plugins, recorder),
-      $withoutPlugins: () => this.#db(client, base, given, [], recorder),
+      $withoutPlugins: (options?: { readonly keep?: readonly string[] }) =>
+        this.#db(
+          client,
+          base,
+          given,
+          keptPlugins(plugins, options?.keep ?? []),
+          recorder,
+        ),
       $stats: () => recorder.snapshot(),
       $table: (name: string) => {
         if (!Object.hasOwn(this.meta.tables, name)) {
