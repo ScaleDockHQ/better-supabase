@@ -7,6 +7,7 @@ export type Integration =
   | "hono"
   | "orpc"
   | "edge"
+  | "expo"
   | "mcp"
   | "client"
   | "react";
@@ -16,6 +17,7 @@ export const INTEGRATIONS: readonly Integration[] = [
   "hono",
   "orpc",
   "edge",
+  "expo",
   "mcp",
   "client",
   "react",
@@ -159,17 +161,19 @@ export default defineConfig({
   if (!lib) return [config];
   const path = libEntry(context);
   const generated = importFrom(context, path, context.generated);
+  // Hermes has no Temporal, and patching the global breaks other libraries.
+  const expo = context.frameworks.includes("expo");
   return [
     config,
     {
       path,
       contents: `import { defineSupabase } from 'better-supabase';
-
+${expo ? "import { Temporal } from 'temporal-polyfill';\n" : ""}
 import { schema } from '${generated}';
 
 export type { Functions, Models } from '${generated}';
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = defineSupabase(schema${expo ? ", { temporal: Temporal }" : ""});
 `,
     },
   ];
@@ -363,6 +367,65 @@ Deno.serve(bs.handler((_request, { auth }) => ({ kind: auth.kind })));
     ],
     next: ["Serve it locally with `supabase functions serve api`."],
   },
+  expo: {
+    description:
+      "Expo Router server loaders, API routes and middleware, and a native client",
+    requires: ["client"],
+    packages: [
+      "expo-server",
+      "expo-secure-store",
+      "@supabase/supabase-js",
+      "temporal-polyfill",
+    ],
+    files: (context) => {
+      const server = join(supabaseDir(context), "expo.ts");
+      const native = join(supabaseDir(context), "client.native.ts");
+      const middleware = join(context.srcDir, "app", "+middleware.ts");
+      const env = publicEnv(context);
+      return [
+        {
+          path: server,
+          contents: `import { createExpo } from 'better-supabase/expo';
+
+import { betterSupabase } from '${importLib(context, server)}';
+
+export const bs = createExpo(betterSupabase);
+`,
+        },
+        {
+          path: native,
+          contents: `import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createNativeClient, secureStorage } from 'better-supabase/client/native';
+import * as SecureStore from 'expo-secure-store';
+
+import { betterSupabase } from '${importLib(context, native)}';
+
+const supabase = createSupabaseClient(${env.url}, ${env.key}, {
+  auth: {
+    storage: secureStorage(SecureStore),
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
+
+export const bs = createNativeClient(betterSupabase, supabase);
+`,
+        },
+        {
+          path: middleware,
+          contents: `import { bs } from '${importFrom(context, middleware, server)}';
+
+export default bs.middleware();
+`,
+        },
+      ];
+    },
+    next: [
+      "Load data as the caller with `export const loader = bs.loader((ctx) => ctx.db.customers.findMany())`.",
+      "Metro picks `client.native.ts` on iOS and Android and `client.ts` (cookie sessions) on the web.",
+    ],
+  },
   mcp: {
     description: "An MCP server (Streamable HTTP) as an Edge Function",
     requires: [],
@@ -433,8 +496,10 @@ export function suggestedIntegrations(
         names.push("orpc");
         break;
       case "vite":
-      case "expo":
         names.push("client");
+        break;
+      case "expo":
+        names.push("expo");
         break;
       case "tanstack-query":
         names.push("react");

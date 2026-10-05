@@ -1,6 +1,11 @@
-import type { GeneratorMetadata } from "@supabase/postgrest-typegen";
+import type { GeneratorMetadata } from "./generator-metadata.ts";
 
-export type { GeneratorMetadata };
+export type {
+  GeneratorMetadata,
+  PostgresColumn,
+  PostgresFunction,
+  PostgresFunctionArg,
+} from "./generator-metadata.ts";
 
 /**
  * What `better-supabase introspect` reads from Postgres. `generator` is the

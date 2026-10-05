@@ -57,13 +57,14 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 
 ## Adapters
 
-| Where          | Setup                                                           | Handler                                                                                  |
-| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`        | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
-| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())` | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
-| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`       | `bs.unwrap(context.db.customers.findMany(...))`                                          |
-| Edge Functions | `createEdge(betterSupabase, { cors: true })`                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
-| MCP            | `createMcp(betterSupabase, { name, version, resources })`       | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
+| Where          | Setup                                                                 | Handler                                                                                  |
+| -------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`              | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
+| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`       | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
+| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`             | `bs.unwrap(context.db.customers.findMany(...))`                                          |
+| Expo Router    | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()` | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`       |
+| Edge Functions | `createEdge(betterSupabase, { cors: true })`                          | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
+| MCP            | `createMcp(betterSupabase, { name, version, resources })`             | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
 
 Don't build error JSON by hand; errors become Problem Details.
 
@@ -85,6 +86,14 @@ for lists that clients read page by page: the list takes `after` instead of
 - `authorize(ctx, tool, args)` refuses a call (`{ allowed: false, reason, scopes }`; with `scopes` it is a 403 `insufficient_scope`). `visible(ctx, tool)` hides tools from `tools/list`. Put a permission or a label in a tool's `meta`; clients never see it.
 - `scopes` on `createMcp` only advertises scopes. Refuse calls in `authorize`, reading `toSession(ctx.auth).delegation?.scopes`.
 - Set `allowedOrigins` and `allowedHosts` (every host the server answers on, previews and local included) against DNS rebinding, and `resourceDocumentation` to a page that explains how to connect.
+- On the official MCP SDK, keep its `McpServer`: `createMcpAuth(betterSupabase, { resource })` from `better-supabase/mcp/sdk` verifies the token and serves the metadata (`auth.serve(createMcpHandler(factory))`), and `withBetterSupabase(server, auth)` gives every `registerTool` callback `db`, `auth` and `bs`. With PermDock, wrap `protectServer` first, then `withBetterSupabase`.
+
+## Native and offline apps
+
+For Expo and React Native, follow [references/expo.md](references/expo.md):
+server loaders for the web, `better-supabase/client/native` on the device.
+To read and write offline, run the same repositories on a PowerSync database
+and upload through `bs.db`, as in [references/powersync.md](references/powersync.md).
 
 ## Background work (`better-supabase/jobs`, needs `sql add jobs idempotency webhook-inbox`)
 
@@ -93,7 +102,7 @@ for lists that clients read page by page: the list takes `after` instead of
 - `createInbox(postgres.admin, { source, secrets }).receive(request)` for webhooks; `process(handler)` later.
 - Times are `Temporal.Instant`: `EnqueueOptions.runAt`, `Job.enqueuedAt`, `Job.visibleUntil`, `InboxMessage.receivedAt` and webhook timestamps.
 - Schedule cleanup with pg_cron at a quiet hour: `better_supabase.purge_job_archive('<queue>')`, `purge_webhooks()`, `purge_audit_log()`, `purge_idempotency_keys()`, `purge_rate_limits()`, `purge_outbox()`, `purge_notifications()` and `purge_webhook_deliveries()`, for the modules you installed. Only `service_role` can execute them.
-- Audit a table with `better_supabase.audit('public.t', redact => '{secret}', event_prefix => 't')`; record non-row events with `better_supabase.audit_event(event_type, ...)` and an `idempotency_key`. For per-tenant retention, write an `audit_retention(tenant)` SQL function or call `purgeAuditLog(sql, { retention })` from `better-supabase/jobs`.
+- Audit a table with `better_supabase.audit('public.t', redact => '{secret}', event_prefix => 't')`; record non-row events with `better_supabase.audit_event(event_type, ...)` and an `idempotency_key`. For per-tenant retention, write an `audit_retention(tenant)` SQL function or call `purgeAuditLog(sql, { retention })` from `better-supabase/jobs`. `sql sync` writes a pgTAP file per audited table, and doctor BS315 lists tables without the trigger; exempt the rest with `kits.audit.options.exempt` globs.
 - For a "view as user" support mode, add the `support-sessions` SQL module, pass `support: supportSessions({ store: sqlSupportStore(postgres) })` to `createServer`, call `bs.startSupport({ targetUserId, reason })` and `bs.stopSupport()` from server actions, and show a banner with `useSupportSession()`. Sessions are read-only by default; grant admins the `support.start` platform permission.
 - For teams, add the `organizations` and `invitations` SQL modules and call them through `createOrgs({ transport: sqlTransport(postgres.asUser(claims)), events: betterSupabase.events, onInvite })` from `better-supabase/orgs`. Send the invitation email in `onInvite`, show `previewInvitation(token)` on the accept page, and switch with `orgs.switch(id)`, refreshing the session when it returns `refresh: true`. Errors carry codes such as `ORG_SLUG_TAKEN` in `hint`. Existing tables work with `mode: 'adopt'`.
 - For user profiles, add the `profiles` SQL module: sign-up creates the row from auth metadata with a unique username and mirrors the email; users update only the `updatable` columns. Adopt an existing table with `mode: 'adopt'` and `syncTrigger: false` when your own trigger creates profiles. Use `avatarBucket()` and `orgLogoBucket()` from `better-supabase/storage` for uploads; `policy: { access: { read, write } }` checks any bucket through the access contract.
@@ -117,6 +126,7 @@ Sign tokens with `signLocalJwt` or `asUser` from `better-supabase/testing`;
 the adapter verifies them against the local JWKS. See the `better-supabase-testing` skill.
 
 Docs: https://bettersupabase.com/docs/frameworks/hono.md (and `next`,
-`orpc`, `edge`, `mcp` under `/docs/frameworks/`),
+`orpc`, `expo`, `edge`, `mcp` under `/docs/frameworks/`),
+https://bettersupabase.com/docs/repository/powersync.md,
 https://bettersupabase.com/docs/kits/jobs.md and
 https://bettersupabase.com/docs/auth/postgres.md.

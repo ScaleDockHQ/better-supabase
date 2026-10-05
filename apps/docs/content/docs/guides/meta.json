@@ -5,6 +5,7 @@
     "supabase-blocks",
     "data-api-grants",
     "read-replicas",
+    "offline-first",
     "limitations"
   ]
 }

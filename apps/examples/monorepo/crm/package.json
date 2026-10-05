@@ -1,0 +1,22 @@
+{
+  "name": "@better-supabase/example-monorepo-crm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A domain package that types its repositories from the runtime's Db.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/example-monorepo-runtime": "workspace:*",
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

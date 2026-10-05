@@ -1,7 +1,7 @@
 create table public.customers (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
-  name text not null,
+  name text not null check (char_length(name) between 1 and 200),
   kvk text,
   status text not null default 'lead' check (status in ('lead', 'active', 'archived')),
   primary_contact_id uuid,
@@ -23,6 +23,12 @@ create table public.customers (
   constraint customers_primary_contact_id_fkey foreign key (primary_contact_id, organization_id)
     references public.contacts (id, organization_id) on delete set null (primary_contact_id)
 );
+
+comment on table public.customers is 'Companies the organization sells to.';
+comment on column public.customers.name is 'Trading name.
+@example "Acme B.V."';
+comment on column public.customers.kvk is 'Chamber of Commerce (KvK) number.
+@example "12345678"';
 
 create index customers_primary_contact_id_idx on public.customers (primary_contact_id, organization_id);
 create index customers_organization_id_created_by_idx on public.customers (organization_id, created_by);

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
     "contactsRow": {
+      "title": "Contacts",
       "type": "object",
       "properties": {
         "id": {
@@ -43,6 +44,7 @@
       "additionalProperties": false
     },
     "contactsInsert": {
+      "title": "Contacts insert",
       "type": "object",
       "properties": {
         "id": {
@@ -80,6 +82,7 @@
       "additionalProperties": false
     },
     "contactsUpdate": {
+      "title": "Contacts update",
       "type": "object",
       "properties": {
         "id": {
@@ -113,6 +116,7 @@
       "additionalProperties": false
     },
     "customerTagsRow": {
+      "title": "Customer tags",
       "type": "object",
       "properties": {
         "customerId": {
@@ -142,6 +146,7 @@
       "additionalProperties": false
     },
     "customerTagsInsert": {
+      "title": "Customer tags insert",
       "type": "object",
       "properties": {
         "customerId": {
@@ -170,6 +175,7 @@
       "additionalProperties": false
     },
     "customerTagsUpdate": {
+      "title": "Customer tags update",
       "type": "object",
       "properties": {
         "customerId": {
@@ -193,6 +199,8 @@
       "additionalProperties": false
     },
     "customersRow": {
+      "title": "Customers",
+      "description": "Companies the organization sells to.",
       "type": "object",
       "properties": {
         "id": {
@@ -204,12 +212,22 @@
           "format": "uuid"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Trading name.",
+          "examples": [
+            "Acme B.V."
+          ]
         },
         "kvk": {
           "type": [
             "string",
             "null"
+          ],
+          "description": "Chamber of Commerce (KvK) number.",
+          "examples": [
+            "12345678"
           ]
         },
         "status": {
@@ -287,6 +305,8 @@
       "additionalProperties": false
     },
     "customersInsert": {
+      "title": "Customers insert",
+      "description": "Companies the organization sells to.",
       "type": "object",
       "properties": {
         "id": {
@@ -298,12 +318,22 @@
           "format": "uuid"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Trading name.",
+          "examples": [
+            "Acme B.V."
+          ]
         },
         "kvk": {
           "type": [
             "string",
             "null"
+          ],
+          "description": "Chamber of Commerce (KvK) number.",
+          "examples": [
+            "12345678"
           ]
         },
         "status": {
@@ -370,6 +400,8 @@
       "additionalProperties": false
     },
     "customersUpdate": {
+      "title": "Customers update",
+      "description": "Companies the organization sells to.",
       "type": "object",
       "properties": {
         "id": {
@@ -381,12 +413,22 @@
           "format": "uuid"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Trading name.",
+          "examples": [
+            "Acme B.V."
+          ]
         },
         "kvk": {
           "type": [
             "string",
             "null"
+          ],
+          "description": "Chamber of Commerce (KvK) number.",
+          "examples": [
+            "12345678"
           ]
         },
         "status": {
@@ -449,6 +491,7 @@
       "additionalProperties": false
     },
     "locationsRow": {
+      "title": "Locations",
       "type": "object",
       "properties": {
         "id": {
@@ -499,6 +542,7 @@
       "additionalProperties": false
     },
     "locationsInsert": {
+      "title": "Locations insert",
       "type": "object",
       "properties": {
         "id": {
@@ -544,6 +588,7 @@
       "additionalProperties": false
     },
     "locationsUpdate": {
+      "title": "Locations update",
       "type": "object",
       "properties": {
         "id": {
@@ -584,6 +629,7 @@
       "additionalProperties": false
     },
     "notesRow": {
+      "title": "Notes",
       "type": "object",
       "properties": {
         "id": {
@@ -640,6 +686,7 @@
       "additionalProperties": false
     },
     "notesInsert": {
+      "title": "Notes insert",
       "type": "object",
       "properties": {
         "organizationId": {
@@ -687,6 +734,7 @@
       "additionalProperties": false
     },
     "notesUpdate": {
+      "title": "Notes update",
       "type": "object",
       "properties": {
         "organizationId": {
@@ -729,6 +777,7 @@
       "additionalProperties": false
     },
     "notificationsRow": {
+      "title": "Notifications",
       "type": "object",
       "properties": {
         "id": {
@@ -775,6 +824,7 @@
       "additionalProperties": false
     },
     "notificationsInsert": {
+      "title": "Notifications insert",
       "type": "object",
       "properties": {
         "organizationId": {
@@ -813,6 +863,7 @@
       "additionalProperties": false
     },
     "notificationsUpdate": {
+      "title": "Notifications update",
       "type": "object",
       "properties": {
         "organizationId": {
@@ -847,6 +898,7 @@
       "additionalProperties": false
     },
     "organizationsRow": {
+      "title": "Organizations",
       "type": "object",
       "properties": {
         "id": {
@@ -880,6 +932,7 @@
       "additionalProperties": false
     },
     "organizationsInsert": {
+      "title": "Organizations insert",
       "type": "object",
       "properties": {
         "id": {
@@ -910,6 +963,7 @@
       "additionalProperties": false
     },
     "organizationsUpdate": {
+      "title": "Organizations update",
       "type": "object",
       "properties": {
         "id": {
@@ -936,6 +990,7 @@
       "additionalProperties": false
     },
     "tagsRow": {
+      "title": "Tags",
       "type": "object",
       "properties": {
         "id": {
@@ -980,6 +1035,7 @@
       "additionalProperties": false
     },
     "tagsInsert": {
+      "title": "Tags insert",
       "type": "object",
       "properties": {
         "id": {
@@ -1020,6 +1076,7 @@
       "additionalProperties": false
     },
     "tagsUpdate": {
+      "title": "Tags update",
       "type": "object",
       "properties": {
         "id": {

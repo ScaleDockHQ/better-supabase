@@ -2,9 +2,11 @@
   "name": "@better-supabase/example-orpc-api",
   "version": "0.0.0",
   "private": true,
-  "description": "An oRPC router with typed context and ORPCError mapping.",
+  "description": "An oRPC router with typed context and ORPCError mapping, plus a contract-first OpenAPI server on Hono.",
   "type": "module",
   "exports": {
+    "./contract": "./src/contract.ts",
+    "./contract-server": "./src/contract-server.ts",
     "./router": "./src/router.ts"
   },
   "scripts": {
@@ -15,10 +17,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "better-supabase": "workspace:*",
+    "hono": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {

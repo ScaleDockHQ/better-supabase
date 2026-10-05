@@ -103,6 +103,7 @@ const customers = result.data;
 ```
 
 - Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted.
+- Apps on better-result: `toBetterResult(result, Result, mapError)` converts at the boundary, and `defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure)` maps `DbError` kinds to `TaggedError` classes once. Annotate the expected `Result<T, E>` type instead of casting.
 - Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, and `queryRaw` on the `better-supabase/postgres` clients) use database names.
 - Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.
 - Page lists with a cursor: `paginate({ after: null, size: 25, orderBy })`, then pass `nextCursor` back as `after` with the same `orderBy` and `where`. Use `page` numbers only when users jump to a page and need a total, and `paginate({ offset, limit, count: 'exact' })` when the caller already has an offset; both return the rows and the total in one request.

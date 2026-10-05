@@ -1,0 +1,107 @@
+---
+title: Offline-first
+description: Read and write on the device with PowerSync, and upload the changes through the repositories.
+---
+
+An offline-first app keeps two sets of repositories over the same
+definition:
+
+- `local`: [`powersyncExecutor`](/docs/repository/powersync) over the PowerSync
+  database. Screens read and write here, online or not.
+- `bs.db`: the [React Native client](/docs/frontend/react-native) over
+  PostgREST, as the signed-in user. Only the upload path uses it.
+
+PowerSync syncs rows down and queues local writes. Its connector's
+`uploadData` sends the queue to your backend; replaying each change through
+`bs.db` means RLS, plugins and validation run on it, exactly as for an online
+write.
+
+## Upload through the repositories
+
+Each queued change has an `op`: `PUT` (insert or replace), `PATCH` (update the
+changed columns) or `DELETE`. Map each one to a repository call:
+
+```ts title="src/lib/powersync/connector.ts"
+import {
+  type CrudEntry,
+  type PowerSyncBackendConnector,
+  UpdateType,
+} from "@powersync/react-native";
+import { bs, supabase } from "../supabase/native";
+
+function upload(entry: CrudEntry) {
+  const customers = bs.db.customers;
+  const data = entry.opData ?? {};
+  switch (entry.op) {
+    case UpdateType.PUT:
+      return customers.upsert({ ...data, id: entry.id } as never);
+    case UpdateType.PATCH:
+      return customers.update(entry.id, data);
+    case UpdateType.DELETE:
+      return customers.delete(entry.id);
+    default: {
+      const unhandled: never = entry.op;
+      throw new TypeError(`Unhandled op ${String(unhandled)}`);
+    }
+  }
+}
+
+export const connector: PowerSyncBackendConnector = {
+  async fetchCredentials() {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return null;
+    return {
+      endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+      token: data.session.access_token,
+    };
+  },
+  async uploadData(database) {
+    const transaction = await database.getNextCrudTransaction();
+    if (!transaction) return;
+    for (const entry of transaction.crud) {
+      const result = await upload(entry);
+      if (!result.ok && retry(result.error))
+        throw new Error(result.error.message);
+      if (!result.ok) refused(entry, result.error);
+    }
+    await transaction.complete();
+  },
+};
+```
+
+With more than one table, switch on `entry.table` first. `opData` holds the
+columns as SQLite stored them, under their database names; with
+`casing: 'camel'`, rename them to the app keys before the call.
+
+## Retry, discard or surface a conflict
+
+A failed upload returns a [`DbError`](/docs/concepts/results). Its `kind`
+decides what happens to the change:
+
+| Kind                                                                                           | Do                                                                  |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `network`, `timeout`, `aborted`, `rate_limited`, `serialization`, `unauthorized`, `unexpected` | throw: PowerSync keeps the transaction and calls `uploadData` again |
+| `conflict`, `stale`, `foreign_key`                                                             | complete it and show the conflict next to the row                   |
+| `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                       | complete it; the server will never accept it                        |
+
+Throwing for a change the server will never accept blocks the queue for
+good, so the kinds that can't succeed on a retry must complete. Completing
+removes the change from the queue, and the next sync replaces the local row
+with the server's version, so the device ends up where the server is.
+
+## Conflicts
+
+The server's row wins once the change is gone from the queue. To keep the
+user's edit, record the refused change (its `entry.opData` and the error) in
+a local-only table or in memory, show it on the row, and let the user apply
+it again as a new write. A `conflict` error carries the `constraint` and
+`columns` that rejected it, which is enough to point at the field.
+
+For edits that must not overwrite a newer server row, record the
+`updated_at` the user saw and pass it as `expect`:
+`customers.update(id, data, { expect: { updated_at: seenAt } })` returns a
+`stale` error when someone else changed the row first, and the user decides.
+
+The [Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
+has the full connector, with every error kind sorted into one of the three
+outcomes.

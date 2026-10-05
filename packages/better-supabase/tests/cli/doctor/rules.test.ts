@@ -849,6 +849,87 @@ describe("migration-only kit options (BS314)", () => {
   });
 });
 
+describe("tables without an audit trigger (BS315)", () => {
+  const publicTables = toCatalog(base)
+    .tables.filter(
+      (entry) => entry.schema === "public" && entry.kind === "table",
+    )
+    .map((entry) => `public.${entry.name}`);
+
+  it("lists tables in schemas without the bs_audit trigger", async () => {
+    const audited = snapshot((tables) => {
+      table(tables, "customers").triggers = [
+        {
+          name: "bs_audit",
+          timing: "after",
+          events: ["insert", "update", "delete"],
+          level: "row",
+          function: "better_supabase.audit_row_change",
+        },
+      ];
+      table(tables, "notes").triggers = [
+        {
+          name: "audit_notes",
+          timing: "after",
+          events: ["insert", "update", "delete"],
+          level: "row",
+          function: "better_supabase.audit_row_change",
+        },
+      ];
+    });
+    const findings = await run(
+      "BS315",
+      context(audited, {}, { sql: { kit: ["audit"] } }),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual(
+      publicTables.filter(
+        (name) => name !== "public.customers" && name !== "public.notes",
+      ),
+    );
+    expect(findings[0]).toMatchObject({
+      severity: "warning",
+      object: { kind: "table", schema: "public" },
+    });
+    expect(findings[0]!.message).toContain(
+      "or list it in kits.audit.options.exempt",
+    );
+  });
+
+  it("skips exempt globs, adopted kit tables and projects without the module", async () => {
+    const [first = "", ...rest] = publicTables;
+    expect(
+      await run(
+        "BS315",
+        context(
+          base,
+          {},
+          {
+            sql: { kit: ["audit"] },
+            kits: {
+              audit: { options: { exempt: rest } },
+              tenant: { mode: "adopt", tables: { memberships: first } },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS315",
+        context(
+          base,
+          {},
+          {
+            sql: { kit: ["audit"] },
+            kits: { audit: { options: { exempt: ["public.*"] } } },
+          },
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS315", context(base))).toEqual([]);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {

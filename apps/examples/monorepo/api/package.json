@@ -1,0 +1,28 @@
+{
+  "name": "@better-supabase/example-monorepo-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Hono app that passes the caller's db to the crm and billing packages.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-supabase/example-monorepo-billing": "workspace:*",
+    "@better-supabase/example-monorepo-crm": "workspace:*",
+    "@better-supabase/example-monorepo-runtime": "workspace:*",
+    "better-supabase": "workspace:*",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -24,10 +24,13 @@ export type {
   KitLayout,
   KitPermdock,
   KitPermissionKey,
+  KitTestFile,
   KitUpgrade,
   KitUpgradePlan,
   SqlModule,
 } from "./kit.ts";
+export { auditRegistrations } from "./audit-registrations.ts";
+export type { AuditedTable } from "./audit-registrations.ts";
 export { contractSignature } from "./context.ts";
 export type {
   KitContext,

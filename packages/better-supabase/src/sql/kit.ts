@@ -1,5 +1,6 @@
 import type { KitMode, KitsConfig } from "../config/kits.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
+import type { AuditedTable } from "./audit-registrations.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -106,6 +107,18 @@ export interface SqlModule {
    * (`sql data`) instead of the schema file.
    */
   readonly data?: (ctx: KitContext, layout: KitLayout) => string;
+  /** pgTAP files for this layout, written to the tests folder next to the `pgtap` module's. */
+  readonly tests?: (
+    ctx: KitContext,
+    layout: KitLayout,
+  ) => readonly KitTestFile[];
+}
+
+/** A pgTAP file a module writes for the layout, e.g. one per audited table. */
+export interface KitTestFile {
+  /** The file name's suffix, after the module's slug. */
+  readonly name: string;
+  readonly sql: string;
 }
 
 export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
@@ -1443,6 +1456,8 @@ export interface KitLayout {
   readonly prefix?: string;
   /** Directory for pgTAP files. Defaults to `supabase/tests`. */
   readonly testsDir?: string;
+  /** The `better_supabase.audit(...)` calls in the SQL files: the `audit` module writes a pgTAP file per table. */
+  readonly auditedTables?: readonly AuditedTable[];
   /** Version stamped into the header. */
   readonly version?: string;
   /** `config.realtime.tables`: registered at the end of the `realtime-tables` module. */
@@ -2062,6 +2077,13 @@ export function renderKit(
       "-- after the schema migration to put them in a migration.",
       ...managed,
     ].join("\n");
+    const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
+    const slug = module.name.replaceAll("-", "_");
+    const testHeader = [
+      title,
+      `-- @bs-kit-test ${module.name}`,
+      ...managed,
+    ].join("\n");
     return [
       {
         module: module.name,
@@ -2075,6 +2097,12 @@ export function renderKit(
         path: kitDataPath(module, layout),
         contents: `${dataHeader}\n\n${data}\n`,
       },
+      ...(module.tests?.(ctx, layout) ?? []).map((test): KitFile => ({
+        module: module.name,
+        kind: "test",
+        path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
+        contents: `${testHeader}\n\n${test.sql.trim()}\n`,
+      })),
     ];
   });
 }

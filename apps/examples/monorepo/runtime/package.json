@@ -1,0 +1,28 @@
+{
+  "name": "@better-supabase/example-monorepo-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The one package that owns defineSupabase, the generated client and the context types.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/server": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "better-supabase": "workspace:*"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

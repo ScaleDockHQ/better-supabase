@@ -11,11 +11,15 @@ description: Install better-supabase, generate your schema and run your first ty
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D pg
+pnpm add -D pg @supabase/postgrest-typegen@0.4.0
 ```
 
-The `better-supabase` command ships in the `better-supabase` package. `pg` is
-only used by the CLI to read your database schema. TypeScript 6 and 7 are
+The `better-supabase` command ships in the `better-supabase` package. `pg` and
+`@supabase/postgrest-typegen` are optional peers that only the CLI loads: `pg`
+reads your database schema, and postgrest-typegen writes `database.types.ts`.
+Keep postgrest-typegen at the version above, which the CLI's output is tested
+against; without it, `gen`, `introspect` and `doctor` stop with the install
+command. TypeScript 6 and 7 are
 supported, with `nodenext` or
 `bundler` module resolution. On runtimes without a native `Temporal` (Node 24,
 Safari), install `temporal-polyfill` and import `temporal-polyfill/global`

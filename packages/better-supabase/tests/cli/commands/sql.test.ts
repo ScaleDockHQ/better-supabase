@@ -152,6 +152,41 @@ describe("runSql", () => {
     });
   });
 
+  it("writes a pgTAP file per audited table and removes the ones it no longer writes", async () => {
+    const config: BetterSupabaseConfig = { sql: { kit: ["audit"] } };
+    const schemas = join(root, "supabase/schemas");
+    const migrations = join(root, "supabase/migrations");
+    await mkdir(schemas, { recursive: true });
+    await mkdir(migrations, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "select better_supabase.audit('public.customers', ignore => '{updated_at}');\nselect better_supabase.audit('public.notes');\n",
+    );
+    await writeFile(
+      join(migrations, "20260101000000_unaudit.sql"),
+      "select better_supabase.unaudit('public.notes');\n",
+    );
+    const test =
+      "supabase/tests/900_better_supabase_audit_public_customers.test.sql";
+    const synced = await sql(["sync"], config);
+    expect(synced.output).toContain(`Wrote ${test} (audit)`);
+    expect(synced.output).not.toContain("public_notes");
+    expect(await readFile(join(root, test), "utf8")).toContain(
+      `'{"updated_at"}'::text[]`,
+    );
+    expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
+
+    await writeFile(join(schemas, "010_crm.sql"), "");
+    const check = await sql(["sync", "--check"], config);
+    expect(check).toMatchObject({ code: 1 });
+    expect(check.error).toContain(test);
+    expect((await sql(["sync", "--dry-run"], config)).output).toContain(
+      `Would remove ${test}`,
+    );
+    expect((await sql(["sync"], config)).output).toContain(`Removed ${test}`);
+    expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
+  });
+
   it("keeps data files out of pg-delta's schema folder when sql.dir is inside it", async () => {
     await mkdir(join(root, "supabase"), { recursive: true });
     await writeFile(

@@ -82,6 +82,25 @@ export const router = {
 };
 ```
 
+For a contract from `@orpc/contract`, use the same middleware on the
+implementer and serve it with `OpenAPIHandler`, so errors keep their HTTP
+status (RLS denials answer 403):
+
+```ts title="src/server.ts"
+const os = implement(contract)
+  .$context<OrpcRequestContext>()
+  .use(bs.middleware());
+const router = os.router({
+  customers: {
+    get: os.customers.get.handler(({ context, input }) =>
+      bs.unwrap(context.db.customers.findById(input.id)),
+    ),
+  },
+});
+const handle = bs.fetchHandler(new OpenAPIHandler(router), { prefix: "/api" });
+const app = new Hono().all("/api/*", (c) => handle(c.req.raw));
+```
+
 ## Edge Functions
 
 ```ts title="supabase/functions/api/index.ts"
@@ -132,3 +151,35 @@ Tools run as the calling user, so RLS applies to every tool call.
 tokens that lack one, and `authorize` refuses a single call. The session comes
 from the `Authorization` header only, never from a cookie. A
 `delegation` that is unset means the user's own token, which no scope limits.
+
+### MCP on the official SDK
+
+```ts title="src/mcp.ts"
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { createMcpAuth, withBetterSupabase } from "better-supabase/mcp/sdk";
+
+import { betterSupabase } from "./lib/supabase/schema";
+
+const auth = createMcpAuth(betterSupabase, {
+  resource: "https://crm.example.com/mcp",
+  advertisedScopes: ["crm.read"],
+});
+
+const handler = createMcpHandler(() => {
+  const server = withBetterSupabase(
+    new McpServer({ name: "crm", version: "0.1.0" }),
+    auth,
+  );
+  server.registerTool("count_customers", {}, async ({ db }) => {
+    const count = await db.customers.count().orThrow();
+    return { content: [{ type: "text", text: String(count) }] };
+  });
+  return server;
+});
+
+export default { fetch: auth.serve(handler) };
+```
+
+`auth.serve` answers the RFC 9728 metadata and the 401 challenge, then passes
+the verified `authInfo` to the SDK handler. `auth.verifier` plugs into the
+SDK's own `requireBearerAuth` when you keep your own routing.

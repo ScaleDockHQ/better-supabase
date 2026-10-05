@@ -14,6 +14,10 @@ coverage/
 tmp/
 packages/better-supabase/tmp/
 
+# expo
+.expo/
+expo-env.d.ts
+
 # next.js
 .next/
 out/

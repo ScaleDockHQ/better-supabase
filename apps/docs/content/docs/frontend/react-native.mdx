@@ -1,0 +1,81 @@
+---
+title: React Native
+description: Repositories in Expo and React Native apps, with sessions in the device keychain.
+---
+
+```ts title="src/lib/supabase/native.ts"
+import { createClient } from "@supabase/supabase-js";
+import {
+  createNativeClient,
+  secureStorage,
+} from "better-supabase/client/native";
+import * as SecureStore from "expo-secure-store";
+import { betterSupabase } from "./index";
+
+const supabase = createClient(
+  process.env.EXPO_PUBLIC_SUPABASE_URL,
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      storage: secureStorage(SecureStore),
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  },
+);
+
+export const bs = createNativeClient(betterSupabase, supabase);
+```
+
+`better-supabase/client/native` is the [browser client](/docs/frontend/client)
+without the cookie code: it never imports `@supabase/ssr`, so Metro doesn't
+bundle it into the app. `bs.db`, `bs.queries`, `bs.auth` and `bs.supabase`
+work as they do in the browser, and the [React hooks](/docs/frontend/react)
+take the same `bs`.
+
+`better-supabase init expo` writes this file, a server file for
+[Expo Router](/docs/frameworks/expo) and `+middleware.ts`.
+
+## Sessions in the keychain
+
+`secureStorage(SecureStore)` stores the Supabase session with
+`expo-secure-store`. A session with custom claims is often larger than the
+2048 bytes iOS accepts for one value, so it is split into chunks of 1800
+characters (`chunkSize` changes that). Keys are rewritten to the characters
+SecureStore allows. Any object with `getItemAsync`, `setItemAsync` and
+`deleteItemAsync` works in its place.
+
+## Hermes and Temporal
+
+Hermes has no `Temporal`, and installing a polyfill on `globalThis` is a side
+effect most apps avoid. Pass the namespace to the definition instead:
+
+```ts title="src/lib/supabase/index.ts"
+import { defineSupabase } from "better-supabase";
+import { Temporal } from "temporal-polyfill";
+import { schema } from "./generated";
+
+export const betterSupabase = defineSupabase(schema, { temporal: Temporal });
+```
+
+Rows then decode timestamps and dates into that namespace's types, and every
+helper that reads the time uses it. The generated Valibot and Zod schemas
+check Temporal values by their tag, so they load without a global. See
+[Temporal](/docs/concepts/temporal) for the types each column gets.
+
+## Web and native in one app
+
+Metro picks `file.native.ts` on iOS and Android and `file.ts` on the web. Keep
+anything that only works on a device (SecureStore, PowerSync) in `.native`
+files or in modules only they import, so the web bundle never loads it. The
+[Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
+renders a list from a server loader on the web and from the PowerSync
+database on the device, with one [list definition](/docs/kits/list).
+
+## Offline reads
+
+To read while offline, sync the tables to the device with PowerSync and run
+the same repositories on its SQLite database. See
+[PowerSync](/docs/repository/powersync) for the executor and
+[Offline-first](/docs/guides/offline-first) for uploading local changes.

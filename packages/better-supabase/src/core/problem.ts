@@ -53,6 +53,7 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   multiple_rows: "More than one row matched",
   stale: "Row changed since it was read",
   rate_limited: "Too many requests",
+  unsupported: "Not supported by this executor",
   unexpected: "Unexpected error",
 };
 

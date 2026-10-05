@@ -224,6 +224,19 @@ The module options (`kits.audit.options`):
 | `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                                                                                     |
 | `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                                                                                         |
 | `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                                                                                           |
+| `exempt`        | `[]`                | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
+
+`sql add` and `sql sync` read the `audit(...)` calls in your schema files and
+migrations, and write a pgTAP file per audited table to `sql.testsDir`
+(`supabase/tests/900_better_supabase_audit_public_customers.test.sql`). It
+checks that the table has the `bs_audit` trigger and is registered with the
+same `ignore` and `redact` lists, then runs an insert, an update and a delete
+on a copy of the table and checks the entries: one per change, without the
+ignored columns, with the redacted values masked. `supabase test db` runs it
+with your other tests, and `sql sync --check` fails when a registration changed
+and the file is stale. A later `unaudit(...)` call removes the table's file on
+the next `sql sync`. Calls with computed arguments, such as
+`audit(format(...))`, are skipped.
 
 An app with its own audit table adopts it: map `kits.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row

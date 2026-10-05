@@ -7,7 +7,7 @@ USAGE better-supabase add [OPTIONS] [INTEGRATION]
 
 ARGUMENTS
 
-  INTEGRATION    next, hono, orpc, edge, mcp, client or react
+  INTEGRATION    next, hono, orpc, edge, expo, mcp, client or react
 
 OPTIONS
 
@@ -111,15 +111,15 @@ USAGE better-supabase init [OPTIONS]
 
 OPTIONS
 
-    --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)          
-  --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, mcp, client, react
-           --package=<dir>    Workspace package to write to, relative to --cwd                                         
-                   --force    Overwrite files that exist                                                               
-                 --dry-run    Show what would be written                                                               
-               --cwd=<dir>    Project directory                                                                        
-           --config=<file>    Config file, relative to --cwd                                                           
-                    --json    Print one JSON document on stdout; errors as Problem Details                             
-                 -y, --yes    Ask nothing; use the flags and the defaults                                              
+    --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                
+  --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
+           --package=<dir>    Workspace package to write to, relative to --cwd                                               
+                   --force    Overwrite files that exist                                                                     
+                 --dry-run    Show what would be written                                                                     
+               --cwd=<dir>    Project directory                                                                              
+           --config=<file>    Config file, relative to --cwd                                                                 
+                    --json    Print one JSON document on stdout; errors as Problem Details                                   
+                 -y, --yes    Ask nothing; use the flags and the defaults                                                    
 "
 `;
 

@@ -54,6 +54,7 @@ const name = await db.customers
 | `multiple_rows`   | 409    | A single-row call matched several rows                                                              |
 | `stale`           | 412    | `update(..., { expect })` found a newer row                                                         |
 | `rate_limited`    | 429    | Over a [write rate limit](/docs/kits/sql#rate-limiting-writes); `retryAfter` is the seconds to wait |
+| `unsupported`     | 501    | The executor can't run the operation, such as an include on [SQLite](/docs/repository/powersync)    |
 | `unexpected`      | 500    | Anything else                                                                                       |
 
 The `status` field feeds the [RFC 9457](/docs/standards) problem details
@@ -147,3 +148,46 @@ goes through `fn`, and its error is typed `unknown`; pass the mapper to
 type it. `fromBetterResult` reads the `status` field, so it works across
 better-result versions; pass a second argument to map non-`DbError`
 errors yourself.
+
+### Tagged errors
+
+To get better-result `TaggedError` classes instead of `DbError` objects,
+map the kinds once with `defineBetterResultErrors`. It takes the `Result`
+namespace, a class per `DbError` kind you care about, and a fallback class
+for the rest, and returns a converter with the same expected-type checks
+as `toBetterResult`:
+
+```ts title="src/lib/errors.ts"
+import { Result, TaggedError } from "better-result";
+import { type DbError, defineBetterResultErrors } from "better-supabase";
+
+type DbProps = { message: string; error: DbError };
+export class NotFound extends TaggedError("NotFound")<DbProps> {}
+export class Conflict extends TaggedError("Conflict")<DbProps> {}
+export class DbFailure extends TaggedError("DbFailure")<DbProps> {}
+export type AppDbError = NotFound | Conflict | DbFailure;
+
+export const toResult = defineBetterResultErrors(
+  Result,
+  { not_found: NotFound, conflict: Conflict },
+  DbFailure,
+);
+```
+
+```ts
+async function customer(id: string): Promise<Result<Customer, AppDbError>> {
+  return toResult(db.customers.findById(id));
+}
+
+const message = (await customer(id)).match({
+  ok: (row) => row.name,
+  err: (error) => error.message,
+});
+```
+
+Each instance gets the error's `message` and the original `DbError` as
+`error`, so a class can declare either or both. `toResult.map(error)` maps
+one `DbError` and is typed by its kind: a `DbErrorOf<"not_found">` becomes a
+`NotFound`. An expected error type that leaves out one of the classes is a
+type error, so adding a kind to the mapping shows every place that has to
+handle it.

@@ -12,6 +12,7 @@
       "DbException",
       "decodeCursor",
       "decodeRows",
+      "defineBetterResultErrors",
       "definePlugin",
       "defineReadSet",
       "defineRepository",
@@ -31,9 +32,14 @@
       "isConflict",
       "isDbError",
       "isForeignKey",
+      "isInstant",
+      "isPlainDate",
+      "isPlainDateTime",
+      "isPlainTime",
       "isProblem",
       "isQuerySpec",
       "isReadSet",
+      "isZonedDateTime",
       "mapDbError",
       "memoryCache",
       "not",
@@ -45,6 +51,7 @@
       "PROBLEM_CONTENT_TYPE",
       "PROBLEM_TYPE_BASE",
       "problemResponse",
+      "provideTemporal",
       "readSetTables",
       "recordStats",
       "rowKey",
@@ -77,6 +84,7 @@
       "AuthEvent",
       "BetterResultApi",
       "BetterResultErr",
+      "BetterResultErrors",
       "BetterResultOk",
       "BetterResultValue",
       "BetterSupabaseEvents",
@@ -90,6 +98,8 @@
       "CursorPageArgs",
       "Db",
       "DbError",
+      "DbErrorClass",
+      "DbErrorClasses",
       "DbErrorKind",
       "DbErrorKinds",
       "DbErrorOf",
@@ -117,6 +127,7 @@
       "KitEventType",
       "LogFields",
       "Logger",
+      "MappedDbError",
       "MemoryCache",
       "MutationEvent",
       "MutationIntent",
@@ -284,6 +295,7 @@
   },
   "./client": {
     "values": [
+      "bindClient",
       "createClient"
     ],
     "types": [
@@ -292,6 +304,21 @@
       "BetterClient",
       "ClientAuth",
       "ClientOptions"
+    ]
+  },
+  "./client/native": {
+    "values": [
+      "createNativeClient",
+      "secureStorage"
+    ],
+    "types": [
+      "AuthSnapshot",
+      "AuthStorage",
+      "AuthUser",
+      "BetterClient",
+      "ClientAuth",
+      "SecureStorageOptions",
+      "SecureStoreLike"
     ]
   },
   "./react": {
@@ -455,6 +482,38 @@
       "SupportView"
     ]
   },
+  "./powersync": {
+    "values": [
+      "checkSqlite",
+      "compileSqlite",
+      "fromSqliteError",
+      "likeToGlob",
+      "postgrestTimestamp",
+      "powersyncExecutor",
+      "quoteSqliteIdent",
+      "sqliteCompiler",
+      "sqliteTables",
+      "sqliteValue",
+      "watch"
+    ],
+    "types": [
+      "PowerSyncDatabaseLike",
+      "PowerSyncExecutorOptions",
+      "SqliteColumn",
+      "SqliteCompilerOptions",
+      "SqliteContextLike",
+      "SqliteDecode",
+      "SqliteInsertPlan",
+      "SqliteKeyedPlan",
+      "SqliteKeys",
+      "SqlitePlan",
+      "SqliteQuery",
+      "SqliteReturning",
+      "SqliteSelectPlan",
+      "SqliteValue",
+      "WatchOptions"
+    ]
+  },
   "./postgres": {
     "values": [
       "compileSql",
@@ -596,6 +655,21 @@
       "OrpcRequestContext"
     ]
   },
+  "./expo": {
+    "values": [
+      "createExpo"
+    ],
+    "types": [
+      "BetterExpo",
+      "ExpoContextOptions",
+      "ExpoMiddlewareOptions",
+      "ExpoOptions",
+      "ExpoParams",
+      "ExpoRequest",
+      "GuardOptions",
+      "MiddlewareOptions"
+    ]
+  },
   "./edge": {
     "values": [
       "createEdge",
@@ -635,6 +709,25 @@
       "ToolResourceOptions",
       "ToolResources",
       "ToolResult"
+    ]
+  },
+  "./mcp/sdk": {
+    "values": [
+      "createMcpAuth",
+      "withBetterSupabase"
+    ],
+    "types": [
+      "AllowedCaller",
+      "BetterMcpAuth",
+      "BetterMcpServer",
+      "BetterToolCallback",
+      "BetterToolConfig",
+      "BetterToolContext",
+      "BetterToolExtra",
+      "GuardOptions",
+      "McpAuthOptions",
+      "McpFetchHandler",
+      "ToolRegistrar"
     ]
   },
   "./jobs": {
@@ -1061,6 +1154,7 @@
   },
   "./sql": {
     "values": [
+      "auditRegistrations",
       "compileReadSet",
       "compileReadSets",
       "contractSignature",
@@ -1086,6 +1180,7 @@
       "upgradePlan"
     ],
     "types": [
+      "AuditedTable",
       "CompiledReadSet",
       "InstalledKitModule",
       "KitAccessPermdock",
@@ -1099,6 +1194,7 @@
       "KitPermdock",
       "KitPermissionKey",
       "KitTableSpec",
+      "KitTestFile",
       "KitUpgrade",
       "KitUpgradePlan",
       "MigrationOptionUse",

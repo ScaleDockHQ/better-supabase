@@ -61,6 +61,11 @@
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
+    "./client/native": {
+      "@better-supabase/source": "./src/client/native/index.ts",
+      "types": "./dist/client/native/index.d.ts",
+      "default": "./dist/client/native/index.js"
+    },
     "./react": {
       "@better-supabase/source": "./src/react/index.ts",
       "types": "./dist/react/index.d.ts",
@@ -76,6 +81,11 @@
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
       "default": "./dist/server/index.js"
+    },
+    "./powersync": {
+      "@better-supabase/source": "./src/powersync/index.ts",
+      "types": "./dist/powersync/index.d.ts",
+      "default": "./dist/powersync/index.js"
     },
     "./postgres": {
       "@better-supabase/source": "./src/postgres/index.ts",
@@ -107,6 +117,11 @@
       "types": "./dist/orpc/index.d.ts",
       "default": "./dist/orpc/index.js"
     },
+    "./expo": {
+      "@better-supabase/source": "./src/expo/index.ts",
+      "types": "./dist/expo/index.d.ts",
+      "default": "./dist/expo/index.js"
+    },
     "./edge": {
       "@better-supabase/source": "./src/edge/index.ts",
       "types": "./dist/edge/index.d.ts",
@@ -116,6 +131,11 @@
       "@better-supabase/source": "./src/mcp/index.ts",
       "types": "./dist/mcp/index.d.ts",
       "default": "./dist/mcp/index.js"
+    },
+    "./mcp/sdk": {
+      "@better-supabase/source": "./src/mcp/sdk/index.ts",
+      "types": "./dist/mcp/sdk/index.d.ts",
+      "default": "./dist/mcp/sdk/index.js"
     },
     "./jobs": {
       "@better-supabase/source": "./src/jobs/index.ts",
@@ -238,6 +258,10 @@
         "types": "./dist/client/index.d.ts",
         "default": "./dist/client/index.js"
       },
+      "./client/native": {
+        "types": "./dist/client/native/index.d.ts",
+        "default": "./dist/client/native/index.js"
+      },
       "./react": {
         "types": "./dist/react/index.d.ts",
         "react-server": "./dist/react/server.js",
@@ -250,6 +274,10 @@
       "./server": {
         "types": "./dist/server/index.d.ts",
         "default": "./dist/server/index.js"
+      },
+      "./powersync": {
+        "types": "./dist/powersync/index.d.ts",
+        "default": "./dist/powersync/index.js"
       },
       "./postgres": {
         "types": "./dist/postgres/index.d.ts",
@@ -275,6 +303,10 @@
         "types": "./dist/orpc/index.d.ts",
         "default": "./dist/orpc/index.js"
       },
+      "./expo": {
+        "types": "./dist/expo/index.d.ts",
+        "default": "./dist/expo/index.js"
+      },
       "./edge": {
         "types": "./dist/edge/index.d.ts",
         "default": "./dist/edge/index.js"
@@ -282,6 +314,10 @@
       "./mcp": {
         "types": "./dist/mcp/index.d.ts",
         "default": "./dist/mcp/index.js"
+      },
+      "./mcp/sdk": {
+        "types": "./dist/mcp/sdk/index.d.ts",
+        "default": "./dist/mcp/sdk/index.js"
       },
       "./jobs": {
         "types": "./dist/jobs/index.d.ts",
@@ -383,7 +419,6 @@
     "@standard-schema/spec": "catalog:deps",
     "@supabase/middleware": "catalog:deps",
     "@supabase/postgrest-js": "catalog:deps",
-    "@supabase/postgrest-typegen": "catalog:",
     "@supabase/server": "catalog:deps",
     "@supabase/ssr": "catalog:deps"
   },
@@ -393,9 +428,14 @@
     "@better-supabase/typescript-config": "workspace:*",
     "@clack/prompts": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@modelcontextprotocol/client": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
     "@opentelemetry/api": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase/config": "catalog:",
+    "@supabase/postgrest-typegen": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@t3-oss/env-core": "catalog:",
     "@tanstack/query-core": "catalog:",
@@ -412,6 +452,7 @@
     "citty": "catalog:",
     "diff": "catalog:",
     "effect": "catalog:",
+    "expo-server": "catalog:",
     "fastest-levenshtein": "catalog:",
     "hono": "catalog:",
     "next": "catalog:",
@@ -431,11 +472,14 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/server": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
     "@supabase/config": "catalog:peers",
+    "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
+    "expo-server": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
     "oxfmt": "catalog:peers",
@@ -444,6 +488,9 @@
     "temporal-polyfill": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@modelcontextprotocol/server": {
+      "optional": true
+    },
     "@opentelemetry/api": {
       "optional": true
     },
@@ -453,7 +500,13 @@
     "@supabase/config": {
       "optional": true
     },
+    "@supabase/postgrest-typegen": {
+      "optional": true
+    },
     "@tanstack/query-core": {
+      "optional": true
+    },
+    "expo-server": {
       "optional": true
     },
     "hono": {

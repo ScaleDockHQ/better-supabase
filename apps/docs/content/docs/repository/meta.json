@@ -8,6 +8,7 @@
     "read-sets",
     "pagination",
     "writing",
-    "unique-and-errors"
+    "unique-and-errors",
+    "powersync"
   ]
 }

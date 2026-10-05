@@ -6,13 +6,17 @@ import type {
 
 import { isList } from "../core/guards.ts";
 import {
+  type DocsSource,
+  type FieldDocs,
+  fieldDocs,
   type FieldPlan,
   fieldsFor,
   type ScalarKind,
-  type SchemaSource,
   siblingPath,
+  tableDocs,
   tableEntries,
   variantsFor,
+  variantTitle,
 } from "./shared.ts";
 
 export interface JsonSchemaGeneratorOptions {
@@ -61,13 +65,18 @@ function scalar(kind: ScalarKind): JsonSchema {
   }
 }
 
-function property(plan: FieldPlan): JsonSchema {
-  const schema = nullable(plan);
+function property(plan: FieldPlan, docs: FieldDocs): JsonSchema {
+  const { description, examples, ...bounds } = docs;
+  const schema = {
+    ...nullable(plan, bounds),
+    ...(description === undefined ? {} : { description }),
+    ...(examples === undefined ? {} : { examples: [...examples] }),
+  };
   return plan.managed ? { ...schema, readOnly: true } : schema;
 }
 
-function nullable(plan: FieldPlan): JsonSchema {
-  let schema = scalar(plan.scalar);
+function nullable(plan: FieldPlan, bounds: JsonSchema): JsonSchema {
+  let schema = { ...scalar(plan.scalar), ...bounds };
   if (plan.column.array) schema = { type: "array", items: schema };
   if (!plan.nullable) return schema;
   if (Object.keys(schema).length === 0) return schema;
@@ -80,17 +89,26 @@ function nullable(plan: FieldPlan): JsonSchema {
 }
 
 /** JSON Schema (2020-12) `$defs` for every table: `customersRow`, `customersInsert`, ... */
-export function buildJsonSchema(input: SchemaSource, id?: string): JsonSchema {
+export function buildJsonSchema(input: DocsSource, id?: string): JsonSchema {
   const defs: Record<string, JsonSchema> = {};
   for (const [key, table] of tableEntries(input)) {
+    const docs = tableDocs(input, table);
     for (const variant of variantsFor(table)) {
       const properties: Record<string, JsonSchema> = {};
       const required: string[] = [];
       for (const plan of fieldsFor(table, variant, input)) {
-        properties[plan.name] = property(plan);
+        properties[plan.name] = property(plan, fieldDocs(docs, plan));
         if (!plan.optional) required.push(plan.name);
       }
       defs[`${key}${variant}`] = {
+        ...(docs
+          ? {
+              title: variantTitle(docs, variant),
+              ...(docs.description === undefined
+                ? {}
+                : { description: docs.description }),
+            }
+          : {}),
         type: "object",
         properties,
         ...(required.length > 0 ? { required } : {}),

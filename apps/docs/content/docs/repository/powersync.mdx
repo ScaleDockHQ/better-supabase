@@ -1,0 +1,91 @@
+---
+title: PowerSync
+description: The same repositories over a PowerSync SQLite database on the device.
+---
+
+```ts title="src/lib/powersync/database.ts"
+import { PowerSyncDatabase } from "@powersync/react-native";
+import { powersyncExecutor } from "better-supabase/powersync";
+import { betterSupabase } from "../supabase";
+import { schema } from "./schema";
+
+export const powersync = new PowerSyncDatabase({
+  schema,
+  database: { dbFilename: "app.db" },
+});
+
+export const local = betterSupabase.connect(powersyncExecutor(powersync));
+
+const customers = await local.customers
+  .findMany({ where: { status: "active" }, orderBy: { name: "asc" } })
+  .orThrow();
+```
+
+`powersyncExecutor(db)` compiles each repository call to SQLite and runs it on
+the PowerSync database. Rows come back the way PostgREST returns them: in the
+definition's casing, with booleans, JSON and Temporal values decoded the same
+way. `@powersync/common` is not a dependency; the executor only needs
+`getAll`, `execute` and `writeTransaction`, and `onChange` for `watch`, so
+`@powersync/react-native`, `@powersync/web` and a test double all work.
+
+## What runs on SQLite
+
+Filters, search, sorting, offset and cursor pages, counts, aggregates on
+one table, and inserts, updates, upserts and deletes all run.
+Some things have no SQLite form:
+
+| Feature                                          | On SQLite                                 |
+| ------------------------------------------------ | ----------------------------------------- |
+| `include` (embedding) and related counts         | `unsupported` error                       |
+| full-text search (`fts`)                         | `unsupported` error                       |
+| function sources (`db.rpc`, set-returning reads) | `unsupported` error                       |
+| writes to a table without a primary key          | `unsupported` error                       |
+| `ilike`                                          | SQLite `like`: case-insensitive for ASCII |
+| `like`                                           | `glob`: case-sensitive, like Postgres     |
+| timestamps                                       | compared as UTC ISO text                  |
+
+The error has kind `unsupported` (HTTP 501), the feature in `details`, and
+nothing runs. To catch it before a screen does, check a list definition in a
+test:
+
+```ts title="src/lists.test.ts"
+import { checkSqlite } from "better-supabase/powersync";
+
+expect(await checkSqlite(betterSupabase, customerList)).toEqual({
+  ok: true,
+  data: undefined,
+});
+```
+
+`checkSqlite` compiles every query the list runs (the page, its count and the
+facet counts) without a database.
+
+## Live results
+
+`watch(db, query, options)` reruns a repository call whenever PowerSync
+reports a change to one of `tables`, for local writes and synced rows alike:
+
+```ts
+import { sqliteTables, watch } from "better-supabase/powersync";
+
+const stop = watch(powersync, () => customerList.run(local, query), {
+  tables: sqliteTables(betterSupabase, ["customers"]),
+  onResult: (result) => render(result),
+});
+```
+
+`sqliteTables` maps table keys to the names PowerSync uses (`customerTags`
+to `customer_tags`). The function `watch` returns stops it, and so does
+`signal`.
+
+## Table names and keys
+
+PowerSync names each view after the table without its schema, and that is
+the default. Pass `tableName` to `powersyncExecutor` when your PowerSync
+schema renames a table. PowerSync tables key on a text `id` that the client
+creates: an insert without one gets `crypto.randomUUID()` (or `newId` when you
+pass it).
+
+Writes go to the local database and PowerSync uploads them. See
+[Offline-first](/docs/guides/offline-first) for replaying them through the
+repositories on the server side.

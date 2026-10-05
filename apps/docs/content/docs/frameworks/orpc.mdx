@@ -49,6 +49,63 @@ export default {
 Calling `handler.handle(request, { context: { request } })` yourself also
 works, but then those cookies never reach the client.
 
+## Contract-first routers
+
+With a contract from `@orpc/contract`, apply the same middleware to the
+implementer. The client package imports only the contract, and the server
+serves it over HTTP with `OpenAPIHandler`. This example mounts it on Hono:
+
+```ts title="src/contract.ts"
+import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
+import * as v from "valibot";
+
+const customer = v.object({ id: v.string(), name: v.string() });
+
+export const contract = {
+  customers: {
+    get: oc
+      .meta(openapi({ method: "GET", path: "/customers/{id}" }))
+      .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
+      .output(customer),
+  },
+};
+```
+
+```ts title="src/server.ts"
+import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { implement } from "@orpc/server";
+import type { OrpcRequestContext } from "better-supabase/orpc";
+import { Hono } from "hono";
+
+import { contract } from "./contract";
+
+const os = implement(contract)
+  .$context<OrpcRequestContext>()
+  .use(bs.middleware());
+
+const router = os.router({
+  customers: {
+    get: os.customers.get.handler(({ context, input }) =>
+      bs.unwrap(
+        context.db.customers.findById(input.id, { select: ["id", "name"] }),
+      ),
+    ),
+  },
+});
+
+const handle = bs.fetchHandler(new OpenAPIHandler(router), { prefix: "/api" });
+
+export const app = new Hono().all("/api/*", (c) => handle(c.req.raw));
+```
+
+`OpenAPIHandler` sends the error's status code, so a missing row answers
+404 and a write that RLS rejects answers 403, each with the Problem Details
+in the body's `data`. The `.meta(openapi(...))` form needs no import for its
+side effects; `.route(...)` works too after `import "@orpc/openapi/extensions/route"`.
+The [oRPC example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/orpc-api)
+has both styles.
+
 ## Context
 
 `bs.middleware()` resolves the caller and rejects anyone not in `allow`

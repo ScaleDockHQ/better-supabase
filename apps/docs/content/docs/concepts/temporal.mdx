@@ -31,12 +31,49 @@ names the import.
 The types come from TypeScript's `esnext.temporal` lib, which the published
 declarations reference. TypeScript 6 and 7 include it; 5.9 does not.
 
+## Pass Temporal without a global
+
+When your app must not patch `globalThis`, import the polyfill as a module
+and pass the namespace to `defineSupabase`:
+
+```ts title="src/lib/supabase/runtime.ts"
+import { Temporal } from "temporal-polyfill";
+import { defineSupabase } from "better-supabase";
+
+import { schema } from "./generated";
+
+export const betterSupabase = defineSupabase(schema, { temporal: Temporal });
+```
+
+Every part of better-supabase then reads `Temporal` from that option: decoded
+rows, the default clock, plugins, jobs, webhooks and storage. The global stays
+the fallback when you leave the option out. `betterSupabase.temporal` returns
+the namespace in use.
+
+Helpers you call without a definition, such as `verifyWebhook` in a separate
+worker, read the same setting. Call `provideTemporal(Temporal)` from
+`better-supabase` once at startup in that process.
+
+The Valibot and Zod schemas that `better-supabase gen` writes never read
+`Temporal` when the module loads. They check values with `isInstant` and
+`isPlainDateTime`, which compare `Symbol.toStringTag`, so a value from any
+copy of Temporal passes, and the file imports cleanly before the namespace
+exists.
+
+### React Native and Hermes
+
+Hermes has no `Temporal`. In an Expo or React Native app, pass the module
+namespace as above instead of importing `temporal-polyfill/global`, so the
+native bundle and the server render use the same code path. See
+[React Native](/docs/frontend/react-native).
+
 ## Where Temporal appears
 
 | API                                     | Temporal type                                                                                 |
 | --------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `codecs.timestamptz: 'instant'`         | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
 | `defineSupabase({ now })`, plugin hooks | `now: () => Temporal.Instant`                                                                 |
+| `defineSupabase({ temporal })`          | the `Temporal` namespace every other API reads                                                |
 | `Job`, `EnqueueOptions`, `InboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |
 | `verifyWebhook`, `signWebhook`          | `timestamp` and `now`                                                                         |
 | `bucket.sweep`                          | `olderThan: Temporal.Instant` or `Temporal.Duration`                                          |

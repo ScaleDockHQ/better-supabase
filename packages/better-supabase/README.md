@@ -64,10 +64,10 @@ Each call is still one PostgREST request, and it runs as the signed-in user, so 
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D pg
+pnpm add -D pg @supabase/postgrest-typegen@0.4.0
 ```
 
-Before installing, `npx better-supabase init` detects your frameworks and prints the install command for your package manager. The package is ESM only. The CLI needs Node 24 or later, and the runtime entries run on every WinterTC runtime. On runtimes without a native `Temporal` (Node 24, Safari), load [`temporal-polyfill`](https://bettersupabase.com/docs/concepts/temporal) once at startup. TypeScript 6 and 7 are tested.
+`pg` and `@supabase/postgrest-typegen` are optional peers that only the CLI loads, to read your schema and write `database.types.ts`; apps that only run the runtime entries skip them. Before installing, `npx better-supabase init` detects your frameworks and prints the install command for your package manager. The package is ESM only. The CLI needs Node 24 or later, and the runtime entries run on every WinterTC runtime. On runtimes without a native `Temporal` (Node 24, Safari), load [`temporal-polyfill`](https://bettersupabase.com/docs/concepts/temporal) once at startup. TypeScript 6 and 7 are tested.
 
 ## Quick start
 
@@ -172,14 +172,17 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/config`                                   | `defineConfig` and generators for `better-supabase.config.ts`            |
 | `better-supabase/cli`                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI      |
 | `better-supabase/client`                                   | Browser repositories that follow the session                             |
+| `better-supabase/client/native`                            | The same for React Native, without `@supabase/ssr`, and keychain storage |
 | `better-supabase/react`                                    | Provider, typed hooks and the server session                             |
 | `better-supabase/query`                                    | TanStack Query options with table-based invalidation                     |
 | `better-supabase/server`                                   | Repositories bound to the caller, admin and acting-as identities         |
 | `better-supabase/postgres`                                 | The same repositories over direct Postgres                               |
+| `better-supabase/powersync`                                | The same repositories over PowerSync's local SQLite, with live queries   |
 | `better-supabase/ssr`                                      | The `@supabase/ssr` cookie format for any framework                      |
 | `better-supabase/next`, `/next/image`                      | Proxy, Server Components, route handlers, server actions, Storage images |
-| `better-supabase/hono`, `/orpc`, `/edge`                   | Framework adapters                                                       |
+| `better-supabase/hono`, `/orpc`, `/edge`, `/expo`          | Framework adapters                                                       |
 | `better-supabase/mcp`                                      | MCP servers whose tools run as the signed-in user                        |
+| `better-supabase/mcp/sdk`                                  | Bearer auth and caller-bound `db` for the official MCP SDK               |
 | `better-supabase/jobs`                                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
 | `better-supabase/orgs`                                     | Organizations, members, invitations and switching from the SQL kit       |
 | `better-supabase/notifications`                            | Sending, listing and delivering notifications from the SQL kit           |

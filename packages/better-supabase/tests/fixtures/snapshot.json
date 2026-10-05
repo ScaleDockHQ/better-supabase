@@ -93,7 +93,7 @@
         "size": "0 bytes",
         "live_rows_estimate": 0,
         "dead_rows_estimate": 0,
-        "comment": null
+        "comment": "Companies the organization sells to."
       },
       {
         "id": 1000006,
@@ -751,7 +751,7 @@
         "is_unique": false,
         "check": null,
         "enums": [],
-        "comment": null
+        "comment": "Chamber of Commerce (KvK) number.\n@example \"12345678\""
       },
       {
         "table_id": 1000005,
@@ -812,9 +812,9 @@
         "is_nullable": false,
         "is_updatable": true,
         "is_unique": false,
-        "check": null,
+        "check": "char_length(name) >= 1 AND char_length(name) <= 200",
         "enums": [],
-        "comment": null
+        "comment": "Trading name.\n@example \"Acme B.V.\""
       },
       {
         "table_id": 1000005,
@@ -2859,6 +2859,10 @@
         ],
         "checks": [
           {
+            "name": "customers_name_check",
+            "definition": "CHECK (((char_length(name) >= 1) AND (char_length(name) <= 200)))"
+          },
+          {
             "name": "customers_status_check",
             "definition": "CHECK ((status = ANY (ARRAY['lead'::text, 'active'::text, 'archived'::text])))"
           }
@@ -3534,6 +3538,30 @@
           "hnsw.iterative_scan": "strict_order"
         },
         "execute": ["authenticated"]
+      }
+    ],
+    "hooks": [
+      {
+        "hook": "custom_access_token",
+        "schema": "rbac",
+        "name": "custom_access_token_hook",
+        "functions": [
+          {
+            "schema": "rbac",
+            "name": "custom_access_token_hook",
+            "signature": "event jsonb",
+            "language": "plpgsql",
+            "volatility": "stable",
+            "securityDefiner": false,
+            "settings": {
+              "search_path": "\"\""
+            },
+            "execute": ["supabase_auth_admin"],
+            "publicExecute": false,
+            "schemaUsage": ["authenticated", "supabase_auth_admin"],
+            "source": "\ndeclare\n  claims jsonb := event -> 'claims';\n  user_role rbac.app_role;\nbegin\n  select ur.role into user_role\n  from rbac.user_roles ur\n  where ur.user_id = (event ->> 'user_id')::uuid;\n\n  if user_role is not null then\n    claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));\n  end if;\n\n  return jsonb_set(event, '{claims}', claims);\nend;\n"
+          }
+        ]
       }
     ]
   }

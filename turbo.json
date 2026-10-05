@@ -58,6 +58,11 @@
         "dependents": {
           "deny": ["published", "config", "tooling", "app", "example"]
         }
+      },
+      "domain": {
+        "dependencies": {
+          "deny": ["domain"]
+        }
       }
     }
   },

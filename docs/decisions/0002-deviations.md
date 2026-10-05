@@ -104,6 +104,11 @@ backlogs too large to clear in the upgrade.
   `braces` arrives only through `shadcn` in `apps/marketing`, which is dev
   tooling that never ships. It ends when a fixed `braces` ships or `shadcn`
   drops `micromatch`.
+- `pnpm audit` also ignores GHSA-86w9-cpqp-85rv. The `node-forge` advisory
+  has no patched release, and `node-forge` arrives only through `@expo/cli`
+  in `apps/examples/expo-powersync`, which runs the dev server and exports
+  and never ships in the package. It ends when a fixed `node-forge` ships or
+  `@expo/cli` drops it.
 
 ### Agent files
 

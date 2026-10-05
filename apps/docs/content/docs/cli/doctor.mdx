@@ -620,6 +620,26 @@ the outbox. The config only accepts them with
 `mode: "adopt"`. Move the data to the managed default (hash the tokens, move
 the secrets into Vault), then remove the option.
 
+### BS315
+
+**Warning: table without an audit trigger.** The `audit` module is in
+`sql.kit`, and a table in `schemas` has no `bs_audit` trigger, nor another
+trigger that calls `better_supabase.audit_row_change()`, so its inserts,
+updates and deletes are not in the audit log. Register it with
+`select better_supabase.audit('public.customers')` in a schema file. Doctor
+skips the kit schemas and the tables kit modules adopt; list other tables in
+`kits.audit.options.exempt` as `schema.table` globs, where `*` matches any run
+of characters:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { kit: ["audit"] },
+  kits: {
+    audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
+  },
+});
+```
+
 ## Auth config
 
 ### BS401

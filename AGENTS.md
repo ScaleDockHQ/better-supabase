@@ -23,6 +23,7 @@ apps/
   docs/                Fumadocs site at /docs, plus /llms.txt, /llms-full.txt and /mcp
   marketing/           bettersupabase.com (everything outside /docs)
   examples/*           one app per adapter, generated from supabase/
+  examples/monorepo/*  runtime, crm, billing and api as separate workspace packages
 tests/
   bundle/              size baselines, export snapshot, WinterTC import check
   types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark
@@ -109,18 +110,20 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
    export-names snapshot test and `apps/docs/content/docs`.
 10. Plugins and extension interfaces are versioned (`apiVersion: 1`). Breaking
     their contract needs a new `apiVersion`, never a silent change.
-11. Only the CLI imports `@supabase/postgrest-typegen` at runtime, through
-    `src/cli/introspect/typegen.ts`; the runtime entries import its types
-    only (`src/config/snapshot.ts`). It is pinned to an exact version so
-    `database.types.ts` matches `supabase gen types`; bumping it needs the
-    parity test and a changeset.
+11. `@supabase/postgrest-typegen` is an optional peer that only the CLI
+    loads, through `src/cli/introspect/typegen.ts`. The published types use
+    the copy of `GeneratorMetadata` in `src/config/generator-metadata.ts`,
+    never the package. It is pinned to an exact version (both catalogs and
+    `TYPEGEN_VERSION`) so `database.types.ts` matches `supabase gen types`;
+    bumping it needs the parity test, the copy's type test and a changeset.
 12. Imports stay at the top of the module. The exceptions are optional
     peers loaded lazily, each with a comment and a fallback:
     `@supabase/config/io` through a variable specifier in
     `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
-    without it), `pg` in `src/cli/db.ts` (an install message
-    when it is missing) and `oxfmt` in `src/cli/introspect/typegen.ts`
-    (unformatted output with a notice). CLI startup work also loads on
+    without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
+    in `src/cli/introspect/typegen.ts` (an install message when they are
+    missing), and `oxfmt` in the same file (unformatted output with a
+    notice). CLI startup work also loads on
     demand, each with a comment: the commands, config loading and env
     validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
     the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.
@@ -255,10 +258,11 @@ standard or sets how the repo works.
 
 ## Pre-release pins
 
-| Package        | Version       | Why                                                                        |
-| -------------- | ------------- | -------------------------------------------------------------------------- |
-| `@orpc/server` | 2.0.0-beta.41 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
-| `c12`          | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
+| Package                           | Version       | Why                                                                        |
+| --------------------------------- | ------------- | -------------------------------------------------------------------------- |
+| `@orpc/server`                    | 2.0.0-beta.41 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.41 | the contract-first tests and example; they move with `@orpc/server`        |
+| `c12`                             | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
 
 Move each to its stable release when it ships, and update this list with
 every bump.
