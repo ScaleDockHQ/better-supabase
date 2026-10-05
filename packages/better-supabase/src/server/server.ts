@@ -6,7 +6,6 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
-import type { AsyncResult } from "../core/result.ts";
 import type {
   BetterPostgres,
   SessionOptions,
@@ -29,10 +28,12 @@ import {
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
+import { dbError } from "../core/errors.ts";
 import {
   type PostgrestClientLike,
   postgrestExecutor,
 } from "../core/postgrest-executor.ts";
+import { AsyncResult, ok } from "../core/result.ts";
 import { type DbStats, StatsRecorder } from "../core/stats.ts";
 import { type BetterSupabaseEnv, loadEnv } from "../env/index.ts";
 import {
@@ -102,6 +103,21 @@ export interface ServerOptions {
    * `postgres`, since the target's queries run over direct Postgres.
    */
   readonly support?: SupportSessions;
+  /**
+   * The claims `forContext()` adds for a user, the ones a custom access token
+   * hook would put in their token (roles, organization lists). Read them
+   * fresh: a job can run after the user lost access. `sub`, `role`, `act` and
+   * `tenant_id` come from the context and win.
+   */
+  readonly claimsFor?: (
+    userId: string,
+    context: RequestContext,
+  ) => SqlClaims | PromiseLike<SqlClaims>;
+}
+
+export interface ForContextOptions {
+  /** Recorded as `act.reason` when the context carries an impersonator. Defaults to `"job"`. */
+  readonly reason?: string;
 }
 
 /** The header `current_tenant_id()` reads over the Data API. */
@@ -220,6 +236,16 @@ export interface BetterServer<
     claims?: Omit<SqlClaims, "sub" | "act">,
     impersonation?: ImpersonationOptions,
   ): Db<M, F, E, undefined>;
+  /**
+   * Repositories for the user in a recorded context (`job.context`), with
+   * RLS, over direct Postgres: `actingAs` with the context's tenant and
+   * `ServerOptions.claimsFor`. Fails with `forbidden` when the actor is not a
+   * user; it never falls back to `admin()`.
+   */
+  forContext(
+    context: RequestContext,
+    options?: ForContextOptions,
+  ): AsyncResult<Db<M, F, E, undefined>>;
   /** Support sessions; every method fails without `ServerOptions.support`. */
   readonly support: SupportApi;
 }
@@ -774,6 +800,63 @@ export function createServer<
           ...(impersonation ? { impersonator: impersonation.actor } : {}),
         },
         claims: full,
+      });
+    },
+    forContext: (context, forOptions = {}) => {
+      const { actor, tenant } = context;
+      if (actor?.kind !== "user") {
+        return AsyncResult.err(
+          dbError(
+            "forbidden",
+            `forContext needs a user actor, got ${actor ? actor.kind : "none"}: use admin() for service work`,
+          ),
+        );
+      }
+      if (!options.postgres) {
+        return AsyncResult.err(
+          dbError(
+            "invalid_request",
+            "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
+          ),
+        );
+      }
+      return AsyncResult.from(async () => {
+        const extra = (await options.claimsFor?.(actor.id, context)) ?? {};
+        const claims: SqlClaims = {
+          ...extra,
+          role: "authenticated",
+          sub: actor.id,
+          ...(tenant === undefined ? {} : { tenant_id: tenant }),
+          ...(actor.impersonator
+            ? {
+                act: actClaim({
+                  actor: actor.impersonator,
+                  reason: forOptions.reason ?? "job",
+                }),
+              }
+            : {}),
+        };
+        return ok(
+          sqlFor(
+            claims,
+            {
+              actor: {
+                id: actor.id,
+                kind: "user",
+                role: "authenticated",
+                ...(actor.impersonator
+                  ? { impersonator: actor.impersonator }
+                  : {}),
+              },
+              claims,
+              ...(tenant === undefined ? {} : { tenant }),
+            },
+            undefined,
+            tenant === undefined
+              ? undefined
+              : { settings: { "better_supabase.tenant": tenant } },
+          ),
+        );
       });
     },
   };

@@ -71,6 +71,32 @@ transaction, the way PostgREST does it, so policies see
 `{ actor, reason }` as a third argument to record the admin: see
 [Impersonation](/docs/auth/impersonation).
 
+`forContext(context)` does the same for a context recorded earlier, such as
+`job.context` from the [jobs kit](/docs/kits/jobs#actor-and-tenant). It runs
+as the context's user, sets its tenant as `tenant_id` and as the
+`better_supabase.tenant` setting, and keeps an impersonating admin in `act`.
+It returns a `Result`, which fails with `forbidden` when the context has no
+user, so a job never falls back to the service role:
+
+```ts
+const db = await bs.forContext(job.context).orThrow();
+```
+
+A job has no token, so claims that a custom access token hook adds (a role,
+an organization list) are missing. `claimsFor` rebuilds them when the job
+runs; `sub`, `role`, `tenant_id` and `act` always come from the context:
+
+```ts
+export const bs = createServer(betterSupabase, {
+  postgres: createPostgres(),
+  claimsFor: async (userId, context) => ({
+    user_role: await roleOf(userId, context.tenant),
+  }),
+});
+```
+
+See [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
 `dbFor(auth)` and `supabaseFor(auth)` bind to an auth state you already
 have, for example one resolved in a proxy.
 

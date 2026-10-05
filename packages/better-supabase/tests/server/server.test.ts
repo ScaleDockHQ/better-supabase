@@ -536,6 +536,118 @@ describe("createServer actingAs", () => {
   });
 });
 
+describe("createServer forContext", () => {
+  const TENANT = "33333333-3333-4333-8333-333333333333";
+  const userActor = { id: USER, kind: "user" as const };
+
+  it("runs as the recorded user, scoped to the recorded tenant", async () => {
+    const { postgres, claims, sessions } = fakePostgres();
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    const db = await server
+      .forContext({ actor: userActor, tenant: TENANT })
+      .orThrow();
+    expect(db.$context.actor).toEqual({
+      id: USER,
+      kind: "user",
+      role: "authenticated",
+    });
+    expect(db.$context.tenant).toBe(TENANT);
+    expect(claims).toEqual([
+      { role: "authenticated", sub: USER, tenant_id: TENANT },
+    ]);
+    expect(sessions).toEqual([
+      { settings: { "better_supabase.tenant": TENANT } },
+    ]);
+  });
+
+  it("keeps the impersonator in act", async () => {
+    const { postgres, claims } = fakePostgres();
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    const actor = { ...userActor, impersonator: "admin-1" };
+    const db = await server.forContext({ actor }).orThrow();
+    await server.forContext({ actor }, { reason: "replay 42" }).orThrow();
+    expect(db.$context.actor).toMatchObject({ impersonator: "admin-1" });
+    expect(claims.map((value) => value["act"])).toEqual([
+      { kind: "impersonation", sub: "admin-1", reason: "job" },
+      { kind: "impersonation", sub: "admin-1", reason: "replay 42" },
+    ]);
+  });
+
+  it("adds claimsFor, which can't replace sub, role or the tenant", async () => {
+    const { postgres, claims } = fakePostgres();
+    const claimsFor = vi.fn(async () => ({
+      sub: "someone-else",
+      role: "service_role",
+      tenant_id: "other",
+      user_role: "admin",
+    }));
+    const server = createServer(defineSupabase(schema), {
+      env,
+      postgres,
+      claimsFor,
+    });
+    const context = { actor: userActor, tenant: TENANT };
+    await server.forContext(context).orThrow();
+    expect(claimsFor).toHaveBeenCalledWith(USER, context);
+    expect(claims).toEqual([
+      {
+        sub: USER,
+        role: "authenticated",
+        tenant_id: TENANT,
+        user_role: "admin",
+      },
+    ]);
+
+    const sync = createServer(defineSupabase(schema), {
+      env,
+      postgres,
+      claimsFor: () => ({ org_ids: [TENANT] }),
+    });
+    await sync.forContext({ actor: userActor }).orThrow();
+    expect(claims[1]).toEqual({
+      org_ids: [TENANT],
+      role: "authenticated",
+      sub: USER,
+    });
+  });
+
+  it("refuses contexts without a user and never falls back to admin", async () => {
+    const { postgres, claims } = fakePostgres();
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    for (const [context, kind] of [
+      [{}, "none"],
+      [{ actor: { id: "service", kind: "service" as const } }, "service"],
+      [{ actor: { id: "anon", kind: "anon" as const } }, "anon"],
+    ] as const) {
+      const result = await server.forContext(context);
+      expect(result.error).toMatchObject({ kind: "forbidden" });
+      expect(result.error?.message).toContain(`got ${kind}`);
+    }
+    expect(claims).toEqual([]);
+  });
+
+  it("fails with invalid_request without postgres", async () => {
+    const server = createServer(defineSupabase(schema), { env });
+    const result = await server.forContext({ actor: userActor });
+    expect(result.error).toMatchObject({
+      kind: "invalid_request",
+      message:
+        "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
+    });
+  });
+
+  it("returns claimsFor failures as a result", async () => {
+    const { postgres } = fakePostgres();
+    const server = createServer(defineSupabase(schema), {
+      env,
+      postgres,
+      claimsFor: () => Promise.reject(new Error("profile lookup failed")),
+    });
+    const result = await server.forContext({ actor: userActor });
+    expect(result.ok).toBe(false);
+  });
+});
+
 describe("createServer events", () => {
   it("emits an auth event per resolution with its source", async () => {
     const betterSupabase = defineSupabase(schema);

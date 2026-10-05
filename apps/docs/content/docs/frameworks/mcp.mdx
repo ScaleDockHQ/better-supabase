@@ -69,6 +69,11 @@ authorization server. Clients that support MCP authorization then sign the
 user in through Supabase's OAuth server and retry. Override `resource` and
 `authorizationServers` when the server sits behind a proxy.
 
+A tool that starts background work enqueues it with
+`{ context: db.$context }` from `run`'s `db`, and the worker runs it as the
+same user with `bs.forContext(job.context)`. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
 A signed-in caller that `allow` or `requiredScopes` turns away gets a 403 with
 the same metadata URL, so the client can ask for more access:
 
@@ -297,6 +302,10 @@ const handler = createMcpHandler(() => {
 
 export default { fetch: auth.serve(handler) };
 ```
+
+The tool's `db` is bound to the verified caller, so a tool that enqueues a
+job passes `{ context: db.$context }` the same way, and the job runs as that
+user.
 
 `auth.serve(handler)` answers the metadata at
 `/.well-known/oauth-protected-resource/mcp`, refuses a missing or invalid

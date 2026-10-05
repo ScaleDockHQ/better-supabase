@@ -189,6 +189,11 @@ The third argument adds an [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#sec
 `auth.uid() = userId`. Check who acts first: `actingAs` trusts its caller, so
 only call it after your own admin check.
 
+Jobs run as the user who enqueued them with `bs.forContext(job.context)`,
+which keeps the impersonating admin when the job was enqueued during
+impersonation. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
 ## What gets recorded
 
 | Where              | What                                                                                                                             |

@@ -111,22 +111,34 @@ await jobs.work(
 
 ### Actor and tenant
 
+The queue itself runs on a service-role connection, but the work inside a
+handler should run as the user who asked for it, so your RLS policies still
+decide what it can read and write.
+
 Pass the request context to `enqueue` and the job records its actor and
 tenant next to the payload. The tenant is `context.tenant`, the one
 `tenant()` resolved for the connection, or the `tenant_id` claim (then
-`app_metadata.tenant_id`). The handler gets them back as `job.context`, so a
-database bound to it stamps `createdBy` and scopes to the tenant the way the
-original request would have:
+`app_metadata.tenant_id`). The handler gets them back as `job.context`, and
+[`bs.forContext`](/docs/auth/server#explicit-identities) turns that into
+repositories running as that user, in that tenant, over direct Postgres:
 
 ```ts
 await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
 
 await jobs.work("send_invoice", async (payload, job) => {
-  const scoped = admin.$with(job.context);
-  const invoice = await scoped.invoices.findById(payload.invoiceId).orThrow();
+  const db = await bs.forContext(job.context).orThrow();
+  const invoice = await db.invoices.findById(payload.invoiceId).orThrow();
   // ...
 });
 ```
+
+`forContext` fails with `forbidden` when the job recorded no user, for
+example one enqueued by a cron schedule, and never falls back to the service
+role. Work that no user owns uses `bs.admin(job.context)` on purpose: it
+stamps `createdBy` and applies the `tenant()` filter, but bypasses RLS, so
+keep it visible in code review. `admin.$with(job.context)` is the same
+service-role connection and does not apply RLS either. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
 
 A job enqueued without a tenant runs with a context that has none, so
 `tenant()` applies its `onMissing` (a `forbidden` error by default). Workers
@@ -297,3 +309,22 @@ await inbox.process(async (message) => {
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
 a new message and `200` for a duplicate. A failed verification gets a
 Problem Details response.
+
+A webhook carries no session, so pick the identity in the handler. Look up
+the user and tenant the event belongs to (a Stripe customer id maps to an
+organization and its owner), then run the work with
+`bs.actingAs(userId, { tenant_id })` so RLS applies:
+
+```ts
+await inbox.process(async (message) => {
+  const owner = await ownerOfCustomer(message.payload.customer);
+  const db = bs.actingAs(owner.userId, { tenant_id: owner.organizationId });
+  await db.invoices
+    .update(message.payload.invoice, { status: "paid" })
+    .orThrow();
+});
+```
+
+Use `bs.admin()` only for events no user owns, such as a provider-wide
+status change. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).

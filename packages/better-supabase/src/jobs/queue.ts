@@ -52,7 +52,8 @@ export interface Job<P = unknown> {
   readonly visibleUntil: Temporal.Instant;
   readonly lastError: string | null;
   /**
-   * The actor and tenant recorded at enqueue, ready for `db.$with(job.context)`.
+   * The actor and tenant recorded at enqueue, ready for `bs.forContext(job.context)`,
+   * which runs as that user with RLS.
    * Without a recorded tenant, `tenant()` applies its `onMissing` unless the
    * worker runs with `allTenants: true`.
    */

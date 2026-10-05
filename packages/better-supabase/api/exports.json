@@ -439,6 +439,7 @@
       "CookieWrite",
       "DeleteAccountOptions",
       "DeleteAccountResult",
+      "ForContextOptions",
       "GuardOptions",
       "ImpersonationOptions",
       "Impersonator",

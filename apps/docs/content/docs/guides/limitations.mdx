@@ -59,6 +59,22 @@ archive. It can't:
 
 Workers that need these run on the server with `createPostgres()`.
 
+## Acting as a user without Postgres
+
+`bs.forContext` and `bs.actingAs` run work as a user who isn't calling, for
+jobs and webhooks. They need a direct Postgres connection, because they set
+the user's claims for the transaction themselves. The Data API can't do
+that: PostgREST only trusts tokens signed by the project's signing keys,
+and with asymmetric keys only Supabase Auth holds the private key, so the
+app can't mint a token for the user (see
+[Why only over Postgres](/docs/auth/impersonation#why-only-over-postgres)).
+
+An Edge Function with only the Data API can therefore act as its caller, but
+not as anyone else. Run user-scoped workers where a
+[pooler URL](/docs/auth/postgres#which-connection-string) is available, or
+keep the work inside the user's own request. Don't switch to the service
+role to get around it: that bypasses RLS for the whole job.
+
 ## Live queries
 
 [Live queries](/docs/frontend/live-queries) refetch the whole query on a

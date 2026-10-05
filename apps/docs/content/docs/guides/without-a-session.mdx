@@ -1,0 +1,133 @@
+---
+title: Jobs, webhooks and agents without a session
+description: Run background jobs, webhook handlers and MCP tools as a specific user, so RLS keeps deciding, and keep the service role for the work no user owns.
+---
+
+A request from the browser carries the user's token, so RLS decides what it
+can see. Background jobs, webhooks and AI agents have no browser session, and
+the shortcut there is the service role, which bypasses RLS. One job written
+that way and your policies stop deciding anything for it.
+
+better-supabase gives each of these paths an explicit identity instead:
+
+| Path                  | Runs as                                     | How                                   |
+| --------------------- | ------------------------------------------- | ------------------------------------- |
+| MCP tools             | the signed-in user, from their bearer token | `createMcp` or `withBetterSupabase`   |
+| A job                 | the user who enqueued it, in their tenant   | `bs.forContext(job.context)`          |
+| A webhook or a script | a user you look up from the event           | `bs.actingAs(userId, { tenant_id })`  |
+| Work no user owns     | the service role, bypassing RLS             | `bs.admin()`, on purpose and reviewed |
+
+`forContext` and `actingAs` run over direct Postgres with the user's claims
+set for the transaction, the way PostgREST does after checking a token, so
+policies see `auth.uid() = userId`. Both need
+[`postgres`](/docs/auth/postgres) in `createServer`.
+
+## Jobs
+
+Record who asked for the work when you enqueue it. `db.$context` is the
+caller's context in a server handler, an MCP tool or an oRPC procedure:
+
+```ts title="app/invoices/actions.ts"
+await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
+```
+
+The job stores the actor and the tenant next to the payload. In the worker,
+`bs.forContext(job.context)` returns repositories that run as that user, in
+that tenant:
+
+```ts title="worker.ts"
+await jobs.work("send_invoice", async (payload, job) => {
+  const db = await bs.forContext(job.context).orThrow();
+  const invoice = await db.invoices.findById(payload.invoiceId).orThrow();
+  await sendInvoice(invoice);
+});
+```
+
+If the user lost access to the invoice between the request and the job, RLS
+refuses it and the job fails like any other error. A job that recorded no
+user, such as one a cron schedule enqueued, fails with `forbidden`:
+`forContext` never falls back to the service role. When the context carries
+an impersonating admin, the `act` claim comes back with it, so the
+[audit log](/docs/auth/impersonation#what-gets-recorded) still names the
+admin. Pass `{ reason }` to record why.
+
+`bs.admin(job.context)` and `admin.$with(job.context)` stamp `createdBy` and
+apply the `tenant()` plugin's filter, but they still run as the service role,
+so RLS does not apply. Use them only for work no user owns.
+
+### Claims from an access token hook
+
+A user's token can carry claims that a
+[custom access token hook](https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook)
+added, such as a role or a list of organizations. A job has no token, so
+`forContext` starts from `sub`, `role: "authenticated"` and the recorded
+`tenant_id`. When your policies read other claims, rebuild them with
+`claimsFor`:
+
+```ts title="lib/server.ts"
+const postgres = createPostgres();
+
+export const bs = createServer(betterSupabase, {
+  postgres,
+  claimsFor: async (userId) => {
+    const [profile] = await postgres.admin.queryRaw<{ role: string }>(
+      "select role from public.profiles where id = $1",
+      [userId],
+    );
+    return { user_role: profile?.role ?? "member" };
+  },
+});
+```
+
+`claimsFor` runs for every `forContext` call, so the claims reflect the
+user's access when the job runs, not when it was enqueued. `sub`, `role`,
+`tenant_id` and `act` always come from the context.
+
+## Webhooks
+
+A webhook belongs to whoever the event is about. Verify and store it with
+the [webhook inbox](/docs/kits/jobs#webhook-inbox), map the provider's id to
+a user and tenant in the handler, then act as that user:
+
+```ts title="app/api/webhooks/billing/route.ts"
+await inbox.process(async (message) => {
+  const owner = await ownerOfCustomer(message.payload.customer);
+  const db = bs.actingAs(owner.userId, { tenant_id: owner.organizationId });
+  await db.subscriptions.update(owner.subscriptionId, {
+    status: message.payload.status,
+  });
+});
+```
+
+`actingAs` trusts its caller, so call it only after the signature check and
+the lookup. The same applies to scripts and support tools; for an admin
+acting on a user's behalf, pass `{ actor, reason }` as the third argument (see
+[Impersonation](/docs/auth/impersonation#acting-as-a-user-in-code)).
+
+## Organizations
+
+There is no organization principal. Organization-wide work acts as a member
+of the organization (its owner, or the user who set the work up), with the
+organization as `tenant_id`, so membership policies still apply. Work that
+spans every organization, such as a nightly cleanup, is the case for
+`bs.admin()` with a worker that passes `allTenants: true`.
+
+## MCP servers and agents
+
+`createMcp` and `withBetterSupabase` verify the caller's Supabase access
+token and bind every tool to that user, so RLS decides what the model can
+read and change. There is no service-role mode. Agents that act through an
+OAuth client or a token exchange can be limited further with
+`requiredScopes` and `authorize`; see [MCP servers](/docs/frameworks/mcp).
+A tool that starts background work enqueues it with `{ context: db.$context }`,
+and the job then runs as the same user.
+
+## Without a direct Postgres connection
+
+`forContext` and `actingAs` need a database connection, because the Data API
+can't take claims without a token, and with asymmetric signing keys only
+Supabase Auth can mint one. An Edge Function with only the Data API has no
+way to act as a user that isn't calling it. Run user-scoped jobs where a
+[pooler URL](/docs/auth/postgres#which-connection-string) is available, or
+keep the work inside the user's own request. See
+[Limitations](/docs/guides/limitations#acting-as-a-user-without-postgres).
