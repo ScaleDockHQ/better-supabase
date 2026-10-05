@@ -55,6 +55,7 @@ const PERMDOCK: PermdockProject = {
 
 const toml = (text: string): SupabaseToml => ({
   path: "supabase/config.toml",
+  dir: "supabase",
   text,
   document: parseToml(text),
   parser: "smol-toml",

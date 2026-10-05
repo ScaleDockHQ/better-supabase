@@ -2,6 +2,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { findSupabaseRoot } from "./supabase-toml.ts";
+
 export type Framework =
   | "next"
   | "hono"
@@ -86,7 +88,7 @@ export async function detectProject(root: string): Promise<Project> {
     tsExtensions:
       options["allowImportingTsExtensions"] === true ||
       options["rewriteRelativeImportExtensions"] === true,
-    hasSupabase: existsSync(join(root, "supabase", "config.toml")),
+    hasSupabase: findSupabaseRoot(root) !== undefined,
   };
 }
 

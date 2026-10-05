@@ -161,13 +161,14 @@ async function sqlFiles(
   const schemas = await Promise.all(
     (await schemaPaths(root, toml)).files.map(read),
   );
-  const migrationsDir = resolve(root, "supabase/migrations");
+  const migrationsPath = `${toml?.dir ?? "supabase"}/migrations`;
+  const migrationsDir = resolve(root, migrationsPath);
   const migrations = existsSync(migrationsDir)
     ? (await readdir(migrationsDir))
         .filter((name) => name.endsWith(".sql"))
         .sort()
         .reverse()
-        .map((name) => `supabase/migrations/${name}`)
+        .map((name) => `${migrationsPath}/${name}`)
     : [];
   return [...schemas, ...(await Promise.all(migrations.map(read)))];
 }

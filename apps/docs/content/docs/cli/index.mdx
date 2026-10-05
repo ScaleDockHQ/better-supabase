@@ -30,14 +30,14 @@ A mistyped command gets a suggestion: `Did you mean "gen"?`.
 
 ## Global options
 
-| Option            | Effect                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------ |
-| `--cwd <dir>`     | Project directory. Defaults to the current one.                                      |
-| `--config <file>` | Config file, relative to `--cwd`. Defaults to `better-supabase.config.*` in `--cwd`. |
-| `--json`          | Prints one JSON document on stdout, and errors as Problem Details. Never prompts.    |
-| `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                      |
-| `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                      |
-| `--version`       | Prints the version.                                                                  |
+| Option            | Effect                                                                                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cwd <dir>`     | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)). |
+| `--config <file>` | Config file, relative to `--cwd`. Defaults to `better-supabase.config.*` in `--cwd`.                                                                                                     |
+| `--json`          | Prints one JSON document on stdout, and errors as Problem Details. Never prompts.                                                                                                        |
+| `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                                                                                                                          |
+| `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                                                                                                                          |
+| `--version`       | Prints the version.                                                                                                                                                                      |
 
 Prompts only run in a terminal. In CI (`$CI` is set), and under `--json` or
 `--yes`, commands use their flags and defaults instead of asking.

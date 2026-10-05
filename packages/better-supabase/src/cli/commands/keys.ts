@@ -8,6 +8,7 @@ import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
 import { display } from "../io.ts";
+import { supabaseDir } from "../supabase-toml.ts";
 
 const ARGS = {
   out: {
@@ -63,7 +64,8 @@ export async function runKeys(
   config: ResolvedConfig,
   args: KeysArgs,
 ): Promise<CommandResult> {
-  const out = args.out ?? "supabase/signing_keys.json";
+  const dir = supabaseDir(config.root);
+  const out = args.out ?? `${dir}/signing_keys.json`;
   const path = resolve(config.root, out);
   const rotate = args.rotate === true;
   const exists = existsSync(path);
@@ -94,24 +96,24 @@ export async function runKeys(
   const lines = [
     `Wrote ${display(config.root, out)} with key ${key.kid}${previous.length > 0 ? ` (${previous.length} older key${previous.length === 1 ? "" : "s"} kept for verification)` : ""}.`,
   ];
-  const toml = resolve(config.root, "supabase/config.toml");
+  const toml = resolve(config.root, dir, "config.toml");
   const configured =
     existsSync(toml) &&
     /^\s*signing_keys_path\s*=/m.test(await readFile(toml, "utf8"));
   if (!configured) {
-    const relativeToSupabase = out.startsWith("supabase/")
-      ? `./${out.slice("supabase/".length)}`
+    const relativeToSupabase = out.startsWith(`${dir}/`)
+      ? `./${out.slice(dir.length + 1)}`
       : out;
     lines.push(
       "",
-      "Add it to supabase/config.toml and restart the stack:",
+      `Add it to ${dir}/config.toml and restart the stack:`,
       "  [auth]",
       `  signing_keys_path = "${relativeToSupabase}"`,
     );
   }
   const gitignored = [
     resolve(config.root, ".gitignore"),
-    resolve(config.root, "supabase/.gitignore"),
+    resolve(config.root, dir, ".gitignore"),
   ];
   let ignored = false;
   for (const file of gitignored) {

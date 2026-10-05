@@ -13,6 +13,7 @@ import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { withSpinner } from "../prompts.ts";
+import { supabaseDir } from "../supabase-toml.ts";
 
 const ARGS = {
   check: {
@@ -99,9 +100,10 @@ export async function runSeed(
     }
     lines.push("Inserted the fixtures (existing rows were kept).");
   }
-  const toml = resolve(config.root, "supabase/config.toml");
-  const seedPath = out.startsWith("supabase/")
-    ? `./${out.slice("supabase/".length)}`
+  const dir = supabaseDir(config.root);
+  const toml = resolve(config.root, dir, "config.toml");
+  const seedPath = out.startsWith(`${dir}/`)
+    ? `./${out.slice(dir.length + 1)}`
     : out;
   if (existsSync(toml)) {
     const text = await readFile(toml, "utf8");
@@ -109,7 +111,7 @@ export async function runSeed(
     if (!text.includes(seedPath) && !text.includes(`${folder}*`)) {
       lines.push(
         "",
-        "Add it to supabase/config.toml so `supabase db reset` runs it:",
+        `Add it to ${dir}/config.toml so \`supabase db reset\` runs it:`,
         "  [db.seed]",
         `  sql_paths = ["./seed.sql", "${seedPath}"]`,
       );

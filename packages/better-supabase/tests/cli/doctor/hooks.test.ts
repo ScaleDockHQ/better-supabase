@@ -75,6 +75,7 @@ function context(
     snapshot,
     configToml: {
       path: "supabase/config.toml",
+      dir: "supabase",
       text: HOOK_TOML,
       document: parseToml(HOOK_TOML),
       parser: "smol-toml",
@@ -313,6 +314,7 @@ describe("BS405 --as", () => {
         context(snap, {
           configToml: {
             path: "supabase/config.toml",
+            dir: "supabase",
             text: toml,
             document: parseToml(toml),
             parser: "smol-toml",
@@ -408,6 +410,7 @@ describe("BS410 HTTP auth hooks", () => {
     context(base, {
       configToml: {
         path: "supabase/config.toml",
+        dir: "supabase",
         text: toml,
         document,
         parser: "smol-toml",
