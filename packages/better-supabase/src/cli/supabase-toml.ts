@@ -321,7 +321,7 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
 export function declarativeSchemasDir(toml?: SupabaseToml): string {
   return diffEngine(toml) === "pg-delta"
     ? pgDeltaSchemasDir(toml)
-    : SCHEMAS_DIR;
+    : posix.join(toml?.dir ?? "supabase", "schemas");
 }
 
 async function expand(cwd: string, pattern: string): Promise<string[]> {
