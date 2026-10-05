@@ -79,3 +79,16 @@ Bundled packages get updates only when the library is released, so a
 security fix in a CLI dependency needs a better-supabase release instead of
 a lockfile refresh in the app. Revisit this if the CLI's dependencies start
 to need fixes faster than the library ships.
+
+## Addendum: postgrest-typegen as an optional peer
+
+`@supabase/postgrest-typegen` moved from `dependencies` to an optional peer,
+pinned to the same exact version in the `peers` catalog. Apps that only use
+the runtime entries (an Expo app, an edge function) no longer install it or
+its arktype dependency. The CLI loads it in `src/cli/introspect/typegen.ts`
+and stops with an install message naming the pinned version when it is
+missing; `init` adds it next to `pg`. The published types reference a copy
+of `GeneratorMetadata` in `src/config/generator-metadata.ts`, and
+`tests/config/generator-metadata.test-d.ts` fails when the copy and the
+pinned package disagree. It stays external to the CLI bundle, so the
+version an app installs is the one that writes its `database.types.ts`.

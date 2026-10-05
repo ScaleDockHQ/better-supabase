@@ -93,7 +93,8 @@ it ships in a minor release with a changelog entry.
 Some output depends on Supabase projects. They're pinned so an upstream
 release never changes your generated code or doctor report by itself:
 
-- **`@supabase/postgrest-typegen`** is an exact dependency of the CLI.
+- **`@supabase/postgrest-typegen`** is an optional peer of the CLI, pinned
+  to an exact version.
   `database.types.ts` matches `supabase gen types` for that version, apart
   from differences the CI test lists (0.4.0 adds `ComputedFields`, which
   Supabase CLI 2.119 doesn't write yet). Bumping it is a changelog entry.

@@ -998,9 +998,6 @@ importers:
       '@supabase/postgrest-js':
         specifier: catalog:deps
         version: 2.117.2
-      '@supabase/postgrest-typegen':
-        specifier: 'catalog:'
-        version: 0.4.0(oxfmt@0.71.0)
       '@supabase/server':
         specifier: catalog:deps
         version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
@@ -1038,6 +1035,9 @@ importers:
       '@supabase/config':
         specifier: 'catalog:'
         version: 0.11.1(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1)))(effect@4.0.0)
+      '@supabase/postgrest-typegen':
+        specifier: 'catalog:'
+        version: 0.4.0(oxfmt@0.71.0)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)

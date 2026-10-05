@@ -16,7 +16,10 @@ import {
   managementSource,
   pgSource,
 } from "../introspect/source.ts";
-import { validateGeneratorMetadata } from "../introspect/typegen.ts";
+import {
+  TypegenMissingError,
+  validateGeneratorMetadata,
+} from "../introspect/typegen.ts";
 import { pgFunctionHooks, readSupabaseToml } from "../supabase-toml.ts";
 
 const SNAPSHOT_SCHEMA_URL =
@@ -167,6 +170,7 @@ export async function parseSnapshot(
   try {
     generator = await validateGeneratorMetadata(doc.generator);
   } catch (cause) {
+    if (cause instanceof TypegenMissingError) throw cause;
     throw new Error(
       `${label} has invalid "generator" metadata: ${cause instanceof Error ? cause.message : String(cause)}`,
       { cause },

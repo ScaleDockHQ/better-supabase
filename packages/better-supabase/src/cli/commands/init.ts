@@ -8,6 +8,7 @@ import type { Prompter } from "../prompts.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { display, writeIfChanged } from "../io.ts";
 import {
   detectProject,
@@ -155,9 +156,15 @@ function packagesFor(
   return [...new Set(wanted)].filter((name) => !(name in project.dependencies));
 }
 
-/** pg as a dev dependency, when the project lacks it. */
+/** pg and the pinned postgrest-typegen as dev dependencies, the ones the project lacks. */
 function devPackages(project: Project): string[][] {
-  return "pg" in project.dependencies ? [] : [["pg"]];
+  const missing = [
+    ...("pg" in project.dependencies ? [] : ["pg"]),
+    ...("@supabase/postgrest-typegen" in project.dependencies
+      ? []
+      : [`@supabase/postgrest-typegen@${TYPEGEN_VERSION}`]),
+  ];
+  return missing.length === 0 ? [] : [missing];
 }
 
 function chooseIntegrations(

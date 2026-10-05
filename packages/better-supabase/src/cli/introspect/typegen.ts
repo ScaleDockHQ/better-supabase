@@ -1,33 +1,59 @@
 /**
  * The only module that imports `@supabase/postgrest-typegen`. It is alpha and
- * pinned to an exact version, so every use goes through here.
+ * pinned to an exact version, so every use goes through here. It is an
+ * optional peer: without it, the functions here throw an install message.
  */
-import type { GeneratorMetadata, Queryable } from "@supabase/postgrest-typegen";
+import type * as Generation from "@supabase/postgrest-typegen/generation";
 import type * as Oxfmt from "oxfmt";
 
-import {
-  generateTypescript,
-  pgTypeToTsType,
-  sortGeneratorMetadata,
-} from "@supabase/postgrest-typegen/generation";
+import type { GeneratorMetadata } from "../../config/index.ts";
 
 import { byCodePoint } from "../compare.ts";
+import { TYPEGEN_VERSION } from "./typegen-version.ts";
+
+const TYPEGEN = "@supabase/postgrest-typegen";
+
+/** Why a command that reads or generates schema types stops without the peer. */
+export const TYPEGEN_MISSING: string = `better-supabase needs the "${TYPEGEN}" package to read your schema and generate types. Install it: pnpm add -D ${TYPEGEN}@${TYPEGEN_VERSION}`;
+
+/** Thrown by every function here when the optional peer is not installed. */
+export class TypegenMissingError extends Error {
+  constructor() {
+    super(TYPEGEN_MISSING);
+    this.name = "TypegenMissingError";
+  }
+}
+
+const missing = (): never => {
+  throw new TypegenMissingError();
+};
 
 /**
- * The package root and `/introspection` build their arktype schemas on
- * import (about 90 ms), so they load when a command reads or validates
- * metadata, not for `--help`.
+ * `/generation` is light and its functions are synchronous (`buildModel`
+ * calls `tsTypeOf`), so it loads with this module, which the commands that
+ * need it import on demand. The package root and `/introspection` build
+ * their arktype schemas on import (about 90 ms), so they load when a command
+ * reads or validates metadata, not for `--help`.
  */
-const metadataModule = () => import("@supabase/postgrest-typegen");
+const generation: typeof Generation | undefined =
+  await import("@supabase/postgrest-typegen/generation").catch(() => undefined);
+const loadGeneration = (): typeof Generation => generation ?? missing();
+const metadataModule = () =>
+  import("@supabase/postgrest-typegen").catch(missing);
 const introspectionModule = () =>
-  import("@supabase/postgrest-typegen/introspection");
+  import("@supabase/postgrest-typegen/introspection").catch(missing);
 
 export type {
   GeneratorMetadata,
   PostgresColumn,
   PostgresFunction,
-  Queryable,
-} from "@supabase/postgrest-typegen";
+} from "../../config/index.ts";
+
+/** A connection `introspect()` reads the catalog through, as postgrest-typegen types it. */
+export interface Queryable {
+  // oxlint-disable-next-line typescript/no-explicit-any -- matches postgrest-typegen's own signature.
+  query(sql: string): Promise<{ rows: any[] }>;
+}
 
 /** Introspects `schemas`, keeping only the types they reference. */
 export async function readGeneratorMetadata(
@@ -140,7 +166,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
       })),
     })),
   };
-  return { metadata: sortGeneratorMetadata(stable), ids };
+  return { metadata: loadGeneration().sortGeneratorMetadata(stable), ids };
 }
 
 /** Validates metadata loaded from a snapshot file. */
@@ -167,7 +193,9 @@ export async function serializeGenerator(
   metadata: GeneratorMetadata,
 ): Promise<string> {
   const { serializeGeneratorMetadata } = await metadataModule();
-  return serializeGeneratorMetadata(sortGeneratorMetadata(metadata));
+  return serializeGeneratorMetadata(
+    loadGeneration().sortGeneratorMetadata(metadata),
+  );
 }
 
 /**
@@ -245,6 +273,7 @@ export function generateDatabaseTypes(
   metadata: GeneratorMetadata,
   options: DatabaseTypesOptions,
 ): Promise<string> {
+  const { generateTypescript, sortGeneratorMetadata } = loadGeneration();
   return generateTypescript(
     sortGeneratorMetadata(restrictSchemas(metadata, options.schemas)),
     {
@@ -270,7 +299,7 @@ export function tsTypeOf(
     name: schema,
     owner: "",
   };
-  return pgTypeToTsType(
+  return loadGeneration().pgTypeToTsType(
     owner,
     format,
     {

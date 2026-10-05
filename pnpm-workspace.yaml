@@ -112,8 +112,7 @@ catalogs:
   ts6:
     typescript: 6.0.3
   # Ranges for the published packages' runtime dependencies, so an app's
-  # supabase-js and better-supabase share one copy of each. postgrest-typegen
-  # stays an exact pin in the default catalog (AGENTS.md invariant 11).
+  # supabase-js and better-supabase share one copy of each.
   deps:
     "@standard-schema/spec": "^1.1.0"
     "@supabase/middleware": "^1.0.0"
@@ -129,6 +128,9 @@ catalogs:
     "@opentelemetry/api": ">=1.9 <2"
     "@orpc/server": ">=2.0.0-beta.40 <3"
     "@supabase/config": ">=0.9.0 <0.12"
+    # Exact, like the default catalog (AGENTS.md invariant 11), so
+    # database.types.ts matches `supabase gen types`. Only the CLI loads it.
+    "@supabase/postgrest-typegen": 0.4.0
     "@supabase/supabase-js": "^2.116.0"
     # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
     "@tanstack/query-core": "^5.62.0"
