@@ -8,6 +8,7 @@ import {
   type FieldPlan,
   fieldsFor,
   HEADER,
+  optionalLine,
   parseImport,
   propertyKey,
   rowType,
@@ -15,6 +16,7 @@ import {
   schemaName,
   siblingPath,
   tableEntries,
+  temporalGuardImport,
   variantsFor,
 } from "./shared.ts";
 
@@ -42,9 +44,9 @@ function scalar(kind: ScalarKind): string {
     case "date":
       return "z.iso.date()";
     case "instant":
-      return "z.instanceof(Temporal.Instant)";
+      return "z.custom<Temporal.Instant>(isInstant)";
     case "plainDateTime":
-      return "z.instanceof(Temporal.PlainDateTime)";
+      return "z.custom<Temporal.PlainDateTime>(isPlainDateTime)";
     case "bigint":
       return "z.bigint()";
     case "json":
@@ -106,6 +108,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
       const lines = [
         HEADER,
         'import { z } from "zod";',
+        ...optionalLine(temporalGuardImport(input)),
         "",
         `import type { InsertOf, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];

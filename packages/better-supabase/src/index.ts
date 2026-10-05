@@ -169,6 +169,14 @@ export type * from "./ir/types.ts";
 export { escapeLike } from "./ir/build.ts";
 export { decodeRows } from "./ir/codec.ts";
 export { encodeValue } from "./ir/wire.ts";
+export {
+  isInstant,
+  isPlainDate,
+  isPlainDateTime,
+  isPlainTime,
+  isZonedDateTime,
+  provideTemporal,
+} from "./core/temporal.ts";
 export { and, column, not, or } from "./ir/types.ts";
 export { scopeCondition, scopeOperation, scopeSelection } from "./ir/scope.ts";
 export type { ScopeFor } from "./ir/scope.ts";

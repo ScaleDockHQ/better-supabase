@@ -8,6 +8,7 @@ import {
   type FieldPlan,
   fieldsFor,
   HEADER,
+  optionalLine,
   parseImport,
   propertyKey,
   rowType,
@@ -15,6 +16,7 @@ import {
   schemaName,
   siblingPath,
   tableEntries,
+  temporalGuardImport,
   variantsFor,
 } from "./shared.ts";
 
@@ -42,9 +44,9 @@ function scalar(kind: ScalarKind): string {
     case "date":
       return "v.pipe(v.string(), v.isoDate())";
     case "instant":
-      return "v.instance(Temporal.Instant)";
+      return "v.custom<Temporal.Instant>(isInstant)";
     case "plainDateTime":
-      return "v.instance(Temporal.PlainDateTime)";
+      return "v.custom<Temporal.PlainDateTime>(isPlainDateTime)";
     case "bigint":
       return "v.bigint()";
     case "json":
@@ -107,6 +109,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
       const lines = [
         HEADER,
         'import * as v from "valibot";',
+        ...optionalLine(temporalGuardImport(input)),
         "",
         `import type { InsertOf, Json, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];

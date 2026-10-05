@@ -213,6 +213,9 @@ describe("zod()", () => {
       'import { payloadSchema, rawSchema } from "./schemas.ts";',
     );
     expect(text).toContain('import { dataSchema } from "@acme/schemas";');
+    expect(text).toContain(
+      'import { isInstant, isPlainDateTime } from "better-supabase";',
+    );
     expect(text).toEqual(
       expect.arrayContaining([
         "export const eventsRow: z.ZodType<RowOf<'events'>> = z.object({",
@@ -220,8 +223,8 @@ describe("zod()", () => {
         "  amount: z.number().nullable(),",
         "  big: z.bigint(),",
         "  exact: z.string(),",
-        "  at: z.instanceof(Temporal.Instant),",
-        "  local: z.instanceof(Temporal.PlainDateTime),",
+        "  at: z.custom<Temporal.Instant>(isInstant),",
+        "  local: z.custom<Temporal.PlainDateTime>(isPlainDateTime),",
         "  day: z.iso.date(),",
         "  flag: z.boolean(),",
         "  labels: z.array(z.string()),",
@@ -268,14 +271,17 @@ describe("valibot()", () => {
       'import { payloadSchema, rawSchema } from "./schemas.ts";',
     );
     expect(text).toContain('import { dataSchema } from "@acme/schemas";');
+    expect(text).toContain(
+      'import { isInstant, isPlainDateTime } from "better-supabase";',
+    );
     expect(text).toEqual(
       expect.arrayContaining([
         "  id: v.pipe(v.number(), v.integer()),",
         "  amount: v.nullable(v.number()),",
         "  big: v.bigint(),",
         "  exact: v.string(),",
-        "  at: v.instance(Temporal.Instant),",
-        "  local: v.instance(Temporal.PlainDateTime),",
+        "  at: v.custom<Temporal.Instant>(isInstant),",
+        "  local: v.custom<Temporal.PlainDateTime>(isPlainDateTime),",
         "  day: v.pipe(v.string(), v.isoDate()),",
         "  flag: v.boolean(),",
         "  labels: v.array(v.string()),",

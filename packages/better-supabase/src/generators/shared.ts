@@ -119,6 +119,33 @@ export function fieldsFor(
   return fields;
 }
 
+const TEMPORAL_GUARDS: Partial<Record<ScalarKind["kind"], string>> = {
+  instant: "isInstant",
+  plainDateTime: "isPlainDateTime",
+};
+
+/**
+ * The `better-supabase` guards the generated validators call. They check
+ * `Symbol.toStringTag`, so the module never reads `Temporal` when it loads.
+ */
+export function temporalGuardImport(input: SchemaSource): string | undefined {
+  const names = new Set<string>();
+  for (const [, table] of tableEntries(input)) {
+    for (const plan of fieldsFor(table, "Row", input)) {
+      if (plan.customJson || plan.column.storage !== undefined) continue;
+      const guard = TEMPORAL_GUARDS[plan.scalar.kind];
+      if (guard) names.add(guard);
+    }
+  }
+  return names.size === 0
+    ? undefined
+    : `import { ${[...names].sort().join(", ")} } from "better-supabase";`;
+}
+
+export function optionalLine(line: string | undefined): string[] {
+  return line === undefined ? [] : [line];
+}
+
 export function variantsFor(table: TableMeta): readonly Variant[] {
   return table.kind === "view" ? ["Row"] : ["Row", "Insert", "Update"];
 }

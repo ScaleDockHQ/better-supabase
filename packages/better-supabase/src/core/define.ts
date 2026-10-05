@@ -57,11 +57,17 @@ import {
 } from "./spec.ts";
 import { type StandardSchemaV1, validate } from "./standard.ts";
 import { recordStats, StatsRecorder } from "./stats.ts";
-import { nowInstant } from "./temporal.ts";
+import { nowInstant, optionalTemporal, provideTemporal } from "./temporal.ts";
 
 export interface SupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
   readonly now?: () => Temporal.Instant;
+  /**
+   * The `Temporal` namespace, for runtimes without a global one (Hermes,
+   * Node 24) when patching `globalThis` is not an option:
+   * `import { Temporal } from 'temporal-polyfill'`. Defaults to `globalThis.Temporal`.
+   */
+  readonly temporal?: typeof Temporal;
   /** Extra error mappers, run before plugin mappers. */
   readonly errors?: readonly ErrorMapper[];
   /** Receives errors from event handlers, hooks and cache adapters. Defaults to `console`. */
@@ -134,10 +140,16 @@ export class BetterSupabase<
     this.plugins = orderPlugins(plugins);
     this.options = options;
     this.events = events;
+    if (options.temporal !== undefined) provideTemporal(options.temporal);
   }
 
   get meta(): SchemaMeta {
     return this.schema.meta;
+  }
+
+  /** The `Temporal` this definition uses: the `temporal` option, else the global. */
+  get temporal(): typeof Temporal | undefined {
+    return this.options.temporal ?? optionalTemporal();
   }
 
   /** The schema set by `claims()`; its output types `session.claims`. */
