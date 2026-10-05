@@ -176,6 +176,7 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/query`                                    | TanStack Query options with table-based invalidation                     |
 | `better-supabase/server`                                   | Repositories bound to the caller, admin and acting-as identities         |
 | `better-supabase/postgres`                                 | The same repositories over direct Postgres                               |
+| `better-supabase/powersync`                                | The same repositories over PowerSync's local SQLite, with live queries   |
 | `better-supabase/ssr`                                      | The `@supabase/ssr` cookie format for any framework                      |
 | `better-supabase/next`, `/next/image`                      | Proxy, Server Components, route handlers, server actions, Storage images |
 | `better-supabase/hono`, `/orpc`, `/edge`                   | Framework adapters                                                       |

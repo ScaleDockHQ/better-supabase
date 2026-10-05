@@ -49,6 +49,7 @@ const KINDS: readonly DbErrorKind[] = [
   "multiple_rows",
   "stale",
   "rate_limited",
+  "unsupported",
   "unexpected",
 ];
 

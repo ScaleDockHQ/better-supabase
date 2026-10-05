@@ -29,6 +29,7 @@ const entries = [
   "webhooks/index",
   "openapi/index",
   "otel/index",
+  "powersync/index",
   "plugins/timestamps/index",
   "lint/index",
   "plugins/rules/index",

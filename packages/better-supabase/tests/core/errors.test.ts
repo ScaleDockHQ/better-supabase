@@ -44,6 +44,7 @@ describe("dbError", () => {
     ["aborted", 499],
     ["stale", 412],
     ["rate_limited", 429],
+    ["unsupported", 501],
     ["timeout", 504],
   ] as const)("maps %s to %i", (kind, status) => {
     expect(statusOf(kind)).toBe(status);

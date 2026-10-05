@@ -31,6 +31,8 @@ export interface DbErrorKinds {
   stale: Record<never, never>;
   /** `retryAfter`: seconds until the window resets (the `Retry-After` header). */
   rate_limited: { retryAfter?: number };
+  /** The executor or its dialect can't run this operation (an include on SQLite, say). */
+  unsupported: Record<never, never>;
   unexpected: Record<never, never>;
 }
 
@@ -86,6 +88,7 @@ const STATUS: { readonly [K in DbErrorKind]: number } = {
   multiple_rows: 409,
   stale: 412,
   rate_limited: 429,
+  unsupported: 501,
   unexpected: 500,
 };
 

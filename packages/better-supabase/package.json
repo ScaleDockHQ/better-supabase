@@ -77,6 +77,11 @@
       "types": "./dist/server/index.d.ts",
       "default": "./dist/server/index.js"
     },
+    "./powersync": {
+      "@better-supabase/source": "./src/powersync/index.ts",
+      "types": "./dist/powersync/index.d.ts",
+      "default": "./dist/powersync/index.js"
+    },
     "./postgres": {
       "@better-supabase/source": "./src/postgres/index.ts",
       "types": "./dist/postgres/index.d.ts",
@@ -250,6 +255,10 @@
       "./server": {
         "types": "./dist/server/index.d.ts",
         "default": "./dist/server/index.js"
+      },
+      "./powersync": {
+        "types": "./dist/powersync/index.d.ts",
+        "default": "./dist/powersync/index.js"
       },
       "./postgres": {
         "types": "./dist/postgres/index.d.ts",

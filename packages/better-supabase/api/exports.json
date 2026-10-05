@@ -461,6 +461,38 @@
       "SupportView"
     ]
   },
+  "./powersync": {
+    "values": [
+      "checkSqlite",
+      "compileSqlite",
+      "fromSqliteError",
+      "likeToGlob",
+      "postgrestTimestamp",
+      "powersyncExecutor",
+      "quoteSqliteIdent",
+      "sqliteCompiler",
+      "sqliteTables",
+      "sqliteValue",
+      "watch"
+    ],
+    "types": [
+      "PowerSyncDatabaseLike",
+      "PowerSyncExecutorOptions",
+      "SqliteColumn",
+      "SqliteCompilerOptions",
+      "SqliteContextLike",
+      "SqliteDecode",
+      "SqliteInsertPlan",
+      "SqliteKeyedPlan",
+      "SqliteKeys",
+      "SqlitePlan",
+      "SqliteQuery",
+      "SqliteReturning",
+      "SqliteSelectPlan",
+      "SqliteValue",
+      "WatchOptions"
+    ]
+  },
   "./postgres": {
     "values": [
       "compileSql",
