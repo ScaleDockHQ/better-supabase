@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { basename, isAbsolute, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
@@ -85,17 +85,44 @@ export async function renderFiles(
     { path: metaFiles.js, contents: meta.js },
     { path: metaFiles.dts, contents: meta.dts },
   ];
+  const owners = new Map(
+    files.map((file) => [resolve(config.root, file.path), "gen"]),
+  );
   for (const generator of config.generators) {
-    const extra = await generator.generate({
-      meta: model.meta,
-      introspection: model.introspection,
-      extras: snapshot.extras,
-      config,
-      output,
-      importPath: (from, to) =>
-        importPath(resolve(config.root, from), resolve(config.root, to)),
-    });
-    files.push(...extra);
+    let extra: readonly GeneratedFile[];
+    try {
+      extra = await generator.generate({
+        meta: model.meta,
+        introspection: model.introspection,
+        extras: snapshot.extras,
+        config,
+        output,
+        importPath: (from, to) =>
+          importPath(resolve(config.root, from), resolve(config.root, to)),
+      });
+    } catch (cause) {
+      throw new Error(
+        `generator "${generator.name}" failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        { cause },
+      );
+    }
+    for (const file of extra) {
+      const path = resolve(config.root, file.path);
+      const inside = relative(config.root, path);
+      if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
+        throw new Error(
+          `generator "${generator.name}" wrote ${file.path}, which is outside the project root`,
+        );
+      }
+      const owner = owners.get(path);
+      if (owner !== undefined) {
+        throw new Error(
+          `generator "${generator.name}" wrote ${file.path}, which ${owner === "gen" ? "better-supabase gen writes" : `generator "${owner}" also writes`}`,
+        );
+      }
+      owners.set(path, generator.name);
+      files.push(file);
+    }
   }
   return files;
 }
@@ -283,12 +310,6 @@ const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
   delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
 
 /**
- * Regenerates whenever the schema changes. A database source keeps one
- * connection open and polls the catalog fingerprint, so an unchanged schema
- * costs one small query per interval; a source without a fingerprint is
- * introspected each time and compared.
- */
-/**
  * Reads the schema when it may have changed. Returns the new change marker (the
  * catalog fingerprint, or the snapshot itself when the source has none) and
  * the snapshot, or no snapshot when the fingerprint still matches `last`.
@@ -314,10 +335,21 @@ async function poll(
   return marker === last ? { marker } : { marker, snapshot };
 }
 
+const regenerate = (
+  options: GenOptions,
+  snapshot: Snapshot,
+): Promise<CommandResult> =>
+  runGen({ ...options, snapshot }).catch((cause: unknown): CommandResult => ({
+    code: 1,
+    error: cause instanceof Error ? cause.message : String(cause),
+  }));
+
 /**
  * Regenerates whenever the schema changes. A database source keeps one
  * connection open and polls the catalog fingerprint, so an unchanged schema
- * costs one small query per interval.
+ * costs one small query per interval; a source without a fingerprint is
+ * introspected each time and compared. A failed run is retried every
+ * interval until it succeeds, and the same error is printed once.
  */
 async function watch(
   options: GenOptions,
@@ -325,28 +357,36 @@ async function watch(
   { io, signal }: CliContext,
 ): Promise<CommandResult> {
   let last = "";
+  let reported = "";
   let db: IntrospectionSource | undefined;
   const aborted = (): boolean => signal?.aborted ?? false;
   const fromFile = snapshotFile(options.config, options) !== undefined;
+  const report = (message: string): void => {
+    if (message !== reported) io.stderr(`${message}\n`);
+    reported = message;
+  };
   try {
     while (!aborted()) {
+      let polled: { marker: string; snapshot?: Snapshot } | undefined;
       try {
         db ??= fromFile
           ? undefined
           : await openSource(options.config, options.env, options);
-        const { marker, snapshot } = await poll(options, db, last);
-        last = marker;
-        const result = snapshot
-          ? await runGen({ ...options, snapshot })
-          : undefined;
-        if (result?.output) io.stdout(`${result.output}\n`);
-        if (result?.error) io.stderr(`${result.error}\n`);
+        polled = await poll(options, db, last);
       } catch (cause) {
-        io.stderr(
-          `${cause instanceof Error ? cause.message : String(cause)}\n`,
-        );
+        report(cause instanceof Error ? cause.message : String(cause));
         await db?.close().catch(() => undefined);
         db = undefined;
+      }
+      const result = polled?.snapshot
+        ? await regenerate(options, polled.snapshot)
+        : undefined;
+      if (result && result.code !== 0) {
+        report(result.error ?? `gen exited with code ${result.code}`);
+      } else if (polled) {
+        if (result?.output) io.stdout(`${result.output}\n`);
+        last = polled.marker;
+        reported = "";
       }
       await sleep(interval, signal);
     }
@@ -373,8 +413,15 @@ export const genCommand: AnyCommand = defineCliCommand({
       ...(context.signal ? { signal: context.signal } : {}),
       cache: true,
     };
+    const interval = Number(args.interval ?? 2000);
+    if (!Number.isFinite(interval) || interval <= 0) {
+      return {
+        code: 2,
+        error: `--interval must be a positive number of milliseconds, got "${args.interval}"`,
+      };
+    }
     return args.watch === true
-      ? watch(options, Number(args.interval ?? 2000), context)
+      ? watch(options, interval, context)
       : withSpinner(context.io.prompts, "Generating from the schema", () =>
           runGen(options),
         );

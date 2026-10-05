@@ -215,56 +215,6 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   return memo;
 }
 
-function sameJson(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  const left = Object.entries(a);
-  const right = new Map(Object.entries(b));
-  return (
-    left.length === right.size &&
-    left.every(
-      ([key, value]) => right.has(key) && sameJson(value, right.get(key)),
-    )
-  );
-}
-
-/**
- * Records a token that `@supabase/server` verified for this request, so the
- * next `resolveAuth` with these options doesn't verify it again. Only when
- * `claims` is the token's own payload, it hasn't expired, and its `iss` and
- * `aud` pass the checks these options would apply; otherwise returns false
- * and the token is verified as usual.
- */
-export function rememberVerified(
-  options: ResolveAuthOptions,
-  verified: {
-    readonly token: string;
-    readonly claims: JWTClaims;
-    readonly user: UserClaims;
-  },
-): boolean {
-  const { token, claims, user } = verified;
-  const now = Math.floor((options.now ?? Date.now)() / 1000);
-  const expiresAt = typeof claims.exp === "number" ? claims.exp : null;
-  if (expiresAt === null || expiresAt <= now) return false;
-  if (!sameJson(decodeJwtPayload(token), claims)) return false;
-  const issuers = [options.issuer ?? `${options.env.url}/auth/v1`].flat();
-  if (typeof claims.iss !== "string" || !issuers.includes(claims.iss))
-    return false;
-  const audiences = [options.audience ?? "authenticated"].flat();
-  const aud: unknown = claims.aud;
-  const given = Array.isArray(aud) ? aud : [aud];
-  if (!audiences.some((audience) => given.includes(audience))) return false;
-  remember(
-    memoFor(options),
-    token,
-    { kind: "user", token, claims, user, expiresAt },
-    expiresAt,
-  );
-  return true;
-}
-
 /** Forgets every verified token. For benchmarks and tests. */
 export function clearVerifiedTokens(): void {
   memoByUrl.clear();

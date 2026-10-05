@@ -28,14 +28,14 @@ const supabaseEnv = {
 
 describe("better-supabase/hono after @supabase/server's withSupabase", () => {
   const betterSupabase = defineSupabase(schema);
-  /** Its own keys can't verify the token, so a 200 means it reused withSupabase's check. */
-  const reusing = createHono(betterSupabase, {
-    env,
-    auth: { jwks: stranger.jwks as never },
-  });
   const alone = createHono(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
+  });
+  /** Its own keys can't verify the token, whatever withSupabase stored. */
+  const distrusting = createHono(betterSupabase, {
+    env,
+    auth: { jwks: stranger.jwks as never },
   });
 
   const who = (bs: typeof alone) =>
@@ -48,16 +48,21 @@ describe("better-supabase/hono after @supabase/server's withSupabase", () => {
       error: null,
     }));
 
-  const combined = reusing
+  const combined = alone
     .app()
     .use("*", withSupabase({ auth: "user", env: supabaseEnv }))
-    .use("*", reusing.middleware())
-    .get("/who", who(reusing));
+    .use("*", alone.middleware())
+    .get("/who", who(alone));
   const own = alone.app().use("*", alone.middleware()).get("/who", who(alone));
-  const skipped = reusing
+  const trusting = distrusting
     .app()
-    .use("*", reusing.middleware())
-    .get("/who", who(reusing));
+    .use("*", withSupabase({ auth: "user", env: supabaseEnv }))
+    .use("*", distrusting.middleware())
+    .get("/who", who(distrusting));
+  const skipped = distrusting
+    .app()
+    .use("*", distrusting.middleware())
+    .get("/who", who(distrusting));
 
   const call = (app: { request: Hono["request"] }, token: string) =>
     app.request("/who", { headers: { authorization: `Bearer ${token}` } });
@@ -78,16 +83,12 @@ describe("better-supabase/hono after @supabase/server's withSupabase", () => {
     });
   });
 
-  it("verifies the token itself when withSupabase didn't run, or the issuer differs", async () => {
+  it("never lets c.var.supabaseContext vouch for a token its own keys reject", async () => {
     const token = await signer.sign({
       sub: USER,
       iss: `${PROJECT_URL}/auth/v1`,
     });
+    expect((await call(trusting, token)).status).toBe(401);
     expect((await call(skipped, token)).status).toBe(401);
-    const foreign = await signer.sign({
-      sub: USER,
-      iss: "https://elsewhere.test/auth/v1",
-    });
-    expect((await call(combined, foreign)).status).toBe(401);
   });
 });

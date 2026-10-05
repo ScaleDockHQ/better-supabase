@@ -1,4 +1,3 @@
-import type { JWTClaims, UserClaims } from "@supabase/server";
 import type { Context, ErrorHandler, MiddlewareHandler } from "hono";
 
 import { Hono } from "hono";
@@ -25,11 +24,7 @@ import {
   type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
-import {
-  createServer,
-  extendServer,
-  rememberVerifiedFor,
-} from "../server/server.ts";
+import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
@@ -109,36 +104,6 @@ function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
   return ctx;
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null;
-}
-
-function isJwtClaims(value: unknown): value is JWTClaims {
-  return isRecord(value) && typeof value["sub"] === "string";
-}
-
-function isUserClaims(value: unknown): value is UserClaims {
-  return isRecord(value) && typeof value["id"] === "string";
-}
-
-/**
- * The bearer token `withSupabase` from `@supabase/server/adapters/hono`
- * verified for this request, with the claims it stored in
- * `c.var.supabaseContext`.
- */
-function verifiedBySupabase(
-  c: Context,
-): { token: string; claims: JWTClaims; user: UserClaims } | undefined {
-  const supabase: unknown = c.var["supabaseContext"];
-  if (!isRecord(supabase) || supabase["authMode"] !== "user") return undefined;
-  const { jwtClaims, userClaims } = supabase;
-  const header = c.req.header("authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!token || !isJwtClaims(jwtClaims) || !isUserClaims(userClaims))
-    return undefined;
-  return { token, claims: jwtClaims, user: userClaims };
-}
-
 /** Hono integration: a server plus middleware, handlers and REST resources. */
 export function createHono<
   M extends AnyModels,
@@ -180,8 +145,6 @@ export function createHono<
 
     middleware(middlewareOptions = {}) {
       return async (c, next) => {
-        const verified = verifiedBySupabase(c);
-        if (verified) rememberVerifiedFor(server, verified);
         const ctx = await server.context(c.req.raw, {
           refresh: middlewareOptions.refresh ?? false,
         });

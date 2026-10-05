@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SqlClient } from "../postgres/executor.ts";
 
+import { impersonatorClaim, impersonatorOf } from "../auth/impersonation.ts";
 import { claimAt, tenantClaimPaths } from "../core/claims.ts";
 import { type DbError, dbError, DbException } from "../core/errors.ts";
 import {
@@ -37,6 +38,11 @@ type PayloadOut<
 export interface JobContext {
   readonly actor?: Actor;
   readonly tenant?: string;
+  /**
+   * The `act` claim of a support or impersonated session, so the job runs
+   * under the same terms (a read-only support session stays read-only).
+   */
+  readonly act?: Readonly<Record<string, unknown>>;
 }
 
 export interface Job<P = unknown> {
@@ -550,9 +556,13 @@ function withContext(
     tenantClaimPaths()
       .map((path) => claimAt(context.claims, path))
       .find((id) => id !== undefined);
+  const impersonator = context.claims
+    ? impersonatorOf(context.claims)
+    : undefined;
   const recorded: JobContext = {
     ...(context.actor ? { actor: context.actor } : {}),
     ...(tenant === undefined ? {} : { tenant }),
+    ...(impersonator ? { act: impersonatorClaim(impersonator) } : {}),
   };
   if (!recorded.actor && recorded.tenant === undefined) return payload;
   return { [ENVELOPE]: 1, context: recorded, payload };
@@ -584,12 +594,16 @@ function unwrap(stored: unknown): {
     return { payload: stored, context: {} };
   }
   const recorded = isRecord(stored["context"]) ? stored["context"] : {};
-  const { actor, tenant } = recorded;
+  const { actor, tenant, act } = recorded;
+  const impersonator = act === undefined ? undefined : impersonatorOf({ act });
   return {
     payload: stored["payload"],
     context: {
       ...(isActor(actor) ? { actor } : {}),
       ...(typeof tenant === "string" && tenant.length > 0 ? { tenant } : {}),
+      ...(impersonator
+        ? { claims: { act: impersonatorClaim(impersonator) } }
+        : {}),
     },
   };
 }

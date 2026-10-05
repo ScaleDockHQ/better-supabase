@@ -132,6 +132,10 @@ await jobs.work("send_invoice", async (payload, job) => {
 });
 ```
 
+A job enqueued in a support session or an impersonated session also records
+the session's `act` claim. `forContext` keeps it, so a job enqueued in a
+read-only support session runs read-only, as the same support session.
+
 `forContext` fails with `forbidden` when the job recorded no user, for
 example one enqueued by a cron schedule, and never falls back to the service
 role. Work that no user owns uses `bs.admin(job.context)` on purpose: it

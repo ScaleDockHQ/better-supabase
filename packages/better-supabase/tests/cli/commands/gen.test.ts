@@ -73,6 +73,38 @@ describe("gen", () => {
     expect(files[4]!.contents).toContain("customers\n");
   });
 
+  it("refuses generator files outside the root or on another file's path, naming the generator", async () => {
+    const writing = (name: string, path: string): Generator => ({
+      name,
+      generate: () => [{ path, contents: "" }],
+    });
+    const failing = async (...generators: Generator[]) =>
+      renderFiles(configure({ generators }), snapshot).then(
+        () => "rendered",
+        (error: unknown) => (error instanceof Error ? error.message : ""),
+      );
+    expect(await failing(writing("escape", "../outside.ts"))).toBe(
+      'generator "escape" wrote ../outside.ts, which is outside the project root',
+    );
+    expect(await failing(writing("absolute", "/tmp/outside.ts"))).toBe(
+      'generator "absolute" wrote /tmp/outside.ts, which is outside the project root',
+    );
+    expect(await failing(writing("core", "src/db/generated.ts"))).toBe(
+      'generator "core" wrote src/db/generated.ts, which better-supabase gen writes',
+    );
+    expect(
+      await failing(writing("a", "src/x.ts"), writing("b", "./src/x.ts")),
+    ).toBe('generator "b" wrote ./src/x.ts, which generator "a" also writes');
+    expect(
+      await failing({
+        name: "broken",
+        generate: () => {
+          throw new Error("no tables");
+        },
+      }),
+    ).toBe('generator "broken" failed: no tables');
+  });
+
   it("imports JSON column types per file, in code point order", async () => {
     const config = configure({
       json: {

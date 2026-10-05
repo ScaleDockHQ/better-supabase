@@ -14,9 +14,11 @@ import type {
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 
+import { actorOf } from "../auth/actor.ts";
 import {
   actClaim,
   type ImpersonationOptions,
+  impersonatorClaim,
   userContext,
 } from "../auth/impersonation.ts";
 import {
@@ -24,7 +26,6 @@ import {
   type AuthState,
   authContext,
   prefetchJwks,
-  rememberVerified,
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
@@ -820,6 +821,15 @@ export function createServer<
           ),
         );
       }
+      const recorded = actorOf(context.claims ?? {});
+      if (!recorded.ok) {
+        return AsyncResult.err(
+          dbError("forbidden", "forContext got an invalid act claim"),
+        );
+      }
+      const support =
+        recorded.actor?.kind === "support" ? recorded.actor : undefined;
+      const impersonator = support?.id ?? actor.impersonator;
       return AsyncResult.from(async () => {
         const extra = (await options.claimsFor?.(actor.id, context)) ?? {};
         const claims: SqlClaims = {
@@ -827,14 +837,22 @@ export function createServer<
           role: "authenticated",
           sub: actor.id,
           ...(tenant === undefined ? {} : { tenant_id: tenant }),
-          ...(actor.impersonator
-            ? {
-                act: actClaim({
-                  actor: actor.impersonator,
-                  reason: forOptions.reason ?? "job",
-                }),
-              }
-            : {}),
+          ...(support
+            ? { act: impersonatorClaim(support) }
+            : actor.impersonator
+              ? {
+                  act: actClaim({
+                    actor: actor.impersonator,
+                    reason: forOptions.reason ?? "job",
+                  }),
+                }
+              : {}),
+        };
+        const session: SessionOptions = {
+          ...(support?.readOnly ? { readOnly: true } : {}),
+          ...(tenant === undefined
+            ? {}
+            : { settings: { "better_supabase.tenant": tenant } }),
         };
         return ok(
           sqlFor(
@@ -844,43 +862,17 @@ export function createServer<
                 id: actor.id,
                 kind: "user",
                 role: "authenticated",
-                ...(actor.impersonator
-                  ? { impersonator: actor.impersonator }
-                  : {}),
+                ...(impersonator ? { impersonator } : {}),
               },
               claims,
               ...(tenant === undefined ? {} : { tenant }),
             },
             undefined,
-            tenant === undefined
-              ? undefined
-              : { settings: { "better_supabase.tenant": tenant } },
+            Object.keys(session).length === 0 ? undefined : session,
           ),
         );
       });
     },
   };
-  verifiedSeeders.set(server, (verified) =>
-    rememberVerified({ ...options.auth, env: env() }, verified),
-  );
   return server;
-}
-
-type VerifiedToken = Parameters<typeof rememberVerified>[1];
-
-const verifiedSeeders = new WeakMap<
-  object,
-  (verified: VerifiedToken) => boolean
->();
-
-/**
- * Hands `server` a bearer token another layer verified for this request
- * (`@supabase/server`'s `withSupabase`), so `context()` doesn't verify it
- * again. See `rememberVerified` for when it is accepted.
- */
-export function rememberVerifiedFor(
-  server: object,
-  verified: VerifiedToken,
-): boolean {
-  return verifiedSeeders.get(server)?.(verified) ?? false;
 }

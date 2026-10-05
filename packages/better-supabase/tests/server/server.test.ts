@@ -573,6 +573,38 @@ describe("createServer forContext", () => {
     ]);
   });
 
+  it("keeps a recorded support session read-only, with its act claim", async () => {
+    const { postgres, claims, sessions } = fakePostgres();
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    const act = {
+      kind: "support",
+      sub: "admin-1",
+      session_id: "s-1",
+      read_only: true,
+    };
+    const actor = { ...userActor, impersonator: "admin-1" };
+    await server.forContext({ actor, claims: { act } }).orThrow();
+    await server
+      .forContext({ actor, claims: { act: { ...act, read_only: false } } })
+      .orThrow();
+    expect(claims.map((value) => value["act"])).toEqual([
+      act,
+      { ...act, read_only: false },
+    ]);
+    expect(sessions).toEqual([{ readOnly: true }, undefined]);
+  });
+
+  it("refuses a context whose act claim is not a valid chain", async () => {
+    const { postgres, claims } = fakePostgres();
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    const result = await server.forContext({
+      actor: userActor,
+      claims: { act: { kind: "root", sub: "admin-1" } },
+    });
+    expect(result.error).toMatchObject({ kind: "forbidden" });
+    expect(claims).toEqual([]);
+  });
+
   it("adds claimsFor, which can't replace sub, role or the tenant", async () => {
     const { postgres, claims } = fakePostgres();
     const claimsFor = vi.fn(async () => ({

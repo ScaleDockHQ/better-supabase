@@ -33,8 +33,6 @@ import { createServer, extendServer, withExtra } from "../../server/server.ts";
 
 const WELL_KNOWN = "/.well-known/oauth-protected-resource";
 const STATE_KEY = "betterSupabase";
-/** Auth states this module verified; `AuthInfo.extra` from anywhere else is ignored. */
-const verified = new WeakSet<object>();
 
 type UserAuth<C, P> = Extract<AuthState<C, P>, { kind: "user" }>;
 
@@ -180,7 +178,10 @@ function claimString(
   return typeof value === "string" ? value : undefined;
 }
 
-function isUserState<C, P>(value: unknown): value is UserAuth<C, P> {
+function isUserState<C, P>(
+  value: unknown,
+  verified: WeakSet<object>,
+): value is UserAuth<C, P> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -208,6 +209,8 @@ export function createMcpAuth<
   options: McpAuthOptions = {},
 ): BetterMcpAuth<M, F, E, C, P> {
   const server = createServer(betterSupabase, options);
+  /** Auth states this instance verified and guarded; any other `AuthInfo.extra` is ignored. */
+  const verified = new WeakSet<object>();
   const allow = options.allow ?? ["user"];
   const scopes = options.requiredScopes ?? [];
   const advertised = (options.advertisedScopes ?? []).filter(
@@ -291,7 +294,7 @@ export function createMcpAuth<
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const info = ctx.http?.authInfo;
     const state = info?.extra?.[STATE_KEY];
-    if (isUserState<C, P>(state)) return server.contextFor(state);
+    if (isUserState<C, P>(state, verified)) return server.contextFor(state);
     if (info?.token) {
       const { auth } = await server.resolve(
         new Request("https://mcp.invalid/", {
@@ -299,7 +302,10 @@ export function createMcpAuth<
         }),
         { cookies: false },
       );
-      return server.contextFor(auth.kind === "user" ? auth : anon);
+      const allowed =
+        auth.kind === "user" &&
+        guard(auth, allow, options.aal, scopes) === undefined;
+      return server.contextFor(allowed ? auth : anon);
     }
     return server.contextFor(anon);
   };

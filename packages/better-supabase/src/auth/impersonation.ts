@@ -29,6 +29,23 @@ export function actClaim(options: ImpersonationOptions): {
   return { kind: "impersonation", sub: options.actor, reason: options.reason };
 }
 
+/** The `act` claim that `impersonatorOf` reads back as `impersonator`. */
+export function impersonatorClaim(
+  impersonator: Impersonator,
+): Readonly<Record<string, unknown>> {
+  const reason =
+    impersonator.reason === undefined ? {} : { reason: impersonator.reason };
+  return impersonator.kind === "support"
+    ? {
+        kind: "support",
+        sub: impersonator.id,
+        session_id: impersonator.sessionId,
+        read_only: impersonator.readOnly ?? true,
+        ...reason,
+      }
+    : { kind: "impersonation", sub: impersonator.id, ...reason };
+}
+
 /**
  * The admin in `claims.act`: a support session or an impersonated session
  * (`actorOf` reads the same level, so the two always agree). `undefined`

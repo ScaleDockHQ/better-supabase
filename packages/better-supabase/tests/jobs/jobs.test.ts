@@ -338,6 +338,53 @@ describe("job context", () => {
     expect(job?.context).toEqual({ actor: ACTOR, tenant: "o1" });
   });
 
+  it("records a support session's act claim, so the job stays read-only", async () => {
+    const { client, sent } = memoryQueue();
+    const jobs = createJobs(client, queues);
+    const act = {
+      kind: "support",
+      sub: "admin-1",
+      session_id: "s-1",
+      read_only: true,
+      reason: "ticket 7",
+    };
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "a@example.com" },
+        {
+          context: {
+            actor: { ...ACTOR, impersonator: "admin-1" },
+            claims: { act, email: "a@example.com" },
+          },
+        },
+      )
+      .orThrow();
+    expect(sent).toMatchObject([
+      {
+        payload: { $bs: 1, context: { act }, payload: { to: "a@example.com" } },
+      },
+    ]);
+    const [job] = await jobs.claim("emails").orThrow();
+    expect(job?.context).toEqual({
+      actor: { ...ACTOR, impersonator: "admin-1" },
+      claims: { act },
+    });
+  });
+
+  it("drops a recorded act claim that isn't a support or impersonation level", async () => {
+    const { client, sent } = memoryQueue();
+    sent.push({
+      payload: {
+        $bs: 1,
+        context: { actor: ACTOR, act: { sub: "client-1" } },
+        payload: { to: "a@example.com" },
+      },
+    });
+    const [job] = await createJobs(client, queues).claim("emails").orThrow();
+    expect(job?.context).toEqual({ actor: ACTOR });
+  });
+
   it("prefers context.tenant, and stores bare payloads without an actor or tenant", async () => {
     const { client, sent } = memoryQueue();
     const jobs = createJobs(client, queues);

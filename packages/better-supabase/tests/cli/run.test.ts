@@ -359,6 +359,66 @@ describe("run", () => {
     ).toHaveLength(2);
   });
 
+  it("watches: retries a failed regeneration without a schema change, reporting the error once", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.mjs"),
+      `export default { generators: [{ name: "flaky", generate() {
+  globalThis.flakyGeneratorRuns = (globalThis.flakyGeneratorRuns ?? 0) + 1;
+  if (globalThis.flakyGeneratorRuns < 3) throw new Error("flaky failed");
+  return [];
+} }] };\n`,
+    );
+    const controller = new AbortController();
+    const api = fakeFetch((call) =>
+      call.body?.includes("as fingerprint")
+        ? { body: [{ fingerprint: "a" }] }
+        : { body: [] },
+    );
+    vi.stubGlobal("fetch", api.fetch);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const result = await run(
+      [
+        "gen",
+        "--watch",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      {
+        signal: controller.signal,
+        env: ENV,
+        io: io({
+          stdout: (text) => {
+            stdout.push(text);
+            controller.abort();
+          },
+          stderr: (text) => stderr.push(text),
+        }),
+      },
+    );
+    expect(result.code).toBe(0);
+    expect(stderr).toEqual([`generator "flaky" failed: flaky failed\n`]);
+    expect(stdout[0]).toContain("Generated 0 tables");
+    const counter = globalThis as { flakyGeneratorRuns?: number };
+    expect(counter.flakyGeneratorRuns).toBe(3);
+    delete counter.flakyGeneratorRuns;
+  });
+
+  it("refuses a watch interval that isn't a positive number", async () => {
+    for (const interval of ["abc", "0", "-5"]) {
+      const result = await run(
+        ["gen", "--watch", "--interval", interval, "--cwd", dir],
+        { env: ENV },
+      );
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain("--interval");
+    }
+  });
+
   it("stops a watch while it sleeps", async () => {
     vi.stubGlobal("fetch", emptyProject().fetch);
     const controller = new AbortController();

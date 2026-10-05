@@ -60,10 +60,9 @@ cookies; bearer tokens never refresh.
 ### With `@supabase/server`
 
 An app that already uses `withSupabase` from `@supabase/server/adapters/hono`
-can put `bs.middleware()` after it. When `withSupabase` verified a user's
-bearer token, `bs.middleware()` uses that verification instead of checking
-the signature again, then runs its own claims schema, `act` chain and
-`userMetadata` checks as usual:
+can put `bs.middleware()` after it. `bs.middleware()` resolves the caller
+itself and never trusts `c.var.supabaseContext`, then runs its own claims
+schema, `act` chain and `userMetadata` checks:
 
 ```ts
 import { withSupabase } from "@supabase/server/adapters/hono";
@@ -74,11 +73,11 @@ const app = bs
   .use("*", bs.middleware());
 ```
 
-Both give the same `ctx.auth` and actor for a token. The verification is
-reused only when the claims in `c.var.supabaseContext` are the payload of the
-request's `Authorization` token, it hasn't expired, and its `iss` and `aud`
-match what better-supabase would accept. Anything else, such as a cookie
-session or a publishable-key request, is resolved by `bs.middleware()` itself.
+Both give the same `ctx.auth` and actor for a token. The signature check
+costs one verification per token per process: verified tokens are cached
+until they expire, so later requests with the same token skip it. Values
+another middleware puts in `c.var` can't vouch for a token, because that
+cache is shared by every server with the same keys in the process.
 
 ## Typed claims
 

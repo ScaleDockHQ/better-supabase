@@ -271,6 +271,25 @@ describe("createMcpAuth guard options", () => {
     expect(seen).toBeUndefined();
   });
 
+  it("doesn't trust auth that another instance verified", async () => {
+    const scoped = createMcpAuth(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      requiredScopes: ["crm:write"],
+    });
+    const token = await signer.sign({
+      sub: USER,
+      scope: "crm:read",
+      client_id: "claude",
+      act: { sub: "claude", client_id: "claude" },
+    });
+    const info = await auth.verifier.verifyAccessToken(token);
+    const ctx = await scoped.contextOf({ http: { authInfo: info } } as never);
+    expect(ctx.auth.kind).toBe("anon");
+    const own = await auth.contextOf({ http: { authInfo: info } } as never);
+    expect(own.auth.kind).toBe("user");
+  });
+
   it("answers 403 insufficient_scope for a delegated token without the scope", async () => {
     const scoped = createMcpAuth(betterSupabase, {
       env,
