@@ -236,6 +236,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
 `;
       return {
         path: "supabase/config.toml",
+        dir: "supabase",
         text,
         document: parseToml(text),
         parser: "smol-toml" as const,

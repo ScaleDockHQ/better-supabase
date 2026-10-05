@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
-import { join, posix } from "node:path";
+import { dirname, join, posix, relative } from "node:path";
 import { parse } from "smol-toml";
 
 export type TomlValue =
@@ -16,8 +16,10 @@ export interface TomlTable {
 
 /** `supabase/config.toml`, parsed. */
 export interface SupabaseToml {
-  /** Relative to the project root. */
+  /** Relative to the project root (`../../supabase/config.toml` in a monorepo package). */
   readonly path: string;
+  /** The `supabase` directory, relative to the project root. */
+  readonly dir: string;
   readonly text: string;
   /** The keys present in the file (snake_case, as written), after `env()` interpolation when parsed by `@supabase/config`. */
   readonly document: TomlTable;
@@ -25,6 +27,34 @@ export interface SupabaseToml {
 }
 
 const CONFIG_TOML = "supabase/config.toml";
+
+/**
+ * The nearest directory at or above `start` that has `supabase/config.toml`,
+ * like the Supabase CLI's search. It stops after the first directory with
+ * `.git`, so a checkout never picks up a project outside it.
+ */
+export function findSupabaseRoot(start: string): string | undefined {
+  let dir = start;
+  for (;;) {
+    if (existsSync(join(dir, CONFIG_TOML))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir || existsSync(join(dir, ".git"))) return undefined;
+    dir = parent;
+  }
+}
+
+/** The `supabase` directory relative to `root`: the one `findSupabaseRoot` finds, or `supabase`. */
+export function supabaseDir(root: string): string {
+  const found = findSupabaseRoot(root);
+  return found === undefined
+    ? "supabase"
+    : relativePath(root, join(found, "supabase"));
+}
+
+/** `path` under `from`, with forward slashes. */
+function relativePath(from: string, path: string): string {
+  return relative(from, path).replaceAll("\\", "/") || ".";
+}
 
 interface SupabaseConfigIo {
   loadCliConfig(
@@ -87,7 +117,8 @@ const parsed = new Map<
 >();
 
 /**
- * Reads `supabase/config.toml`. A file with `env()` values goes through
+ * Reads `supabase/config.toml` from `root` or the nearest parent that has
+ * one (`findSupabaseRoot`). A file with `env()` values goes through
  * `@supabase/config` when it is installed, which resolves them; any other
  * file, or a project without it, is parsed with smol-toml, since loading
  * `@supabase/config` costs hundreds of milliseconds. Parses are reused while
@@ -96,31 +127,37 @@ const parsed = new Map<
 export async function readSupabaseToml(
   root: string,
 ): Promise<SupabaseToml | undefined> {
-  const absolute = join(root, CONFIG_TOML);
-  if (!existsSync(absolute)) return undefined;
+  const found = findSupabaseRoot(root);
+  if (found === undefined) return undefined;
+  const absolute = join(found, CONFIG_TOML);
   const text = await readFile(absolute, "utf8");
-  const cached = parsed.get(absolute);
+  const key = `${root}\0${absolute}`;
+  const cached = parsed.get(key);
   if (cached?.text === text) return cached.toml;
-  const toml = parseSupabaseToml(root, text);
-  parsed.set(absolute, { text, toml });
+  const toml = parseSupabaseToml(found, text, {
+    path: relativePath(root, absolute),
+    dir: relativePath(root, join(found, "supabase")),
+  });
+  parsed.set(key, { text, toml });
   return toml;
 }
 
 async function parseSupabaseToml(
-  root: string,
+  found: string,
   text: string,
+  location: { readonly path: string; readonly dir: string },
 ): Promise<SupabaseToml> {
   const io = text.includes("env(") ? await loadSupabaseConfig() : undefined;
   if (io) {
     try {
-      const loaded = await io.loadCliConfig(root, {
+      const loaded = await io.loadCliConfig(found, {
         tomlOnly: true,
         search: false,
       });
       if (loaded?.document) {
         // SAFETY: @supabase/config parses config.toml into plain TOML values.
         return {
-          path: CONFIG_TOML,
+          ...location,
           text,
           document: loaded.document as TomlTable,
           parser: "@supabase/config",
@@ -131,7 +168,7 @@ async function parseSupabaseToml(
     }
   }
   return {
-    path: CONFIG_TOML,
+    ...location,
     text,
     document: parseToml(text),
     parser: "smol-toml",
@@ -265,8 +302,6 @@ export interface SchemaPaths {
   readonly configured: boolean;
 }
 
-const SCHEMAS_DIR = "supabase/schemas";
-
 /** `experimental.pgdelta.declarative_schema_path` (relative to `supabase/`), or `./schemas`. */
 function pgDeltaSchemasDir(toml?: SupabaseToml): string {
   const dir = tomlGet(toml?.document ?? {}, [
@@ -274,11 +309,11 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
     "pgdelta",
     "declarative_schema_path",
   ]);
-  const relative =
+  const schemas =
     typeof dir === "string" && dir.trim() !== "" ? dir : "schemas";
   return posix.join(
-    "supabase",
-    relative.replace(/^\.\//, "").replace(/\/$/, ""),
+    toml?.dir ?? "supabase",
+    schemas.replace(/^\.\//, "").replace(/\/$/, ""),
   );
 }
 
@@ -315,10 +350,11 @@ export async function schemaPaths(
       : [];
     return { files, unlisted: [], configured: false };
   }
-  const supabase = join(root, "supabase");
-  const all = existsSync(join(root, SCHEMAS_DIR))
+  const dir = toml?.dir ?? "supabase";
+  const supabase = join(root, dir);
+  const all = existsSync(join(supabase, "schemas"))
     ? (await expand(supabase, "schemas/**/*.sql")).map((path) =>
-        posix.join("supabase", path),
+        posix.join(dir, path),
       )
     : [];
   const entries = tomlGet(toml?.document ?? {}, [
@@ -334,7 +370,7 @@ export async function schemaPaths(
   const listed = new Set<string>();
   for (const pattern of patterns)
     for (const path of await expand(supabase, pattern))
-      listed.add(posix.join("supabase", path));
+      listed.add(posix.join(dir, path));
   const unlisted = all.filter((path) => !listed.has(path));
   return { files: [...listed, ...unlisted], unlisted, configured: true };
 }

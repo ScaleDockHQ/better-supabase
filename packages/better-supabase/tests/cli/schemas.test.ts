@@ -172,6 +172,7 @@ describe("shipped JSON Schemas", () => {
       snapshot: snapshot as unknown as Snapshot,
       configToml: {
         path: "supabase/config.toml",
+        dir: "supabase",
         text: "[auth]\njwt_expiry = 7200\n",
         document: parseToml("[auth]\njwt_expiry = 7200\n"),
         parser: "smol-toml" as const,

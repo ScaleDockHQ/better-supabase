@@ -48,6 +48,27 @@ Point `better-supabase gen` at this package (`"output": "src/generated.ts"` in
 its `better-supabase.config.json`). A Next.js app calls `createNext(betterSupabase, ...)`
 with the same `betterSupabase`, so every adapter shares one definition.
 
+## The CLI in a workspace
+
+Run the CLI from the runtime package, or pass it with `--cwd packages/runtime`.
+The `supabase` directory usually stays at the repository root, and the CLI
+finds it the way the Supabase CLI does: it reads `supabase/config.toml` from
+`--cwd` or the nearest parent directory that has one, and stops at the
+directory that holds `.git`. Ports, Auth hooks, `schema_paths` and the
+migrations then come from that directory, and `keys` writes
+`signing_keys.json` next to it.
+
+Paths in `better-supabase.config.*` stay relative to the package. Point the
+SQL kit and the seed at the root `supabase` directory when you use them:
+
+```ts title="packages/runtime/better-supabase.config.ts"
+export default defineConfig({
+  output: "src/generated.ts",
+  sql: { dir: "../../supabase/schemas", testsDir: "../../supabase/tests" },
+  seed: { output: "../../supabase/seeds/000_better_supabase.sql" },
+});
+```
+
 ## Domain packages
 
 Domain packages import only types from the runtime:

@@ -317,11 +317,10 @@ async function unlistedKitFiles(
   names: readonly string[],
   kit: KitLayout,
 ): Promise<string[]> {
-  const order = await schemaPaths(
-    config.root,
-    await readSupabaseToml(config.root),
-  );
+  const toml = await readSupabaseToml(config.root);
+  const order = await schemaPaths(config.root, toml);
   if (!order.configured) return [];
+  const supabase = `${toml?.dir ?? "supabase"}/`;
   const unlisted = new Set(order.unlisted);
   const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
   const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
@@ -332,11 +331,11 @@ async function unlistedKitFiles(
   if (missing.length === 0) return [];
   return [
     "",
-    "supabase/config.toml sets [db.migrations] schema_paths, and no entry matches these files, so `supabase db diff` skips them.",
+    `${toml?.path ?? "supabase/config.toml"} sets [db.migrations] schema_paths, and no entry matches these files, so \`supabase db diff\` skips them.`,
     "Add them before the schemas that call their functions:",
     ...missing.map(
       (path) =>
-        `  "./${path.startsWith("supabase/") ? path.slice("supabase/".length) : path}",`,
+        `  "./${path.startsWith(supabase) ? path.slice(supabase.length) : path}",`,
     ),
   ];
 }

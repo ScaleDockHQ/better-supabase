@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readSupabasePort } from "../../src/cli/config.ts";
 import {
   diffEngine,
+  findSupabaseRoot,
   migrationCommand,
   parseToml,
   readSupabaseToml,
   schemaPaths,
+  supabaseDir,
   type SupabaseToml,
   tomlGet,
 } from "../../src/cli/supabase-toml.ts";
@@ -69,6 +71,34 @@ describe("readSupabaseToml", () => {
   it("returns undefined without a config.toml", async () => {
     expect(await readSupabaseToml(join(dir, "missing"))).toBeUndefined();
   });
+
+  it("finds supabase/config.toml in a parent directory", async () => {
+    await writeFile(join(dir, "supabase/config.toml"), "[db]\nport = 55422\n");
+    const app = join(dir, "apps/web");
+    await mkdir(app, { recursive: true });
+    expect(findSupabaseRoot(app)).toBe(dir);
+    expect(supabaseDir(app)).toBe("../../supabase");
+    expect(supabaseDir(dir)).toBe("supabase");
+    const toml = await readSupabaseToml(app);
+    expect(toml).toMatchObject({
+      path: "../../supabase/config.toml",
+      dir: "../../supabase",
+    });
+    expect(await readSupabasePort(app, "db")).toBe(55422);
+    expect((await readSupabaseToml(dir))?.path).toBe("supabase/config.toml");
+  });
+
+  it("stops the search at a .git directory", async () => {
+    await writeFile(join(dir, "supabase/config.toml"), "[db]\nport = 55422\n");
+    const nested = join(dir, "vendor/other");
+    await mkdir(join(nested, ".git"), { recursive: true });
+    expect(findSupabaseRoot(join(nested, "src"))).toBeUndefined();
+    expect(findSupabaseRoot(nested)).toBeUndefined();
+    expect(supabaseDir(nested)).toBe("supabase");
+    await rm(join(nested, ".git"), { recursive: true });
+    await mkdir(join(dir, ".git"));
+    expect(findSupabaseRoot(nested)).toBe(dir);
+  });
 });
 
 describe("parseToml", () => {
@@ -123,6 +153,7 @@ describe("schemaPaths", () => {
 
   const tomlWith = (text: string): SupabaseToml => ({
     path: "supabase/config.toml",
+    dir: "supabase",
     text,
     document: parseToml(text),
     parser: "smol-toml",
@@ -153,6 +184,20 @@ describe("schemaPaths", () => {
       ],
       unlisted: ["supabase/schemas/999_unlisted.sql"],
     });
+  });
+
+  it("reads the schemas of a supabase directory above the project", async () => {
+    const app = join(dir, "apps/web");
+    await mkdir(app, { recursive: true });
+    await writeFile(join(dir, "supabase/config.toml"), "");
+    const toml = await readSupabaseToml(app);
+    expect((await schemaPaths(app, toml)).files).toEqual([
+      "../../supabase/schemas/010_extensions.sql",
+      "../../supabase/schemas/020_types.sql",
+      "../../supabase/schemas/030_crm/a.sql",
+      "../../supabase/schemas/030_crm/b.sql",
+      "../../supabase/schemas/999_unlisted.sql",
+    ]);
   });
 
   it("reads supabase/schemas in name order without schema_paths", async () => {
@@ -215,6 +260,7 @@ describe("schemaPaths", () => {
 describe("migrationCommand", () => {
   const tomlWith = (text: string): SupabaseToml => ({
     path: "supabase/config.toml",
+    dir: "supabase",
     text,
     document: parseToml(text),
     parser: "smol-toml",

@@ -352,6 +352,26 @@ describe("keys", () => {
   });
 });
 
+describe("keys in a monorepo package", () => {
+  it("writes the key next to the config.toml found above --cwd", async () => {
+    await project(
+      {},
+      {
+        "supabase/config.toml": "[auth]\n",
+        "apps/web/package.json": "{}",
+      },
+    );
+    const result = await run(["keys", "--cwd", join(dir, "apps/web")]);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Add it to ../../supabase/config.toml");
+    expect(result.stdout).toContain(
+      'signing_keys_path = "./signing_keys.json"',
+    );
+    expect(existsSync(join(dir, "supabase/signing_keys.json"))).toBe(true);
+    expect(existsSync(join(dir, "apps/web/supabase"))).toBe(false);
+  });
+});
+
 describe("read sets", () => {
   const readSetModule = `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};

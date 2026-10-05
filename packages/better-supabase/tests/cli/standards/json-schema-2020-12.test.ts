@@ -98,6 +98,7 @@ describe("JSON Schema 2020-12", () => {
       snapshot: fixture,
       configToml: {
         path: "supabase/config.toml",
+        dir: "supabase",
         text: "[auth]\njwt_expiry = 7200\n",
         document: parseToml("[auth]\njwt_expiry = 7200\n"),
         parser: "smol-toml" as const,
