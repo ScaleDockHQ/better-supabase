@@ -5,6 +5,8 @@ import type {
 } from "../config/index.ts";
 
 import {
+  type FieldDocs,
+  fieldDocs,
   type FieldPlan,
   fieldsFor,
   HEADER,
@@ -15,9 +17,11 @@ import {
   type ScalarKind,
   schemaName,
   siblingPath,
+  tableDocs,
   tableEntries,
   temporalGuardImport,
   variantsFor,
+  variantTitle,
 } from "./shared.ts";
 
 export interface ZodGeneratorOptions {
@@ -62,10 +66,32 @@ function scalar(kind: ScalarKind): string {
   }
 }
 
+function bounds(docs: FieldDocs): string {
+  return [
+    docs.minimum === undefined ? "" : `.min(${docs.minimum})`,
+    docs.exclusiveMinimum === undefined ? "" : `.gt(${docs.exclusiveMinimum})`,
+    docs.maximum === undefined ? "" : `.max(${docs.maximum})`,
+    docs.exclusiveMaximum === undefined ? "" : `.lt(${docs.exclusiveMaximum})`,
+    docs.minLength === undefined ? "" : `.min(${docs.minLength})`,
+    docs.maxLength === undefined ? "" : `.max(${docs.maxLength})`,
+  ].join("");
+}
+
+/** `.meta({ ... })` for the entries that are set, or nothing. */
+function meta(entries: Readonly<Record<string, unknown>>): string {
+  const set = Object.entries(entries).filter(
+    ([, value]) => value !== undefined,
+  );
+  return set.length === 0
+    ? ""
+    : `.meta({ ${set.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(", ")} })`;
+}
+
 function field(
   table: string,
   plan: FieldPlan,
   jsonImports: ReadonlyMap<string, string>,
+  docs: FieldDocs,
 ): string {
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
   let expr =
@@ -73,10 +99,11 @@ function field(
     (plan.customJson
       ? `z.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
       : plan.column.storage === undefined
-        ? scalar(plan.scalar)
+        ? `${scalar(plan.scalar)}${bounds(docs)}`
         : `(z.string() as unknown as z.ZodType<${rowType(table, plan)}>)`);
   if (plan.column.array) expr = `z.array(${expr})`;
   if (plan.nullable) expr = `${expr}.nullable()`;
+  expr += meta({ description: docs.description, examples: docs.examples });
   if (plan.optional) expr = `${expr}.exactOptional()`;
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
@@ -122,15 +149,18 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
       for (const [key, table] of tableEntries(input)) {
         lines.push("");
         const variants = variantsFor(table);
+        const docs = tableDocs(input, table);
         for (const variant of variants) {
           const name = schemaName(key, variant);
           lines.push(
             `export const ${name}: z.ZodType<${variant}Of<'${key}'>> = z.object({`,
           );
           for (const plan of fieldsFor(table, variant, input)) {
-            lines.push(field(key, plan, jsonImports));
+            lines.push(field(key, plan, jsonImports, fieldDocs(docs, plan)));
           }
-          lines.push("});");
+          lines.push(
+            `})${docs ? meta({ title: variantTitle(docs, variant), description: docs.description }) : ""};`,
+          );
         }
         if (variants.includes("Insert")) {
           validators.push(

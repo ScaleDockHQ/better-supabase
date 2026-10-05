@@ -142,6 +142,341 @@ export function temporalGuardImport(input: SchemaSource): string | undefined {
     : `import { ${[...names].sort().join(", ")} } from "better-supabase";`;
 }
 
+interface CommentEntry {
+  readonly id: number;
+  readonly schema: string;
+  readonly name: string;
+  readonly comment: string | null;
+}
+
+/**
+ * The catalog parts docs read: `GeneratorInput` satisfies it. Runtime callers
+ * that only have `meta` (OpenAPI, MCP) pass none and get no docs.
+ */
+export interface DocsSource extends SchemaSource {
+  readonly introspection?: {
+    readonly tables: readonly CommentEntry[];
+    readonly views: readonly CommentEntry[];
+    readonly materializedViews?: readonly CommentEntry[];
+    readonly columns: readonly {
+      readonly table_id: number;
+      readonly name: string;
+      readonly comment: string | null;
+      readonly check: string | null;
+    }[];
+  };
+  readonly extras?: {
+    readonly tables: readonly {
+      readonly schema: string;
+      readonly name: string;
+      readonly checks: readonly { readonly definition: string }[];
+    }[];
+  };
+}
+
+export interface Bounds {
+  readonly minimum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMaximum?: number;
+  readonly minLength?: number;
+  readonly maxLength?: number;
+}
+
+/** What a column's comment and simple CHECK constraints say about it. */
+export interface FieldDocs extends Bounds {
+  readonly description?: string;
+  readonly examples?: readonly unknown[];
+}
+
+export interface TableDocs {
+  readonly title: string;
+  readonly description?: string;
+  /** By database column name. */
+  readonly fields: ReadonlyMap<string, FieldDocs>;
+}
+
+const EXAMPLE = /^\s*@example\s+(.+?)\s*$/gm;
+
+/**
+ * Splits a comment into its description and `@example` lines. An example is
+ * JSON (`@example 42`, `@example "KVK-1"`) or, when it doesn't parse, text.
+ */
+export function parseComment(comment: string | null): {
+  readonly description?: string;
+  readonly examples: readonly unknown[];
+} {
+  if (!comment) return { examples: [] };
+  const examples = [...comment.matchAll(EXAMPLE)].map((match) => {
+    const raw = match[1] ?? "";
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return parsed;
+    } catch {
+      return raw;
+    }
+  });
+  const description = comment.replace(EXAMPLE, "").trim();
+  return description ? { description, examples } : { examples };
+}
+
+const COMPARISON =
+  /^(?:(char_length|length)\(\(?"?(\w+)"?\)?(?:::[\w ]+)?\)|\(?"?(\w+)"?\)?(?:::[\w ]+)?)\s*(>=|>|<=|<)\s*\(?'?(-?\d+(?:\.\d+)?)'?\)?(?:::[\w ]+)?$/;
+const REVERSED =
+  /^\(?'?(-?\d+(?:\.\d+)?)'?\)?(?:::[\w ]+)?\s*(>=|>|<=|<)\s*(?:(char_length|length)\(\(?"?(\w+)"?\)?(?:::[\w ]+)?\)|\(?"?(\w+)"?\)?(?:::[\w ]+)?)$/;
+const FLIP = { ">=": "<=", ">": "<", "<=": ">=", "<": ">" } as const;
+type Operator = keyof typeof FLIP;
+
+/** Drops parentheses that wrap the whole expression. */
+function unwrap(expression: string): string {
+  let text = expression.trim().replace(/^CHECK\s*/, "");
+  while (text.startsWith("(") && text.endsWith(")")) {
+    let depth = 0;
+    let wraps = true;
+    for (let i = 0; i < text.length - 1; i++) {
+      if (text[i] === "(") depth++;
+      else if (text[i] === ")") depth--;
+      if (depth === 0) {
+        wraps = false;
+        break;
+      }
+    }
+    if (!wraps) break;
+    text = text.slice(1, -1).trim();
+  }
+  return text;
+}
+
+/** Terms of a top-level `AND` chain. */
+function conjuncts(expression: string): string[] {
+  const terms: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expression.length; i++) {
+    const char = expression[i];
+    if (char === "(") depth++;
+    else if (char === ")") depth--;
+    else if (depth === 0 && expression.startsWith(" AND ", i)) {
+      terms.push(expression.slice(start, i));
+      start = i + 5;
+    }
+  }
+  terms.push(expression.slice(start));
+  return terms.map(unwrap);
+}
+
+interface Comparison {
+  readonly column: string;
+  readonly length: boolean;
+  readonly operator: Operator;
+  readonly value: number;
+}
+
+function comparison(term: string): Comparison | undefined {
+  const forward = COMPARISON.exec(term);
+  if (forward) {
+    return {
+      column: forward[2] ?? forward[3] ?? "",
+      length: forward[1] !== undefined,
+      // SAFETY: the regex only captures the four comparison operators.
+      operator: forward[4] as Operator,
+      value: Number(forward[5]),
+    };
+  }
+  const reversed = REVERSED.exec(term);
+  if (!reversed) return undefined;
+  return {
+    column: reversed[4] ?? reversed[5] ?? "",
+    length: reversed[3] !== undefined,
+    // SAFETY: the regex only captures the four comparison operators.
+    operator: FLIP[reversed[2] as Operator],
+    value: Number(reversed[1]),
+  };
+}
+
+/**
+ * Bounds from simple CHECK constraints, by column: `price >= 0`,
+ * `rating between 1 and 5`, `char_length(name) <= 200`. Terms joined by
+ * `OR`, functions other than `length` and `char_length`, and comparisons
+ * between columns are left out.
+ */
+export function parseCheckBounds(
+  definition: string,
+): ReadonlyMap<string, Bounds> {
+  const bounds = new Map<string, Bounds>();
+  for (const term of conjuncts(unwrap(definition))) {
+    if (/\sOR\s/i.test(term)) continue;
+    const parsed = comparison(term);
+    if (!parsed?.column || Number.isNaN(parsed.value)) continue;
+    const current = bounds.get(parsed.column) ?? {};
+    bounds.set(parsed.column, { ...current, ...boundOf(parsed) });
+  }
+  return bounds;
+}
+
+function boundOf({ length, operator, value }: Comparison): Bounds {
+  if (length) {
+    switch (operator) {
+      case ">=":
+        return { minLength: value };
+      case ">":
+        return { minLength: value + 1 };
+      case "<=":
+        return { maxLength: value };
+      case "<":
+        return { maxLength: value - 1 };
+      default: {
+        const exhaustive: never = operator;
+        return exhaustive;
+      }
+    }
+  }
+  switch (operator) {
+    case ">=":
+      return { minimum: value };
+    case ">":
+      return { exclusiveMinimum: value };
+    case "<=":
+      return { maximum: value };
+    case "<":
+      return { exclusiveMaximum: value };
+    default: {
+      const exhaustive: never = operator;
+      return exhaustive;
+    }
+  }
+}
+
+/** `customer_tags` → `Customer tags`. */
+export function titleOf(name: string): string {
+  const words = name.replaceAll("_", " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Title, description and per-column docs, or `undefined` without a catalog. */
+export function tableDocs(
+  input: DocsSource,
+  table: TableMeta,
+): TableDocs | undefined {
+  const catalog = input.introspection;
+  if (!catalog) return undefined;
+  const entry = [
+    ...catalog.tables,
+    ...catalog.views,
+    ...(catalog.materializedViews ?? []),
+  ].find((item) => item.schema === table.schema && item.name === table.name);
+  const checks = new Map<string, Bounds>();
+  const addChecks = (definition: string): void => {
+    for (const [column, bounds] of parseCheckBounds(definition))
+      checks.set(column, { ...checks.get(column), ...bounds });
+  };
+  for (const extra of input.extras?.tables ?? []) {
+    if (extra.schema !== table.schema || extra.name !== table.name) continue;
+    for (const check of extra.checks) addChecks(check.definition);
+  }
+  const fields = new Map<string, FieldDocs>();
+  for (const column of catalog.columns) {
+    if (entry === undefined || column.table_id !== entry.id) continue;
+    if (column.check) addChecks(column.check);
+    const { description, examples } = parseComment(column.comment);
+    fields.set(column.name, {
+      ...(description === undefined ? {} : { description }),
+      ...(examples.length > 0 ? { examples } : {}),
+    });
+  }
+  for (const [column, bounds] of checks)
+    fields.set(column, { ...fields.get(column), ...bounds });
+  const { description } = parseComment(entry?.comment ?? null);
+  return {
+    title: titleOf(table.name),
+    ...(description === undefined ? {} : { description }),
+    fields,
+  };
+}
+
+/** A variant's title: `Customers`, `Customers insert`, `Customers update`. */
+export function variantTitle(docs: TableDocs, variant: Variant): string {
+  return variant === "Row"
+    ? docs.title
+    : `${docs.title} ${variant.toLowerCase()}`;
+}
+
+function exampleFits(scalar: ScalarKind, value: unknown): boolean {
+  switch (scalar.kind) {
+    case "uuid":
+    case "string":
+    case "datetime":
+    case "date":
+      return typeof value === "string";
+    case "enum":
+      return typeof value === "string" && scalar.values.includes(value);
+    case "integer":
+      return Number.isInteger(value);
+    case "number":
+      return typeof value === "number";
+    case "boolean":
+      return typeof value === "boolean";
+    case "json":
+    case "unknown":
+      return true;
+    case "instant":
+    case "plainDateTime":
+    case "bigint":
+      return false;
+    default: {
+      const exhaustive: never = scalar;
+      return exhaustive;
+    }
+  }
+}
+
+/**
+ * The docs a field's validator can carry: value bounds on numbers, length
+ * bounds on text, and only examples its type accepts.
+ */
+export function fieldDocs(
+  docs: TableDocs | undefined,
+  plan: FieldPlan,
+): FieldDocs {
+  const found = docs?.fields.get(plan.column.db);
+  if (!found || plan.customJson || plan.column.storage !== undefined) return {};
+  const numeric =
+    !plan.column.array &&
+    (plan.scalar.kind === "integer" || plan.scalar.kind === "number");
+  const text = !plan.column.array && plan.scalar.kind === "string";
+  const fits = (value: unknown): boolean =>
+    (value === null && plan.nullable) ||
+    (plan.column.array
+      ? Array.isArray(value) &&
+        value.every((item) => exampleFits(plan.scalar, item))
+      : exampleFits(plan.scalar, value));
+  const examples = found.examples?.filter(fits) ?? [];
+  return {
+    ...(found.description === undefined
+      ? {}
+      : { description: found.description }),
+    ...(examples.length > 0 ? { examples } : {}),
+    ...(numeric
+      ? pick(found, [
+          "minimum",
+          "exclusiveMinimum",
+          "maximum",
+          "exclusiveMaximum",
+        ])
+      : {}),
+    ...(text ? pick(found, ["minLength", "maxLength"]) : {}),
+  };
+}
+
+function pick(bounds: Bounds, keys: readonly (keyof Bounds)[]): Bounds {
+  const out: Record<string, number> = {};
+  for (const key of keys) {
+    const value = bounds[key];
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
 export function optionalLine(line: string | undefined): string[] {
   return line === undefined ? [] : [line];
 }

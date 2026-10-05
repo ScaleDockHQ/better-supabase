@@ -5,6 +5,8 @@ import type {
 } from "../config/index.ts";
 
 import {
+  type FieldDocs,
+  fieldDocs,
   type FieldPlan,
   fieldsFor,
   HEADER,
@@ -15,9 +17,11 @@ import {
   type ScalarKind,
   schemaName,
   siblingPath,
+  tableDocs,
   tableEntries,
   temporalGuardImport,
   variantsFor,
+  variantTitle,
 } from "./shared.ts";
 
 export interface ValibotGeneratorOptions {
@@ -62,10 +66,44 @@ function scalar(kind: ScalarKind): string {
   }
 }
 
+/** `expr` with `actions` appended, flattening an existing top-level `v.pipe`. */
+function piped(expr: string, actions: readonly string[]): string {
+  if (actions.length === 0) return expr;
+  const inner = /^v\.pipe\((.*)\)$/s.exec(expr)?.[1];
+  return `v.pipe(${inner ?? expr}, ${actions.join(", ")})`;
+}
+
+function boundActions(docs: FieldDocs): string[] {
+  return [
+    docs.minimum === undefined ? undefined : `v.minValue(${docs.minimum})`,
+    docs.exclusiveMinimum === undefined
+      ? undefined
+      : `v.gtValue(${docs.exclusiveMinimum})`,
+    docs.maximum === undefined ? undefined : `v.maxValue(${docs.maximum})`,
+    docs.exclusiveMaximum === undefined
+      ? undefined
+      : `v.ltValue(${docs.exclusiveMaximum})`,
+    docs.minLength === undefined ? undefined : `v.minLength(${docs.minLength})`,
+    docs.maxLength === undefined ? undefined : `v.maxLength(${docs.maxLength})`,
+  ].filter((action): action is string => action !== undefined);
+}
+
+function docActions(docs: FieldDocs): string[] {
+  return [
+    ...(docs.description === undefined
+      ? []
+      : [`v.description(${JSON.stringify(docs.description)})`]),
+    ...(docs.examples === undefined
+      ? []
+      : [`v.examples(${JSON.stringify(docs.examples)})`]),
+  ];
+}
+
 function field(
   table: string,
   plan: FieldPlan,
   jsonImports: ReadonlyMap<string, string>,
+  docs: FieldDocs,
 ): string {
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
   let expr =
@@ -73,10 +111,11 @@ function field(
     (plan.customJson
       ? `v.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
       : plan.column.storage === undefined
-        ? scalar(plan.scalar)
+        ? piped(scalar(plan.scalar), boundActions(docs))
         : `(v.string() as unknown as v.GenericSchema<${rowType(table, plan)}>)`);
   if (plan.column.array) expr = `v.array(${expr})`;
   if (plan.nullable) expr = `v.nullable(${expr})`;
+  expr = piped(expr, docActions(docs));
   if (plan.optional) expr = `v.exactOptional(${expr})`;
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
@@ -130,14 +169,27 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
       for (const [key, table] of tableEntries(input)) {
         lines.push("");
         const variants = variantsFor(table);
+        const docs = tableDocs(input, table);
         for (const variant of variants) {
           const name = schemaName(key, variant);
+          const objectActions = docs
+            ? [
+                `v.title(${JSON.stringify(variantTitle(docs, variant))})`,
+                ...(docs.description === undefined
+                  ? []
+                  : [`v.description(${JSON.stringify(docs.description)})`]),
+              ]
+            : [];
           lines.push(
-            `export const ${name}: v.GenericSchema<${variant}Of<'${key}'>> = v.object({`,
+            `export const ${name}: v.GenericSchema<${variant}Of<'${key}'>> = ${objectActions.length > 0 ? "v.pipe(" : ""}v.object({`,
           );
           for (const plan of fieldsFor(table, variant, input))
-            lines.push(field(key, plan, jsonImports));
-          lines.push("});");
+            lines.push(field(key, plan, jsonImports, fieldDocs(docs, plan)));
+          lines.push(
+            objectActions.length > 0
+              ? `}), ${objectActions.join(", ")});`
+              : "});",
+          );
         }
         if (variants.includes("Insert")) {
           const insert = schemaName(key, "Insert");

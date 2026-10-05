@@ -11,7 +11,7 @@ export const contactsRow: z.ZodType<RowOf<'contacts'>> = z.object({
   fullName: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-});
+}).meta({ title: "Contacts" });
 export const contactsInsert: z.ZodType<InsertOf<'contacts'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -19,7 +19,7 @@ export const contactsInsert: z.ZodType<InsertOf<'contacts'>> = z.object({
   fullName: z.string().nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Contacts insert" });
 export const contactsUpdate: z.ZodType<UpdateOf<'contacts'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -27,32 +27,32 @@ export const contactsUpdate: z.ZodType<UpdateOf<'contacts'>> = z.object({
   fullName: z.string().nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Contacts update" });
 
 export const customerTagsRow: z.ZodType<RowOf<'customerTags'>> = z.object({
   customerId: z.guid(),
   tagId: z.guid(),
   organizationId: z.guid(),
   createdAt: z.iso.datetime({ offset: true }),
-});
+}).meta({ title: "Customer tags" });
 export const customerTagsInsert: z.ZodType<InsertOf<'customerTags'>> = z.object({
   customerId: z.guid(),
   tagId: z.guid(),
   organizationId: z.guid(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Customer tags insert" });
 export const customerTagsUpdate: z.ZodType<UpdateOf<'customerTags'>> = z.object({
   customerId: z.guid().exactOptional(),
   tagId: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Customer tags update" });
 
 export const customersRow: z.ZodType<RowOf<'customers'>> = z.object({
   id: z.guid(),
   organizationId: z.guid(),
-  name: z.string(),
-  kvk: z.string().nullable(),
+  name: z.string().min(1).max(200).meta({ description: "Trading name.", examples: ["Acme B.V."] }),
+  kvk: z.string().nullable().meta({ description: "Chamber of Commerce (KvK) number.", examples: ["12345678"] }),
   status: z.enum(["lead", "active", "archived"]),
   primaryContactId: z.guid().nullable(),
   metadata: z.custom<NonNullable<RowOf<'customers'>['metadata']>>((value) => value !== undefined),
@@ -62,12 +62,12 @@ export const customersRow: z.ZodType<RowOf<'customers'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable(),
-});
+}).meta({ title: "Customers", description: "Companies the organization sells to." });
 export const customersInsert: z.ZodType<InsertOf<'customers'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
-  name: z.string(),
-  kvk: z.string().nullable().exactOptional(),
+  name: z.string().min(1).max(200).meta({ description: "Trading name.", examples: ["Acme B.V."] }),
+  kvk: z.string().nullable().meta({ description: "Chamber of Commerce (KvK) number.", examples: ["12345678"] }).exactOptional(),
   status: z.enum(["lead", "active", "archived"]).exactOptional(),
   primaryContactId: z.guid().nullable().exactOptional(),
   metadata: z.custom<NonNullable<RowOf<'customers'>['metadata']>>((value) => value !== undefined).exactOptional(),
@@ -77,12 +77,12 @@ export const customersInsert: z.ZodType<InsertOf<'customers'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
   logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable().exactOptional(),
-});
+}).meta({ title: "Customers insert", description: "Companies the organization sells to." });
 export const customersUpdate: z.ZodType<UpdateOf<'customers'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
-  name: z.string().exactOptional(),
-  kvk: z.string().nullable().exactOptional(),
+  name: z.string().min(1).max(200).meta({ description: "Trading name.", examples: ["Acme B.V."] }).exactOptional(),
+  kvk: z.string().nullable().meta({ description: "Chamber of Commerce (KvK) number.", examples: ["12345678"] }).exactOptional(),
   status: z.enum(["lead", "active", "archived"]).exactOptional(),
   primaryContactId: z.guid().nullable().exactOptional(),
   metadata: z.custom<NonNullable<RowOf<'customers'>['metadata']>>((value) => value !== undefined).exactOptional(),
@@ -92,7 +92,7 @@ export const customersUpdate: z.ZodType<UpdateOf<'customers'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
   logoPath: (z.string() as unknown as z.ZodType<NonNullable<RowOf<'customers'>['logoPath']>>).nullable().exactOptional(),
-});
+}).meta({ title: "Customers update", description: "Companies the organization sells to." });
 
 export const locationsRow: z.ZodType<RowOf<'locations'>> = z.object({
   id: z.guid(),
@@ -103,7 +103,7 @@ export const locationsRow: z.ZodType<RowOf<'locations'>> = z.object({
   isPrimary: z.boolean(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-});
+}).meta({ title: "Locations" });
 export const locationsInsert: z.ZodType<InsertOf<'locations'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -113,7 +113,7 @@ export const locationsInsert: z.ZodType<InsertOf<'locations'>> = z.object({
   isPrimary: z.boolean().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Locations insert" });
 export const locationsUpdate: z.ZodType<UpdateOf<'locations'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -123,7 +123,7 @@ export const locationsUpdate: z.ZodType<UpdateOf<'locations'>> = z.object({
   isPrimary: z.boolean().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Locations update" });
 
 export const notesRow: z.ZodType<RowOf<'notes'>> = z.object({
   id: z.int(),
@@ -135,7 +135,7 @@ export const notesRow: z.ZodType<RowOf<'notes'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   embedding: z.string().nullable(),
-});
+}).meta({ title: "Notes" });
 export const notesInsert: z.ZodType<InsertOf<'notes'>> = z.object({
   organizationId: z.guid(),
   customerId: z.guid(),
@@ -145,7 +145,7 @@ export const notesInsert: z.ZodType<InsertOf<'notes'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
   embedding: z.string().nullable().exactOptional(),
-});
+}).meta({ title: "Notes insert" });
 export const notesUpdate: z.ZodType<UpdateOf<'notes'>> = z.object({
   organizationId: z.guid().exactOptional(),
   customerId: z.guid().exactOptional(),
@@ -155,7 +155,7 @@ export const notesUpdate: z.ZodType<UpdateOf<'notes'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
   embedding: z.string().nullable().exactOptional(),
-});
+}).meta({ title: "Notes update" });
 
 export const notificationsRow: z.ZodType<RowOf<'notifications'>> = z.object({
   id: z.int(),
@@ -165,7 +165,7 @@ export const notificationsRow: z.ZodType<RowOf<'notifications'>> = z.object({
   readAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-});
+}).meta({ title: "Notifications" });
 export const notificationsInsert: z.ZodType<InsertOf<'notifications'>> = z.object({
   organizationId: z.guid(),
   userId: z.guid().exactOptional(),
@@ -173,7 +173,7 @@ export const notificationsInsert: z.ZodType<InsertOf<'notifications'>> = z.objec
   readAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Notifications insert" });
 export const notificationsUpdate: z.ZodType<UpdateOf<'notifications'>> = z.object({
   organizationId: z.guid().exactOptional(),
   userId: z.guid().exactOptional(),
@@ -181,7 +181,7 @@ export const notificationsUpdate: z.ZodType<UpdateOf<'notifications'>> = z.objec
   readAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Notifications update" });
 
 export const organizationsRow: z.ZodType<RowOf<'organizations'>> = z.object({
   id: z.guid(),
@@ -189,21 +189,21 @@ export const organizationsRow: z.ZodType<RowOf<'organizations'>> = z.object({
   slug: z.string(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-});
+}).meta({ title: "Organizations" });
 export const organizationsInsert: z.ZodType<InsertOf<'organizations'>> = z.object({
   id: z.guid().exactOptional(),
   name: z.string(),
   slug: z.string(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Organizations insert" });
 export const organizationsUpdate: z.ZodType<UpdateOf<'organizations'>> = z.object({
   id: z.guid().exactOptional(),
   name: z.string().exactOptional(),
   slug: z.string().exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Organizations update" });
 
 export const tagsRow: z.ZodType<RowOf<'tags'>> = z.object({
   id: z.guid(),
@@ -212,7 +212,7 @@ export const tagsRow: z.ZodType<RowOf<'tags'>> = z.object({
   color: z.enum(["gray", "red", "green", "blue"]),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-});
+}).meta({ title: "Tags" });
 export const tagsInsert: z.ZodType<InsertOf<'tags'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -220,7 +220,7 @@ export const tagsInsert: z.ZodType<InsertOf<'tags'>> = z.object({
   color: z.enum(["gray", "red", "green", "blue"]).exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Tags insert" });
 export const tagsUpdate: z.ZodType<UpdateOf<'tags'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -228,7 +228,7 @@ export const tagsUpdate: z.ZodType<UpdateOf<'tags'>> = z.object({
   color: z.enum(["gray", "red", "green", "blue"]).exactOptional(),
   createdAt: z.iso.datetime({ offset: true }).exactOptional(),
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-});
+}).meta({ title: "Tags update" });
 
 /** Write validators for the validation plugin. */
 export const validators: {

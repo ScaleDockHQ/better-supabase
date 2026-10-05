@@ -143,6 +143,59 @@ extra round trips:
   `Temporal.Instant`; `timestamp` becomes `Temporal.PlainDateTime`), and the
   generated validators match. See [Temporal](/docs/concepts/temporal).
 
+## Documentation in the validators
+
+The `zod()`, `valibot()` and `jsonSchema()` generators carry what the
+database says about a table into the schemas, so an OpenAPI document or an MCP
+tool built from them describes each field:
+
+- Each table schema gets a title from the table name (`customer_tags` becomes
+  `Customer tags`, then `Customer tags insert` and `Customer tags update`) and
+  a description from `comment on table`.
+- Each field gets a description from `comment on column`. A comment line that
+  starts with `@example` adds an example: JSON when it parses (`@example 42`,
+  `@example "Acme B.V."`), text otherwise. Examples the column's type rejects
+  are left out.
+- Simple CHECK constraints become bounds the validators enforce. Comparisons
+  of a numeric column with a constant (`price >= 0`, `rating between 1 and 5`)
+  become `minimum`, `maximum` and their exclusive forms, and comparisons of
+  `length` or `char_length` with a constant become `minLength` and `maxLength`.
+  Terms joined by `or`, other functions and comparisons between columns are
+  left out.
+
+```sql title="supabase/schemas/customers.sql"
+create table public.customers (
+  name text not null check (char_length(name) between 1 and 200)
+  -- ...
+);
+
+comment on table public.customers is 'Companies the organization sells to.';
+comment on column public.customers.name is 'Trading name.
+@example "Acme B.V."';
+```
+
+```ts title="src/lib/supabase/generated.zod.ts"
+export const customersInsert = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .meta({ description: "Trading name.", examples: ["Acme B.V."] }),
+    // ...
+  })
+  .meta({
+    title: "Customers insert",
+    description: "Companies the organization sells to.",
+  });
+```
+
+Valibot gets the same through `v.title`, `v.description`, `v.examples`,
+`v.minLength` and `v.minValue` in a pipe, and the JSON Schema through
+`title`, `description`, `examples`, `minLength` and `minimum`. The runtime
+OpenAPI document (`createOpenApi`) reads only the generated metadata, so it
+has none of this; serve the generated JSON Schema when you need it there.
+
 ## Snapshots
 
 ```bash

@@ -161,7 +161,7 @@ export type Models = {
       customers_id_organization_id_key: readonly ["id", "organizationId"];
       customers_organization_id_kvk_key: readonly ["organizationId", "kvk"];
     };
-    Checks: "customers_status_check";
+    Checks: "customers_name_check" | "customers_status_check";
     ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
       tenant: "organizationId";

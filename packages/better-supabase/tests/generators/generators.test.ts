@@ -104,7 +104,11 @@ describe("json schema generator", () => {
       type: "string",
       enum: ["lead", "active", "archived"],
     });
-    expect(insert?.properties["kvk"]).toEqual({ type: ["string", "null"] });
+    expect(insert?.properties["kvk"]).toEqual({
+      type: ["string", "null"],
+      description: "Chamber of Commerce (KvK) number.",
+      examples: ["12345678"],
+    });
     expect(doc.$defs["customersRow"]?.properties["archivedAt"]).toEqual({
       type: ["string", "null"],
       format: "date-time",
