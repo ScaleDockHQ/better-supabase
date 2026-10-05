@@ -50,16 +50,22 @@ with the same `betterSupabase`, so every adapter shares one definition.
 
 ## The CLI in a workspace
 
-Run the CLI from the runtime package, or pass it with `--cwd packages/runtime`.
-The `supabase` directory usually stays at the repository root, and the CLI
-finds it the way the Supabase CLI does: it reads `supabase/config.toml` from
-`--cwd` or the nearest parent directory that has one, and stops at the
-directory that holds `.git`. Ports, Auth hooks, `schema_paths` and the
-migrations then come from that directory, and `keys` writes
-`signing_keys.json` next to it.
+Run the CLI from any package, or pass `--cwd packages/runtime`. The
+`supabase` directory usually stays at the repository root, and the CLI finds
+it the way the Supabase CLI does: it reads `supabase/config.toml` from `--cwd`
+or the nearest parent directory that has one, and stops at the directory that
+holds `.git`. Ports, Auth hooks, `schema_paths` and the migrations then come
+from that directory, and `keys` writes `signing_keys.json` next to it.
 
-Paths in `better-supabase.config.*` stay relative to the package. Point the
-SQL kit and the seed at the root `supabase` directory when you use them:
+`better-supabase.config.*` is found the same way: the CLI loads the first one
+it meets walking up from `--cwd`, so a single config at the repository root
+serves every package, and `pnpm --filter @acme/runtime exec better-supabase gen`
+needs no `--cwd`. Paths inside the config are relative to the directory that
+holds the config file. `--config` takes precedence and stays relative to
+`--cwd`.
+
+With the config in the package, point the SQL kit and the seed at the root
+`supabase` directory when you use them:
 
 ```ts title="packages/runtime/better-supabase.config.ts"
 export default defineConfig({

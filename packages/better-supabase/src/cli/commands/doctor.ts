@@ -39,13 +39,14 @@ import {
 } from "../doctor/rules.ts";
 import { CliError } from "../errors.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
-import { writeIfChanged } from "../io.ts";
+import { display, writeIfChanged } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
 import {
   diffEngine,
+  findRepoRoot,
   readSupabaseToml,
   schemaPaths,
   type SupabaseToml,
@@ -487,13 +488,32 @@ export async function runDoctor(
   });
 
   const out = args.out;
-  const report = formatReport(findings, {
-    format,
-    rules,
-    version: VERSION,
-    fallbackFile: context.configToml?.path ?? "package.json",
-    ...(options.paint && !out ? { paint: options.paint } : {}),
-  });
+  const fromRepo = format === "sarif" || format === "github";
+  const repoRoot = findRepoRoot(config.root);
+  const repoPath = (file: string): string =>
+    display(repoRoot, resolve(config.root, file));
+  const report = formatReport(
+    fromRepo
+      ? findings.map((finding) =>
+          finding.location
+            ? {
+                ...finding,
+                location: {
+                  ...finding.location,
+                  file: repoPath(finding.location.file),
+                },
+              }
+            : finding,
+        )
+      : findings,
+    {
+      format,
+      rules,
+      version: VERSION,
+      fallbackFile: repoPath(context.configToml?.path ?? "package.json"),
+      ...(options.paint && !out ? { paint: options.paint } : {}),
+    },
+  );
   const errors = findings.filter(
     (finding) => finding.severity === "error",
   ).length;

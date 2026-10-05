@@ -4,7 +4,11 @@ description: better-supabase.config.ts options and defaults.
 ---
 
 The CLI looks for `better-supabase.config.{ts,mts,js,mjs,json}` in the
-working directory. TypeScript configs load natively on Node 24.
+working directory, then in each parent directory up to the one that holds
+`.git`, and loads the first it finds. Paths in the file (`output`, `sql.dir`
+and the rest) are relative to the directory that holds it, so a config at the
+repository root works when the CLI runs from a package. `--config` overrides
+the search. TypeScript configs load natively on Node 24.
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig, zod } from "better-supabase/config";

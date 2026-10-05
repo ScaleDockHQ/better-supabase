@@ -1,6 +1,6 @@
 import { loadConfig as loadC12Config } from "c12";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { CliEnv } from "./env.ts";
@@ -13,7 +13,7 @@ import {
 import { configIssues } from "./config-schema.ts";
 import { CliError } from "./errors.ts";
 import { type CliIo, display } from "./io.ts";
-import { readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
+import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
 const CONFIG_FILES = [
   "better-supabase.config.ts",
@@ -23,13 +23,30 @@ const CONFIG_FILES = [
   "better-supabase.config.json",
 ] as const;
 
-export function findConfig(cwd: string, explicit?: string): string | undefined {
-  if (explicit) return resolve(cwd, explicit);
+function configIn(dir: string): string | undefined {
   for (const name of CONFIG_FILES) {
-    const path = join(cwd, name);
+    const path = join(dir, name);
     if (existsSync(path)) return path;
   }
   return undefined;
+}
+
+export function findConfig(cwd: string, explicit?: string): string | undefined {
+  if (explicit) return resolve(cwd, explicit);
+  return configIn(cwd);
+}
+
+/**
+ * `--config`, else the first `better-supabase.config.*` at or above `cwd`,
+ * within the same `.git` boundary as the Supabase project search.
+ */
+export function discoverConfig(
+  cwd: string,
+  explicit?: string,
+): string | undefined {
+  if (explicit) return resolve(cwd, explicit);
+  const dir = findUp(cwd, (candidate) => configIn(candidate) !== undefined);
+  return dir === undefined ? undefined : configIn(dir);
 }
 
 /** Imports a project module fresh, so watch loops and tests see edits. */
@@ -60,13 +77,14 @@ function isConfig(value: unknown): value is BetterSupabaseConfig {
  * Loads `better-supabase.config.*` with c12 and checks it against the config
  * schema. c12 imports `.ts` natively (Node 24 strips the types), so no
  * loader is needed; rc files, `package.json`, env overrides and `extends`
- * are off so the one file is the whole config.
+ * are off so the one file is the whole config. A discovered file sets the
+ * project root to its own directory; `--config` keeps `cwd` as the root.
  */
 export async function loadConfig(
   cwd: string,
   explicit?: string,
 ): Promise<ResolvedConfig> {
-  const path = findConfig(cwd, explicit);
+  const path = discoverConfig(cwd, explicit);
   if (!path) return resolveConfig({}, cwd);
   if (!existsSync(path)) {
     throw new CliError("config_not_found", `Config file not found: ${path}`);
@@ -90,7 +108,7 @@ export async function loadConfig(
       { issues },
     );
   }
-  return resolveConfig(config, cwd);
+  return resolveConfig(config, explicit ? cwd : dirname(path));
 }
 
 /** `[db] port` or `[api] port` from `supabase/config.toml`. */
