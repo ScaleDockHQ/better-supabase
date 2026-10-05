@@ -172,6 +172,7 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/config`                                   | `defineConfig` and generators for `better-supabase.config.ts`            |
 | `better-supabase/cli`                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI      |
 | `better-supabase/client`                                   | Browser repositories that follow the session                             |
+| `better-supabase/client/native`                            | The same for React Native, without `@supabase/ssr`, and keychain storage |
 | `better-supabase/react`                                    | Provider, typed hooks and the server session                             |
 | `better-supabase/query`                                    | TanStack Query options with table-based invalidation                     |
 | `better-supabase/server`                                   | Repositories bound to the caller, admin and acting-as identities         |
@@ -179,7 +180,7 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/powersync`                                | The same repositories over PowerSync's local SQLite, with live queries   |
 | `better-supabase/ssr`                                      | The `@supabase/ssr` cookie format for any framework                      |
 | `better-supabase/next`, `/next/image`                      | Proxy, Server Components, route handlers, server actions, Storage images |
-| `better-supabase/hono`, `/orpc`, `/edge`                   | Framework adapters                                                       |
+| `better-supabase/hono`, `/orpc`, `/edge`, `/expo`          | Framework adapters                                                       |
 | `better-supabase/mcp`                                      | MCP servers whose tools run as the signed-in user                        |
 | `better-supabase/jobs`                                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
 | `better-supabase/orgs`                                     | Organizations, members, invitations and switching from the SQL kit       |

@@ -162,7 +162,7 @@ describe("integration lists", () => {
         "expo",
         "tanstack-query",
       ]),
-    ).toEqual(["client", "next", "hono", "orpc", "react"]);
+    ).toEqual(["client", "next", "hono", "orpc", "expo", "react"]);
     expect(suggestedIntegrations([])).toEqual([]);
   });
 

@@ -61,6 +61,11 @@
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
+    "./client/native": {
+      "@better-supabase/source": "./src/client/native/index.ts",
+      "types": "./dist/client/native/index.d.ts",
+      "default": "./dist/client/native/index.js"
+    },
     "./react": {
       "@better-supabase/source": "./src/react/index.ts",
       "types": "./dist/react/index.d.ts",
@@ -111,6 +116,11 @@
       "@better-supabase/source": "./src/orpc/index.ts",
       "types": "./dist/orpc/index.d.ts",
       "default": "./dist/orpc/index.js"
+    },
+    "./expo": {
+      "@better-supabase/source": "./src/expo/index.ts",
+      "types": "./dist/expo/index.d.ts",
+      "default": "./dist/expo/index.js"
     },
     "./edge": {
       "@better-supabase/source": "./src/edge/index.ts",
@@ -243,6 +253,10 @@
         "types": "./dist/client/index.d.ts",
         "default": "./dist/client/index.js"
       },
+      "./client/native": {
+        "types": "./dist/client/native/index.d.ts",
+        "default": "./dist/client/native/index.js"
+      },
       "./react": {
         "types": "./dist/react/index.d.ts",
         "react-server": "./dist/react/server.js",
@@ -283,6 +297,10 @@
       "./orpc": {
         "types": "./dist/orpc/index.d.ts",
         "default": "./dist/orpc/index.js"
+      },
+      "./expo": {
+        "types": "./dist/expo/index.d.ts",
+        "default": "./dist/expo/index.js"
       },
       "./edge": {
         "types": "./dist/edge/index.d.ts",
@@ -421,6 +439,7 @@
     "citty": "catalog:",
     "diff": "catalog:",
     "effect": "catalog:",
+    "expo-server": "catalog:",
     "fastest-levenshtein": "catalog:",
     "hono": "catalog:",
     "next": "catalog:",
@@ -445,6 +464,7 @@
     "@supabase/config": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
+    "expo-server": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
     "oxfmt": "catalog:peers",
@@ -463,6 +483,9 @@
       "optional": true
     },
     "@tanstack/query-core": {
+      "optional": true
+    },
+    "expo-server": {
       "optional": true
     },
     "hono": {

@@ -266,6 +266,11 @@ describe("templates", () => {
           contents: "declare module 'server-only';\n",
         },
         {
+          path: "expo-secure-store.d.ts",
+          contents:
+            "declare module 'expo-secure-store' {\n  export function getItemAsync(key: string): Promise<string | null>;\n  export function setItemAsync(key: string, value: string): Promise<void>;\n  export function deleteItemAsync(key: string): Promise<void>;\n}\n",
+        },
+        {
           path: "tsconfig.json",
           contents: JSON.stringify({
             extends: join(packageRoot, "tsconfig.json"),
@@ -282,6 +287,9 @@ describe("templates", () => {
               paths: {
                 "better-supabase": [join(src, "index.ts")],
                 "better-supabase/*": [join(src, "*", "index.ts")],
+                "@supabase/supabase-js": [
+                  join(packageRoot, "node_modules/@supabase/supabase-js"),
+                ],
               },
             },
             include: ["**/*.ts", "**/*.tsx"],

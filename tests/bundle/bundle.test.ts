@@ -226,6 +226,14 @@ describe("bundle", () => {
     ).toEqual([]);
   });
 
+  it("keeps /client/native and /powersync free of @supabase/ssr", () => {
+    for (const subpath of ["./client/native", "./powersync"]) {
+      expect(closures.get(subpath)?.externals ?? []).not.toContain(
+        "@supabase/ssr",
+      );
+    }
+  });
+
   it("never imports postgrest-typegen at runtime outside the CLI", () => {
     const offenders = [...closures]
       .filter(

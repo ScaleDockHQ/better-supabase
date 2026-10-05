@@ -60,6 +60,7 @@ catalog:
   diff: 9.0.0
   dotenv-cli: 11.0.0
   effect: 4.0.0
+  expo-server: 57.0.3
   fastest-levenshtein: 1.0.16
   fumadocs-core: 16.15.18
   fumadocs-mdx: 15.4.6
@@ -129,6 +130,8 @@ catalogs:
     "@supabase/supabase-js": "^2.116.0"
     # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
     "@tanstack/query-core": "^5.62.0"
+    # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
+    expo-server: ">=55 <59"
     hono: ">=4 <5"
     next: ">=16 <17"
     # 0.66.0 is the version @supabase/postgrest-typegen pins; the CLI tests run

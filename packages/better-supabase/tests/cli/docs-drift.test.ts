@@ -179,6 +179,7 @@ const FACTORIES = new Set([
   "createHono",
   "createOrpc",
   "createEdge",
+  "createExpo",
   "createMcp",
   "createPostgres",
   "createQueries",

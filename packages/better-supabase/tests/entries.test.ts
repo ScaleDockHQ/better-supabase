@@ -14,6 +14,7 @@ const PURE_BARRELS = [
   "list",
   "mcp",
   "next",
+  "powersync",
   "query",
   "react",
   "realtime",

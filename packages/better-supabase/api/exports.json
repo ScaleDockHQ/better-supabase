@@ -290,6 +290,7 @@
   },
   "./client": {
     "values": [
+      "bindClient",
       "createClient"
     ],
     "types": [
@@ -298,6 +299,21 @@
       "BetterClient",
       "ClientAuth",
       "ClientOptions"
+    ]
+  },
+  "./client/native": {
+    "values": [
+      "createNativeClient",
+      "secureStorage"
+    ],
+    "types": [
+      "AuthSnapshot",
+      "AuthStorage",
+      "AuthUser",
+      "BetterClient",
+      "ClientAuth",
+      "SecureStorageOptions",
+      "SecureStoreLike"
     ]
   },
   "./react": {
@@ -632,6 +648,21 @@
       "OrpcMiddleware",
       "OrpcOptions",
       "OrpcRequestContext"
+    ]
+  },
+  "./expo": {
+    "values": [
+      "createExpo"
+    ],
+    "types": [
+      "BetterExpo",
+      "ExpoContextOptions",
+      "ExpoMiddlewareOptions",
+      "ExpoOptions",
+      "ExpoParams",
+      "ExpoRequest",
+      "GuardOptions",
+      "MiddlewareOptions"
     ]
   },
   "./edge": {
