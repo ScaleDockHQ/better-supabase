@@ -93,6 +93,7 @@ you get back. With `casing: 'snake'`, names stay as they are in the database.
 | `.eq('slug', slug).maybeSingle()`                       | `findUnique({ where: { slug } })` (`null` when missing)               |
 | `.limit(1).maybeSingle()`                               | `findFirst({ where })`                                                |
 | `.select('*', { count: 'exact', head: true })`          | `count({ where })`                                                    |
+| `.select('*', { count: 'exact' }).range(20, 29)`        | `paginate({ offset: 20, limit: 10, count: 'exact' })`                 |
 | `.insert(row).select().single()`                        | `create(row)`                                                         |
 | `.insert(rows).select()`                                | `createMany(rows)`                                                    |
 | `.update(patch).eq('id', id).select().single()`         | `update(id, patch)`                                                   |

@@ -20,6 +20,7 @@ import type {
   CursorPageArgs,
   FindExt,
   OffsetPageArgs,
+  OffsetRangeArgs,
   PageOf,
 } from "./repository-types.ts";
 
@@ -103,7 +104,9 @@ export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
     args?: { readonly where?: WhereInput<M, T> } & FindExt<E, M, T>,
   ): QuerySpec<T, "exists", boolean>;
   paginate<
-    const A extends NoSignal<OffsetPageArgs<M, T> | CursorPageArgs<M, T>> &
+    const A extends NoSignal<
+      OffsetPageArgs<M, T> | OffsetRangeArgs<M, T> | CursorPageArgs<M, T>
+    > &
       FindExt<E, M, T>,
   >(
     args: A,

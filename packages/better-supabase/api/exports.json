@@ -123,6 +123,7 @@
       "NoExtension",
       "OffsetPage",
       "OffsetPageArgs",
+      "OffsetRangeArgs",
       "Ok",
       "PageOf",
       "PlanFilter",

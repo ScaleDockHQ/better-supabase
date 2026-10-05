@@ -100,6 +100,21 @@ export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
   readonly size: number;
   /** Also count all matching rows. */
   readonly count?: CountMode;
+  readonly offset?: never;
+  readonly limit?: never;
+};
+
+export type OffsetRangeArgs<M extends AnyModels, T extends keyof M> = Omit<
+  FindManyArgs<M, T>,
+  "limit" | "offset"
+> & {
+  /** Rows to skip before the page. */
+  readonly offset: number;
+  readonly limit: number;
+  /** Also count all matching rows. */
+  readonly count?: CountMode;
+  readonly page?: never;
+  readonly size?: never;
 };
 
 export type CursorPageArgs<M extends AnyModels, T extends keyof M> = Omit<
@@ -179,7 +194,11 @@ export interface Repository<
     } & FindExt<E, M, T>,
   ): AsyncResult<boolean>;
   paginate<
-    const A extends (OffsetPageArgs<M, T> | CursorPageArgs<M, T>) &
+    const A extends (
+      | OffsetPageArgs<M, T>
+      | OffsetRangeArgs<M, T>
+      | CursorPageArgs<M, T>
+    ) &
       FindExt<E, M, T>,
   >(
     args: A,

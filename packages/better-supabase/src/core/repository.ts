@@ -740,21 +740,41 @@ export function createRepository(
     return invalidRequest(`Invalid onConflict on "${table.key}"`, table.key);
   }
 
-  async function offsetPage(args: Args): Promise<Result<unknown>> {
+  function pageWindow(
+    args: Args,
+  ): { size: number; offset: number } | { invalid: string } {
+    if (args["offset"] !== undefined || args["limit"] !== undefined) {
+      if (args["page"] !== undefined || args["size"] !== undefined) {
+        return { invalid: 'Pass "offset" and "limit" or "page" and "size"' };
+      }
+      const limit = Number(args["limit"]);
+      if (!Number.isInteger(limit) || limit < 1) {
+        return { invalid: '"limit" must be a positive integer' };
+      }
+      const offset = Number(args["offset"]);
+      if (!Number.isInteger(offset) || offset < 0) {
+        return { invalid: '"offset" must be a non-negative integer' };
+      }
+      return { size: limit, offset };
+    }
     const size = Number(args["size"]);
     if (!Number.isInteger(size) || size < 1) {
-      return runner.fail(
-        table,
-        dbError("invalid_request", '"size" must be a positive integer'),
-      );
+      return { invalid: '"size" must be a positive integer' };
     }
     const number = args["page"] === undefined ? 1 : Number(args["page"]);
     if (!Number.isInteger(number) || number < 1) {
-      return runner.fail(
-        table,
-        dbError("invalid_request", '"page" must be a positive integer'),
-      );
+      return { invalid: '"page" must be a positive integer' };
     }
+    return { size, offset: (number - 1) * size };
+  }
+
+  async function offsetPage(args: Args): Promise<Result<unknown>> {
+    const window = pageWindow(args);
+    if ("invalid" in window) {
+      return runner.fail(table, dbError("invalid_request", window.invalid));
+    }
+    const { size, offset } = window;
+    const number = Math.floor(offset / size) + 1;
     const count = args["count"];
     const orderBy = builder.orderBy(table, args["orderBy"]);
     const op = selectOp(args, {
@@ -764,7 +784,7 @@ export function createRepository(
           : defaultOrder(),
       limit: size + 1,
       lookAhead: true,
-      offset: (number - 1) * size,
+      offset,
       count:
         count === "exact" || count === "planned" || count === "estimated"
           ? count

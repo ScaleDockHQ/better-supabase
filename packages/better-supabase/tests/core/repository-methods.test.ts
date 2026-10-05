@@ -719,6 +719,57 @@ describe("offset pagination", () => {
     const { db } = connect(failing);
     expect(await db.customers.paginate({ size: 10 })).toEqual(timeoutResult);
   });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    [
+      "a zero limit",
+      { offset: 0, limit: 0 },
+      '"limit" must be a positive integer',
+    ],
+    ["a missing limit", { offset: 10 }, '"limit" must be a positive integer'],
+    [
+      "a negative offset",
+      { offset: -1, limit: 10 },
+      '"offset" must be a non-negative integer',
+    ],
+    [
+      "a fractional offset",
+      { offset: 1.5, limit: 10 },
+      '"offset" must be a non-negative integer',
+    ],
+    [
+      "an offset with a size",
+      { offset: 0, limit: 10, size: 10 },
+      'Pass "offset" and "limit" or "page" and "size"',
+    ],
+  ])("rejects %s", async (_name, args, message) => {
+    const { db, ops } = connect();
+    expect((await db.customers.paginate(args as never)).error).toMatchObject({
+      kind: "invalid_request",
+      message,
+    });
+    expect(ops).toHaveLength(0);
+  });
+
+  it("reads an offset and limit window with a total", async () => {
+    const { db, select } = connect(() =>
+      rowsOf([{ id: "a" }, { id: "b" }, { id: "c" }], 40),
+    );
+    expect(
+      await db.customers.paginate({
+        select: ["id"],
+        offset: 15,
+        limit: 2,
+        count: "exact",
+      }),
+    ).toEqual(
+      ok({
+        items: [{ id: "a" }, { id: "b" }],
+        page: { number: 8, size: 2, total: 40, pages: 20, hasMore: true },
+      }),
+    );
+    expect(select()).toMatchObject({ limit: 3, offset: 15, count: "exact" });
+  });
 });
 
 describe("cursor pagination", () => {

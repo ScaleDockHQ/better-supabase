@@ -128,6 +128,7 @@ export type {
   FindExt,
   OffsetPage,
   OffsetPageArgs,
+  OffsetRangeArgs,
   PageOf,
   Repository,
   RepositoryOf,
