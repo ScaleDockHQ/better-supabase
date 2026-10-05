@@ -16,6 +16,7 @@ import type {
   FindExt,
   OffsetPage,
   OffsetPageArgs,
+  OffsetRangeArgs,
   Returned,
   UpdateArgs,
   UpsertArgs,
@@ -123,7 +124,10 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
       | ({ readonly where?: WhereInput<M, T> } & FindExt<E, M, T>)
       | SkipToken,
   ): QueryOptionsOf<boolean>;
-  paginate<const A extends OffsetPageArgs<M, T> & FindExt<E, M, T>>(
+  paginate<
+    const A extends (OffsetPageArgs<M, T> | OffsetRangeArgs<M, T>) &
+      FindExt<E, M, T>,
+  >(
     args: A | SkipToken,
   ): QueryOptionsOf<OffsetPage<Payload<M, T, A>>>;
   /** Cursor pages for `useInfiniteQuery`. */

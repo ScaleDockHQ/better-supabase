@@ -25,6 +25,16 @@ const db = defineSupabase(camel).connect(client);
 const snakeDb = defineSupabase(snake).connect(client);
 
 describe("payload inference", () => {
+  it("returns an offset page for an offset and limit window", async () => {
+    const page = await db.customers
+      .paginate({ select: ["id"], offset: 40, limit: 20, count: "exact" })
+      .orThrow();
+    expectTypeOf(page.items).toEqualTypeOf<{ id: string }[]>();
+    expectTypeOf(page.page.total).toEqualTypeOf<number | null>();
+    // @ts-expect-error an offset window takes limit, not size
+    void db.customers.paginate({ offset: 0, limit: 10, size: 10 });
+  });
+
   it("narrows rows to the selected columns", async () => {
     const rows = await db.customers
       .findMany({ select: ["id", "status"] })

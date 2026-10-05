@@ -233,6 +233,20 @@ function rowsOf(data: unknown): readonly Record<string, unknown>[] {
   return [data as Record<string, unknown>];
 }
 
+const ONLY_ROWS = /there are only (\d+) rows/;
+
+/**
+ * PostgREST answers a counted read whose offset is past the last row with
+ * 416 (`PGRST103`); the SQL executor returns no rows and the total.
+ */
+function pastLastRow(op: Operation, error: RawDbError): number | undefined {
+  if (op.kind !== "select" || !op.count || error.code !== "PGRST103") {
+    return undefined;
+  }
+  const match = ONLY_ROWS.exec(error.details ?? "");
+  return match ? Number(match[1]) : undefined;
+}
+
 /** Executes IR operations through a supabase-js client. */
 const aborted = (): DbError => dbError("aborted", "The request was aborted");
 
@@ -259,6 +273,8 @@ export function postgrestExecutor(client: PostgrestClientLike): Executor {
       const response = await query;
       if (response.error) {
         if (context.signal?.aborted) return err(aborted());
+        const total = pastLastRow(op, response.error);
+        if (total !== undefined) return ok({ rows: [], count: total });
         return err(mapDbError(response.error, context.errorMappers));
       }
       return ok({ rows: rowsOf(response.data), count: response.count ?? null });

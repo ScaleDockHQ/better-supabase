@@ -249,6 +249,28 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(second.hasMore).toBe(false);
   });
 
+  it("pages by offset and limit with an exact total", async () => {
+    const where = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
+    const page = await admin.customers
+      .paginate({
+        select: ["id"],
+        orderBy: { name: "asc" },
+        offset: 1,
+        limit: 1,
+        count: "exact",
+        where,
+      })
+      .orThrow();
+    expect(page.items.map((row) => row.id)).toEqual([INITECH]);
+    expect(page.page).toEqual({
+      number: 2,
+      size: 1,
+      total: 3,
+      pages: 3,
+      hasMore: true,
+    });
+  });
+
   it("writes, detects conflicts and deletes", async () => {
     const customer = await admin.customers
       .create(

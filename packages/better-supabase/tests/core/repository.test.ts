@@ -258,6 +258,69 @@ describe("reads", () => {
       "limit=11",
     ]);
   });
+
+  it("returns an empty page with the total past the last row", async () => {
+    const pastEnd = (details: string) => () => ({
+      status: 416,
+      body: {
+        code: "PGRST103",
+        details,
+        hint: null,
+        message: "Requested range not satisfiable",
+      },
+    });
+    const db = sbCamel.connect(
+      capturingClient(
+        pastEnd("An offset of 50 was requested, but there are only 8 rows."),
+      ).client,
+    );
+    expect(
+      (await db.customers.paginate({ offset: 50, limit: 5, count: "exact" }))
+        .data,
+    ).toEqual({
+      items: [],
+      page: { number: 11, size: 5, total: 8, pages: 2, hasMore: false },
+    });
+    const unreadable = sbCamel.connect(capturingClient(pastEnd("")).client);
+    expect(
+      (
+        await unreadable.customers.paginate({
+          offset: 50,
+          limit: 5,
+          count: "exact",
+        })
+      ).ok,
+    ).toBe(false);
+    expect((await db.customers.paginate({ offset: 50, limit: 5 })).ok).toBe(
+      false,
+    );
+  });
+
+  it("paginates by offset and limit with a total in one request", async () => {
+    const { client, requests, last } = capturingClient(() => ({
+      body: [{ id: "a" }],
+      headers: { "content-range": "7-7/8" },
+    }));
+    const db = sbCamel.connect(client);
+    const page = await db.customers.paginate({
+      select: ["id"],
+      offset: 7,
+      limit: 5,
+      count: "exact",
+    });
+    expect(page.data).toEqual({
+      items: [{ id: "a" }],
+      page: { number: 2, size: 5, total: 8, pages: 2, hasMore: false },
+    });
+    expect(requests).toHaveLength(1);
+    expect(last().headers.get("prefer")).toContain("count=exact");
+    expect(query(last())).toEqual([
+      "select=id",
+      "order=id.asc",
+      "offset=7",
+      "limit=6",
+    ]);
+  });
 });
 
 describe("writes", () => {

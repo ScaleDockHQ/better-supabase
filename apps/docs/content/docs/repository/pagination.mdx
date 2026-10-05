@@ -1,9 +1,9 @@
 ---
 title: Pagination
-description: Page numbers with totals, or keyset cursors for infinite lists.
+description: Page numbers or offset windows with totals, or keyset cursors for infinite lists.
 ---
 
-`paginate` takes either a `page` or an `after` cursor. Prefer cursors: the
+`paginate` takes a `page`, an `offset` window or an `after` cursor. Prefer cursors: the
 cost of a page number grows with the offset, because Postgres reads and
 discards every row before it, and a row inserted while someone pages shifts
 the rest by one. Page numbers stay for tables where people jump to page 7
@@ -21,6 +21,25 @@ const { items, page } = await db.customers
 Without `count`, `total` and `pages` are `null`. `hasMore` comes from fetching
 one extra row, so it never needs a count. Without `orderBy`, pages are
 ordered by the primary key, so they never overlap.
+
+## Offset and limit
+
+When the caller already speaks in offsets (a data grid, a REST API with
+`offset` and `limit` parameters), pass `offset` and `limit` instead of `page`
+and `size`. The rows and the total come back in one request.
+
+```ts
+const { items, page } = await db.customers
+  .paginate({ offset: 40, limit: 20, count: "exact", orderBy: { name: "asc" } })
+  .orThrow();
+// page: { number: 3, size: 20, total: 81, pages: 5, hasMore: true }
+```
+
+The result has the same shape as a numbered page: `size` is the `limit`, and
+`number` is the page the offset falls on (`floor(offset / limit) + 1`). An
+offset past the last row returns no items and the total on both executors,
+although PostgREST itself answers that read with a 416. Passing `offset`
+together with `page` or `size` is an `invalid_request` error.
 
 ## Cursors
 

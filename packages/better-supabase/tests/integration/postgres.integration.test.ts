@@ -211,6 +211,31 @@ describe.skipIf(!live)("Postgres executor", async () => {
           .orThrow(),
     ],
     [
+      "offset window with a total",
+      (db) =>
+        db.customers
+          .paginate({
+            select: ["id"],
+            offset: 1,
+            limit: 2,
+            count: "exact",
+            orderBy: { name: "asc" },
+          })
+          .orThrow(),
+    ],
+    [
+      "offset window past the last row",
+      (db) =>
+        db.customers
+          .paginate({
+            select: ["id"],
+            offset: 10_000,
+            limit: 2,
+            count: "exact",
+          })
+          .orThrow(),
+    ],
+    [
       "cursor page",
       (db) =>
         db.customers
