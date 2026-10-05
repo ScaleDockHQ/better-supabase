@@ -1437,6 +1437,8 @@ export interface KitFile {
 export interface KitLayout {
   /** Directory for schema modules. Defaults to `supabase/schemas`. */
   readonly dir?: string;
+  /** The declarative schema folder the diff engine loads. Defaults to `supabase/schemas`. */
+  readonly schemasDir?: string;
   /** File prefix. Defaults to `900_better_supabase`. */
   readonly prefix?: string;
   /** Directory for pgTAP files. Defaults to `supabase/tests`. */
@@ -1984,14 +1986,20 @@ on conflict (name) do update
 
 /**
  * Where a module's data statements go: `better-supabase-data/` next to the
- * schema folder. pg-delta loads every file under the schema folder, `_custom/`
+ * declarative schema folder, or next to `dir` when `dir` is outside it.
+ * pg-delta loads every file under the schema folder, nested folders
  * included, and rejects a managed table that has rows afterwards.
  */
 function kitDataPath(module: SqlModule, layout: KitLayout): string {
   const path = kitPath(module, layout);
-  const slash = path.lastIndexOf("/");
-  const parent = path.slice(0, slash).lastIndexOf("/");
-  return `${parent < 0 ? "" : path.slice(0, parent + 1)}better-supabase-data${path.slice(slash)}`;
+  const file = path.slice(path.lastIndexOf("/"));
+  const dir = path.slice(0, path.lastIndexOf("/"));
+  const bare = (value: string) => value.replace(/^\.\//, "").replace(/\/$/, "");
+  const schemas = bare(layout.schemasDir ?? "supabase/schemas");
+  const inside = bare(dir) === schemas || bare(dir).startsWith(`${schemas}/`);
+  const base = inside ? `${dir.startsWith("./") ? "./" : ""}${schemas}` : dir;
+  const parent = base.lastIndexOf("/");
+  return `${parent < 0 ? "" : base.slice(0, parent + 1)}better-supabase-data${file}`;
 }
 
 /** The `@bs-kit-data` line of a data file. */

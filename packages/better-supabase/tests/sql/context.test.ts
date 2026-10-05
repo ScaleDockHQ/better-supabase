@@ -154,8 +154,17 @@ describe("hooks and events", () => {
       ]),
     )
       .toBe(`if to_regprocedure('"public"."after_item_create"(uuid, uuid)') is not null then
-    perform "public"."after_item_create"(new_id, auth.uid());
+    execute format('select %s($1::uuid, $2::uuid)', to_regprocedure('"public"."after_item_create"(uuid, uuid)')::oid::regproc)
+      using new_id, auth.uid();
   end if;`);
+    expect(
+      createKitContext("demo", () => ({
+        ...names,
+        hooks: ["on_tick"],
+      })).hook("on_tick", []),
+    ).toContain(
+      `execute format('select %s()', to_regprocedure('"public"."on_tick"()')::oid::regproc);`,
+    );
     expect(() => ctx.hook("before_item_create", [])).toThrow(
       'Module "demo" declares no hook "before_item_create"',
     );
@@ -173,7 +182,7 @@ describe("hooks and events", () => {
       },
     });
     expect(ctx.hook("after_item_create", [["uuid", "id"]])).toContain(
-      'perform "private"."seed_item"(id);',
+      `execute format('select %s($1::uuid)', to_regprocedure('"private"."seed_item"(uuid)')::oid::regproc)`,
     );
     expect(() =>
       createKitContext("demo", () => hooked, {
@@ -309,6 +318,25 @@ describe("kit modes", () => {
     expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
     expect(isKitDataFile(data!.contents)).toBe(true);
     expect(isKitDataFile(file!.contents)).toBe(false);
+    const dataPath = (layout: Parameters<typeof renderKit>[1]) =>
+      renderKit(["tenant"], layout).find(
+        (kit) => kit.kind === "data" && kit.module === "tenant",
+      )!.path;
+    expect(dataPath({ dir: "supabase/schemas/_custom/better_supabase" })).toBe(
+      "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+    );
+    expect(dataPath({ dir: "./supabase/schemas/kit/" })).toBe(
+      "./supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+    );
+    expect(
+      dataPath({
+        dir: "supabase/declarative/kit",
+        schemasDir: "supabase/declarative",
+      }),
+    ).toBe("supabase/better-supabase-data/900_better_supabase_04_tenant.sql");
+    expect(dataPath({ dir: "db/kit" })).toBe(
+      "db/better-supabase-data/900_better_supabase_04_tenant.sql",
+    );
     const pgtap = renderKit(["pgtap"]);
     expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
     expect(pgtap[0]!.contents).not.toContain("kit_modules");

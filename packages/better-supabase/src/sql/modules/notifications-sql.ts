@@ -331,7 +331,7 @@ begin
     ${fail("NOTIFICATION_ACTIVITY_UNKNOWN", "activity must be participating or all", "22023")}
   end if;${authorize}
   if to_regprocedure(${sqlString(`${audience}(jsonb)`)}) is not null then
-    execute format('select %s($1)', ${sqlString(audience)}) into v_extra using notification;
+    execute format('select %s($1)', to_regprocedure(${sqlString(`${audience}(jsonb)`)})::oid::regproc) into v_extra using notification;
     v_recipients := v_recipients || coalesce(v_extra, '{}');
   end if;${watchers}
   if v_actor is not null and not coalesce((notification ->> 'include_actor')::boolean, false) then

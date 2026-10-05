@@ -66,6 +66,12 @@ describe("audit module", () => {
     expect(sql).toContain(
       "execute function better_supabase.audit_row_change()",
     );
+    expect(sql).toContain(
+      "raise exception 'audit_event got restricted details, and the audit module has no restricted table'",
+    );
+    expect(sql).toContain(
+      "hint = 'Set kits.audit.options.restricted to true.'",
+    );
     const [file] = renderKit(["audit"]);
     expect(file!.contents).toContain(
       'create or replace view "better_supabase".audit_log',
@@ -87,6 +93,7 @@ describe("audit module", () => {
       'insert into "public"."audit_log_restricted_details" ("event_id", "ip_address", "user_agent", "restricted_metadata")',
     );
     expect(sql).toContain("coalesce(source, 'saas')");
+    expect(sql).not.toContain("audit_event got restricted details");
     expect(sql).not.toContain("old_record");
     expect(sql).not.toContain("drop policy if exists bs_audit_read");
   });
@@ -123,6 +130,10 @@ describe("audit module", () => {
       },
     });
     expect(sql).toContain(`to_regprocedure('"app"."plan_audit_days"(uuid)')`);
+    expect(sql).toContain(
+      `to_regprocedure('"app"."plan_audit_days"(uuid)')::oid::regproc\n    ) into purged using older_than, batch;`,
+    );
+    expect(sql).not.toMatch(/"app"\."plan_audit_days"\(l\./);
   });
 
   it("needs the access module only for the read policy", () => {

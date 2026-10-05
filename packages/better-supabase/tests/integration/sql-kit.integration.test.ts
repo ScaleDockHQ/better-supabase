@@ -148,6 +148,50 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
     await installSchemaModules(pool);
   });
 
+  it("passes plpgsql_check (supabase db lint) without the app's hook functions", async () => {
+    const hooks = Object.values(SQL_MODULES).flatMap(
+      (module) => module.names?.hooks ?? [],
+    );
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("create extension if not exists plpgsql_check");
+      const existing = await client.query<{ sql: string }>(
+        `select format('drop function %s', p.oid::regprocedure) as sql
+         from pg_proc p
+         where p.pronamespace = 'public'::regnamespace and p.proname = any($1)`,
+        [hooks],
+      );
+      for (const row of existing.rows) await client.query(row.sql);
+      const { rows } = await client.query<{
+        fn: string;
+        level: string;
+        message: string;
+      }>(`
+        select p.oid::regprocedure::text as fn, r.level, r.message
+        from pg_proc p,
+        lateral plpgsql_check_function_tb(p.oid, fatal_errors => false, extra_warnings => true) r
+        where p.pronamespace = 'better_supabase'::regnamespace
+          and p.prolang = (select oid from pg_language where lanname = 'plpgsql')
+          and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)`);
+      expect(
+        rows.filter(
+          (row) =>
+            row.level === "error" &&
+            hooks.some((hook) => row.message.includes(`.${hook}(`)),
+        ),
+      ).toEqual([]);
+      expect(
+        rows.filter((row) =>
+          /^better_supabase\.(audit_event|purge_audit_log)\(/.test(row.fn),
+        ),
+      ).toEqual([]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("warns about equivalent triggers and replaces them on request", async () => {
     const name = `public.bs_dup_${RUN}`;
     const notices: string[] = [];
@@ -1556,6 +1600,11 @@ describe.skipIf(!live)("SQL kit against the local database", () => {
         source: "app",
         metadata: { invoice: 7 },
       });
+      await expect(
+        pool.query(
+          `select better_supabase.audit_event('invoice.sent', restricted => '{"card": "4242"}')`,
+        ),
+      ).rejects.toMatchObject({ code: "22023" });
       await pool.query(deleteAudit("id = $1::bigint"), [first]);
     } finally {
       await pool.query(`select better_supabase.unaudit('${name}')`);

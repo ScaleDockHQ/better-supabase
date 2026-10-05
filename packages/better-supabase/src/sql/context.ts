@@ -128,7 +128,9 @@ export interface KitContext {
   /**
    * PL/pgSQL that calls the app's hook function when it exists, with
    * `[type, expression]` arguments: `if to_regprocedure(...) is not null
-   * then perform ...; end if;`.
+   * then execute format(...) using ...; end if;`. The name comes from
+   * `to_regprocedure` rather than a literal: plpgsql_check (`supabase db
+   * lint`) checks constant dynamic SQL and fails when the hook is missing.
    */
   hook(name: string, args: readonly (readonly [string, string])[]): string;
   /** The app function a hook calls, quoted, for hooks that return a value. */
@@ -376,8 +378,14 @@ export function createKitContext(
     hook(name, args) {
       const target = hookTarget(name);
       const types = args.map(([type]) => type).join(", ");
-      return `if to_regprocedure(${sqlString(`${target}(${types})`)}) is not null then
-    perform ${target}(${args.map(([, value]) => value).join(", ")});
+      const params = args.map(([type], i) => `$${String(i + 1)}::${type}`);
+      const found = `to_regprocedure(${sqlString(`${target}(${types})`)})`;
+      return `if ${found} is not null then
+    execute format('select %s(${params.join(", ")})', ${found}::oid::regproc)${
+      args.length > 0
+        ? `\n      using ${args.map(([, value]) => value).join(", ")}`
+        : ""
+    };
   end if;`;
     },
     hookTarget,
