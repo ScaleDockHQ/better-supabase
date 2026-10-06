@@ -90,6 +90,7 @@ export const MODULE_PERMISSIONS = {
     upload: "attachments.upload",
     manage: "attachments.manage",
   },
+  sso: { manage: "sso.manage" },
 } as const;
 
 /**
@@ -136,6 +137,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   attachments: { read: "tenant", upload: "tenant", manage: "tenant" },
   "data-lifecycle": { export: "tenant", delete: "tenant" },
+  sso: { manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

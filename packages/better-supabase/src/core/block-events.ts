@@ -118,6 +118,14 @@ export interface OrganizationDeletionEventData {
   readonly purgeAfter?: string;
 }
 
+/** `organization.domain_verified`, from the sso module. */
+export interface OrganizationDomainEventData {
+  readonly organizationId: string;
+  readonly domain: string;
+  /** The member who verified it, when the app passed one. */
+  readonly userId?: string | null;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -132,6 +140,7 @@ export interface BlockEventMap {
   "organization.role_changed": OrganizationEventData;
   "organization.ownership_transferred": OrganizationEventData;
   "organization.switched": OrganizationEventData;
+  "organization.domain_verified": OrganizationDomainEventData;
   "invitation.created": InvitationEventData;
   "invitation.resent": InvitationEventData;
   "invitation.accepted": InvitationEventData;

@@ -1,0 +1,227 @@
+---
+title: SSO
+description: Verified email domains with auto-join, SAML providers per organization, SSO enforcement in the access token hook, and a SCIM 2.0 endpoint that provisions memberships.
+---
+
+The `sso` block gives an organization the identity features enterprise
+customers ask for. An owner claims an email domain and proves it with a DNS
+TXT record. Users who sign up with an address at a verified domain can join
+the organization on their own, the organization can bring its SAML identity
+provider (through Supabase Auth's SAML support), and it can require that
+provider for everyone at the domain. Its identity provider can also create,
+update and remove members through SCIM 2.0.
+
+```bash
+better-supabase sql add sso   # adds tenant and access as well
+```
+
+The module needs the `roles` or `catalog` access model, since it assigns
+roles by name.
+
+| Table                        | Holds                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `organization_domains`       | `domain`, the verification token, `verified_at`, `auto_join_role` and `enforce_sso`      |
+| `organization_sso_providers` | The Supabase Auth SAML provider's `id`, its `metadata_url` and the `domains` it signs in |
+| `scim_users`                 | The SCIM User resources, with the auth user they are linked to                           |
+| `scim_groups`                | The SCIM Group resources                                                                 |
+| `scim_group_members`         | Which users are in which group                                                           |
+
+| Permission   | Lets a member                                                    | Default roles |
+| ------------ | ---------------------------------------------------------------- | ------------- |
+| `sso.manage` | claim domains, set auto-join and enforcement, add SAML providers | `owner`       |
+
+A verified domain belongs to one organization; a second organization can
+claim it, but verifying it fails with `SSO_DOMAIN_TAKEN`.
+
+## Domains
+
+```ts title="app/settings/domains/actions.ts"
+import { createSso, rpcTransport } from "better-supabase/blocks/sso";
+
+const sso = createSso({ transport: rpcTransport(supabase) });
+
+const domain = await sso.addDomain(organizationId, "acme.com").orThrow();
+// Show domain.record: a TXT record the customer adds to their DNS.
+// { type: "TXT", name: "_better-supabase.acme.com", value: "better-supabase-domain-verification=…" }
+
+await sso.domains(organizationId);
+await sso.updateDomain(domain.id, { autoJoinRole: "member", enforceSso: true });
+await sso.removeDomain(domain.id);
+```
+
+Verification runs as the service role, because the database can't look up
+DNS. `createSsoAdmin` resolves the TXT record over DNS over HTTPS (Cloudflare
+by default, through `dohResolver`) and marks the domain verified when the
+token is there. Pass the member who asked as `actorId`; the call fails with
+`SSO_DOMAIN_NOT_FOUND` unless they have `sso.manage` in the domain's
+organization:
+
+```ts title="app/settings/domains/verify.ts"
+import { createPostgres } from "better-supabase/postgres";
+import { createSsoAdmin, sqlTransport } from "better-supabase/blocks/sso";
+
+const postgres = createPostgres({ connectionString: env.SUPABASE_DB_URL });
+const admin = createSsoAdmin({ transport: sqlTransport(postgres.admin) });
+
+const result = await admin.verifyDomain(domainId, { actorId: user.id });
+// SSO_DOMAIN_RECORD_MISSING until the record is published
+```
+
+A verified domain emits `organization.domain_verified` through the outbox.
+Change the record's prefix with `sql.modules.sso.options.txtPrefix`.
+
+## Auto-join
+
+With `autoJoinRole` set, a user whose confirmed email is at the domain
+becomes a member with that role when they sign up, or when they confirm or
+change their email. Existing members keep their role. The owner role can't
+be an auto-join role.
+
+## SAML
+
+Give `createSsoAdmin` the project's URL and secret key to manage providers in
+Supabase Auth. Each provider is recorded against the organization and may
+only sign in its verified domains:
+
+```ts title="app/settings/sso/actions.ts"
+const admin = createSsoAdmin({
+  transport: sqlTransport(postgres.admin),
+  auth: { url: env.SUPABASE_URL, secretKey: env.SUPABASE_SECRET_KEY },
+});
+
+const provider = await admin
+  .addSamlProvider(
+    organizationId,
+    { metadataUrl: "https://idp.acme.com/metadata", domains: ["acme.com"] },
+    { actorId: user.id },
+  )
+  .orThrow();
+
+await admin.updateSamlProvider(
+  provider.id,
+  { domains: ["acme.com", "acme.io"] },
+  { actorId: user.id },
+);
+await admin.removeSamlProvider(provider.id, { actorId: user.id });
+```
+
+Pass `metadataXml` instead of `metadataUrl` when the provider has no metadata
+URL. A domain a provider uses can't be removed (`SSO_DOMAIN_IN_USE`).
+
+On the sign-in page, `domainFor` tells you whether an address belongs to a
+provider. It works signed out:
+
+```ts title="app/login/actions.ts"
+const match = await sso.domainFor(email).orThrow();
+if (match) await supabase.auth.signInWithSSO({ providerId: match.providerId });
+```
+
+## Enforcing SSO
+
+With `enforceSso` on, users at the domain must sign in through SAML.
+`sso_access_token_check` returns the event unchanged, or an error Supabase
+Auth shows instead of issuing a token when the user's domain enforces SSO
+and they signed in some other way. Call it first in your custom access token
+hook:
+
+```sql
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  uid uuid := (event ->> 'user_id')::uuid;
+begin
+  event := better_supabase.sso_access_token_check(event);
+  if event ? 'error' then
+    return event;
+  end if;
+  return jsonb_set(event, '{claims,memberships}', better_supabase.membership_claims(uid));
+end
+$$;
+
+grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
+```
+
+The check runs on every token, including refreshes, so a user who signed in
+with a password before the switch loses access at their next refresh.
+
+## SCIM
+
+`scimHandler` serves SCIM 2.0 (RFC 7643 and RFC 7644): `/Users` and
+`/Groups` with filters, paging, `attributes`, PATCH, ETags and `/.search`,
+and the discovery endpoints `/ServiceProviderConfig`, `/ResourceTypes` and
+`/Schemas`. The identity provider authenticates with an
+[API key](/docs/blocks/api-keys) of the organization that has the `scim`
+scope:
+
+```ts title="app/scim/v2/[...path]/route.ts"
+import { createApiKeys } from "better-supabase/blocks/api-keys";
+import { scimHandler, sqlTransport } from "better-supabase/blocks/sso";
+
+const transport = sqlTransport(postgres.admin);
+const handler = scimHandler({
+  transport,
+  keys: createApiKeys({ transport }),
+  basePath: "/scim/v2",
+});
+
+export {
+  handler as GET,
+  handler as POST,
+  handler as PUT,
+  handler as PATCH,
+  handler as DELETE,
+};
+```
+
+Give the identity provider `https://app.example.com/scim/v2` as the tenant
+URL and the key as the Bearer token. `/Me` and `/Bulk` answer 501.
+
+A SCIM user is linked to the auth user with the same email once that email
+is confirmed, and only when its domain is verified for the organization, so
+another organization's identity provider can't pull in outside accounts. A
+linked, active user is a member; a deactivated or deleted one is removed.
+The owner's membership is never changed.
+
+The member's role comes from their groups. A group named like an assignable
+role (`admin`) grants that role; map other names with `groupRoles`. When a
+user is in several groups, the highest role in `roleOrder` wins, and a user
+in none gets `defaultRole`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      sso: {
+        options: {
+          defaultRole: "member",
+          roleOrder: ["admin", "member"],
+          groupRoles: { "Engineering Leads": "admin" },
+        },
+      },
+    },
+  },
+});
+```
+
+Memberships SCIM changes emit `organization.member_added`,
+`organization.role_changed` and `organization.member_removed`, like the
+ones members change.
+
+## Functions
+
+| Function                                                | Granted to                            | Does                                                  |
+| ------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------- |
+| `add_organization_domain(tenant, domain)`               | `authenticated`                       | Claims a domain and returns its TXT record            |
+| `list_organization_domains(tenant)`                     | `authenticated`, `service_role`       | The organization's domains                            |
+| `update_organization_domain(id, auto_join, enforce)`    | `authenticated`, `service_role`       | Sets auto-join and enforcement on a verified domain   |
+| `remove_organization_domain(id)`                        | `authenticated`, `service_role`       | Removes a domain no provider uses                     |
+| `verify_organization_domain(id, actor)`                 | `service_role`                        | Marks a domain verified after the DNS check           |
+| `register_sso_provider(tenant, provider, domains, ...)` | `service_role`                        | Records a Supabase Auth provider for the organization |
+| `list_sso_providers(tenant)`                            | `authenticated`, `service_role`       | The organization's providers                          |
+| `sso_domain_for(email)`                                 | `anon`, `authenticated`               | The provider for an address at a verified domain      |
+| `sso_access_token_check(event)`                         | `service_role`, `supabase_auth_admin` | The event, or an error when the domain enforces SSO   |
+| `scim_save_user`, `scim_save_group` and the rest        | `service_role`                        | The storage behind `scimHandler`                      |

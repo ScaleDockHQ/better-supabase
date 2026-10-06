@@ -350,6 +350,7 @@ export type {
   BlockEventType,
   NotificationEventData,
   OrganizationDeletionEventData,
+  OrganizationDomainEventData,
   OrganizationEventData,
   SupportEventData,
   WebhookEventData,

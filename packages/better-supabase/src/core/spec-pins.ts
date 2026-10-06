@@ -16,6 +16,7 @@ export const SPEC_PINS: {
   readonly pgvector: "0.8";
   readonly ocsf: "1.9.0";
   readonly openfeature: "0.9.0";
+  readonly scim: "2.0";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -30,4 +31,5 @@ export const SPEC_PINS: {
   pgvector: "0.8",
   ocsf: "1.9.0",
   openfeature: "0.9.0",
+  scim: "2.0",
 };

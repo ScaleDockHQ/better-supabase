@@ -21,6 +21,7 @@
     "comments",
     "attachments",
     "data-lifecycle",
+    "sso",
     "entitlements",
     "vector-search"
   ]

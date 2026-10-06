@@ -33,6 +33,7 @@ import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { SETTINGS } from "./modules/settings.ts";
+import { SSO } from "./modules/sso.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
@@ -1637,6 +1638,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(COMMENTS),
       built(ATTACHMENTS),
       built(DATA_LIFECYCLE),
+      built(SSO),
     ].map((module) => [module.name, module]),
   );
 
