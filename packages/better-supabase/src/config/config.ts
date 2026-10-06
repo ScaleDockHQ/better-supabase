@@ -136,8 +136,12 @@ export interface PluginFlagsConfig {
 export interface BucketConfig {
   readonly id?: string;
   readonly public?: boolean;
-  /** Path template with `{placeholders}`, e.g. `{orgId}/{customerId}/logo.webp`. */
-  readonly path: string;
+  /**
+   * Path template with `{placeholders}`, e.g. `{orgId}/{customerId}/logo.webp`,
+   * or several when the bucket stores objects in more than one layout. A last
+   * segment `{...rest}` matches one or more segments.
+   */
+  readonly path: string | readonly [string, ...string[]];
   /**
    * Generated storage policy, a PermDock policy (`{ permdock, scope }`) or
    * an access contract policy (`{ access }`).

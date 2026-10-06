@@ -24,16 +24,15 @@ import {
   toDbError,
 } from "../core/result.ts";
 import {
-  parseTemplate,
   slug,
   sqlIdent,
   sqlString,
-  type Template,
   type TemplateParams,
   type TemplateValues,
 } from "../core/template.ts";
 import { temporalMissing } from "../core/temporal-required.ts";
 import { optionalTemporal } from "../core/temporal.ts";
+import { pathLayouts } from "./layouts.ts";
 import { policyChecks } from "./policy.ts";
 import { type TenantGuard, tenantGuard } from "./tenant-scope.ts";
 
@@ -51,8 +50,15 @@ export interface BucketConfig<
 > {
   /** Bucket id, e.g. `customer-logos`. */
   readonly id: Id;
-  /** Object path template, e.g. `{orgId}/{customerId}/logo/{version}.webp`. */
-  readonly path: P;
+  /**
+   * Object path template, e.g. `{orgId}/{customerId}/logo/{version}.webp`,
+   * or several for a bucket that stores objects in more than one layout. A
+   * path from values uses the template whose placeholders are exactly the
+   * values given, and a stored path string is accepted when any template
+   * matches it, so list the current layout first and keep older ones after
+   * it. A last segment `{...rest}` matches one or more segments.
+   */
+  readonly path: P | readonly [P, ...P[]];
   readonly public?: boolean;
   /**
    * Generated `storage.objects` policies. `tenant` and `owner` match a path
@@ -100,12 +106,18 @@ export interface BucketConfig<
   };
 }
 
+/** The values of one of the bucket's path templates. */
+export type PathValues<P extends string> = P extends string
+  ? TemplateValues<P>
+  : never;
+
 /**
- * A path from the template's values, or an existing path string (checked
- * against the template). `StoragePath`s of other buckets are rejected.
+ * A path from the values of one of the bucket's templates, or an existing
+ * path string (checked against the templates). `StoragePath`s of other
+ * buckets are rejected.
  */
 export type ObjectTarget<P extends string, Id extends string = string> =
-  | TemplateValues<P>
+  | PathValues<P>
   | PathIn<Id>;
 
 export const TTL = {
@@ -293,7 +305,10 @@ export interface BucketClient<P extends string, Id extends string = string> {
 
 export interface Bucket<P extends string, Id extends string = string> {
   readonly id: Id;
+  /** The first path template. */
   readonly template: P;
+  /** Every path template, in the order given. */
+  readonly templates: readonly P[];
   readonly params: readonly TemplateParams<P>[];
   readonly public: boolean;
   readonly policy: BucketPolicy;
@@ -307,8 +322,10 @@ export interface Bucket<P extends string, Id extends string = string> {
   readonly tenant: string | undefined;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
-  path(values: TemplateValues<P>): StoragePath<Id>;
-  match(path: string): TemplateValues<P> | null;
+  /** Builds a path with the template whose placeholders are exactly the keys of `values`. */
+  path(values: PathValues<P>): StoragePath<Id>;
+  /** The values of the first template that matches `path`, or `null`. */
+  match(path: string): PathValues<P> | null;
   /** Folder prefix filled by `values`, for listing. */
   prefix(values?: Partial<TemplateValues<P>>): string;
   /** Checks a size and content type against the bucket limits. */
@@ -363,16 +380,6 @@ export function parseSize(value: string | number): number {
   if (!match || unit === undefined)
     throw new TypeError(`Invalid size "${value}"`);
   return Math.round(Number(match[1]) * unit);
-}
-
-// Characters Supabase Storage accepts in object keys, minus the separator.
-const SAFE_SEGMENT = /^[\w!\-.*'() &$@=;:+,?]+$/;
-
-function validateSegment(_name: string, value: string): string | undefined {
-  if (value === "." || value === "..") return "is a relative path";
-  if (!SAFE_SEGMENT.test(value))
-    return "contains characters Storage does not allow";
-  return undefined;
 }
 
 function claimSql(claim: string | readonly string[]): string {
@@ -488,31 +495,20 @@ export function defineBucket<
   const P extends string,
   const Id extends string = string,
 >(config: BucketConfig<P, Id>): Bucket<P, Id> {
-  const template: Template = parseTemplate(config.path, "/", validateSegment);
+  const layouts = pathLayouts(config.id, config.path, sqlString);
   const policy = config.policy ?? "none";
   const fileSizeLimit =
     config.fileSizeLimit === undefined
       ? undefined
       : parseSize(config.fileSizeLimit);
   const allowedMimeTypes = config.allowedMimeTypes;
-
-  function segmentFor(param: string, kind: string): number {
-    const index = template.segmentOf(param);
-    if (index === undefined) {
-      throw new TypeError(
-        `defineBucket: a ${kind} policy needs {${param}} as a whole path segment in "${config.path}"`,
-      );
-    }
-    return index;
-  }
+  const segmentFor = (param: string, kind: string): number =>
+    layouts.segmentOf(param, kind);
   const tenantParam = config.tenant
     ? (config.tenant.param ?? "orgId")
     : undefined;
-  if (tenantParam !== undefined && !template.params.includes(tenantParam)) {
-    throw new TypeError(
-      `defineBucket: tenant.param {${tenantParam}} is not in "${config.path}"`,
-    );
-  }
+  if (tenantParam !== undefined)
+    layouts.requireParam(tenantParam, "tenant.param");
   const tenantClaim = config.tenant?.claim;
   const mode =
     typeof policy === "string"
@@ -552,14 +548,14 @@ export function defineBucket<
 
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
     if (typeof target !== "string")
-      // SAFETY: the template builds the path from typed values, so it matches
-      // the bucket's path.
-      return template.build(target) as StoragePath<Id>;
-    if (!template.match(target)) {
+      // SAFETY: a template builds the path from typed values, so it matches
+      // the bucket's paths.
+      return layouts.build(target) as StoragePath<Id>;
+    if (!layouts.match(target)) {
       throw new DbException(
         dbError(
           "invalid_input",
-          `Path "${target}" does not match "${config.path}"`,
+          `Path "${target}" does not match "${layouts.sources.join('" or "')}"`,
         ),
       );
     }
@@ -594,15 +590,17 @@ export function defineBucket<
     return undefined;
   };
 
-  // SAFETY: the template parser returns the parameter names written in P.
+  // SAFETY: the template parser returns the parameter names written in P,
+  // and sources holds the templates of P.
   const bucket: Bucket<P, Id> = {
     id: config.id,
-    template: config.path,
-    params: template.params as TemplateParams<P>[],
+    template: layouts.sources[0] as P,
+    templates: layouts.sources as readonly P[],
+    params: layouts.params as TemplateParams<P>[],
     owner:
       policy === "owner"
         ? (config.owner?.param ?? "userId")
-        : template.params.includes("userId")
+        : layouts.params.includes("userId")
           ? "userId"
           : undefined,
     tenant: tenantParam,
@@ -612,15 +610,15 @@ export function defineBucket<
     allowedMimeTypes,
     // SAFETY: the template builds the path from typed values, and match returns
     // the parameters of P.
-    path: (values) => template.build(values) as StoragePath<Id>,
-    match: (path) => template.match(path) as TemplateValues<P> | null,
-    prefix: (values = {}) => template.prefix(values, template.segments - 1),
+    path: (values) => layouts.build(values) as StoragePath<Id>,
+    match: (path) => layouts.match(path) as PathValues<P> | null,
+    prefix: (values = {}) => layouts.prefix(values),
     check,
     sql() {
       const id = sqlString(config.id);
       const name = slug(config.id);
       const lines = [
-        `-- better-supabase: bucket ${config.id} (${config.path})`,
+        `-- better-supabase: bucket ${config.id} (${layouts.sources.join(", ")})`,
         "insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)",
         `values (${id}, ${id}, ${String(bucket.public)}, ${fileSizeLimit === undefined ? "null" : String(fileSizeLimit)}, ${
           allowedMimeTypes
@@ -638,7 +636,7 @@ export function defineBucket<
         string | undefined,
       ][] = [];
       const inBucket = `bucket_id = ${id}`;
-      const pathMatch = `name ~ ${sqlString(template.sqlPattern)}`;
+      const pathMatch = layouts.sqlMatch;
       if (accessCheck) {
         const using = `${inBucket} and ${accessCheck}`;
         const write = `${using} and ${pathMatch}`;

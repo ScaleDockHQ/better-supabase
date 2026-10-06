@@ -213,8 +213,11 @@
           "id": { "type": "string" },
           "public": { "type": "boolean" },
           "path": {
-            "type": "string",
-            "description": "Path template, e.g. `{orgId}/{customerId}/logo.webp`."
+            "description": "Path template, e.g. `{orgId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments.",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            ]
           },
           "policy": {
             "oneOf": [

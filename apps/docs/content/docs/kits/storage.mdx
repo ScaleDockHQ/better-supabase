@@ -37,6 +37,43 @@ failed check is an `invalid_input` error, and no request is sent. Client methods
 accept values or an existing path string, and a path string must match the
 template.
 
+### Several layouts
+
+A bucket often holds objects in more than one shape: file versions,
+exports and attachments side by side, and paths written by an older layout
+that rows still reference. Pass `path` an array of templates. A path from
+values uses the template whose placeholders are exactly the keys you give,
+and a stored path string is accepted when any template matches it, so put
+the current layout first and keep older ones after it:
+
+```ts title="lib/buckets.ts"
+export const files = defineBucket({
+  id: "files",
+  path: [
+    "{orgId}/files/{fileId}/v{version}.{ext}",
+    "{orgId}/exports/{exportId}.zip",
+    "{orgId}/{...rest}",
+  ],
+  policy: "tenant",
+  tenant: {},
+});
+
+files.path({ orgId, exportId }); // 'o1/exports/e1.zip'
+files.match("o1/2023/report.pdf"); // { orgId: 'o1', rest: '2023/report.pdf' }
+```
+
+A last segment written as `{...rest}` matches one or more segments, for
+stored paths whose shape varies. Each of its segments is checked like any
+other value: no empty segments, no `.` or `..`, and only characters Storage
+accepts. A path with a leading `/` or outside the templates is refused.
+
+Every template must hold the tenant placeholder, and a `tenant`, `owner` or
+permission policy needs its placeholder at the same segment in every
+template, so the generated policies and the connected client check one
+segment for all of them. The write policies accept a name that matches any
+template. `prefix(values)` returns the folder that every template holding
+those values shares.
+
 ### Path columns
 
 `logos.path()` and `upload()` return a `StoragePath<'customer-logos'>`: a
