@@ -43,8 +43,8 @@ function fakeClient(
 } {
   const calls: Call[] = [];
   const client: QueueRpcClient = {
-    schema: (schema) => ({
-      rpc: (fn, args) => {
+    schema: (schema: string) => ({
+      rpc: (fn: string, args: Readonly<Record<string, unknown>>) => {
         const call = { schema, fn, args };
         calls.push(call);
         return Promise.resolve({ data: respond(call), error: error(call) });

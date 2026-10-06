@@ -48,8 +48,20 @@ interface RpcResponse {
   readonly error: unknown;
 }
 
-/** The part of a supabase-js client `rpcTransport` uses. */
+/**
+ * The part of a supabase-js client `rpcTransport` uses. The parameters are
+ * `never` so a typed `SupabaseClient<Database>` fits too: its `schema` and
+ * `rpc` only take the names its `Database` declares, which never include the
+ * block functions of a schema the types leave out.
+ */
 export interface RpcClient {
+  schema(name: never): {
+    rpc(fn: never, args: never): PromiseLike<RpcResponse>;
+  };
+}
+
+/** How `rpcTransport` calls the client: any schema, function and arguments. */
+interface UntypedRpcClient {
   schema(name: string): {
     rpc(fn: string, args: Record<string, unknown>): PromiseLike<RpcResponse>;
   };
@@ -75,12 +87,14 @@ export function rpcTransport(
   client: RpcClient,
   options: RpcTransportOptions = {},
 ): BlockTransport {
+  // Method parameters are bivariant, so the never parameters widen back.
+  const untyped: UntypedRpcClient = client;
   return {
     async call(schema, fn, args) {
       const defined = Object.fromEntries(
         Object.entries(args).filter(([, value]) => value !== undefined),
       );
-      const { data, error } = await client
+      const { data, error } = await untyped
         .schema(options.schema ?? schema)
         .rpc(fn, defined);
       if (error) {

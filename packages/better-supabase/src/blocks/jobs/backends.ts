@@ -60,6 +60,17 @@ export interface DueSchedule {
 
 /** A Supabase client, or anything with `.schema(name).rpc(fn, args)`. */
 export interface QueueRpcClient {
+  /**
+   * `never` parameters, so a typed `SupabaseClient<Database>` whose types
+   * leave out `pgmq_public` fits too.
+   */
+  schema(name: never): {
+    rpc(fn: never, args: never): PromiseLike<{ data: unknown; error: unknown }>;
+  };
+}
+
+/** How the backend calls the client. */
+interface UntypedQueueClient {
   schema(name: string): {
     rpc(
       fn: string,
@@ -373,11 +384,13 @@ export function sqlOnly(feature: string): never {
  * and no schedules: a failed job reappears when its lease ends.
  */
 export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
+  // Method parameters are bivariant, so the never parameters widen back.
+  const untyped: UntypedQueueClient = client;
   const call = async <T>(
     fn: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<T> => {
-    const { data, error } = await client.schema("pgmq_public").rpc(fn, args);
+    const { data, error } = await untyped.schema("pgmq_public").rpc(fn, args);
     if (error) {
       const message =
         typeof error === "object" && "message" in error
