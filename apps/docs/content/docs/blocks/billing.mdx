@@ -70,6 +70,11 @@ link it even if the customer was created elsewhere. `params` merges more
 Checkout Session parameters. `portal` returns `not_found`
 (`BILLING_NO_CUSTOMER`) before the tenant has a customer.
 
+`cancelSubscription(organizationId)` cancels the tenant's active subscription
+in Stripe right away and returns its id, or `undefined` when there is none.
+The [data lifecycle](/docs/blocks/data-lifecycle) purge calls it before it
+deletes an organization.
+
 ## Seats
 
 `billing_seat_count(tenant)` counts the tenant's memberships, or only those

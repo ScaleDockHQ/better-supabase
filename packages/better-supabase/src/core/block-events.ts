@@ -96,6 +96,28 @@ export interface AttachmentEventData {
   readonly status?: string;
 }
 
+/** `data_export.*`, written to the outbox by the data-lifecycle module. */
+export interface DataExportEventData {
+  readonly exportId: string;
+  readonly subject: "user" | "organization";
+  readonly organizationId?: string;
+  readonly userId?: string;
+  readonly requestedBy?: string;
+  /** `data_export.ready`: the object paths and when they stop being served. */
+  readonly files?: readonly string[];
+  readonly expiresAt?: string;
+  /** `data_export.failed`. */
+  readonly error?: string;
+}
+
+/** `organization.deletion_*` and `organization.purged`, from the data-lifecycle module. */
+export interface OrganizationDeletionEventData {
+  readonly organizationId: string;
+  /** Who requested or cancelled; absent for the purge. */
+  readonly userId?: string;
+  readonly purgeAfter?: string;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -132,6 +154,12 @@ export interface BlockEventMap {
   "comment.deleted": CommentEventData;
   "attachment.uploaded": AttachmentEventData;
   "attachment.scanned": AttachmentEventData;
+  "data_export.requested": DataExportEventData;
+  "data_export.ready": DataExportEventData;
+  "data_export.failed": DataExportEventData;
+  "organization.deletion_requested": OrganizationDeletionEventData;
+  "organization.deletion_cancelled": OrganizationDeletionEventData;
+  "organization.purged": OrganizationDeletionEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

@@ -124,6 +124,12 @@ export interface Billing {
     options: { readonly returnUrl: string },
   ): AsyncResult<{ readonly url: string }>;
   status(organizationId: string): AsyncResult<BillingStatus>;
+  /**
+   * Cancels the tenant's active subscription in Stripe now; `undefined`
+   * when it has none. The `customer.subscription.deleted` webhook then
+   * emits `billing.subscription_deleted`.
+   */
+  cancelSubscription(organizationId: string): AsyncResult<string | undefined>;
   /** Sets the seat item's quantity to the tenant's seat count. */
   syncSeats(
     organizationId: string,
@@ -456,6 +462,14 @@ export function createBilling(options: BillingOptions): Billing {
         };
       }),
     syncSeats,
+    cancelSubscription: (organizationId) =>
+      item(organizationId).andThen(async (found) => {
+        if (found === undefined) return ok(undefined);
+        const cancelled = await withStripe((client) =>
+          client.subscriptions.cancel(found.subscriptionId),
+        );
+        return cancelled.ok ? ok(cancelled.data.id) : cancelled;
+      }),
     seatSink: () => ({
       async send(events) {
         const latest = new Map<string, string>();
