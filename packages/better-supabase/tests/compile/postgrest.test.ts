@@ -147,6 +147,8 @@ describe("compilePostgrest filters", () => {
     ],
     ["like", col("name", "like", "A%"), filter("name", "like", "A%")],
     ["ilike", col("name", "ilike", "%a%"), filter("name", "ilike", "%a%")],
+    ["match", col("name", "match", "^A.+$"), filter("name", "match", "^A.+$")],
+    ["imatch", col("name", "imatch", "^a"), filter("name", "imatch", "^a")],
     [
       "in with quoting",
       col("name", "in", ["a", 'q"x', "back\\slash", null]),

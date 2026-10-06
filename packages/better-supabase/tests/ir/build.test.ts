@@ -299,6 +299,8 @@ describe("IrBuilder.where field operators", () => {
     ["lte", { lte: "A" }, col("name", "lte", "A")],
     ["like", { like: "A%" }, col("name", "like", "A%")],
     ["ilike", { ilike: "a%" }, col("name", "ilike", "a%")],
+    ["match", { match: "^A[0-9]+$" }, col("name", "match", "^A[0-9]+$")],
+    ["imatch", { imatch: "^a" }, col("name", "imatch", "^a")],
     ["contains on text", { contains: "50%" }, col("name", "ilike", "%50\\%%")],
     ["startsWith", { startsWith: "a_" }, col("name", "like", "a\\_%")],
     ["endsWith", { endsWith: "b" }, col("name", "like", "%b")],
@@ -400,13 +402,14 @@ describe("IrBuilder.where field operators", () => {
     ],
     [
       "comparisons",
-      { path: ["at"], gte: "2026", like: "20%", ilike: "x" },
+      { path: ["at"], gte: "2026", like: "20%", ilike: "x", imatch: "^2" },
       {
         kind: "and",
         items: [
           pathCol("metadata", "gte", "2026", ["at"]),
           pathCol("metadata", "like", "20%", ["at"]),
           pathCol("metadata", "ilike", "x", ["at"]),
+          pathCol("metadata", "imatch", "^2", ["at"]),
         ],
       },
     ],

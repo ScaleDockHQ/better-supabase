@@ -138,6 +138,8 @@ function operatorAndValue(
     case "lte":
     case "like":
     case "ilike":
+    case "match":
+    case "imatch":
       return { operator: op, value: plain(value) };
     case "in":
       if (!Array.isArray(value)) invalidRequest('"in" needs an array');

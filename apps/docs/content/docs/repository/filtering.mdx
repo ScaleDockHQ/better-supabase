@@ -13,16 +13,18 @@ where: { status: 'active', kvk: null }
 
 Operators depend on the column type:
 
-| Type                 | Operators                                                       |
-| -------------------- | --------------------------------------------------------------- |
-| All                  | `eq`, `neq`, `in`, `notIn`, `isNull`, `not`                     |
-| Text, numbers, dates | `gt`, `gte`, `lt`, `lte`                                        |
-| Text                 | `like`, `ilike`, `contains`, `startsWith`, `endsWith`, `search` |
-| Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                     |
-| jsonb                | `contains` (`@>`), `path` with the operators below              |
+| Type                 | Operators                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| All                  | `eq`, `neq`, `in`, `notIn`, `isNull`, `not`                                        |
+| Text, numbers, dates | `gt`, `gte`, `lt`, `lte`                                                           |
+| Text                 | `like`, `ilike`, `match`, `imatch`, `contains`, `startsWith`, `endsWith`, `search` |
+| Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                                        |
+| jsonb                | `contains` (`@>`), `path` with the operators below                                 |
 
 `contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`
-and `_` in your input. Use `like` or `ilike` when you want wildcards.
+and `_` in your input. Use `like` or `ilike` when you want wildcards, and
+`match` (`~`) or `imatch` (`~*`, case-insensitive) for a POSIX regular
+expression. SQLite (PowerSync) returns `unsupported` for `match` and `imatch`.
 
 On a jsonb column, `contains` sends its value as a JSON document, arrays
 included, so an array matches a JSON array that holds every given element:
