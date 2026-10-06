@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { jsonSchemaChecks, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
 import {
   type Subject,
@@ -96,7 +97,46 @@ function build(ctx: ModuleContext): string {
       "sql.modules.comments.options.maxBodyLength must be a whole number above zero",
     );
   }
-  const subjects = subjectsOption(ctx);
+  const subjects = subjectsOption(ctx, ["permissions"]);
+  type Action = "read" | "create" | "moderate";
+  const actions: ReadonlySet<string> = new Set(["read", "create", "moderate"]);
+  // options.subjects.<type>.permissions: a key per action for that subject
+  // type, in place of the module's read, create and moderate keys.
+  const overrides = subjects.map(
+    ([type, subject]): readonly [string, ReadonlyMap<string, string>] => {
+      const raw = subject.extra["permissions"];
+      const keys = new Map<string, string>();
+      if (raw === undefined) return [type, keys];
+      const where = `sql.modules.comments.options.subjects.${type}.permissions`;
+      if (!isObject(raw)) {
+        throw new TypeError(`${where} must be { read?, create?, moderate? }`);
+      }
+      for (const [key, value] of Object.entries(raw)) {
+        if (
+          !actions.has(key) ||
+          typeof value !== "string" ||
+          value.length === 0
+        ) {
+          throw new TypeError(
+            `${where}.${key}: use read, create and moderate with a permission key`,
+          );
+        }
+        keys.set(key, value);
+      }
+      return [type, keys];
+    },
+  );
+  const canOn = (tenant: string, type: string, action: Action): string => {
+    const cases = overrides.flatMap(([subjectType, keys]) => {
+      const key = keys.get(action);
+      return key === undefined
+        ? []
+        : [`when ${sqlString(subjectType)} then ${sqlString(key)}`];
+    });
+    return cases.length === 0
+      ? can(tenant, action)
+      : `coalesce(better_supabase.can('tenant', ${tenant}, case ${type} ${cases.join(" ")} else ${permission(action)} end), false)`;
+  };
   const readable = subjectReadable(subjects, {
     type: "subject_type",
     id: "subject_id",
@@ -209,18 +249,18 @@ $$;
 
 drop policy if exists "comments_read" on ${comments};
 create policy "comments_read" on ${comments} for select to authenticated
-  using (${can(c("tenant"), "read")} and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${canOn(c("tenant"), c("subjectType"), "read")} and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
 drop policy if exists "comments_insert" on ${comments};
 create policy "comments_insert" on ${comments} for insert to authenticated
   with check (
     ${c("author")} = (select auth.uid())
-    and ${can(c("tenant"), "create")}
+    and ${canOn(c("tenant"), c("subjectType"), "create")}
     and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
 drop policy if exists "comments_update" on ${comments};
 create policy "comments_update" on ${comments} for update to authenticated
-  using (${c("author")} = (select auth.uid()) or ${can(c("tenant"), "moderate")})
-  with check (${c("author")} = (select auth.uid()) or ${can(c("tenant"), "moderate")});
+  using (${c("author")} = (select auth.uid()) or ${canOn(c("tenant"), c("subjectType"), "moderate")})
+  with check (${c("author")} = (select auth.uid()) or ${canOn(c("tenant"), c("subjectType"), "moderate")});
 
 -- Keeps mentions to distinct members other than the author, a reply on its
 -- parent's subject, and edited_at; a deleted comment keeps no body.

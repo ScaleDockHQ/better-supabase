@@ -60,6 +60,24 @@ export default defineConfig({
 `id` defaults to `id` and `tenant` to `organization_id`. A subject type not in
 the map is refused. `maxBodyLength` (default 10000) caps the body.
 
+`permissions` gives a subject type its own keys per action, in place of the
+module's `comments.read`, `comments.create` and `comments.moderate`, so
+comments on deals follow the deal permissions while other subjects keep the
+defaults:
+
+```ts
+subjects: {
+  deal: {
+    table: "deals",
+    permissions: { read: "deals.read", create: "deals.comment", moderate: "deals.manage" },
+  },
+},
+```
+
+`read` decides who sees the thread, `create` who may comment, and `moderate`
+who may edit or delete other people's comments; authors always edit their
+own.
+
 `cascade: true` on a subject writes an `after delete` trigger on its table
 that deletes the subject's comments, which stands in for a foreign key, since
 `subject_id` is text. The subject table must exist before the module file.

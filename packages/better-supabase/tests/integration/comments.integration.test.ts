@@ -231,6 +231,75 @@ describe.skipIf(!live)("comments", () => {
     }
   });
 
+  it("checks a subject type's own read, create and moderate permissions", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table if not exists public.bs_test_deals (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null
+         );
+         alter table public.bs_test_deals enable row level security;
+         grant select on public.bs_test_deals to authenticated;
+         drop policy if exists "read" on public.bs_test_deals;
+         create policy "read" on public.bs_test_deals for select to authenticated
+           using (better_supabase.has_organization_role(organization_id));`,
+      );
+      await s.install(["organizations", "comments"], {
+        modules: {
+          comments: {
+            options: {
+              subjects: {
+                deal: {
+                  table: "bs_test_deals",
+                  permissions: {
+                    read: "deals.read",
+                    create: "deals.comment",
+                    moderate: "deals.manage",
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const [deal] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_deals (organization_id) values ($1) returning id",
+        [organization],
+      );
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const input = {
+        organizationId: organization,
+        subjectType: "deal",
+        subjectId: deal!.id,
+        body: "Pricing looks right",
+      };
+      await s.asRole(member);
+      expect(await comments.create(input)).toMatchObject({ ok: false });
+      await s.asRole(owner);
+      const created = await comments.create(input).orThrow();
+      await s.asRole(member);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.comments where id = $1)",
+          [created.id],
+        ),
+      ).toBe(0);
+      await s.asRole(owner);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.comments where id = $1)",
+          [created.id],
+        ),
+      ).toBe(1);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("keeps a document, copies a thread, cascades deletes and lists a timeline", async () => {
     const s = await BlockSession.open(pool);
     try {

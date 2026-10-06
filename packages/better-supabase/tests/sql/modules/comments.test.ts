@@ -46,6 +46,31 @@ describe("comments module", () => {
     expect(sql).toMatch(/emit_event\('comment\.created'/);
   });
 
+  it("checks a subject type's own permission per action", () => {
+    const sql = sqlOf(["comments"], {
+      subjects: {
+        deal: { table: "deals", permissions: { create: "deals.comment" } },
+        project: { table: "projects" },
+      },
+    });
+    expect(sql).toContain(
+      `case "subject_type" when 'deal' then 'deals.comment' else 'comments.create' end`,
+    );
+    expect(sql).toContain(
+      `coalesce(better_supabase.can('tenant', "organization_id", 'comments.read'), false) and`,
+    );
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { deal: { table: "deals", permissions: { delete: "x" } } },
+      }),
+    ).toThrow(/use read, create and moderate/);
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { deal: { table: "deals", permissions: "x" } },
+      }),
+    ).toThrow(/must be \{ read\?/);
+  });
+
   it.each([
     [{ subjects: [] }, /pass an object/],
     [{ subjects: { "Bad-Type": { table: "x" } } }, /lowercase letters/],
