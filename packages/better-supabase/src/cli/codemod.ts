@@ -94,6 +94,18 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       "Renames from 0.4 to 0.5: createMcp's scopes is advertisedScopes",
     options: [{ call: "createMcp", from: "scopes", to: "advertisedScopes" }],
   },
+  "0.6": {
+    name: "0.6",
+    description:
+      "Changes from 0.5 to 0.6: $rpc returns table rows and records in the configured casing",
+    review: [
+      {
+        pattern: /\$rpc\s*(<|\()/,
+        message:
+          "`$rpc` now returns table rows and `returns table (...)` records in the configured casing, with codecs applied: drop a snake-to-camel mapping of the result, or pass `{ raw: true }` to keep database names",
+      },
+    ],
+  },
 };
 
 /** `[start, end)` ranges of code, outside strings, template literals and comments. */

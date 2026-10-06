@@ -389,6 +389,19 @@ export type Models = {
 };
 
 export type Functions = {
+  customer_note_counts: {
+    Args: {
+      p_customer_ids?: string[];
+    };
+    Returns: { "customer_id": string; "last_note_at": string; "note_count": number }[];
+  };
+  customers_by_status: {
+    Args: {
+      p_limit?: number;
+      p_status: string;
+    };
+    Returns: (Models["customers"]['Row'])[];
+  };
   rs_workspace_summary: {
     Args: {
       p: Json;
@@ -400,7 +413,7 @@ export type Functions = {
       k?: number;
       query: string;
     };
-    Returns: (Database["public"]['Tables']["notes"]['Row'])[];
+    Returns: (Models["notes"]['Row'])[];
   };
 };
 

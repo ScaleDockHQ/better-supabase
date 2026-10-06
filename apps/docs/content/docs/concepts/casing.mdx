@@ -30,12 +30,33 @@ export default defineConfig({
 });
 ```
 
+## Function results
+
+`db.$rpc` returns rows of a table (`returns setof customers`) and records
+(`returns table (customer_id uuid, total numeric)`) in the configured casing,
+with the same codecs as reads. `gen` records which functions need it in the
+metadata, so other results, such as a scalar, `json` or `jsonb`, come back
+as Postgres sent them:
+
+```ts
+const rows = await db
+  .$rpc("customers_by_status", { p_status: "lead" })
+  .orThrow();
+rows[0].organizationId;
+```
+
+`returns` validates the decoded value, so a schema for the cased row works.
+`{ raw: true }` skips the decoding and returns database names, typed as
+`unknown`. PostgREST sends `int8` as a JSON number in function results, so
+values above 2^53 lose precision before a `bigint` codec sees them; cast
+them to `text` in the function when they can be that large.
+
 ## What stays in database names
 
 - Constraint names (`onConflict: 'customers_organization_id_kvk_key'`).
 - Plugin config columns (`softDelete: { column: 'archived_at' }`): these name
   database columns, and the generated flags hold the app names.
-- Raw SQL and RPC argument names.
+- Raw SQL, RPC argument names and the keys inside `json` results.
 
 Error details keep the database name in `constraint` and `columns`, since
 they come from Postgres.

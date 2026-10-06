@@ -890,6 +890,36 @@ export default {
     ]
   },
   "functions": {
+    "customer_note_counts": {
+      "name": "customer_note_counts",
+      "schema": "public",
+      "args": [
+        {
+          "name": "p_customer_ids",
+          "type": "uuid"
+        }
+      ],
+      "returns": "record",
+      "returnsSet": true,
+      "volatility": "stable"
+    },
+    "customers_by_status": {
+      "name": "customers_by_status",
+      "schema": "public",
+      "args": [
+        {
+          "name": "p_limit",
+          "type": "int4"
+        },
+        {
+          "name": "p_status",
+          "type": "text"
+        }
+      ],
+      "returns": "customers",
+      "returnsSet": true,
+      "volatility": "stable"
+    },
     "rs_workspace_summary": {
       "name": "rs_workspace_summary",
       "schema": "public",

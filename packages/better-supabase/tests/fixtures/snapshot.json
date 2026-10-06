@@ -2137,6 +2137,86 @@
       {
         "id": 3000008,
         "schema": "public",
+        "name": "customer_note_counts",
+        "language": "sql",
+        "definition": "\n  select c.id, count(n.id), max(n.created_at)\n  from public.customers as c\n  left join public.notes as n on n.customer_id = c.id\n  where p_customer_ids is null or c.id = any (p_customer_ids)\n  group by c.id;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.customer_note_counts(p_customer_ids uuid[] DEFAULT NULL::uuid[])\n RETURNS TABLE(customer_id uuid, note_count bigint, last_note_at timestamp with time zone)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select c.id, count(n.id), max(n.created_at)\n  from public.customers as c\n  left join public.notes as n on n.customer_id = c.id\n  where p_customer_ids is null or c.id = any (p_customer_ids)\n  group by c.id;\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "customer_id",
+            "type_id": 2950,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "last_note_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "note_count",
+            "type_id": 20,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "p_customer_ids",
+            "type_id": 2951,
+            "has_default": true
+          }
+        ],
+        "argument_types": "p_customer_ids uuid[] DEFAULT NULL::uuid[]",
+        "identity_argument_types": "p_customer_ids uuid[]",
+        "return_type_id": 2249,
+        "return_type": "TABLE(customer_id uuid, note_count bigint, last_note_at timestamp with time zone)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000009,
+        "schema": "public",
+        "name": "customers_by_status",
+        "language": "sql",
+        "definition": "\n  select *\n  from public.customers\n  where status = p_status\n  order by name\n  limit p_limit;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.customers_by_status(p_status text, p_limit integer DEFAULT 50)\n RETURNS SETOF customers\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select *\n  from public.customers\n  where status = p_status\n  order by name\n  limit p_limit;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "p_limit",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "p_status",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "p_status text, p_limit integer DEFAULT 50",
+        "identity_argument_types": "p_status text, p_limit integer",
+        "return_type_id": 2000028,
+        "return_type": "SETOF customers",
+        "return_type_relation_id": 1000005,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000010,
+        "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
         "definition": "\n  select jsonb_build_object(\n    'customers', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0)),\n    'active', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0 where t0.\"status\" = 'active')),\n    'mine', jsonb_build_object('rows', '[]'::jsonb, 'count', (select count(*)::int as count from \"public\".\"customers\" as t0 where t0.\"created_by\" = ((p->>'userId')::uuid))),\n    'latestNote', jsonb_build_object('rows', (select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (select json_build_object('body', t0.\"body\", 'createdAt', t0.\"created_at\") as row from \"public\".\"notes\" as t0 order by t0.\"created_at\" desc limit 1) s), 'count', null)\n  )\n",
@@ -2163,7 +2243,7 @@
         }
       },
       {
-        "id": 3000009,
+        "id": 3000011,
         "schema": "public",
         "name": "search_notes",
         "language": "sql",
@@ -2270,6 +2350,16 @@
         "type_relation_id": null
       },
       {
+        "id": 2951,
+        "name": "_uuid",
+        "schema": "pg_catalog",
+        "format": "uuid[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
         "id": 16,
         "name": "bool",
         "schema": "pg_catalog",
@@ -2317,6 +2407,16 @@
         "enums": [],
         "attributes": [],
         "comment": "Binary JSON",
+        "type_relation_id": null
+      },
+      {
+        "id": 2249,
+        "name": "record",
+        "schema": "pg_catalog",
+        "format": "record",
+        "enums": [],
+        "attributes": [],
+        "comment": "pseudo-type representing any composite type",
         "type_relation_id": null
       },
       {

@@ -377,6 +377,34 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(deleted.map((row) => row.id).sort()).toEqual([...ids].sort());
   });
 
+  it("returns $rpc rows in the configured casing", async () => {
+    const leads = await admin
+      .$rpc("customers_by_status", { p_status: "lead" })
+      .orThrow();
+    expect(leads.map((row) => row.organizationId)).toContain(ACME);
+    expect(leads[0]).not.toHaveProperty("organization_id");
+    const counts = await admin
+      .$rpc("customer_note_counts", { p_customer_ids: [ROAD_RUNNER] })
+      .orThrow();
+    expect(counts).toEqual([
+      { customerId: ROAD_RUNNER, noteCount: 3, lastNoteAt: expect.any(String) },
+    ]);
+    const raw = await admin
+      .$rpc(
+        "customer_note_counts",
+        { p_customer_ids: [ROAD_RUNNER] },
+        { raw: true },
+      )
+      .orThrow();
+    expect(raw).toEqual([
+      {
+        customer_id: ROAD_RUNNER,
+        note_count: 3,
+        last_note_at: expect.any(String),
+      },
+    ]);
+  });
+
   it("sorts by a column of a to-one relation", async () => {
     const seeded = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
     const byOrganization = await admin.customers

@@ -364,6 +364,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      customer_note_counts: {
+        Args: { p_customer_ids?: string[] }
+        Returns: {
+          customer_id: string
+          last_note_at: string
+          note_count: number
+        }[]
+      }
+      customers_by_status: {
+        Args: { p_limit?: number; p_status: string }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          kvk: string | null
+          logo_path: string | null
+          metadata: NonNullable<Json>
+          name: string
+          organization_id: string
+          primary_contact_id: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "customers"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       rs_workspace_summary: { Args: { p: Json }; Returns: Json }
       search_notes: {
         Args: { k?: number; query: string }

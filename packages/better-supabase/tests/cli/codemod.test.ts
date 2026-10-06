@@ -4,6 +4,7 @@ import { applyCodemod, CODEMODS, codeRanges } from "../../src/cli/codemod.ts";
 
 const v04 = CODEMODS["0.4"]!;
 const v05 = CODEMODS["0.5"]!;
+const v06 = CODEMODS["0.6"]!;
 
 describe("codeRanges", () => {
   it("leaves out strings, template literals and comments", () => {
@@ -111,5 +112,18 @@ other({ scopes: [] });
   it("leaves a file without matches as it is", () => {
     const source = "const value = 1;\n";
     expect(applyCodemod(v05, source)).toEqual({ text: source, review: [] });
+  });
+});
+
+describe("codemod 0.6", () => {
+  it("lists $rpc calls for review and changes nothing", () => {
+    const source = `const rows = await db.$rpc("list_customers", {}).orThrow();
+const typed = db.$rpc<"x">("x");
+const label = "$rpc in a string";
+`;
+    const result = applyCodemod(v06, source);
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([1, 2]);
+    expect(result.review[0]?.message).toContain("raw: true");
   });
 });

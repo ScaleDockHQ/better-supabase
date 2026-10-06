@@ -42,7 +42,10 @@ Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`
 
 - `db.$client` is the client you passed in.
 - `db.$rpc('fn', args, { returns })` calls a typed Postgres function, and can
-  validate the result with a Standard Schema.
+  validate the result with a Standard Schema. Rows of a table and
+  `returns table (...)` records come back in the configured
+  [casing](/docs/concepts/casing#function-results); `{ raw: true }` keeps
+  database names.
 - `db.$with({ signal })` returns a Db bound to a new request context.
 - `db.$table(name)` returns the repository for a table key known only at
   runtime, and throws a `TypeError` for unknown names.

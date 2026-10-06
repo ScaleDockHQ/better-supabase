@@ -8,8 +8,8 @@ so an upgrade is a command and a review instead of a search through the
 codebase. Run it after you update the package:
 
 ```bash
-pnpm better-supabase codemod 0.5 --dry-run
-pnpm better-supabase codemod 0.5
+pnpm better-supabase codemod 0.6 --dry-run
+pnpm better-supabase codemod 0.6
 ```
 
 Pass files or directories after the name to limit it (`codemod 0.4 src app`).
@@ -22,6 +22,7 @@ nothing.
 | ------- | ----------------------------------------------------------------------------------------------------------- |
 | `0.4`   | The 0.4 renames on the [naming page](/docs/concepts/naming#renames): imports, members and the provider prop |
 | `0.5`   | `scopes` in `createMcp()` options becomes `advertisedScopes`                                                |
+| `0.6`   | Lists every `$rpc` call for review: table rows and records now come back in the configured casing           |
 
 ## What it rewrites
 

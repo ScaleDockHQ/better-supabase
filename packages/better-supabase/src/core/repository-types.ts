@@ -293,9 +293,17 @@ export type RepositoryOf<
 
 export interface RpcOptions<R> {
   readonly signal?: AbortSignal;
-  /** Validates the return value; the result carries the schema's output type. */
+  /**
+   * Validates the return value after decoding, so the schema sees the
+   * configured casing and codecs; the result carries its output type.
+   */
   readonly returns?: StandardSchemaV1<unknown, R>;
   readonly schema?: string;
+  /**
+   * Return what PostgREST sent, with database names and no codecs. Rows of a
+   * table or a `returns table (...)` record are decoded like reads otherwise.
+   */
+  readonly raw?: boolean;
 }
 
 type RpcArgs<F extends AnyFunctions, N extends keyof F> =
@@ -308,7 +316,20 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   readonly $client: C;
   readonly $executor: Executor;
   readonly $context: RequestContext;
-  /** Calls a database function with typed arguments. */
+  /**
+   * Calls a database function with typed arguments. Rows of a table or a
+   * `returns table (...)` record come back in the configured casing, with
+   * codecs applied; `raw: true` returns them as PostgREST sent them.
+   */
+  $rpc<N extends Extract<keyof F, string>>(
+    name: N,
+    ...rest: [
+      ...RpcArgs<F, N>,
+      options: Omit<RpcOptions<unknown>, "returns" | "raw"> & {
+        readonly raw: true;
+      },
+    ]
+  ): AsyncResult<unknown>;
   $rpc<N extends Extract<keyof F, string>, R = F[N]["Returns"]>(
     name: N,
     ...rest: [...RpcArgs<F, N>, options?: RpcOptions<R>]

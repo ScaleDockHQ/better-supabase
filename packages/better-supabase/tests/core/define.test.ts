@@ -14,6 +14,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -550,5 +551,127 @@ describe("$rpc", () => {
           { returns: numberSchema } as never,
         ),
     ).toEqual(err(timeout));
+  });
+});
+
+describe("$rpc result decoding", () => {
+  const row = {
+    id: "c1",
+    organization_id: "o1",
+    primary_contact_id: null,
+    created_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("returns table rows in the configured casing", async () => {
+    const executor = fake({ rpc: () => ok([row]) });
+    const rows = await betterSupabase
+      .connect(executor)
+      .$rpc("customers_by_status", { p_status: "lead" })
+      .orThrow();
+    expect(rows).toEqual([
+      {
+        id: "c1",
+        organizationId: "o1",
+        primaryContactId: null,
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+    ]);
+  });
+
+  it("returns record columns in the configured casing and validates after", async () => {
+    const executor = fake({
+      rpc: () => ok([{ customer_id: "c1", note_count: 2, extra: true }]),
+    });
+    const seen: unknown[] = [];
+    const returns: StandardSchemaV1<unknown, unknown> = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) => {
+          seen.push(value);
+          return { value };
+        },
+      },
+    };
+    const rows = await betterSupabase
+      .connect(executor)
+      .$rpc("customer_note_counts", {}, { returns })
+      .orThrow();
+    expect(rows).toEqual([{ customerId: "c1", noteCount: 2, extra: true }]);
+    expect(seen).toEqual([rows]);
+  });
+
+  it("leaves raw results, other schemas, scalars and json alone", async () => {
+    const executor = fake({ rpc: () => ok([row]) });
+    const db = betterSupabase.connect(executor);
+    expect(
+      await db
+        .$rpc("customers_by_status", { p_status: "lead" }, { raw: true })
+        .orThrow(),
+    ).toEqual([row]);
+    expect(
+      await db
+        .$rpc("customers_by_status", { p_status: "lead" }, { schema: "api" })
+        .orThrow(),
+    ).toEqual([row]);
+    expect(await db.$rpc("rs_workspace_summary", { p: {} }).orThrow()).toEqual([
+      row,
+    ]);
+  });
+
+  it("decodes a single row and passes non-objects through", async () => {
+    const executor = fake({ rpc: () => ok(row) });
+    expect(
+      await betterSupabase
+        .connect(executor)
+        .$rpc("customers_by_status", { p_status: "lead" })
+        .orThrow(),
+    ).toMatchObject({ organizationId: "o1" });
+    const empty = fake({ rpc: () => ok([null, 3]) });
+    expect(
+      await betterSupabase
+        .connect(empty)
+        .$rpc("customers_by_status", { p_status: "lead" })
+        .orThrow(),
+    ).toEqual([null, 3]);
+  });
+
+  it("applies codecs and reports values they can't hold", async () => {
+    const coded = defineSupabase(
+      defineSchema({
+        ...schema.meta,
+        functions: {
+          ...schema.meta.functions,
+          customer_note_counts: {
+            ...schema.meta.functions["customer_note_counts"]!,
+            result: {
+              columns: [
+                { db: "note_count", name: "noteCount", codec: "bigint" },
+                { db: "last_note_at", name: "lastNoteAt", codec: "instant" },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const ok1 = await coded
+      .connect(
+        fake({
+          rpc: () =>
+            ok([{ note_count: 2, last_note_at: "2026-01-01T00:00:00Z" }]),
+        }),
+      )
+      .$rpc("customer_note_counts", {})
+      .orThrow();
+    expect(ok1).toEqual([
+      {
+        noteCount: 2n,
+        lastNoteAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+      },
+    ]);
+    const bad = await coded
+      .connect(fake({ rpc: () => ok([{ last_note_at: "infinity" }]) }))
+      .$rpc("customer_note_counts", {});
+    expect(bad.error?.kind).toBe("invalid_value");
   });
 });

@@ -18,7 +18,12 @@ import {
   cacheTargetOf,
   rpcCacheTargets,
 } from "./cache.ts";
-import { type DbError, type ErrorMapper, dbError } from "./errors.ts";
+import {
+  type DbError,
+  DbException,
+  type ErrorMapper,
+  dbError,
+} from "./errors.ts";
 import { type EventHandler, EventHub, type EventName } from "./events.ts";
 import {
   type AnyPlugin,
@@ -47,6 +52,7 @@ import {
   type ThrowMapper,
   withErrorMapper,
 } from "./result.ts";
+import { decodeRpcResult } from "./rpc-result.ts";
 import { type SearchInput, vectorLiteral } from "./search.ts";
 import {
   createSpecs,
@@ -470,17 +476,19 @@ export class BetterSupabase<
       $executor: executor,
       $context: context,
       $rpc: (name: string, ...rest: unknown[]) =>
-        rpc(executor, errorMappers, name, rest).map((data) => {
-          const registered = this.options.rpc?.[name];
-          if (registered) {
-            this.events.emit("rpc", {
-              name,
-              invalidates: registered.invalidates,
-              context,
-            });
-          }
-          return data;
-        }),
+        rpc(this.schema.meta, executor, errorMappers, name, rest).map(
+          (data) => {
+            const registered = this.options.rpc?.[name];
+            if (registered) {
+              this.events.emit("rpc", {
+                name,
+                invalidates: registered.invalidates,
+                context,
+              });
+            }
+            return data;
+          },
+        ),
       $with: (extra: RequestContext) =>
         this.#db(client, base, { ...given, ...extra }, plugins, recorder),
       $withoutPlugins: (options?: { readonly keep?: readonly string[] }) =>
@@ -892,6 +900,7 @@ function runSpec(
 }
 
 function rpc(
+  meta: SchemaMeta,
   executor: Executor,
   errorMappers: readonly ErrorMapper[],
   name: string,
@@ -901,7 +910,12 @@ function rpc(
   const [args, options] = rest as [
     Readonly<Record<string, unknown>> | undefined,
     (
-      | { signal?: AbortSignal; returns?: StandardSchemaV1; schema?: string }
+      | {
+          signal?: AbortSignal;
+          returns?: StandardSchemaV1;
+          schema?: string;
+          raw?: boolean;
+        }
       | undefined
     ),
   ];
@@ -920,12 +934,18 @@ function rpc(
       ...(options?.signal ? { signal: options.signal } : {}),
     };
     const result = await executor.rpc(name, args ?? {}, context);
-    if (!result.ok || !options?.returns) return result;
-    const checked = await validate(
-      options.returns,
-      result.data,
-      `${name}() result`,
-    );
+    if (!result.ok) return result;
+    let data = result.data;
+    if (options?.raw !== true) {
+      try {
+        data = decodeRpcResult(meta, name, context.schema, data);
+      } catch (cause) {
+        if (cause instanceof DbException) return err(cause.error);
+        throw cause;
+      }
+    }
+    if (!options?.returns) return ok(data);
+    const checked = await validate(options.returns, data, `${name}() result`);
     return checked.ok ? ok(checked.data) : checked;
   });
 }

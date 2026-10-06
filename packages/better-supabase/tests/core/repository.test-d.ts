@@ -100,6 +100,23 @@ describe("payload inference", () => {
   });
 });
 
+describe("$rpc results", () => {
+  it("types table rows and records in the configured casing", async () => {
+    const rows = await db
+      .$rpc("customers_by_status", { p_status: "lead" })
+      .orThrow();
+    expectTypeOf(rows[0]!.organizationId).toEqualTypeOf<string>();
+    const counts = await db.$rpc("customer_note_counts").orThrow();
+    expectTypeOf(counts).toEqualTypeOf<
+      { customerId: string; lastNoteAt: string; noteCount: number }[]
+    >();
+    const raw = await db
+      .$rpc("customer_note_counts", {}, { raw: true })
+      .orThrow();
+    expectTypeOf(raw).toEqualTypeOf<unknown>();
+  });
+});
+
 describe("conditional writes", () => {
   it("returns rows from updateMany and deleteMany only with returning: true", async () => {
     const counted = await db.customers
