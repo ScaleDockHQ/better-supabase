@@ -19,6 +19,7 @@ import {
   cacheTargetOf,
   rpcCacheTargets,
 } from "./cache.ts";
+import { definitionEvents } from "./diagnostics.ts";
 import {
   type DbError,
   DbException,
@@ -86,6 +87,13 @@ export interface SupabaseOptions {
   readonly errors?: readonly ErrorMapper[];
   /** Receives errors from event handlers, hooks and cache adapters. Defaults to `console`. */
   readonly logger?: Logger;
+  /**
+   * Debug records on `logger` for every query, database error, session
+   * refresh and auth resolution: table, operation, outcome, timing and row
+   * count, never tokens, row values, filters or error messages. Off by
+   * default; with it off, no handler runs.
+   */
+  readonly diagnostics?: boolean;
   /** RPCs that change tables, keyed by function name. Prefer `betterSupabase.defineRpc()`. */
   readonly rpc?: Readonly<Record<string, RpcDefinition>>;
   /** Builds the error `.orThrow()` throws. Prefer `betterSupabase.mapError()`. */
@@ -189,7 +197,7 @@ export class BetterSupabase<
     schema: Schema<M, D, F>,
     plugins: readonly AnyPlugin[] = [],
     options: SupabaseOptions = {},
-    events: EventHub = new EventHub(options.logger),
+    events: EventHub = definitionEvents(options),
   ) {
     const names = new Set<string>();
     for (const plugin of plugins) {
