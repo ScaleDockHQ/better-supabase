@@ -313,7 +313,7 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   if (entries.length === 0) return [];
   const files = (context.sqlFiles ?? []).filter(
     (file) =>
-      !file.path.startsWith("supabase/migrations/") &&
+      !/(^|\/)supabase\/migrations\//.test(file.path) &&
       moduleFileVersion(file.text) === undefined,
   );
   const findings: FindingInput[] = [];
