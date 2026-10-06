@@ -211,6 +211,9 @@ overrides:
   # shell-quote 1.8.4 to 1.10 has a command injection (critical); it arrives
   # through @changesets/cli and react-native.
   shell-quote: ">=1.11.0"
+  # @modelcontextprotocol/sdk <1.31.0 can send OAuth credentials to an
+  # authorization server the MCP server picks (high); it arrives through shadcn.
+  "shadcn>@modelcontextprotocol/sdk": ">=1.31.0"
   # uuid <11.1.1 (moderate) arrives through @expo/config-plugins > xcode, which
   # requires the CommonJS build that 11 still ships.
   "xcode>uuid": 11.1.1
