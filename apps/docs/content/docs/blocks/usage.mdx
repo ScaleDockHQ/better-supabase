@@ -231,6 +231,14 @@ customer: async (organizationId) =>
     ?.stripeCustomerId,
 ```
 
+When a plan includes an allowance and Stripe bills only what goes over it,
+pass `overage: true`: in each quota window, usage up to the tenant's quota
+is marked reported without an event, and only the units above it are sent.
+A meter without a quota sends everything. `unreported_usage` returns each
+counter's `included` quota and `window_before` (the earlier days' usage in
+that window) for the calculation; usage that arrives late on an earlier day
+is counted with that day.
+
 Counters without a
 customer or an event name are skipped and stay unreported. `stripe` is an
 optional peer; pass a Stripe client instead of `secretKey` to use your own.

@@ -548,7 +548,10 @@ begin
 end;
 $$;
 
--- Server-side, for reportUsageToStripe: counters with unreported usage.
+-- Server-side, for reportUsageToStripe: counters with unreported usage, with
+-- the quota that includes some of it (included, null without a quota) and the
+-- usage of the earlier days of that quota's window (window_before), so the
+-- report can send only the overage.
 create or replace function ${fn("unreported_usage")}(max_rows integer default 500)
 returns jsonb
 language sql
@@ -561,7 +564,22 @@ as $$
     'meter', c.${cc("meter")},
     'day', c.${cc("day")},
     'value', c.${cc("value")},
-    'reported_value', c.${cc("reported")}
+    'reported_value', c.${cc("reported")},
+    'included', q.quota_limit,
+    'window_before', (
+      select coalesce(sum(o.${cc("value")}), 0)
+      from ${counters} o
+      where o.${cc("tenant")} = c.${cc("tenant")} and o.${cc("meter")} = c.${cc("meter")}
+        and o.${cc("day")} < c.${cc("day")}
+        and o.${cc("day")} >= case
+          when q.period is null then c.${cc("day")}
+          when q.period = 'billing' then coalesce(
+            (select (w.starts_at at time zone 'utc')::date from ${fn("usage_window")}(c.${cc("tenant")}, 'billing') w
+             where c.${cc("day")} >= (w.starts_at at time zone 'utc')::date),
+            date_trunc('month', c.${cc("day")})::date)
+          else date_trunc(q.period, c.${cc("day")})::date
+        end
+    )
   ) order by c.${cc("day")}, c.${cc("meter")}), '[]'::jsonb)
   from (
     select * from ${counters} c
@@ -569,6 +587,7 @@ as $$
     order by c.${cc("day")}
     limit max_rows
   ) c
+  left join lateral ${fn("usage_quota")}(c.${cc("tenant")}, c.${cc("meter")}) q on true
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.

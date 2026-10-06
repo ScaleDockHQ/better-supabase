@@ -274,6 +274,53 @@ describe("reportUsageToStripe", () => {
     },
   ];
 
+  it("sends only the overage above the quota with overage", async () => {
+    const counter = (
+      day: string,
+      value: number,
+      reported: number,
+      before: number,
+      included: number | null = 100,
+    ) => ({
+      organization_id: "org-1",
+      meter: "api_calls",
+      day,
+      value,
+      reported_value: reported,
+      included,
+      window_before: before,
+    });
+    const { transport, calls } = fakeTransport((fn) => {
+      if (fn === "unreported_usage")
+        return [
+          counter("2026-10-01", 60, 0, 0),
+          counter("2026-10-02", 70, 0, 60),
+          counter("2026-10-03", 20, 10, 130),
+          counter("2026-10-04", 5, 0, 0, null),
+        ];
+      if (fn === "tenant_stripe_customer") return "cus_1";
+      return true;
+    });
+    const sent: string[] = [];
+    const stripe = {
+      billing: {
+        meterEvents: {
+          create: async (params: { payload: { value: string } }) => {
+            sent.push(params.payload.value);
+            return {};
+          },
+        },
+      },
+    } as unknown as StripeClient;
+    expect(
+      await reportUsageToStripe({ transport, stripe, overage: true }),
+    ).toEqual({ reported: 3, skipped: 0 });
+    expect(sent).toEqual(["30", "10", "5"]);
+    expect(calls.filter(([, fn]) => fn === "mark_usage_reported")).toHaveLength(
+      4,
+    );
+  });
+
   it("sends each delta once per total and marks it reported", async () => {
     const { transport, calls } = fakeTransport((fn, args) => {
       if (fn === "unreported_usage") return rows;

@@ -354,10 +354,16 @@ export interface ReportUsageOptions {
   readonly customer?: (organizationId: string) => Promise<string | undefined>;
   /** Counters per run, default 500. */
   readonly batch?: number;
+  /**
+   * Send only the usage above the tenant's quota (the allowance its plan
+   * includes) in each quota window, instead of every unit. A meter without
+   * a quota sends everything.
+   */
+  readonly overage?: boolean;
 }
 
 export interface ReportUsageResult {
-  /** Meter events sent. */
+  /** Meter events sent; usage inside the quota with `overage` is marked without one. */
   readonly reported: number;
   /** Counters left for a later run: no customer, or no event name. */
   readonly skipped: number;
@@ -397,7 +403,14 @@ export async function reportUsageToStripe(
     const meter = textOf(row["meter"]);
     const day = textOf(row["day"]).slice(0, 10);
     const value = numberOf(row["value"]);
-    const delta = value - numberOf(row["reported_value"]);
+    const previous = numberOf(row["reported_value"]);
+    const included = optionalNumber(row["included"]);
+    const before = numberOf(row["window_before"] ?? 0);
+    const delta =
+      options.overage === true && included !== undefined
+        ? Math.max(0, before + value - included) -
+          Math.max(0, before + previous - included)
+        : value - previous;
     const eventName = options.eventName ? options.eventName(meter) : meter;
     if (!customers.has(organizationId)) {
       customers.set(organizationId, await customerOf(organizationId));
@@ -408,6 +421,15 @@ export async function reportUsageToStripe(
       continue;
     }
     const identifier = `${organizationId}:${meter}:${day}:${String(value)}`;
+    if (delta <= 0) {
+      await transport.call(schema, "mark_usage_reported", {
+        tenant: organizationId,
+        meter,
+        day,
+        value,
+      });
+      continue;
+    }
     await stripe.billing.meterEvents.create(
       {
         event_name: eventName,

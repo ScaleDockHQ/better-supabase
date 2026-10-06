@@ -264,6 +264,24 @@ describe.skipIf(!live)("usage", () => {
       expect(
         await usage.current(organization, "gb_hours").orThrow(),
       ).toMatchObject({ used: 2.45, limit: 2.5, remaining: 0.05 });
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+         values ($1, 'gb_hours', (now() at time zone 'utc')::date - 1, 0.5)
+         on conflict do nothing`,
+        [organization],
+      );
+      const rows = await s.value<Record<string, unknown>[]>(
+        "better_supabase.unreported_usage(1000)",
+      );
+      const today = rows.filter(
+        (row) =>
+          row["organization_id"] === organization &&
+          row["meter"] === "gb_hours",
+      );
+      expect(today.at(-1)).toMatchObject({ included: 2.5, value: 2.45 });
+      const earlier = new Date().getUTCDate() === 1 ? 0 : 0.5;
+      expect(today.at(-1)!["window_before"]).toBe(earlier);
     } finally {
       await s.close();
     }
