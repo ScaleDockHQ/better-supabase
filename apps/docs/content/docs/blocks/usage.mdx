@@ -95,6 +95,19 @@ other than calls. For credits, record the credits a call costs, such as
 the counter, the quota and the Stripe report all work on that number. Keep
 the raw units on their own meter when you also want to show them.
 
+Quantities, counters and limits are `numeric`, so a meter can count
+fractions, such as GB-hours or credits with decimals, against a fractional
+quota:
+
+```ts
+await usage.record(organizationId, "gb_hours", { quantity: 0.25 });
+```
+
+`reportUsageToStripe` sends the change as it is; when your Stripe meter
+expects whole numbers, record in whole units (tokens, cents) instead.
+`within_quota` takes a whole `quantity` (1 by default), as policies check
+rows.
+
 Use `within_quota` in a policy to stop inserts once the quota is used up:
 
 ```sql

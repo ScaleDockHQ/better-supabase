@@ -128,6 +128,40 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("counts fractional quantities against fractional quotas", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "usage"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+         values ('*', 'gb_hours', 2.5, 'month')`,
+      );
+      await s.asRole(owner);
+      expect(
+        await usage
+          .record(organization, "gb_hours", { quantity: 1.25 })
+          .orThrow(),
+      ).toEqual({ recorded: true, today: 1.25 });
+      expect(
+        await usage
+          .consume(organization, "gb_hours", { quantity: 1.2 })
+          .orThrow(),
+      ).toEqual({ recorded: true, today: 2.45 });
+      expect(
+        await usage.consume(organization, "gb_hours", { quantity: 0.1 }),
+      ).toMatchObject({ error: { kind: "quota_exceeded", limit: 2.5 } });
+      expect(
+        await usage.current(organization, "gb_hours").orThrow(),
+      ).toMatchObject({ used: 2.45, limit: 2.5, remaining: 0.05 });
+    } finally {
+      await s.close();
+    }
+  });
+
   it("resets billing quotas with the app's period and refuses meters outside the catalog", async () => {
     const s = await BlockSession.open(pool);
     try {

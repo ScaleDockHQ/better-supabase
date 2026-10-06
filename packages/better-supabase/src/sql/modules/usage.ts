@@ -149,11 +149,14 @@ create table if not exists ${counters} (
   ${cc("tenant")} ${id} not null,
   ${cc("meter")} text not null check (${cc("meter")} ~ ${METER}),
   ${cc("day")} date not null,
-  ${cc("value")} bigint not null default 0 check (${cc("value")} >= 0),
-  ${cc("reported")} bigint not null default 0 check (${cc("reported")} >= 0),
+  ${cc("value")} numeric not null default 0 check (${cc("value")} >= 0),
+  ${cc("reported")} numeric not null default 0 check (${cc("reported")} >= 0),
   ${cc("updatedAt")} timestamptz not null default now(),
   primary key (${cc("tenant")}, ${cc("meter")}, ${cc("day")})
 );
+-- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
+alter table ${counters} alter column ${cc("value")} type numeric;
+alter table ${counters} alter column ${cc("reported")} type numeric;
 create index if not exists usage_counters_unreported_idx on ${counters} (${cc("day")})
   where ${cc("value")} > ${cc("reported")};
 alter table ${counters} enable row level security;
@@ -169,10 +172,11 @@ create table if not exists ${events} (
   ${ec("tenant")} ${id} not null,
   ${ec("meter")} text not null,
   ${ec("key")} text not null,
-  ${ec("quantity")} bigint not null,
+  ${ec("quantity")} numeric not null,
   ${ec("recordedAt")} timestamptz not null default now(),
   primary key (${ec("tenant")}, ${ec("meter")}, ${ec("key")})
 );
+alter table ${events} alter column ${ec("quantity")} type numeric;
 create index if not exists usage_events_recorded_at_idx on ${events} (${ec("recordedAt")});
 alter table ${events} enable row level security;
 revoke all on ${events} from anon, authenticated;
@@ -185,12 +189,13 @@ create table if not exists ${quotas} (
   ${qc("tenant")} ${id},
   ${qc("plan")} text,
   ${qc("meter")} text not null check (${qc("meter")} ~ ${METER}),
-  ${qc("limit")} bigint not null check (${qc("limit")} >= 0),
+  ${qc("limit")} numeric not null check (${qc("limit")} >= 0),
   ${qc("period")} text not null default 'month' check (${periodCheck}),
   ${qc("createdAt")} timestamptz not null default now(),
   check ((${qc("tenant")} is null) <> (${qc("plan")} is null)),
   unique nulls not distinct (${qc("tenant")}, ${qc("plan")}, ${qc("meter")})
 );
+alter table ${quotas} alter column ${qc("limit")} type numeric;
 alter table ${quotas} drop constraint if exists ${periodConstraint};
 alter table ${quotas} add constraint ${periodConstraint} check (${periodCheck});
 alter table ${quotas} enable row level security;
@@ -201,9 +206,16 @@ drop policy if exists "usage_quotas_read" on ${quotas};
 create policy "usage_quotas_read" on ${quotas} for select to authenticated
   using (${qc("tenant")} is null or ${canRead(qc("tenant"))});
 
+-- The bigint signatures and return types before quantities were numeric.
+drop function if exists ${fn("usage_quota")}(${id}, text);
+drop function if exists ${fn("usage_used")}(${id}, text, text);
+drop function if exists ${fn("record_usage")}(${id}, text, bigint, text);
+drop function if exists ${fn("consume_quota")}(${id}, text, bigint, text);
+drop function if exists ${fn("mark_usage_reported")}(${id}, text, date, bigint);
+
 -- The quota that applies to tenant and meter, or no row.
 create or replace function ${fn("usage_quota")}(tenant ${id}, meter text)
-returns table (quota_limit bigint, period text)
+returns table (quota_limit numeric, period text)
 language sql
 stable
 security definer
@@ -253,13 +265,13 @@ $$;
 
 -- Usage of meter in the current window of period, counted by UTC day.
 create or replace function ${fn("usage_used")}(tenant ${id}, meter text, period text default 'month')
-returns bigint
+returns numeric
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(sum(c.${cc("value")}), 0)::bigint
+  select coalesce(sum(c.${cc("value")}), 0)::numeric
   from ${counters} c, ${fn("usage_window")}(usage_used.tenant, usage_used.period) w
   where c.${cc("tenant")} = usage_used.tenant
     and c.${cc("meter")} = usage_used.meter
@@ -288,7 +300,7 @@ set search_path = ''
 as $$
 declare
   quota record;
-  used bigint;
+  used numeric;
   win record;
 begin
   if not ${member("tenant")} then
@@ -334,7 +346,7 @@ $$;
 create or replace function ${fn("record_usage")}(
   tenant ${id},
   meter text,
-  quantity bigint default 1,
+  quantity numeric default 1,
   idempotency_key text default null
 )
 returns jsonb
@@ -374,7 +386,7 @@ $$;
 create or replace function ${fn("consume_quota")}(
   tenant ${id},
   meter text,
-  quantity bigint default 1,
+  quantity numeric default 1,
   idempotency_key text default null
 )
 returns jsonb
@@ -386,7 +398,7 @@ as $$
 declare
   today date := (now() at time zone 'utc')::date;
   quota record;
-  used bigint;
+  used numeric;
   win record;
 begin
   if not ${member("tenant")} then
@@ -448,7 +460,7 @@ as $$
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
-create or replace function ${fn("mark_usage_reported")}(tenant ${id}, meter text, day date, value bigint)
+create or replace function ${fn("mark_usage_reported")}(tenant ${id}, meter text, day date, value numeric)
 returns boolean
 language sql
 security definer
@@ -472,18 +484,18 @@ revoke execute on function ${fn("usage_quota")}(${id}, text) from public, anon, 
 revoke execute on function ${fn("usage_used")}(${id}, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_status")}(${id}, text) from public, anon;
 revoke execute on function ${fn("within_quota")}(${id}, text, bigint) from public, anon;
-revoke execute on function ${fn("record_usage")}(${id}, text, bigint, text) from public, anon;
-revoke execute on function ${fn("consume_quota")}(${id}, text, bigint, text) from public, anon;
+revoke execute on function ${fn("record_usage")}(${id}, text, numeric, text) from public, anon;
+revoke execute on function ${fn("consume_quota")}(${id}, text, numeric, text) from public, anon;
 revoke execute on function ${fn("unreported_usage")}(integer) from public, anon, authenticated;
-revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, bigint) from public, anon, authenticated;
+revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) from public, anon, authenticated;
 grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
 grant execute on function ${fn("usage_used")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_status")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("within_quota")}(${id}, text, bigint) to authenticated, service_role;
-grant execute on function ${fn("record_usage")}(${id}, text, bigint, text) to authenticated, service_role;
-grant execute on function ${fn("consume_quota")}(${id}, text, bigint, text) to authenticated, service_role;
+grant execute on function ${fn("record_usage")}(${id}, text, numeric, text) to authenticated, service_role;
+grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text) to authenticated, service_role;
 grant execute on function ${fn("unreported_usage")}(integer) to service_role;
-grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, bigint) to service_role;`;
+grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) to service_role;`;
 }
 
 function contract(): readonly ModuleContractFunction[] {
@@ -498,18 +510,18 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "record_usage",
-      args: ["{id}", "text", "bigint", "text"],
+      args: ["{id}", "text", "numeric", "text"],
       returns: "jsonb",
     },
     {
       name: "consume_quota",
-      args: ["{id}", "text", "bigint", "text"],
+      args: ["{id}", "text", "numeric", "text"],
       returns: "jsonb",
     },
     { name: "unreported_usage", args: ["integer"], returns: "jsonb" },
     {
       name: "mark_usage_reported",
-      args: ["{id}", "text", "date", "bigint"],
+      args: ["{id}", "text", "date", "numeric"],
       returns: "boolean",
     },
   ];
@@ -523,7 +535,20 @@ export const USAGE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Quantities, counters and limits are numeric, so meters count fractions; record_usage, consume_quota and mark_usage_reported take numeric.",
+      sql: (ctx) =>
+        [
+          `drop function if exists ${ctx.fn("record_usage")}(${ctx.idType}, text, bigint, text);`,
+          `drop function if exists ${ctx.fn("consume_quota")}(${ctx.idType}, text, bigint, text);`,
+          `drop function if exists ${ctx.fn("mark_usage_reported")}(${ctx.idType}, text, date, bigint);`,
+        ].join("\n"),
+    },
+  ],
   names: NAMES,
   contract,
   build,
