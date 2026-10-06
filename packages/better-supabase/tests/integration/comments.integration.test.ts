@@ -295,6 +295,24 @@ describe.skipIf(!live)("comments", () => {
           [created.id],
         ),
       ).toBe(1);
+      await comments.create({ ...input, body: "Second" }).orThrow();
+      await comments.create({ ...input, body: "Third" }).orThrow();
+      expect(
+        (
+          await comments
+            .list(organization, "deal", deal!.id, { offset: 1, limit: 1 })
+            .orThrow()
+        ).map((comment) => comment.body),
+      ).toEqual(["Second"]);
+      expect(
+        await comments
+          .counts(organization, "deal", [deal!.id, "missing"])
+          .orThrow(),
+      ).toEqual({ [deal!.id]: 3, missing: 0 });
+      await s.asRole(member);
+      expect(
+        await comments.counts(organization, "deal", [deal!.id]).orThrow(),
+      ).toEqual({ [deal!.id]: 0 });
     } finally {
       await s.close();
     }

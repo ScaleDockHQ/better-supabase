@@ -108,6 +108,8 @@ export interface ListCommentsOptions {
   readonly after?: Temporal.Instant;
   /** Default 100, at most 500. */
   readonly limit?: number;
+  /** Comments to skip, for page-number paging. */
+  readonly offset?: number;
 }
 
 export interface Comments {
@@ -123,6 +125,16 @@ export interface Comments {
     subjectId: string,
     options?: ListCommentsOptions,
   ): AsyncResult<readonly Comment[]>;
+  /**
+   * How many comments each subject has that the caller can read, deleted
+   * ones left out, such as for a counter on each row of a list. Subjects
+   * without comments are 0.
+   */
+  counts(
+    organizationId: string,
+    subjectType: string,
+    subjectIds: readonly string[],
+  ): AsyncResult<Readonly<Record<string, number>>>;
   /**
    * Copies a subject's thread to another subject in the tenant, keeping
    * authors, times and replies; returns how many comments it copied. Needs a
@@ -250,8 +262,24 @@ export function createComments(options: CommentsOptions): Comments {
           subject_id: subjectId,
           after: instantArg(list.after),
           max_rows: list.limit,
+          skip: list.offset,
         },
         (value) => recordsOf(value, "list_comments").map(commentOf),
+      ),
+    counts: (organizationId, subjectType, subjectIds) =>
+      call(
+        "comment_counts",
+        {
+          tenant: organizationId,
+          subject_type: subjectType,
+          subject_ids: [...subjectIds],
+        },
+        (value) => {
+          const found = isRecord(value) ? value : {};
+          return Object.fromEntries(
+            subjectIds.map((id) => [id, Number(found[id] ?? 0)]),
+          );
+        },
       ),
     copy: (organizationId, from, to) =>
       call(

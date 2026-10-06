@@ -267,6 +267,29 @@ describe("createComments", () => {
         subject_id: "p1",
         after: "2026-10-06T00:00:00Z",
         max_rows: 20,
+        skip: undefined,
+      },
+    ]);
+  });
+
+  it("pages by offset and counts comments per subject", async () => {
+    const fake = fakeTransport({
+      list_comments: [],
+      comment_counts: { p1: 3, p9: "2" },
+    });
+    const comments = createComments({ transport: fake.transport });
+    await comments.list("org-1", "project", "p1", { offset: 40, limit: 20 });
+    expect(fake.calls[0]![2]).toMatchObject({ skip: 40, max_rows: 20 });
+    expect(
+      await comments.counts("org-1", "project", ["p1", "p2", "p9"]).orThrow(),
+    ).toEqual({ p1: 3, p2: 0, p9: 2 });
+    expect(fake.calls[1]).toEqual([
+      "better_supabase",
+      "comment_counts",
+      {
+        tenant: "org-1",
+        subject_type: "project",
+        subject_ids: ["p1", "p2", "p9"],
       },
     ]);
   });

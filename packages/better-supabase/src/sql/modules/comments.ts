@@ -440,13 +440,15 @@ as $$
 $$;
 
 -- A subject's thread, oldest first; deleted comments stay as placeholders
--- so replies keep their parent.
+-- so replies keep their parent. Page with after (a cursor) or skip (an offset).
+drop function if exists ${fn("list_comments")}(${id}, text, text, timestamptz, integer);
 create or replace function ${fn("list_comments")}(
   tenant ${id},
   subject_type text,
   subject_id text,
   after timestamptz default null,
-  max_rows integer default 100
+  max_rows integer default 100,
+  skip integer default 0
 )
 returns jsonb
 language sql
@@ -463,6 +465,28 @@ as $$
       and (list_comments.after is null or y.${c("createdAt")} > list_comments.after)
     order by y.${c("createdAt")}, y.${c("id")}
     limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
+    offset greatest(coalesce(list_comments.skip, 0), 0)
+  ) x
+$$;
+
+-- Comments per subject the caller can read, for counters in a list:
+-- { subject_id: count }, deleted comments left out. Runs as the caller.
+create or replace function ${fn("comment_counts")}(tenant ${id}, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(x.subject_id, x.n), '{}'::jsonb)
+  from (
+    select y.${c("subjectId")} as subject_id, count(*) as n
+    from ${comments} y
+    where y.${c("tenant")} = comment_counts.tenant
+      and y.${c("subjectType")} = comment_counts.subject_type
+      and y.${c("subjectId")} = any (comment_counts.subject_ids)
+      and y.${c("deletedAt")} is null
+    group by 1
   ) x
 $$;
 
@@ -551,7 +575,8 @@ revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, bool
 revoke execute on function ${fn("copy_comments")}(${id}, text, text, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) from public, anon;
 revoke execute on function ${fn("delete_comment")}(uuid) from public, anon;
-revoke execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer) from public, anon;
+revoke execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer) from public, anon;
+revoke execute on function ${fn("comment_counts")}(${id}, text, text[]) from public, anon;
 revoke execute on function ${fn("record_activity")}(jsonb) from public, anon, authenticated;
 grant execute on function ${fn("comment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 grant execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
@@ -559,7 +584,8 @@ grant execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boole
 grant execute on function ${fn("copy_comments")}(${id}, text, text, text, text) to service_role;
 grant execute on function ${fn("list_activity")}(${id}, text, text, timestamptz, integer) to authenticated, service_role;
 grant execute on function ${fn("delete_comment")}(uuid) to authenticated, service_role;
-grant execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function ${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer) to authenticated, service_role;
+grant execute on function ${fn("comment_counts")}(${id}, text, text[]) to authenticated, service_role;
 grant execute on function ${fn("record_activity")}(jsonb) to service_role;`;
 }
 
@@ -593,7 +619,19 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "delete_comment", args: ["uuid"], returns: "boolean" },
     {
       name: "list_comments",
-      args: ["{id}", "text", "text", "timestamp with time zone", "integer"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "timestamp with time zone",
+        "integer",
+        "integer",
+      ],
+      returns: "jsonb",
+    },
+    {
+      name: "comment_counts",
+      args: ["{id}", "text", "text[]"],
       returns: "jsonb",
     },
     { name: "record_activity", args: ["jsonb"], returns: "integer" },
@@ -608,7 +646,16 @@ export const COMMENTS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "list_comments takes skip for offset paging; comment_counts counts comments per subject.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("list_comments")}(${ctx.idType}, text, text, timestamptz, integer);`,
+    },
+  ],
   names: NAMES,
   contract,
   build,
