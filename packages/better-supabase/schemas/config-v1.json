@@ -802,6 +802,10 @@
             },
             "scope": {
               "type": "string"
+            },
+            "forUser": {
+              "type": "boolean",
+              "description": "PermDock's helpers for a named user (permdock_has_for, permitted_<scope>_ids_for, permdock_can_assign_for) exist even though the manifest doesn't list them."
             }
           }
         }

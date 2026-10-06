@@ -76,6 +76,7 @@ const accessModule = v.strictObject({
     v.strictObject({
       schema: v.optional(v.string()),
       scope: v.optional(v.string()),
+      forUser: v.optional(v.boolean()),
     }),
   ),
 });

@@ -633,6 +633,12 @@ export function accessPermdockMode(
       ? [{ table: source.table, role: source.role }]
       : [],
   );
+  const helpers = new Set(chosen.rls.helpers.map((helper) => helper.name));
+  const forUser = {
+    has: helpers.has("permdock_has_for"),
+    permitted: helpers.has(`permitted_${chosen.scope}_ids_for`),
+    canAssign: helpers.has("permdock_can_assign_for"),
+  };
   return {
     kind: "permdock",
     access: {
@@ -640,6 +646,9 @@ export function accessPermdockMode(
       scope: chosen.scope,
       idType: chosen.idType,
       ...(roleSources.length > 0 ? { roleSources } : {}),
+      ...(forUser.has || forUser.permitted || forUser.canAssign
+        ? { forUser }
+        : {}),
     },
   };
 }

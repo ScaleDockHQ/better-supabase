@@ -206,11 +206,31 @@ fallback, and doctor BS411 warns.
 
 Under the permdock model, `can_user()` and `member_can()` answer for the
 caller only, because PermDock's helpers read `auth.uid()`. For another user
-they raise SQLSTATE `0A000` instead of returning `null`. The invitations
-module then skips its check that the inviter still holds the permission when
-the invite is accepted, and the notifications module skips its check that
-each recipient may read the notification's kind; check both in your app if
-they matter.
+they raise SQLSTATE `0A000` instead of returning `null`, unless PermDock's
+helpers for a named user exist. PermDock writes them in `database` mode:
+`permdock_has_for(user, key)`, `permitted_<scope>_ids_for(user, key)` and
+`permdock_can_assign_for(user, role, scope_id)`. `sql add` uses those the
+manifest lists under `rls.helpers`; set
+`sql.modules.access.permdock.forUser: true` when your helpers exist but the
+manifest doesn't list them. With them, `can_user()`, `member_can()` and
+`platform_can()` answer for any user, and `can_assign_as(user, tenant, role)`
+calls `permdock_can_assign_for`.
+
+### Blocks next to PermDock
+
+PermDock already guards memberships and answers permission questions, so
+some module checks change under the permdock model:
+
+| Module          | Check                                        | Under `permdock`                                                                                                   |
+| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when PermDock's assignment rules guard the table               |
+| `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when PermDock's `transferOnly` ownership rule already keeps an owner                             |
+| `invitations`   | Inviter still holds the permission at accept | Runs with `permitted_<scope>_ids_for` and `permdock_has_for`; skipped without them                                 |
+| `invitations`   | Inviter may still assign the role at accept  | Runs with `permdock_can_assign_for`; skipped without it                                                            |
+| `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles` (PermDock's `rls.roles` table); the inviter is checked when inviting      |
+| `notifications` | Each recipient may read the notification     | Runs with `permitted_<scope>_ids_for`; without it, the sender and `notification_audience` decide                   |
+| `tenant`        | Role names on memberships                    | Read through the manifest's `through` roles table                                                                  |
+| `access`        | Disabled tenants and users                   | Set `sql.modules.access.disabled` to the same columns as PermDock's suspension rule; the manifest doesn't carry it |
 
 ### custom
 
