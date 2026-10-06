@@ -90,6 +90,7 @@ lists the steps to move to pg-delta.
 | `onboarding`       | `onboarding_progress` per user or organization, `complete_onboarding_step(checklist, step, tenant)` and a trigger that completes steps from outbox events. See [Onboarding](/docs/blocks/onboarding)                                                             |
 | `waitlist`         | `join_waitlist(email)`, approvals, hashed invite codes with use limits and an optional organization, and a trigger that redeems the code on sign-up. See [Waitlist and invite codes](/docs/blocks/waitlist)                                                      |
 | `announcements`    | Announcements with audiences, a time window and severity, `active_announcements(tenant)`, `dismiss_announcement(id)` and a broadcast on a Realtime topic. See [Announcements](/docs/blocks/announcements)                                                        |
+| `ensure-rls`       | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                             |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
@@ -531,6 +532,24 @@ those rows first. On a large table, move the `validate constraint` statement
 to a later migration: adding a `not valid` check blocks writes only briefly,
 and validating takes a lock that lets writes continue. Re-run `sql add` after
 you change a schema.
+
+## RLS on every new table
+
+`sql add ensure-rls` installs an event trigger that enables row level
+security on every table created with `create table`, `create table as` or
+`select into`, so a table never reaches the Data API without RLS. Tables in
+the Supabase-managed schemas (`auth`, `storage`, `realtime`, `extensions`
+and the others) and in `pg_*` schemas are skipped.
+
+```sql
+create table public.notes (id bigint primary key, body text);
+-- relrowsecurity is now true; add policies before granting access.
+```
+
+A table with RLS and no policies denies every API role, so add its policies
+in the same migration. Apply the migration as `postgres`: event triggers
+need a superuser, and on Supabase the supautils extension lets `postgres`
+create them. Tables that already exist keep their setting.
 
 ## Keeping files current
 
