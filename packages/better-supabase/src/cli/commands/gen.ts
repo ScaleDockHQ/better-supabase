@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import type {
   GeneratedFile,
+  Generator,
   GeneratorModel,
   ResolvedConfig,
 } from "../../config/index.ts";
@@ -13,6 +14,7 @@ import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
+import { jsonSchema, valibot, zod } from "../../config/index.ts";
 import {
   type ModuleFile,
   moduleLayout,
@@ -28,8 +30,14 @@ import { buildModel, generatorModel } from "../gen/model.ts";
 import { CACHE_DIR, writeAtomic } from "../introspect/cache.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import {
+  fromMetadata,
+  METADATA_GAPS_TEXT,
+} from "../introspect/from-metadata.ts";
+import {
   generateDatabaseTypes,
+  MetadataRejectedError,
   oxfmtInstalled,
+  parseMetadataDocument,
 } from "../introspect/typegen.ts";
 import {
   type CliIo,
@@ -57,11 +65,19 @@ export interface GenOptions extends SnapshotSource {
   readonly paint?: Paint;
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
+  /**
+   * Writes only the generated files (`gen --metadata --out`): no read-set SQL
+   * module, and the manifest that removes files an earlier run wrote is
+   * neither read nor written.
+   */
+  readonly isolated?: boolean;
 }
 
 export interface RenderOptions {
   /** Where the generated module imports the runtime from. Defaults to `better-supabase`. */
   readonly runtimeImport?: string;
+  /** Writes the metadata into the main module, so it stands alone on stdout. */
+  readonly inlineMeta?: boolean;
 }
 
 export interface Rendered {
@@ -105,6 +121,7 @@ export async function render(
     ),
     importPathFor: (from) => importPath(output, resolve(config.root, from)),
     metaImport: `./${basename(metaFiles.js)}`,
+    ...(options.inlineMeta ? { inlineMeta: true } : {}),
     ...runtime,
   });
   const meta = emitMeta(model, {
@@ -202,6 +219,19 @@ async function rowConditionedBuckets(
   );
 }
 
+/** The exit `gen` stops with when PermDock bucket keys have row conditions. */
+async function refuseRowConditionedBuckets(
+  config: ResolvedConfig,
+): Promise<CommandResult | undefined> {
+  const refused = await rowConditionedBuckets(config);
+  return refused.length === 0
+    ? undefined
+    : {
+        code: 1,
+        error: `PermDock's SQL helpers don't check row conditions, so these bucket policies could grant every object in the scope:\n${refused.join("\n")}\nSee doctor BS214.`,
+      };
+}
+
 /** The files the last `gen` wrote, so the next one can remove those it no longer writes. */
 const MANIFEST = `${CACHE_DIR}/gen-manifest.json`;
 
@@ -254,15 +284,24 @@ const writeManifest = (root: string, files: readonly string[]): Promise<void> =>
 const UNFORMATTED =
   'oxfmt is not installed, so database.types.ts is not formatted like `supabase gen types` output. Install it: pnpm add -D oxfmt. @supabase/postgrest-typegen pins oxfmt 0.66.0 as its peer; to allow a newer one, add it to peerDependencyRules.allowedVersions in pnpm-workspace.yaml, keyed "@supabase/postgrest-typegen>oxfmt".';
 
+const METADATA_ONLY = `Notice: the schema came from a GeneratorMetadata document, which has no ${METADATA_GAPS_TEXT}. Unique keys and checks cover single columns, relations have no onDelete, and columns a before-insert trigger fills stay required on insert. Run \`better-supabase gen\` against the database for the full model.`;
+
+/** The formatter notice, the metadata-only notice and the config warnings, one line each. */
+async function generationNotices(
+  snapshot: Snapshot,
+  warnings: readonly string[],
+): Promise<string[]> {
+  return [
+    ...((await oxfmtInstalled()) ? [] : [UNFORMATTED]),
+    ...(snapshot.extras.fromMetadata ? [METADATA_ONLY] : []),
+    ...warnings.map((warning) => `Warning: ${warning}`),
+  ];
+}
+
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
-  const refused = await rowConditionedBuckets(config);
-  if (refused.length > 0) {
-    return {
-      code: 1,
-      error: `PermDock's SQL helpers don't check row conditions, so these bucket policies could grant every object in the scope:\n${refused.join("\n")}\nSee doctor BS214.`,
-    };
-  }
+  const refused = await refuseRowConditionedBuckets(config);
+  if (refused) return refused;
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
   const { files, warnings } = await render(config, snapshot);
@@ -270,12 +309,20 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     [...files, ...(readSets ? [readSets] : [])].map((file) =>
       manifestPath(config.root, file.path),
     );
-  const notice = `${(await oxfmtInstalled()) ? "" : `\n${UNFORMATTED}`}${warnings.map((warning) => `\nWarning: ${warning}`).join("")}`;
+  const notice = (await generationNotices(snapshot, warnings))
+    .map((line) => `\n${line}`)
+    .join("");
+  const readSetsOf = (): Promise<ModuleFile | undefined> =>
+    options.isolated ? Promise.resolve(undefined) : readSetFile(config);
+  const leftoversOf = (generated: readonly string[]): Promise<string[]> =>
+    options.isolated
+      ? Promise.resolve([])
+      : leftoverFiles(config.root, generated);
 
   if (options.check) {
-    const readSets = await readSetFile(config);
+    const readSets = await readSetsOf();
     const generated = pathsOf(readSets);
-    const leftovers = await leftoverFiles(config.root, generated);
+    const leftovers = await leftoversOf(generated);
     const stale: string[] = [];
     const diffs: string[] = [];
     const compare = (
@@ -327,7 +374,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     }
   }
   // Read-set modules import the generated module, so they load after it is written.
-  const readSets = await readSetFile(config);
+  const readSets = await readSetsOf();
   if (
     readSets &&
     (await writeIfChanged(
@@ -339,11 +386,11 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   }
   const generated = pathsOf(readSets);
   const removed: string[] = [];
-  for (const path of await leftoverFiles(config.root, generated)) {
+  for (const path of await leftoversOf(generated)) {
     await rm(resolve(config.root, path), { force: true });
     removed.push(path);
   }
-  await writeManifest(config.root, generated);
+  if (!options.isolated) await writeManifest(config.root, generated);
   const tables = snapshot.extras.tables.filter((table) =>
     config.schemas.includes(table.schema),
   ).length;
@@ -395,7 +442,208 @@ export async function sourceArgs(
   };
 }
 
+/** The files `gen --metadata` can write to stdout. */
+const EMITS = ["schema", "types", "zod", "valibot", "json-schema"] as const;
+
+type Emit = (typeof EMITS)[number];
+
+const isEmit = (value: string): value is Emit =>
+  EMITS.some((emit) => emit === value);
+
+/** The configured generator for an `--emit` target, or one with its defaults. */
+function emitGenerator(
+  config: ResolvedConfig,
+  emit: Emit,
+): Generator | undefined {
+  const configured = config.generators.find(
+    (generator) => generator.name === emit,
+  );
+  switch (emit) {
+    case "schema":
+    case "types":
+      return undefined;
+    case "zod":
+      return configured ?? zod();
+    case "valibot":
+      return configured ?? valibot();
+    case "json-schema":
+      return configured ?? jsonSchema();
+    default: {
+      const unhandled: never = emit;
+      throw new Error(`unknown --emit ${String(unhandled)}`);
+    }
+  }
+}
+
+/**
+ * The one file `gen --metadata` prints: the `defineSchema` module with its
+ * metadata inlined, `database.types.ts`, or one generator's output.
+ */
+async function renderEmit(
+  config: ResolvedConfig,
+  snapshot: Snapshot,
+  emit: Emit,
+): Promise<Rendered & { readonly contents: string }> {
+  const generator = emitGenerator(config, emit);
+  const { files, warnings } = await render(
+    { ...config, generators: generator ? [generator] : [] },
+    snapshot,
+    { inlineMeta: emit === "schema" },
+  );
+  const path =
+    emit === "schema"
+      ? config.output
+      : emit === "types"
+        ? config.databaseTypesOutput
+        : undefined;
+  const own = new Set([
+    config.databaseTypesOutput,
+    config.output,
+    ...Object.values(metaPaths(config.output)),
+  ]);
+  const picked =
+    path === undefined
+      ? files.filter((file) => !own.has(file.path))
+      : files.filter((file) => file.path === path);
+  const [file] = picked;
+  if (!file || picked.length > 1) {
+    throw new Error(
+      `--emit ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out <dir> to write them all.`,
+    );
+  }
+  return { files: picked, warnings, contents: file.contents };
+}
+
+/**
+ * Reads `--metadata <path|->` (a file relative to `cwd`, or stdin for `-`)
+ * into a snapshot. Throws `MetadataRejectedError` for a document that can't
+ * be read or that `parseMetadataDocument` refuses.
+ */
+export async function readMetadataSnapshot(
+  source: string,
+  cwd: string,
+  io: CliIo,
+): Promise<Snapshot> {
+  let text: string;
+  try {
+    if (source !== "-") text = await readFile(resolve(cwd, source), "utf8");
+    else if (io.stdin) text = await io.stdin();
+    else throw new Error("there is no stdin to read");
+  } catch (cause) {
+    throw new MetadataRejectedError(
+      `Could not read ${source === "-" ? "stdin" : source}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+  return fromMetadata(await parseMetadataDocument(text));
+}
+
+interface MetadataGenOptions {
+  readonly config: ResolvedConfig;
+  readonly env: CliEnv;
+  readonly cwd: string;
+  readonly io: CliIo;
+  /** `--metadata`: a path, or `-` for stdin. */
+  readonly metadata: string;
+  readonly emit?: string;
+  readonly out?: string;
+  readonly check: boolean;
+  readonly json: boolean;
+  readonly paint?: Paint;
+}
+
+/** Exit code for a document `gen --metadata` refuses (`EX_DATAERR`), as Dart's `supabase_typegen` uses. */
+export const METADATA_REJECTED = 65;
+
+/**
+ * `gen --metadata`: the out-of-process generator contract of
+ * `@supabase/typegen`. Without `--out` it prints one file on stdout and
+ * everything else on stderr; with `--out` it writes the usual files there.
+ */
+async function runMetadataGen(
+  options: MetadataGenOptions,
+): Promise<CommandResult> {
+  const { config, io } = options;
+  const emit = options.emit ?? "schema";
+  if (!isEmit(emit)) {
+    return {
+      code: 2,
+      error: `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
+    };
+  }
+  if (options.out !== undefined && options.emit !== undefined) {
+    return {
+      code: 2,
+      error:
+        "--emit picks the one file gen prints; --out writes them all. Pass one of them.",
+    };
+  }
+  if (options.out === undefined && options.check) {
+    return { code: 2, error: "--check with --metadata needs --out <dir>" };
+  }
+  if (options.out === undefined && options.json) {
+    return {
+      code: 2,
+      error:
+        "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary.",
+    };
+  }
+  let snapshot: Snapshot;
+  try {
+    snapshot = await readMetadataSnapshot(options.metadata, options.cwd, io);
+  } catch (cause) {
+    if (cause instanceof MetadataRejectedError) {
+      return { code: METADATA_REJECTED, error: cause.message };
+    }
+    throw cause;
+  }
+
+  if (options.out !== undefined) {
+    const dir = relative(config.root, resolve(options.cwd, options.out));
+    const into = (path: string): string =>
+      join(dir, basename(path)).split(sep).join("/");
+    return runGen({
+      config: {
+        ...config,
+        output: into(config.output),
+        databaseTypesOutput: into(config.databaseTypesOutput),
+      },
+      env: options.env,
+      check: options.check,
+      snapshot,
+      isolated: true,
+      ...(options.paint ? { paint: options.paint } : {}),
+    });
+  }
+
+  const refused = await refuseRowConditionedBuckets(config);
+  if (refused) return refused;
+  const { contents, warnings } = await renderEmit(config, snapshot, emit);
+  io.stdout(contents);
+  const notices = await generationNotices(snapshot, warnings);
+  const shown =
+    emit === "types" ? notices : notices.filter((line) => line !== UNFORMATTED);
+  for (const line of shown) io.stderr(`${line}\n`);
+  return { code: 0 };
+}
+
 const ARGS = {
+  metadata: {
+    type: "string",
+    description:
+      "Read a GeneratorMetadata document (- for stdin) and print one file on stdout",
+    valueHint: "path|-",
+  },
+  emit: {
+    type: "string",
+    description: `With --metadata, the file to print: ${EMITS.join(", ")}. Defaults to schema`,
+    valueHint: "file",
+  },
+  out: {
+    type: "string",
+    description:
+      "With --metadata, write every generated file into this directory instead of printing one",
+    valueHint: "dir",
+  },
   check: {
     type: "boolean",
     description: "Fail when a generated file is out of date",
@@ -537,6 +785,38 @@ export const genCommand: AnyCommand = defineCliCommand({
   },
   args: ARGS,
   run: async (args, context) => {
+    if (args.metadata !== undefined) {
+      const conflicting = [
+        ...(args.watch === true ? ["--watch"] : []),
+        ...(args.snapshot === undefined ? [] : ["--snapshot"]),
+        ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
+        ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
+      ];
+      if (conflicting.length > 0) {
+        return {
+          code: 2,
+          error: `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
+        };
+      }
+      return runMetadataGen({
+        config: context.config,
+        env: context.env,
+        cwd: context.cwd,
+        io: context.io,
+        metadata: args.metadata,
+        check: args.check === true,
+        json: context.json,
+        paint: painter(context.io.color),
+        ...(args.emit === undefined ? {} : { emit: args.emit }),
+        ...(args.out === undefined ? {} : { out: args.out }),
+      });
+    }
+    if (args.emit !== undefined || args.out !== undefined) {
+      return {
+        code: 2,
+        error: `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
+      };
+    }
     const options: GenOptions = {
       config: context.config,
       env: context.env,

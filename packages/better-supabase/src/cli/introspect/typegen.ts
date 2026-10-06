@@ -177,6 +177,64 @@ export async function validateGeneratorMetadata(
   return parseGeneratorMetadata(data);
 }
 
+/**
+ * A `GeneratorMetadata` document `gen --metadata` refuses: not JSON, another
+ * `GENERATOR_METADATA_VERSION`, or a shape the schema rejects. `gen` exits 65
+ * for it, the code `@supabase/typegen` maps to `MetadataRejectedError`.
+ */
+export class MetadataRejectedError extends Error {
+  /** The document's `version`, when it had one. */
+  readonly version: unknown;
+
+  constructor(message: string, version?: unknown) {
+    super(message);
+    this.name = "MetadataRejectedError";
+    this.version = version;
+  }
+}
+
+/**
+ * Parses the JSON document an out-of-process generator reads on stdin,
+ * checking its `version` against the `GENERATOR_METADATA_VERSION` this
+ * release of `@supabase/postgrest-typegen` writes.
+ */
+export async function parseMetadataDocument(
+  text: string,
+): Promise<GeneratorMetadata> {
+  const { GENERATOR_METADATA_VERSION, parseGeneratorMetadata } =
+    await metadataModule();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch (cause) {
+    throw new MetadataRejectedError(
+      text.trim() === ""
+        ? "The GeneratorMetadata document is empty."
+        : `The GeneratorMetadata document is not JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+  const version =
+    typeof data === "object" && data !== null && "version" in data
+      ? data.version
+      : undefined;
+  if (version !== GENERATOR_METADATA_VERSION) {
+    throw new MetadataRejectedError(
+      version === undefined
+        ? `The document has no "version", so it is not GeneratorMetadata. better-supabase reads version ${GENERATOR_METADATA_VERSION}.`
+        : `The document is GeneratorMetadata version ${JSON.stringify(version)}, and better-supabase reads version ${GENERATOR_METADATA_VERSION} (${TYPEGEN}@${TYPEGEN_VERSION}). Update better-supabase or the tool that wrote the document so both agree.`,
+      version,
+    );
+  }
+  try {
+    return parseGeneratorMetadata(data);
+  } catch (cause) {
+    throw new MetadataRejectedError(
+      cause instanceof Error ? cause.message : String(cause),
+      version,
+    );
+  }
+}
+
 /** JSON Schema of the metadata contract, embedded in `snapshot-v2.json`. */
 export async function generatorJsonSchema(): Promise<Record<string, unknown>> {
   const { generatorMetadataJsonSchema } = await metadataModule();

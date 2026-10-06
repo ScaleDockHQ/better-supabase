@@ -66,6 +66,7 @@ OPTIONS
      --ignore=<codes>    Skip checks; also doctor.ignore in the config                                                                
              --strict    Fail on warnings; also doctor.strict                                                                         
     --snapshot=<file>    Check a saved snapshot instead of the database                                                               
+  --metadata=<path|->    Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped                       
        --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config                                 
   --project-ref=<ref>    Read a hosted project through the Management API                                                             
               --stats    Report slow frequent statements from pg_stat_statements (BS209)                                              
@@ -105,16 +106,19 @@ USAGE better-supabase gen [OPTIONS]
 
 OPTIONS
 
-              --check    Fail when a generated file is out of date                                   
-              --watch    Regenerate whenever the schema or the config file changes                   
-      --interval=<ms>    Milliseconds between checks in --watch. Defaults to 2000                    
-    --snapshot=<file>    Read a saved snapshot instead of the database                               
-       --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config
-  --project-ref=<ref>    Read a hosted project through the Management API                            
-          --cwd=<dir>    Project directory                                                           
-      --config=<file>    Config file, relative to --cwd                                              
-               --json    Print one JSON document on stdout; errors as Problem Details                
-            -y, --yes    Ask nothing; use the flags and the defaults                                 
+  --metadata=<path|->    Read a GeneratorMetadata document (- for stdin) and print one file on stdout                    
+        --emit=<file>    With --metadata, the file to print: schema, types, zod, valibot, json-schema. Defaults to schema
+          --out=<dir>    With --metadata, write every generated file into this directory instead of printing one         
+              --check    Fail when a generated file is out of date                                                       
+              --watch    Regenerate whenever the schema or the config file changes                                       
+      --interval=<ms>    Milliseconds between checks in --watch. Defaults to 2000                                        
+    --snapshot=<file>    Read a saved snapshot instead of the database                                                   
+       --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config                    
+  --project-ref=<ref>    Read a hosted project through the Management API                                                
+          --cwd=<dir>    Project directory                                                                               
+      --config=<file>    Config file, relative to --cwd                                                                  
+               --json    Print one JSON document on stdout; errors as Problem Details                                    
+            -y, --yes    Ask nothing; use the flags and the defaults                                                     
 "
 `;
 

@@ -46,6 +46,13 @@ export interface SnapshotExtras {
    * in any schema. Absent in older snapshots and without a `config.toml`.
    */
   readonly hooks?: readonly ExtrasHook[];
+  /**
+   * Set when the snapshot comes from a `GeneratorMetadata` document alone
+   * (`gen --metadata`): unique keys, checks and foreign keys are inferred from
+   * the columns and relationships, and the rest is empty, so doctor skips
+   * the rules that read it.
+   */
+  readonly fromMetadata?: true;
 }
 
 /** An `[auth.hook.<name>]` with a `pg-functions://` URI. */

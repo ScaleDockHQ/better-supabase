@@ -5,6 +5,7 @@ description: Generate database types, typed models, relation metadata and valida
 
 ```bash
 better-supabase gen [--check] [--watch] [--snapshot <file>] [--db-url-stdin | --project-ref <ref>]
+better-supabase gen --metadata <path|-> [--emit <file> | --out <dir> [--check]]
 ```
 
 `gen` introspects your database with
@@ -69,13 +70,16 @@ and each introspection query after 2 minutes.
 
 ## Options
 
-| Option                | Effect                                                                                                    |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `--check`             | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI. |
-| `--watch`             | Regenerates when the schema or the config file changes (polls every `--interval` ms, default 2000).       |
-| `--snapshot <file>`   | Reads a saved snapshot instead of connecting.                                                             |
-| `--db-url-stdin`      | Reads the connection string from stdin; overrides the config and `$DATABASE_URL`.                         |
-| `--project-ref <ref>` | Reads a hosted project through the Management API.                                                        |
+| Option                 | Effect                                                                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--check`              | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI.                                                        |
+| `--watch`              | Regenerates when the schema or the config file changes (polls every `--interval` ms, default 2000).                                                              |
+| `--snapshot <file>`    | Reads a saved snapshot instead of connecting.                                                                                                                    |
+| `--db-url-stdin`       | Reads the connection string from stdin; overrides the config and `$DATABASE_URL`.                                                                                |
+| `--project-ref <ref>`  | Reads a hosted project through the Management API.                                                                                                               |
+| `--metadata <path\|->` | Reads a `GeneratorMetadata` document (`-` for stdin) and prints one file on stdout. See [From a GeneratorMetadata document](#from-a-generatormetadata-document). |
+| `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot` or `json-schema`.                                                            |
+| `--out <dir>`          | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
 
 With `--json`, `gen` prints `{ "tables", "written" }`, and `gen --check`
 prints `{ "upToDate", "stale" }`.
@@ -258,3 +262,119 @@ better-supabase gen --snapshot supabase/snapshot.json
 
 A committed snapshot lets CI and contributors generate without a database.
 [`introspect`](/docs/cli/introspect) writes and checks it.
+
+## From a GeneratorMetadata document
+
+`gen --metadata` generates from the JSON document that
+`@supabase/postgrest-typegen` defines (`GeneratorMetadata`, versioned by
+`GENERATOR_METADATA_VERSION`), the same document
+[`@supabase/typegen`](https://github.com/supabase/sdk/tree/main/packages/typegen)
+pipes to out-of-process generators. Pass a file, or `-` to read stdin:
+
+```bash
+better-supabase gen --metadata - < metadata.json > src/lib/supabase/generated.ts
+```
+
+It follows the registry's contract for an out-of-process tool:
+
+- stdout holds only the generated file. Notices, warnings and the oxfmt
+  notice go to stderr.
+- It exits 0 on success, 1 when generation fails (for example without
+  `@supabase/postgrest-typegen` installed), 2 on a usage error, and 65 (the code the registry
+  maps to `MetadataRejectedError`, as for Dart's `supabase_typegen`) when it
+  can't read the document, the document is not JSON, its `version` is not the
+  `GENERATOR_METADATA_VERSION` this release reads, or the schema rejects it.
+  The reason is on stderr.
+- It reads `better-supabase.config.ts` from the working directory when there
+  is one (`casing`, `schemas`, `tables`, `codecs`, generator options), and the
+  defaults otherwise.
+
+`--emit` picks the file:
+
+| `--emit`      | Prints                                                                                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`      | The `defineSchema` module, with the metadata written into it instead of a separate `generated.meta.js`. It imports `Database` from `databaseTypesOutput`. |
+| `types`       | `database.types.ts`, formatted when oxfmt is installed.                                                                                                   |
+| `zod`         | The `zod()` generator's file, with the options from the config when it lists `zod()`.                                                                     |
+| `valibot`     | The `valibot()` generator's file, likewise.                                                                                                               |
+| `json-schema` | The `jsonSchema()` generator's document, likewise.                                                                                                        |
+
+`--out <dir>` writes the usual files (`database.types.ts`, the main module,
+its metadata module and each configured generator's file) into one directory
+instead, and `--check` compares them there. A generator with its own `output`
+keeps that path. It leaves the read-set SQL module
+and the files an earlier `gen` wrote alone.
+
+The document carries no more than the Data API types need, so a few things
+the database connection adds are missing. Relations, primary keys, enums,
+single-column unique keys and single-column CHECK unions stay typed; unique
+keys and checks get the names Postgres gives them by default
+(`<table>_<column>_key`, `<table>_<column>_check`). Multi-column unique keys
+and checks, foreign key actions, indexes, triggers, policies, grants, buckets
+and the realtime publication are absent, and a notice on stderr says so. Run
+`gen` against the database for the full model.
+
+`doctor --metadata` reads the same document. Checks that need what it lacks
+are skipped with an info finding, and the advisors and live checks are
+skipped as for a saved snapshot.
+
+### As a `@supabase/typegen` language
+
+The registry runs an out-of-process language in the project directory with
+the sorted document on stdin. An `externalLanguage` entry for better-supabase
+runs `npx better-supabase gen --metadata -`:
+
+```ts title="packages/typegen/src/languages/better-supabase.ts"
+import { externalLanguage } from "./external.ts";
+
+export const betterSupabase = externalLanguage(
+  "better-supabase",
+  [
+    {
+      name: "emit",
+      audience: "user",
+      kind: "choice",
+      choices: ["schema", "types", "zod", "valibot", "json-schema"],
+      default: "schema",
+      help: "The file to generate: the defineSchema module, database.types.ts or a validator file",
+    },
+  ],
+  {
+    command: "npx",
+    args: (_metadata, options) => [
+      "--no-install",
+      "better-supabase",
+      "gen",
+      "--metadata",
+      "-",
+      "--emit",
+      String(options.emit),
+    ],
+    installHint:
+      "Install Node.js, then run `npm install -D better-supabase @supabase/postgrest-typegen` in the project.",
+    classify: (result) => {
+      if (
+        result.stderr.includes("could not determine executable to run") ||
+        result.stderr.includes(
+          'needs the "@supabase/postgrest-typegen" package',
+        )
+      ) {
+        return {
+          kind: "not-installed",
+          tool: "the better-supabase package",
+          installHint:
+            "Run `npm install -D better-supabase @supabase/postgrest-typegen` in the project that should receive the types, then generate from that directory.",
+        };
+      }
+      if (result.exitCode === 65) return { kind: "metadata-rejected" };
+      return undefined;
+    },
+  },
+);
+```
+
+Once the entry is in the registry's `languages`, `user` options become flags
+of `supabase gen types`, so `supabase gen types --lang better-supabase --emit zod`
+prints what `better-supabase gen --metadata - --emit zod` prints for the same
+database. The entry is not in the registry yet; the
+[roadmap](/docs/roadmap) tracks the upstream pull request.
