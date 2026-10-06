@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { BetterSupabaseConfig } from "../../src/config/index.ts";
 
+import { emitMeta } from "../../src/cli/gen/emit.ts";
 import { buildModel } from "../../src/cli/gen/model.ts";
 import {
   parseCheckNotNull,
@@ -335,6 +336,28 @@ describe("CHECK not null", () => {
   });
 });
 
+describe("metadata module", () => {
+  it("writes one line per table and function and parses back to the metadata", async () => {
+    const model = buildModel(
+      await loadFixtureSnapshot(),
+      resolveConfig({ casing: "camel" }, fixtures),
+    );
+    const { js } = emitMeta(model);
+    const body = js.slice(js.indexOf("export default ") + 15, -2);
+    expect(JSON.parse(body)).toEqual(JSON.parse(JSON.stringify(model.meta)));
+    const lines = body.split("\n");
+    expect(
+      lines.filter((line) => line.startsWith('    "customers": {')),
+    ).toHaveLength(1);
+    expect(lines.length).toBeLessThan(
+      Object.keys(model.meta.tables).length +
+        Object.keys(model.meta.functions).length +
+        Object.keys(model.meta.enums).length +
+        20,
+    );
+  });
+});
+
 describe("function arguments", () => {
   it("accept null, and stay optional when they have a default", async () => {
     const snake = (await renderFixtures()).find((file) =>
@@ -512,7 +535,7 @@ describe("gen", () => {
       "utf8",
     );
     expect(generated).toMatch(
-      /"realtime": \{\s+"customers": \{\s+"tenant": "organizationId"\s+\},\s+"tags": \{\s+"tenant": "organizationId"\s+\},\s+"organizations": \{\}/,
+      /"realtime": \{\s+"customers": \{"tenant":"organizationId"\},\s+"tags": \{"tenant":"organizationId"\},\s+"organizations": \{\}/,
     );
 
     await writeFile(

@@ -145,6 +145,26 @@ export function metaPaths(output: string): { js: string; dts: string } {
 }
 
 /**
+ * JSON with one line per table, function and other named entry, so the
+ * module stays small to load and a schema change still diffs per entry.
+ */
+function compactJson(meta: Readonly<Record<string, unknown>>): string {
+  const entries = Object.entries(meta).map(([key, value]) => {
+    const name = JSON.stringify(key);
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      return `  ${name}: ${JSON.stringify(value)}`;
+    const inner = Object.entries(value).map(
+      ([entry, item]) =>
+        `    ${JSON.stringify(entry)}: ${JSON.stringify(item)}`,
+    );
+    return inner.length === 0
+      ? `  ${name}: {}`
+      : `  ${name}: {\n${inner.join(",\n")}\n  }`;
+  });
+  return `{\n${entries.join(",\n")}\n}`;
+}
+
+/**
  * The schema metadata as plain JavaScript plus a one-line declaration, so
  * TypeScript reads `SchemaMeta` instead of checking thousands of lines of
  * object literal in every program that imports the generated module.
@@ -164,7 +184,7 @@ export function emitMeta(
       "/* oxlint-disable */",
       "/* eslint-disable */",
       "",
-      `export default ${JSON.stringify(model.meta, null, 2)};`,
+      `export default ${compactJson({ ...model.meta })};`,
       "",
     ].join("\n"),
     dts: [

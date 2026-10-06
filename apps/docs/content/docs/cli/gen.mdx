@@ -21,7 +21,9 @@ the same generator behind `supabase gen types typescript`, and writes:
    `generated.meta.d.ts`): tables, columns, relations with foreign key
    actions, and functions. It is plain JavaScript typed as `SchemaMeta`, so
    TypeScript doesn't check a large object literal in every program that
-   imports the main module. Commit both files with the main module;
+   imports the main module. Each table and function is one line of JSON, which
+   keeps the module small to load and a schema change visible per entry in a
+   diff. Commit both files with the main module;
 4. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`);
 5. with `readSets` configured, the `read-sets` SQL kit file: one function per
    [read set](/docs/repository/read-sets). `gen` imports those modules after
