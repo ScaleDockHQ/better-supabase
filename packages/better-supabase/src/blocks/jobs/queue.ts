@@ -10,7 +10,10 @@ import {
   allTenantsContext,
   type RequestContext,
 } from "../../core/plugin.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { AsyncResult, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -116,10 +119,8 @@ export interface DrainOptions extends Omit<
   readonly budgetMs?: number;
 }
 
-export interface DrainRouteOptions<Q extends QueueSchemas> extends Omit<
-  DrainOptions,
-  "onError"
-> {
+export interface DrainRouteOptions<Q extends QueueSchemas>
+  extends Omit<DrainOptions, "onError">, BlockProblemOptions {
   /**
    * The bearer token callers send (`Authorization: Bearer <secret>`), such
    * as Vercel's `CRON_SECRET`. Required.
@@ -1049,7 +1050,7 @@ export function createJobs<const Q extends QueueSchemas>(
         if (!verifySharedSecret(request, secret)) {
           return problemResponse(
             dbError("unauthorized", "The drain route needs its bearer secret"),
-            { instance },
+            { instance, format: routeOptions.problem },
           );
         }
         const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);

@@ -2,7 +2,10 @@ import type { DbError } from "../../core/errors.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { dbError, mapDbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { fromPgError } from "../../postgres/executor.ts";
 import { isRecord, optionalText } from "../shared.ts";
@@ -14,7 +17,7 @@ import { timingSafeEqual, verifyWebhook } from "./verify.ts";
 /** How a delivery proves it came from the sender. */
 export type IncomingVerify = "none" | "standard-webhooks" | "hmac-sha256";
 
-export interface IncomingWebhooksOptions {
+export interface IncomingWebhooksOptions extends BlockProblemOptions {
   /** The schema of the `webhooks-in` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** The webhook inbox source deliveries are stored under. Defaults to `webhook-in`. */
@@ -186,7 +189,9 @@ export function createIncomingWebhooks(
                 error.status,
               ])
               .then(() => undefined)
-        ).then(() => problemResponse(error, { instance }));
+        ).then(() =>
+          problemResponse(error, { instance, format: options.problem }),
+        );
       try {
         const [endpoint] = await sql.queryRaw<EndpointRow>(
           `select * from ${fn("incoming_webhook_by_token")}($1)`,
@@ -307,7 +312,10 @@ export function createIncomingWebhooks(
           { status },
         );
       } catch (cause) {
-        return problemResponse(asDbError(cause), { instance });
+        return problemResponse(asDbError(cause), {
+          instance,
+          format: options.problem,
+        });
       }
     },
     create: (input) =>

@@ -49,6 +49,27 @@ Messages of `unexpected`, `network` and `invalid_request` errors can contain
 SQL or hostnames, so they are left out unless you pass `expose: true` (for
 example in development). Validation errors keep their `issues`.
 
+## Your own error format
+
+`format` rewrites the body, for apps whose errors use their own `type` URIs
+or codes. It gets the Problem Details and the `DbError`; the status and the
+`Retry-After` and `WWW-Authenticate` headers stay as they are.
+
+```ts
+const toAppError = (problem: ProblemDetails, error: DbError) => ({
+  type: `https://errors.example.com/${error.code ?? problem.kind}`,
+  title: problem.title,
+  status: problem.status,
+  detail: problem.detail,
+});
+
+problemResponse(error, { instance, format: toAppError });
+```
+
+The blocks that answer HTTP requests take the same function as `problem`:
+`createIdempotency`, `createInbox`, `createIncomingWebhooks`, `rateLimited`,
+and the `drainRoute`, `deliverRoute` and `relayRoute` options.
+
 ## 401 responses
 
 A 401 carries an [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750)

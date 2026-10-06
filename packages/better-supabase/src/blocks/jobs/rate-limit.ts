@@ -1,7 +1,7 @@
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import { type ProblemFormat, problemResponse } from "../../core/problem.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { run, seconds } from "../shared.ts";
 
@@ -80,7 +80,11 @@ export function createRateLimit(sql: SqlClient): RateLimit {
 /** A `problem+json` 429 with `Retry-After`, for a refused `check`. */
 export function rateLimited(
   decision: Pick<RateLimitDecision, "retryAfter">,
-  options: { readonly instance?: string; readonly detail?: string } = {},
+  options: {
+    readonly instance?: string;
+    readonly detail?: string;
+    readonly problem?: ProblemFormat;
+  } = {},
 ): Response {
   const retryAfter = Math.max(1, Math.ceil(decision.retryAfter));
   return problemResponse(
@@ -89,6 +93,9 @@ export function rateLimited(
       options.detail ?? `Too many requests. Retry after ${retryAfter} seconds.`,
       { retryAfter },
     ),
-    options.instance === undefined ? {} : { instance: options.instance },
+    {
+      ...(options.instance === undefined ? {} : { instance: options.instance }),
+      format: options.problem,
+    },
   );
 }

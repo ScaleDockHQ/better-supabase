@@ -347,7 +347,9 @@ export const POST = (request: Request) =>
 | Handler throws or returns a 5xx                   | The key is released, so the client can retry           |
 
 The fingerprint is a SHA-256 of the method, path and body. Set
-`required: true` to reject requests that have no key.
+`required: true` to reject requests that have no key. The error responses
+are Problem Details; pass `problem` to answer in your app's error format
+instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
 
 ## Webhook inbox
 

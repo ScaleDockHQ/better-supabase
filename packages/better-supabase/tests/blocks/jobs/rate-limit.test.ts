@@ -61,5 +61,16 @@ describe("rateLimited", () => {
       (await rateLimited({ retryAfter: 0 }, { detail: "Slow down" }).json())
         .detail,
     ).toBe("Slow down");
+    expect(
+      await rateLimited(
+        { retryAfter: 1 },
+        {
+          problem: (problem) => ({
+            code: "RATE_LIMITED",
+            status: problem.status,
+          }),
+        },
+      ).json(),
+    ).toEqual({ code: "RATE_LIMITED", status: 429 });
   });
 });

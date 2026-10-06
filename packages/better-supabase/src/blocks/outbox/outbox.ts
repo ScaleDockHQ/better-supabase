@@ -2,7 +2,10 @@ import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { type DbError, dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { asDbError, run, toInstant, workerId } from "../shared.ts";
@@ -68,7 +71,8 @@ export interface RelayResult {
   readonly error?: DbError;
 }
 
-export interface OutboxRouteOptions extends Omit<RelayOptions, "owner"> {
+export interface OutboxRouteOptions
+  extends Omit<RelayOptions, "owner">, BlockProblemOptions {
   /** The bearer secret, such as `process.env.CRON_SECRET`. */
   readonly secret: string | undefined;
   /** Consumer name to the sink its events go to. */
@@ -297,7 +301,7 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
         if (!verifySharedSecret(request, secret)) {
           return problemResponse(
             dbError("unauthorized", "The relay route needs its bearer secret"),
-            { instance },
+            { instance, format: routeOptions.problem },
           );
         }
         const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);

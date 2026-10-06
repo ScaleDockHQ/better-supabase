@@ -2,7 +2,10 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import type { DrainResult } from "./queue.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
 import { errorText, run, seconds, toInstant, workerId } from "../shared.ts";
 import { verifyWebhook } from "../webhooks/verify.ts";
@@ -10,7 +13,7 @@ import { verifyWebhook } from "../webhooks/verify.ts";
 // ---------------------------------------------------------------------------
 // Idempotency keys (SQL module `idempotency`)
 
-export interface IdempotencyOptions {
+export interface IdempotencyOptions extends BlockProblemOptions {
   /**
    * Separates keys of different callers, endpoints or tenants. Defaults to a
    * hash of the caller's credentials (the `Authorization` header or the
@@ -93,6 +96,7 @@ export function createIdempotency(
   options: IdempotencyOptions = {},
 ): Idempotency {
   const headerName = options.header ?? "idempotency-key";
+  const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
   const lock = seconds(options.lock ?? "1 minute");
 
@@ -144,7 +148,7 @@ export function createIdempotency(
                   code: "IDEMPOTENCY_KEY_MISSING",
                 },
               ),
-              { instance },
+              { instance, format },
             )
           : handler(request);
       }
@@ -153,7 +157,7 @@ export function createIdempotency(
           dbError("invalid_request", `The ${headerName} header is too long`, {
             code: "IDEMPOTENCY_KEY_INVALID",
           }),
-          { instance },
+          { instance, format },
         );
       }
       const scope =
@@ -165,7 +169,8 @@ export function createIdempotency(
         `${request.method} ${instance}\n${body}`,
       );
       const started = await begin(key, fingerprint, scope);
-      if (!started.ok) return problemResponse(started.error, { instance });
+      if (!started.ok)
+        return problemResponse(started.error, { instance, format });
       const { state } = started.data;
       switch (state) {
         case "replay": {
@@ -191,7 +196,7 @@ export function createIdempotency(
                 code: "IDEMPOTENCY_KEY_IN_USE",
               },
             ),
-            { instance, headers: { "retry-after": "1" } },
+            { instance, format, headers: { "retry-after": "1" } },
           );
         case "mismatch":
           return problemResponse(
@@ -208,7 +213,7 @@ export function createIdempotency(
                 ],
               },
             ),
-            { instance },
+            { instance, format },
           );
         case "started":
           break;
@@ -274,7 +279,7 @@ export interface InboxEvent {
   readonly headers?: Readonly<Record<string, string>>;
 }
 
-export interface InboxOptions {
+export interface InboxOptions extends BlockProblemOptions {
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
   /** Standard Webhooks secrets; the signature is verified before storing. */
@@ -373,6 +378,7 @@ function defaultType(payload: unknown): string | null {
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
 export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   const worker = options.worker ?? workerId();
+  const format = options.problem;
   if (!options.secrets && !options.verify) {
     throw new TypeError(
       "createInbox needs `secrets` (Standard Webhooks) or `verify`",
@@ -462,7 +468,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
         return new Response(null, { status: 405, headers: { allow: "POST" } });
       }
       const message = await verified(request);
-      if (!message.ok) return problemResponse(message.error, { instance });
+      if (!message.ok)
+        return problemResponse(message.error, { instance, format });
       const headers = Object.fromEntries(
         (options.keepHeaders ?? []).flatMap((name) => {
           const value = request.headers.get(name);
@@ -477,7 +484,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           ? {}
           : { tenant: message.data.tenant }),
       });
-      if (!stored.ok) return problemResponse(stored.error, { instance });
+      if (!stored.ok)
+        return problemResponse(stored.error, { instance, format });
       return Response.json(stored.data, {
         status: stored.data.duplicate ? 200 : 202,
       });
