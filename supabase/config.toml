@@ -50,6 +50,12 @@ enable_signup = true
 [auth.oauth_server]
 enabled = true
 
+# The MCP example verifies tokens itself; the gateway's own 401 carries no
+# OAuth challenge, so clients could not discover how to sign in.
+[functions.mcp]
+verify_jwt = false
+entrypoint = "../apps/examples/mcp/supabase/functions/mcp/index.ts"
+
 [auth.email]
 enable_signup = true
 enable_confirmations = false

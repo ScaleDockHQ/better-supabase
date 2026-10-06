@@ -152,6 +152,16 @@ tokens that lack one, and `authorize` refuses a single call. The session comes
 from the `Authorization` header only, never from a cookie. A
 `delegation` that is unset means the user's own token, which no scope limits.
 
+On Supabase Edge Functions, set `[functions.mcp] verify_jwt = false` in
+`supabase/config.toml`; the gateway's own 401 has no OAuth challenge. The
+server then derives its public URL from `SUPABASE_FUNCTION_SLUG` and the
+gateway's `X-Forwarded-*` headers and serves the metadata at
+`/functions/v1/mcp/oauth-protected-resource`, so leave `resource` unset there.
+CORS preflights are answered by default (`cors: false` turns them off).
+To keep a Supabase library MCP block's pipeline instead, add
+`withBetterSupabase(betterSupabase)()` from `better-supabase/server` after its
+`withSupabase` entry for `ctx.db`.
+
 ### MCP on the official SDK
 
 ```ts title="src/mcp.ts"

@@ -29,12 +29,25 @@ Deno.serve(bs.fetch);
 ```
 
 `bs.fetch` serves the MCP endpoint (Streamable HTTP, stateless JSON
-responses) and the RFC 9728 metadata at
-`/.well-known/oauth-protected-resource/...`.
+responses) and the RFC 9728 metadata, at
+`/.well-known/oauth-protected-resource/...` and at
+`<endpoint>/oauth-protected-resource`.
+
+The function verifies tokens itself, so turn off the gateway's JWT check.
+Otherwise the gateway answers unauthenticated requests with its own 401,
+without the challenge MCP clients need to sign in:
+
+```toml title="supabase/config.toml"
+[functions.mcp]
+verify_jwt = false
+
+[auth.oauth_server]
+enabled = true
+```
 
 If you started from the MCP server or headless app block in the Supabase
-library, [Supabase MCP and headless app blocks](/docs/guides/supabase-blocks)
-shows how to call typed repositories from its tools or replace them with
+library, [Supabase library MCP blocks](/docs/guides/supabase-blocks) shows
+how to add typed repositories to its pipeline or replace its tools with
 `createMcp`.
 
 ## Protocol versions
@@ -68,6 +81,53 @@ The metadata names Supabase Auth (`<SUPABASE_URL>/auth/v1`) as the
 authorization server. Clients that support MCP authorization then sign the
 user in through Supabase's OAuth server and retry. Override `resource` and
 `authorizationServers` when the server sits behind a proxy.
+
+### On Supabase Edge Functions
+
+The Edge Functions gateway strips `/functions/v1` before the function sees
+the request, and only routes paths under it, so a root `/.well-known` URL
+never reaches the function. When `SUPABASE_FUNCTION_SLUG` or
+`SB_EXECUTION_ID` is set, the server works this out the way
+`withOAuthProtectedResource` from `@supabase/server` does:
+
+- `resource` is the public origin plus `/functions/v1/<slug>`. The origin is
+  `SUPABASE_PUBLIC_URL` when set, otherwise the gateway's `X-Forwarded-Host`,
+  `X-Forwarded-Proto` and `X-Forwarded-Port` headers.
+- The challenge points to `<resource>/oauth-protected-resource`, which the
+  gateway routes to the function.
+- The authorization server is Auth on the same public origin, so local
+  development advertises `http://127.0.0.1:54321/auth/v1` rather than the
+  internal `SUPABASE_URL`.
+- `allowedHosts` is checked against `X-Forwarded-Host`, since `Host` is
+  internal there. Elsewhere the server ignores that header, which a page on a
+  rebinding host could set.
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="https://<ref>.supabase.co/functions/v1/mcp/oauth-protected-resource"
+```
+
+The same rules apply to `createMcpAuth`.
+
+### Embedded product agents
+
+An agent inside your own product doesn't need OAuth: your backend forwards
+the signed-in user's Supabase access token as `Authorization: Bearer`, and
+the tools run as that user. Keep the token in the backend or the agent
+orchestrator, never in a prompt or a request to the model provider. A product
+session token has no `client_id`, while an OAuth token does, so decide in
+`authorize` how each kind of caller is treated (see
+[Bearer callers](#bearer-callers)).
+
+### CORS
+
+Browser-based MCP clients send a preflight before each call. The server
+answers `OPTIONS` with the allowed methods and the MCP headers
+(`Authorization`, `Mcp-Protocol-Version`, `Mcp-Method`, `Mcp-Name` and the
+rest), and every response exposes `WWW-Authenticate` so the client can read
+the challenge. Any origin may call by default, which is safe because the
+token travels in a header, not a cookie. With `allowedOrigins`, only a listed
+origin is echoed back. `cors: false` turns all of it off.
 
 A tool that starts background work enqueues it with
 `{ context: db.$context }` from `run`'s `db`, and the worker runs it as the
