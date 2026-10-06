@@ -62,6 +62,15 @@ describe("payload inference", () => {
     expectTypeOf(row).toEqualTypeOf<{ organization_id: string }>();
   });
 
+  it("types findOnly like findFirst and requires where", async () => {
+    const row = await db.customers
+      .findOnly({ where: { status: "active" }, select: ["id"] })
+      .orThrow();
+    expectTypeOf(row).toEqualTypeOf<{ id: string } | null>();
+    // @ts-expect-error where is required
+    void db.customers.findOnly({ select: ["id"] });
+  });
+
   it("types includes by relation cardinality", async () => {
     const row = await db.customers
       .findFirst({

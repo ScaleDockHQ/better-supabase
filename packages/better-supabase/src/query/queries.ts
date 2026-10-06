@@ -29,6 +29,7 @@ import type {
   AggregateResult,
   CountArgs,
   FindFirstArgs,
+  FindOnlyArgs,
   FindManyArgs,
   Payload,
   ReadArgs,
@@ -101,6 +102,9 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   ): QueryOptionsOf<Payload<M, T, A>[]>;
   findFirst<const A extends FindFirstArgs<M, T> & FindExt<E, M, T>>(
     args?: A | SkipToken,
+  ): QueryOptionsOf<Payload<M, T, A> | null>;
+  findOnly<const A extends FindOnlyArgs<M, T> & FindExt<E, M, T>>(
+    args: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A> | null>;
   findUnique<
     const A extends ReadArgs<M, T> & {
@@ -314,6 +318,7 @@ function tableQueries(
     key,
     findMany: read("findMany"),
     findFirst: read("findFirst"),
+    findOnly: read("findOnly"),
     findUnique: read("findUnique"),
     count: read("count"),
     aggregate: read("aggregate"),

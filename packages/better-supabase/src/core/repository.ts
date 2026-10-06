@@ -461,6 +461,22 @@ export function createRepository(
       });
     },
 
+    findOnly(args: Args) {
+      return AsyncResult.from(async () => {
+        const result = await run(selectOp(args, { limit: 2 }), args);
+        if (!result.ok) return result;
+        if (result.data.rows.length > 1)
+          return runner.fail(
+            table,
+            dbError(
+              "multiple_rows",
+              `More than one ${table.key} row matched; findOnly expects at most one`,
+            ),
+          );
+        return ok(result.data.rows[0] ?? null);
+      });
+    },
+
     findUnique(args: Args) {
       return AsyncResult.from(async () => {
         const op = selectOp(args, {

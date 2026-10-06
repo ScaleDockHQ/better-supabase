@@ -293,6 +293,13 @@ export type FindFirstArgs<M extends AnyModels, T extends keyof M> = Omit<
   "limit"
 >;
 
+export interface FindOnlyArgs<
+  M extends AnyModels,
+  T extends keyof M,
+> extends ReadArgs<M, T> {
+  readonly where: WhereInput<M, T>;
+}
+
 export interface CountArgs<M extends AnyModels, T extends keyof M> {
   readonly where?: WhereInput<M, T>;
   readonly mode?: "exact" | "planned" | "estimated";
