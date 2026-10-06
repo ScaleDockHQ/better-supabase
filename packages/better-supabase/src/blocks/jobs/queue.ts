@@ -89,6 +89,12 @@ export interface ScheduleOptions {
   /** The actor and tenant every scheduled run records, as in `enqueue`. */
   readonly context?: RequestContext;
   /**
+   * The tenant the schedule belongs to, for `listSchedules({ tenant })` and
+   * `unscheduleAll({ tenant })`. Defaults to the tenant of `context`. Needs
+   * `sql.modules.jobs.options.scheduler: "drain"`.
+   */
+  readonly tenant?: string;
+  /**
    * The IANA time zone the cron fields are read in. Defaults to `UTC`.
    * Other zones need `sql.modules.jobs.options.scheduler: "drain"`.
    */
@@ -128,6 +134,8 @@ export interface DrainRouteOptions<Q extends QueueSchemas> extends Omit<
   /** Enqueue due schedules first (the drain scheduler). Defaults to true. */
   readonly schedules?: boolean;
   readonly onError?: (error: DbError, job?: Job) => void;
+  /** Hooks around each authorized drain, such as cron monitor check-ins. */
+  readonly monitor?: DrainMonitor;
 }
 
 export interface DrainRouteResult {
@@ -136,6 +144,42 @@ export interface DrainRouteResult {
   readonly queues: Readonly<Record<string, DrainResult>>;
   /** True when the budget ran out before every queue was empty. */
   readonly budgetExhausted: boolean;
+  /** Schedule or queue runs that failed as a whole (individual job failures are in `queues`). */
+  readonly errors: number;
+}
+
+/**
+ * Hooks around one authorized drain, for cron monitoring such as Sentry
+ * check-ins. A hook that throws is reported to `onError` and never fails
+ * the drain.
+ */
+export interface DrainMonitor {
+  /** Before schedules run. Its return value (a check-in id) is passed to `onFinish`. */
+  onStart?(request: Request): unknown;
+  /** After the queues ran, with the result the route answers with. */
+  onFinish?(result: DrainRouteResult, started: unknown): unknown;
+}
+
+/** A schedule as `listSchedules` returns it. */
+export interface ScheduleInfo {
+  readonly name: string;
+  readonly cron: string;
+  readonly timeZone: string;
+  /** Null under pg_cron, which keeps only the command. */
+  readonly queue: string | null;
+  readonly tenant: string | null;
+  /** The next run; null under pg_cron. */
+  readonly nextRun: Temporal.Instant | null;
+  readonly lastRun: Temporal.Instant | null;
+  /** Set while a drain holds the schedule. */
+  readonly leasedUntil: Temporal.Instant | null;
+  readonly createdAt: Temporal.Instant | null;
+}
+
+export interface ScheduleFilter {
+  /** Schedules whose name starts with this, e.g. `workflow:`. */
+  readonly prefix?: string;
+  readonly tenant?: string;
 }
 
 export interface ClaimOptions {
@@ -227,6 +271,10 @@ export interface Jobs<Q extends QueueSchemas> {
     options?: ScheduleOptions,
   ): AsyncResult<void>;
   unschedule(name: string): AsyncResult<boolean>;
+  /** Schedules by name prefix or tenant, with their next and last run. SQL connections only. */
+  listSchedules(filter?: ScheduleFilter): AsyncResult<ScheduleInfo[]>;
+  /** Removes every schedule of a tenant, for tenant deletion; returns how many. SQL connections only. */
+  unscheduleAll(filter: { readonly tenant: string }): AsyncResult<number>;
   /**
    * Enqueues one run of every due schedule (the drain scheduler) and moves
    * it to its next time. Returns how many ran. Missed runs collapse into one.
@@ -332,8 +380,13 @@ export interface QueueBackend {
     payload: unknown,
     timeZone: string,
     nextRun: Temporal.Instant,
+    tenant?: string,
   ): Promise<void>;
   unschedule(name: string): Promise<boolean>;
+  /** Schedules by name prefix and tenant. Absent when the backend can't list them. */
+  listSchedules?(filter: ScheduleFilter): Promise<readonly ScheduleInfo[]>;
+  /** Removes a tenant's schedules and returns how many. Absent when the backend can't. */
+  unscheduleTenant?(tenant: string): Promise<number>;
   /** Leases due schedules (the drain scheduler); absent or empty with pg_cron. */
   dueSchedules?(lease: number, batch: number): Promise<readonly DueSchedule[]>;
   /** Moves a schedule from `ran` to `next`; `false` when it changed since the claim. */
@@ -343,6 +396,21 @@ export interface QueueBackend {
     next: Temporal.Instant,
   ): Promise<boolean>;
 }
+
+interface ScheduleListRow {
+  readonly job_name: string;
+  readonly schedule: string;
+  readonly timezone: string;
+  readonly queue: string | null;
+  readonly tenant: string | null;
+  readonly next_run: Date | string | null;
+  readonly last_run: Date | string | null;
+  readonly locked_until: Date | string | null;
+  readonly created_at: Date | string | null;
+}
+
+const instantOrNull = (value: Date | string | null): Temporal.Instant | null =>
+  value === null ? null : toInstant(value);
 
 interface ScheduleRow {
   readonly job_name: string;
@@ -409,9 +477,9 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
       );
       return row?.id === null || row?.id === undefined ? null : Number(row.id);
     },
-    async schedule(name, cron, queue, payload, timeZone, nextRun) {
+    async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
       await sql.queryRaw(
-        "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6)",
+        "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7)",
         [
           name,
           cron,
@@ -419,8 +487,33 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
           JSON.stringify(payload ?? {}),
           timeZone,
           nextRun.toString(),
+          tenant ?? null,
         ],
       );
+    },
+    async listSchedules(filter) {
+      const rows = await sql.queryRaw<ScheduleListRow>(
+        "select * from better_supabase.list_schedules($1, $2)",
+        [filter.prefix ?? null, filter.tenant ?? null],
+      );
+      return rows.map((row) => ({
+        name: row.job_name,
+        cron: row.schedule,
+        timeZone: row.timezone,
+        queue: row.queue,
+        tenant: row.tenant,
+        nextRun: instantOrNull(row.next_run),
+        lastRun: instantOrNull(row.last_run),
+        leasedUntil: instantOrNull(row.locked_until),
+        createdAt: instantOrNull(row.created_at),
+      }));
+    },
+    async unscheduleTenant(tenant) {
+      const [row] = await sql.queryRaw<{ removed: number }>(
+        "select better_supabase.unschedule_tenant($1) as removed",
+        [tenant],
+      );
+      return row?.removed ?? 0;
     },
     async unschedule(name) {
       const [row] = await sql.queryRaw<{ done: boolean }>(
@@ -893,6 +986,11 @@ export function createJobs<const Q extends QueueSchemas>(
         if (!valid.ok) return valid;
         const stored = withContext(valid.data, scheduleOptions.context);
         const timeZone = scheduleOptions.timeZone ?? "UTC";
+        const tenant =
+          scheduleOptions.tenant ??
+          (scheduleOptions.context
+            ? tenantFrom(scheduleOptions.context, tenantPathsFor(undefined))
+            : undefined);
         return run(() => {
           const nextRun = millis(nextCronRun(cron, timeZone, nowInstant()));
           return transport.schedule(
@@ -902,11 +1000,22 @@ export function createJobs<const Q extends QueueSchemas>(
             stored,
             timeZone,
             nextRun,
+            tenant,
           );
         });
       });
     },
     unschedule: (name) => run(() => transport.unschedule(name)),
+    listSchedules: (filter = {}) =>
+      run(async () => {
+        if (!transport.listSchedules) sqlOnly("listSchedules");
+        return [...(await transport.listSchedules(filter))];
+      }),
+    unscheduleAll: (filter) =>
+      run(() => {
+        if (!transport.unscheduleTenant) sqlOnly("unscheduleAll");
+        return transport.unscheduleTenant(filter.tenant);
+      }),
     runSchedules: (scheduleOptions = {}) =>
       run(() => runSchedules(scheduleOptions)),
     drain: (queue, handler, drainOptions = {}) =>
@@ -944,11 +1053,31 @@ export function createJobs<const Q extends QueueSchemas>(
           );
         }
         const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);
+        const monitor = routeOptions.monitor;
+        let errors = 0;
+        const report = (cause: unknown): void => {
+          errors += 1;
+          routeOptions.onError?.(toDbError(cause));
+        };
+        const watch = async (fn: () => unknown): Promise<unknown> => {
+          try {
+            return await fn();
+          } catch (cause) {
+            routeOptions.onError?.(toDbError(cause));
+            return undefined;
+          }
+        };
+        const started = monitor?.onStart
+          ? await watch(() => monitor.onStart?.(request))
+          : undefined;
         let scheduled = 0;
         if (routeOptions.schedules ?? true) {
           const ran = await run(() => runSchedules({}));
           if (ran.ok) scheduled = ran.data;
-          else routeOptions.onError?.(ran.error);
+          else {
+            errors += 1;
+            routeOptions.onError?.(ran.error);
+          }
         }
         const results: Record<string, DrainResult> = {};
         for (const [queue, handler] of Object.entries(routeOptions.handlers)) {
@@ -965,7 +1094,7 @@ export function createJobs<const Q extends QueueSchemas>(
               deadline,
             );
           } catch (cause) {
-            routeOptions.onError?.(toDbError(cause));
+            report(cause);
             results[queue] = { succeeded: 0, failed: 0 };
           }
         }
@@ -973,7 +1102,11 @@ export function createJobs<const Q extends QueueSchemas>(
           schedules: scheduled,
           queues: results,
           budgetExhausted: Date.now() >= deadline,
+          errors,
         };
+        if (monitor?.onFinish) {
+          await watch(() => monitor.onFinish?.(result, started));
+        }
         return Response.json(result);
       };
     },

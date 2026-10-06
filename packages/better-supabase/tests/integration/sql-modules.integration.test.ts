@@ -1378,6 +1378,110 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("runs named tenant schedules from an external scheduler without pg_cron", async () => {
+    const queue = `block_${RUN}_ext`;
+    await pool.query(
+      moduleBody("jobs", {
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    try {
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ report: v.string() }),
+      });
+      await jobs
+        .schedule(
+          `ext-${RUN}:hourly`,
+          "0 * * * *",
+          queue,
+          { report: "hourly" },
+          { context: { tenant: "tenant-a" } },
+        )
+        .orThrow();
+      await jobs
+        .schedule(
+          `ext-${RUN}:daily`,
+          "30 6 * * *",
+          queue,
+          { report: "daily" },
+          { tenant: "tenant-b", timeZone: "Europe/Amsterdam" },
+        )
+        .orThrow();
+      const listed = await jobs
+        .listSchedules({ prefix: `ext-${RUN}:` })
+        .orThrow();
+      expect(listed.map((entry) => [entry.name, entry.tenant])).toEqual([
+        [`ext-${RUN}:daily`, "tenant-b"],
+        [`ext-${RUN}:hourly`, "tenant-a"],
+      ]);
+      expect(listed.every((entry) => entry.nextRun !== null)).toBe(true);
+      expect(
+        (await jobs.listSchedules({ tenant: "tenant-a" }).orThrow()).map(
+          (entry) => entry.name,
+        ),
+      ).toContain(`ext-${RUN}:hourly`);
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name like $1`,
+        [`ext-${RUN}:%`],
+      );
+      const seen: [string, string | undefined][] = [];
+      const finished: unknown[] = [];
+      const route = jobs.drainRoute({
+        secret: "s3cret",
+        handlers: {
+          [queue]: (payload, job) => {
+            seen.push([payload.report, job.context.tenant]);
+          },
+        },
+        monitor: { onFinish: (result) => finished.push(result) },
+      });
+      const response = await route(
+        new Request("https://app.test/api/jobs/drain", {
+          method: "POST",
+          headers: { authorization: "Bearer s3cret" },
+        }),
+      );
+      expect(await response.json()).toMatchObject({
+        schedules: 2,
+        queues: { [queue]: { succeeded: 2, failed: 0 } },
+        errors: 0,
+      });
+      expect(finished).toHaveLength(1);
+      expect(seen.toSorted((a, b) => a[0].localeCompare(b[0]))).toEqual([
+        ["daily", undefined],
+        ["hourly", "tenant-a"],
+      ]);
+      const again = await route(
+        new Request("https://app.test/api/jobs/drain", {
+          headers: { authorization: "Bearer s3cret" },
+        }),
+      );
+      expect(await again.json()).toMatchObject({ schedules: 0 });
+      expect(await jobs.unscheduleAll({ tenant: "tenant-a" }).orThrow()).toBe(
+        1,
+      );
+      expect(
+        (await jobs.listSchedules({ prefix: `ext-${RUN}:` }).orThrow()).map(
+          (entry) => entry.name,
+        ),
+      ).toEqual([`ext-${RUN}:daily`]);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [queue],
+      );
+      await pool.query(
+        "delete from better_supabase.job_schedules where job_name like $1",
+        [`ext-${RUN}:%`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency(postgres.admin, { scope: RUN });
     let runs = 0;

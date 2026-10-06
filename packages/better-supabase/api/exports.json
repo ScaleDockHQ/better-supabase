@@ -823,6 +823,7 @@
     ],
     "types": [
       "ClaimOptions",
+      "DrainMonitor",
       "DrainOptions",
       "DrainResult",
       "DrainRouteOptions",
@@ -847,6 +848,8 @@
       "QueueRpcClient",
       "QueueSchemas",
       "RunSchedulesOptions",
+      "ScheduleFilter",
+      "ScheduleInfo",
       "ScheduleOptions",
       "SqlClient",
       "WorkOptions"
