@@ -61,6 +61,7 @@ export type {
   BetterSupabaseContributions,
   BetterSupabaseEntry,
 } from "./composite.ts";
+export { withBlock } from "./entries/block.ts";
 export { withSession } from "./entries/session.ts";
 export type { SessionEntryConfig } from "./entries/session.ts";
 export { withGuard } from "./entries/guard.ts";

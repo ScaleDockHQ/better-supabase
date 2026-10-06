@@ -1,3 +1,7 @@
+import type { PostgresApi } from "@supabase/server/middleware/postgres";
+
+import { pipeline } from "@supabase/middleware";
+import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";
 import { Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -16,12 +20,14 @@ import {
   sqlQueueBackend,
 } from "../../src/blocks/jobs/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
+import { sqlTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { mapDbError, type RawDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
+import { withBlock } from "../../src/server/entries/block.ts";
 import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import {
@@ -1403,6 +1409,56 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(
       (await idempotency.handle(request("{}", "order-2"), handler)).status,
     ).toBe(201);
+  });
+
+  it("runs blocks on @supabase/server's Postgres pool", async () => {
+    const queue = `block_${RUN}_server`;
+    const handler = pipeline(
+      [
+        withPostgresAdminClient({ connectionString: dbUrl }),
+        withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
+          createJobs(ctx.postgresAdmin, {
+            [queue]: v.object({ n: v.number() }),
+          }),
+        ),
+        withBlock(
+          "idempotency",
+          (ctx: { readonly postgresAdmin: PostgresApi }) =>
+            createIdempotency(ctx.postgresAdmin, { scope: `server-${RUN}` }),
+        ),
+      ],
+      async (request, ctx) =>
+        ctx.idempotency.handle(request, async () => {
+          const id = await ctx.jobs.enqueue(queue, { n: 1 }).orThrow();
+          const slug = await sqlTransport(ctx.postgresAdmin).call(
+            "better_supabase",
+            "slug_problem",
+            { slug: "admin" },
+          );
+          const seen: number[] = [];
+          const drained = await ctx.jobs.drain(queue, (payload) => {
+            seen.push(payload.n);
+          });
+          return Response.json({ id, slug, drained, seen }, { status: 201 });
+        }),
+    );
+    const request = () =>
+      new Request("https://api.test/run", {
+        method: "POST",
+        headers: { "idempotency-key": "run-1" },
+        body: "{}",
+      });
+    const first = await handler(request());
+    expect(first.status).toBe(201);
+    const body = (await first.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      slug: "reserved",
+      drained: { succeeded: 1, failed: 0 },
+      seen: [1],
+    });
+    const replay = await handler(request());
+    expect(replay.headers.get("idempotency-replayed")).toBe("true");
+    expect(await replay.json()).toEqual(body);
   });
 
   it("stores verified webhooks once and processes them with retries", async () => {

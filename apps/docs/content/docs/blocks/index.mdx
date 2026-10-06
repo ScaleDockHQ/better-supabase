@@ -24,6 +24,37 @@ uses, such as [list queries](/docs/platform/list),
 [storage](/docs/platform/storage) and [realtime topics](/docs/platform/realtime),
 are not blocks and keep their top-level subpaths.
 
+## Connections
+
+A block's TypeScript side runs its SQL functions through a connection you
+pass in. It never opens a pool of its own.
+
+| Connection                                                              | What it runs as                             | Blocks                                                        |
+| ----------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------- |
+| `ctx.postgresAdmin` from `withPostgresAdminClient` (`@supabase/server`) | The connection-string role, bypassing RLS   | jobs, idempotency, webhook inbox, outbox, audit, webhooks out |
+| `ctx.postgres` from `withPostgresClient`                                | The caller, with RLS                        | organizations, notifications (through `sqlTransport`)         |
+| `createPostgres()` from `better-supabase/postgres`                      | `admin`, or a user through `asUser(claims)` | every block                                                   |
+| `rpcTransport(supabase)` over PostgREST                                 | The client's session, or the secret key     | organizations, notifications, webhooks out                    |
+
+Every function that takes a SQL client accepts `@supabase/server`'s Postgres
+clients as they are, so an app that already composes `withPostgresClient` and
+`withPostgresAdminClient` keeps one pool and one connection string
+(`SUPABASE_DB_URL` by default, or `connectionString`). `withBlock` from
+`better-supabase/server` builds a block on the pipeline context; see
+[middleware](/docs/auth/middleware).
+
+`@supabase/server` runs each query in its own transaction. A block call is
+one SQL function, so that changes nothing for the blocks, but
+`outbox.emit()` then commits on its own instead of with the writes before it.
+Emit from SQL (`emit_event` inside the function that writes) when the event
+must commit with the write.
+
+A SQL connection needs TCP: Node, Deno, Bun and the Supabase Edge runtime have
+it, Cloudflare Workers and other isolates without sockets do not. There, use
+`rpcTransport` for the blocks that call only SQL functions (organizations,
+notifications, outgoing webhooks), with the module installed in an exposed
+schema (`sql.modules.<module>.schema`), and the `pgmq_public` RPCs for jobs.
+
 ## Blocks
 
 | Block                                                       | Subpath                                                                              | SQL modules                            |

@@ -92,6 +92,44 @@ reach it.
 | H3, Nitro, Nuxt         | `toH3(entries)`                               | [H3](/docs/frameworks/h3)                         |
 | Elysia                  | `toElysia(entries)`                           | [Elysia](/docs/frameworks/elysia)                 |
 
+### Blocks on the context
+
+`withBlock(key, create)` is a single-key entry that puts a block service on
+the context, built from the keys the entries before it contribute. Blocks take
+`ctx.postgres` and `ctx.postgresAdmin` wherever they take a SQL client, so
+`withPostgresAdminClient` after `withBetterSupabase` gives them the app's one
+pool and connection string (`SUPABASE_DB_URL`):
+
+```ts
+import { pipeline } from "@supabase/middleware";
+import type { PostgresApi } from "@supabase/server/middleware/postgres";
+import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";
+import { createJobs } from "better-supabase/blocks/jobs";
+import { withBetterSupabase, withBlock } from "better-supabase/server";
+
+const entries = [
+  withBetterSupabase(bs, { allow: ["user"] }),
+  withPostgresAdminClient(),
+  withBlock("jobs", (ctx: { postgresAdmin: PostgresApi }) =>
+    createJobs(ctx.postgresAdmin, queues),
+  ),
+] as const;
+
+export default {
+  fetch: pipeline(entries, async (req, ctx) => {
+    const id = await ctx.jobs.enqueue("emails", await req.json()).orThrow();
+    return Response.json({ id }, { status: 202 });
+  }),
+};
+```
+
+`create` names the keys it reads in its parameter type, and the type checker
+reports an entry array that doesn't contribute them before it. The same array
+runs under any framework bridge, and after `withSupabase` in place of
+`withBetterSupabase`. A cron drain route checks its own bearer secret, so it
+needs only `withPostgresAdminClient()` and `withBlock`. See
+[Connections](/docs/blocks#connections) for which client each block needs.
+
 ### Next to withSupabase
 
 An app that already runs `withSupabase` adds repositories with the leaf
