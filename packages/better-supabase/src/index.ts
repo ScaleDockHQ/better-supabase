@@ -133,6 +133,8 @@ export type {
   DeleteArgs,
   DeleteExt,
   FindExt,
+  ManyResult,
+  ManyReturningArgs,
   OffsetPage,
   OffsetPageArgs,
   OffsetRangeArgs,

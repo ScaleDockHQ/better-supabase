@@ -3,16 +3,16 @@ title: Writing
 description: create, update, upsert and delete, with typed conflicts and optimistic concurrency.
 ---
 
-| Method                               | Returns                 |
-| ------------------------------------ | ----------------------- |
-| `create(data, args?)`                | The row                 |
-| `createMany(data[], args?)`          | The rows                |
-| `update(key, data, args?)`           | The row, or `not_found` |
-| `updateMany({ where, data })`        | `{ count }`             |
-| `upsert(data, { onConflict })`       | The row                 |
-| `upsertMany(data[], { onConflict })` | The rows                |
-| `delete(key)`                        | Nothing, or `not_found` |
-| `deleteMany({ where })`              | `{ count }`             |
+| Method                               | Returns                                         |
+| ------------------------------------ | ----------------------------------------------- |
+| `create(data, args?)`                | The row                                         |
+| `createMany(data[], args?)`          | The rows                                        |
+| `update(key, data, args?)`           | The row, or `not_found`                         |
+| `updateMany({ where, data })`        | `{ count }`, or the rows with `returning: true` |
+| `upsert(data, { onConflict })`       | The row                                         |
+| `upsertMany(data[], { onConflict })` | The rows                                        |
+| `delete(key)`                        | Nothing, or `not_found`                         |
+| `deleteMany({ where })`              | `{ count }`, or the rows with `returning: true` |
 
 Inserts are typed by the generated `Insert` shape: required columns are
 required, columns with defaults are optional, and generated identity
@@ -33,6 +33,38 @@ await db.auditLog.create(entry, { returning: false });
   insert rows they cannot read, use `returning: false`. Otherwise the insert
   fails with `forbidden` after it passed your `INSERT` policy.
 </Callout>
+
+`updateMany` and `deleteMany` return `{ count }`. Pass `returning: true` to get
+the written rows instead, narrowed with `select` and `include` as in reads:
+
+```ts
+const sent = await db.invoices
+  .updateMany({
+    where: { status: "draft", dueAt: { lte: today } },
+    data: { status: "sent" },
+    returning: true,
+    select: ["id", "number"],
+  })
+  .orThrow();
+```
+
+On a table with [`softDelete()`](/docs/plugins/soft-delete), `deleteMany`
+with `returning: true` keeps `RETURNING` on the update it becomes, so it needs
+a `SELECT` policy that still shows the soft-deleted row.
+
+## Conditional updates
+
+`update` matches the row by its key. Add `where` for anything else the row
+must meet, such as its tenant or a status it may only leave once. A row with
+this key that doesn't match comes back as `not_found`, in one request:
+
+```ts
+const result = await db.invitations.update(
+  id,
+  { acceptedAt: now },
+  { where: { organizationId, status: { in: ["pending", "resent"] } } },
+);
+```
 
 ## Upserts
 
@@ -67,7 +99,8 @@ written.
 ## Optimistic concurrency
 
 Pass the values you read in `expect`. If the row changed in the meantime, the
-update fails with `stale` (412) instead of overwriting it:
+update fails with `stale` (412) instead of overwriting it. `expect` takes the
+same operators as `where`; plain values mean equality:
 
 ```ts
 const result = await db.customers.update(
@@ -79,6 +112,10 @@ if (result.error?.kind === "stale") {
   // reload and ask the user
 }
 ```
+
+Telling `stale` from `not_found` takes a second request that checks whether
+the row exists. Use `where` for conditions that are not about a concurrent
+change, such as a tenant guard, so a miss is `not_found` without the probe.
 
 ## Conflicts
 

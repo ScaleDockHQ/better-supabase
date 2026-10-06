@@ -387,6 +387,130 @@ describe("writes", () => {
     ]);
   });
 
+  it("updates with a where condition and returns not_found in one request", async () => {
+    const { client, requests } = capturingClient(() => ({ body: [] }));
+    const db = sbCamel.connect(client);
+    const result = await db.customers.update(
+      "c1",
+      { name: "New" },
+      { where: { organizationId: "t", status: { in: ["lead", "active"] } } },
+    );
+    expect(result.error?.kind).toBe("not_found");
+    expect(requests).toHaveLength(1);
+    expect(query(requests[0]!).slice(0, 3)).toEqual([
+      "id=eq.c1",
+      "organization_id=eq.t",
+      "status=in.(lead,active)",
+    ]);
+    expect(requests[0]!.headers.get("prefer")).toContain(
+      "return=representation",
+    );
+  });
+
+  it("returns the row when the where condition matches", async () => {
+    const { client } = capturingClient(() => ({
+      body: [{ id: "c1", name: "New" }],
+    }));
+    const db = sbCamel.connect(client);
+    const row = await db.customers
+      .update(
+        "c1",
+        { name: "New" },
+        { where: { organizationId: "t" }, select: ["id", "name"] },
+      )
+      .orThrow();
+    expect(row).toEqual({ id: "c1", name: "New" });
+  });
+
+  it("probes with the where condition before calling a row stale", async () => {
+    let call = 0;
+    const { client, requests } = capturingClient(() => {
+      call += 1;
+      return call === 1
+        ? { body: [] }
+        : { body: [], headers: { "content-range": "*/0" } };
+    });
+    const db = sbCamel.connect(client);
+    const result = await db.customers.update(
+      "c1",
+      { name: "New" },
+      {
+        where: { organizationId: "t" },
+        expect: { status: { in: ["lead"] } },
+      },
+    );
+    expect(result.error?.kind).toBe("not_found");
+    expect(requests).toHaveLength(2);
+    expect(query(requests[0]!).slice(0, 3)).toEqual([
+      "id=eq.c1",
+      "organization_id=eq.t",
+      "status=in.(lead)",
+    ]);
+    expect(query(requests[1]!)).toEqual([
+      "select=*",
+      "id=eq.c1",
+      "organization_id=eq.t",
+    ]);
+  });
+
+  it("returns the updated rows from updateMany with returning", async () => {
+    const { client, last } = capturingClient(() => ({
+      body: [{ id: "c1", createdAt: "2026-01-01T00:00:00Z" }],
+    }));
+    const db = sbCamel.connect(client);
+    const rows = await db.customers
+      .updateMany({
+        where: { status: "lead" },
+        data: { status: "active" },
+        returning: true,
+        select: ["id", "createdAt"],
+      })
+      .orThrow();
+    expect(rows).toEqual([{ id: "c1", createdAt: "2026-01-01T00:00:00Z" }]);
+    expect(query(last())).toEqual([
+      "status=eq.lead",
+      "select=id,createdAt:created_at",
+    ]);
+    expect(last().headers.get("prefer")).toContain("return=representation");
+  });
+
+  it("counts updateMany and deleteMany without returning", async () => {
+    const { client, requests } = capturingClient(() => ({
+      status: 204,
+      headers: { "content-range": "*/3" },
+    }));
+    const db = sbCamel.connect(client);
+    const updated = await db.customers
+      .updateMany({ where: { status: "lead" }, data: { status: "active" } })
+      .orThrow();
+    const deleted = await db.customers
+      .deleteMany({ where: { status: "lead" } })
+      .orThrow();
+    expect(updated).toEqual({ count: 3 });
+    expect(deleted).toEqual({ count: 3 });
+    expect(requests.map((request) => request.params.get("select"))).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  it("returns the deleted rows from deleteMany with returning", async () => {
+    const { client, last } = capturingClient(() => ({
+      body: [{ id: "c1" }, { id: "c2" }],
+    }));
+    const db = sbCamel.connect(client);
+    const rows = await db.customers
+      .deleteMany({
+        where: { status: "archived" },
+        returning: true,
+        select: ["id"],
+      })
+      .orThrow();
+    expect(rows).toEqual([{ id: "c1" }, { id: "c2" }]);
+    expect(last().method).toBe("DELETE");
+    expect(query(last())).toEqual(["status=eq.archived", "select=id"]);
+  });
+
   it("maps unique violations to conflict errors with columns", async () => {
     const { client } = capturingClient(() => ({
       status: 409,

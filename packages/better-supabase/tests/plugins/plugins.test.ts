@@ -128,6 +128,25 @@ describe("softDelete", () => {
     expect(last().headers.get("prefer")).not.toContain("return=representation");
   });
 
+  it("keeps RETURNING for deleteMany with returning: true", async () => {
+    const { client, last } = capturingClient(() => ({ body: [{ id: "c" }] }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.deleteMany({
+        where: { status: "lead" },
+        returning: true,
+        select: ["id"],
+      })
+      .orThrow();
+    expect(rows).toEqual([{ id: "c" }]);
+    expect(last().method).toBe("PATCH");
+    expect(query(last())).toEqual([
+      "status=eq.lead",
+      "archived_at=is.null",
+      "select=id",
+    ]);
+  });
+
   it("deletes for real with hard: true and restores", async () => {
     const { client, requests } = capturingClient(() => ({
       status: 204,

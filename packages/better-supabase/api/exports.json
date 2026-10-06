@@ -127,6 +127,8 @@
       "KitEventType",
       "LogFields",
       "Logger",
+      "ManyResult",
+      "ManyReturningArgs",
       "MappedDbError",
       "MemoryCache",
       "MutationEvent",

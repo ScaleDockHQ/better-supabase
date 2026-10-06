@@ -60,10 +60,34 @@ export interface UpdateArgs<
   T extends keyof M,
 > extends WriteArgs<M, T> {
   /**
-   * Optimistic concurrency: the update only applies when these columns still
-   * have these values. A mismatch returns a `stale` error.
+   * More conditions the row must meet, such as a tenant or a status. A row
+   * with this key that does not match returns `not_found`, in one request.
    */
-  readonly expect?: Partial<Row<M, T>>;
+  readonly where?: WhereInput<M, T>;
+  /**
+   * Optimistic concurrency: the update only applies when the row still
+   * matches. Plain values mean equality; operators work as in `where`. A
+   * mismatch returns a `stale` error, found with a second request.
+   */
+  readonly expect?: WhereInput<M, T>;
+}
+
+/** `updateMany` and `deleteMany` return the written rows with `returning: true`. */
+export type ManyResult<M extends AnyModels, T extends keyof M, A> = A extends {
+  readonly returning: true;
+}
+  ? Payload<M, T, A>[]
+  : { count: number };
+
+export interface ManyReturningArgs<M extends AnyModels, T extends keyof M> {
+  readonly where: WhereInput<M, T>;
+  /** Return the written rows instead of `{ count }`. */
+  readonly returning?: boolean;
+  /** The columns to return with `returning: true`. */
+  readonly select?: ReadArgs<M, T>["select"];
+  /** Related rows to return with `returning: true`. */
+  readonly include?: ReadArgs<M, T>["include"];
+  readonly signal?: AbortSignal;
 }
 
 export type ConflictTarget<M extends AnyModels, T extends keyof M> =
@@ -221,13 +245,13 @@ export interface Repository<
     patch: Update<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
-  updateMany(
-    args: {
-      readonly where: WhereInput<M, T>;
+  updateMany<
+    const A extends ManyReturningArgs<M, T> & {
       readonly data: Update<M, T>;
-      readonly signal?: AbortSignal;
     } & FindExt<E, M, T>,
-  ): AsyncResult<{ count: number }>;
+  >(
+    args: A,
+  ): AsyncResult<ManyResult<M, T, A>>;
   upsert<const A extends UpsertArgs<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
@@ -249,13 +273,13 @@ export interface Repository<
     id: PrimaryKeyValue<M, T>,
     args?: DeleteArgs & DeleteExt<E, M, T>,
   ): AsyncResult<void>;
-  deleteMany(
-    args: {
-      readonly where: WhereInput<M, T>;
-      readonly signal?: AbortSignal;
-    } & DeleteExt<E, M, T> &
+  deleteMany<
+    const A extends ManyReturningArgs<M, T> &
+      DeleteExt<E, M, T> &
       FindExt<E, M, T>,
-  ): AsyncResult<{ count: number }>;
+  >(
+    args: A,
+  ): AsyncResult<ManyResult<M, T, A>>;
 
   /** Adds methods built on this repository. */
   extend<X extends object>(build: (base: this) => X): this & X;

@@ -74,7 +74,8 @@ type UpdateFn = (
  * - `restore(key)` clears it.
  *
  * Deletes become updates without `RETURNING`, so a SELECT policy that hides
- * deleted rows does not make them fail.
+ * deleted rows does not make them fail. `deleteMany({ returning: true })`
+ * keeps `RETURNING`, which needs a SELECT policy that still shows the row.
  */
 export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
   return definePlugin<"softDelete", SoftDeleteExtension>({
@@ -110,7 +111,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
         table,
         set: { [column]: now().toString() },
         where: op.where,
-        returning: undefined,
+        returning: options["returning"] === true ? op.returning : undefined,
       };
     },
     repository({ table, base }) {
