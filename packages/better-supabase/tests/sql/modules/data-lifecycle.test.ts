@@ -18,6 +18,31 @@ const sqlOf = (
     .join("\n");
 
 describe("data-lifecycle module", () => {
+  it("checks the owner through the tenant module's role lookup", () => {
+    const sql = sqlOf(["organizations", "data-lifecycle"]);
+    expect(sql).toContain(
+      `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)`,
+    );
+    const through = renderModules(["data-lifecycle"], {
+      modules: {
+        tenant: {
+          mode: "adopt",
+          tables: { memberships: "public.members" },
+          columns: { memberships: { role: "role_id" } },
+          options: {
+            roleThrough: { table: "public.roles", id: "id", column: "name" },
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "tenant")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(through).toMatch(
+      /organization_member_role[\s\S]*?"public"\."roles"/,
+    );
+  });
+
   it("lists the tables of installed modules and creates the exports bucket", () => {
     const sql = sqlOf(["data-lifecycle"]);
     expect(sql).toContain(

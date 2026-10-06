@@ -321,7 +321,6 @@ function build(ctx: ModuleContext): string {
   const m = tenant.table("memberships");
   const mTenant = tenant.col("memberships", "tenant");
   const mUser = tenant.col("memberships", "user");
-  const mRole = tenant.col("memberships", "role");
   const ownerRole = sqlString(
     ctx.installed("organizations")
       ? ctx.of("organizations").text("ownerRole", "owner")
@@ -377,7 +376,9 @@ function build(ctx: ModuleContext): string {
     platformKey === ""
       ? ""
       : `\n    and not coalesce(better_supabase.is_platform(${sqlString(platformKey)}), false)`;
-  const owner = `exists (select 1 from ${m} mm where mm.${mTenant} = cancel_organization_deletion.tenant and mm.${mUser} = auth.uid() and mm.${mRole} = ${ownerRole})`;
+  // The tenant module resolves the role name, also when memberships point at
+  // a roles table (sql.modules.tenant.columns.role through a role id).
+  const owner = `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`;
 
   return `${schemaPreamble(ctx)}
 -- Exports of a user's or an organization's data, written by the app's
