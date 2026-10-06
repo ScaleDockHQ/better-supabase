@@ -189,3 +189,16 @@ signed-in user changes. `invalidate` refetches the table's
 [TanStack queries](/docs/frontend/query) after each message. It needs
 `queryClient` on `BetterSupabaseProvider`. The hook returns `joining`,
 `subscribed`, `closed` or `error`.
+
+An app that uses supabase-js without the better-supabase client passes its
+client (and a `queryClient` for `invalidate`) instead of the provider. The
+hook then follows that client's auth state to resubscribe for a new user:
+
+```tsx
+const status = useBroadcast(
+  customersTopic,
+  { organizationId },
+  { updated: (payload) => refresh(payload.id) },
+  { client: supabase, queryClient },
+);
+```
