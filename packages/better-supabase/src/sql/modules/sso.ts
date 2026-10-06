@@ -93,9 +93,10 @@ interface Roles {
 
 function rolesFor(ctx: ModuleContext): Roles {
   const model = accessModel(ctx);
-  if (model !== "roles" && model !== "catalog") {
+  const listed = model === "roles" || model === "catalog";
+  if (!listed && ctx.option("roleOrder") === undefined) {
     throw new TypeError(
-      `sql.modules.sso assigns membership roles, which needs sql.modules.access.model "roles" or "catalog", not "${model}"`,
+      `sql.modules.sso assigns membership roles. Under sql.modules.access.model "${model}" the roles are not in the config, so list the roles SCIM and auto-join may assign in sql.modules.sso.options.roleOrder, highest first`,
     );
   }
   const owner = ctx.installed("organizations")
@@ -103,7 +104,7 @@ function rolesFor(ctx: ModuleContext): Roles {
     : "owner";
   const order = ctx.list(
     "roleOrder",
-    roleNames(ctx).filter((role) => role !== owner),
+    listed ? roleNames(ctx).filter((role) => role !== owner) : [],
   );
   if (order.includes(owner)) {
     throw new TypeError(
@@ -448,6 +449,11 @@ begin
   end if;
   if update_organization_domain.auto_join_role is not null and not (update_organization_domain.auto_join_role = any (${assignable})) then
     raise exception 'Auto-join cannot assign role %', update_organization_domain.auto_join_role using errcode = '22023', hint = 'SSO_ROLE_INVALID';
+  end if;
+  if update_organization_domain.auto_join_role is not null
+    and not (${SERVICE_CALLER})
+    and not coalesce(better_supabase.can_assign(v_row.${cd("tenant")}, update_organization_domain.auto_join_role), false) then
+    raise exception 'You may not assign role %', update_organization_domain.auto_join_role using errcode = '42501', hint = 'SSO_ROLE_FORBIDDEN';
   end if;
   if (update_organization_domain.enforce_sso or update_organization_domain.auto_join_role is not null) and v_row.${cd("verifiedAt")} is null then
     raise exception 'Verify the domain first' using errcode = '22023', hint = 'SSO_DOMAIN_NOT_VERIFIED';

@@ -75,19 +75,30 @@ describe("sso module", () => {
     expect(() => sqlOf(["sso"], options)).toThrow(message);
   });
 
-  it("needs a roles or catalog access model", () => {
-    expect(() =>
-      sqlOf(["sso"], undefined, {
-        access: {
-          model: "custom",
-          functions: {
-            can: "app.can",
-            tenantIdsWith: "app.tenant_ids_with",
-            isPlatform: "app.is_platform",
-            canAssign: "app.can_assign",
-          },
+  it("needs roleOrder under the permdock and custom models", () => {
+    const custom = {
+      access: {
+        model: "custom",
+        functions: {
+          can: "app.can",
+          tenantIdsWith: "app.tenant_ids_with",
+          isPlatform: "app.is_platform",
+          canAssign: "app.can_assign",
         },
-      }),
-    ).toThrow(/needs sql.modules.access.model "roles" or "catalog"/);
+      },
+    };
+    expect(() => sqlOf(["sso"], undefined, custom)).toThrow(
+      /list the roles SCIM and auto-join may assign in sql.modules.sso.options.roleOrder/,
+    );
+    const sql = sqlOf(
+      ["sso"],
+      { roleOrder: ["manager", "staff"], defaultRole: "staff" },
+      custom,
+    );
+    expect(sql).toContain("array['manager', 'staff']::text[]");
+    expect(sql).toContain("hint = 'SSO_ROLE_FORBIDDEN'");
+    expect(sql).toContain(
+      'better_supabase.can_assign(v_row."organization_id", update_organization_domain.auto_join_role)',
+    );
   });
 });

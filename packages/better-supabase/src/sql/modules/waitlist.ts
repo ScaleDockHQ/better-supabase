@@ -11,7 +11,7 @@ import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { roleValue, TRUSTED_SETTING } from "./organizations.ts";
 
 const NAMES: ModuleNames = {
-  options: ["defaultRole", "codeField"],
+  options: ["defaultRole", "codeField", "roles"],
   tables: {
     entries: {
       name: "waitlist_entries",
@@ -57,13 +57,27 @@ const NAMES: ModuleNames = {
 
 const FIELD = /^[a-z][a-z0-9_]{0,62}$/;
 
-/** The roles an invite code may grant: every role but the owner. */
+/**
+ * The roles an invite code may grant: `options.roles`, else every role of
+ * the `roles` or `catalog` model but the owner. Under the `permdock` and
+ * `custom` models the roles are not in the config, so codes grant none
+ * unless `options.roles` lists them.
+ */
 function assignableRoles(ctx: ModuleContext): readonly string[] {
-  const model = accessModel(ctx);
-  if (model !== "roles" && model !== "catalog") return [];
   const owner = ctx.installed("organizations")
     ? ctx.of("organizations").text("ownerRole", "owner")
     : "owner";
+  if (ctx.option("roles") !== undefined) {
+    const roles = ctx.list("roles", []);
+    if (roles.includes(owner)) {
+      throw new TypeError(
+        `sql.modules.waitlist.options.roles must not include the owner role "${owner}"`,
+      );
+    }
+    return roles;
+  }
+  const model = accessModel(ctx);
+  if (model !== "roles" && model !== "catalog") return [];
   return roleNames(ctx).filter((role) => role !== owner);
 }
 
@@ -280,6 +294,11 @@ begin
   end if;
   if create_invite_code.role is not null and not (create_invite_code.role = any (${roles})) then
     raise exception 'An invite code can''t grant role %', create_invite_code.role using errcode = '22023', hint = 'WAITLIST_ROLE_INVALID';
+  end if;
+  if create_invite_code.role is not null
+    and not ${staff}
+    and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
+    raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
   insert into ${k} (${ck("hash")}, ${ck("prefix")}, ${ck("maxUses")}, ${ck("expiresAt")}, ${ck("tenant")}, ${ck("role")})
   values (

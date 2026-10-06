@@ -67,4 +67,27 @@ describe("waitlist module", () => {
     });
     expect(sql).toContain("array[]::text[]");
   });
+
+  it("grants the roles in options.roles under any model, checked with can_assign", () => {
+    const modules: ModulesConfig = {
+      access: {
+        model: "permdock",
+        permdock: { schema: "authz", scope: "organization" },
+      },
+      waitlist: {
+        options: { roles: ["staff", "viewer"], defaultRole: "viewer" },
+      },
+    };
+    const sql = sqlOf(["waitlist"], modules);
+    expect(sql).toContain("array['staff', 'viewer']::text[]");
+    expect(sql).toContain(
+      "better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role)",
+    );
+    expect(() =>
+      sqlOf(["waitlist"], {
+        ...modules,
+        waitlist: { options: { roles: ["owner"] } },
+      }),
+    ).toThrow(/must not include the owner role/);
+  });
 });
