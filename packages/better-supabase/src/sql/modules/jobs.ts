@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { SCHEMA } from "../shared.ts";
+import { SCHEMA, serviceOnly } from "../shared.ts";
 
 export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
@@ -903,39 +903,28 @@ as $$
   select exists (select 1 from advanced);
 $$;`;
 
-const GRANTS = (backend: JobsBackend) => `do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[${
-    backend === "pgmq"
-      ? `
-    'index_job_queue(text)',
-    'ensure_job_queue(text)',`
-      : ""
-  }
-    'enqueue_job(text, jsonb, integer, integer, text)',
-    'claim_jobs(text, integer, integer)',
-    'complete_job(text, bigint, integer)',
-    'fail_job(text, bigint, integer, text, integer)',
-    'extend_job_lease(text, bigint, integer, integer)',
-    'schedule_job(text, text, text, jsonb, text, timestamptz, text)',
-    'unschedule_job(text)',
-    'list_schedules(text, text)',
-    'unschedule_tenant(text)',
-    'claim_due_schedules(integer, integer)',
-    'advance_schedule(text, timestamptz, timestamptz)',
-    'purge_job_archive(text, interval, integer, interval)',
-    'replay_dead_job(text, bigint)',
-    'job_queue_stats(text)',
-    'list_dead_jobs(text, integer, bigint)',
-    'retry_dead_jobs(text, bigint[], integer)'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role', fn);
-  end loop;
-end;
-$$;`;
+const GRANTS = (backend: JobsBackend): string =>
+  serviceOnly([
+    ...(backend === "pgmq"
+      ? ["index_job_queue(text)", "ensure_job_queue(text)"]
+      : []),
+    "enqueue_job(text, jsonb, integer, integer, text)",
+    "claim_jobs(text, integer, integer)",
+    "complete_job(text, bigint, integer)",
+    "fail_job(text, bigint, integer, text, integer)",
+    "extend_job_lease(text, bigint, integer, integer)",
+    "schedule_job(text, text, text, jsonb, text, timestamptz, text)",
+    "unschedule_job(text)",
+    "list_schedules(text, text)",
+    "unschedule_tenant(text)",
+    "claim_due_schedules(integer, integer)",
+    "advance_schedule(text, timestamptz, timestamptz)",
+    "purge_job_archive(text, interval, integer, interval)",
+    "replay_dead_job(text, bigint)",
+    "job_queue_stats(text)",
+    "list_dead_jobs(text, integer, bigint)",
+    "retry_dead_jobs(text, bigint[], integer)",
+  ]);
 
 function jobsSql(ctx: ModuleContext): string {
   const backend = jobsBackend(ctx);

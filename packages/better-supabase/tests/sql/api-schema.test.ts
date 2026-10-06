@@ -34,6 +34,34 @@ describe("sql.modules.<module>.api", () => {
     }
   });
 
+  it("wraps the service functions of jobs, idempotency and the webhook inbox", () => {
+    for (const [name, fn] of [
+      ["jobs", "enqueue_job"],
+      ["idempotency", "begin_idempotent"],
+      ["webhook-inbox", "receive_webhook"],
+    ] as const) {
+      expect(schemaFile(name, "api")).toContain(
+        `create or replace function "api"."${fn}"(`,
+      );
+    }
+    for (const module of Object.values(SQL_MODULES)) {
+      if (module.target !== "schema") continue;
+      try {
+        expect({
+          module: module.name,
+          loops: /foreach fn in array array\[[\s\S]*?grant execute/.test(
+            renderModules([module.name]).find(
+              (file) => file.module === module.name,
+            )?.contents ?? "",
+          ),
+        }).toEqual({ module: module.name, loops: false });
+      } catch (cause) {
+        if (cause instanceof TypeError) continue;
+        throw cause;
+      }
+    }
+  });
+
   it("writes security invoker wrappers with the same arguments and grants", () => {
     const file = schemaFile("settings", {
       schema: "api",

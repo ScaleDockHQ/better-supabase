@@ -785,32 +785,33 @@ as $$
   select coalesce(better_supabase.platform_can(auth.uid(), is_platform.permission), false)
 $$;
 
-do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[
-    'permission_matches(text, text)',
-    'can(text, ${id}, text)',
-    'tenant_ids_with(text)',
-    'is_platform(text)',
-    'can_assign(${id}, text)'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public', fn);
-    execute format('grant execute on function better_supabase.%s to anon, authenticated, service_role', fn);
-  end loop;
-  foreach fn in array array[
-    'member_can(uuid, ${id}, text)',
-    'member_permissions(uuid, ${id})',
-    'platform_can(uuid, text)',
-    'can_user(uuid, text, ${id}, text)',
-    'permission_claims(uuid)'${model === "roles" || model === "catalog" ? `,\n    'can_assign_as(uuid, ${id}, text)'` : ""}
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role, supabase_auth_admin', fn);
-  end loop;
-end;
-$$;
+${[
+  "permission_matches(text, text)",
+  `can(text, ${id}, text)`,
+  "tenant_ids_with(text)",
+  "is_platform(text)",
+  `can_assign(${id}, text)`,
+]
+  .flatMap((fn) => [
+    `revoke execute on function better_supabase.${fn} from public;`,
+    `grant execute on function better_supabase.${fn} to anon, authenticated, service_role;`,
+  ])
+  .join("\n")}
+${[
+  `member_can(uuid, ${id}, text)`,
+  `member_permissions(uuid, ${id})`,
+  "platform_can(uuid, text)",
+  `can_user(uuid, text, ${id}, text)`,
+  "permission_claims(uuid)",
+  ...(model === "roles" || model === "catalog"
+    ? [`can_assign_as(uuid, ${id}, text)`]
+    : []),
+]
+  .flatMap((fn) => [
+    `revoke execute on function better_supabase.${fn} from public, anon, authenticated;`,
+    `grant execute on function better_supabase.${fn} to service_role, supabase_auth_admin;`,
+  ])
+  .join("\n")}
 
 -- The permission claim: { [tenant id]: permission keys }, for the access
 -- token hook when the app checks permissions from the token:

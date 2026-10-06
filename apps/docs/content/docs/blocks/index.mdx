@@ -55,8 +55,11 @@ it, Cloudflare Workers and other isolates without sockets do not. There, use
 notifications, outgoing webhooks, flags, announcements and the rest of the
 blocks that take a `transport`, and `createOutbox`, which takes a transport in
 place of the SQL client), and the `pgmq_public` RPCs for jobs. The
-idempotency keys, the webhook inbox, incoming webhooks, route rate limits and
-`exportAuditLog` still need a SQL connection. Give
+TypeScript helpers of the idempotency keys, the webhook inbox, incoming
+webhooks, route rate limits and `exportAuditLog` still need a SQL connection,
+but every function a module grants, the service-role ones of `jobs`,
+`idempotency`, `webhook-inbox` and `access` included, gets an entry point in
+the API schema, so a server can call them over the Data API. Give
 the module an API schema (`sql.modules.<module>.api`, see
 [SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api)), expose
 that schema, and pass it as `rpcTransport(supabase, { schema: "api" })`. Never

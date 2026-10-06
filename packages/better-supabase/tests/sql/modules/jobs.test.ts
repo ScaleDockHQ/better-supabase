@@ -16,7 +16,9 @@ describe("jobs module", () => {
     expect(sql).toContain("return cron.schedule(");
     expect(sql).not.toContain("job_messages");
     expect(sql).not.toContain("job_schedules");
-    expect(sql).toContain("'ensure_job_queue(text)'");
+    expect(sql).toContain(
+      "grant execute on function better_supabase.ensure_job_queue(text) to service_role;",
+    );
     expect(SQL_MODULES["jobs"]!.sql).toBe(sql);
   });
 
@@ -101,7 +103,9 @@ describe("jobs module", () => {
       expect(sql).toContain(
         "function better_supabase.replay_dead_job(queue text, job_id bigint)",
       );
-      expect(sql).toContain("'replay_dead_job(text, bigint)'");
+      expect(sql).toContain(
+        "grant execute on function better_supabase.replay_dead_job(text, bigint) to service_role;",
+      );
     }
     expect(moduleBody("jobs", {})).toContain(
       "perform pgmq.set_vt(queue, job_id, lease);",

@@ -54,6 +54,7 @@ import {
   type JsonSchemaCheck,
   jsonSchemaChecks,
   SCHEMA,
+  serviceOnly,
 } from "./shared.ts";
 
 export {
@@ -1024,21 +1025,12 @@ as $$
   select count(*)::integer from purged
 $$;
 
-do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[
-    'begin_idempotent(text, text, text, interval, interval)',
-    'complete_idempotent(text, text, integer, jsonb)',
-    'release_idempotent(text, text)',
-    'purge_idempotency_keys()'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role', fn);
-  end loop;
-end;
-$$;`,
+${serviceOnly([
+  "begin_idempotent(text, text, text, interval, interval)",
+  "complete_idempotent(text, text, integer, jsonb)",
+  "release_idempotent(text, text)",
+  "purge_idempotency_keys()",
+])}`,
 };
 
 const WEBHOOK_INBOX: SqlModule = {
@@ -1272,24 +1264,15 @@ as $$
   select count(*)::integer from purged
 $$;
 
-do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[
-    'receive_webhook(text, text, text, jsonb, jsonb, text, integer)',
-    'claim_webhooks(text, text, integer, interval)',
-    'complete_webhook(bigint, text)',
-    'fail_webhook(bigint, text, text, interval)',
-    'checkpoint_webhook(bigint, text, jsonb)',
-    'list_webhooks(text, text, text, integer)',
-    'purge_webhooks(interval, boolean, integer, text)'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role', fn);
-  end loop;
-end;
-$$;`,
+${serviceOnly([
+  "receive_webhook(text, text, text, jsonb, jsonb, text, integer)",
+  "claim_webhooks(text, text, integer, interval)",
+  "complete_webhook(bigint, text)",
+  "fail_webhook(bigint, text, text, interval)",
+  "checkpoint_webhook(bigint, text, jsonb)",
+  "list_webhooks(text, text, text, integer)",
+  "purge_webhooks(interval, boolean, integer, text)",
+])}`,
 };
 
 const realtimeTablesSql = (claims: ClaimsMeta): string => `${SCHEMA}

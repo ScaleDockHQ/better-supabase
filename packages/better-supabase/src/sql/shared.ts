@@ -393,3 +393,17 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
 -- continue. The trigger of the same name reports which part of the schema failed.
 ${statements.join("\n\n")}\n`;
 }
+
+/**
+ * Revokes each function from the API roles and grants it to `service_role`,
+ * one statement per function, so `sql.modules.<module>.api` sees the grants
+ * and writes an entry point for each.
+ */
+export function serviceOnly(signatures: readonly string[]): string {
+  return signatures
+    .flatMap((signature) => [
+      `revoke execute on function better_supabase.${signature} from public, anon, authenticated;`,
+      `grant execute on function better_supabase.${signature} to service_role;`,
+    ])
+    .join("\n");
+}
