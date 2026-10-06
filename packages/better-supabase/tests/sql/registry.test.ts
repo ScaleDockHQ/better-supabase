@@ -270,6 +270,30 @@ describe("sameModuleFile", () => {
     );
   });
 
+  it("writes the session policy on the declared tables except the excluded ones", () => {
+    const layout = {
+      modules: {
+        sessions: { options: { policies: true, exclude: ["public.audit_*"] } },
+      },
+      declaredTables: ["public.invoices", "public.audit_log"],
+    };
+    const [file] = renderModules(["sessions"], layout);
+    expect(file!.contents).toContain(
+      [
+        'drop policy if exists bs_session_active on "public"."invoices";',
+        'create policy bs_session_active on "public"."invoices" as restrictive',
+        "  for all to authenticated",
+        "  using ((select better_supabase.session_active()))",
+        "  with check ((select better_supabase.session_active()));",
+      ].join("\n"),
+    );
+    expect(file!.contents).not.toContain("audit_log");
+    expect(
+      renderModules(["sessions"], { declaredTables: ["public.invoices"] })[0]!
+        .contents,
+    ).not.toContain("bs_session_active");
+  });
+
   it("derives table grants from policies for tables expose doesn't list", () => {
     const config = resolveConfig(
       {

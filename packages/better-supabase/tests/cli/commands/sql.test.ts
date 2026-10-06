@@ -215,6 +215,32 @@ describe("runSql", () => {
     );
   });
 
+  it("writes the session policy on the tables the schema files create", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "create table public.notes (id int);\ncreate table public.audit_log (id int);\n",
+    );
+    await sql(["sync"], {
+      sql: {
+        modules: {
+          sessions: {
+            options: { policies: true, exclude: ["public.audit_*"] },
+          },
+        },
+      },
+    });
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      'create policy bs_session_active on "public"."notes"',
+    );
+    expect(file).not.toContain("audit_log");
+  });
+
   it("keeps data files out of pg-delta's schema folder when sql.dir is inside it", async () => {
     await mkdir(join(root, "supabase"), { recursive: true });
     await writeFile(

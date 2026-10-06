@@ -435,6 +435,37 @@ function unauditedTables(context: DoctorContext): FindingInput[] {
     }));
 }
 
+/** RLS tables in `config.schemas` without a restrictive `session_active()` policy, when `sessions` is in `sql.modules`. */
+function sessionlessTables(context: DoctorContext): FindingInput[] {
+  if (!context.config.sql.moduleNames.includes("sessions")) return [];
+  const exclude = globs(
+    context.config.sql.modules["sessions"]?.options?.["exclude"],
+  );
+  const owned = moduleOwned(context);
+  return catalogOf(context)
+    .tables.filter(
+      (table) =>
+        table.kind === "table" &&
+        table.rls &&
+        context.config.schemas.includes(table.schema) &&
+        !owned.schemas.has(table.schema) &&
+        !owned.tables.has(qualified(table)) &&
+        !exclude.some((pattern) => pattern.test(qualified(table))) &&
+        !table.policies.some(
+          (policy) =>
+            !policy.permissive &&
+            `${policy.using ?? ""} ${policy.check ?? ""}`.includes(
+              "session_active()",
+            ),
+        ),
+    )
+    .map((table) => ({
+      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set sql.modules.sessions.options.policies to true and run \`better-supabase sql sync\`, add the policy by hand, or list the table in sql.modules.sessions.options.exclude.`,
+      target: qualified(table),
+      object: tableObject(table),
+    }));
+}
+
 /** `better_supabase` and every `modules.*.schema` that `[api] schemas` serves through the Data API. */
 function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
   if (context.config.sql.moduleNames.length === 0) return [];
@@ -632,5 +663,13 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "A schema file, SQL module or migration alters, drops or changes the memberships of a role supautils reserves on Supabase (`supabase_admin`, `supabase_auth_admin`, `supabase_storage_admin`, `pgbouncer` and the other platform roles). The statement fails on a hosted project. `authenticator`, `authenticated`, `anon` and `service_role` accept `alter role ... set` (for example `pgrst.db_pre_request` or `statement_timeout`) and nothing else.",
     check: reservedRoles,
+  },
+  {
+    code: "BS320",
+    severity: "warning",
+    title: "Table without the session policy",
+    description:
+      "The `sessions` module is in `sql.modules`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `sql.modules.sessions.options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
+    check: sessionlessTables,
   },
 ];

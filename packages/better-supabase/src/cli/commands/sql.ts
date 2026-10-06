@@ -21,6 +21,7 @@ import {
   moduleLayout,
   modulePermissionKeys,
   moduleBody,
+  declaredTables,
   policyGrants,
   renderModules,
   resolveModules,
@@ -244,6 +245,15 @@ async function layoutFor(
     config.sql.modules["grants"]?.options?.["fromPolicies"] === true
       ? {
           policyGrants: policyGrants(await schemaTexts(config), config.schemas),
+        }
+      : {}),
+    ...(resolved.has("sessions") &&
+    config.sql.modules["sessions"]?.options?.["policies"] === true
+      ? {
+          declaredTables: declaredTables(
+            await schemaTexts(config),
+            config.schemas,
+          ),
         }
       : {}),
   };

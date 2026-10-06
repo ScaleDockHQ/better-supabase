@@ -714,6 +714,18 @@ else. Granting privileges on objects to a reserved role
 (`grant usage on schema auth to supabase_auth_admin`) is not flagged. Create
 your own role for anything else.
 
+### BS320
+
+**Warning: table without the session policy.** The `sessions` module is in
+`sql.modules`, and a table with RLS in `schemas` has no restrictive policy
+that calls `better_supabase.session_active()`, so a token whose session was
+signed out, or whose user was banned or deleted, keeps reaching the table
+until it expires. Set `sql.modules.sessions.options.policies` to `true` and
+run `better-supabase sql sync` to write the policy on every table, or add it
+by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
+other tables in `sql.modules.sessions.options.exclude` as `schema.table`
+globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
+
 ## Auth config
 
 ### BS401

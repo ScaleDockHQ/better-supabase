@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { policyGrants } from "../../src/sql/policy-grants.ts";
+import {
+  declaredTables,
+  policyGrants,
+  tableGlobs,
+} from "../../src/sql/schema-scan.ts";
 
 describe("policyGrants", () => {
   it("collects the permissive policies per table and role", () => {
@@ -34,5 +38,31 @@ create policy internal on private.secrets for select to authenticated using (tru
         privileges: ["select", "insert", "update", "delete"],
       },
     ]);
+  });
+});
+
+describe("declaredTables", () => {
+  it("lists the created tables in the schemas once", () => {
+    expect(
+      declaredTables(
+        [
+          {
+            text: `create table public.notes (id int);
+-- create table public.ignored (id int);
+create table if not exists invoices (id int);
+create unlogged table "public"."Cache" (key text);
+create table private.secrets (id int);
+create table public.notes (id int);`,
+          },
+        ],
+        ["public"],
+      ),
+    ).toEqual(["public.notes", "public.invoices", "public.Cache"]);
+  });
+
+  it("matches globs on schema.table", () => {
+    const [pattern] = tableGlobs(["public.audit_*"]);
+    expect(pattern!.test("public.audit_log")).toBe(true);
+    expect(pattern!.test("public.auditlog")).toBe(false);
   });
 });

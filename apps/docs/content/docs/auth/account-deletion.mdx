@@ -75,6 +75,27 @@ create policy session_required on public.invoices as restrictive
 Tokens without a `session_id` claim (signed by your app) and support tokens
 (with an `act` claim, which the support block ends) pass.
 
+To put that policy on every table, set `options.policies`. `sql sync` reads
+the `create table` statements in your schema files and migrations and writes
+one `bs_session_active` policy per table in `schemas`, except the
+`exclude` globs. Run it again after adding a table:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      sessions: {
+        options: { policies: true, exclude: ["public.pricing_plans"] },
+      },
+    },
+  },
+});
+```
+
+Doctor reports every RLS table in `schemas` without a restrictive
+`session_active()` policy as [BS320](/docs/cli/doctor#bs320), skipping the
+`exclude` globs and the tables SQL modules own.
+
 ## What it does
 
 1. **Storage.** For each bucket in `buckets` with an owner placeholder, it

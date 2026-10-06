@@ -1147,6 +1147,76 @@ comment on table public.t is 'alter role supabase_admin nologin';`),
   });
 });
 
+describe("tables without the session policy (BS320)", () => {
+  const rlsTables = toCatalog(base)
+    .tables.filter(
+      (entry) =>
+        entry.schema === "public" && entry.kind === "table" && entry.rls,
+    )
+    .map((entry) => `public.${entry.name}`);
+
+  it("lists RLS tables without a restrictive session_active() policy", async () => {
+    const covered = snapshot((tables) => {
+      const customers = table(tables, "customers");
+      customers.policies = [
+        ...customers.policies,
+        {
+          name: "bs_session_active",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: false,
+          using: "( SELECT better_supabase.session_active() AS session_active)",
+          check: "( SELECT better_supabase.session_active() AS session_active)",
+        },
+      ];
+      const notes = table(tables, "notes");
+      notes.policies = [
+        ...notes.policies,
+        {
+          name: "permissive_only",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: true,
+          using: "better_supabase.session_active()",
+          check: null,
+        },
+      ];
+    });
+    const findings = await run(
+      "BS320",
+      context(covered, {}, { sql: { modules: ["sessions"] } }),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual(
+      rlsTables.filter((name) => name !== "public.customers"),
+    );
+    expect(findings[0]).toMatchObject({
+      severity: "warning",
+      object: { kind: "table", schema: "public" },
+    });
+    expect(findings[0]!.message).toContain(
+      "sql.modules.sessions.options.exclude",
+    );
+  });
+
+  it("skips excluded tables and projects without the module", async () => {
+    expect(
+      await run(
+        "BS320",
+        context(
+          base,
+          {},
+          {
+            sql: {
+              modules: { sessions: { options: { exclude: ["public.*"] } } },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS320", context(base))).toEqual([]);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {

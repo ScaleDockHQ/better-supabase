@@ -805,6 +805,51 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("writes the session policy on every declared table with options.policies", async () => {
+    const name = `bs_sessions_${RUN}`;
+    const user = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
+      [`sessions-${RUN}@example.com`],
+    );
+    const sub = user.rows[0]!.id;
+    const session = crypto.randomUUID();
+    try {
+      await pool.query(
+        `insert into auth.sessions (id, user_id, created_at, updated_at) values ($1, $2, now(), now())`,
+        [session, sub],
+      );
+      await pool.query(
+        `create table public.${name} (id int primary key);
+         alter table public.${name} enable row level security;
+         create policy everyone on public.${name} for select to authenticated using (true);
+         grant select on public.${name} to authenticated;
+         insert into public.${name} values (1);`,
+      );
+      const [file] = renderModules(["sessions"], {
+        modules: {
+          sessions: {
+            options: { policies: true, exclude: ["public.other_*"] },
+          },
+        },
+        declaredTables: [`public.${name}`, "public.other_table"],
+      });
+      expect(file!.contents).not.toContain("other_table");
+      await pool.query(file!.contents);
+      const rows = async () =>
+        (
+          await postgres
+            .asUser({ sub, role: "authenticated", session_id: session })
+            .queryRaw(`select id from public.${name}`)
+        ).length;
+      expect(await rows()).toBe(1);
+      await pool.query("delete from auth.sessions where id = $1", [session]);
+      expect(await rows()).toBe(0);
+    } finally {
+      await pool.query(`drop table if exists public.${name}`);
+      await pool.query("delete from auth.users where id = $1", [sub]);
+    }
+  });
+
   it("puts memberships and Stripe features in separate claims and RLS", async () => {
     const billing = `bs_billing_${RUN}`;
     const hook = `public.bs_hook_${RUN}`;

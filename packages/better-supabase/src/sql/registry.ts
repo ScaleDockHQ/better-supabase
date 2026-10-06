@@ -48,6 +48,7 @@ import { USAGE } from "./modules/usage.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { tableGlobs } from "./schema-scan.ts";
 import {
   EQUIVALENT_TRIGGERS,
   type JsonSchemaCheck,
@@ -338,14 +339,41 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
-const SESSIONS: SqlModule = {
+/**
+ * `sql.modules.sessions.options.policies`: a restrictive session policy on
+ * every table the schema files create in `schemas`, except `exclude`.
+ */
+function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
+  if (!ctx.flag("policies", false)) return "";
+  const exclude = tableGlobs(ctx.list("exclude", []));
+  const tables = (layout.declaredTables ?? []).filter(
+    (table) => !exclude.some((pattern) => pattern.test(table)),
+  );
+  if (tables.length === 0) return "";
+  const statements = tables.map((table) => {
+    const target = qualifiedTable(table);
+    return `drop policy if exists bs_session_active on ${target};
+create policy bs_session_active on ${target} as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));`;
+  });
+  return `
+
+-- sql.modules.sessions.options.policies: every table in the schema files,
+-- except sql.modules.sessions.options.exclude. \`sql sync\` rewrites these.
+${statements.join("\n")}`;
+}
+
+const SESSIONS: ModuleDefinition = {
   name: "sessions",
+  names: { tables: {}, options: ["exclude", "policies"] },
   title: "Session revocation",
   description:
-    "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire.",
+    "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: (ctx, layout) => `${SCHEMA}
 
 -- An access token stays valid until it expires, even after its session is
 -- signed out or its user is deleted. This checks the session behind it.
@@ -390,7 +418,7 @@ grant execute on function better_supabase.session_active() to authenticated;
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}`,
 };
 
 /** The tenant module's memberships table and columns, for the entitlement lookups. */
@@ -1796,7 +1824,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(OUTBOX),
       built(NOTIFICATIONS),
       built(WEBHOOKS_OUT),
-      SESSIONS,
+      built(SESSIONS),
       built(WEBHOOKS_IN),
       built(API_KEYS),
       built(SETTINGS),
@@ -1877,6 +1905,8 @@ export interface ModuleLayout {
    * their listed privileges.
    */
   readonly policyGrants?: readonly TableGrant[];
+  /** The tables the schema files create, for `sql.modules.sessions.options.policies`. */
+  readonly declaredTables?: readonly string[];
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;

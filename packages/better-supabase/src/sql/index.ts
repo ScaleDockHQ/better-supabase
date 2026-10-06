@@ -31,7 +31,11 @@ export type {
 } from "./registry.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
-export { policyGrants, type PolicyGrant } from "./policy-grants.ts";
+export {
+  declaredTables,
+  policyGrants,
+  type PolicyGrant,
+} from "./schema-scan.ts";
 export { contractSignature } from "./context.ts";
 export type {
   ModuleContext,

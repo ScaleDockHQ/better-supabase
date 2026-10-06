@@ -25,6 +25,44 @@ function qualified(target: string): string {
   return parts.length === 1 ? `public.${parts[0]!}` : parts.join(".");
 }
 
+const TABLE = new RegExp(
+  String.raw`\bcreate\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?(${NAME}(?:\s*\.\s*${NAME})?)\s*\(`,
+  "gi",
+);
+
+/** `*` in a `schema.table` glob matches any run of characters. */
+export function tableGlobs(globs: readonly string[]): RegExp[] {
+  return globs.map(
+    (glob) =>
+      new RegExp(
+        `^${glob
+          .split("*")
+          .map((part) => part.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          .join(".*")}$`,
+        "i",
+      ),
+  );
+}
+
+/**
+ * The tables `files` create (`create table`), as `schema.table`, in the
+ * order they first appear. Only tables in `schemas` are kept.
+ */
+export function declaredTables(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): string[] {
+  const found = new Set<string>();
+  for (const file of files) {
+    for (const match of withoutComments(file.text).matchAll(TABLE)) {
+      const table = qualified(match[1]!);
+      if (schemas.includes(table.slice(0, table.indexOf("."))))
+        found.add(table);
+    }
+  }
+  return [...found];
+}
+
 /**
  * The privileges the permissive policies in `files` imply, per table and
  * role: `for all` gives the four commands, `to public` (or no `to`) counts
