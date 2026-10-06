@@ -377,6 +377,31 @@ await inbox.process(async (message) => {
 a new message and `200` for a duplicate. A failed verification gets a
 Problem Details response.
 
+A failed message is retried with exponential backoff until `maxAttempts`
+(8 by default, set per source on `createInbox`), then marked dead. Each
+message stores the limit it arrived with. The handler sees `attempts` (1 on
+the first) and `maxAttempts`, so it can tell its last attempt, for example
+to notify someone before the message is given up:
+
+```ts
+const crm = createInbox(postgres.admin, {
+  source: "crm",
+  secrets,
+  maxAttempts: 3,
+});
+
+await crm.process(async (message) => {
+  const result = await syncContact(message.payload);
+  if (!result.ok && message.attempts === message.maxAttempts) {
+    await alertOwner(message, result.error);
+  }
+  return result;
+});
+```
+
+A message whose worker died during its last attempt is marked dead by the
+next `process` instead of running again.
+
 A webhook carries no session, so pick the identity in the handler. Look up
 the user and tenant the event belongs to (a Stripe customer id maps to an
 organization and its owner), then run the work with

@@ -1881,6 +1881,65 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(await inbox.list({ tenant: "acct-b" }).orThrow()).toHaveLength(1);
   });
 
+  it("marks inbox messages dead at the source's maxAttempts", async () => {
+    const source = `attempts-${RUN}`;
+    const inbox = createInbox(postgres.admin, { source, maxAttempts: 2 });
+    try {
+      await inbox.store({ id: "m1", payload: {} }).orThrow();
+      const seen: [number, number][] = [];
+      const fail = (message: { attempts: number; maxAttempts: number }) => {
+        seen.push([message.attempts, message.maxAttempts]);
+        throw new Error("still failing");
+      };
+      expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 1 });
+      await pool.query(
+        "update better_supabase.webhook_inbox set available_at = now() where source = $1",
+        [source],
+      );
+      expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 1 });
+      expect(seen).toEqual([
+        [1, 2],
+        [2, 2],
+      ]);
+      await inbox.store({ id: "m2", payload: {} }).orThrow();
+      await pool.query(
+        `update better_supabase.webhook_inbox
+         set status = 'processing', attempts = 2, locked_by = 'gone', locked_until = now() - interval '1 second'
+         where source = $1 and message_id = 'm2'`,
+        [source],
+      );
+      expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 0 });
+      const rows = await pool.query<{
+        message_id: string;
+        status: string;
+        max_attempts: number;
+        last_error: string;
+      }>(
+        "select message_id, status, max_attempts, last_error from better_supabase.webhook_inbox where source = $1 order by message_id",
+        [source],
+      );
+      expect(rows.rows).toEqual([
+        {
+          message_id: "m1",
+          status: "dead",
+          max_attempts: 2,
+          last_error: "still failing",
+        },
+        {
+          message_id: "m2",
+          status: "dead",
+          max_attempts: 2,
+          last_error: "The lease ran out on the last attempt",
+        },
+      ]);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.webhook_inbox where source = $1",
+        [source],
+      );
+    }
+  });
+
   it("purges old audit entries, processed webhooks and job archives", async () => {
     const old = "now() - interval '11 years'";
     const count = async (text: string, params: unknown[] = []) =>

@@ -985,7 +985,7 @@ const WEBHOOK_INBOX: SqlModule = {
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
   requires: [],
   target: "schema",
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -993,6 +993,13 @@ const WEBHOOK_INBOX: SqlModule = {
         "Messages record a tenant and a checkpoint; receive_webhook and purge_webhooks take a tenant, and checkpoint_webhook and list_webhooks are new.",
       sql: () =>
         "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);\ndrop function if exists better_supabase.purge_webhooks(interval, boolean, integer);",
+    },
+    {
+      from: 2,
+      description:
+        "receive_webhook takes the source's max_attempts; claims mark a message whose last attempt lost its worker as dead.",
+      sql: () =>
+        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);",
     },
   ],
   sql: `${SCHEMA}
@@ -1029,18 +1036,21 @@ alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
 
--- The signatures before messages had a tenant.
+-- The signatures before messages had a tenant, and before a source set its attempts.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
 drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
+drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 
 -- duplicate = true when the message id was seen before (the sender retried).
+-- max_attempts is the source's limit, 8 when null.
 create or replace function better_supabase.receive_webhook(
   source text,
   message_id text,
   event_type text,
   payload jsonb,
   headers jsonb default '{}',
-  tenant text default null
+  tenant text default null,
+  max_attempts integer default null
 )
 returns table (id bigint, duplicate boolean)
 language plpgsql
@@ -1050,8 +1060,8 @@ as $$
 declare
   inbox_id bigint;
 begin
-  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant)
-  values (source, message_id, event_type, payload, headers, receive_webhook.tenant)
+  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant, max_attempts)
+  values (source, message_id, event_type, payload, headers, receive_webhook.tenant, greatest(coalesce(receive_webhook.max_attempts, 8), 1))
   on conflict on constraint webhook_inbox_source_message_id_key do nothing
   returning webhook_inbox.id into inbox_id;
   if inbox_id is not null then
@@ -1064,6 +1074,8 @@ begin
 end;
 $$;
 
+-- A message whose lease ran out on its last attempt lost its worker
+-- (fail_webhook marks it dead otherwise), so the claim marks it dead.
 create or replace function better_supabase.claim_webhooks(
   source text,
   worker text,
@@ -1074,6 +1086,10 @@ returns setof better_supabase.webhook_inbox
 language sql
 set search_path = ''
 as $$
+  update better_supabase.webhook_inbox d
+  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
+  where d.source = claim_webhooks.source and d.status = 'processing'
+    and d.locked_until < now() and d.attempts >= d.max_attempts;
   with next as materialized (
     select c.id from better_supabase.webhook_inbox c
     where c.source = claim_webhooks.source
@@ -1198,7 +1214,7 @@ declare
   fn text;
 begin
   foreach fn in array array[
-    'receive_webhook(text, text, text, jsonb, jsonb, text)',
+    'receive_webhook(text, text, text, jsonb, jsonb, text, integer)',
     'claim_webhooks(text, text, integer, interval)',
     'complete_webhook(bigint, text)',
     'fail_webhook(bigint, text, text, interval)',

@@ -263,7 +263,14 @@ export interface InboxMessage<T = unknown> {
   readonly type: string | null;
   readonly payload: T;
   readonly headers: Readonly<Record<string, string>>;
+  /** 1 on the first attempt. */
   readonly attempts: number;
+  /**
+   * The source's limit when the message was stored. A handler running with
+   * `attempts === maxAttempts` is on its last attempt: when it fails, the
+   * message is marked dead.
+   */
+  readonly maxAttempts: number;
   readonly receivedAt: Temporal.Instant;
   /** The tenant the message was stored for, or null. */
   readonly tenant: string | null;
@@ -317,6 +324,11 @@ export interface InboxOptions
   /** Headers kept with the message. Defaults to none. */
   readonly keepHeaders?: readonly string[];
   readonly worker?: string;
+  /**
+   * Attempts before a message of this source is marked dead, stored with
+   * each message as it arrives. Defaults to 8.
+   */
+  readonly maxAttempts?: number;
 }
 
 export interface InboxListOptions {
@@ -334,6 +346,7 @@ export interface InboxEntry {
   readonly type: string | null;
   readonly status: "pending" | "processing" | "processed" | "dead";
   readonly attempts: number;
+  readonly maxAttempts: number;
   readonly lastError: string | null;
   readonly tenant: string | null;
   readonly receivedAt: Temporal.Instant;
@@ -380,6 +393,7 @@ interface InboxRow {
   payload: unknown;
   headers: Record<string, string>;
   attempts: number;
+  max_attempts?: number;
   received_at: Date | string;
   tenant?: string | null;
   checkpoint?: Record<string, unknown> | null;
@@ -400,6 +414,12 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   applyTemporal(options);
   const worker = options.worker ?? workerId();
   const format = options.problem;
+  const maxAttempts = options.maxAttempts ?? 8;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new TypeError(
+      `createInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
+    );
+  }
 
   const verified = async (
     request: Request,
@@ -425,7 +445,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
         id: string | number;
         duplicate: boolean;
       }>(
-        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
+        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
         [
           options.source,
           event.id,
@@ -437,6 +457,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           (event.tenant === undefined
             ? options.tenantOf?.(event.payload)
             : event.tenant) ?? null,
+          maxAttempts,
         ],
       );
       return { id: Number(row!.id), duplicate: row!.duplicate };
@@ -461,6 +482,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           type: row.event_type,
           status: row.status ?? "pending",
           attempts: row.attempts,
+          maxAttempts: row.max_attempts ?? maxAttempts,
           lastError: row.last_error ?? null,
           tenant: row.tenant ?? null,
           receivedAt: toInstant(row.received_at),
@@ -538,6 +560,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
             payload: row.payload as never,
             headers: row.headers,
             attempts: row.attempts,
+            maxAttempts: row.max_attempts ?? maxAttempts,
             receivedAt: toInstant(row.received_at),
             tenant: row.tenant ?? null,
             progress: row.checkpoint ?? {},

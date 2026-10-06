@@ -1731,7 +1731,7 @@ describe("createInbox", () => {
     expect(await response.json()).toEqual({ id: 5, duplicate: false });
     expect(fake.calls).toEqual([
       {
-        text: "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
+        text: "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
         values: [
           "stripe",
           "msg_1",
@@ -1739,6 +1739,7 @@ describe("createInbox", () => {
           '{"type":"invoice.paid","amount":10}',
           '{"x-request-id":"r1"}',
           null,
+          8,
         ],
       },
     ]);
@@ -1858,6 +1859,7 @@ describe("createInbox", () => {
       '{"account":"t1","kind":"message"}',
       "{}",
       "t1",
+      8,
     ]);
     await inbox
       .store({ id: "d2", payload: {}, type: "message", tenant: "t2" })
@@ -1870,6 +1872,7 @@ describe("createInbox", () => {
     expect(fake.calls[2]!.values).toEqual(["t1", "chat", "dead", 5]);
     expect(listed[0]).toMatchObject({
       id: 9,
+      maxAttempts: 8,
       status: "dead",
       lastError: "boom",
       tenant: "t1",
@@ -2001,6 +2004,7 @@ describe("createInbox", () => {
       payload: { n: 1 },
       headers: { "x-request-id": "r1" },
       attempts: 1,
+      maxAttempts: 8,
       receivedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
       tenant: null,
       progress: {},
@@ -2017,6 +2021,41 @@ describe("createInbox", () => {
       ["fail_webhook", [4, "w1", "The handler failed"]],
       ["claim_webhooks", ["stripe", "w1", 2, "5 minutes"]],
     ]);
+  });
+
+  it("stores the source's maxAttempts and hands the handler its last attempt", async () => {
+    const fake = fakeSql([
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      [
+        "claim_webhooks",
+        sequence([
+          {
+            id: 1,
+            source: "crm",
+            message_id: "m1",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 3,
+            max_attempts: 3,
+            received_at: "2026-01-01T00:00:00Z",
+          },
+        ]),
+      ],
+    ]);
+    const inbox = createInbox(fake.sql, { source: "crm", maxAttempts: 3 });
+    await inbox.store({ id: "m1", payload: {} }).orThrow();
+    expect(fake.calls[0]!.values[6]).toBe(3);
+    const last: boolean[] = [];
+    await inbox.process((message) => {
+      last.push(message.attempts === message.maxAttempts);
+    });
+    expect(last).toEqual([true]);
+    for (const maxAttempts of [0, 1.5]) {
+      expect(() =>
+        createInbox(fake.sql, { source: "crm", maxAttempts }),
+      ).toThrow(/maxAttempts must be a positive integer/);
+    }
   });
 
   it("claims ten messages for 300 seconds with a generated worker id by default", async () => {
