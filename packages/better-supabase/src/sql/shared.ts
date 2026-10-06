@@ -304,17 +304,32 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
       ? `_${check.where.value.replaceAll(/[^a-z0-9_]/gi, "_")}`
       : "";
     const name = sqlIdent(`bs_json_${check.column}${suffix}`.slice(0, 63));
-    const matches = `extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)})`;
+    const schemaText = sqlString(JSON.stringify(check.schema));
+    const matches = `extensions.jsonb_matches_schema(${schemaText}::json, ${sqlIdent(check.column)})`;
+    const columns = check.where
+      ? `${sqlIdent(check.column)}, ${sqlIdent(check.where.column)}`
+      : sqlIdent(check.column);
+    const args = [
+      sqlString(check.column),
+      schemaText,
+      ...(check.where
+        ? [sqlString(check.where.column), sqlString(check.where.value)]
+        : []),
+    ].join(", ");
     return [
       `alter table ${target} drop constraint if exists ${name};`,
       `alter table ${target} add constraint ${name}`,
       `  check (${check.where ? `${sqlIdent(check.where.column)} <> ${sqlString(check.where.value)} or ` : ""}${matches}) not valid;`,
       `alter table ${target} validate constraint ${name};`,
+      `drop trigger if exists ${name} on ${target};`,
+      `create trigger ${name} before insert or update of ${columns} on ${target}`,
+      `  for each row execute function better_supabase.check_json_schema(${args});`,
     ].join("\n");
   });
   return `\n-- config.json schemas
 -- Each check is added not valid and validated separately. On a large table,
--- move the validate statements to a later migration: the add modules writes
--- only briefly, and validating takes a lock that lets writes continue.
+-- move the validate statements to a later migration: adding a not valid check
+-- blocks writes only briefly, and validating takes a lock that lets writes
+-- continue. The trigger of the same name reports which part of the schema failed.
 ${statements.join("\n\n")}\n`;
 }
