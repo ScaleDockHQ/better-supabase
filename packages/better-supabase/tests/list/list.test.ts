@@ -105,9 +105,9 @@ describe("defineListQuery", () => {
     expect(params.get("organization_id")).toBe("eq.org-1");
     expect(params.getAll("or")).toEqual([
       '(name.ilike."%o,(x)%",kvk.ilike."%o,(x)%")',
-      '(kvk.in.("1001"),kvk.is.null)',
+      "(kvk.in.(1001),kvk.is.null)",
     ]);
-    expect(params.get("status")).toBe('in.("active")');
+    expect(params.get("status")).toBe("in.(active)");
     expect(params.get("order")).toBe("created_at.desc,id.asc");
     expect(params.get("limit")).toBe("26");
   });
@@ -149,7 +149,7 @@ describe("defineListQuery", () => {
 
     const [pageRequest, groupRequest] = requests;
     expect(pageRequest!.headers.get("prefer")).toContain("count=planned");
-    expect(pageRequest!.params.get("status")).toBe('in.("active")');
+    expect(pageRequest!.params.get("status")).toBe("in.(active)");
     expect(groupRequest!.params.get("status")).toBeNull();
     expect(groupRequest!.params.get("organization_id")).toBe("eq.org-1");
     expect(groupRequest!.params.toString()).toContain("acme");

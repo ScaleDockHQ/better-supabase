@@ -143,7 +143,28 @@ describe("compilePostgrest filters", () => {
     [
       "in with quoting",
       col("name", "in", ["a", 'q"x', "back\\slash", null]),
-      filter("name", "in", '("a","q\\"x","back\\\\slash","null")'),
+      filter("name", "in", '(a,"q\\"x","back\\\\slash","null")'),
+    ],
+    [
+      "in with bare values",
+      col("id", "in", [
+        "6f1c2b9e-0d4a-4f7e-9b1a-2c3d4e5f6a7b",
+        12,
+        1.5,
+        true,
+        "2026-01-02T03:04:05.123Z",
+        "a@b.test",
+        "NULL",
+        "two words",
+        "a,b",
+        "f(x)",
+        "",
+      ]),
+      filter(
+        "id",
+        "in",
+        '(6f1c2b9e-0d4a-4f7e-9b1a-2c3d4e5f6a7b,12,1.5,true,2026-01-02T03:04:05.123Z,a@b.test,"NULL","two words","a,b","f(x)","")',
+      ),
     ],
     ["is null", col("kvk", "is", null), filter("kvk", "is", "null")],
     ["is false", col("kvk", "is", false), filter("kvk", "is", "false")],
@@ -249,7 +270,7 @@ describe("compilePostgrest filters", () => {
           col("tags", "overlaps", ["t"]),
         ],
       },
-      'and(status.in.("lead"),kvk.is.null),name.not.like."x%",not.and(id.eq."1",id.eq."2"),metadata.cs."{\\"a\\":1}",tags.ov.{"t"}',
+      'and(status.in.(lead),kvk.is.null),name.not.like."x%",not.and(id.eq."1",id.eq."2"),metadata.cs."{\\"a\\":1}",tags.ov.{"t"}',
     ],
   ])("renders %s as a logic tree", (_name, where, expression) => {
     expect(plan(select({ where })).filters).toEqual([orFilter(expression)]);
