@@ -74,7 +74,7 @@ describe("schema design rules", () => {
       expect(await run(context(base), code)).toEqual([]);
   });
 
-  it("flags foreign keys without an index and drops splinter's duplicate (BS216)", async () => {
+  it("flags foreign keys without an index and defers to splinter's lint (BS216)", async () => {
     const snap = snapshot((tables) => {
       const notes = table(tables, "notes");
       notes.indexes = notes.indexes.filter(
@@ -109,7 +109,12 @@ describe("schema design rules", () => {
       context(snap, { advisors }),
       RULES.filter((rule) => ["BS200", "BS216"].includes(rule.code)),
     );
-    expect(both.map((finding) => finding.code)).toEqual(["BS216"]);
+    expect(both.map((finding) => finding.code)).toEqual(["BS200"]);
+    expect(
+      (await run(context(snap, { advisors }), "BS216")).map(
+        (finding) => finding.target,
+      ),
+    ).toEqual(["public.notes.notes_customer_id_fkey"]);
   });
 
   it("flags tenant foreign keys without the tenant column (BS217)", async () => {

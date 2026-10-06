@@ -729,7 +729,7 @@ describe("doctor rules", () => {
       ).toEqual([]);
     });
 
-    it("flags overlapping permissive policies and drops the splinter duplicate (BS207)", async () => {
+    it("flags overlapping permissive policies and defers to splinter's lint (BS207)", async () => {
       const snap = snapshot((tables) => {
         edit(table(tables, "notes").policies).push({
           name: "notes_public_read",
@@ -771,23 +771,56 @@ describe("doctor rules", () => {
       const both = RULES.filter((rule) =>
         ["BS200", "BS207"].includes(rule.code),
       );
-      expect(await codes(context(snap, { advisors }), undefined)).toContain(
+      expect(await codes(context(snap, { advisors }), undefined)).not.toContain(
         "BS207",
       );
       expect(
         (await runRules(context(snap, { advisors }), both)).map(
           (finding) => finding.code,
         ),
-      ).toEqual(["BS207"]);
-      // Without BS207 in the run, splinter's lint stays.
+      ).toEqual(["BS200"]);
+      // Without BS200 in the run, BS207 reports the table itself.
+      expect(await codes(context(snap, { advisors }), "BS207")).toEqual([
+        "BS207",
+      ]);
+      // An advisor that fails leaves the finding to BS207.
+      const failing: AdvisorSource = {
+        describe: "test",
+        lints: () => Promise.reject(new Error("offline")),
+      };
+      expect(
+        (await runRules(context(snap, { advisors: failing }), both)).map(
+          (finding) => finding.code,
+        ),
+      ).toEqual(["BS200", "BS207"]);
+      // A skipped advisor (saved snapshot) does the same.
       expect(
         (
           await runRules(
-            context(snap, { advisors }),
-            RULES.filter((rule) => rule.code === "BS200"),
+            context(snap, { advisors: { skipped: "saved snapshot" } }),
+            both,
           )
         ).map((finding) => finding.code),
-      ).toEqual(["BS200"]);
+      ).toEqual(["BS200", "BS207"]);
+    });
+
+    it("asks the advisor source once per category", async () => {
+      let calls = 0;
+      const advisors: AdvisorSource = {
+        describe: "test",
+        lints: () => {
+          calls += 1;
+          return Promise.resolve([]);
+        },
+      };
+      await runRules(
+        context(
+          snapshot(() => {}),
+          { advisors },
+        ),
+        RULES.filter((rule) => ["BS200", "BS207", "BS216"].includes(rule.code)),
+      );
+      expect(calls).toBe(1);
     });
 
     it("reports role timeouts and unhoisted function timeouts (BS211)", async () => {

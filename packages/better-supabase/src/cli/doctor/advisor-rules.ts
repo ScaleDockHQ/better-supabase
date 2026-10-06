@@ -1,4 +1,4 @@
-import type { AdvisorCategory, Lint } from "./advisors.ts";
+import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type {
   DoctorContext,
   FindingInput,
@@ -7,9 +7,28 @@ import type {
   SqlObject,
 } from "./rules.ts";
 
-import { permissiveOverlaps } from "./rls.ts";
-import { unindexedForeignKeys } from "./schema-design.ts";
-import { exposed } from "./shared.ts";
+/** One request per advisor category, shared by the advisor rules and the rules that defer to them. */
+const fetched = new WeakMap<
+  AdvisorSource,
+  Map<AdvisorCategory, Promise<readonly Lint[]>>
+>();
+
+function lintsOf(
+  advisors: AdvisorSource,
+  category: AdvisorCategory,
+): Promise<readonly Lint[]> {
+  let byCategory = fetched.get(advisors);
+  if (!byCategory) {
+    byCategory = new Map();
+    fetched.set(advisors, byCategory);
+  }
+  let lints = byCategory.get(category);
+  if (!lints) {
+    lints = advisors.lints(category);
+    byCategory.set(category, lints);
+  }
+  return lints;
+}
 
 const ADVISOR_SEVERITY: Record<Lint["level"], Severity> = {
   ERROR: "error",
@@ -45,7 +64,6 @@ export function advisorRule(
   category: AdvisorCategory,
   title: string,
   description: string,
-  covered: (lint: Lint, context: DoctorContext) => boolean = () => false,
 ): Rule {
   return {
     code,
@@ -64,9 +82,7 @@ export function advisorRule(
         ];
       }
       try {
-        return (await advisors.lints(category))
-          .filter((lint) => !covered(lint, context))
-          .map(lintFinding);
+        return (await lintsOf(advisors, category)).map(lintFinding);
       } catch (cause) {
         return [
           {
@@ -78,26 +94,34 @@ export function advisorRule(
   };
 }
 
+/** The performance advisor rule the duplicate rules defer to. */
+const PERFORMANCE_ADVISOR = "BS200";
+
 /**
- * splinter lints doctor's own rules report for the same table:
- * `multiple_permissive_policies` (BS207) and `unindexed_foreign_keys` (BS216).
+ * The tables splinter reports `lint` for (`schema.table`), when the
+ * performance advisor runs in this run and its lints loaded. A rule that
+ * repeats the lint (BS207, BS216) drops its findings for these tables; with
+ * `undefined` (no advisors, a saved snapshot, an advisor error, or BS200 not
+ * in the run) it reports them itself.
  */
-export function coveredByOwnRules(lint: Lint, context: DoctorContext): boolean {
-  const code =
-    lint.name === "multiple_permissive_policies"
-      ? "BS207"
-      : lint.name === "unindexed_foreign_keys"
-        ? "BS216"
-        : undefined;
-  if (!code || !context.codes?.includes(code)) return false;
-  const object = lintObject(lint);
-  if (!object) return false;
-  const table = exposed(context).find(
-    (candidate) =>
-      candidate.schema === object.schema && candidate.name === object.name,
+export async function splinterTables(
+  context: DoctorContext,
+  lint: string,
+): Promise<ReadonlySet<string> | undefined> {
+  const { advisors } = context;
+  if (!advisors || "skipped" in advisors) return undefined;
+  if (!context.codes?.includes(PERFORMANCE_ADVISOR)) return undefined;
+  let lints: readonly Lint[];
+  try {
+    lints = await lintsOf(advisors, "performance");
+  } catch {
+    return undefined;
+  }
+  return new Set(
+    lints.flatMap((entry) => {
+      if (entry.name !== lint) return [];
+      const object = lintObject(entry);
+      return object ? [`${object.schema}.${object.name}`] : [];
+    }),
   );
-  if (!table) return false;
-  return code === "BS207"
-    ? permissiveOverlaps(table).length > 0
-    : unindexedForeignKeys(table).length > 0;
 }
