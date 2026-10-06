@@ -68,19 +68,22 @@ function markdownFiles(dir: string, extension: string): string[] {
 }
 
 /**
- * The imports in the first column of the README subpath table. A cell may
- * group entries: `` `/edge` `` is relative to the cell's first import, and
- * `plugins/*` covers every plugin.
+ * The imports in the README's subpath and blocks tables: every cell that
+ * starts with a `better-supabase` import. A cell may group entries:
+ * `` `/edge` `` is relative to the cell's first import, and `plugins/*`
+ * covers every plugin.
  */
 function readmeImports(readme: string): string[] {
   return readme.split("\n").flatMap((line) => {
-    const cell = /^\| (`better-supabase[^|]*)\|/u.exec(line)?.[1] ?? "";
-    const names = [...cell.matchAll(/`([^`]+)`/gu)].map(
-      (match) => match[1] ?? "",
-    );
-    return names.map((name) =>
-      name.startsWith("/") ? `better-supabase${name}` : name,
-    );
+    if (!line.startsWith("|")) return [];
+    return line
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter((cell) => cell.startsWith("`better-supabase"))
+      .flatMap((cell) =>
+        [...cell.matchAll(/`([^`]+)`/gu)].map((match) => match[1] ?? ""),
+      )
+      .map((name) => (name.startsWith("/") ? `better-supabase${name}` : name));
   });
 }
 
@@ -110,7 +113,9 @@ function subpaths(): string[] {
     const quoted = `"${entry}"`;
     const problems: string[] = [];
     if (!inTable(entry, imports)) {
-      problems.push(`${entry} is missing from the README subpath table`);
+      problems.push(
+        `${entry} is missing from the README subpath and blocks tables`,
+      );
     }
     if (!pages.some((page) => page.includes(quoted))) {
       problems.push(`no docs page imports from ${quoted}`);
