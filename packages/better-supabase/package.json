@@ -263,6 +263,11 @@
       "types": "./dist/blocks/comments/index.d.ts",
       "default": "./dist/blocks/comments/index.js"
     },
+    "./blocks/attachments": {
+      "@better-supabase/source": "./src/blocks/attachments/index.ts",
+      "types": "./dist/blocks/attachments/index.d.ts",
+      "default": "./dist/blocks/attachments/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -500,6 +505,10 @@
       "./blocks/comments": {
         "types": "./dist/blocks/comments/index.d.ts",
         "default": "./dist/blocks/comments/index.js"
+      },
+      "./blocks/attachments": {
+        "types": "./dist/blocks/attachments/index.d.ts",
+        "default": "./dist/blocks/attachments/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",

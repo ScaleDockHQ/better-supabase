@@ -19,6 +19,7 @@
     "billing",
     "flags",
     "comments",
+    "attachments",
     "entitlements",
     "vector-search"
   ]

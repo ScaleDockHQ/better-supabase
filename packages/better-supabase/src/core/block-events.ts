@@ -83,6 +83,19 @@ export interface CommentEventData {
   readonly mentionIds?: readonly string[];
 }
 
+/** `attachment.*`, written to the outbox by the attachments module. */
+export interface AttachmentEventData {
+  readonly attachmentId: string;
+  readonly organizationId: string;
+  readonly uploadedBy?: string;
+  readonly subjectType?: string;
+  readonly subjectId?: string;
+  readonly mimeType?: string;
+  readonly size?: number;
+  /** `attachment.scanned`: `clean`, `infected` or `failed`. */
+  readonly status?: string;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -117,6 +130,8 @@ export interface BlockEventMap {
   "comment.created": CommentEventData;
   "comment.mentioned": CommentEventData;
   "comment.deleted": CommentEventData;
+  "attachment.uploaded": AttachmentEventData;
+  "attachment.scanned": AttachmentEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

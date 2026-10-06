@@ -1106,6 +1106,7 @@
       "toHttp"
     ],
     "types": [
+      "AttachmentEventData",
       "BillingEventData",
       "BlockEvent",
       "BlockEventMap",
@@ -1347,6 +1348,30 @@
       "CommentSubject",
       "ListCommentsOptions",
       "NewComment"
+    ]
+  },
+  "./blocks/attachments": {
+    "values": [
+      "createAttachments",
+      "createAttachmentScanner",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "Attachment",
+      "AttachmentBucket",
+      "AttachmentDownload",
+      "Attachments",
+      "AttachmentScanJob",
+      "AttachmentScanner",
+      "AttachmentScannerOptions",
+      "AttachmentsOptions",
+      "AttachmentStatus",
+      "AttachmentStorage",
+      "AttachmentUpload",
+      "BlockTransport",
+      "NewAttachment",
+      "ScanVerdict"
     ]
   },
   "./openapi": {
