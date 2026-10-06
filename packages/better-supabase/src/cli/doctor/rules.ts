@@ -38,6 +38,7 @@ import {
   entitlementsModule,
   PERMDOCK_RULES,
 } from "./permdock.ts";
+import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
@@ -934,6 +935,7 @@ export const RULES: readonly Rule[] = [
   ...PERMDOCK_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,
+  ...PGDELTA_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

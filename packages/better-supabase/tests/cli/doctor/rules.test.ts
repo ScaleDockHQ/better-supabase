@@ -1188,3 +1188,90 @@ describe("session cookie encoding (BS412)", () => {
     );
   });
 });
+
+describe("pg-delta schema files (BS317, BS318)", () => {
+  const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
+  const file = (text: string, path = "supabase/schemas/090_grants.sql") => ({
+    path,
+    text,
+  });
+
+  it("flags bulk grants with their line, and only under pg-delta", async () => {
+    const grants = file(
+      [
+        "-- grant all on all tables in schema public to anon;",
+        "revoke execute on function public.f() from anon;",
+        "grant execute on all functions in schema public to anon, authenticated;",
+        "/* grant select on all sequences in schema x to anon; */",
+        "GRANT SELECT ON ALL TABLES IN SCHEMA public, app TO authenticated;",
+        "alter default privileges in schema public grant select on tables to authenticated;",
+        "grant all on all tables in schema public to service_role;",
+      ].join("\n"),
+    );
+    const findings = await run(
+      "BS317",
+      context(base, { configToml: pgdelta, sqlFiles: [grants] }),
+    );
+    expect(findings.map((finding) => finding.location?.line)).toEqual([3, 5]);
+    expect(findings[0]).toMatchObject({
+      severity: "warning",
+      target: "supabase/schemas/090_grants.sql",
+    });
+    expect(findings[0]!.message).toContain("all functions in schema public");
+    expect(findings[1]!.message).toContain("all tables in schema public, app");
+    expect(findings[0]!.message).toContain("alter default privileges");
+    expect(
+      await run(
+        "BS317",
+        context(base, { configToml: toml("[db]\n"), sqlFiles: [grants] }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS317",
+        context(base, {
+          configToml: pgdelta,
+          sqlFiles: [
+            file(grants.text, "supabase/migrations/1_init.sql"),
+            file(`-- @bs-module grants@1 managed\n${grants.text}`),
+          ],
+        }),
+      ),
+    ).toEqual([]);
+    expect(await run("BS317", context(base, { sqlFiles: [grants] }))).toEqual(
+      [],
+    );
+  });
+
+  it("flags do blocks that loop over the catalog", async () => {
+    const loop = file(
+      [
+        "create table t (id int);",
+        "do $$",
+        "declare r record;",
+        "begin",
+        "  for r in select table_name from information_schema.tables where table_schema = 'public' loop",
+        "    execute format('create trigger audit after update on %I for each row execute function audit()', r.table_name);",
+        "  end loop;",
+        "end $$;",
+        "do $body$ begin perform 1; end $body$;",
+        "do $$ begin if exists (select 1 from pg_class) then raise notice 'x'; end if; end $$;",
+        "do $x$ begin perform pg_catalog.pg_sleep(0); execute 'select 1' using (select 1 from pg_tables); end $x$;",
+      ].join("\n"),
+      "supabase/schemas/030_triggers.sql",
+    );
+    const findings = await run(
+      "BS318",
+      context(base, { configToml: pgdelta, sqlFiles: [loop] }),
+    );
+    expect(findings.map((finding) => finding.location?.line)).toEqual([2, 11]);
+    expect(findings[0]!.message).toContain("reads information_schema.tables");
+    expect(findings[0]!.message).toContain("better_supabase.audit");
+    expect(
+      await run(
+        "BS318",
+        context(base, { configToml: toml("[db]\n"), sqlFiles: [loop] }),
+      ),
+    ).toEqual([]);
+  });
+});
