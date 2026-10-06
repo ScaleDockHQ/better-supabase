@@ -128,7 +128,7 @@ describe("avatars", () => {
   const object = `${PROJECT_URL}/storage/v1/object/public/avatars/${USER}/avatar.webp`;
 
   it("stores one file per user, named by type, and knows the leftovers", () => {
-    expect(avatarPath(USER, "image/webp")).toBe(`${USER}/avatar.webp`);
+    expect(avatarPath(USER, "image/webp").data).toBe(`${USER}/avatar.webp`);
     expect(leftoverAvatarPaths(USER, `${USER}/avatar.webp`)).toEqual([
       `${USER}/avatar.jpg`,
       `${USER}/avatar.png`,

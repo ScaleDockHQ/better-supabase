@@ -185,7 +185,7 @@ export function integrations(): unknown[] {
     logos.path({
       orgId: "o",
       customerId: "c",
-    }) satisfies StoragePath<"customer-logos">,
+    }) satisfies Result<StoragePath<"customer-logos">>,
     createImageLoader({ url: "https://x.supabase.co" })({
       src: "/a.png",
       width: 64,

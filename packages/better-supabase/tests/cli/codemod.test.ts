@@ -136,4 +136,15 @@ const allow = publicUrl({ allowHosts: [] });
     expect(result.review.map((entry) => entry.line)).toEqual([1]);
     expect(result.review[0]?.message).toContain("Result");
   });
+
+  it("lists bucket path calls with values and leaves path strings alone", () => {
+    const source = `const path = logos.path({ orgId, version });
+const joined = node.path("a");
+const dir = join(root, "path({");
+`;
+    const result = applyCodemod(v06, source);
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([1]);
+    expect(result.review[0]?.message).toContain("`path(values)`");
+  });
 });

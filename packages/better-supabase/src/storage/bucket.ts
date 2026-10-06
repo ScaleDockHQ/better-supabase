@@ -324,8 +324,12 @@ export interface Bucket<P extends string, Id extends string = string> {
   readonly tenant: string | undefined;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
-  /** Builds a path with the template whose placeholders are exactly the keys of `values`. */
-  path(values: PathValues<P>): StoragePath<Id>;
+  /**
+   * Builds a path with the template whose placeholders are exactly the keys
+   * of `values`. A value Storage would refuse, or keys no template takes, is
+   * an `invalid_input` error.
+   */
+  path(values: PathValues<P>): Result<StoragePath<Id>>;
   /** The values of the first template that matches `path`, or `null`. */
   match(path: string): PathValues<P> | null;
   /** Folder prefix filled by `values`, for listing. */
@@ -550,9 +554,15 @@ export function defineBucket<
     policy,
     fileSizeLimit,
     allowedMimeTypes,
-    // SAFETY: the template builds the path from typed values, and match returns
-    // the parameters of P.
-    path: (values) => layouts.build(values) as StoragePath<Id>,
+    path: (values) => {
+      try {
+        // SAFETY: the template builds the path from typed values.
+        return ok(layouts.build(values) as StoragePath<Id>);
+      } catch (cause) {
+        return err(toDbError(cause));
+      }
+    },
+    // SAFETY: match returns the parameters of P.
     match: (path) => layouts.match(path) as PathValues<P> | null,
     prefix: (values = {}) => layouts.prefix(values),
     check,

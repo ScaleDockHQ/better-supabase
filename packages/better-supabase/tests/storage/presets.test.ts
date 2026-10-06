@@ -15,9 +15,11 @@ describe("avatarBucket", () => {
     expect(avatars.policy).toBe("owner");
     expect(avatars.fileSizeLimit).toBe(2 * 1024 * 1024);
     expect(avatars.allowedMimeTypes).toEqual(IMAGE_TYPES);
-    expect(avatars.path({ userId: "u1", version: "v2", ext: "png" })).toBe(
-      "u1/avatar-v2.png",
-    );
+    expect(avatars.path({ userId: "u1", version: "v2", ext: "png" })).toEqual({
+      ok: true,
+      data: "u1/avatar-v2.png",
+      error: null,
+    });
     expect(avatars.sql()).toContain(
       "split_part(name, '/', 1) = (select auth.uid())::text",
     );
@@ -33,7 +35,9 @@ describe("avatarBucket", () => {
       allowedMimeTypes: ["image/webp"],
     });
     expect(avatars.public).toBe(false);
-    expect(avatars.path({ userId: "u", version: "1" })).toBe("users/u/1.webp");
+    expect(avatars.path({ userId: "u", version: "1" }).data).toBe(
+      "users/u/1.webp",
+    );
     expect(avatars.sql()).toContain(
       "split_part(name, '/', 2) = (select auth.uid())::text",
     );

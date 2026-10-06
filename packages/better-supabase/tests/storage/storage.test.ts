@@ -3,7 +3,7 @@ import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
-import { err, ok } from "../../src/core/result.ts";
+import { err, ok, type Result } from "../../src/core/result.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import {
   defineBucket,
@@ -26,8 +26,9 @@ const logos = defineBucket({
 
 describe("defineBucket", () => {
   it("builds, matches and prefixes paths", () => {
-    const path = logos.path({ orgId: "o1", customerId: "c1", version: 3 });
-    expect(path).toBe("o1/c1/logo/3.webp");
+    const built = logos.path({ orgId: "o1", customerId: "c1", version: 3 });
+    expect(built).toEqual({ ok: true, data: "o1/c1/logo/3.webp", error: null });
+    const path = built.data!;
     expect(logos.match(path)).toEqual({
       orgId: "o1",
       customerId: "c1",
@@ -42,10 +43,10 @@ describe("defineBucket", () => {
     expect(logos.params).toEqual(["orgId", "customerId", "version"]);
   });
 
-  it("rejects unsafe segment values", () => {
+  it("returns an error for unsafe segment values instead of throwing", () => {
     for (const customerId of ["", "..", "a/b", "a\u0000b", "naïve"]) {
-      expect(() => logos.path({ orgId: "o1", customerId, version: 1 })).toThrow(
-        DbException,
+      expect(logos.path({ orgId: "o1", customerId, version: 1 })).toMatchObject(
+        { ok: false, data: null, error: { kind: "invalid_input" } },
       );
     }
   });
@@ -351,7 +352,9 @@ describe("renderUrl", () => {
 
 describe("StoragePath", () => {
   it("brands paths with the bucket id", () => {
-    const path = logos.path({ orgId: "o1", customerId: "c1", version: 1 });
+    const built = logos.path({ orgId: "o1", customerId: "c1", version: 1 });
+    expectTypeOf(built).toEqualTypeOf<Result<StoragePath<"customer-logos">>>();
+    const path = built.data!;
     expectTypeOf(path).toEqualTypeOf<StoragePath<"customer-logos">>();
     expectTypeOf(path).toExtend<string>();
     const bucket = logos.connect({} as never);
@@ -1531,17 +1534,18 @@ describe("path layouts", () => {
 
   it("builds with the template whose placeholders match the values", () => {
     expect(
-      files.path({ orgId: "o1", fileId: "f1", version: 2, ext: "pdf" }),
+      files.path({ orgId: "o1", fileId: "f1", version: 2, ext: "pdf" }).data,
     ).toBe("o1/files/f1/v2.pdf");
-    expect(files.path({ orgId: "o1", exportId: "e1" })).toBe(
+    expect(files.path({ orgId: "o1", exportId: "e1" }).data).toBe(
       "o1/exports/e1.zip",
     );
-    expect(files.path({ orgId: "o1", rest: "a/b/c.txt" })).toBe(
+    expect(files.path({ orgId: "o1", rest: "a/b/c.txt" }).data).toBe(
       "o1/legacy/a/b/c.txt",
     );
-    expect(() => files.path({ orgId: "o1" } as never)).toThrow(
-      'No path template of bucket "files" takes exactly {orgId}',
-    );
+    expect(files.path({ orgId: "o1" } as never).error).toMatchObject({
+      kind: "invalid_input",
+      message: 'No path template of bucket "files" takes exactly {orgId}',
+    });
     expect(files.templates).toHaveLength(3);
     expect(files.template).toBe("{orgId}/files/{fileId}/v{version}.{ext}");
     expect(files.params).toEqual([
@@ -1577,7 +1581,9 @@ describe("path layouts", () => {
 
   it("refuses unsafe rest values", () => {
     for (const rest of ["", "a//b", "../a", "a/..", "/a", "a/", "a/naïve"]) {
-      expect(() => files.path({ orgId: "o1", rest })).toThrow(DbException);
+      expect(files.path({ orgId: "o1", rest }).error?.kind).toBe(
+        "invalid_input",
+      );
     }
   });
 

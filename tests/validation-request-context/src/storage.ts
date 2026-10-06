@@ -1,3 +1,5 @@
+import type { Result } from "better-supabase";
+
 import {
   defineBucket,
   type StorageClient,
@@ -21,14 +23,14 @@ export const avatars = defineBucket({
   allowedMimeTypes: Object.keys(IMAGE_TYPES),
 });
 
-export function avatarPath(userId: string, type: ImageType): string {
+export function avatarPath(userId: string, type: ImageType): Result<string> {
   return avatars.path({ userId, ext: IMAGE_TYPES[type] });
 }
 
 /** Paths a previous upload may have used, for cleanup after replacing an avatar. */
 export function leftoverAvatarPaths(userId: string, keep: string): string[] {
   return Object.values(IMAGE_TYPES)
-    .map((ext) => avatars.path({ userId, ext }))
+    .flatMap((ext) => avatars.path({ userId, ext }).data ?? [])
     .filter((path) => path !== keep);
 }
 
