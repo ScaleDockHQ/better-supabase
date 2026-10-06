@@ -860,6 +860,84 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("merges the preview hook, reserves the app's slugs and lets platform staff delete", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_extra_${USERS.owner.slice(0, 8)}`;
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member", "outsider"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      await client.query(`create schema ${schema};
+        create function ${schema}.invitation_preview_extra(invitation uuid) returns jsonb
+          language sql stable as $$ select jsonb_build_object('roleLabel', 'Team member', 'invitation', invitation) $$;`);
+      const layout: ModuleLayout = {
+        modules: {
+          access: { schema },
+          tenant: { schema },
+          "reserved-slugs": { options: { slugs: ["dashboard-beta"] } },
+          organizations: {
+            schema,
+            permissions: { deletePlatform: "platform.organization.delete" },
+          },
+          invitations: { schema, hooks: { schema } },
+        },
+      };
+      for (const file of renderModules(
+        ["organizations", "invitations", "reserved-slugs"],
+        layout,
+      ))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      expect(
+        await s.hint(`${schema}.create_organization($1)`, [
+          { name: "x", slug: "dashboard-beta" },
+        ]),
+      ).toBe("ORGANIZATION_SLUG_RESERVED");
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Extra", slug: `extra-${USERS.owner.slice(0, 8)}` }],
+      );
+      const invite = await s.value<{ id: string; token: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, email("member")],
+      );
+      await s.as("anon");
+      expect(
+        await s.value(`${schema}.invitation_preview($1)`, [invite.token]),
+      ).toMatchObject({
+        status: "pending",
+        roleLabel: "Team member",
+        invitation: invite.id,
+      });
+      expect(await s.value(`${schema}.invitation_preview('nope')`)).toBeNull();
+
+      await s.as("outsider");
+      expect(
+        await s.hint(`${schema}.delete_organization($1)`, [organization]),
+      ).toBe("ORGANIZATION_FORBIDDEN");
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({
+          sub: USERS.outsider,
+          role: "authenticated",
+          platform_permissions: ["platform.organization.delete"],
+        }),
+      ]);
+      expect(
+        await s.value(`${schema}.delete_organization($1)`, [organization]),
+      ).toBe(true);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
     const client = await pool.connect();
     const s = new Session(client);

@@ -141,6 +141,24 @@ describe("organizations module", () => {
     ).toThrow(/must be "module" or "external"/);
   });
 
+  it("lets platform staff update and delete with their own keys", () => {
+    const sql = body({
+      organizations: {
+        permissions: {
+          updatePlatform: "platform.organization.update",
+          deletePlatform: "platform.organization.delete",
+        },
+      },
+    });
+    expect(sql).toContain(
+      "and not coalesce(better_supabase.is_platform('platform.organization.update'), false)",
+    );
+    expect(sql).toContain(
+      "and not coalesce(better_supabase.is_platform('platform.organization.delete'), false)",
+    );
+    expect(body({})).not.toContain("platform.organization");
+  });
+
   it("checks a create permission when one is configured", () => {
     expect(
       body({

@@ -171,6 +171,57 @@ describe("profiles module", () => {
     );
   });
 
+  it("joins metadata names into a username and adds a platform read policy", () => {
+    const sql = renderModules(["profiles"], {
+      modules: {
+        profiles: {
+          options: {
+            usernameFrom: [
+              { names: ["first_name", "last_name"], separator: "." },
+              "user_name",
+            ],
+            readPolicy: { platform: "platform.user.read" },
+          },
+        },
+      },
+    }).find(
+      (file) => file.module === "profiles" && file.kind === "schema",
+    )!.contents;
+    expect(sql).toContain(
+      "case when nullif(btrim(coalesce(meta ->> 'first_name')), '') is not null and nullif(btrim(coalesce(meta ->> 'last_name')), '') is not null then concat_ws('.',",
+    );
+    expect(sql).toContain("better_supabase.is_platform('platform.user.read')");
+    expect(sql).toContain("create policy bs_profiles_platform_read");
+    expect(
+      resolveModules(["profiles"], {
+        modules: { profiles: { options: { readPolicy: { platform: "x" } } } },
+      }).map((module) => module.name),
+    ).toContain("access");
+    expect(
+      body({
+        profiles: {
+          options: { usernameFrom: [{ names: ["nick"] }] },
+        },
+      }),
+    ).toContain("concat_ws('_', nullif(btrim(coalesce(meta ->> 'nick')), ''))");
+    expect(() =>
+      body({ profiles: { options: { readPolicy: { members: "yes" } } } }),
+    ).toThrow(/readPolicy must be/);
+    expect(() =>
+      body({ profiles: { options: { usernameFrom: "user_name" } } }),
+    ).toThrow(/must be a list/);
+    expect(() =>
+      body({ profiles: { options: { usernameFrom: [{ names: [] }] } } }),
+    ).toThrow(/entries are metadata keys/);
+    expect(() =>
+      body({
+        profiles: {
+          options: { usernameFrom: [{ names: ["a"], separator: "; drop" }] },
+        },
+      }),
+    ).toThrow(/separator/);
+  });
+
   it("needs no other module", () => {
     expect(resolveModules(["profiles"]).map((module) => module.name)).toEqual([
       "profiles",

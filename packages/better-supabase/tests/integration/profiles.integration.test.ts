@@ -234,6 +234,79 @@ describe.skipIf(!live)("profiles", () => {
     }
   });
 
+  it("joins names into usernames and lets platform staff read every profile", async () => {
+    const client = await pool.connect();
+    const schema = `${SCHEMA}_platform`;
+    try {
+      await client.query("begin");
+      const layout = {
+        modules: {
+          tenant: { schema },
+          access: { schema },
+          profiles: {
+            schema,
+            options: {
+              usernameFrom: [
+                { names: ["first_name", "last_name"], separator: "_" },
+                "user_name",
+              ],
+              readPolicy: { members: false, platform: "platform.user.read" },
+            },
+            hooks: { schema },
+          },
+        },
+      };
+      for (const file of renderModules(["profiles"], layout))
+        await client.query(file.contents);
+      const meta = {
+        ada: { first_name: "Ada", last_name: "Lovelace", user_name: "al" },
+        bob: { first_name: "Bob", user_name: "bobby" },
+        eve: {},
+      };
+      for (const who of Object.keys(USERS) as Who[]) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', $3)`,
+          [USERS[who], `${who}-${USERS[who]}@example.test`, meta[who]],
+        );
+      }
+      const usernames = await client.query<{ username: string }>(
+        `select username from ${schema}.profiles where id = any ($1) order by username`,
+        [[USERS.ada, USERS.bob]],
+      );
+      expect(usernames.rows.map((row) => row.username)).toEqual([
+        "ada_lovelace",
+        "bobby",
+      ]);
+      const visible = async (claims: object) => {
+        await client.query("savepoint read");
+        await client.query(
+          "select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)",
+          [
+            JSON.stringify({
+              sub: USERS.eve,
+              role: "authenticated",
+              ...claims,
+            }),
+          ],
+        );
+        const { rows } = await client.query<{ n: number }>(
+          `select count(*)::int as n from ${schema}.profiles where id = any ($1)`,
+          [Object.values(USERS)],
+        );
+        await client.query("rollback to savepoint read");
+        return rows[0]!.n;
+      };
+      expect(await visible({})).toBe(1);
+      expect(
+        await visible({ platform_permissions: ["platform.user.read"] }),
+      ).toBe(3);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("lets organization logos follow the access contract", async () => {
     const client = await pool.connect();
     try {

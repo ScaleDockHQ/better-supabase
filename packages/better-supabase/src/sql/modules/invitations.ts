@@ -80,7 +80,11 @@ const NAMES: ModuleNames = {
       optionalTable: true,
     },
   },
-  hooks: ["before_invitation_create", "after_invitation_accept"],
+  hooks: [
+    "before_invitation_create",
+    "after_invitation_accept",
+    "invitation_preview_extra",
+  ],
 };
 
 /** Every error the module raises: its hint code and default SQLSTATE. */
@@ -749,14 +753,23 @@ function preview(ctx: ModuleContext): string {
     'prefill', ${optionalCol(table, "i", "prefill", "'{}'::jsonb")}
   )`;
   const platform = p
-    ? `(select ${json(p, "null", "null")}
+    ? `
+  if preview is null then
+    select ${json(p, "null", "null")}, i.${p.col("id")}
+    into preview, invitation
     from ${p.table} i
-    where i.${p.col("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${p.only("i")})`
-    : "null";
+    where i.${p.col("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${p.only("i")};
+  end if;`
+    : "";
+  const extra = sqlString(
+    `${ctx.hookTarget("invitation_preview_extra")}(uuid)`,
+  );
   return `
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
 -- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- An invitation_preview_extra(invitation uuid) returns jsonb hook adds its
+-- keys, such as a role's display name or branding from another table.
 create or replace function ${ctx.fn("invitation_preview")}(token text)
 returns jsonb
 language plpgsql
@@ -764,13 +777,22 @@ stable
 security definer
 set search_path = ''
 as $$
+declare
+  preview jsonb;
+  invitation uuid;
+  extra jsonb;
 begin
-  return coalesce(
-    (select ${json(t, c("tenant"), organization)}
-    from ${t.table} i
-    where ${c("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${t.only("i")}),
-    ${platform}
-  );
+  select ${json(t, c("tenant"), organization)}, ${c("id")}
+  into preview, invitation
+  from ${t.table} i
+  where ${c("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${t.only("i")};${platform}
+  if preview is not null and to_regprocedure(${extra}) is not null then
+    -- Not a literal name, so plpgsql_check passes without the hook.
+    execute format('select %s($1)', to_regprocedure(${extra})::oid::regproc)
+      into extra using invitation;
+    preview := preview || coalesce(extra, '{}');
+  end if;
+  return preview;
 end;
 $$;
 `;
