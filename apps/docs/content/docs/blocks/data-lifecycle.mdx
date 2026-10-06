@@ -203,7 +203,8 @@ adopted tenant table needs no `on_organization_purge` hook to go.
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as
-the partition key:
+the partition key, except `organization.purged`, which has none because the
+tenant is gone by then (its id stays in `organizationId`):
 
 | Event                             | When                               | Data                                                             |
 | --------------------------------- | ---------------------------------- | ---------------------------------------------------------------- |

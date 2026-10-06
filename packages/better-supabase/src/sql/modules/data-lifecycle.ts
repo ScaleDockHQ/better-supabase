@@ -391,6 +391,15 @@ function build(ctx: ModuleContext): string {
       subject: `'data-exports/' || v_row.${ce("id")}::text`,
       tenant: `v_row.${ce("tenant")}`,
     }) || "null;";
+  // The tenant is gone once the purge ends, so the event carries no tenant
+  // partition; organizationId stays in the payload.
+  const purgedEvent =
+    ctx.emit({
+      type: "organization.purged",
+      payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', null::uuid, 'purgeAfter', v_row.${cd("purgeAfter")})`,
+      subject: `'organizations/' || v_row.${cd("tenant")}::text`,
+      tenant: "null",
+    }) || "null;";
   const deletionEvent = (type: string, actor: string): string =>
     ctx.emit({
       type,
@@ -860,7 +869,7 @@ begin
   end loop;
   update ${d} x set ${cd("purgedAt")} = now() where x.${cd("tenant")} = v_row.${cd("tenant")} returning * into v_row;
   ${organizationRow}
-  ${deletionEvent("organization.purged", "null::uuid")}
+  ${purgedEvent}
   return jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'deleted', v_deleted);
 end;
 $$;

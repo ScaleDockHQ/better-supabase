@@ -407,12 +407,22 @@ describe.skipIf(!live)("data lifecycle", () => {
         "select type from better_supabase.outbox_events where type like 'organization.%' and organization_id = $1 order by position",
         [organization],
       );
-      expect(events.map((event) => event.type).slice(-4)).toEqual([
+      expect(events.map((event) => event.type).slice(-3)).toEqual([
         "organization.deletion_requested",
         "organization.deletion_cancelled",
         "organization.deletion_requested",
-        "organization.purged",
       ]);
+      const [purgedEvent] = await s.rows<{
+        organization_id: string | null;
+        payload: { organizationId: string };
+      }>(
+        "select organization_id, payload from better_supabase.outbox_events where type = 'organization.purged' and payload ->> 'organizationId' = $1",
+        [organization],
+      );
+      expect(purgedEvent).toMatchObject({
+        organization_id: null,
+        payload: { organizationId: organization },
+      });
       expect(
         await s.hint("better_supabase.request_organization_deletion($1)", [
           organization,
