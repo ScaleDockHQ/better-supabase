@@ -12,7 +12,7 @@ with a small share of the data often gets fewer than `k` results, or none.
 pgvector 0.8 fixed this with
 [iterative index scans](https://github.com/pgvector/pgvector#iterative-index-scans):
 with `hnsw.iterative_scan` on, the scan continues until `k` visible rows are
-found. The `vector-search` kit module writes one search function per table
+found. The `vector-search` SQL module writes one search function per table
 with it set, and `db.$search` calls it.
 
 ## Setup
@@ -25,7 +25,7 @@ export default defineConfig({
     chunks: "embedding", // cosine distance
     "docs.pages": { column: "embedding", distance: "inner_product" }, // or 'l2'
   },
-  sql: { kit: ["vector-search"] },
+  sql: { modules: ["vector-search"] },
 });
 ```
 
@@ -76,7 +76,7 @@ const result = await ctx.db.$search("chunks", {
   filters that should shape the search (the tenant, a document set) in RLS.
 - `vector` is a `number[]` or pgvector text (`'[0.1,0.2]'`). It is sent in a
   POST body: embeddings are too long for a URL. So a search counts toward
-  [write rate limits](/docs/kits/sql#rate-limiting-writes) and goes to the
+  [write rate limits](/docs/blocks/sql#rate-limiting-writes) and goes to the
   primary with [read replicas](/docs/guides/read-replicas).
 - It runs over PostgREST and over [`better-supabase/postgres`](/docs/auth/postgres)
   alike. A table without a search function fails with a hint to add it to

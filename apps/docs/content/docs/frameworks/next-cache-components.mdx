@@ -208,7 +208,7 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 | Your code or PermDock                 | Mapping roles to permissions                            |
 
 The hook, the schema and your policies read the same claims, so agree on
-one shape. For multi-tenant apps, use PermDock's, which the `tenant` kit
+one shape. For multi-tenant apps, use PermDock's, which the `tenant` block
 module and [PermDock](/docs/auth/permdock) both emit:
 
 ```ts
@@ -248,11 +248,11 @@ validation. Keep the list short: every claim is sent with every request, and
   [PermDock](https://github.com/ScaleDockHQ/PermDock). `permdock rls generate`
   writes `role_permissions`, `authorize()`, the RLS helpers and the table
   policies, and `permdock supabase hook generate` writes the access token hook;
-  don't add the kit's `tenant` hook next to it. On the server, build the subject
-  with `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a token
-  with `memberships_truncated` falls back to a database lookup. `permdock/next`
-  and `permdock/react` replace the hand-written `can()`. See [better-supabase
-  and PermDock](/docs/auth/permdock).
+  don't add the module's `tenant` hook next to it. On the server, build the
+  subject with `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a
+  token with `memberships_truncated` falls back to a database lookup.
+  `permdock/next` and `permdock/react` replace the hand-written `can()`. See
+  [better-supabase and PermDock](/docs/auth/permdock).
 </Callout>
 
 ## 5. Optimistic redirects in the proxy
@@ -319,17 +319,17 @@ import { subjectFromSupabaseSession } from "permdock/supabase";
 import { bs } from "@/lib/supabase";
 import { policy } from "@/policy";
 
-export async function loadSnapshot(orgId: string) {
+export async function loadSnapshot(organizationId: string) {
   "use cache: private";
   const session = await bs.session();
   const subject = subjectFromSupabaseSession(session, {
     memberships: "memberships",
   });
-  const snapshot = snapshotFor(policy, subject, { tenant: orgId });
+  const snapshot = snapshotFor(policy, subject, { tenant: organizationId });
   await bs.cached({
     tags: [
       snapshotTag(session.kind === "user" ? session.user.id : null),
-      `org:${orgId}`,
+      `organization:${organizationId}`,
     ],
     life: cacheLifeFor(snapshot),
   });
@@ -340,15 +340,17 @@ export async function loadSnapshot(orgId: string) {
 Pass the promise to PermDock's provider (a Client Component) without awaiting
 it, so the layout stays synchronous and the snapshot streams in:
 
-```tsx title="src/app/[orgSlug]/layout.tsx"
+```tsx title="src/app/[organizationSlug]/layout.tsx"
 import { PermDockProvider } from "permdock/react";
 import { loadSnapshot } from "@/lib/access";
 
-export default function OrgLayout({
+export default function OrganizationLayout({
   children,
   params,
-}: LayoutProps<"/[orgSlug]">) {
-  const snapshotPromise = params.then(({ orgSlug }) => loadSnapshot(orgSlug));
+}: LayoutProps<"/[organizationSlug]">) {
+  const snapshotPromise = params.then(({ organizationSlug }) =>
+    loadSnapshot(organizationSlug),
+  );
   return (
     <PermDockProvider snapshotPromise={snapshotPromise}>
       {children}

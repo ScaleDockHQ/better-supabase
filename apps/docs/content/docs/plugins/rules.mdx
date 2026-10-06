@@ -41,17 +41,17 @@ rules({
 
 ## Rules
 
-| Rule                       | Flags                                                                                                                                                                                                         | Option                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `noUnboundedFindMany`      | `findMany` without `limit`                                                                                                                                                                                    |                                                |
-| `maxLimit`                 | `limit` above the maximum                                                                                                                                                                                     | maximum, default `1000`                        |
-| `requireOrderByForCursor`  | `offset`, or `limit` above 1, without `orderBy`: pages overlap or skip rows. `findMany` orders by the primary key by default, so only views and keyless tables trigger it                                     |                                                |
-| `maxIncludeDepth`          | Includes nested deeper than the maximum                                                                                                                                                                       | maximum depth, default `3`                     |
-| `requireTenantContext`     | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt                                                                                                           | claim, default `claims.tenant` (`'tenant_id'`) |
-| `noAdminInBrowser`         | A service-role connection where `window` and `document` exist                                                                                                                                                 |                                                |
-| `noSensitiveSelect`        | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call                                                                                                              |                                                |
-| `noDeleteManyWithoutWhere` | A delete without `where`                                                                                                                                                                                      |                                                |
-| `storagePathColumns`       | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/kits/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead |                                                |
+| Rule                       | Flags                                                                                                                                                                                                             | Option                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `noUnboundedFindMany`      | `findMany` without `limit`                                                                                                                                                                                        |                                                |
+| `maxLimit`                 | `limit` above the maximum                                                                                                                                                                                         | maximum, default `1000`                        |
+| `requireOrderByForCursor`  | `offset`, or `limit` above 1, without `orderBy`: pages overlap or skip rows. `findMany` orders by the primary key by default, so only views and keyless tables trigger it                                         |                                                |
+| `maxIncludeDepth`          | Includes nested deeper than the maximum                                                                                                                                                                           | maximum depth, default `3`                     |
+| `requireTenantContext`     | A tenant table queried without `context.tenant` or the tenant claim. Service connections are exempt                                                                                                               | claim, default `claims.tenant` (`'tenant_id'`) |
+| `noAdminInBrowser`         | A service-role connection where `window` and `document` exist                                                                                                                                                     |                                                |
+| `noSensitiveSelect`        | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call                                                                                                                  |                                                |
+| `noDeleteManyWithoutWhere` | A delete without `where`                                                                                                                                                                                          |                                                |
+| `storagePathColumns`       | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/platform/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead |                                                |
 
 `noUnboundedFindMany` skips `aggregate()`, and `maxLimit` doesn't count the
 extra row `paginate()` reads to know whether there is a next page.
@@ -80,7 +80,7 @@ The repository already refuses `deleteMany` without `where` on its own, so
 editor.
 
 `storagePathColumns` only compares against bucket templates with a literal
-part besides `/` (`{orgId}/{customerId}/logo/{version}.webp`, not
+part besides `/` (`{organizationId}/{customerId}/logo/{version}.webp`, not
 `{userId}/{file}`), so a `website_url` holding `example.com/about` isn't
 mistaken for an object.
 

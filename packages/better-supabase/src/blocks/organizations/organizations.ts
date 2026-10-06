@@ -120,7 +120,7 @@ export interface OrganizationsOptions {
 
 /**
  * The `organizations` and `invitations` SQL modules as typed calls. Each
- * method returns an `AsyncResult`; database errors carry the block's error
+ * method returns an `AsyncResult`; database errors carry the module's error
  * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_INVALID`) as `hint`.
  */
 export interface Organizations {

@@ -386,7 +386,7 @@ export function parseGrantsMarker(
   return { version: Number(match[1]), ...(schema ? { schema } : {}) };
 }
 
-/** How the `entitlements` block module finds memberships. */
+/** How the `entitlements` SQL module finds memberships. */
 export type EntitlementsMode =
   | { readonly kind: "tenant" }
   | { readonly kind: "permdock"; readonly permdock: BlockPermdock }
@@ -661,7 +661,7 @@ export interface BlockKeyProblem {
 }
 
 /**
- * Checks the keys the block modules pass to PermDock's helpers against
+ * Checks the keys the SQL modules pass to PermDock's helpers against
  * `permissions.catalog.json`, with the statuses bucket policies use: only
  * `rowConditions: false` passes. A missing or unreadable catalog is a
  * problem too, since every key is then unknown.

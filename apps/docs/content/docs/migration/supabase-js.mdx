@@ -72,38 +72,38 @@ The config's `casing` decides column names. With `casing: 'camel'`,
 `organization_id` becomes `organizationId` in `where`, `select` and the rows
 you get back. With `casing: 'snake'`, names stay as they are in the database.
 
-| supabase-js                                             | better-supabase                                                            |
-| ------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `.from('customers').select('id, name')`                 | `db.customers.findMany({ select: ['id', 'name'] })`                        |
-| `.select('*')`                                          | `findMany()` (every column)                                                |
-| `.select('id, organization(name)')`                     | `select: ['id'], include: { organization: { select: ['name'] } }`          |
-| `.select('*, notes(count)')`                            | `include: { _count: { notes: true } }`                                     |
-| `.eq('status', 'active')`                               | `where: { status: 'active' }`                                              |
-| `.neq`, `.gt`, `.gte`, `.lt`, `.lte`                    | `where: { total: { gte: 100 } }`                                           |
-| `.in('status', ['lead', 'active'])`                     | `where: { status: { in: ['lead', 'active'] } }`                            |
-| `.is('deleted_at', null)`                               | `where: { deletedAt: null }`                                               |
-| `.not('email', 'is', null)`                             | `where: { email: { not: null } }`                                          |
-| `.ilike('name', '%acme%')`                              | `where: { name: { contains: 'acme' } }` (escapes `%` and `_`)              |
-| `.or('status.eq.lead,kvk.eq.1001')`                     | `where: { OR: [{ status: 'lead' }, { kvk: '1001' }] }`                     |
-| `.textSearch('document', 'acme')`                       | `where: { document: { search: 'acme' } }`                                  |
-| `.select('*, notes!inner(*)').eq('notes.kind', 'call')` | `where: { notes: { some: { kind: 'call' } } }`                             |
-| `.order('name', { ascending: false })`                  | `orderBy: { name: 'desc' }`                                                |
-| `.range(20, 29)`                                        | `limit: 10, offset: 20`, or [`paginate`](/docs/repository/pagination)      |
-| `.eq('id', id).single()`                                | `findById(id)` (a `not_found` error when missing)                          |
-| `.eq('slug', slug).maybeSingle()`                       | `findUnique({ where: { slug } })` (`null` when missing)                    |
-| `.eq('status', 'active').maybeSingle()`                 | `findOnly({ where: { status: 'active' } })` (`multiple_rows` for several)  |
-| `.limit(1).maybeSingle()`                               | `findFirst({ where })`                                                     |
-| `.select('*', { count: 'exact', head: true })`          | `count({ where })`                                                         |
-| `.select('*', { count: 'exact' }).range(20, 29)`        | `paginate({ offset: 20, limit: 10, count: 'exact' })`                      |
-| `.insert(row).select().single()`                        | `create(row)`                                                              |
-| `.insert(rows).select()`                                | `createMany(rows)`                                                         |
-| `.update(patch).eq('id', id).select().single()`         | `update(id, patch)`                                                        |
-| `.update(patch).eq('status', 'lead')`                   | `updateMany({ where: { status: 'lead' }, data: patch })`                   |
-| `.update(patch).eq('id', id).eq('org', org).select()`   | `update(id, patch, { where: { org } })`                                    |
-| `.update(patch).in('id', ids).select()`                 | `updateMany({ where: { id: { in: ids } }, data: patch, returning: true })` |
-| `.upsert(row, { onConflict: 'organization_id,kvk' })`   | `upsert(row, { onConflict: ['organizationId', 'kvk'] })`                   |
-| `.delete().eq('id', id)`                                | `delete(id)`                                                               |
-| `supabase.rpc('archive_customer', args)`                | `db.$rpc('archive_customer', args)`                                        |
+| supabase-js                                                             | better-supabase                                                            |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `.from('customers').select('id, name')`                                 | `db.customers.findMany({ select: ['id', 'name'] })`                        |
+| `.select('*')`                                                          | `findMany()` (every column)                                                |
+| `.select('id, organization(name)')`                                     | `select: ['id'], include: { organization: { select: ['name'] } }`          |
+| `.select('*, notes(count)')`                                            | `include: { _count: { notes: true } }`                                     |
+| `.eq('status', 'active')`                                               | `where: { status: 'active' }`                                              |
+| `.neq`, `.gt`, `.gte`, `.lt`, `.lte`                                    | `where: { total: { gte: 100 } }`                                           |
+| `.in('status', ['lead', 'active'])`                                     | `where: { status: { in: ['lead', 'active'] } }`                            |
+| `.is('deleted_at', null)`                                               | `where: { deletedAt: null }`                                               |
+| `.not('email', 'is', null)`                                             | `where: { email: { not: null } }`                                          |
+| `.ilike('name', '%acme%')`                                              | `where: { name: { contains: 'acme' } }` (escapes `%` and `_`)              |
+| `.or('status.eq.lead,kvk.eq.1001')`                                     | `where: { OR: [{ status: 'lead' }, { kvk: '1001' }] }`                     |
+| `.textSearch('document', 'acme')`                                       | `where: { document: { search: 'acme' } }`                                  |
+| `.select('*, notes!inner(*)').eq('notes.kind', 'call')`                 | `where: { notes: { some: { kind: 'call' } } }`                             |
+| `.order('name', { ascending: false })`                                  | `orderBy: { name: 'desc' }`                                                |
+| `.range(20, 29)`                                                        | `limit: 10, offset: 20`, or [`paginate`](/docs/repository/pagination)      |
+| `.eq('id', id).single()`                                                | `findById(id)` (a `not_found` error when missing)                          |
+| `.eq('slug', slug).maybeSingle()`                                       | `findUnique({ where: { slug } })` (`null` when missing)                    |
+| `.eq('status', 'active').maybeSingle()`                                 | `findOnly({ where: { status: 'active' } })` (`multiple_rows` for several)  |
+| `.limit(1).maybeSingle()`                                               | `findFirst({ where })`                                                     |
+| `.select('*', { count: 'exact', head: true })`                          | `count({ where })`                                                         |
+| `.select('*', { count: 'exact' }).range(20, 29)`                        | `paginate({ offset: 20, limit: 10, count: 'exact' })`                      |
+| `.insert(row).select().single()`                                        | `create(row)`                                                              |
+| `.insert(rows).select()`                                                | `createMany(rows)`                                                         |
+| `.update(patch).eq('id', id).select().single()`                         | `update(id, patch)`                                                        |
+| `.update(patch).eq('status', 'lead')`                                   | `updateMany({ where: { status: 'lead' }, data: patch })`                   |
+| `.update(patch).eq('id', id).eq('organization', organization).select()` | `update(id, patch, { where: { organization } })`                           |
+| `.update(patch).in('id', ids).select()`                                 | `updateMany({ where: { id: { in: ids } }, data: patch, returning: true })` |
+| `.upsert(row, { onConflict: 'organization_id,kvk' })`                   | `upsert(row, { onConflict: ['organizationId', 'kvk'] })`                   |
+| `.delete().eq('id', id)`                                                | `delete(id)`                                                               |
+| `supabase.rpc('archive_customer', args)`                                | `db.$rpc('archive_customer', args)`                                        |
 
 Each call is still one PostgREST request, including relation filters and
 counts. Every column, relation and operator is typed, and enum columns only

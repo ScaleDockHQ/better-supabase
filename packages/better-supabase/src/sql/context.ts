@@ -9,7 +9,7 @@ import {
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 
-/** The scope id types block modules render. */
+/** The scope id types SQL modules render. */
 export const BLOCK_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
 export type BlockIdType = (typeof BLOCK_ID_TYPES)[number];
 

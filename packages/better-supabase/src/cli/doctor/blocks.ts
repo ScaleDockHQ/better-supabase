@@ -296,7 +296,7 @@ function lineOfUse(
   return undefined;
 }
 
-/** SQL files and policies that still use a symbol a block module deprecated or removed. */
+/** SQL files and policies that still use a symbol a SQL module deprecated or removed. */
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
   const entries = blockDeprecations().filter(
@@ -385,7 +385,7 @@ const globs = (value: unknown): RegExp[] =>
         new RegExp(`^${glob.split("*").map(escapeRegExp).join(".*")}$`, "i"),
     );
 
-/** The block schemas and the app tables block modules adopted, which the audit trigger skips. */
+/** The block schemas and the app tables SQL modules adopted, which the audit trigger skips. */
 function blockOwned(context: DoctorContext): {
   schemas: ReadonlySet<string>;
   tables: ReadonlySet<string>;
@@ -461,7 +461,7 @@ export const BLOCK_RULES: readonly Rule[] = [
   {
     code: "BS307",
     severity: "error",
-    title: "Custom block module without its contract",
+    title: "Custom SQL module without its contract",
     description:
       "A module in `blocks` uses `mode: 'custom'`, so the app writes its contract functions. One is missing or has another signature, and the modules and TypeScript APIs that call it fail at run time.",
     check: missingContracts,
@@ -479,7 +479,7 @@ export const BLOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Deprecated SQL module symbol",
     description:
-      "A schema file or policy uses a function, table, column or claim that a block module deprecated or removed. Deprecated symbols keep a wrapper for at least one minor release; removed ones fail at run time.",
+      "A schema file or policy uses a function, table, column or claim that a SQL module deprecated or removed. Deprecated symbols keep a wrapper for at least one minor release; removed ones fail at run time.",
     check: deprecatedSymbols,
   },
   {
@@ -519,7 +519,7 @@ export const BLOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without an audit trigger",
     description:
-      "The `audit` module is in `sql.modules`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The block's own schemas and the tables block modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
+      "The `audit` module is in `sql.modules`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
     check: unauditedTables,
   },
 ];

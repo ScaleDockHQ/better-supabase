@@ -2203,7 +2203,7 @@
         ],
         "argument_types": "p_status text, p_limit integer DEFAULT 50",
         "identity_argument_types": "p_status text, p_limit integer",
-        "return_type_id": 2000028,
+        "return_type_id": 2000030,
         "return_type": "SETOF customers",
         "return_type_relation_id": 1000005,
         "is_set_returning_function": true,
@@ -2265,7 +2265,7 @@
         ],
         "argument_types": "query vector, k integer DEFAULT 10",
         "identity_argument_types": "query vector, k integer",
-        "return_type_id": 2000031,
+        "return_type_id": 2000033,
         "return_type": "SETOF notes",
         "return_type_relation_id": 1000007,
         "is_set_returning_function": true,
@@ -2470,7 +2470,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000017,
+        "id": 2000019,
         "name": "_contacts",
         "schema": "public",
         "format": "contacts[]",
@@ -2480,7 +2480,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000018,
+        "id": 2000020,
         "name": "_customer_tags",
         "schema": "public",
         "format": "customer_tags[]",
@@ -2490,7 +2490,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000019,
+        "id": 2000021,
         "name": "_customers",
         "schema": "public",
         "format": "customers[]",
@@ -2500,7 +2500,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000020,
+        "id": 2000022,
         "name": "_locations",
         "schema": "public",
         "format": "locations[]",
@@ -2510,7 +2510,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000021,
+        "id": 2000023,
         "name": "_note_kind",
         "schema": "public",
         "format": "note_kind[]",
@@ -2520,7 +2520,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000022,
+        "id": 2000024,
         "name": "_notes",
         "schema": "public",
         "format": "notes[]",
@@ -2530,7 +2530,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000023,
+        "id": 2000025,
         "name": "_notifications",
         "schema": "public",
         "format": "notifications[]",
@@ -2540,7 +2540,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000024,
+        "id": 2000026,
         "name": "_organizations",
         "schema": "public",
         "format": "organizations[]",
@@ -2550,7 +2550,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000025,
+        "id": 2000027,
         "name": "_tags",
         "schema": "public",
         "format": "tags[]",
@@ -2560,7 +2560,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000026,
+        "id": 2000028,
         "name": "contacts",
         "schema": "public",
         "format": "contacts",
@@ -2570,7 +2570,7 @@
         "type_relation_id": 1000003
       },
       {
-        "id": 2000027,
+        "id": 2000029,
         "name": "customer_tags",
         "schema": "public",
         "format": "customer_tags",
@@ -2580,7 +2580,7 @@
         "type_relation_id": 1000004
       },
       {
-        "id": 2000028,
+        "id": 2000030,
         "name": "customers",
         "schema": "public",
         "format": "customers",
@@ -2590,7 +2590,7 @@
         "type_relation_id": 1000005
       },
       {
-        "id": 2000029,
+        "id": 2000031,
         "name": "locations",
         "schema": "public",
         "format": "locations",
@@ -2600,7 +2600,7 @@
         "type_relation_id": 1000006
       },
       {
-        "id": 2000030,
+        "id": 2000032,
         "name": "note_kind",
         "schema": "public",
         "format": "note_kind",
@@ -2610,7 +2610,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000031,
+        "id": 2000033,
         "name": "notes",
         "schema": "public",
         "format": "notes",
@@ -2620,7 +2620,7 @@
         "type_relation_id": 1000007
       },
       {
-        "id": 2000032,
+        "id": 2000034,
         "name": "notifications",
         "schema": "public",
         "format": "notifications",
@@ -2630,7 +2630,7 @@
         "type_relation_id": 1000008
       },
       {
-        "id": 2000033,
+        "id": 2000035,
         "name": "organizations",
         "schema": "public",
         "format": "organizations",
@@ -2640,7 +2640,7 @@
         "type_relation_id": 1000009
       },
       {
-        "id": 2000034,
+        "id": 2000036,
         "name": "tags",
         "schema": "public",
         "format": "tags",

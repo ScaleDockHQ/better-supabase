@@ -56,7 +56,7 @@ claims := jsonb_set(claims, '{features}', better_supabase.feature_claims(uid));
 `sql add tenant` stops when the project has a `permdock.config.ts`, because
 PermDock's hook writes the `memberships` claim. Pass `--force` to write it
 anyway. `sql add entitlements` doesn't stop: `features` is not a PermDock
-claim. See [Entitlements with PermDock](/docs/kits/entitlements#with-permdock)
+claim. See [Entitlements with PermDock](/docs/blocks/entitlements#with-permdock)
 for what works without the claim.
 
 ## TypeScript
@@ -81,7 +81,7 @@ for what works without the claim.
 Bucket and topic policies with `policy: 'tenant'` compare the configured
 tenant claim, so they read `tenant_id` after `sql sync` and `gen`. Buckets
 and topics can also use PermDock permissions: see
-[storage](/docs/kits/storage#permdock-permissions).
+[storage](/docs/platform/storage#permdock-permissions).
 
 ## Testing
 

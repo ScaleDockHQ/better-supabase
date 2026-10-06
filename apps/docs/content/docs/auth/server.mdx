@@ -66,7 +66,7 @@ it. Pass `prefetchJwks: false` to turn that off; it is off under
 await bs.admin().customers.count();
 
 // A user, with RLS, without their token: jobs, webhooks, support tooling.
-await bs.actingAs(userId, { tenant_id: orgId }).customers.findMany();
+await bs.actingAs(userId, { tenant_id: organizationId }).customers.findMany();
 ```
 
 `actingAs` runs over direct Postgres with the user's claims set for the
@@ -76,7 +76,7 @@ transaction, the way PostgREST does it, so policies see
 [Impersonation](/docs/auth/impersonation).
 
 `forContext(context)` does the same for a context recorded earlier, such as
-`job.context` from the [jobs kit](/docs/kits/jobs#actor-and-tenant). It runs
+`job.context` from the [jobs block](/docs/blocks/jobs#actor-and-tenant). It runs
 as the context's user, sets its tenant as `tenant_id` and as the
 `better_supabase.tenant` setting, and keeps an impersonating admin in `act`.
 It returns a `Result`, which fails with `forbidden` when the context has no
@@ -175,8 +175,8 @@ pass `tenant`. It returns the tenant id for a request, or `undefined`. The
 result becomes `context.tenant` for the [`tenant()` plugin](/docs/plugins/tenant),
 the `better_supabase.tenant` setting for `ctx.sql` and the `x-bs-tenant`
 header (`TENANT_HEADER`) for `ctx.db`, which `current_tenant_id()` reads with
-`kits.access.activeTenant: 'resolver'`. See
-[The active tenant](/docs/kits/access#the-active-tenant).
+`blocks.access.activeTenant: 'resolver'`. See
+[The active tenant](/docs/blocks/access#the-active-tenant).
 
 ```ts
 export const bs = createServer(betterSupabase, {

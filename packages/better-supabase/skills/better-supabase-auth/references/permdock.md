@@ -103,7 +103,7 @@ the other.
   (use the manifest's `rls.schema`), then run `permdock supabase inspect --out`
   before `sql add`. The block reads the schema, the root scope and its id type
   from `permdock.manifest.json`, and `sql add` stops instead of guessing when
-  the manifest can't give them. Every permission key the block modules check
+  the manifest can't give them. Every permission key the SQL modules check
   (`blockPermissionKeys` from `better-supabase/sql`) must be
   `rowConditions: false` in `permissions.catalog.json`; map others with
   `blocks.<module>.permissions`. Doctor reports BS411.

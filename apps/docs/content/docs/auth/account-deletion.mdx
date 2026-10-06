@@ -59,7 +59,7 @@ pass `createPostgres().admin` or another connection as `postgres`. Service and
 anonymous callers pass through. Nothing calls it on its own: every other
 request keeps verifying the token without a database or Auth round trip.
 
-To enforce the same check in the database, add the `sessions` kit module
+To enforce the same check in the database, add the `sessions` SQL module
 (`better-supabase sql add sessions`) and a restrictive policy on the tables
 that matter. `session_active()` is false once the session is gone or
 expired, or the user is banned or deleted. Wrapped in `(select ...)`, it costs
@@ -73,7 +73,7 @@ create policy session_required on public.invoices as restrictive
 ```
 
 Tokens without a `session_id` claim (signed by your app) and support tokens
-(with an `act` claim, which the support kit ends) pass.
+(with an `act` claim, which the support block ends) pass.
 
 ## What it does
 
@@ -82,7 +82,7 @@ Tokens without a `session_id` claim (signed by your app) and support tokens
    in batches of 1,000. The owner placeholder is `owner.param` for `owner`
    buckets and `{userId}` for any other template that has one. Buckets
    without one (tenant logos, say) are skipped. Put `{userId}` first in the
-   path when you can: a template like `{orgId}/{userId}/{file}` has to list the
+   path when you can: a template like `{organizationId}/{userId}/{file}` has to list the
    whole bucket to find the user's objects.
 2. **Auth.** `auth.admin.deleteUser(userId)`. Postgres then applies the
    foreign keys to `auth.users`: `on delete cascade` rows go, `set null`

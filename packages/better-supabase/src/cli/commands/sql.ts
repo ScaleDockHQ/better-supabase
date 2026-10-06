@@ -230,7 +230,7 @@ async function layoutFor(
 const BLOCK_TEST_MARKER = /^-- @bs-block-test ([a-z0-9-]+)$/m;
 
 /**
- * Test files a block module wrote for an earlier layout (a table that is no
+ * Test files a SQL module wrote for an earlier layout (a table that is no
  * longer audited), for the modules in `names`.
  */
 async function staleBlockTests(

@@ -541,7 +541,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Policy reads auth.mfa_factors directly",
     description:
-      "`authenticated` has no access to `auth.mfa_factors`, so a policy that reads it fails every request with 42501. Check the factor in a `security definer` function such as `better_supabase.mfa_satisfied()` from the `mfa` block module.",
+      "`authenticated` has no access to `auth.mfa_factors`, so a policy that reads it fails every request with 42501. Check the factor in a `security definer` function such as `better_supabase.mfa_satisfied()` from the `mfa` SQL module.",
     check: (context) =>
       exposed(context).flatMap((table) =>
         table.policies

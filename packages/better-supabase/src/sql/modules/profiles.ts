@@ -418,7 +418,7 @@ function grants(ctx: BlockContext): string {
     columns.push(ctx.col("profiles", "updatedAt"));
   const t = ctx.table("profiles");
   return `
--- Users update only these columns; the rest go through the block's functions.
+-- Users update only these columns; the rest go through the module's functions.
 revoke update on ${t} from authenticated;
 ${columns.length > 0 ? `grant update (${[...new Set(columns)].join(", ")}) on ${t} to authenticated;` : ""}`;
 }

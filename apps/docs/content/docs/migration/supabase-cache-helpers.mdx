@@ -38,7 +38,7 @@ invalidateOnMutation(betterSupabase, queryClient); // every write through db inv
 | `prefetchQuery(queryClient, query)`                                | `q.$prefetch(queryClient, spec)`                             |
 | `fetchQueryInitialData`                                            | `queryClient.fetchQuery(q.$spec(spec))`                      |
 | `useQuery(supabase.rpc('fn', args))`                               | `useQuery(q.$rpc('fn', args))`                               |
-| Storage `useUpload`, `useFileUrl`, `useDirectory`                  | The [storage kit](/docs/kits/storage)'s typed buckets        |
+| Storage `useUpload`, `useFileUrl`, `useDirectory`                  | The [storage block](/docs/platform/storage)'s typed buckets  |
 
 ## Differences to expect
 

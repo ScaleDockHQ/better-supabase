@@ -1,5 +1,5 @@
 ---
-title: SQL kit
+title: SQL modules
 description: Idempotent SQL modules for the database work every app repeats, written into your declarative schema.
 ---
 
@@ -12,16 +12,16 @@ schema.
 ```bash
 better-supabase sql list
 better-supabase sql add audit jobs pgtap
-supabase db schema declarative sync -f better_supabase_kit
+supabase db schema declarative sync -f better_supabase_block
 better-supabase sql data
 ```
 
 A schema diff only captures objects, so each module's rows and settings (its
-`kit_modules` row, the reserved slugs, the rate-limit role setting) go to a
+`block_modules` row, the reserved slugs, the rate-limit role setting) go to a
 second file in `supabase/better-supabase-data/`, outside the schema folder:
 pg-delta loads every file under `supabase/schemas`, nested folders included,
 and refuses a table that has rows afterwards. When `sql.dir` is a folder
-inside the schema folder (`supabase/schemas/kit`), the data files still go
+inside the schema folder (`supabase/schemas/block`), the data files still go
 next to the schema folder, and `declarative_schema_path` in
 `supabase/config.toml` moves both. `better-supabase sql data` writes those files into one
 migration, stamped after the newest one so it runs after the schema migration.
@@ -36,48 +36,48 @@ and [doctor](/docs/cli/doctor) read that setting and name the matching
 command.
 
 On the legacy migra engine, create the migration with
-`supabase db diff -f better_supabase_kit` while the stack is stopped. When
+`supabase db diff -f better_supabase_block` while the stack is stopped. When
 `supabase/config.toml` lists `[db.migrations] schema_paths`, migra reads only
-the files those entries match. `sql add` names any kit file no entry matches
-and prints the lines to add. List the kit files before the schemas that call
+the files those entries match. `sql add` names any module file no entry matches
+and prints the lines to add. List the module files before the schemas that call
 their functions.
 
 ## Modules
 
-| Module             | What it adds                                                                                                                                                                                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                 |
-| `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                       |
-| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                |
-| `tenant`           | `memberships`, `current_tenant_id()`, `member_org_ids(roles)` and `has_org_role(org, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                         |
-| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/kits/access)                                                                    |
-| `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/kits/orgs)                                                     |
-| `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                                                           |
-| `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/jobs`](/docs/kits/jobs)                                                               |
-| `idempotency`      | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                                                                 |
-| `webhook-inbox`    | Stores verified webhooks once and hands them to a worker                                                                                                                                                                                                       |
-| `realtime-tables`  | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                                                              |
-| `jsonb-schemas`    | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                                                           |
-| `pgtap`            | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                                                              |
-| `grants`           | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                                                                |
-| `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                                                            |
-| `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                                                        |
-| `sessions`         | `session_active()` for restrictive policies that reject tokens whose session was signed out or expired, or whose user was banned or deleted. See [Ended sessions](/docs/auth/account-deletion#ended-sessions)                                                  |
-| `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/kits/entitlements)                                                                                              |
-| `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/kits/vector-search)                                                                                                                                        |
-| `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                      |
-| `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                            |
-| `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(org)` and an owner check on commit. See [Organizations](/docs/kits/orgs)                                                                                                  |
-| `profiles`         | A profile per user from sign-up metadata, with a unique username, an email mirror, column grants and service-owned columns. See [Profiles](/docs/kits/profiles)                                                                                                |
-| `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/kits/outbox)                             |
-| `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/kits/notifications)           |
-| `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/kits/webhooks-out) |
+| Module             | What it adds                                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                   |
+| `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                         |
+| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                  |
+| `tenant`           | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                |
+| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/blocks/access)                                                                    |
+| `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/blocks/organizations)                                            |
+| `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs                                                                                                                                                                             |
+| `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/jobs`](/docs/blocks/jobs)                                                        |
+| `idempotency`      | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                                                                   |
+| `webhook-inbox`    | Stores verified webhooks once and hands them to a worker                                                                                                                                                                                                         |
+| `realtime-tables`  | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                                                                |
+| `jsonb-schemas`    | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                                                             |
+| `pgtap`            | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                                                                |
+| `grants`           | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                                                                  |
+| `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                                                              |
+| `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                                                          |
+| `sessions`         | `session_active()` for restrictive policies that reject tokens whose session was signed out or expired, or whose user was banned or deleted. See [Ended sessions](/docs/auth/account-deletion#ended-sessions)                                                    |
+| `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/blocks/entitlements)                                                                                              |
+| `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/blocks/vector-search)                                                                                                                                        |
+| `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                        |
+| `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                              |
+| `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(organization)` and an owner check on commit. See [Organizations](/docs/blocks/organizations)                                                                                |
+| `profiles`         | A profile per user from sign-up metadata, with a unique username, an email mirror, column grants and service-owned columns. See [Profiles](/docs/blocks/profiles)                                                                                                |
+| `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                             |
+| `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/blocks/notifications)           |
+| `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks-out) |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
-`kits.access.activeTenant`: by default the tenant the server resolved for the
+`blocks.access.activeTenant`: by default the tenant the server resolved for the
 request, then the claim named by `claims.tenant` (`tenant_id` by default).
-The roles come from `kits.access.roles`. Change modules through `kits` (see
+The roles come from `blocks.access.roles`. Change modules through `blocks` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `sql sync` rewrites them, and doctor reports a hand edit.
 
@@ -86,11 +86,11 @@ token hook and the `memberships` claim. `sql add tenant` then stops and points
 you at `permdock supabase hook generate`. Pass `--force` to write it anyway,
 for example to keep the helpers while you migrate. Modules that need `tenant`,
 such as `invitations`, are written without `--force`, with `tenant` as a
-dependency and a note: its memberships table backs `has_org_role()`, and no
+dependency and a note: its memberships table backs `has_organization_role()`, and no
 hook should call `membership_claims()`. `entitlements` needs `tenant` only
 without a `permdock.manifest.json`: with one, it reads PermDock's
 `member_<scope>_ids` helpers instead. See
-[Entitlements with PermDock](/docs/kits/entitlements#with-permdock).
+[Entitlements with PermDock](/docs/blocks/entitlements#with-permdock).
 
 ```sql
 select better_supabase.track_updated_at('public.customers');
@@ -98,13 +98,13 @@ select better_supabase.track_actor('public.customers');
 select better_supabase.audit('public.customers', ignore => '{updated_at}');
 
 create policy "admins update" on public.customers for update to authenticated
-  using (organization_id in (select better_supabase.member_org_ids('{owner,admin}')))
-  with check (organization_id in (select better_supabase.member_org_ids('{owner,admin}')));
+  using (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')))
+  with check (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')));
 ```
 
-`member_org_ids()` returns the user's organizations as a set, so Postgres runs
+`member_organization_ids()` returns the user's organizations as a set, so Postgres runs
 it once per statement and compares each row against the result. Calling
-`has_org_role(organization_id)` in a policy runs it once per row instead; keep
+`has_organization_role(organization_id)` in a policy runs it once per row instead; keep
 that one for functions and single checks. `with check` stops an update from
 moving a row into an organization the user can't manage.
 
@@ -112,12 +112,12 @@ Admins can invite members, viewers and other admins. Only an owner, or the
 service role, can invite an owner, and the invitee has to confirm their email
 address before `accept_invitation` adds them.
 
-Kit tables use `gen_random_uuid()` keys. Postgres 18's `uuidv7()` gives
-time-ordered keys that keep indexes compact, and the kit moves to it once
+Module tables use `gen_random_uuid()` keys. Postgres 18's `uuidv7()` gives
+time-ordered keys that keep indexes compact, and the modules move to it once
 hosted Supabase runs Postgres 18
 ([supabase/postgres#2051](https://github.com/supabase/postgres/pull/2051)).
 
-Errors raised by the kit carry a stable code in the `hint` field, for example
+Errors raised by the modules carry a stable code in the `hint` field, for example
 `SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
 `INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
@@ -125,9 +125,9 @@ typed `DbError`s through the repository.
 ## Existing tables: managed, adopt and custom
 
 Each module has a contract: the functions policies, other modules and the
-TypeScript side call. `kits.<module>.mode` decides what stands behind it.
+TypeScript side call. `blocks.<module>.mode` decides what stands behind it.
 
-| Mode                | The kit writes                                                                              |
+| Mode                | The module writes                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------------- |
 | `managed` (default) | its tables, policies and functions                                                          |
 | `adopt`             | only functions and views, over tables you already have; never `create table`                |
@@ -142,8 +142,8 @@ own names:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { kit: ["tenant", "invitations"] },
-  kits: {
+  sql: { modules: ["tenant", "invitations"] },
+  blocks: {
     tenant: {
       mode: "adopt",
       tables: { memberships: "public.organization_users" },
@@ -159,24 +159,24 @@ export default defineConfig({
 });
 ```
 
-| Key           | What it sets                                                                            |
-| ------------- | --------------------------------------------------------------------------------------- |
-| `mode`        | `managed`, `adopt` or `custom`                                                          |
-| `schema`      | the schema of the module's functions and managed tables (`better_supabase`)             |
-| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have |
-| `columns`     | logical table to logical column to column name; `null` for an optional column           |
-| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                     |
-| `permissions` | kit action to permission key, checked through the [access contract](/docs/kits/access)  |
-| `options`     | module options, listed on each module's page                                            |
-| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)      |
-| `events`      | `false` stops the module writing its events to the outbox                               |
+| Key           | What it sets                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `mode`        | `managed`, `adopt` or `custom`                                                             |
+| `schema`      | the schema of the module's functions and managed tables (`better_supabase`)                |
+| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have    |
+| `columns`     | logical table to logical column to column name; `null` for an optional column              |
+| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                        |
+| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access) |
+| `options`     | module options, listed on each module's page                                               |
+| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)         |
+| `events`      | `false` stops the module writing its events to the outbox                                  |
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the
-module version and mode (`-- @bs-kit tenant@2 adopt`), and the data migration
-records them in `better_supabase.kit_modules`. An option a module doesn't read
+module version and mode (`-- @bs-block tenant@2 adopt`), and the data migration
+records them in `better_supabase.block_modules`. An option a module doesn't read
 stops `sql add` as well, so a misspelled option can't fall back to its default
-without notice. Only `kits.access` takes the access keys (`model`, `roles`,
+without notice. Only `blocks.access` takes the access keys (`model`, `roles`,
 `functions`, `activeTenant` and the rest).
 
 ## Audit log
@@ -212,13 +212,13 @@ select better_supabase.audit_event(
 );
 ```
 
-The module options (`kits.audit.options`):
+The module options (`blocks.audit.options`):
 
 | Option          | Default             | What it does                                                                                                                                                                                              |
 | --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                                                                                       |
 | `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
-| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/kits/access))                                                             |
+| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
 | `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
 | `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
 | `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                                                                                     |
@@ -238,7 +238,7 @@ and the file is stale. A later `unaudit(...)` call removes the table's file on
 the next `sql sync`. Calls with computed arguments, such as
 `audit(format(...))`, are skipped.
 
-An app with its own audit table adopts it: map `kits.audit.tables.log` and
+An app with its own audit table adopts it: map `blocks.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
 snapshots or `supportSession`, for example). The module then writes into your table and never
 creates it.
@@ -274,14 +274,14 @@ select cron.schedule('purge-rate-limits', '*/15 * * * *', $$select better_supaba
 
 Tenants can keep entries for different periods, a plan's retention for
 example. Write an `audit_retention(tenant)` function that returns an interval
-(or null for the default) in the schema `kits.audit.hooks` points at, and
+(or null for the default) in the schema `blocks.audit.hooks` points at, and
 `purge_audit_log` uses it for every entry. Like every SQL hook, it is
-optional: the kit calls hooks through dynamic SQL, so `supabase db lint`
+optional: the module calls hooks through dynamic SQL, so `supabase db lint`
 passes without them. To decide in TypeScript instead,
-call `purgeAuditLog` from `better-supabase/jobs` in a scheduled job:
+call `purgeAuditLog` from `better-supabase/blocks/jobs` in a scheduled job:
 
 ```ts
-import { purgeAuditLog } from "better-supabase/jobs";
+import { purgeAuditLog } from "better-supabase/blocks/jobs";
 
 await purgeAuditLog(postgres.admin, {
   olderThan: "1 year",
@@ -322,14 +322,14 @@ as the admin checks `support.start` again. Errors carry `SUPPORT_FORBIDDEN`,
 | `claimsHook`           | none      | `schema.function` of your access token hook, for `support_target_claims` |
 
 The permission keys are `support.start`, `support.read` and `support.revoke`;
-rename them with `kits["support-sessions"].permissions`. The hooks
+rename them with `blocks["support-sessions"].permissions`. The hooks
 `before_support_start(admin, target, reason, metadata)`,
 `after_support_start(session_id)` and `after_support_end(session_id)` run in
 the schema `hooks.schema` names. An existing sessions table can be adopted:
 the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional.
 
 ```ts title="better-supabase.config.ts"
-kits: {
+blocks: {
   "support-sessions": {
     mode: "adopt",
     tables: { sessions: "public.impersonation_sessions" },
@@ -423,7 +423,7 @@ export default defineConfig({
       schema: CustomerMetadata,
     },
   },
-  sql: { kit: ["jsonb-schemas"] },
+  sql: { modules: ["jsonb-schemas"] },
 });
 ```
 
@@ -442,7 +442,10 @@ you add other modules. List the modules you use in the config:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { kit: ["audit", "jobs", "invitations"], testsDir: "supabase/tests" },
+  sql: {
+    modules: ["audit", "jobs", "invitations"],
+    testsDir: "supabase/tests",
+  },
 });
 ```
 
@@ -457,7 +460,7 @@ export default defineConfig({
 | `sql.dir`      | `supabase/schemas`    |
 | `sql.prefix`   | `900_better_supabase` |
 | `sql.testsDir` | `supabase/tests`      |
-| `sql.kit`      | `[]`                  |
+| `sql.modules`  | `[]`                  |
 
 ## Upgrading modules
 
@@ -470,9 +473,9 @@ update the package:
 better-supabase sql upgrade
 ```
 
-It reads the version from each file's `@bs-kit` line (a file without one,
+It reads the version from each file's `@bs-block` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
-forward steps into `<timestamp>_better_supabase_kit_upgrade.sql` in the
+forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
 `migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
 steps run first. `sql upgrade --check` exits with 1 when a module is behind or
 a file is stale, and `--dry-run` lists the steps without writing.
@@ -482,7 +485,7 @@ version. The module file keeps a wrapper under the old name (a view for a
 table), marked `-- Deprecated since`, and doctor reports code that still uses
 it (BS309). A renamed column has no wrapper: `sql upgrade` renames it, and
 doctor reports the old name in your SQL before you upgrade. The
-[stability page](/docs/extending/stability#sql-kit-objects-and-claims) lists
+[stability page](/docs/extending/stability#sql-module-objects-and-claims) lists
 what each module guarantees.
 
 ## Existing triggers
@@ -502,36 +505,36 @@ Doctor reports a table that still has both (BS310).
 ## Rendering modules in code
 
 `better-supabase/sql` exports what the `sql` command uses, for build scripts
-and tests that write the files themselves. `kitLayout(config)` returns the
-paths, `renderKit` returns the files with their managed headers (dependencies
+and tests that write the files themselves. `blockLayout(config)` returns the
+paths, `renderBlocks` returns the files with their managed headers (dependencies
 included), and `resolveModules` lists the modules a set of names pulls in.
 
-```ts title="scripts/write-kit.ts"
+```ts title="scripts/write-block.ts"
 import { resolveConfig } from "better-supabase/config";
-import { kitLayout, renderKit, resolveModules } from "better-supabase/sql";
+import { blockLayout, renderBlocks, resolveModules } from "better-supabase/sql";
 
 import config from "../better-supabase.config.ts";
 
-const layout = kitLayout(resolveConfig(config, process.cwd()));
+const layout = blockLayout(resolveConfig(config, process.cwd()));
 const modules = resolveModules(["audit", "jobs"], layout).map((m) => m.name);
-const files = renderKit(["audit", "jobs"], layout);
+const files = renderBlocks(["audit", "jobs"], layout);
 ```
 
 `compileReadSets` turns the read sets in `generated.ts` into the SQL views and
 functions that `better-supabase gen` writes. `moduleBody(name, layout)`
 returns one module's SQL without its header, `customContracts` the functions
-custom-mode modules must provide, and `kitFileVersion(contents)` the version
+custom-mode modules must provide, and `blockFileVersion(contents)` the version
 and mode in a file's header.
 
-`kitFilePaths(names, layout)` maps each module a set of names pulls in to its
-schema and test paths without rendering it. `kitPermissionKeys(kits, names)`
+`blockFilePaths(names, layout)` maps each module a set of names pulls in to its
+schema and test paths without rendering it. `blockPermissionKeys(blocks, names)`
 lists the permission keys those modules check, with the action, the key after
-`kits.<module>.permissions` and whether a tenant or a platform check asks for
-it. Under `kits.access.model: 'permdock'`, `sql add` and doctor (BS411) check
+`blocks.<module>.permissions` and whether a tenant or a platform check asks for
+it. Under `blocks.access.model: 'permdock'`, `sql add` and doctor (BS411) check
 each key against `permissions.catalog.json`; a script can do the same:
 
-```ts title="scripts/check-kit-keys.ts"
-import { kitPermissionKeys } from "better-supabase/sql";
+```ts title="scripts/check-block-keys.ts"
+import { blockPermissionKeys } from "better-supabase/sql";
 
 import config from "../better-supabase.config.ts";
 import catalog from "../permissions.catalog.json" with { type: "json" };
@@ -541,7 +544,7 @@ const scopeOnly = new Set(
     .filter((entry) => entry.rowConditions === false)
     .map((entry) => entry.key),
 );
-for (const { module, action, key } of kitPermissionKeys(config.kits ?? {}, [
+for (const { module, action, key } of blockPermissionKeys(config.blocks ?? {}, [
   "organizations",
   "invitations",
 ])) {

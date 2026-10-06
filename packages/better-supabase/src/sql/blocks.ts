@@ -1929,7 +1929,7 @@ export function blockFilePaths(
   );
 }
 
-/** A permission key a block module checks, from `blockPermissionKeys`. */
+/** A permission key a SQL module checks, from `blockPermissionKeys`. */
 export interface BlockPermissionKey {
   readonly module: string;
   /** The action in `blocks.<module>.permissions` that overrides the key. */

@@ -3,8 +3,8 @@ title: Jobs, idempotency and webhook inbox
 description: Background jobs on Supabase Queues, safe retries and exactly-once webhook handling on the Postgres you already have.
 ---
 
-`better-supabase/jobs` sits on top of the `jobs`, `idempotency` and
-`webhook-inbox` [SQL kit](/docs/kits/sql) modules. It needs a service-role
+`better-supabase/blocks/jobs` sits on top of the `jobs`, `idempotency` and
+`webhook-inbox` [SQL modules](/docs/blocks/sql). It needs a service-role
 connection, such as `createPostgres(...).admin`, because the functions are
 closed to `anon` and `authenticated`. Every call returns a `Result`.
 
@@ -23,14 +23,14 @@ dead letters, deduplication keys and schedules.
 Two module options change where jobs and schedules live. Both keep the same
 functions, so the TypeScript side doesn't change:
 
-| Option                        | Values                       | What it does                                                                                                                                                |
-| ----------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kits.jobs.options.backend`   | `pgmq` (default), `table`    | `table` stores jobs in `better_supabase.job_messages` and claims them with `for update skip locked`, for projects without pgmq                              |
-| `kits.jobs.options.scheduler` | `pg_cron` (default), `drain` | `drain` stores schedules in `better_supabase.job_schedules`, with a time zone each, and the [drain route](#drain-route) enqueues them; pg_cron isn't needed |
+| Option                          | Values                       | What it does                                                                                                                                                |
+| ------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blocks.jobs.options.backend`   | `pgmq` (default), `table`    | `table` stores jobs in `better_supabase.job_messages` and claims them with `for update skip locked`, for projects without pgmq                              |
+| `blocks.jobs.options.scheduler` | `pg_cron` (default), `drain` | `drain` stores schedules in `better_supabase.job_schedules`, with a time zone each, and the [drain route](#drain-route) enqueues them; pg_cron isn't needed |
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  kits: {
+  blocks: {
     jobs: { options: { backend: "table", scheduler: "drain" } },
   },
 });
@@ -49,7 +49,7 @@ and a `validation` error at runtime. Queue names follow pgmq's rule:
 lowercase letters, digits and underscores.
 
 ```ts title="lib/jobs.ts"
-import { createJobs } from "better-supabase/jobs";
+import { createJobs } from "better-supabase/blocks/jobs";
 import * as v from "valibot";
 
 export const jobs = createJobs(postgres.admin, {
@@ -236,7 +236,7 @@ put jobs somewhere else, and prove it with `testQueueBackend` from
 [conformance kits](/docs/extending/conformance).
 
 ```ts
-import { createJobs, type QueueBackend } from "better-supabase/jobs";
+import { createJobs, type QueueBackend } from "better-supabase/blocks/jobs";
 
 const backend: QueueBackend = myQueue;
 const jobs = createJobs(backend, { send_email: schema });
@@ -267,7 +267,7 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 `Idempotency-Key` gets the first response back instead of running twice:
 
 ```ts
-import { createIdempotency } from "better-supabase/jobs";
+import { createIdempotency } from "better-supabase/blocks/jobs";
 
 const idempotency = createIdempotency(postgres.admin, { ttl: "24 hours" });
 
@@ -295,7 +295,7 @@ worker then processes it, with the same retries as jobs. This way your
 provider never times out, and a redelivered webhook is only handled once.
 
 ```ts
-import { createInbox } from "better-supabase/jobs";
+import { createInbox } from "better-supabase/blocks/jobs";
 
 const inbox = createInbox(postgres.admin, {
   source: "billing",

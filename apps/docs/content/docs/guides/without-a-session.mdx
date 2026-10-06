@@ -86,7 +86,7 @@ user's access when the job runs, not when it was enqueued. `sub`, `role`,
 ## Webhooks
 
 A webhook belongs to whoever the event is about. Verify and store it with
-the [webhook inbox](/docs/kits/jobs#webhook-inbox), map the provider's id to
+the [webhook inbox](/docs/blocks/jobs#webhook-inbox), map the provider's id to
 a user and tenant in the handler, then act as that user:
 
 ```ts title="app/api/webhooks/billing/route.ts"

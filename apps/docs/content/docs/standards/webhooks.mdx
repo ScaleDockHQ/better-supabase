@@ -10,7 +10,7 @@ Supabase signs HTTP Auth hooks with [Standard Webhooks](https://www.standardwebh
 serializes the answer:
 
 ```ts title="app/api/hooks/access-token/route.ts"
-import { authHook, hookError } from "better-supabase/webhooks";
+import { authHook, hookError } from "better-supabase/blocks/webhooks";
 
 export const POST = authHook(
   "custom_access_token",
@@ -37,7 +37,7 @@ policies read.
 ## Any Standard Webhook
 
 ```ts
-import { verifyWebhook, signWebhook } from "better-supabase/webhooks";
+import { verifyWebhook, signWebhook } from "better-supabase/blocks/webhooks";
 
 const result = await verifyWebhook<MyPayload>(request, [
   currentSecret,
@@ -54,7 +54,7 @@ sending, and is useful in tests; pass `timestamp` (a `Temporal.Instant`) to fix
 the signing time.
 
 To send webhooks to your customers' endpoints, with subscriptions, retries
-and a delivery log, use the [outgoing webhooks kit](/docs/kits/webhooks-out).
+and a delivery log, use the [outgoing webhooks block](/docs/blocks/webhooks-out).
 
 ## Database webhooks
 
@@ -72,5 +72,5 @@ if (change?.type === "INSERT") await welcome(change.record!.email);
 ```
 
 `record` and `oldRecord` are app-cased and typed. `databaseChange` returns
-`null` for other tables. Pair it with the SQL kit's webhook inbox to handle
+`null` for other tables. Pair it with the SQL modules' webhook inbox to handle
 each delivery once.

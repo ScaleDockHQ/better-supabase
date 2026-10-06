@@ -55,17 +55,17 @@ export const workspaceSummary = defineReadSet(
 );
 ```
 
-List the module in the config and add the `read-sets` SQL kit module:
+List the module in the config and add the `read-sets` SQL module:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   readSets: ["src/lib/read-sets.ts"],
-  sql: { kit: ["read-sets"] },
+  sql: { modules: ["read-sets"] },
 });
 ```
 
 `better-supabase gen` compiles each set into one function in the
-[`read-sets` module](/docs/kits/sql), then you create a migration with
+[`read-sets` module](/docs/blocks/sql), then you create a migration with
 `supabase db schema declarative sync` (`supabase db diff` on the legacy migra
 engine):
 

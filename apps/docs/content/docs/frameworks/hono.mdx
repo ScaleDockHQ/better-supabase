@@ -196,7 +196,7 @@ the same claims that PostgREST and RLS see:
 import { signLocalJwt } from "better-supabase/testing";
 
 const bs = createHono(betterSupabase);
-const token = await signLocalJwt({ sub: userId, tenant_id: orgId });
+const token = await signLocalJwt({ sub: userId, tenant_id: organizationId });
 await app.request("/api/customers", {
   headers: { authorization: `Bearer ${token}` },
 });

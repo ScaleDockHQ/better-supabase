@@ -41,7 +41,7 @@ A user from `signInAnonymously()` is a `user` with `is_anonymous: true` in
 the token, and `toSession(auth).anonymous` is `true`. Every adapter's guard
 refuses these users with a 403 (`code: "ANONYMOUS_USER"`) unless `allow` lists
 `'anonymous'`, so a guest session never reaches a route meant for accounts.
-The `realtime-tables` SQL kit module sends them no change signals.
+The `realtime-tables` SQL module sends them no change signals.
 
 | `allow`                  | Full users | Anonymous sign-ins   | No session |
 | ------------------------ | ---------- | -------------------- | ---------- |
@@ -213,8 +213,8 @@ hour by default), or until the proxy refreshes the session. The same goes for
 refresh, not immediately.
 
 When that window matters, read the source of truth instead of the claim:
-policies can check the `memberships` table (`member_org_ids()` from the
-[SQL kit](/docs/kits/sql) does). After a change the user made themselves,
+policies can check the `memberships` table (`member_organization_ids()` from the
+[SQL modules](/docs/blocks/sql) does). After a change the user made themselves,
 such as joining an organization, the browser can call
 `supabase.auth.refreshSession()` to pick up the new claims at once. Shorter
 token lifetimes narrow the window for everyone

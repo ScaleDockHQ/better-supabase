@@ -79,7 +79,11 @@ const spec = betterSupabase.spec.customers.findMany({
 useQuery(q.$spec(spec));
 
 useQuery(
-  q.$rpc("customer_stats", { orgId }, { tables: ["customers", "notes"] }),
+  q.$rpc(
+    "customer_stats",
+    { organizationId },
+    { tables: ["customers", "notes"] },
+  ),
 );
 const archive = useMutation(q.$rpcMutation("archive_customer"));
 ```

@@ -1,11 +1,11 @@
 ---
-title: Conformance kits
+title: Conformance blocks
 description: Prove a custom executor, cache adapter, sink, auth resolver, framework adapter, generator or plugin meets its contract.
 ---
 
-`better-supabase/testing` has a kit per extension interface. A kit runs every
+`better-supabase/testing` has a block per extension interface. A block runs every
 check and resolves with a report, or throws a `ConformanceError` that lists
-all failed checks. Kits don't depend on a test runner, so they work in vitest,
+all failed checks. Blocks don't depend on a test runner, so they work in vitest,
 `node:test` and bun.
 
 ```ts title="kysely-executor.test.ts"
@@ -20,7 +20,7 @@ it("conforms", () =>
   }));
 ```
 
-| Kit                                                                     | Checks                                                                                                                                                                                                                                                                                                        |
+| Block                                                                   | Checks                                                                                                                                                                                                                                                                                                        |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `testExecutor(executor, { betterSupabase, table?, create? })`           | rows keyed by selection aliases, limits, counts, `aborted` errors, failures returned instead of thrown, rpc failures, and with `create` a create, read and delete round trip                                                                                                                                  |
 | `testCacheAdapter(adapter, { table? })`                                 | table and row targets, tenants, repeated and concurrent calls, unknown tables, no mutation of the target                                                                                                                                                                                                      |
@@ -39,5 +39,5 @@ it("conforms", () =>
 Inputs that should stay untouched are deep-frozen, so an implementation that
 mutates them fails with the check that caught it.
 
-The first-party executors, adapters, generators and plugins run these kits in
+The first-party executors, adapters, generators and plugins run these blocks in
 the package's own test suite.

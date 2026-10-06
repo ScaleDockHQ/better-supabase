@@ -19,7 +19,7 @@ const db = defineSupabase(schema)
   the config renames it) get `impersonatedBy` on each insert and update made
   during [impersonation](/docs/auth/impersonation): the admin from
   `actor.impersonator`. The user's own writes leave it alone, so the row
-  keeps the last impersonating admin. That is what the SQL kit's
+  keeps the last impersonating admin. That is what the SQL modules'
   `track_actor(table, impersonated_by => 'impersonated_by')` writes, and it
   also keeps `created_by` on updates.
 - Anonymous requests set nothing.
@@ -29,9 +29,9 @@ const db = defineSupabase(schema)
 
 Server adapters fill `actor` from the verified JWT. Jobs run as the user who
 enqueued them with `bs.forContext(job.context)` (see
-[jobs](/docs/kits/jobs#actor-and-tenant)), webhooks and scripts with
+[jobs](/docs/blocks/jobs#actor-and-tenant)), webhooks and scripts with
 `bs.actingAs(userId)`, and work no user owns with `bs.admin()`, whose actor
 is `service`. Pass `resolve(context)` to read the id from somewhere else.
 
-For a tamper-proof trail, add the `actor` and `audit` SQL kit triggers, which
+For a tamper-proof trail, add the `actor` and `audit` SQL module triggers, which
 read `auth.uid()` inside the database.

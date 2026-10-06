@@ -27,7 +27,7 @@ it (for example `supabase db diff -f kit_0_5`), so the renames run before the
 new definitions. `sql data` is new: it
 writes the kit's rows and role settings, which a schema diff can't capture,
 into a migration stamped after the newest one. See
-[Upgrading modules](/docs/kits/sql#upgrading-modules).
+[Upgrading modules](/docs/blocks/sql#upgrading-modules).
 
 The forward steps rename these objects:
 
@@ -65,7 +65,7 @@ export default defineConfig({
 });
 ```
 
-See [The active tenant](/docs/kits/access#the-active-tenant).
+See [The active tenant](/docs/blocks/access#the-active-tenant).
 
 ## Entitlements
 
@@ -86,7 +86,7 @@ export default defineConfig({
 the migration `sql data` writes, when no other pre-request function is set.
 Doctor warns (BS313) when the live database doesn't call `check_request()`.
 Schedule the new `purge_rate_limits()` next to the other purges (see
-[Retention](/docs/kits/sql#retention)).
+[Retention](/docs/blocks/sql#retention)).
 
 ## Behavior that changed
 

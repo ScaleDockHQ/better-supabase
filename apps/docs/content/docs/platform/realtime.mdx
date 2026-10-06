@@ -11,12 +11,17 @@ subscribes.
 import { defineTopic } from "better-supabase/realtime";
 import * as v from "valibot";
 
-export const customersTopic = defineTopic("org:{orgId}:customers");
+export const customersTopic = defineTopic(
+  "organization:{organizationId}:customers",
+);
 
-export const notifications = defineTopic("org:{orgId}:notifications:{userId}", {
-  events: { created: v.object({ id: v.string(), title: v.string() }) },
-  send: true,
-});
+export const notifications = defineTopic(
+  "organization:{organizationId}:notifications:{userId}",
+  {
+    events: { created: v.object({ id: v.string(), title: v.string() }) },
+    send: true,
+  },
+);
 ```
 
 Or declare templates under `topics` in `better-supabase.config.ts` and pass
@@ -27,8 +32,8 @@ the generated constant: `defineTopic(topics.notifications)`.
 Topics are private by default: Realtime checks `realtime.messages` policies
 when a client joins. `topic.sql()` generates them:
 
-- The topic must match the template (`^org:[^:]+:notifications:[^:]+$`).
-- `{orgId}` must equal the JWT `tenant_id` (or `app_metadata.tenant_id`).
+- The topic must match the template (`^organization:[^:]+:notifications:[^:]+$`).
+- `{organizationId}` must equal the JWT `tenant_id` (or `app_metadata.tenant_id`).
 - `{userId}` must equal `auth.uid()`.
 
 Both checks switch on automatically when the template has those placeholders.
@@ -38,14 +43,14 @@ can broadcast too, and `presence: true` authorizes presence.
 
 With [PermDock](/docs/auth/permdock), `permdock` replaces the tenant check
 with PermDock permissions: joining needs `receive` in the scope named by the
-`{orgId}` segment, and sending needs `send`. The policies call the helpers
+`{organizationId}` segment, and sending needs `send`. The policies call the helpers
 `permdock rls generate` writes, `<schema>.permitted_<scope>_ids(key)`, or
 `<schema>.permdock_has(key)` for `scope: 'global'`. The topic's `schema`
 option defaults to `permdock`, PermDock's default `rls.schema`, and must equal
 the schema PermDock writes them to:
 
 ```ts
-export const board = defineTopic("org:{orgId}:board", {
+export const board = defineTopic("organization:{organizationId}:board", {
   permdock: {
     receive: "board.read",
     send: "board.write",
@@ -55,7 +60,7 @@ export const board = defineTopic("org:{orgId}:board", {
 ```
 
 Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
-and `schema` work as for [buckets](/docs/kits/storage#permdock-permissions),
+and `schema` work as for [buckets](/docs/platform/storage#permdock-permissions),
 and keys PermDock splits by row condition (`board.read#1`) are refused. The
 segment is compared as text, so it must be the id's canonical lowercase form:
 a topic with an uppercase uuid is denied.
@@ -68,11 +73,11 @@ the tables that `permdock rls generate` writes policies for.
 
 ```ts
 // Wrong: board.read is granted only for boards the member owns
-defineTopic("org:{orgId}:board", {
+defineTopic("organization:{organizationId}:board", {
   permdock: { receive: "board.read", scope: "organization" },
 });
 // Right: board.view is granted per organization, with no row condition
-defineTopic("org:{orgId}:board", {
+defineTopic("organization:{organizationId}:board", {
   permdock: { receive: "board.view", scope: "organization" },
 });
 ```
@@ -85,7 +90,7 @@ unknown, so they throw too:
 ```ts
 import catalog from "../../permissions.catalog.json" with { type: "json" };
 
-defineTopic("org:{orgId}:board", {
+defineTopic("organization:{organizationId}:board", {
   permdock: { receive: "board.view", scope: "organization" },
   catalog,
 });
@@ -115,7 +120,7 @@ for any topic policy that calls a helper for one.
 
 ```ts
 customersTopic.triggerSql(betterSupabase, "customers", {
-  values: { orgId: "organizationId" },
+  values: { organizationId: "organizationId" },
 });
 ```
 
@@ -136,7 +141,7 @@ const change = rowChange(betterSupabase, "customers", message);
 ```ts
 using sub = notifications.subscribe(
   supabase,
-  { orgId, userId },
+  { organizationId, userId },
   {
     created: (n) => toast(n.title), // typed from the schema
     "*": (payload, message) => console.log(message.event, payload),
@@ -154,7 +159,7 @@ skip the handler and go to `onInvalid`.
 
 ```ts
 await notifications
-  .send(supabase, { orgId, userId }, "created", { id, title })
+  .send(supabase, { organizationId, userId }, "created", { id, title })
   .orThrow();
 ```
 
@@ -169,7 +174,7 @@ import { useBroadcast } from "better-supabase/react";
 
 const status = useBroadcast(
   customersTopic,
-  orgId ? { orgId } : null,
+  organizationId ? { organizationId } : null,
   {},
   { invalidate: ["customers"] },
 );

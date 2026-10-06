@@ -20,7 +20,7 @@ export interface WebhookSecretStore {
   rotate?(endpointId: string, options?: RotateSecretOptions): Promise<string>;
 }
 
-/** The block's `webhook_secrets` and `rotate_webhook_secret` functions. */
+/** The module's `webhook_secrets` and `rotate_webhook_secret` functions. */
 export function sqlSecretStore(
   transport: BlockTransport,
   options: { readonly schema?: string } = {},

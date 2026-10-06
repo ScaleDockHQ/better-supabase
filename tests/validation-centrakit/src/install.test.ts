@@ -9,7 +9,7 @@ describe.skipIf(!live)("installing on CentraKit", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
 
-  it("installs every block module", async () => {
+  it("installs every SQL module", async () => {
     await withCentraKit(pool, async (s) => {
       expect(await s.value("1")).toBe(1);
     });

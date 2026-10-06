@@ -25,7 +25,7 @@ the same generator behind `supabase gen types typescript`, and writes:
    keeps the module small to load and a schema change visible per entry in a
    diff. Commit both files with the main module;
 4. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`);
-5. with `readSets` configured, the `read-sets` SQL kit file: one function per
+5. with `readSets` configured, the `read-sets` SQL module file: one function per
    [read set](/docs/repository/read-sets). `gen` imports those modules after
    writing the main module, since they import it.
 

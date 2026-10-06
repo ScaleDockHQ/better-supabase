@@ -7,7 +7,7 @@ description: Stripe entitlements per tenant in the access token, in RLS, and fre
 features (`exports`, `sso`) to products; a customer's active entitlements
 follow their subscriptions. The
 [Stripe Sync Engine](https://github.com/supabase/stripe-sync-engine)
-mirrors them into `stripe.active_entitlements`. The `entitlements` kit module
+mirrors them into `stripe.active_entitlements`. The `entitlements` SQL module
 reads that table per tenant, so the UI can hide what a plan doesn't include
 and RLS can refuse it.
 
@@ -18,7 +18,7 @@ better-supabase sql add entitlements   # adds tenant as well
 ## Configuration
 
 Each tenant needs its Stripe customer id somewhere. With the managed
-[`organizations` module](/docs/kits/orgs) installed alongside, the module adds
+[`organizations` module](/docs/blocks/organizations) installed alongside, the module adds
 `better_supabase.organizations.stripe_customer_id` (unique) and reads it.
 Otherwise point the module at your own column; `sql add` stops without one:
 
@@ -125,15 +125,16 @@ which covers only `memberships` and `attrs`.
 ## In components
 
 `hasEntitlement(session, tenantId, key)` reads the `features` claim, from
-`better-supabase/next`, `better-supabase/react` or `better-supabase/ssr`. Pass
+`better-supabase/blocks/entitlements`. Pass
 the claim name as a fourth argument when `claims.features` renames it. With a
 typed claims schema, `key` only accepts its lookup keys:
 
 ```tsx
-import { hasEntitlement } from "better-supabase/next";
+import { hasEntitlement } from "better-supabase/blocks/entitlements";
 
 const session = await bs.session();
-if (!hasEntitlement(session, orgId, "exports")) return <UpgradePrompt />;
+if (!hasEntitlement(session, organizationId, "exports"))
+  return <UpgradePrompt />;
 ```
 
 This is UX: the policy above still decides.
@@ -207,7 +208,7 @@ execute on `member_<scope>_ids_for`, which `feature_claims` calls. Run the
 command again after changing the config instead of editing the generated
 hook, because it overwrites the hook.
 
-The kit's `feature_claims` reads Stripe's `stripe.active_entitlements`, so
+The module's `feature_claims` reads Stripe's `stripe.active_entitlements`, so
 an app whose plan features live in its own table keeps its own
 `feature_claims` and names that one in the hook instead.
 
@@ -223,16 +224,16 @@ Two things close the gap:
    once the success page loads. The new token runs the hook again.
 2. **On plan changes Stripe initiates** (renewal failures, cancellations at
    period end), handle `entitlements.active_entitlement_summary.updated` in
-   the [webhook inbox](/docs/kits/jobs#webhook-inbox) and drop the members'
+   the [webhook inbox](/docs/blocks/jobs#webhook-inbox) and drop the members'
    cached sessions:
 
 ```ts title="src/app/api/stripe/entitlements/route.ts"
 import { dbError, err, ok } from "better-supabase";
 import {
-  createInbox,
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
-} from "better-supabase/jobs";
+} from "better-supabase/blocks/entitlements";
+import { createInbox } from "better-supabase/blocks/jobs";
 
 const inbox = createInbox(postgres.admin, {
   source: "stripe-entitlements",

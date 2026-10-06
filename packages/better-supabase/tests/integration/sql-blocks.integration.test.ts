@@ -1007,7 +1007,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("rollback to savepoint caller_only");
     };
     try {
-      // The block's functions are shared, so this runs in a transaction that
+      // The module's functions are shared, so this runs in a transaction that
       // rolls back and never replaces them for the other tests.
       await client.query("begin");
       await client.query(`
