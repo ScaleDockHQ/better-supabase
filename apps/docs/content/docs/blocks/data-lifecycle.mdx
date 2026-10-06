@@ -187,12 +187,18 @@ object under `{organizationId}/` in `buckets`, then calls
 `purge_organization`. That function runs your
 `public.on_organization_purge(tenant)` hook when it exists, deletes the
 tenant's rows from each purged table (your tables first), deletes the
-organization row (the organizations module's table, managed or adopted) and
-writes `organization.purged`. It returns the deleted row count per table. A
-table whose rows another table still references through a restricting
-foreign key waits for a later pass, so the order of the tables doesn't
-matter; when no pass makes progress, the purge stops with
-`ORGANIZATION_PURGE_BLOCKED` and names the tables.
+tenant's own row last and writes `organization.purged`. It returns the
+deleted row count per table. A table whose rows another table still
+references through a restricting foreign key, or whose delete makes an
+`on delete set null` break a check on another table, waits for a later pass,
+so the order of the tables doesn't matter and your foreign keys can stay;
+when no pass makes progress, the purge stops with `ORGANIZATION_PURGE_BLOCKED`
+and names the tables.
+
+The tenant row is the organizations module's (managed or adopted), or the
+row of the table `sql.modules.access.disabled.tenant` names, or the one in
+`options.tenantRow` (`"schema.table.column"`, `false` to keep it), so an
+adopted tenant table needs no `on_organization_purge` hook to go.
 
 ## Events
 

@@ -195,6 +195,71 @@ describe.skipIf(!live)("data lifecycle", () => {
     }
   });
 
+  it("purges an adopted tenant row last, retrying blocked tables", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_teams (id uuid primary key);
+         create table public.bs_test_projects (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null references public.bs_test_teams (id) on delete restrict
+         );
+         create table public.bs_test_tasks (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           project_id uuid references public.bs_test_projects (id) on delete set null,
+           check (project_id is not null)
+         );`,
+      );
+      await s.install(["tenant", "access", "data-lifecycle"], {
+        modules: {
+          "data-lifecycle": {
+            options: {
+              tenantRow: "public.bs_test_teams.id",
+              tables: {
+                bs_test_tasks: { tenant: "organization_id" },
+                bs_test_projects: { tenant: "organization_id" },
+              },
+            },
+          },
+        },
+      });
+      const team = crypto.randomUUID();
+      await s.rows(
+        `insert into public.bs_test_teams values ($1);
+         with p as (insert into public.bs_test_projects (organization_id) values ($1) returning id)
+         insert into public.bs_test_tasks (organization_id, project_id) select $1, id from p;
+         insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute');`.replaceAll(
+          "$1",
+          `'${team}'`,
+        ),
+      );
+      await s.service();
+      const result = await s.value<{ deleted: Record<string, number> }>(
+        "better_supabase.purge_organization($1)",
+        [team],
+      );
+      expect(result.deleted).toMatchObject({
+        "public.bs_test_tasks": 1,
+        "public.bs_test_projects": 1,
+      });
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from public.bs_test_teams where id = $1)",
+          [team],
+        ),
+      ).toBe(0);
+      expect(
+        await s.value<string | null>(
+          "(select purged_at::text from better_supabase.organization_deletions where organization_id = $1)",
+          [team],
+        ),
+      ).not.toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
+
   it("disables a tenant for the grace period, cancels and purges", async () => {
     const s = await BlockSession.open(pool);
     try {

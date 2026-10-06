@@ -10,7 +10,14 @@ import { columnRef, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["bucket", "grace", "exportTtl", "tables", "autoTables"],
+  options: [
+    "bucket",
+    "grace",
+    "exportTtl",
+    "tables",
+    "autoTables",
+    "tenantRow",
+  ],
   hooks: ["on_organization_purge"],
   tables: {
     exports: {
@@ -268,6 +275,39 @@ function bucketOf(ctx: ModuleContext): string {
   return bucket;
 }
 
+/**
+ * The tenant's own row the purge deletes last: `options.tenantRow`
+ * (`schema.table.column`, `false` for none), else the organizations module's
+ * table, else the table the access contract disables tenants in.
+ */
+function tenantRowOf(
+  ctx: ModuleContext,
+): { readonly table: string; readonly key: string } | undefined {
+  const configured = ctx.option("tenantRow");
+  if (configured === false) return undefined;
+  if (configured !== undefined) {
+    if (typeof configured !== "string") {
+      throw new TypeError(
+        'sql.modules.data-lifecycle.options.tenantRow must be "schema.table.column" or false',
+      );
+    }
+    const ref = columnRef(
+      "sql.modules.data-lifecycle.options.tenantRow",
+      configured,
+    );
+    return { table: ref.table, key: ref.column };
+  }
+  if (ctx.installed("organizations")) {
+    const organizations = ctx.of("organizations");
+    return {
+      table: organizations.table("organizations"),
+      key: organizations.col("organizations", "id"),
+    };
+  }
+  const disable = disabling(ctx);
+  return disable ? { table: disable.table, key: disable.key } : undefined;
+}
+
 /** The statement that disables a tenant, from the access contract. */
 function disabling(
   ctx: ModuleContext,
@@ -368,9 +408,24 @@ function build(ctx: ModuleContext): string {
     update ${disable.table} set ${disable.column} = null where ${disable.key} = cancel_organization_deletion.tenant;
   end if;`
     : "";
-  const organizationRow = ctx.installed("organizations")
-    ? `delete from ${ctx.of("organizations").table("organizations")} where ${ctx.of("organizations").col("organizations", "id")} = purge_organization.tenant;`
+  const tenantRow = tenantRowOf(ctx);
+  // The tenant row goes last, after every table that references it.
+  const organizationRow = tenantRow
+    ? `begin
+    delete from ${tenantRow.table} where ${tenantRow.key} = purge_organization.tenant;
+  exception when foreign_key_violation or restrict_violation then
+    raise exception 'Rows still reference the organization: %', sqlerrm
+      using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
+  end;`
     : "";
+  const skipTables = [
+    `to_regclass(t.tbl) <> to_regclass(${sqlString(d)})`,
+    ...(tenantRow
+      ? [
+          `to_regclass(t.tbl) is distinct from to_regclass(${sqlString(tenantRow.table)})`,
+        ]
+      : []),
+  ].join(" and ");
   const platformKey = ctx.permissionKey("deletePlatform", "");
   const platform =
     platformKey === ""
@@ -774,6 +829,7 @@ begin
   v_pending := array(
     select t.name from ${fn("data_lifecycle_tables")}() t
     where t.subject = 'organization' and t.purge and to_regclass(t.tbl) is not null
+      and ${skipTables}
     order by (row_number() over ()) desc
   );
   for v_pass in 1..10 loop
@@ -790,7 +846,9 @@ begin
           using purge_organization.tenant::text;
         get diagnostics v_count = row_count;
         v_deleted := v_deleted || jsonb_build_object(v_name, coalesce((v_deleted ->> v_name)::bigint, 0) + v_count);
-      exception when foreign_key_violation then
+      exception when foreign_key_violation or restrict_violation or check_violation then
+        -- Another table's rows still point here (or a set null action breaks
+        -- a check on them): try again after the other tables.
         v_left := v_left || v_name;
       end;
     end loop;
@@ -800,8 +858,8 @@ begin
     end if;
     v_pending := v_left;
   end loop;
-  ${organizationRow}
   update ${d} x set ${cd("purgedAt")} = now() where x.${cd("tenant")} = v_row.${cd("tenant")} returning * into v_row;
+  ${organizationRow}
   ${deletionEvent("organization.purged", "null::uuid")}
   return jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'deleted', v_deleted);
 end;
