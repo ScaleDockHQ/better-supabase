@@ -7,6 +7,10 @@ export interface ColumnMeta {
   /** Postgres type name (`uuid`, `text`, `timestamptz`, `note_kind`). */
   readonly type: string;
   readonly nullable: boolean;
+  /**
+   * An insert may leave the column out: it has a default, a `before insert`
+   * trigger can fill it, or `tables.<t>.insertOptional` lists it.
+   */
   readonly hasDefault: boolean;
   readonly generated?: boolean;
   /** Identity column; `'always'` columns can't be written. */

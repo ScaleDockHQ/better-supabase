@@ -49,6 +49,8 @@ export interface ColumnModel {
   readonly nullable: boolean;
   /** Optional on insert. */
   readonly optional: boolean;
+  /** An insert may leave it out: a default, `insertOptional`, or a CHECK-narrowed column a `before insert` trigger can fill. */
+  readonly filled: boolean;
   /** Not writable (generated always / identity always). */
   readonly readonly: boolean;
   readonly values: readonly string[] | undefined;
@@ -235,6 +237,21 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       for (const column of parseCheckNotNull(check.definition))
         checkedNotNull.add(column);
     }
+    const beforeInsert = table.triggers.some(
+      (trigger) =>
+        trigger.timing === "before" &&
+        trigger.level === "row" &&
+        trigger.events.includes("insert"),
+    );
+    const insertOptional = new Set(
+      config.tables[table.name]?.insertOptional ?? [],
+    );
+    for (const name of insertOptional) {
+      if (!table.columns.some((column) => column.name === name))
+        throw new TypeError(
+          `tables.${table.name}.insertOptional: "${name}" is not a column of ${table.schema}.${table.name}`,
+        );
+    }
     const columns = table.columns.map((column): ColumnModel => {
       const enumValues = column.isEnum
         ? enumsByName.get(`${column.typeSchema}.${column.udt}`)
@@ -268,6 +285,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
             ? arrayOf(base)
             : base;
       const readonly = column.generated || column.identity === "always";
+      const narrowed = column.nullable && checkedNotNull.has(column.name);
+      const nullable = column.nullable && !narrowed;
+      const filled =
+        column.hasDefault ||
+        insertOptional.has(column.name) ||
+        (narrowed && beforeInsert);
       const insertable = !readonly && table.insertable;
       const updatable = !readonly && table.updatable && column.updatable;
       return {
@@ -275,11 +298,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         db: column.name,
         snapshot: column,
         tsType: columnType,
-        nullable: column.nullable && !checkedNotNull.has(column.name),
-        optional:
-          (column.nullable && !checkedNotNull.has(column.name)) ||
-          column.hasDefault ||
-          readonly,
+        nullable,
+        filled,
+        optional: nullable || filled || readonly,
         readonly,
         values,
         json,
@@ -471,7 +492,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         db: column.db,
         type: column.snapshot.udt,
         nullable: column.nullable,
-        hasDefault: column.snapshot.hasDefault,
+        hasDefault: column.filled,
       };
       if (column.readonly) meta.generated = true;
       if (column.snapshot.identity) meta.identity = column.snapshot.identity;

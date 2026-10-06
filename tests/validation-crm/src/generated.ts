@@ -4620,7 +4620,7 @@ export type Models = {
       description?: string | null;
       quoteId?: string | null;
       invoiceId?: string | null;
-      variantId: string;
+      variantId?: string;
     };
     Update: {
       id?: number;
@@ -8884,7 +8884,7 @@ export type Models = {
       consumedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
-      variantId: string;
+      variantId?: string;
       orderLineId?: string | null;
     };
     Update: {
@@ -9011,7 +9011,7 @@ export type Models = {
       referenceNumber?: string | null;
       quoteId?: string | null;
       invoiceId?: string | null;
-      variantId: string;
+      variantId?: string;
       orderId?: string | null;
       purchaseOrderId?: string | null;
       shipmentId?: string | null;
@@ -9163,7 +9163,7 @@ export type Models = {
       unitCost?: number | null;
       currency?: string | null;
       lastCountedOn?: string | null;
-      variantId: string;
+      variantId?: string;
     };
     Update: {
       id?: string;
@@ -12538,7 +12538,7 @@ export type Models = {
       leadTimeDays?: number | null;
       isActive?: boolean;
       externalId?: string | null;
-      variantId: string;
+      variantId?: string;
     };
     Update: {
       id?: string;
@@ -14753,7 +14753,7 @@ export type Models = {
       updatedAt?: string;
       quoteId?: string | null;
       billable?: boolean;
-      variantId: string;
+      variantId?: string;
     };
     Update: {
       id?: string;

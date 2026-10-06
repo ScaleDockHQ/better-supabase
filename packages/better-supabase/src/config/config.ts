@@ -91,6 +91,12 @@ export interface TableConfig {
   readonly serviceRole?: boolean;
   /** Rename generated relations: `{ primaryContact: 'contact' }`. */
   readonly relations?: Readonly<Record<string, string>>;
+  /**
+   * Database names of not-null columns an insert may leave out because the
+   * database fills them, for example from a `before insert` trigger. `gen`
+   * makes them optional in `InsertOf` and the insert validators.
+   */
+  readonly insertOptional?: readonly string[];
 }
 
 export interface TimestampsConfig {

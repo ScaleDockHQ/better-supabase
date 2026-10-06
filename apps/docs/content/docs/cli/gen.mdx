@@ -150,9 +150,25 @@ extra round trips:
   generated validators match. See [Temporal](/docs/concepts/temporal).
 - **Columns a CHECK makes not null.** A nullable column with
   `check (slug is not null)`, alone or as a term of a top-level `and`, is
-  typed and validated as not null, and is required on insert unless it has
-  a default. A term under `or` or `not`, and a `not valid` constraint, change
-  nothing. Prefer `not null` on the column itself when you can.
+  typed and validated as not null. It is required on insert unless it has
+  a default or the table has a row-level `before insert` trigger, which can
+  fill it before the CHECK runs. A term under `or` or `not`, and a
+  `not valid` constraint, change nothing. Prefer `not null` on the column
+  itself when you can.
+- **Columns the database fills on insert.** A not-null column without a
+  default is required in `InsertOf` and the insert validators. When a
+  trigger or another database rule fills it, list its database name in
+  `tables.<table>.insertOptional` and `gen` makes it optional on insert
+  while the row type stays not null:
+
+  ```ts title="better-supabase.config.ts"
+  export default defineConfig({
+    tables: { invoices: { insertOptional: ["number"] } },
+  });
+  ```
+
+  `gen` fails when a listed name is not a column of the table.
+
 - **Function arguments and results.** Every argument in `Functions` accepts
   `null`, since Postgres passes `null` to any function, and arguments with a
   default are optional. Functions that return rows of a table or a
