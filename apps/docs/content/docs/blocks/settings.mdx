@@ -57,7 +57,9 @@ import { rpcTransport } from "better-supabase/blocks/settings";
 
 import { settings } from "@/lib/settings";
 
-const client = settings.connect({ transport: rpcTransport(supabase) });
+const client = settings.connect({
+  transport: rpcTransport(supabase, { schema: "api" }),
+});
 
 const theme = await client.user.get("theme").orThrow(); // "light" | "dark" | "system"
 await client.user.set("theme", "dark").orThrow();
@@ -70,8 +72,10 @@ await client.organization.set(organizationId, "defaultRole", "viewer");
 `set` returns a `validation` error with the schema's issues when the value
 doesn't match, and an `invalid_input` error for a key you didn't declare;
 neither reaches the database. Use `sqlTransport(postgres.asUser(claims))`
-instead of `rpcTransport` to call the functions over Postgres; with
-`rpcTransport` the module schema must be exposed in `config.toml`.
+instead of `rpcTransport` to call the functions over Postgres. With
+`rpcTransport`, set `sql.modules.settings.api` to an exposed schema such as
+`api` and pass `rpcTransport(supabase, { schema: "api" })`; see
+[SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api).
 
 ## Checks in the database
 

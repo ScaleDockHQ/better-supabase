@@ -56,6 +56,16 @@ export interface ModuleConfig {
    * the `outbox` module is installed. Defaults to true.
    */
   readonly events?: boolean;
+  /**
+   * A schema for the Data API, such as `api`: the module writes a
+   * `security invoker` wrapper there for each of its functions that `anon`
+   * or `authenticated` may execute (or only those in `functions`), so
+   * `rpcTransport(supabase, { schema: "api" })` reaches them without
+   * exposing the module schema (doctor BS312).
+   */
+  readonly api?:
+    | string
+    | { readonly schema: string; readonly functions?: readonly string[] };
 }
 
 /**
@@ -195,6 +205,10 @@ export interface ResolvedModule {
     readonly functions: Readonly<Record<string, string>>;
   };
   readonly events: boolean;
+  readonly api?: {
+    readonly schema: string;
+    readonly functions?: readonly string[];
+  };
 }
 
 const MODULE_SCHEMA = "better_supabase";
@@ -213,5 +227,13 @@ export function resolveModule(config: ModuleConfig = {}): ResolvedModule {
       functions: config.hooks?.functions ?? {},
     },
     events: config.events ?? true,
+    ...(config.api === undefined
+      ? {}
+      : {
+          api:
+            typeof config.api === "string"
+              ? { schema: config.api }
+              : config.api,
+        }),
   };
 }

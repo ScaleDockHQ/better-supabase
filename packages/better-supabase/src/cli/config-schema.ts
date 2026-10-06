@@ -39,6 +39,15 @@ const moduleEntries = {
     }),
   ),
   events: v.optional(v.boolean()),
+  api: v.optional(
+    v.union([
+      v.string(),
+      v.strictObject({
+        schema: v.string(),
+        functions: v.optional(strings),
+      }),
+    ]),
+  ),
 };
 
 const disabledRow = v.strictObject({

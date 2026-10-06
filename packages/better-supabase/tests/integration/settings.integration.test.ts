@@ -34,6 +34,34 @@ describe.skipIf(!live)("settings", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
 
+  it("reaches the module through API schema wrappers", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "settings"], {
+        modules: { settings: { api: "bs_settings_api" } },
+      });
+      const member = await s.user("member");
+      const client = settings.connect({
+        transport: sqlTransport(s.sql),
+        schema: "bs_settings_api",
+      });
+      await s.asRole(member);
+      expect(await client.user.set("theme", "dark").orThrow()).toBe("dark");
+      expect(await client.user.get("theme").orThrow()).toBe("dark");
+      expect(
+        await s.value<string>(
+          "(select prosecdef::text from pg_proc where proname = 'set_user_setting' and pronamespace = 'bs_settings_api'::regnamespace)",
+        ),
+      ).toBe("false");
+      await s.asRole("anon");
+      expect(
+        await s.hint("select bs_settings_api.get_user_settings()"),
+      ).toContain("permission denied");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("keeps user settings private and checks organization permissions", async () => {
     const s = await BlockSession.open(pool);
     try {

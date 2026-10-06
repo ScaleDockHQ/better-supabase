@@ -772,6 +772,29 @@
       },
       "options": {
         "type": "object"
+      },
+      "api": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schema"],
+            "properties": {
+              "schema": {
+                "type": "string"
+              },
+              "functions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "moduleConfig": {
@@ -801,6 +824,9 @@
         },
         "options": {
           "$ref": "#/$defs/moduleConfigProperties/options"
+        },
+        "api": {
+          "$ref": "#/$defs/moduleConfigProperties/api"
         }
       }
     },
@@ -831,6 +857,9 @@
         },
         "options": {
           "$ref": "#/$defs/moduleConfigProperties/options"
+        },
+        "api": {
+          "$ref": "#/$defs/moduleConfigProperties/api"
         },
         "model": {
           "enum": ["roles", "catalog", "permdock", "custom"],

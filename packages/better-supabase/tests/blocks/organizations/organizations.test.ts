@@ -428,6 +428,14 @@ describe("rpcTransport", () => {
     expect(rpc).toHaveBeenCalledWith("mark_used", { organization: "o" });
   });
 
+  it("sends every call to the API schema when one is given", async () => {
+    const rpc = vi.fn(() => Promise.resolve({ data: 1, error: null }));
+    const schema = vi.fn(() => ({ rpc }));
+    const transport = rpcTransport({ schema }, { schema: "api" });
+    await transport.call("better_supabase", "mark_used", {});
+    expect(schema).toHaveBeenCalledWith("api");
+  });
+
   it("throws the PostgREST error as an Error with its fields", async () => {
     const transport = rpcTransport({
       schema: () => ({

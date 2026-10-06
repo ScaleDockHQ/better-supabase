@@ -10,6 +10,7 @@ import type { AuditedTable } from "./audit-registrations.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { apiWrappers } from "./api-schema.ts";
 import {
   createModuleContext,
   type ModuleContext,
@@ -2697,13 +2698,17 @@ export function renderModules(
     ].join("\n");
     const extra = moduleExtras(module, layout, installed);
     const wrappers = deprecationWrappers(module, ctx);
+    const body = moduleSql(module, ctx, layout).trim();
+    const api = ctx.config.api
+      ? apiWrappers(body, ctx.schemaName, ctx.config.api, module.name)
+      : "";
     if (module.target === "test") {
       return [
         {
           module: module.name,
           kind: "test",
           path: modulePath(module, layout),
-          contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}`,
+          contents: `${header}\n\n${body}\n${extra}${wrappers}`,
         },
       ];
     }
@@ -2732,7 +2737,7 @@ export function renderModules(
         module: module.name,
         kind: "schema",
         path: modulePath(module, layout),
-        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${MODULE_MODULES_TABLE}`,
+        contents: `${header}\n\n${body}\n${extra}${wrappers}${api}${MODULE_MODULES_TABLE}`,
       },
       {
         module: module.name,

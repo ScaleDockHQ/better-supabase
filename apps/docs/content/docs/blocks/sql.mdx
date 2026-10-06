@@ -190,6 +190,37 @@ export default defineConfig({
 | `options`     | module options, listed on each module's page                                               |
 | `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)         |
 | `events`      | `false` stops the module writing its events to the outbox                                  |
+| `api`         | a schema for the Data API that gets entry points for the module's functions (see below)    |
+
+### Calling a module over the Data API
+
+The module schema holds tables and helpers that policies call, so it never
+belongs in `[api] schemas` (doctor reports it as
+[BS312](/docs/cli/doctor#bs312)). To call a module from a browser or an
+isolate without a Postgres connection, give it an API schema:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    settings: { api: "api" },
+    notifications: {
+      api: { schema: "api", functions: ["list_notifications", "notification_counts"] },
+    },
+  },
+},
+```
+
+`sql add` then writes a `security invoker` function in `api` for each module
+function that `anon` or `authenticated` may execute, or only those listed in
+`functions`, with the same name, arguments and grants. The wrapper runs as the
+caller, so the module's own permission checks and RLS still apply. Add the
+schema to `[api] schemas` in `config.toml` and pass it to the transport:
+
+```ts
+const client = settings.connect({
+  transport: rpcTransport(supabase, { schema: "api" }),
+});
+```
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the

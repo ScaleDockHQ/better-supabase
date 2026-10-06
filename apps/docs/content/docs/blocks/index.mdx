@@ -52,8 +52,11 @@ must commit with the write.
 A SQL connection needs TCP: Node, Deno, Bun and the Supabase Edge runtime have
 it, Cloudflare Workers and other isolates without sockets do not. There, use
 `rpcTransport` for the blocks that call only SQL functions (organizations,
-notifications, outgoing webhooks), with the module installed in an exposed
-schema (`sql.modules.<module>.schema`), and the `pgmq_public` RPCs for jobs.
+notifications, outgoing webhooks), and the `pgmq_public` RPCs for jobs. Give
+the module an API schema (`sql.modules.<module>.api`, see
+[SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api)), expose
+that schema, and pass it as `rpcTransport(supabase, { schema: "api" })`. Never
+expose the module schema itself.
 
 ## Blocks
 

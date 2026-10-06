@@ -17,7 +17,7 @@ export interface UseAnnouncementsOptions {
   readonly organizationId?: string | null;
   /** The topic the module broadcasts to (`sql.modules.announcements.options.topic`); `null` loads once. */
   readonly topic?: string | null;
-  /** The module schema, default `better_supabase`. */
+  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `sql.modules.<module>.api`. */
   readonly schema?: string;
 }
 

@@ -55,18 +55,34 @@ export interface RpcClient {
   };
 }
 
+/** Options for `rpcTransport`. */
+export interface RpcTransportOptions {
+  /**
+   * The exposed schema that holds the block's entry points, such as `api`
+   * from `sql.modules.<module>.api`. Every call goes there instead of the
+   * module schema, which stays out of `[api] schemas` (doctor BS312).
+   */
+  readonly schema?: string;
+}
+
 /**
- * Calls the functions over the Data API with the user's session. The block
- * schema must be exposed (`[api] schemas` in `config.toml`), or the modules
- * installed in `public` (`sql.modules.<module>.schema`).
+ * Calls the functions over the Data API with the user's session. Pass
+ * `schema` with the API schema that `sql.modules.<module>.api` writes
+ * wrappers into; without it the calls go to the module schema, which then
+ * has to be exposed.
  */
-export function rpcTransport(client: RpcClient): BlockTransport {
+export function rpcTransport(
+  client: RpcClient,
+  options: RpcTransportOptions = {},
+): BlockTransport {
   return {
     async call(schema, fn, args) {
       const defined = Object.fromEntries(
         Object.entries(args).filter(([, value]) => value !== undefined),
       );
-      const { data, error } = await client.schema(schema).rpc(fn, defined);
+      const { data, error } = await client
+        .schema(options.schema ?? schema)
+        .rpc(fn, defined);
       if (error) {
         const message =
           typeof error === "object" && "message" in error

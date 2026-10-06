@@ -101,22 +101,21 @@ export async function inviteMember(organizationId: string, email: string) {
 `rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
 `better_supabase` or a `sql.modules.<module>.schema` to `[api] schemas`: those
 schemas hold internal helpers that policies call, and doctor reports exposing
-them as BS312. Create a separate API schema, such as `api`, that holds only the
-RPC entry points: one `security invoker` function per block function you call,
-with the same name and arguments, that calls the block function. Add that schema
-to `[api] schemas` and pass `schema: "api"` to `createOrganizations`. With entry points
-in different schemas, pass `schema: { organizations: "api", invitations: "app_api" }`.
+them as BS312. Set `api: "api"` on the `organizations` and `invitations`
+modules instead: `sql add` writes a `security invoker` entry point in `api` for
+each function the modules grant to `authenticated`, with the same name and
+arguments. Add `api` to `[api] schemas` and pass
+`rpcTransport(ctx.supabase, { schema: "api" })`, or `schema: "api"` to
+`createOrganizations`. With entry points in different schemas, pass
+`schema: { organizations: "api", invitations: "app_api" }`.
 
-```sql title="supabase/schemas/200_api.sql"
-create schema if not exists api;
-grant usage on schema api to authenticated;
-
-create function api.create_organization(attrs jsonb)
-returns uuid
-language sql
-security invoker
-set search_path = ''
-as $$ select better_supabase.create_organization(attrs) $$;
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    organizations: { api: "api" },
+    invitations: { api: "api" },
+  },
+},
 ```
 
 Each method returns an `AsyncResult`. Errors the block raises are `DbError`s
