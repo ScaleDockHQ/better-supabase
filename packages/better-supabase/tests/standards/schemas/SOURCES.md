@@ -1,6 +1,6 @@
 # Vendored schemas
 
-These are the official, unmodified schemas (and one upstream migration) the
+These are the official, unmodified schemas (plus one upstream migration and the SCIM RFCs, whose schemas are JSON inside the RFC text) the
 standards suite validates output against. The formatter skips this folder, so each file keeps the
 upstream bytes and `tests/standards/sources.test.ts` checks the SHA-256 below.
 To move a pin, download the new file from its source, update this table and
@@ -29,3 +29,5 @@ Ajv resolves `$dynamicRef` against the wrong scope in the OpenAPI schemas.
 Each of them has one `$dynamicAnchor: meta`, so the loader rewrites
 `$dynamicRef: "#meta"` to a `$ref` to that anchor's location, which has the
 same meaning inside one document. The files on disk stay unchanged.
+| `rfc7643.txt` | RFC 7643, SCIM Core Schema | https://www.rfc-editor.org/rfc/rfc7643.txt | `df799c112a3fa5be3c0fe054c08b1f4eb5d07590c4c8343a014c4537bf638ae3` |
+| `rfc7644.txt` | RFC 7644, SCIM Protocol | https://www.rfc-editor.org/rfc/rfc7644.txt | `b9078e016c98b86934a23c80926b74fc8b59885ab2943729ec2493c17488a09b` |

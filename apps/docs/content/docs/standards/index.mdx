@@ -54,6 +54,7 @@ validates the output against a vendored copy of it.
 | [npm provenance](https://docs.npmjs.com/generating-provenance-statements)                                                             | Adopted          | release workflow                                                                                                                                | `npm-provenance.test.ts`               |
 | [OCSF 1.9.0](https://schema.ocsf.io/1.9.0)                                                                                            | Adopted (pinned) | `exportAuditLog({ format: "ocsf" })` in the [audit block](/docs/blocks/audit)                                                                   | `ocsf.test.ts`                         |
 | [OpenFeature 0.9.0](https://github.com/open-feature/spec/tree/v0.9.0)                                                                 | Adopted (pinned) | `createFlagsProvider()` and `createFlagClient()` in the [flags block](/docs/blocks/flags)                                                       | `openfeature.test.ts`                  |
+| [SCIM 2.0 (RFC 7643, RFC 7644)](https://www.rfc-editor.org/rfc/rfc7644)                                                               | Adopted (pinned) | `scimHandler()` in the [SSO block](/docs/blocks/sso) serves `/Users`, `/Groups` and discovery                                                   | `scim.test.ts`                         |
 | [AsyncAPI 3](https://www.asyncapi.com/docs/reference/specification/v3.0.0)                                                            | Tracked          | describing realtime topics                                                                                                                      |                                        |
 
 ## Pins
@@ -70,6 +71,7 @@ SPEC_PINS.stripeSyncEngine; // Stripe Sync Engine release whose tables the entit
 SPEC_PINS.pgvector; // minimum pgvector version for the vector-search module's iterative scans
 SPEC_PINS.ocsf; // OCSF schema version of audit exports
 SPEC_PINS.openfeature; // OpenFeature specification the flags provider follows
+SPEC_PINS.scim; // SCIM version the SSO block's handler serves
 SPEC_PINS.cloudevents; // CloudEvents version of `/events` envelopes
 SPEC_PINS.standardWebhooks; // Standard Webhooks version `/webhooks` verifies
 SPEC_PINS.sarif; // SARIF version of `doctor --format sarif`

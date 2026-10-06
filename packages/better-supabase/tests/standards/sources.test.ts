@@ -10,7 +10,7 @@ describe("vendored schemas", () => {
     const pinned = new Map(
       [
         ...sources.matchAll(
-          /^\| `([^`]+\.(?:json|sql))` \|.*\| `([0-9a-f]{64})` \|$/gm,
+          /^\| `([^`]+\.(?:json|sql|txt))` \|.*\| `([0-9a-f]{64})` \|$/gm,
         ),
       ].map((match) => [match[1]!, match[2]!]),
     );

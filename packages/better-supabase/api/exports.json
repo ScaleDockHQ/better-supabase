@@ -1126,6 +1126,7 @@
       "InvitationEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
+      "OrganizationDomainEventData",
       "OrganizationEventData",
       "RowEventData",
       "SupportEventData",
@@ -1402,6 +1403,41 @@
       "OrganizationPurger",
       "OrganizationPurgerOptions",
       "StorageEntry"
+    ]
+  },
+  "./blocks/sso": {
+    "values": [
+      "createSso",
+      "createSsoAdmin",
+      "dohResolver",
+      "matchesScimFilter",
+      "parseScimFilter",
+      "rpcTransport",
+      "SCIM_GROUP",
+      "SCIM_USER",
+      "ScimFilterError",
+      "scimHandler",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "DohResolverOptions",
+      "DomainRecord",
+      "OrganizationDomain",
+      "SamlMetadata",
+      "SamlProviderInput",
+      "ScimAttribute",
+      "ScimFilter",
+      "ScimHandlerOptions",
+      "Sso",
+      "SsoActor",
+      "SsoAdmin",
+      "SsoAdminOptions",
+      "SsoAuthAdmin",
+      "SsoDomain",
+      "SsoOptions",
+      "SsoProvider",
+      "TxtResolver"
     ]
   },
   "./openapi": {
