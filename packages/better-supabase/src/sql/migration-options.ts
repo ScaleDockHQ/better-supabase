@@ -27,14 +27,16 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
   {
     module: "webhooks-out",
     option: "eventIdType",
-    departs: (value) => value !== "text",
-    effect: "types event ids for an existing column; managed tables use text",
+    departs: (value) => value !== "text" && value !== "uuid",
+    effect:
+      "types event ids for an existing column; managed tables use text or uuid",
   },
   {
     module: "webhooks-out",
     option: "runIdType",
-    departs: (value) => value !== "text",
-    effect: "types run ids for an existing column; managed tables use text",
+    departs: (value) => value !== "text" && value !== "uuid",
+    effect:
+      "types run ids for an existing column; managed tables use text or uuid",
   },
   {
     module: "audit",

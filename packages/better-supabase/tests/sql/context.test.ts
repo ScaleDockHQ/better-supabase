@@ -276,7 +276,7 @@ describe("module modes", () => {
       checkModules({ outbox: { options: { blockSource: "domain" } } });
     }).toThrow(/outbox\.options\.blockSource/);
     expect(() => {
-      checkModules({ "webhooks-out": { options: { eventIdType: "uuid" } } });
+      checkModules({ "webhooks-out": { options: { eventIdType: "bigint" } } });
     }).toThrow(/eventIdType/);
     checkModules({
       invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
@@ -294,6 +294,9 @@ describe("module modes", () => {
       "webhooks-out": {
         options: { secretStorage: "vault", eventIdType: "text" },
       },
+    });
+    checkModules({
+      "webhooks-out": { options: { eventIdType: "uuid", runIdType: "uuid" } },
     });
   });
 

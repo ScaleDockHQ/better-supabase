@@ -269,14 +269,14 @@ The module's functions stay in its own schema (`better_supabase` unless
 [BS312](/docs/cli/doctor#bs312)); `tables` points at the adopted tables
 wherever they are.
 
-| Option          | Default  | Meaning                                                           |
-| --------------- | -------- | ----------------------------------------------------------------- |
-| `secretStorage` | `vault`  | `vault`, or `column` (migration-only, adopt mode)                 |
-| `allowHttp`     | `false`  | Allow `http:` endpoint URLs                                       |
-| `disableAfter`  | `5 days` | How long an endpoint fails without a success before it's disabled |
-| `eventIdType`   | `text`   | The type of the event id column; others are migration-only        |
-| `runIdType`     | `text`   | The type of the run id column; others are migration-only          |
-| `statuses`      | none     | The stored value of each status, in adopt mode only               |
+| Option          | Default  | Meaning                                                                      |
+| --------------- | -------- | ---------------------------------------------------------------------------- |
+| `secretStorage` | `vault`  | `vault`, or `column` (migration-only, adopt mode)                            |
+| `allowHttp`     | `false`  | Allow `http:` endpoint URLs                                                  |
+| `disableAfter`  | `5 days` | How long an endpoint fails without a success before it's disabled            |
+| `eventIdType`   | `text`   | The type of the event id column: `text` or `uuid`; others are migration-only |
+| `runIdType`     | `text`   | The type of the run id column: `text` or `uuid`; others are migration-only   |
+| `statuses`      | none     | The stored value of each status, in adopt mode only                          |
 
 ## Error codes
 
