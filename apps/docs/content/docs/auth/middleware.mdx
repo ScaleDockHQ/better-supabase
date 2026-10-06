@@ -160,6 +160,47 @@ exactly as over PostgREST.
 `withSupabaseClient` reads only the `Authorization` header, so it doesn't see
 a cookie session. Use `withBetterSupabase` where browsers call with cookies.
 
+### Feature flags
+
+`withOpenFeature` from `@supabase-labs/middleware-openfeature` goes after
+`withBetterSupabase`, because its `context` callback reads the `jwtClaims`
+that `withBetterSupabase` contributes. `createFlagClient` from the
+[flags block](/docs/blocks/flags) is a client it accepts, and `flagContext`
+turns the claims into the evaluation context:
+
+```ts title="src/server.ts"
+import { ErrorCode } from "@openfeature/server-sdk";
+import { pipeline } from "@supabase/middleware";
+import { withOpenFeature } from "@supabase-labs/middleware-openfeature";
+import {
+  createFlagClient,
+  type FlagContextSource,
+  flagContext,
+  sqlTransport,
+} from "better-supabase/blocks/flags";
+import { withBetterSupabase } from "better-supabase/server";
+
+const client = createFlagClient({
+  transport: sqlTransport(postgres.admin),
+  errorCodes: ErrorCode,
+});
+
+export const fetch = pipeline(
+  [
+    withBetterSupabase(server),
+    withOpenFeature({
+      client,
+      flags: { new_editor: false },
+      context: (_req: Request, ctx: FlagContextSource) => flagContext(ctx),
+    }),
+  ],
+  async (_req, ctx) => Response.json({ newEditor: ctx.flags.new_editor }),
+);
+```
+
+In the pipeline form the `context` callback needs the `ctx` annotation,
+since TypeScript checks the config before `pipeline` sees the array.
+
 ## Next.js proxy composition
 
 `bs.proxy(request, options)` owns the session refresh. Other middleware

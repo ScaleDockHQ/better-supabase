@@ -59,12 +59,6 @@ Parity gaps with what Supabase ships today.
   versioning and lifecycle rules, CDN purge and the cache nonce, vector
   buckets, and analytics buckets with the Iceberg catalog. Upstream:
   supabase-js 2.117.
-- **Feature flags** (`better-supabase/server`, `better-supabase/blocks/flags`).
-  `withOpenFeature` composes after the entries, since they contribute
-  `jwtClaims`, and a flags block serves flags per tenant and per user with
-  rollouts as an OpenFeature provider over Postgres, separate from plan
-  entitlements. Upstream: `@supabase-labs/middleware-openfeature` and
-  OpenFeature.
 - **Compiled JSON Schemas** (the `jsonb-schemas` SQL module). CHECK
   constraints use `pg_jsonschema`'s compiled `jsonschema` type, and
   `jsonschema_validation_errors` maps a failure to the `validation`
@@ -92,8 +86,7 @@ Parity gaps with what Supabase ships today.
 - **A machine-readable capability file** for better-supabase itself, in the
   shape of the `supabase/sdk` capability matrix. Upstream: `supabase/sdk`.
 - **The remaining blocks.** These are standard in large SaaS apps and are
-  ranked by how often apps need them and how much they would reuse. Feature
-  flags are under Next.
+  ranked by how often apps need them and how much they would reuse.
   1. **API keys** (`better-supabase/blocks/api-keys`): hashed keys per tenant
      and per user, with scopes, prefixes, last-used tracking, rotation and
      expiry, checked through the access contract and the `rate-limit` module.
