@@ -25,6 +25,18 @@ describe("billing module", () => {
       `p."every"::text = billing_plan_price.billing_interval`,
     );
     expect(sql).toContain(`and p."on_sale"`);
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."billing_plan_price"(text, text);',
+    );
+    const variants = billing({
+      plans: { table: "plans", interval: "every", variant: "pack" },
+    });
+    expect(variants).toContain(
+      `and (billing_plan_price.variant is null or p."pack"::text = billing_plan_price.variant)`,
+    );
+    expect(variants).toContain(
+      `order by (p."pack" is null) desc, (p."every"::text = 'month') desc, 1`,
+    );
     expect(billing({ plans: { table: "plans" } })).toContain(
       `select p."stripe_price_id"::text from "public"."plans" p`,
     );

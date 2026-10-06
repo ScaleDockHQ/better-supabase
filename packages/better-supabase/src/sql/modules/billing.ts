@@ -39,6 +39,12 @@ interface PlanCatalog {
   readonly interval?: string;
   /** A boolean column; only rows where it is true are offered. */
   readonly active?: string;
+  /**
+   * A variant column, when a plan key has several prices besides the
+   * interval, such as credit packs (`1000`, `5000`) or seat tiers. The row
+   * without a variant is the plan's default.
+   */
+  readonly variant?: string;
 }
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
@@ -49,7 +55,7 @@ function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
   if (option === undefined) return undefined;
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
     throw new TypeError(
-      `${where} must be { table, key?, price?, interval?, active? }`,
+      `${where} must be { table, key?, price?, interval?, active?, variant? }`,
     );
   }
   const entries = new Map<string, unknown>(Object.entries(option));
@@ -70,12 +76,14 @@ function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
   }
   const interval = text("interval");
   const active = text("active");
+  const variant = text("variant");
   return {
     table,
     key: text("key", "key") ?? "key",
     price: text("price", "stripe_price_id") ?? "stripe_price_id",
     ...(interval === undefined ? {} : { interval }),
     ...(active === undefined ? {} : { active }),
+    ...(variant === undefined ? {} : { variant }),
   };
 }
 
@@ -96,17 +104,25 @@ function planPrice(ctx: ModuleContext, plans: PlanCatalog | undefined): string {
     and (billing_plan_price.billing_interval is null or p.${sqlIdent(plans.interval)}::text = billing_plan_price.billing_interval)`
       : ""
   }${
+    plans.variant
+      ? `
+    and (billing_plan_price.variant is null or p.${sqlIdent(plans.variant)}::text = billing_plan_price.variant)`
+      : ""
+  }${
     plans.active
       ? `
     and p.${sqlIdent(plans.active)}`
       : ""
   }
-  order by ${plans.interval ? `(p.${sqlIdent(plans.interval)}::text = 'month') desc, ` : ""}1
+  order by ${plans.variant ? `(p.${sqlIdent(plans.variant)} is null) desc, ` : ""}${plans.interval ? `(p.${sqlIdent(plans.interval)}::text = 'month') desc, ` : ""}1
   limit 1`
     : "select null::text";
   return `-- The Stripe price of a plan key from options.plans (the app's plan
 -- catalog), for checkout({ plan }); null without the option or the plan.
-create or replace function ${fn}(plan text, billing_interval text default null)
+-- variant picks one of the plan's prices (a credit pack, a tier); without it,
+-- the row without a variant.
+drop function if exists ${fn}(text, text);
+create or replace function ${fn}(plan text, billing_interval text default null, variant text default null)
 returns text
 language sql
 stable
@@ -115,8 +131,8 @@ set search_path = ''
 as $$
   ${body}
 $$;
-revoke execute on function ${fn}(text, text) from public, anon;
-grant execute on function ${fn}(text, text) to authenticated, service_role;
+revoke execute on function ${fn}(text, text, text) from public, anon;
+grant execute on function ${fn}(text, text, text) to authenticated, service_role;
 `;
 }
 
@@ -390,7 +406,11 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "billing_status", args: ["{id}"], returns: "jsonb" },
-    { name: "billing_plan_price", args: ["text", "text"], returns: "text" },
+    {
+      name: "billing_plan_price",
+      args: ["text", "text", "text"],
+      returns: "text",
+    },
     { name: "billing_invoices", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "billing_payment_methods", args: ["{id}"], returns: "jsonb" },
     { name: "billing_customer_details", args: ["{id}"], returns: "jsonb" },
@@ -405,7 +425,16 @@ export const BILLING: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "billing_plan_price takes a variant, for plans with several prices.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("billing_plan_price")}(text, text);`,
+    },
+  ],
   names: NAMES,
   contract,
   build,

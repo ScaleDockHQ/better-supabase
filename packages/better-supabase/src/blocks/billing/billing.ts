@@ -68,6 +68,13 @@ export interface CheckoutOptions extends CustomerDetails {
    */
   readonly plan?: string;
   readonly interval?: string;
+  /** One of the plan's prices, from the catalog's `variant` column. */
+  readonly variant?: string;
+  /**
+   * More line items, such as add-on packages next to the plan: each a
+   * price, or a plan key with `interval` and `variant`. Quantity defaults to 1.
+   */
+  readonly items?: readonly CheckoutItem[];
   readonly successUrl: string;
   readonly cancelUrl?: string;
   /** A number, or `seats` for the tenant's seat count. Default 1. */
@@ -77,6 +84,15 @@ export interface CheckoutOptions extends CustomerDetails {
   /** More Checkout Session parameters, merged over the block's. */
   readonly params?: Readonly<Record<string, unknown>>;
   readonly idempotencyKey?: string;
+}
+
+/** An extra Checkout line item. */
+export interface CheckoutItem {
+  readonly price?: string;
+  readonly plan?: string;
+  readonly interval?: string;
+  readonly variant?: string;
+  readonly quantity?: number;
 }
 
 export interface SubscriptionItem {
@@ -121,6 +137,7 @@ export interface PlanChange {
   readonly price?: string;
   readonly plan?: string;
   readonly interval?: string;
+  readonly variant?: string;
   /** Stripe `proration_behavior`, default `create_prorations`. */
   readonly prorationBehavior?: "create_prorations" | "none" | "always_invoice";
   /** Also clears a scheduled cancellation. Default true. */
@@ -474,6 +491,7 @@ export function createBilling(options: BillingOptions): Billing {
     readonly price?: string;
     readonly plan?: string;
     readonly interval?: string;
+    readonly variant?: string;
   }): AsyncResult<string> => {
     const given = choice.price;
     if (given !== undefined)
@@ -492,7 +510,7 @@ export function createBilling(options: BillingOptions): Billing {
     const plan = choice.plan;
     return call(
       "billing_plan_price",
-      { plan, billing_interval: choice.interval },
+      { plan, billing_interval: choice.interval, variant: choice.variant },
       optionalText,
     ).andThen((price) =>
       Promise.resolve(
@@ -659,6 +677,15 @@ export function createBilling(options: BillingOptions): Billing {
               ? await seats(organizationId)
               : ok(checkout.quantity ?? 1);
           if (!quantity.ok) return quantity;
+          const lineItems = [{ price, quantity: quantity.data }];
+          for (const extra of checkout.items ?? []) {
+            const extraPrice = await priceOf(extra);
+            if (!extraPrice.ok) return extraPrice;
+            lineItems.push({
+              price: extraPrice.data,
+              quantity: extra.quantity ?? 1,
+            });
+          }
           const mode = checkout.mode ?? "subscription";
           return withStripe(async (client) => {
             const session = await client.checkout.sessions.create(
@@ -666,7 +693,7 @@ export function createBilling(options: BillingOptions): Billing {
                 customer: customerId,
                 mode,
                 client_reference_id: organizationId,
-                line_items: [{ price, quantity: quantity.data }],
+                line_items: lineItems,
                 success_url: checkout.successUrl,
                 ...(checkout.cancelUrl === undefined
                   ? {}

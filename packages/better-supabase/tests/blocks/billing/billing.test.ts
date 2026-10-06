@@ -492,6 +492,56 @@ describe("createBilling", () => {
     ]);
   });
 
+  it("checks out a plan variant with add-on line items", async () => {
+    const t = setup((fn, args) => {
+      if (fn === "billing_customer") return "cus_1";
+      if (fn === "billing_plan_price") {
+        if (args["plan"] === "missing") return null;
+        return `price_${String(args["plan"])}_${String(args["variant"] ?? "base")}`;
+      }
+      return null;
+    });
+    const billing = createBilling(t);
+    await billing
+      .checkout("org", {
+        plan: "pro",
+        variant: "annual-team",
+        items: [
+          { plan: "credits", variant: "5000", quantity: 2 },
+          { price: "price_support" },
+        ],
+        successUrl: "https://a",
+      })
+      .orThrow();
+    expect(t.stripeCalls.at(-1)).toMatchObject([
+      "checkout.create",
+      {
+        params: {
+          line_items: [
+            { price: "price_pro_annual-team", quantity: 1 },
+            { price: "price_credits_5000", quantity: 2 },
+            { price: "price_support", quantity: 1 },
+          ],
+        },
+      },
+    ]);
+    expect(
+      t.calls.filter(([fn]) => fn === "billing_plan_price").map(([, a]) => a),
+    ).toEqual([
+      { plan: "pro", billing_interval: undefined, variant: "annual-team" },
+      { plan: "credits", billing_interval: undefined, variant: "5000" },
+    ]);
+    const before = t.stripeCalls.length;
+    expect(
+      await billing.checkout("org", {
+        price: "price_x",
+        items: [{ plan: "missing" }],
+        successUrl: "https://a",
+      }),
+    ).toMatchObject({ ok: false, error: { hint: "BILLING_PLAN_UNKNOWN" } });
+    expect(t.stripeCalls).toHaveLength(before);
+  });
+
   it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
     const t = setup(
       (fn) => {

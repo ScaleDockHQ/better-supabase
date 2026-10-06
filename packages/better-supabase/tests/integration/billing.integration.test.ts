@@ -163,12 +163,16 @@ describe.skipIf(!live)("billing", () => {
       await s.rows(
         `create table public.bs_test_plan_prices (
            plan_key text not null, billing_interval text not null,
-           price_id text not null, live boolean not null default true
+           price_id text not null, live boolean not null default true,
+           pack text
          );
          insert into public.bs_test_plan_prices values
-           ('pro', 'month', 'price_pro_m', true),
-           ('pro', 'year', 'price_pro_y', true),
-           ('old', 'month', 'price_old', false);`,
+           ('pro', 'month', 'price_pro_m', true, null),
+           ('pro', 'year', 'price_pro_y', true, null),
+           ('old', 'month', 'price_old', false, null),
+           ('credits', 'month', 'price_credits_5000', true, '5000'),
+           ('credits', 'month', 'price_credits_1000', true, '1000'),
+           ('credits', 'month', 'price_credits_base', true, null);`,
       );
       await s.install(["organizations", "billing"], {
         modules: {
@@ -180,6 +184,7 @@ describe.skipIf(!live)("billing", () => {
                 price: "price_id",
                 interval: "billing_interval",
                 active: "live",
+                variant: "pack",
               },
             },
           },
@@ -204,14 +209,21 @@ describe.skipIf(!live)("billing", () => {
       await s.rows(`insert into stripe.invoices (id, customer, status, total, created) values
           ('in_bs_1', 'cus_bs_plans', 'paid', 1000, 1), ('in_bs_2', 'cus_bs_plans', 'open', 500, 2),
           ('in_bs_x', 'cus_someone_else', 'open', 1, 3)`);
-      const price = (plan: string, interval: string | null = null) =>
-        s.value<string | null>("better_supabase.billing_plan_price($1, $2)", [
-          plan,
-          interval,
-        ]);
+      const price = (
+        plan: string,
+        interval: string | null = null,
+        variant: string | null = null,
+      ) =>
+        s.value<string | null>(
+          "better_supabase.billing_plan_price($1, $2, $3)",
+          [plan, interval, variant],
+        );
       expect(await price("pro")).toBe("price_pro_m");
       expect(await price("pro", "year")).toBe("price_pro_y");
       expect(await price("old")).toBeNull();
+      expect(await price("credits", null, "1000")).toBe("price_credits_1000");
+      expect(await price("credits")).toBe("price_credits_base");
+      expect(await price("credits", null, "9")).toBeNull();
 
       const billing = createBilling({
         stripe: { secretKey: "sk_test_unused" },

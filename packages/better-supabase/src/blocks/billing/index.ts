@@ -3,6 +3,7 @@ export {
   type BillingCustomerUpdate,
   type BillingOptions,
   type BillingStatus,
+  type CheckoutItem,
   type CheckoutOptions,
   createBilling,
   type CustomerDetails,
