@@ -62,6 +62,7 @@ schema (`sql.modules.<module>.schema`), and the `pgmq_public` RPCs for jobs.
 | [Access contract](/docs/blocks/access)                      | none                                                                                 | `access`, `tenant`                     |
 | [Organizations and invitations](/docs/blocks/organizations) | `better-supabase/blocks/organizations`                                               | `organizations`, `invitations`         |
 | [Profiles](/docs/blocks/profiles)                           | none                                                                                 | `profiles`                             |
+| [Audit log](/docs/blocks/audit)                             | `better-supabase/blocks/audit`                                                       | `audit`                                |
 | [Jobs, idempotency and webhook inbox](/docs/blocks/jobs)    | `better-supabase/blocks/jobs`                                                        | `jobs`, `idempotency`, `webhook-inbox` |
 | [Outbox](/docs/blocks/outbox)                               | `better-supabase/blocks/outbox`                                                      | `outbox`                               |
 | [Notifications](/docs/blocks/notifications)                 | `better-supabase/blocks/notifications`, `better-supabase/blocks/notifications/react` | `notifications`                        |
@@ -70,13 +71,13 @@ schema (`sql.modules.<module>.schema`), and the `pgmq_public` RPCs for jobs.
 | [Entitlements](/docs/blocks/entitlements)                   | `better-supabase/blocks/entitlements`                                                | `entitlements`                         |
 | [Vector search](/docs/blocks/vector-search)                 | none (`db.$search` in the core)                                                      | `vector-search`                        |
 
-The other SQL modules (`updated-at`, `actor`, `audit`, `rate-limit`,
+The other SQL modules (`updated-at`, `actor`, `rate-limit`,
 `support-sessions` and the rest) are listed on the
 [SQL modules](/docs/blocks/sql#modules) page.
 
 ## Planned blocks
 
-API keys, billing, an audit log API, usage metering, enterprise identity,
+API keys, billing, usage metering, enterprise identity,
 data lifecycle, settings, comments and attachments are not built yet. The
 [roadmap](/docs/roadmap#later) ranks them and says what each would add, and
 lists feature flags, which come through OpenFeature, under

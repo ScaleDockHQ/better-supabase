@@ -188,6 +188,7 @@ await organizations.invite({ organizationId, email, role: "member" });
 | [Access contract](https://bettersupabase.com/docs/blocks/access): `can()` for policies, over fixed roles, your own permission catalog or PermDock            | SQL only                                                                             | `access`, `tenant`                     |
 | [Organizations](https://bettersupabase.com/docs/blocks/organizations): members, invitations, roles and switching                                             | `better-supabase/blocks/organizations`                                               | `organizations`, `invitations`         |
 | [Profiles](https://bettersupabase.com/docs/blocks/profiles): a profile row per user, synced from Auth                                                        | SQL only                                                                             | `profiles`                             |
+| [Audit log](https://bettersupabase.com/docs/blocks/audit): row and event entries with context columns, a list query, reveal and CSV export                   | `better-supabase/blocks/audit`                                                       | `audit`                                |
 | [Jobs](https://bettersupabase.com/docs/blocks/jobs): Supabase Queues jobs, cron, idempotency keys and a webhook inbox                                        | `better-supabase/blocks/jobs`                                                        | `jobs`, `idempotency`, `webhook-inbox` |
 | [Outbox](https://bettersupabase.com/docs/blocks/outbox): transactional events with consumer cursors, relayed as CloudEvents                                  | `better-supabase/blocks/outbox`                                                      | `outbox`                               |
 | [Notifications](https://bettersupabase.com/docs/blocks/notifications): sending, listing and delivering notifications, and `useNotifications` for a live list | `better-supabase/blocks/notifications`, `better-supabase/blocks/notifications/react` | `notifications`                        |
@@ -195,7 +196,7 @@ await organizations.invite({ organizationId, email, role: "member" });
 | [Entitlements](https://bettersupabase.com/docs/blocks/entitlements): Stripe entitlements per tenant, `hasEntitlement` and the members of a plan change       | `better-supabase/blocks/entitlements`                                                | `entitlements`                         |
 | [Vector search](https://bettersupabase.com/docs/blocks/vector-search): `search_<table>` functions over embedding columns, called with `db.$search`           | SQL only                                                                             | `vector-search`                        |
 
-The other SQL modules (`updated-at`, `audit`, `rate-limit`, `support-sessions` and the rest) are listed on the [SQL modules page](https://bettersupabase.com/docs/blocks/sql), and the [blocks overview](https://bettersupabase.com/docs/blocks) lists the blocks that are planned next.
+The other SQL modules (`updated-at`, `rate-limit`, `support-sessions` and the rest) are listed on the [SQL modules page](https://bettersupabase.com/docs/blocks/sql), and the [blocks overview](https://bettersupabase.com/docs/blocks) lists the blocks that are planned next.
 
 ## Works with
 

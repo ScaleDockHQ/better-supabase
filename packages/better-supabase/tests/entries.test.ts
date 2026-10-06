@@ -9,6 +9,7 @@ const entryOf = (subpath: string): string =>
 
 /** Barrels whose implementation lives in sibling modules. */
 const PURE_BARRELS = [
+  "blocks/audit",
   "blocks/entitlements",
   "blocks/jobs",
   "blocks/outbox",

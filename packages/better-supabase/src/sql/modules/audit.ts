@@ -9,6 +9,8 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { listEntries, reveal } from "./audit-api.ts";
+import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditTests } from "./audit-tests.ts";
 
 const NAMES: ModuleNames = {
@@ -48,8 +50,24 @@ const NAMES: ModuleNames = {
         targetType: "target_type",
         metadata: "metadata",
         idempotencyKey: "idempotency_key",
+        actorKind: "actor_kind",
+        actorLabel: "actor_label",
+        tenantLabel: "tenant_label",
+        targetLabel: "target_label",
+        summary: "summary",
+        requestId: "request_id",
+        correlationId: "correlation_id",
+        scope: "scope",
       },
       optional: [
+        "actorKind",
+        "actorLabel",
+        "tenantLabel",
+        "targetLabel",
+        "summary",
+        "requestId",
+        "correlationId",
+        "scope",
         "table",
         "record",
         "op",
@@ -78,26 +96,23 @@ const NAMES: ModuleNames = {
         ip: "ip_address",
         userAgent: "user_agent",
         metadata: "metadata",
+        sessionId: "session_id",
+        changedValues: "changed_values",
       },
-      optional: ["old", "new", "ip", "userAgent", "metadata"],
+      optional: [
+        "old",
+        "new",
+        "ip",
+        "userAgent",
+        "metadata",
+        "sessionId",
+        "changedValues",
+      ],
       optionalTable: true,
     },
   },
   hooks: ["audit_retention"],
 };
-
-export type AuditImpersonators = "show" | "hide";
-
-/** `sql.modules.audit.options.impersonators`: whether tenant readers see who impersonated. */
-function impersonators(ctx: ModuleContext): AuditImpersonators {
-  const value = ctx.text("impersonators", "show");
-  if (value !== "show" && value !== "hide") {
-    throw new TypeError(
-      `sql.modules.audit.options.impersonators must be "show" or "hide", not "${value}"`,
-    );
-  }
-  return value;
-}
 
 /** A text expression as the id type, or null when it doesn't parse as one. */
 function castId(value: string, idType: ModuleIdType): string {
@@ -117,6 +132,48 @@ function castId(value: string, idType: ModuleIdType): string {
   }
 }
 
+/** The request header `name`, or null outside a Data API request. */
+const requestHeader = (name: string): string =>
+  `better_supabase.request_header(${sqlString(name)})`;
+
+/** How the caller acted: service, support, impersonation, oauth-client, user or system. */
+const ACTOR_KIND = `case
+      when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
+      when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' is not null then 'impersonation'
+      when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
+      when auth.uid() is not null then 'user'
+      else 'system'
+    end`;
+
+const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')`;
+
+/** The tenant's name as it was, from the organizations module's table when installed. */
+function tenantLabel(ctx: ModuleContext, tenant: string): string {
+  if (!ctx.installed("organizations")) return "null";
+  const organizations = ctx.of("organizations");
+  if (!organizations.has("organizations", "name")) return "null";
+  return `(select o.${organizations.col("organizations", "name")}::text from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${tenant})`;
+}
+
+/** The pairs every entry writes for the version 3 columns. */
+function contextPairs(
+  ctx: ModuleContext,
+  tenant: string,
+  values: { targetLabel: string; summary: string; correlationId: string },
+): (readonly [string, string])[] {
+  return [
+    ["actorKind", ACTOR_KIND],
+    ["actorLabel", ACTOR_LABEL],
+    ["tenantLabel", tenantLabel(ctx, tenant)],
+    ["targetLabel", values.targetLabel],
+    ["summary", values.summary],
+    ["requestId", requestHeader("x-request-id")],
+    ["correlationId", values.correlationId],
+    ["scope", `case when ${tenant} is null then 'platform' else 'tenant' end`],
+  ];
+}
+
 /** The restricted table is in use: an option when managed, a mapping when adopted. */
 function restrictedOn(ctx: ModuleContext): boolean {
   return ctx.manages
@@ -131,7 +188,7 @@ function present(
   table: string,
   pairs: readonly (readonly [string, string])[],
 ): { columns: string; values: string } {
-  const kept = pairs.filter(([logical]) => ctx.has(table, logical));
+  const kept = pairs.filter(([logical]) => hasColumn(ctx, table, logical));
   return {
     columns: kept.map(([logical]) => ctx.col(table, logical)).join(", "),
     values: kept.map(([, value]) => value).join(",\n    "),
@@ -167,6 +224,8 @@ create table if not exists ${ctx.table("restricted")} (
   ${ctx.col("restricted", "metadata")} jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
+alter table ${ctx.table("restricted")} add column if not exists ${ctx.col("restricted", "sessionId")} text;
+alter table ${ctx.table("restricted")} add column if not exists ${ctx.col("restricted", "changedValues")} jsonb;
 alter table ${ctx.table("restricted")} enable row level security;
 revoke all on ${ctx.table("restricted")} from anon, authenticated;`
     : "";
@@ -177,6 +236,7 @@ revoke all on ${ctx.table("restricted")} from anon, authenticated;`
 );${op}${table}
 -- Set when an admin acted as the user (the act claim).${add("impersonatedBy", "uuid")}${add("impersonationReason", "text")}${add("supportSession", "uuid")}
 -- Semantic events (audit_event) and the per-table registry fill these.${add("eventType", "text")}${add("category", "text")}${add("outcome", "text")}${add("source", "text")}${add("targetType", "text")}${add("metadata", "jsonb")}${add("idempotencyKey", "text")}
+-- Who acted and on what, as it was then, for audit pages.${add("actorKind", "text")}${add("actorLabel", "text")}${add("tenantLabel", "text")}${add("targetLabel", "text")}${add("summary", "text")}${add("requestId", "text")}${add("correlationId", "text")}${add("scope", "text")}
 ${
   ctx.has("log", "table") && ctx.has("log", "record")
     ? `create index if not exists audit_events_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("occurredAt")} desc);\n`
@@ -205,8 +265,23 @@ alter table better_supabase.audited_tables add column if not exists category tex
 alter table better_supabase.audited_tables add column if not exists event_prefix text;
 alter table better_supabase.audited_tables add column if not exists target_type text;
 alter table better_supabase.audited_tables add column if not exists tenant_column text;
+alter table better_supabase.audited_tables add column if not exists label_column text;
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
+
+-- One request header, or null outside a Data API request.
+create or replace function better_supabase.request_header(name text)
+returns text
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return nullif(current_setting('request.headers', true), '')::jsonb ->> request_header.name;
+exception when others then
+  return null;
+end;
+$$;
 
 -- The client address the API gateway appended to x-forwarded-for (the
 -- right-most hop; clients can forge the ones before it), or null.
@@ -227,7 +302,7 @@ $$;`;
 function restrictedInsert(
   ctx: ModuleContext,
   restricted: boolean,
-  values: { old: string; new: string; metadata: string },
+  values: { old: string; new: string; metadata: string; changed?: string },
 ): string {
   if (!restricted) return "";
   const r = (logical: string) => ctx.col("restricted", logical);
@@ -236,14 +311,13 @@ function restrictedInsert(
     ["old", values.old],
     ["new", values.new],
     ["ip", "better_supabase.request_ip()"],
-    [
-      "userAgent",
-      "current_setting('request.headers', true)::json ->> 'user-agent'",
-    ],
+    ["userAgent", requestHeader("user-agent")],
     ["metadata", values.metadata],
+    ["sessionId", "auth.jwt() ->> 'session_id'"],
+    ["changedValues", values.changed ?? "null"],
   ];
   const kept = pairs.filter(
-    ([logical]) => logical === "entry" || ctx.has("restricted", logical),
+    ([logical]) => logical === "entry" || hasColumn(ctx, "restricted", logical),
   );
   return `
   insert into ${ctx.table("restricted")} (${kept.map(([logical]) => r(logical)).join(", ")})
@@ -272,13 +346,7 @@ function triggerFunction(
     ["changed", "changed_columns"],
     ["actor", "auth.uid()"],
     ["actorRole", "coalesce(auth.jwt() ->> 'role', current_user)"],
-    [
-      "tenant",
-      castId(
-        `row_data ->> coalesce(entry.tenant_column, ${sqlString(tenantColumn)})`,
-        ctx.idType,
-      ),
-    ],
+    ["tenant", "row_tenant"],
     [
       "impersonatedBy",
       "case when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'sub')::uuid end",
@@ -296,7 +364,16 @@ function triggerFunction(
     ["outcome", "'success'"],
     ["source", "'database'"],
     ["targetType", "coalesce(entry.target_type, tg_table_name)"],
+    ...contextPairs(ctx, "row_tenant", {
+      targetLabel: "row_data ->> entry.label_column",
+      summary: "null",
+      correlationId: requestHeader("x-correlation-id"),
+    }),
   ]);
+  const tenantValue = castId(
+    `row_data ->> coalesce(entry.tenant_column, ${sqlString(tenantColumn)})`,
+    ctx.idType,
+  );
   return `create or replace function better_supabase.audit_row_change()
 returns trigger
 language plpgsql
@@ -310,12 +387,16 @@ declare
   new_row jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
   row_data jsonb := coalesce(new_row, old_row);
   changed_columns text[];
+  changed_values jsonb;
+  row_tenant ${ctx.idType};
 begin
   select coalesce(a.ignore, '{}') as ignore, coalesce(a.key_columns, '{id}') as key_columns,
-    coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column
+    coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column,
+    a.label_column
   into entry
   from (select 1) one
   left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
+  row_tenant := ${tenantValue};
   old_row := old_row - entry.ignore;
   new_row := new_row - entry.ignore;
   if tg_op = 'UPDATE' then
@@ -329,15 +410,27 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
+  -- One change per column, values cut at 1000 characters, for revealing a
+  -- single change without the whole rows.
+  select jsonb_object_agg(k, jsonb_build_object(
+    'old', case when length((old_row -> k)::text) > 1000 then to_jsonb(left((old_row -> k)::text, 1000)) else old_row -> k end,
+    'new', case when length((new_row -> k)::text) > 1000 then to_jsonb(left((new_row -> k)::text, 1000)) else new_row -> k end
+  ))
+  into changed_values
+  from unnest(coalesce(changed_columns, array(select jsonb_object_keys(coalesce(new_row, old_row))))) k;
   insert into ${ctx.table("log")} (${insert.columns})
   values (
     ${insert.values}
   )
-  returning ${ctx.col("log", "id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "old_row", new: "new_row", metadata: "'{}'::jsonb" })}
+  returning ${ctx.col("log", "id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "old_row", new: "new_row", metadata: "'{}'::jsonb", changed: "changed_values" })}
   return null;
 end;
 $$;`;
 }
+
+/** `audit_event`'s argument types. */
+const EVENT_ARGS = (id: string): string =>
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`;
 
 function auditEvent(ctx: ModuleContext, restricted: boolean): string {
   const id = ctx.idType;
@@ -372,6 +465,11 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     ["targetType", "target_type"],
     ["metadata", "coalesce(metadata, '{}')"],
     ["idempotencyKey", "idempotency_key"],
+    ...contextPairs(ctx, "tenant", {
+      targetLabel: "target_label",
+      summary: "summary",
+      correlationId: `coalesce(correlation_id, ${requestHeader("x-correlation-id")})`,
+    }),
   ]);
   const roles = ctx.list("eventRoles", ["service_role"]);
   const noRestricted = restricted
@@ -405,6 +503,7 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
 -- everyone else is auth.uid(). restricted goes to the restricted table;
 -- without that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
+drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
 create or replace function better_supabase.audit_event(
   event_type text,
   category text default null,
@@ -416,7 +515,10 @@ create or replace function better_supabase.audit_event(
   metadata jsonb default '{}',
   idempotency_key text default null,
   restricted jsonb default null,
-  actor_id uuid default null
+  actor_id uuid default null,
+  summary text default null,
+  target_label text default null,
+  correlation_id text default null
 )
 returns text
 language plpgsql
@@ -438,8 +540,8 @@ begin${noRestricted}
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid) to ${roles.map(sqlIdent).join(", ")};`;
+revoke execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) to ${roles.map(sqlIdent).join(", ")};`;
 }
 
 function appendOnly(ctx: ModuleContext): string {
@@ -503,7 +605,7 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
       : [],
   );
   const readable = Object.keys(NAMES.tables["log"]!.columns)
-    .filter((logical) => ctx.has("log", logical) && !hidden.has(logical))
+    .filter((logical) => hasColumn(ctx, "log", logical) && !hidden.has(logical))
     .map(c);
   return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", MODULE_PERMISSIONS.audit.view)} permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
@@ -629,11 +731,13 @@ grant execute on function better_supabase.audit_events_tenants(interval) to serv
 
 const REGISTER = `drop function if exists better_supabase.audit(regclass, text[]);
 drop function if exists better_supabase.audit(regclass, text[], boolean);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
 -- event_prefix, category and target_type name the entries (event_prefix.created);
--- tenant_column overrides the module's tenant column for this table.
+-- tenant_column overrides the module's tenant column for this table, and
+-- label_column names the column kept as the entry's target label.
 -- replace_trigger => true drops another audit trigger on the table.
 create or replace function better_supabase.audit(
   target regclass,
@@ -643,7 +747,8 @@ create or replace function better_supabase.audit(
   category text default null,
   event_prefix text default null,
   target_type text default null,
-  tenant_column text default null
+  tenant_column text default null,
+  label_column text default null
 )
 returns void
 language plpgsql
@@ -661,15 +766,16 @@ begin
   join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
   where i.indrelid = audit.target and i.indisprimary;
   insert into better_supabase.audited_tables as a
-    (target, ignore, key_columns, redact, category, event_prefix, target_type, tenant_column)
+    (target, ignore, key_columns, redact, category, event_prefix, target_type, tenant_column, label_column)
   values (
     audit.target, audit.ignore, coalesce(keys, '{id}'), audit.redact, audit.category,
-    audit.event_prefix, audit.target_type, audit.tenant_column
+    audit.event_prefix, audit.target_type, audit.tenant_column, audit.label_column
   )
   on conflict on constraint audited_tables_pkey do update
     set ignore = excluded.ignore, key_columns = excluded.key_columns, redact = excluded.redact,
       category = excluded.category, event_prefix = excluded.event_prefix,
-      target_type = excluded.target_type, tenant_column = excluded.tenant_column;
+      target_type = excluded.target_type, tenant_column = excluded.tenant_column,
+      label_column = excluded.label_column;
   execute format('drop trigger if exists bs_audit on %s', target);
   execute format(
     'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change()',
@@ -689,14 +795,86 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text) from public, anon, authenticated;
-revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;`;
+-- The audit() calls for every table in schema_name with tenant_column,
+-- except tables whose name matches an exempt pattern (like 'audit_%').
+-- Paste them into a schema file: static calls keep their place in a
+-- pg-delta diff, where a loop over the catalog runs before the tables exist.
+--   select better_supabase.audit_schema_calls('public', 'tenant_id', '{audit_%}');
+create or replace function better_supabase.audit_schema_calls(
+  schema_name text,
+  tenant_column text,
+  exempt text[] default '{}'
+)
+returns setof text
+language sql
+stable
+set search_path = ''
+as $$
+  select format('select better_supabase.audit(%L);', format('%I.%I', n.nspname, c.relname))
+  from pg_catalog.pg_class c
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = schema_name
+    and c.relkind in ('r', 'p')
+    and not c.relispartition
+    and exists (
+      select 1 from pg_catalog.pg_attribute a
+      where a.attrelid = c.oid and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped
+    )
+    and not exists (select 1 from unnest(exempt) e where c.relname like e)
+  order by c.relname
+$$;
+
+-- Registers those tables now, for a migration or a one-off script; tables
+-- already registered keep their own settings. Returns how many it added.
+create or replace function better_supabase.audit_schema(
+  schema_name text,
+  tenant_column text,
+  exempt text[] default '{}'
+)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  registered integer := 0;
+  target regclass;
+begin
+  for target in
+    select format('%I.%I', n.nspname, c.relname)::regclass
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = schema_name
+      and c.relkind in ('r', 'p')
+      and not c.relispartition
+      and exists (
+        select 1 from pg_catalog.pg_attribute a
+        where a.attrelid = c.oid and a.attname = audit_schema.tenant_column and a.attnum > 0 and not a.attisdropped
+      )
+      and not exists (select 1 from unnest(exempt) e where c.relname like e)
+      and not exists (
+        select 1 from better_supabase.audited_tables t where t.target = format('%I.%I', n.nspname, c.relname)::regclass
+      )
+    order by c.relname
+  loop
+    perform better_supabase.audit(target);
+    registered := registered + 1;
+  end loop;
+  return registered;
+end;
+$$;
+
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text) from public, anon, authenticated;
+revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
+revoke execute on function better_supabase.audit_schema_calls(text, text, text[]) from public, anon, authenticated;
+revoke execute on function better_supabase.audit_schema(text, text, text[]) from public, anon, authenticated;`;
 
 /** The 0.4 table name and columns, read-only, until the next minor release. */
 function legacyView(ctx: ModuleContext): string {
   const log = ctx.table("log");
   const view = `${sqlIdent(ctx.tableName("log").schema)}.audit_log`;
-  return `create or replace view ${view}
+  return `-- Recreated, since new log columns change what l.* expands to.
+drop view if exists ${view};
+create view ${view}
   with (security_invoker = true) as
   select l.*, l.${ctx.col("log", "occurredAt")} as at, l.${ctx.col("log", "tenant")} as org_id
   from ${log} l;
@@ -722,6 +900,8 @@ function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
     appendOnly(ctx),
     readPolicy(ctx),
     retention(ctx),
+    listEntries(ctx, restricted),
+    reveal(ctx, restricted),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -739,7 +919,7 @@ export const AUDIT: ModuleDefinition = {
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 2,
+  version: 3,
   names: NAMES,
   contract: () => [
     {
@@ -749,6 +929,7 @@ export const AUDIT: ModuleDefinition = {
         "text[]",
         "boolean",
         "text[]",
+        "text",
         "text",
         "text",
         "text",
@@ -770,6 +951,9 @@ export const AUDIT: ModuleDefinition = {
         "text",
         "jsonb",
         "uuid",
+        "text",
+        "text",
+        "text",
       ],
       returns: "text",
     },
@@ -811,6 +995,16 @@ export const AUDIT: ModuleDefinition = {
         ]
           .filter(Boolean)
           .join("\n"),
+    },
+    {
+      from: 2,
+      description:
+        "Entries record the actor kind and label, the tenant and target labels, a summary, the request and correlation ids and the scope (managed tables; adopted ones map the columns they have); the restricted table keeps the session id and per-column changes; audit() takes label_column and audit_event() takes summary, target_label and correlation_id; audit_schema_calls() and audit_schema() register a schema's tenant tables.",
+      sql: (ctx) =>
+        [
+          "drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);",
+          `drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${ctx.idType}, jsonb, text, jsonb, uuid);`,
+        ].join("\n"),
     },
   ],
   deprecated: [

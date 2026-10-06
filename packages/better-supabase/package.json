@@ -167,6 +167,11 @@
       "types": "./dist/blocks/jobs/index.d.ts",
       "default": "./dist/blocks/jobs/index.js"
     },
+    "./blocks/audit": {
+      "@better-supabase/source": "./src/blocks/audit/index.ts",
+      "types": "./dist/blocks/audit/index.d.ts",
+      "default": "./dist/blocks/audit/index.js"
+    },
     "./blocks/outbox": {
       "@better-supabase/source": "./src/blocks/outbox/index.ts",
       "types": "./dist/blocks/outbox/index.d.ts",
@@ -383,6 +388,10 @@
       "./blocks/jobs": {
         "types": "./dist/blocks/jobs/index.d.ts",
         "default": "./dist/blocks/jobs/index.js"
+      },
+      "./blocks/audit": {
+        "types": "./dist/blocks/audit/index.d.ts",
+        "default": "./dist/blocks/audit/index.js"
       },
       "./blocks/outbox": {
         "types": "./dist/blocks/outbox/index.d.ts",

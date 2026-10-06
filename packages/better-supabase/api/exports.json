@@ -865,6 +865,28 @@
       "WorkOptions"
     ]
   },
+  "./blocks/audit": {
+    "values": [
+      "createAuditLog",
+      "csvField",
+      "purgeAuditLog",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AuditDetails",
+      "AuditEntry",
+      "AuditExport",
+      "AuditExportBucket",
+      "AuditExportOptions",
+      "AuditListOptions",
+      "AuditLog",
+      "AuditLogOptions",
+      "BlockTransport",
+      "PurgeAuditLogOptions",
+      "RpcClient"
+    ]
+  },
   "./blocks/outbox": {
     "values": [
       "createOutbox",

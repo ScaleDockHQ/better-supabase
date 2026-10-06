@@ -6,8 +6,10 @@ import { Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { AnyModels } from "../../src/schema/types.ts";
 
+import { createAuditLog } from "../../src/blocks/audit/index.ts";
 import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
@@ -1829,7 +1831,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
             unnest(array[
               'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
-              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid)',
+              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text)',
               'better_supabase.purge_webhooks(interval, boolean, integer, text)',
               'better_supabase.purge_job_archive(text, interval, integer, interval)',
               'better_supabase.replay_dead_job(text, bigint)'
@@ -1961,6 +1963,213 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`select better_supabase.unaudit('${name}')`);
       await pool.query(`drop table if exists ${name}`);
       await pool.query(deleteAudit("table_name = $1"), [name]);
+    }
+  });
+
+  it("records actor, labels, request ids and per-column changes", async () => {
+    const client = await pool.connect();
+    const name = `bs_audit_ctx_${RUN}`;
+    const actor = crypto.randomUUID();
+    try {
+      await client.query("begin");
+      await client.query(
+        moduleBody("audit", {
+          modules: { audit: { options: { restricted: true } } },
+        })!,
+      );
+      await client.query(`
+        create table public.${name} (id int primary key, organization_id uuid, title text, secret text);
+        create table public.${name}_free (id int primary key, note text);
+      `);
+      const calls = await client.query<{ call: string }>(
+        "select better_supabase.audit_schema_calls('public', 'organization_id', $1) as call",
+        [[`${name}_x%`]],
+      );
+      expect(calls.rows.map((row) => row.call)).toContain(
+        `select better_supabase.audit('public.${name}');`,
+      );
+      expect(calls.rows.map((row) => row.call)).not.toContain(
+        `select better_supabase.audit('public.${name}_free');`,
+      );
+      await client.query(
+        `select better_supabase.audit('public.${name}', redact => '{secret}', label_column => 'title')`,
+      );
+      await client.query(
+        `select set_config('request.jwt.claims', $1, true),
+                set_config('request.headers', $2, true)`,
+        [
+          JSON.stringify({
+            sub: actor,
+            role: "authenticated",
+            email: "ada@example.test",
+          }),
+          JSON.stringify({
+            "x-request-id": "req-1",
+            "x-correlation-id": "cor-1",
+          }),
+        ],
+      );
+      await client.query(
+        `insert into public.${name} values (1, '${ACME}', 'Quarterly report', 'k1');
+         update public.${name} set title = 'Annual report', secret = 'k2' where id = 1;`,
+      );
+      const { rows } = await client.query(
+        `select e.actor_kind, e.actor_label, e.target_label, e.request_id, e.correlation_id, e.scope,
+                e.tenant_label, r.changed_values
+         from better_supabase.audit_events e
+         join better_supabase.audit_events_restricted r on r.entry_id = e.id
+         where e.table_name = $1 order by e.id`,
+        [`public.${name}`],
+      );
+      expect(rows[1]).toMatchObject({
+        actor_kind: "user",
+        actor_label: "ada@example.test",
+        target_label: "Annual report",
+        request_id: "req-1",
+        correlation_id: "cor-1",
+        scope: "tenant",
+        changed_values: {
+          title: { old: "Quarterly report", new: "Annual report" },
+          secret: { old: "[redacted]", new: "[redacted]" },
+        },
+      });
+      expect(rows[0]!.changed_values).toMatchObject({
+        title: { old: null, new: "Quarterly report" },
+      });
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ role: "service_role" }),
+      ]);
+      await client.query(
+        `select better_supabase.audit_event('report.exported', summary => 'Exported 3 reports',
+           target_label => 'Q3', correlation_id => 'job-9')`,
+      );
+      const event = await client.query(
+        `select actor_kind, summary, target_label, correlation_id, scope
+         from better_supabase.audit_events where event_type = 'report.exported' order by id desc limit 1`,
+      );
+      expect(event.rows[0]).toEqual({
+        actor_kind: "service",
+        summary: "Exported 3 reports",
+        target_label: "Q3",
+        correlation_id: "job-9",
+        scope: "platform",
+      });
+      await client.query(`drop trigger bs_audit on public.${name}`);
+      await client.query(
+        `delete from better_supabase.audited_tables where target = 'public.${name}'::regclass`,
+      );
+      const added = await client.query<{ n: number }>(
+        "select better_supabase.audit_schema('public', 'organization_id', $1) as n",
+        [["%"]],
+      );
+      expect(added.rows[0]!.n).toBe(0);
+      const some = await client.query<{ n: number }>(
+        `select better_supabase.audit_schema('public', 'organization_id', array(
+           select c.relname::text from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relname <> $1
+         )) as n`,
+        [name],
+      );
+      expect(some.rows[0]!.n).toBe(1);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("lists and reveals audit entries through createAuditLog", async () => {
+    const client = await pool.connect();
+    const name = `bs_audit_api_${RUN}`;
+    const admin = crypto.randomUUID();
+    const outsider = crypto.randomUUID();
+    let claims: object = { role: "service_role" };
+    const sql: SqlClient = {
+      async queryRaw<T>(text: string, params: unknown[] = []) {
+        await client.query("savepoint call");
+        try {
+          await client.query(
+            "select set_config('request.jwt.claims', $1, true), set_config('role', $2, true)",
+            [
+              JSON.stringify(claims),
+              "sub" in claims ? "authenticated" : "postgres",
+            ],
+          );
+          const { rows } = await client.query(text, params);
+          await client.query("reset role");
+          await client.query("release savepoint call");
+          // SAFETY: the block names the row shape of its own queries.
+          return rows as T[];
+        } catch (error) {
+          await client.query("rollback to savepoint call");
+          throw error;
+        }
+      },
+    };
+    try {
+      await client.query("begin");
+      for (const id of [admin, outsider]) {
+        await client.query(
+          `insert into auth.users (id, instance_id, aud, role, email)
+           values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`,
+          [id, `${id}@example.test`],
+        );
+      }
+      for (const file of renderModules(["audit", "access"], {
+        modules: {
+          audit: { options: { restricted: true, readPolicy: true } },
+        },
+      }))
+        if (file.kind === "schema" && file.module === "audit")
+          await client.query(file.contents);
+      await client.query(`
+        create table public.${name} (id int primary key, organization_id uuid, title text);
+        select better_supabase.audit('public.${name}', label_column => 'title');
+        insert into better_supabase.organizations (id, name, slug) values ('${ACME}', 'Acme', 'acme-${RUN}') on conflict do nothing;
+        insert into better_supabase.memberships (organization_id, user_id, role) values ('${ACME}', '${admin}', 'admin');
+        insert into public.${name} values (1, '${ACME}', 'Draft');
+        update public.${name} set title = 'Final' where id = 1;
+      `);
+      const audit = createAuditLog({ transport: sqlTransport(sql) });
+      claims = { sub: admin, role: "authenticated" };
+      const entries = await audit
+        .list({ tenant: ACME, targetType: name, limit: 5 })
+        .orThrow();
+      expect(entries.map((item) => item.eventType)).toEqual([
+        `${name}.updated`,
+        `${name}.created`,
+      ]);
+      expect(entries[0]).toMatchObject({
+        targetLabel: "Final",
+        scope: "tenant",
+      });
+      expect(entries[0]).not.toHaveProperty("old");
+      const older = await audit
+        .list({ tenant: ACME, targetType: name, before: entries[0]! })
+        .orThrow();
+      expect(older.map((item) => item.id)).toEqual([entries[1]!.id]);
+      const details = await audit.reveal(entries[0]!).orThrow();
+      expect(details.changes).toEqual({
+        title: { old: "Draft", new: "Final" },
+      });
+      claims = { role: "service_role" };
+      const revealed = await audit
+        .list({ eventType: "audit.revealed", limit: 1 })
+        .orThrow();
+      expect(revealed[0]).toMatchObject({
+        actorId: admin,
+        record: entries[0]!.id,
+      });
+      claims = { sub: outsider, role: "authenticated" };
+      expect(
+        await audit.list({ tenant: ACME, targetType: name }).orThrow(),
+      ).toEqual([]);
+      expect(await audit.reveal(entries[0]!)).toMatchObject({
+        ok: false,
+        error: { hint: "AUDIT_ENTRY_NOT_FOUND" },
+      });
+    } finally {
+      await client.query("rollback");
+      client.release();
     }
   });
 

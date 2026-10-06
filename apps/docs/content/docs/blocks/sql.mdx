@@ -250,6 +250,49 @@ An app with its own audit table adopts it: map `sql.modules.audit.tables.log` an
 snapshots or `supportSession`, for example). The module then writes into your table and never
 creates it.
 
+### Context columns
+
+Every entry also records what an audit page shows, as it was at the time:
+
+| Column           | What it holds                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------- |
+| `actor_kind`     | `user`, `service`, `support`, `impersonation`, `oauth-client` or `system`, from the claims          |
+| `actor_label`    | the actor's `full_name` metadata or email                                                           |
+| `tenant_label`   | the organization's name, with the `organizations` module                                            |
+| `target_label`   | the value of the table's `label_column` (`audit(..., label_column => 'title')`), or `audit_event`'s |
+| `summary`        | `audit_event(summary => ...)`                                                                       |
+| `request_id`     | the request's `x-request-id` header                                                                 |
+| `correlation_id` | `audit_event(correlation_id => ...)`, or the `x-correlation-id` header                              |
+| `scope`          | `tenant`, or `platform` for entries without a tenant                                                |
+
+With `restricted`, the restricted table also keeps the `session_id` claim and
+`changed_values`: `{ column: { old, new } }` for each changed column (every
+column on insert and delete), redacted like the records and cut at 1000
+characters, so one change can be revealed without the whole rows. A managed
+log has all of these columns; an adopted one writes the ones `columns.log`
+and `columns.restricted` map.
+
+### Registering many tables
+
+A project with a hundred tenant tables doesn't write a hundred `audit(...)`
+lines by hand. `audit_schema_calls` prints them for every table in a schema
+with the tenant column, minus exempt name patterns:
+
+```sql
+select better_supabase.audit_schema_calls('public', 'organization_id', '{audit_%,%_archive}');
+```
+
+Paste the output into a schema file, and override single tables with their
+own `audit(...)` call after it. Static calls keep their place in a pg-delta
+diff; a loop over the catalog in a schema file runs before the tables exist
+(doctor [BS318](/docs/cli/doctor#bs318)). For a migration or a one-off script,
+`audit_schema(schema, tenant_column, exempt)` registers the tables that aren't
+registered yet and returns how many. Doctor [BS315](/docs/cli/doctor#bs315)
+flags any table left out.
+
+The [audit block](/docs/blocks/audit) reads the log from TypeScript: a list
+query, revealing restricted details and CSV exports.
+
 ## Retention
 
 The audit log, the webhook inbox and delivery log, the rate-limit counters
