@@ -22,6 +22,7 @@ import { ACCESS } from "./modules/access.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
+import { COMMENTS } from "./modules/comments.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
@@ -1631,6 +1632,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(USAGE),
       built(BILLING),
       built(FLAGS),
+      built(COMMENTS),
     ].map((module) => [module.name, module]),
   );
 

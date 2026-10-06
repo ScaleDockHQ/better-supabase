@@ -71,6 +71,18 @@ export interface BillingEventData {
   readonly stripeEventId?: string;
 }
 
+/** `comment.*`, written to the outbox by the comments module. */
+export interface CommentEventData {
+  readonly commentId: string;
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly authorId?: string;
+  readonly parentId?: string;
+  /** `comment.created`: every mention; `comment.mentioned`: the new ones. */
+  readonly mentionIds?: readonly string[];
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -102,6 +114,9 @@ export interface BlockEventMap {
   "billing.subscription_updated": BillingEventData;
   "billing.subscription_deleted": BillingEventData;
   "billing.seats_synced": BillingEventData;
+  "comment.created": CommentEventData;
+  "comment.mentioned": CommentEventData;
+  "comment.deleted": CommentEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

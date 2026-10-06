@@ -1115,6 +1115,7 @@
       "BlockEventType",
       "CloudEvent",
       "CloudEventOptions",
+      "CommentEventData",
       "EventSink",
       "ForwardBlockOptions",
       "ForwardOptions",
@@ -1322,6 +1323,30 @@
       "FlagType",
       "FlagValue",
       "RequestFlagContext"
+    ]
+  },
+  "./blocks/comments": {
+    "values": [
+      "activityListQuery",
+      "activitySink",
+      "createComments",
+      "mentionsIn",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "ActivityDescription",
+      "ActivityFacet",
+      "ActivitySinkOptions",
+      "ActivitySort",
+      "BlockTransport",
+      "Comment",
+      "CommentEdit",
+      "Comments",
+      "CommentsOptions",
+      "CommentSubject",
+      "ListCommentsOptions",
+      "NewComment"
     ]
   },
   "./openapi": {

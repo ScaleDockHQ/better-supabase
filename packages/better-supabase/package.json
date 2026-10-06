@@ -258,6 +258,11 @@
       "types": "./dist/blocks/flags/index.d.ts",
       "default": "./dist/blocks/flags/index.js"
     },
+    "./blocks/comments": {
+      "@better-supabase/source": "./src/blocks/comments/index.ts",
+      "types": "./dist/blocks/comments/index.d.ts",
+      "default": "./dist/blocks/comments/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -491,6 +496,10 @@
       "./blocks/flags": {
         "types": "./dist/blocks/flags/index.d.ts",
         "default": "./dist/blocks/flags/index.js"
+      },
+      "./blocks/comments": {
+        "types": "./dist/blocks/comments/index.d.ts",
+        "default": "./dist/blocks/comments/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",
