@@ -325,7 +325,9 @@ export interface ExportAuditLogOptions {
 /**
  * Streams one tenant's audit entries as newline-delimited JSON, in id
  * order, one keyset query per batch. Run it with a member's claims (the
- * `readPolicy` filters) or as the service role.
+ * `readPolicy` filters) or as the service role. It reads the managed
+ * module's column names; for an adopted log, the version 3 columns or CSV,
+ * use `createAuditLog().export()`, which reads `list_audit_events`.
  */
 export function exportAuditLog(
   sql: SqlClient,
@@ -410,8 +412,11 @@ export type AuditListDefinition<
 };
 
 /**
- * A cursor-paged list over the audit table (generate types for the
- * `better_supabase` schema to get it in your models), filtered by actor,
+ * A cursor-paged list over the audit table through the Data API or
+ * `ctx.sql` (generate types for the module's schema to get it in your
+ * models; facets follow the managed column names). `createAuditLog().list()`
+ * reads `list_audit_events` instead, with an adopted log's columns mapped.
+ * Filtered by actor,
  * table, record, event type, category, outcome and target, newest first.
  * The `readPolicy` and the `restricted` table decide what a member sees.
  */
