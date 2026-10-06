@@ -146,6 +146,57 @@ pnpm better-supabase skills install         # Agent Skills for your coding agent
 
 See the [CLI reference](https://bettersupabase.com/docs/cli) for every command and flag.
 
+## Blocks
+
+Blocks are the features most SaaS apps build by hand. Each one installs [SQL modules](https://bettersupabase.com/docs/blocks/sql) (tables, functions and RLS policies) into your declarative schema, and blocks with a TypeScript side import it from `better-supabase/blocks/<name>`:
+
+```bash
+pnpm better-supabase sql add organizations invitations
+```
+
+List them in `sql.modules` in `better-supabase.config.ts` so `better-supabase sql sync` keeps the files up to date. Each key is a module, and its value holds that module's settings, such as its roles, permission keys or the existing tables it adopts:
+
+```ts
+export default defineConfig({
+  sql: {
+    modules: {
+      access: {
+        roles: {
+          owner: ["*"],
+          admin: ["organization.*", "members.*"],
+          member: ["organization.read"],
+        },
+      },
+      organizations: {},
+      invitations: { permissions: { invite: "organization.members.invite" } },
+    },
+  },
+});
+```
+
+The TypeScript side calls those functions as the signed-in user:
+
+```ts
+import { createOrganizations } from "better-supabase/blocks/organizations";
+
+const organizations = createOrganizations({ transport, actorId: user.id });
+await organizations.invite({ organizationId, email, role: "member" });
+```
+
+| Block                                                                                                                                                        | Import                                                                               | SQL modules                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------- |
+| [Access contract](https://bettersupabase.com/docs/blocks/access): `can()` for policies, over fixed roles, your own permission catalog or PermDock            | SQL only                                                                             | `access`, `tenant`                     |
+| [Organizations](https://bettersupabase.com/docs/blocks/organizations): members, invitations, roles and switching                                             | `better-supabase/blocks/organizations`                                               | `organizations`, `invitations`         |
+| [Profiles](https://bettersupabase.com/docs/blocks/profiles): a profile row per user, synced from Auth                                                        | SQL only                                                                             | `profiles`                             |
+| [Jobs](https://bettersupabase.com/docs/blocks/jobs): Supabase Queues jobs, cron, idempotency keys and a webhook inbox                                        | `better-supabase/blocks/jobs`                                                        | `jobs`, `idempotency`, `webhook-inbox` |
+| [Outbox](https://bettersupabase.com/docs/blocks/outbox): transactional events with consumer cursors, relayed as CloudEvents                                  | `better-supabase/blocks/outbox`                                                      | `outbox`                               |
+| [Notifications](https://bettersupabase.com/docs/blocks/notifications): sending, listing and delivering notifications, and `useNotifications` for a live list | `better-supabase/blocks/notifications`, `better-supabase/blocks/notifications/react` | `notifications`                        |
+| [Webhooks](https://bettersupabase.com/docs/blocks/webhooks-out): Standard Webhooks, verifying incoming ones and delivering outgoing ones                     | `better-supabase/blocks/webhooks`                                                    | `webhooks-out`                         |
+| [Entitlements](https://bettersupabase.com/docs/blocks/entitlements): Stripe entitlements per tenant, `hasEntitlement` and the members of a plan change       | `better-supabase/blocks/entitlements`                                                | `entitlements`                         |
+| [Vector search](https://bettersupabase.com/docs/blocks/vector-search): `search_<table>` functions over embedding columns, called with `db.$search`           | SQL only                                                                             | `vector-search`                        |
+
+The other SQL modules (`updated-at`, `audit`, `rate-limit`, `support-sessions` and the rest) are listed on the [SQL modules page](https://bettersupabase.com/docs/blocks/sql), and the [blocks overview](https://bettersupabase.com/docs/blocks) lists the blocks that are planned next.
+
 ## Works with
 
 | Area       | Supported                                                                 |
@@ -183,13 +234,6 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/hono`, `/orpc`, `/edge`, `/expo` | Framework adapters                                                       |
 | `better-supabase/mcp`                             | MCP servers whose tools run as the signed-in user                        |
 | `better-supabase/mcp/sdk`                         | Bearer auth and caller-bound `db` for the official MCP SDK               |
-| `better-supabase/blocks/jobs`                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
-| `better-supabase/blocks/outbox`                   | Transactional events with consumer cursors, relayed as CloudEvents       |
-| `better-supabase/blocks/organizations`            | Organizations, members, invitations and switching                        |
-| `better-supabase/blocks/notifications`            | Sending, listing and delivering notifications                            |
-| `better-supabase/blocks/notifications/react`      | `useNotifications`, a live list of the user's notifications              |
-| `better-supabase/blocks/webhooks`                 | Standard Webhooks: verifying incoming ones and delivering outgoing ones  |
-| `better-supabase/blocks/entitlements`             | Stripe entitlements: `hasEntitlement` and the members of a plan change   |
 | `better-supabase/list`                            | Search, facets, sorting and pagination from one definition               |
 | `better-supabase/storage`, `/realtime`            | Typed bucket paths and broadcast topics                                  |
 | `better-supabase/env`                             | Validated Supabase settings                                              |
@@ -198,6 +242,8 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/sql`                             | The SQL modules and read-set compiler behind `better-supabase sql`       |
 | `better-supabase/lint`                            | Editor rules for unbounded reads and unscoped deletes                    |
 | `better-supabase/testing`                         | `asUser`, `localAuth`, typed seeds and conformance kits                  |
+
+The `better-supabase/blocks/*` subpaths are listed under [Blocks](#blocks).
 
 ## For AI agents
 
