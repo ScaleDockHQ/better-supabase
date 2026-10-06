@@ -36,6 +36,12 @@ export interface DbErrorKinds {
   max_affected: { maxAffected?: number };
   /** `retryAfter`: seconds until the window resets (the `Retry-After` header). */
   rate_limited: { retryAfter?: number };
+  /**
+   * A usage quota is used up (`consume_quota`, SQLSTATE `BSQ29`). `meter`:
+   * what was metered, `limit`: the quota, `retryAfter`: seconds until the
+   * period resets.
+   */
+  quota_exceeded: { meter?: string; limit?: number; retryAfter?: number };
   /** The executor or its dialect can't run this operation (an include on SQLite, say). */
   unsupported: Record<never, never>;
   unexpected: Record<never, never>;
@@ -94,6 +100,7 @@ const STATUS: { readonly [K in DbErrorKind]: number } = {
   stale: 412,
   max_affected: 400,
   rate_limited: 429,
+  quota_exceeded: 429,
   unsupported: 501,
   unexpected: 500,
 };
@@ -396,6 +403,11 @@ function mapBuiltin(raw: RawDbError): DbError {
         ...(seconds ? { retryAfter: Number(seconds) } : {}),
       });
     }
+    case "BSQ29":
+      return dbError("quota_exceeded", message, {
+        ...base,
+        ...quotaDetails(raw.details),
+      });
     default:
       break;
   }
@@ -408,4 +420,30 @@ function mapBuiltin(raw: RawDbError): DbError {
     return dbError("network", message, base);
   }
   return dbError("unexpected", message, base);
+}
+
+/** `consume_quota` puts `{ meter, limit, retry_after }` in the error's DETAIL. */
+function quotaDetails(details: string | null | undefined): {
+  meter?: string;
+  limit?: number;
+  retryAfter?: number;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(details ?? "");
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== "object" || parsed === null) return {};
+  // SAFETY: parsed is a non-null object, and each field read is type-checked below.
+  const record = parsed as Record<string, unknown>;
+  const field = (key: string): unknown => record[key];
+  const meter = field("meter");
+  const limit = field("limit");
+  const retryAfter = field("retry_after");
+  return {
+    ...(typeof meter === "string" ? { meter } : {}),
+    ...(typeof limit === "number" ? { limit } : {}),
+    ...(typeof retryAfter === "number" ? { retryAfter } : {}),
+  };
 }

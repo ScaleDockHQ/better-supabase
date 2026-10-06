@@ -243,6 +243,11 @@
       "types": "./dist/blocks/settings/index.d.ts",
       "default": "./dist/blocks/settings/index.js"
     },
+    "./blocks/usage": {
+      "@better-supabase/source": "./src/blocks/usage/index.ts",
+      "types": "./dist/blocks/usage/index.d.ts",
+      "default": "./dist/blocks/usage/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -464,6 +469,10 @@
       "./blocks/settings": {
         "types": "./dist/blocks/settings/index.d.ts",
         "default": "./dist/blocks/settings/index.js"
+      },
+      "./blocks/usage": {
+        "types": "./dist/blocks/usage/index.d.ts",
+        "default": "./dist/blocks/usage/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",
