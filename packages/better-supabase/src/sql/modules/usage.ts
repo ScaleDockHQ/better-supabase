@@ -3,7 +3,7 @@ import type {
   ModuleContractFunction,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
@@ -101,7 +101,7 @@ function metersOf(
   return out;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
   const counters = ctx.table("counters");
@@ -116,8 +116,9 @@ function build(ctx: ModuleContext): string {
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("read", permissions.read)}), false))`;
   const member = (tenant: string): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.has_organization_role(${tenant}), false))`;
-  // Plan quotas apply to tenants with that Stripe entitlement lookup key, or
-  // to every tenant with plan '*'.
+  // Plan quotas apply to tenants with that entitlement key, to tenants on that
+  // plan key when entitlements read a plan catalog, or to every tenant with
+  // plan '*'.
   const meters = metersOf(ctx);
   const catalog = sqlString(JSON.stringify(meters ?? {}));
   const meterCheck = meters
@@ -134,8 +135,12 @@ function build(ctx: ModuleContext): string {
   const periodConstraint = sqlIdent(
     `${quotaNames.name}_${qc("period").replaceAll('"', "")}_check`,
   );
+  const planKeys =
+    typeof layout.entitlements?.source === "object"
+      ? ` or q.${qc("plan")} = any (better_supabase.tenant_plans(tenant))`
+      : "";
   const planMatches = ctx.installed("entitlements")
-    ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any (better_supabase.tenant_entitlements(tenant))`
+    ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any (better_supabase.tenant_entitlements(tenant))${planKeys}`
     : `q.${qc("plan")} = '*'`;
 
   return `${schemaPreamble(ctx)}

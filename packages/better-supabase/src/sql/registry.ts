@@ -712,7 +712,25 @@ as $$
 $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
-grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;`;
+grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
+
+-- The tenant's active plan keys, so other modules (usage quotas) can match a
+-- plan by its key as well as by its features.
+create or replace function better_supabase.tenant_plans(tenant ${id})
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(distinct s.${sqlIdent(subs.plan)}::text order by s.${sqlIdent(subs.plan)}::text), '{}')
+    from ${qualified(subs.table)} s
+    where s.${sqlIdent(subs.tenant)} = tenant_plans.tenant${status}
+      and s.${sqlIdent(subs.plan)} is not null
+$$;
+
+revoke execute on function better_supabase.tenant_plans(${id}) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_plans(${id}) to service_role;`;
 }
 
 const ENTITLEMENTS: SqlModule = {

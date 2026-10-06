@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/registry.ts";
 
 const usage = (options?: Record<string, unknown>) =>
   moduleBody("usage", {
@@ -18,6 +18,30 @@ describe("usage module", () => {
       'drop constraint if exists "usage_quotas_period_check"',
     );
     expect(sql).not.toContain("USAGE_METER_UNKNOWN");
+  });
+
+  it("matches plan quotas by plan key with a plan catalog", () => {
+    const render = (source: unknown) =>
+      renderModules(["entitlements", "usage"], {
+        entitlements: { key: "id", source },
+      } as never).find(
+        (file) => file.module === "usage" && file.kind === "schema",
+      )!.contents;
+    const plans = {
+      plans: {
+        subscriptions: { table: "subs", tenant: "org_id", plan: "plan" },
+        features: { table: "features", plan: "plan", feature: "key" },
+      },
+    };
+    expect(render(plans)).toContain(
+      "= any (better_supabase.tenant_plans(tenant))",
+    );
+    expect(render("custom")).not.toContain("tenant_plans");
+    expect(
+      renderModules(["entitlements"], {
+        entitlements: { key: "id", source: plans },
+      }).find((file) => file.module === "entitlements")!.contents,
+    ).toContain("create or replace function better_supabase.tenant_plans");
   });
 
   it("refuses meters outside options.meters and returns the catalog", () => {

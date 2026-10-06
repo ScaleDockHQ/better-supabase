@@ -73,6 +73,10 @@ export default defineConfig({
 });
 ```
 
+With a plan catalog, the module also writes
+`better_supabase.tenant_plans(tenant)`, the tenant's active plan keys, which
+[usage quotas](/docs/blocks/usage) match by plan key.
+
 `source: "custom"` writes everything except
 `better_supabase.tenant_entitlements(tenant)`, which you write yourself and
 which returns the tenant's feature keys as `text[]`, such as plan features

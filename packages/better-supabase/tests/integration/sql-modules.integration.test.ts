@@ -1041,6 +1041,37 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         (file) => file.module === "entitlements" && file.kind === "schema",
       )!;
       await client.query(module.contents);
+      const usage = renderModules(["entitlements", "usage"], {
+        entitlements: {
+          key: "id",
+          source: {
+            plans: {
+              subscriptions: {
+                table: `public.bs_subs_${RUN}`,
+                tenant: "team_id",
+                plan: "plan_key",
+                status: "status",
+              },
+              features: {
+                table: `public.bs_plan_features_${RUN}`,
+                plan: "plan_key",
+                feature: "feature_key",
+              },
+            },
+          },
+        },
+      }).find((file) => file.module === "usage" && file.kind === "schema")!;
+      await client.query(usage.contents);
+      await client.query(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit") values
+           ('pro', 'plan_meter_${RUN}', 50), ('old', 'plan_meter_${RUN}', 900)`,
+      );
+      const quota = await client.query<{ plans: string[]; quota: string }>(
+        `select better_supabase.tenant_plans($1) as plans,
+           (select quota_limit from better_supabase.usage_quota($1, 'plan_meter_${RUN}')) as quota`,
+        [organization],
+      );
+      expect(quota.rows[0]).toEqual({ plans: ["pro"], quota: "50" });
       const { rows } = await client.query<{ claims: unknown }>(
         "select better_supabase.feature_claims($1) as claims",
         [member],

@@ -27,8 +27,10 @@ the service role. Only the service role writes quotas.
 A quota row names either a tenant or a plan. A tenant row overrides the plan
 rows. The plan `*` applies to every tenant; with the
 [`entitlements`](/docs/blocks/entitlements) module installed, any other plan
-matches tenants with that Stripe entitlement lookup key, and the highest
-limit wins.
+matches tenants with that entitlement key, and the highest limit wins. When
+`entitlements.source` is a plan catalog, a quota's plan also matches the
+tenant's active plan key (`better_supabase.tenant_plans(tenant)`), so
+`('pro', 'api_calls', 50000, 'month')` applies to every tenant on `pro`.
 
 ```sql
 insert into better_supabase.usage_quotas (plan, meter, "limit", period) values
