@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   type GeneratorMetadata,
   generatorJsonSchema,
+  orderArgsByPosition,
   readGeneratorMetadata,
   restrictSchemas,
   serializeGenerator,
@@ -106,11 +107,59 @@ describe("readGeneratorMetadata", () => {
     ]);
     const metadata = await readGeneratorMetadata(db.pg, ["public"]);
     expect(
+      db.texts().some((text) => text.includes("p.proargnames as names")),
+    ).toBe(true);
+    expect(
       metadata.types.map((entry) => entry.id).sort((a, b) => a - b),
     ).toEqual([23, 25, 100, 200, 300, 1009]);
     expect(metadata.functions.map((fn) => fn.name)).toEqual(["make_address"]);
     expect(metadata.functions[0]!.id).toBe(30000);
     expect(db.calls.length).toBeGreaterThan(5);
+  });
+});
+
+describe("orderArgsByPosition", () => {
+  const arg = (name: string, typeId: number) => ({
+    mode: "in" as const,
+    name,
+    type_id: typeId,
+    has_default: false,
+  });
+  const fn = (args: ReturnType<typeof arg>[]) => ({
+    ...generator.functions[0]!,
+    id: 40000,
+    name: "l2_distance",
+    args,
+  });
+
+  it("restores declaration order for unnamed arguments", () => {
+    const shuffled = fn([arg("", 20), arg("", 10)]);
+    const metadata = { ...generator, functions: [shuffled] };
+    const ordered = orderArgsByPosition(metadata, [
+      { id: "40000", types: ["10", "20"], names: null },
+    ]);
+    expect(ordered.functions[0]!.args.map((entry) => entry.type_id)).toEqual([
+      10, 20,
+    ]);
+    const twice = orderArgsByPosition(
+      { ...generator, functions: [fn([arg("", 10), arg("", 20)])] },
+      [{ id: 40000, types: [10, 20], names: null }],
+    );
+    expect(twice.functions[0]!.args).toEqual(ordered.functions[0]!.args);
+  });
+
+  it("keeps arguments it can't place and functions it has no row for", () => {
+    const named = fn([arg("b", 20), arg("a", 10), arg("", 30)]);
+    const metadata = { ...generator, functions: [named] };
+    const ordered = orderArgsByPosition(metadata, [
+      { id: 40000, types: [10, 20], names: ["a", "b"] },
+    ]);
+    expect(ordered.functions[0]!.args.map((entry) => entry.name)).toEqual([
+      "a",
+      "b",
+      "",
+    ]);
+    expect(orderArgsByPosition(metadata, []).functions[0]).toBe(named);
   });
 });
 

@@ -62,7 +62,61 @@ export async function readGeneratorMetadata(
 ): Promise<GeneratorMetadata> {
   const { introspect } = await introspectionModule();
   const metadata = await introspect(db, { includedSchemas: [...schemas] });
-  return pruneTypes(metadata, schemas);
+  const positions = await db.query(argumentPositionsSql(schemas));
+  return pruneTypes(orderArgsByPosition(metadata, positions.rows), schemas);
+}
+
+/** One function's argument types and names in declaration order, from `pg_proc`. */
+export interface ArgumentPositions {
+  readonly id: number | string;
+  readonly types: readonly (number | string)[] | null;
+  readonly names: readonly string[] | null;
+}
+
+const sqlLiteral = (value: string): string =>
+  `'${value.replaceAll("'", "''")}'`;
+
+/**
+ * The argument order postgrest-typegen loses: its catalog query aggregates
+ * the arguments without an order, so two unnamed arguments (pgvector's
+ * operators, citext casts) swap places between database resets.
+ */
+function argumentPositionsSql(schemas: readonly string[]): string {
+  return `select p.oid::int8 as id,
+  coalesce(p.proallargtypes, p.proargtypes::oid[])::int8[] as types,
+  p.proargnames as names
+from pg_catalog.pg_proc p
+join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+where p.prokind = 'f'
+  and n.nspname = any (array[${schemas.map(sqlLiteral).join(", ") || "''"}]::text[])`;
+}
+
+/**
+ * Puts every function's arguments back in declaration order, so the sort by
+ * name that follows (stable) keeps unnamed arguments by position.
+ */
+export function orderArgsByPosition(
+  metadata: GeneratorMetadata,
+  rows: readonly ArgumentPositions[],
+): GeneratorMetadata {
+  const byId = new Map(rows.map((row) => [Number(row.id), row]));
+  return {
+    ...metadata,
+    functions: metadata.functions.map((fn) => {
+      const row = byId.get(fn.id);
+      if (!row?.types || fn.args.length < 2) return fn;
+      const pending = [...fn.args];
+      const ordered: (typeof fn.args)[number][] = [];
+      row.types.forEach((type, index) => {
+        const name = row.names?.[index] ?? "";
+        const at = pending.findIndex(
+          (arg) => arg.type_id === Number(type) && arg.name === name,
+        );
+        if (at >= 0) ordered.push(...pending.splice(at, 1));
+      });
+      return { ...fn, args: [...ordered, ...pending] };
+    }),
+  };
 }
 
 /** Postgres assigns oids below this to built-in objects; those are stable. */

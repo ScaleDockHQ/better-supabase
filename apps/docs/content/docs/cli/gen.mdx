@@ -263,6 +263,12 @@ better-supabase gen --snapshot supabase/snapshot.json
 A committed snapshot lets CI and contributors generate without a database.
 [`introspect`](/docs/cli/introspect) writes and checks it.
 
+The output is the same after `supabase db reset` and on every machine:
+object ids come from names, and the arguments of each function keep their
+declaration order. That matters for extension functions with unnamed
+arguments, such as pgvector's distance functions and citext's casts, whose
+argument order the catalog query alone does not fix.
+
 ## From a GeneratorMetadata document
 
 `gen --metadata` generates from the JSON document that
