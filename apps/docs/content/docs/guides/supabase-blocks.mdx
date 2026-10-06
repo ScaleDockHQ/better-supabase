@@ -159,13 +159,12 @@ into an MCP error result the model can read; the block's
 `_shared/supabase.ts` exports `betterSupabase = defineSupabase(schema)` from
 the client [`better-supabase gen`](/docs/cli/gen) writes.
 
-Two functions share the name `withBetterSupabase`. The one in
-`better-supabase/server` is a pipeline entry that resolves the caller itself
-(see [Middleware](/docs/auth/middleware)); next to the block's `withSupabase`
-use `withBetterDb` as above. The one in `better-supabase/mcp/sdk` wraps
+`withBetterSupabase` from `better-supabase/server` is a pipeline entry that
+resolves the caller itself (see [Middleware](/docs/auth/middleware)); next to
+the block's `withSupabase` use `withBetterDb` as above. For servers on the
+official SDK, `withBetterSupabaseMcp` from `better-supabase/mcp/sdk` wraps
 `McpServer.registerTool` for
-[`createMcpAuth`](/docs/frameworks/mcp#official-mcp-sdk). They don't mix, so
-import the one that matches your setup.
+[`createMcpAuth`](/docs/frameworks/mcp#official-mcp-sdk).
 
 ## Replacing the tools with createMcp
 
@@ -198,7 +197,7 @@ working; only the tool code changes. See
 [MCP servers](/docs/frameworks/mcp) for custom tools, `authorize` and scopes.
 
 To keep the block's `McpServer` and its tools instead, use `createMcpAuth`
-and `withBetterSupabase` from `better-supabase/mcp/sdk`. They need
+and `withBetterSupabaseMcp` from `better-supabase/mcp/sdk`. They need
 `@modelcontextprotocol/server` 2.3 or later, and the block pins 2.0.0, so
 bump the import in every tool file first.
 

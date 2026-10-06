@@ -334,14 +334,14 @@ started.
 When the server already runs on the official SDK (`@modelcontextprotocol/server`
 2.3 or later), keep its `McpServer` and add better-supabase through
 `better-supabase/mcp/sdk`. `createMcpAuth` verifies the Supabase access token
-locally and serves the RFC 9728 metadata; `withBetterSupabase` wraps
+locally and serves the RFC 9728 metadata; `withBetterSupabaseMcp` wraps
 `registerTool` so every tool callback gets `db`, `auth` and `bs` for the
 verified caller:
 
 ```ts title="src/mcp.ts"
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
-import { createMcpAuth, withBetterSupabase } from "better-supabase/mcp/sdk";
+import { createMcpAuth, withBetterSupabaseMcp } from "better-supabase/mcp/sdk";
 import * as v from "valibot";
 import { betterSupabase } from "./lib/supabase/schema";
 
@@ -351,7 +351,7 @@ const auth = createMcpAuth(betterSupabase, {
 });
 
 const handler = createMcpHandler(() => {
-  const server = withBetterSupabase(
+  const server = withBetterSupabaseMcp(
     new McpServer({ name: "crm", version: "1.0.0" }),
     auth,
   );
@@ -392,12 +392,12 @@ call whose `authInfo` did not come from `auth.verifier` is verified again from
 its token, and one without a token runs as `anon`.
 
 To check permissions with PermDock, wrap the server with `permdock/mcp`'s
-`protectServer` first and `withBetterSupabase` second. PermDock then refuses a
+`protectServer` first and `withBetterSupabaseMcp` second. PermDock then refuses a
 tool before the repositories are built, and the tool config keeps its
 `permission` key:
 
 ```ts
-const server = withBetterSupabase(
+const server = withBetterSupabaseMcp(
   protectServer(new McpServer(info), dock),
   auth,
 );
@@ -405,10 +405,10 @@ const server = withBetterSupabase(
 
 ### Which one to use
 
-| You need                                                      | Use                                      |
-| ------------------------------------------------------------- | ---------------------------------------- |
-| Tools generated from tables and list definitions              | `createMcp`                              |
-| No MCP dependency, or the smallest bundle on an edge function | `createMcp`                              |
-| The `authorize` and `visible` hooks                           | `createMcp`                              |
-| An existing `McpServer`, prompts, resources or SDK features   | `createMcpAuth` and `withBetterSupabase` |
-| PermDock approvals through `permdock/mcp`                     | `createMcpAuth` and `withBetterSupabase` |
+| You need                                                      | Use                                         |
+| ------------------------------------------------------------- | ------------------------------------------- |
+| Tools generated from tables and list definitions              | `createMcp`                                 |
+| No MCP dependency, or the smallest bundle on an edge function | `createMcp`                                 |
+| The `authorize` and `visible` hooks                           | `createMcp`                                 |
+| An existing `McpServer`, prompts, resources or SDK features   | `createMcpAuth` and `withBetterSupabaseMcp` |
+| PermDock approvals through `permdock/mcp`                     | `createMcpAuth` and `withBetterSupabaseMcp` |

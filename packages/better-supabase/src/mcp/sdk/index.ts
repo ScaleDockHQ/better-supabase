@@ -1,4 +1,4 @@
-export { createMcpAuth, withBetterSupabase } from "./sdk.ts";
+export { createMcpAuth, withBetterSupabaseMcp } from "./sdk.ts";
 export type {
   BetterMcpAuth,
   BetterMcpServer,
