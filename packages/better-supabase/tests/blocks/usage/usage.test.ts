@@ -24,6 +24,38 @@ function fakeTransport(
   return { transport, calls };
 }
 
+describe("batches", () => {
+  it("sends the entries as JSON with the check flag and maps today's usage", async () => {
+    const { transport, calls } = fakeTransport(() => ({
+      recorded: true,
+      used: { a: "1.5", b: 2 },
+    }));
+    const usage = createUsage({ transport });
+    expect(
+      await usage
+        .consumeMany("org", [{ meter: "a", quantity: 1.5 }, { meter: "b" }], {
+          idempotencyKey: "k",
+          source: "s",
+        })
+        .orThrow(),
+    ).toEqual({ recorded: true, today: { a: 1.5, b: 2 } });
+    expect(calls[0]![2]).toMatchObject({
+      tenant: "org",
+      entries: '[{"meter":"a","quantity":1.5},{"meter":"b","quantity":1}]',
+      idempotency_key: "k",
+      check: true,
+      source: "s",
+    });
+    await usage.recordMany("org", [{ meter: "a" }]).orThrow();
+    expect(calls[1]![2]).toMatchObject({ check: false });
+    expect(
+      await createUsage(fakeTransport(() => ({ recorded: false })))
+        .recordMany("org", [{ meter: "a" }])
+        .orThrow(),
+    ).toEqual({ recorded: false, today: {} });
+  });
+});
+
 describe("usage history", () => {
   it("passes who and what used it, and reads the history and breakdown", async () => {
     const { transport, calls } = fakeTransport((fn) => {

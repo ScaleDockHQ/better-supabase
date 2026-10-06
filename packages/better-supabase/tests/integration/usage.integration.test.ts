@@ -180,6 +180,61 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("records several meters at once, all or none", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "usage"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+         values ('*', 'output_tokens', 10, 'month')`,
+      );
+      await s.asRole(owner);
+      const entries = [
+        { meter: "input_tokens", quantity: 40 },
+        { meter: "output_tokens", quantity: 6 },
+      ];
+      expect(
+        await usage
+          .consumeMany(organization, entries, { idempotencyKey: "call-1" })
+          .orThrow(),
+      ).toEqual({
+        recorded: true,
+        today: { input_tokens: 40, output_tokens: 6 },
+      });
+      expect(
+        await usage
+          .consumeMany(organization, entries, { idempotencyKey: "call-1" })
+          .orThrow(),
+      ).toMatchObject({ recorded: false });
+      await s.rows("savepoint batch");
+      expect(
+        await usage.consumeMany(organization, entries, {
+          idempotencyKey: "call-2",
+        }),
+      ).toMatchObject({ error: { kind: "quota_exceeded" } });
+      await s.rows("rollback to savepoint batch");
+      expect(
+        (await usage.current(organization, "input_tokens").orThrow()).used,
+      ).toBe(40);
+      expect(
+        await usage
+          .recordMany(organization, [{ meter: "output_tokens", quantity: 50 }])
+          .orThrow(),
+      ).toEqual({ recorded: true, today: { output_tokens: 56 } });
+      await s.rows("savepoint empty");
+      expect(await usage.recordMany(organization, [])).toMatchObject({
+        error: { hint: "USAGE_ENTRIES" },
+      });
+      await s.rows("rollback to savepoint empty");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("counts fractional quantities against fractional quotas", async () => {
     const s = await BlockSession.open(pool);
     try {

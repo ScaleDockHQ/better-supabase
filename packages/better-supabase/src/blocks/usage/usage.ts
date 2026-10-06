@@ -42,6 +42,20 @@ export interface RecordUsageOptions {
   readonly actor?: string;
 }
 
+/** One meter of a batch. */
+export interface UsageEntry {
+  readonly meter: string;
+  /** Default 1. */
+  readonly quantity?: number;
+}
+
+export interface UsageBatchRecorded {
+  /** False when the idempotency key was seen before for every meter. */
+  readonly recorded: boolean;
+  /** Today's usage per meter (UTC). */
+  readonly today: Readonly<Record<string, number>>;
+}
+
 /** One entry of the usage history. */
 export interface UsageHistoryEntry {
   readonly id: number;
@@ -119,6 +133,24 @@ export interface Usage {
     meter: string,
     options?: RecordUsageOptions,
   ): AsyncResult<UsageRecorded>;
+  /**
+   * Adds several meters in one transaction, all or none, such as input and
+   * output tokens of one call. The idempotency key covers the batch.
+   */
+  recordMany(
+    organizationId: string,
+    entries: readonly UsageEntry[],
+    options?: Omit<RecordUsageOptions, "quantity">,
+  ): AsyncResult<UsageBatchRecorded>;
+  /**
+   * Like `recordMany`, but checks each meter's quota first; when one doesn't
+   * fit, nothing is recorded and the result is `quota_exceeded`.
+   */
+  consumeMany(
+    organizationId: string,
+    entries: readonly UsageEntry[],
+    options?: Omit<RecordUsageOptions, "quantity">,
+  ): AsyncResult<UsageBatchRecorded>;
   current(organizationId: string, meter: string): AsyncResult<UsageStatus>;
   /** Units left in the period, or `undefined` without a quota. */
   remaining(
@@ -215,6 +247,43 @@ export function createUsage(options: UsageOptions): Usage {
     metadata: record.metadata,
     actor: record.actor,
   });
+  const batch =
+    (check: boolean) =>
+    (
+      organizationId: string,
+      entries: readonly UsageEntry[],
+      record: Omit<RecordUsageOptions, "quantity"> = {},
+    ): AsyncResult<UsageBatchRecorded> =>
+      call(
+        "record_usage_batch",
+        {
+          tenant: organizationId,
+          entries: JSON.stringify(
+            entries.map((entry) => ({
+              meter: entry.meter,
+              quantity: entry.quantity ?? 1,
+            })),
+          ),
+          idempotency_key: record.idempotencyKey,
+          check,
+          source: record.source,
+          metadata: record.metadata,
+          actor: record.actor,
+        },
+        (value) => {
+          const row = recordOf(value, "record_usage_batch");
+          const used = isRecord(row["used"]) ? row["used"] : {};
+          return {
+            recorded: row["recorded"] === true,
+            today: Object.fromEntries(
+              Object.entries(used).map(([meter, today]) => [
+                meter,
+                numberOf(today),
+              ]),
+            ),
+          };
+        },
+      );
   const current = (
     organizationId: string,
     meter: string,
@@ -225,6 +294,8 @@ export function createUsage(options: UsageOptions): Usage {
       call("record_usage", args(organizationId, meter, record), recordedOf),
     consume: (organizationId, meter, record) =>
       call("consume_quota", args(organizationId, meter, record), recordedOf),
+    recordMany: batch(false),
+    consumeMany: batch(true),
     current,
     remaining: (organizationId, meter) =>
       current(organizationId, meter).map((status) => status.remaining),

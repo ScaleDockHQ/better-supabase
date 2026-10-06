@@ -497,6 +497,57 @@ begin
 end;
 $$;
 
+-- Records several meters at once, all or none: entries is [{ meter, quantity }],
+-- each checked against its quota first when check is true (a quota_exceeded
+-- on one records nothing). idempotency_key is per batch. Returns { recorded,
+-- used: { meter: today's usage } }.
+create or replace function ${fn("record_usage_batch")}(
+  tenant ${id},
+  entries jsonb,
+  idempotency_key text default null,
+  "check" boolean default false,
+  source text default null,
+  metadata jsonb default null,
+  actor uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  entry jsonb;
+  outcome jsonb;
+  recorded boolean := false;
+  used jsonb := '{}';
+begin
+  -- A JSON text of the array, as a transport that sends arrays as text passes it.
+  if jsonb_typeof(entries) = 'string' then
+    entries := (entries #>> '{}')::jsonb;
+  end if;
+  if jsonb_typeof(entries) <> 'array' or jsonb_array_length(entries) = 0 then
+    raise exception 'entries must be a non-empty array of { meter, quantity }' using errcode = '22023', hint = 'USAGE_ENTRIES';
+  end if;
+  for entry in select value from jsonb_array_elements(entries) loop
+    if jsonb_typeof(entry -> 'meter') <> 'string' then
+      raise exception 'Every entry needs a meter' using errcode = '22023', hint = 'USAGE_ENTRIES';
+    end if;
+    if record_usage_batch."check" then
+      outcome := ${fn("consume_quota")}(tenant, entry ->> 'meter', coalesce((entry ->> 'quantity')::numeric, 1),
+        case when idempotency_key is null then null else idempotency_key || ':' || (entry ->> 'meter') end,
+        source, metadata, actor);
+    else
+      outcome := ${fn("record_usage")}(tenant, entry ->> 'meter', coalesce((entry ->> 'quantity')::numeric, 1),
+        case when idempotency_key is null then null else idempotency_key || ':' || (entry ->> 'meter') end,
+        source, metadata, actor);
+    end if;
+    recorded := recorded or (outcome ->> 'recorded')::boolean;
+    used := used || jsonb_build_object(entry ->> 'meter', outcome -> 'used');
+  end loop;
+  return jsonb_build_object('recorded', recorded, 'used', used);
+end;
+$$;
+
 -- Server-side, for reportUsageToStripe: counters with unreported usage.
 create or replace function ${fn("unreported_usage")}(max_rows integer default 500)
 returns jsonb
@@ -652,6 +703,8 @@ revoke execute on function ${fn("usage_status")}(${id}, text) from public, anon;
 revoke execute on function ${fn("within_quota")}(${id}, text, bigint) from public, anon;
 revoke execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
 revoke execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
+revoke execute on function ${fn("record_usage_batch")}(${id}, jsonb, text, boolean, text, jsonb, uuid) from public, anon;
+grant execute on function ${fn("record_usage_batch")}(${id}, jsonb, text, boolean, text, jsonb, uuid) to authenticated, service_role;
 revoke execute on function ${fn("unreported_usage")}(integer) from public, anon, authenticated;
 revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) from public, anon, authenticated;
 grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
@@ -682,6 +735,11 @@ function contract(): readonly ModuleContractFunction[] {
     {
       name: "consume_quota",
       args: ["{id}", "text", "numeric", "text", "text", "jsonb", "uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "record_usage_batch",
+      args: ["{id}", "jsonb", "text", "boolean", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },
     { name: "unreported_usage", args: ["integer"], returns: "jsonb" },
