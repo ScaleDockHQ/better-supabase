@@ -100,6 +100,29 @@ describe.skipIf(!live)("Postgres executor", async () => {
           .orThrow(),
     ],
     [
+      "a sort by a to-one relation",
+      (db) =>
+        db.notes
+          .findMany({
+            select: ["id", "body"],
+            orderBy: [{ customer: { name: "desc" } }, { id: "asc" }],
+          })
+          .orThrow(),
+    ],
+    [
+      "a sort by an included to-one relation",
+      (db) =>
+        db.notes
+          .paginate({
+            select: ["id"],
+            include: { customer: { select: ["name"] } },
+            orderBy: [{ customer: { name: "asc" } }, { id: "desc" }],
+            size: 2,
+            page: 2,
+          })
+          .orThrow(),
+    ],
+    [
       "regular expressions",
       (db) =>
         db.customers

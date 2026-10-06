@@ -123,6 +123,16 @@ describe("conditional writes", () => {
     expectTypeOf(deleted[0]!.organizationId).toEqualTypeOf<string>();
   });
 
+  it("sorts by to-one relations", () => {
+    void db.notes.findMany({
+      orderBy: [{ customer: { name: "asc" } }, { createdAt: "desc" }],
+    });
+    void db.notes.findMany({
+      include: { customer: { select: ["name"] } },
+      orderBy: { customer: { name: { direction: "desc", nulls: "last" } } },
+    });
+  });
+
   it("types json path filters", () => {
     void db.notes.findMany({
       where: {

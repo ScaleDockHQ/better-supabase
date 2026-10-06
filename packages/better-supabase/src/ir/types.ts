@@ -72,6 +72,12 @@ export interface OrderTerm {
   readonly column: string;
   readonly direction: "asc" | "desc";
   readonly nulls?: "first" | "last";
+  /** Sort by `column` of this to-one relation's row (only on the root table). */
+  readonly relation?: {
+    readonly name: string;
+    readonly relation: RelationMeta;
+    readonly target: TableMeta;
+  };
 }
 
 export interface Include {

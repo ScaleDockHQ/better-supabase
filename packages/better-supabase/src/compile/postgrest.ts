@@ -396,6 +396,35 @@ class PostgrestCompiler {
     }
   }
 
+  /**
+   * Sorts the root rows by a column of a to-one embed, `order=alias(column)`.
+   * Reuses the include of that relation, or adds an empty embed for it.
+   */
+  relationOrder(term: OrderTerm, embeds: EmbedNode[]): void {
+    const { relation } = term;
+    if (!relation) return;
+    let alias = embeds.find(
+      (node) =>
+        node.relation.foreignKey === relation.relation.foreignKey &&
+        node.target === relation.target &&
+        node.count === undefined &&
+        node.measures === undefined &&
+        node.alias === relation.name,
+    )?.alias;
+    if (alias === undefined) {
+      alias = this.nextAlias();
+      embeds.push({
+        alias,
+        target: relation.target,
+        relation: relation.relation,
+        inner: false,
+        columns: [],
+        children: [],
+      });
+    }
+    this.order({ ...term, column: `${alias}(${term.column})` }, undefined);
+  }
+
   order(term: OrderTerm, referencedTable: string | undefined): void {
     this.orders.push({
       column: term.column,
@@ -550,7 +579,10 @@ export function compilePostgrest(op: Operation): PostgrestPlan {
 
   let range: PostgrestPlan["range"];
   if (op.kind === "select") {
-    for (const term of op.orderBy) compiler.order(term, undefined);
+    for (const term of op.orderBy) {
+      if (term.relation) compiler.relationOrder(term, embeds);
+      else compiler.order(term, undefined);
+    }
     if (op.offset !== undefined) {
       const from = op.offset;
       const to =
