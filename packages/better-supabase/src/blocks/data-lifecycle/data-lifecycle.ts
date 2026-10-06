@@ -438,15 +438,58 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
 export interface OrganizationPurgerOptions extends BlockTemporalOptions {
   /** A service-role transport: `purge_organization()` is granted to `service_role` only. */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to remove each bucket's `{organizationId}/` prefix. */
+  /** A service-role `supabase.storage`, to remove each bucket's organization prefix. */
   readonly storage?: LifecycleStorage;
-  /** Buckets whose paths start with the organization id, such as `attachments`. */
-  readonly buckets?: readonly string[];
+  /**
+   * Buckets to clear: a name, for a bucket whose paths start with the
+   * organization id (`attachments`), or `{ bucket, path }` with a path
+   * template such as `orgs/{organizationId}/files`, or a function that
+   * returns the prefixes, for buckets laid out another way.
+   */
+  readonly buckets?: readonly PurgeBucket[];
   /** `createBilling(...)`, to cancel the subscription first. */
   readonly billing?: {
     cancelSubscription(organizationId: string): AsyncResult<unknown>;
   };
   readonly schema?: string;
+}
+
+/** A bucket the purger clears, and where the organization's objects are. */
+export type PurgeBucket =
+  | string
+  | {
+      readonly bucket: string;
+      /** A prefix template with `{organizationId}`, or the prefixes for an id. */
+      readonly path:
+        | string
+        | ((organizationId: string) => string | readonly string[]);
+    };
+
+/** The prefixes an entry of `buckets` clears for an organization. */
+function bucketPrefixes(
+  entry: PurgeBucket,
+  organizationId: string,
+): Result<{ readonly bucket: string; readonly prefixes: readonly string[] }> {
+  if (typeof entry === "string") {
+    return ok({ bucket: entry, prefixes: [organizationId] });
+  }
+  const paths =
+    typeof entry.path === "function"
+      ? entry.path(organizationId)
+      : entry.path.replaceAll("{organizationId}", organizationId);
+  const prefixes = (typeof paths === "string" ? [paths] : [...paths]).map(
+    (path) => path.replace(/\/+$/, ""),
+  );
+  const unsafe = prefixes.find((prefix) => !prefix.includes(organizationId));
+  if (unsafe !== undefined) {
+    return err(
+      dbError(
+        "invalid_request",
+        `buckets.${entry.bucket}: the prefix "${unsafe}" doesn't contain the organization id, so it could clear other tenants' objects`,
+      ),
+    );
+  }
+  return ok({ bucket: entry.bucket, prefixes });
 }
 
 export interface OrganizationPurge {
@@ -514,18 +557,23 @@ export function createOrganizationPurger(
         if (!cancelled.ok) return cancelled;
       }
       const removed: Record<string, number> = {};
-      for (const id of options.buckets ?? []) {
+      for (const entry of options.buckets ?? []) {
         if (!options.storage) {
           return err(
             dbError("invalid_request", "Pass storage to clear buckets"),
           );
         }
-        const count = await removePrefix(
-          options.storage.from(id),
-          organizationId,
-        );
-        if (!count.ok) return count;
-        removed[id] = count.data;
+        const target = bucketPrefixes(entry, organizationId);
+        if (!target.ok) return target;
+        const { bucket, prefixes } = target.data;
+        for (const prefix of prefixes) {
+          const count = await removePrefix(
+            options.storage.from(bucket),
+            prefix,
+          );
+          if (!count.ok) return count;
+          removed[bucket] = (removed[bucket] ?? 0) + count.data;
+        }
       }
       return call("purge_organization", { tenant: organizationId }, (value) => {
         const row = recordOf(value, "purge_organization");

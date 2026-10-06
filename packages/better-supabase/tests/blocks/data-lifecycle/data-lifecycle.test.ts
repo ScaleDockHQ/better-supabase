@@ -491,6 +491,44 @@ describe("createOrganizationPurger", () => {
     expect(calls).toEqual([["purge_organization", { tenant: "org-1" }]]);
   });
 
+  it("clears path templates and computed prefixes per bucket", async () => {
+    const listed: string[] = [];
+    const storage = fakeStorage({
+      list: (path) => {
+        listed.push(String(path));
+        return { data: [{ name: "f", id: "1" }], error: null };
+      },
+    });
+    const { transport } = fakeTransport({ purge_organization: purged });
+    const result = await createOrganizationPurger({
+      transport,
+      storage: storage.storage,
+      buckets: [
+        { bucket: "files", path: "orgs/{organizationId}/files/" },
+        {
+          bucket: "media",
+          path: (id) => [`public/${id}`, `private/${id}`],
+        },
+      ],
+    })
+      .purge("org-1")
+      .orThrow();
+    expect(listed).toEqual([
+      "orgs/org-1/files",
+      "public/org-1",
+      "private/org-1",
+    ]);
+    expect(result.removed).toEqual({ files: 1, media: 2 });
+    const unsafe = await createOrganizationPurger({
+      transport,
+      storage: storage.storage,
+      buckets: [{ bucket: "files", path: "shared" }],
+    }).purge("org-1");
+    expect(unsafe).toMatchObject({
+      error: { kind: "invalid_request", message: /other tenants/ },
+    });
+  });
+
   it("stops at billing, storage and missing storage errors", async () => {
     const { transport, calls } = fakeTransport({ purge_organization: purged });
     const billingFails = await createOrganizationPurger({

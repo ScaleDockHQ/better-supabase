@@ -183,7 +183,7 @@ await purger.purgeDue({ limit: 20 }).orThrow();
 
 For each organization it cancels the Stripe subscription
 (`billing.cancelSubscription`, when you pass `billing`), removes every
-object under `{organizationId}/` in `buckets`, then calls
+object under the organization's prefix in `buckets`, then calls
 `purge_organization`. That function runs your
 `public.on_organization_purge(tenant)` hook when it exists, deletes the
 tenant's rows from each purged table (your tables first), deletes the
@@ -199,6 +199,19 @@ The tenant row is the organizations module's (managed or adopted), or the
 row of the table `sql.modules.access.disabled.tenant` names, or the one in
 `options.tenantRow` (`"schema.table.column"`, `false` to keep it), so an
 adopted tenant table needs no `on_organization_purge` hook to go.
+
+A bucket name in `buckets` clears `{organizationId}/`. For buckets laid out
+another way, pass `{ bucket, path }` with a template, or a function that
+returns the prefixes. Each prefix must contain the organization id, so a
+purge never clears another tenant's objects:
+
+```ts
+buckets: [
+  "attachments",
+  { bucket: "files", path: "orgs/{organizationId}/files" },
+  { bucket: "media", path: (id) => [`public/${id}`, `private/${id}`] },
+],
+```
 
 ## Events
 
