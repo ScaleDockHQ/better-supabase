@@ -147,3 +147,76 @@ describe("invitations module", () => {
     );
   });
 });
+
+describe("platform invitations under the permdock model", () => {
+  const PERMDOCK: ModulesConfig = {
+    access: {
+      model: "permdock",
+      permdock: { schema: "authz", scope: "organization" },
+    },
+  };
+  const roles = {
+    table: "public.user_roles",
+    user: "user_id",
+    role: "role_id",
+  };
+
+  it("assigns the app's platform role table on accept", () => {
+    const sql = body({
+      ...PERMDOCK,
+      invitations: {
+        options: {
+          platformRoles: {
+            ...roles,
+            through: { table: "public.app_roles", id: "id", column: "key" },
+            canAssign: "authz.can_grant({user}, {role})",
+          },
+        },
+      },
+    });
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."platform_invitations"',
+    );
+    expect(sql).toContain(
+      'insert into "public"."user_roles" ("user_id", "role_id")',
+    );
+    expect(sql).toContain(
+      `coalesce((authz.can_grant(auth.uid(), (select r."key"::text from "public"."app_roles" r`,
+    );
+    expect(sql).toContain("better_supabase.is_platform('platform.invite')");
+    expect(sql).not.toContain("platform_can_assign");
+  });
+
+  it("refuses platform invitations without platformRoles and checks its shape", () => {
+    expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
+    const plain = body({
+      ...PERMDOCK,
+      invitations: { options: { platformRoles: roles } },
+    });
+    expect(plain).toContain(
+      "No platform role ceiling: holding the invite permission is enough.",
+    );
+    expect(() =>
+      body({
+        ...PERMDOCK,
+        invitations: { options: { platformRoles: "public.user_roles" } },
+      }),
+    ).toThrow(/platformRoles must be/);
+    expect(() =>
+      body({
+        ...PERMDOCK,
+        invitations: {
+          options: { platformRoles: { ...roles, through: { table: "x" } } },
+        },
+      }),
+    ).toThrow(/through must be/);
+    expect(() =>
+      body({
+        ...PERMDOCK,
+        invitations: {
+          options: { platformRoles: { ...roles, table: "user_roles" } },
+        },
+      }),
+    ).toThrow(/must be "schema.table"/);
+  });
+});

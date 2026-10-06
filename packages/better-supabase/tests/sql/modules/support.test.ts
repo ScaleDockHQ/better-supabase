@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ModuleConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, resolveModules } from "../../../src/sql/registry.ts";
+import {
+  moduleBody,
+  renderModules,
+  resolveModules,
+} from "../../../src/sql/registry.ts";
 
 const support = (config: ModuleConfig = {}) =>
   moduleBody("support-sessions", { modules: { "support-sessions": config } })!;
@@ -95,5 +99,33 @@ describe("support-sessions module", () => {
       expect.arrayContaining(["access", "audit", "support-sessions"]),
     );
     expect(names.indexOf("support-sessions")).toBe(names.length - 1);
+  });
+});
+
+describe("support-sessions next to permdock platform roles", () => {
+  it("counts a row in the platform role table as a platform target", () => {
+    const files = renderModules(["support-sessions", "invitations"], {
+      modules: {
+        access: {
+          model: "permdock",
+          permdock: { schema: "authz", scope: "organization" },
+        },
+        invitations: {
+          options: {
+            platformRoles: {
+              table: "public.user_roles",
+              user: "user_id",
+              role: "role_id",
+            },
+          },
+        },
+      },
+    });
+    const sql = files.find(
+      (file) => file.module === "support-sessions" && file.kind === "schema",
+    )!.contents;
+    expect(sql).toContain(
+      'select 1 from "public"."user_roles" a where a."user_id" = target',
+    );
   });
 });
