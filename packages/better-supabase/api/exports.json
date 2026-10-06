@@ -148,6 +148,7 @@
       "Policy",
       "PolicyDecision",
       "PostgrestClientLike",
+      "PostgrestExecutorOptions",
       "PostgrestPlan",
       "ProblemDetails",
       "ProblemOptions",

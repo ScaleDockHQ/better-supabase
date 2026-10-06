@@ -101,7 +101,7 @@ function quote(value: unknown): string {
 const BARE = /^[\w.:+@-]+$/;
 
 /** An `in` list element; quoted only when it needs to be, as supabase-js does. */
-function listItem(value: unknown): string {
+export function listItem(value: unknown): string {
   const text = scalar(value);
   return BARE.test(text) && text.toLowerCase() !== "null" ? text : quote(text);
 }
