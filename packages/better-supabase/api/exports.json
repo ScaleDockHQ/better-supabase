@@ -1117,6 +1117,7 @@
       "CloudEvent",
       "CloudEventOptions",
       "CommentEventData",
+      "DataExportEventData",
       "EventSink",
       "ForwardBlockOptions",
       "ForwardOptions",
@@ -1124,6 +1125,7 @@
       "HttpSinkOptions",
       "InvitationEventData",
       "NotificationEventData",
+      "OrganizationDeletionEventData",
       "OrganizationEventData",
       "RowEventData",
       "SupportEventData",
@@ -1372,6 +1374,34 @@
       "BlockTransport",
       "NewAttachment",
       "ScanVerdict"
+    ]
+  },
+  "./blocks/data-lifecycle": {
+    "values": [
+      "createDataExporter",
+      "createDataLifecycle",
+      "createOrganizationPurger",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "DataExport",
+      "DataExportDownload",
+      "DataExporter",
+      "DataExporterOptions",
+      "DataExportJob",
+      "DataExportStatus",
+      "DataLifecycle",
+      "DataLifecycleOptions",
+      "LifecycleBucket",
+      "LifecycleStorage",
+      "LifecycleTable",
+      "OrganizationDeletion",
+      "OrganizationPurge",
+      "OrganizationPurger",
+      "OrganizationPurgerOptions",
+      "StorageEntry"
     ]
   },
   "./openapi": {

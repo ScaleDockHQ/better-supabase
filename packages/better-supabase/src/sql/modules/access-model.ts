@@ -25,6 +25,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "comments.*",
     "activity.read",
     "attachments.*",
+    "organization.export",
   ],
   member: [
     "organization.read",
@@ -80,6 +81,10 @@ export const MODULE_PERMISSIONS = {
     moderate: "comments.moderate",
     activity: "activity.read",
   },
+  "data-lifecycle": {
+    export: "organization.export",
+    delete: "organization.delete",
+  },
   attachments: {
     read: "attachments.read",
     upload: "attachments.upload",
@@ -130,6 +135,7 @@ export const MODULE_PERMISSION_SCOPES: {
     activity: "tenant",
   },
   attachments: { read: "tenant", upload: "tenant", manage: "tenant" },
+  "data-lifecycle": { export: "tenant", delete: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

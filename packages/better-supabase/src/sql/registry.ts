@@ -24,6 +24,7 @@ import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
 import { COMMENTS } from "./modules/comments.ts";
+import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
@@ -1635,6 +1636,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(FLAGS),
       built(COMMENTS),
       built(ATTACHMENTS),
+      built(DATA_LIFECYCLE),
     ].map((module) => [module.name, module]),
   );
 

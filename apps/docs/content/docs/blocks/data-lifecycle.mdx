@@ -1,0 +1,175 @@
+---
+title: Data lifecycle
+description: Data exports for a user or an organization as NDJSON files in Storage, and organization deletion with a grace period, a cancel and a purge job.
+---
+
+The `data-lifecycle` block covers two requests every SaaS gets: "send me my
+data" and "delete our account". Exports collect a user's or an
+organization's rows from every installed module and your own tables into
+one NDJSON file per table in a private bucket. Deleting an organization
+disables the tenant right away and purges its data after a grace period,
+so an owner can still cancel.
+
+```bash
+better-supabase sql add data-lifecycle   # adds tenant and access as well
+```
+
+| Table                    | Holds                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `data_exports`           | `subject` (`user` or `organization`), `status`, the object paths in `files`, and `expires_at` |
+| `organization_deletions` | `requested_by`, `requested_at`, `purge_after`, `cancelled_at` and `purged_at`                 |
+
+| Permission            | Lets a member                       | Default roles    |
+| --------------------- | ----------------------------------- | ---------------- |
+| `organization.export` | export the organization's data      | `owner`, `admin` |
+| `organization.delete` | request the organization's deletion | `owner`          |
+
+Every signed-in user can export their own data.
+
+## Tables
+
+The module knows the tables of the other modules: memberships, profiles,
+settings, comments and activity, attachments, API keys, usage, notifications
+and the audit trail. Add your own tables with their user column (for user
+exports) and tenant column (for organization exports and the purge):
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      "data-lifecycle": {
+        options: {
+          tables: {
+            projects: { tenant: "organization_id", user: "owner_id" },
+            "billing.invoices": { tenant: "organization_id", purge: false },
+          },
+          grace: "30 days",
+          exportTtl: "7 days",
+          bucket: "data-exports",
+        },
+      },
+    },
+  },
+});
+```
+
+`purge: false` keeps a table's rows in the purge, for records you must
+retain. The audit trail is never purged; its
+[retention](/docs/blocks/audit) removes old events.
+
+## Exports
+
+```ts title="app/settings/data/actions.ts"
+"use server";
+
+import {
+  createDataLifecycle,
+  rpcTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const supabase = await createServerClient();
+const lifecycle = createDataLifecycle({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+});
+
+await lifecycle.requestExport().orThrow();
+await lifecycle.requestExport({ organizationId }).orThrow();
+```
+
+A request returns the open export for the same subject instead of starting
+a second one, and writes `data_export.requested` to the
+[outbox](/docs/blocks/outbox). The exporter runs it with a service-role
+client: it reads each table in pages, writes `{id}/{schema.table}.ndjson`
+and marks the export ready.
+
+```ts title="app/api/cron/exports/route.ts"
+import {
+  createDataExporter,
+  sqlTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const exporter = createDataExporter({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+});
+
+await outbox.relay("data-exports", exporter.sink());
+```
+
+`exporter.job` is a [jobs](/docs/blocks/jobs) handler for an `{ exportId }`
+payload when you prefer a queue. A failure marks the export `failed` with
+the error, and running it again starts over.
+
+`data_export.ready` carries the requester and the files, so a
+[notifications](/docs/blocks/notifications) consumer can tell them it's
+done. `lifecycle.download(id)` then returns a signed URL per file. The
+bucket's policy serves the files only to the requester (or members with
+`organization.export` for an organization export) until `expires_at`.
+
+## Deleting an organization
+
+```ts
+const deletion = await lifecycle
+  .requestOrganizationDeletion(organizationId, { grace: "14 days" })
+  .orThrow();
+
+await lifecycle.cancelOrganizationDeletion(organizationId).orThrow();
+```
+
+The request needs `organization.delete`, and disables the tenant through
+the access contract: the organization's `disabled_at` with the managed
+organizations module, or the `sql.modules.access.disabled.tenant` column.
+Disabled tenants get no permissions and no membership claims, so members
+lose access at once. `grace` takes an interval or a `Temporal.Duration`
+and defaults to the `grace` option.
+
+The requester or an owner can cancel until the purge runs; cancelling
+enables the tenant again, unless it was disabled before the request.
+`organizationDeletion(organizationId)` returns the pending deletion to the
+organization's members, for a banner with the purge date.
+
+## Purging
+
+The purger runs the deletions past their grace period with a service-role
+client, from a cron route or a jobs queue:
+
+```ts title="app/api/cron/purge/route.ts"
+import {
+  createOrganizationPurger,
+  sqlTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const purger = createOrganizationPurger({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+  buckets: ["attachments"],
+  billing,
+});
+
+await purger.purgeDue({ limit: 20 }).orThrow();
+```
+
+For each organization it cancels the Stripe subscription
+(`billing.cancelSubscription`, when you pass `billing`), removes every
+object under `{organizationId}/` in `buckets`, then calls
+`purge_organization`. That function runs your
+`public.on_organization_purge(tenant)` hook when it exists, deletes the
+tenant's rows from each purged table (your tables first), deletes the
+organization and writes `organization.purged`. It returns the deleted row
+count per table. A table with a foreign key to the organization without
+`on delete cascade` stops the purge; the error says which.
+
+## Events
+
+With the outbox installed, the module writes these events with the tenant as
+the partition key:
+
+| Event                             | When                               | Data                                                             |
+| --------------------------------- | ---------------------------------- | ---------------------------------------------------------------- |
+| `data_export.requested`           | an export is requested             | `exportId`, `subject`, `organizationId`, `userId`, `requestedBy` |
+| `data_export.ready`               | its files are written              | the same, with `files` and `expiresAt`                           |
+| `data_export.failed`              | the exporter failed                | the same, with `error`                                           |
+| `organization.deletion_requested` | a deletion is requested            | `organizationId`, `userId`, `purgeAfter`                         |
+| `organization.deletion_cancelled` | it is cancelled                    | the same                                                         |
+| `organization.purged`             | the purge deleted the organization | `organizationId`                                                 |

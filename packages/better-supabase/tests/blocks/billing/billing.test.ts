@@ -185,6 +185,47 @@ describe("createBilling", () => {
     ]);
   });
 
+  it("cancels the active subscription, and nothing without one", async () => {
+    let item: unknown = null;
+    const cancelled: string[] = [];
+    const t = setup(
+      (fn) => (fn === "billing_subscription_item" ? item : null),
+      {
+        subscriptions: {
+          cancel: async (id: string) => {
+            cancelled.push(id);
+            return { id };
+          },
+        },
+      },
+    );
+    const billing = createBilling(t);
+    expect(await billing.cancelSubscription("org").orThrow()).toBe(undefined);
+    item = {
+      subscription: "sub_1",
+      item: "si",
+      price: "price_seat",
+      quantity: 3,
+      status: "active",
+    };
+    expect(await billing.cancelSubscription("org").orThrow()).toBe("sub_1");
+    expect(cancelled).toEqual(["sub_1"]);
+
+    const failing = createBilling(
+      setup(() => item, {
+        subscriptions: {
+          cancel: async () => {
+            throw new Error("No such subscription");
+          },
+        },
+      }),
+    );
+    expect(await failing.cancelSubscription("org")).toMatchObject({
+      ok: false,
+      error: { message: "No such subscription" },
+    });
+  });
+
   it("syncs each tenant once per batch from the seat sink", async () => {
     const t = setup((fn) =>
       fn === "billing_seat_count"

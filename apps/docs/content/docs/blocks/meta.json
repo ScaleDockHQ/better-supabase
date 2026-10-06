@@ -20,6 +20,7 @@
     "flags",
     "comments",
     "attachments",
+    "data-lifecycle",
     "entitlements",
     "vector-search"
   ]

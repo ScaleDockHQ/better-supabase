@@ -268,6 +268,11 @@
       "types": "./dist/blocks/attachments/index.d.ts",
       "default": "./dist/blocks/attachments/index.js"
     },
+    "./blocks/data-lifecycle": {
+      "@better-supabase/source": "./src/blocks/data-lifecycle/index.ts",
+      "types": "./dist/blocks/data-lifecycle/index.d.ts",
+      "default": "./dist/blocks/data-lifecycle/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -509,6 +514,10 @@
       "./blocks/attachments": {
         "types": "./dist/blocks/attachments/index.d.ts",
         "default": "./dist/blocks/attachments/index.js"
+      },
+      "./blocks/data-lifecycle": {
+        "types": "./dist/blocks/data-lifecycle/index.d.ts",
+        "default": "./dist/blocks/data-lifecycle/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",
