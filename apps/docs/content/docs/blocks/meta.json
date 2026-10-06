@@ -17,6 +17,7 @@
     "settings",
     "usage",
     "billing",
+    "flags",
     "entitlements",
     "vector-search"
   ]

@@ -1292,6 +1292,38 @@
       "SubscriptionItem"
     ]
   },
+  "./blocks/flags": {
+    "values": [
+      "createFlagClient",
+      "createFlagsProvider",
+      "evaluateFlag",
+      "flagBucket",
+      "flagContext",
+      "flagDefinitionsOf",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "FlagClient",
+      "FlagContext",
+      "FlagContextOptions",
+      "FlagContextSource",
+      "FlagDefinition",
+      "FlagDetails",
+      "FlagErrorCode",
+      "FlagEvaluation",
+      "FlagOverride",
+      "FlagReason",
+      "FlagResolution",
+      "FlagRule",
+      "FlagsProvider",
+      "FlagsProviderOptions",
+      "FlagType",
+      "FlagValue",
+      "RequestFlagContext"
+    ]
+  },
   "./openapi": {
     "values": [
       "createOpenApi",

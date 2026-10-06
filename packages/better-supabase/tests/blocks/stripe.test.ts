@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import type Stripe from "stripe";
+
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   lazyStripe,
@@ -7,6 +9,12 @@ import {
 } from "../../src/blocks/stripe.ts";
 
 const client = { customers: {} } as unknown as StripeClient;
+
+describe("StripeClient", () => {
+  it("is satisfied by the Stripe SDK", () => {
+    expectTypeOf<Stripe>().toExtend<StripeClient>();
+  });
+});
 
 describe("stripeClient", () => {
   it("returns a client it is given", async () => {

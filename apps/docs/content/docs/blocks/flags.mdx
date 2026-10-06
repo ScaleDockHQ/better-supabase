@@ -1,0 +1,125 @@
+---
+title: Feature flags
+description: Feature flags per tenant and per user, with targeting rules, overrides and percentage rollouts, evaluated the same way in RLS and in an OpenFeature provider.
+---
+
+The `flags` block stores feature flags in Postgres and evaluates them in two
+places: `flag_enabled()` in policies and functions, and an OpenFeature
+provider in the app. Both use the same rules and the same SHA-256 bucketing,
+so a user who sees a feature in the UI also passes the policy behind it.
+
+Flags decide what a tenant or user sees while a feature rolls out. What a
+tenant pays for stays in [entitlements](/docs/blocks/entitlements); a flag
+rule can still target plans.
+
+```bash
+better-supabase sql add flags   # adds tenant as well
+```
+
+| Table            | Holds                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `flags`          | `key`, `type`, `variants`, `default_variant`, `enabled`, `rules`, `rollout_percentage`, `rollout_variant` |
+| `flag_overrides` | A variant for one `organization_id` or one `user_id`                                                      |
+
+Only the service role reads and writes both tables. Manage flags from a
+migration, the Studio or an admin route that runs as the service role.
+
+## Defining flags
+
+`variants` maps a variant name to its value. A boolean flag has the variants
+`on` (`true`) and `off` (`false`) by default:
+
+```sql
+insert into better_supabase.flags (key, rules, rollout_percentage, rollout_variant) values
+  ('new_editor', '[{"variant": "on", "plans": ["pro"]}, {"variant": "on", "roles": ["admin"]}]', 10, 'on');
+
+insert into better_supabase.flags (key, type, variants, default_variant) values
+  ('checkout_theme', 'string', '{"classic": "classic", "compact": "compact"}', 'classic');
+
+insert into better_supabase.flag_overrides (flag_key, organization_id, variant)
+  values ('new_editor', '8d1c...', 'on');
+```
+
+A flag resolves in this order:
+
+1. A disabled flag (`enabled = false`) returns its default variant.
+2. A user override, then a tenant override.
+3. The first rule whose lists all contain the caller. A rule lists any of
+   `tenants`, `users`, `roles` (the caller's role in the tenant) and `plans`
+   (entitlement lookup keys, one match is enough).
+4. The rollout: the first 32 bits of SHA-256 of `flag.target`, modulo 10000,
+   below `rollout_percentage * 100` returns `rollout_variant`. The target is
+   the user id, or the tenant id when there is no user.
+5. The default variant.
+
+The reason in each result follows OpenFeature: `DISABLED`,
+`TARGETING_MATCH`, `SPLIT` or `DEFAULT`.
+
+## In policies
+
+`flag_enabled(key, tenant)` is true when the flag resolves to `true` for the
+caller in that tenant:
+
+```sql
+create policy "drafts_insert" on public.drafts for insert to authenticated
+  with check (better_supabase.flag_enabled('new_editor', organization_id));
+```
+
+`flag_evaluation(key, tenant, user)` returns `{ value, variant, reason }` for
+any flag type, or null for an unknown flag. It is granted to the service role.
+
+## With OpenFeature
+
+`createFlagsProvider` returns an object shaped like an OpenFeature server
+`Provider`. It loads every flag with `flag_definitions()` (service role only)
+and caches them for `ttl` milliseconds (default 30000). This package never
+imports OpenFeature; pass its `ErrorCode` enum so the types match:
+
+```ts title="lib/flags.ts"
+import { ErrorCode, OpenFeature } from "@openfeature/server-sdk";
+import {
+  createFlagsProvider,
+  sqlTransport,
+} from "better-supabase/blocks/flags";
+
+const provider = createFlagsProvider({
+  transport: sqlTransport(postgres.admin),
+  errorCodes: ErrorCode,
+});
+await OpenFeature.setProviderAndWait(provider);
+export const flags = OpenFeature.getClient();
+```
+
+`flagContext(ctx)` builds the evaluation context from verified claims: the
+user id as `targetingKey`, the tenant (`tenant_id`, then
+`app_metadata.tenant_id`), its plan features from the `features` claim and
+the caller's role from the `memberships` claim:
+
+```ts
+import { flagContext } from "better-supabase/blocks/flags";
+
+const details = await flags.getBooleanDetails(
+  "new_editor",
+  false,
+  flagContext({ jwtClaims: ctx.jwtClaims }),
+);
+```
+
+Without the OpenFeature SDK, `createFlagClient({ transport, errorCodes })`
+returns the four `get*Details` methods that `withOpenFeature` calls (see
+[middleware](/docs/auth/middleware#feature-flags)). `evaluateFlag` and
+`flagBucket` are exported for tests and for flags defined in code
+(`createFlagsProvider({ definitions })`).
+
+## Reference
+
+| Export                      | Does                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| `createFlagsProvider(opts)` | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions` |
+| `createFlagClient(source)`  | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`  |
+| `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                 |
+| `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                 |
+| `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                    |
+
+The provider follows the OpenFeature specification pinned in
+`SPEC_PINS.openfeature` (see [standards](/docs/standards)).

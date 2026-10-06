@@ -15,6 +15,7 @@ export const SPEC_PINS: {
   readonly stripeSyncEngine: "0.48.5";
   readonly pgvector: "0.8";
   readonly ocsf: "1.9.0";
+  readonly openfeature: "0.9.0";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -28,4 +29,5 @@ export const SPEC_PINS: {
   stripeSyncEngine: "0.48.5",
   pgvector: "0.8",
   ocsf: "1.9.0",
+  openfeature: "0.9.0",
 };
