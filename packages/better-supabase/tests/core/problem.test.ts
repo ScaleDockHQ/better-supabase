@@ -45,6 +45,58 @@ describe("rate_limited", () => {
   });
 });
 
+describe("quota_exceeded", () => {
+  const error = mapDbError({
+    code: "BSQ29",
+    message: "Quota for api_calls exceeded",
+    details: '{"meter":"api_calls","limit":1000,"retry_after":3600}',
+    hint: "QUOTA_EXCEEDED",
+  });
+
+  it("maps BSQ29 with the meter, limit and seconds to wait", () => {
+    expect(error).toMatchObject({
+      kind: "quota_exceeded",
+      status: 429,
+      meter: "api_calls",
+      limit: 1000,
+      retryAfter: 3600,
+    });
+    expect(mapDbError({ code: "BSQ29", message: "over" })).toEqual({
+      kind: "quota_exceeded",
+      status: 429,
+      code: "BSQ29",
+      message: "over",
+    });
+    for (const details of ["not json", "null", '{"limit":"x"}']) {
+      expect(mapDbError({ code: "BSQ29", message: "over", details })).toEqual({
+        kind: "quota_exceeded",
+        status: 429,
+        code: "BSQ29",
+        message: "over",
+        details,
+      });
+    }
+  });
+
+  it("sends Retry-After and round-trips through Problem Details", async () => {
+    const response = problemResponse(error);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("3600");
+    expect(toProblem(error)).toMatchObject({
+      type: "https://bettersupabase.com/problems/quota-exceeded",
+      title: "Quota exceeded",
+      meter: "api_calls",
+      limit: 1000,
+    });
+    expect(fromProblem(await response.json())).toMatchObject({
+      kind: "quota_exceeded",
+      meter: "api_calls",
+      limit: 1000,
+      retryAfter: 3600,
+    });
+  });
+});
+
 describe("max_affected", () => {
   const error = dbError("max_affected", "too many rows", { maxAffected: 5 });
 

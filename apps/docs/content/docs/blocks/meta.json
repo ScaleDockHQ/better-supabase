@@ -15,6 +15,7 @@
     "api-keys",
     "audit",
     "settings",
+    "usage",
     "entitlements",
     "vector-search"
   ]

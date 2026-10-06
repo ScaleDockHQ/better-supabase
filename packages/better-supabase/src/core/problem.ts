@@ -25,8 +25,11 @@ export interface ProblemDetails {
   readonly required?: "aal1" | "aal2";
   /** The OAuth scopes a `forbidden` answer needs. */
   readonly scopes?: readonly string[];
-  /** Seconds until a `rate_limited` caller may retry. */
+  /** Seconds until a `rate_limited` or `quota_exceeded` caller may retry. */
   readonly retryAfter?: number;
+  /** The meter a `quota_exceeded` answer ran out of, and its limit. */
+  readonly meter?: string;
+  readonly limit?: number;
   /** The row limit a `max_affected` write exceeded. */
   readonly maxAffected?: number;
 }
@@ -56,6 +59,7 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   stale: "Row changed since it was read",
   max_affected: "Too many rows affected",
   rate_limited: "Too many requests",
+  quota_exceeded: "Quota exceeded",
   unsupported: "Not supported by this executor",
   unexpected: "Unexpected error",
 };
@@ -104,6 +108,8 @@ export function toProblem(
   if ("required" in error) problem["required"] = error.required;
   if ("scopes" in error) problem["scopes"] = error.scopes;
   if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
+  if ("meter" in error) problem["meter"] = error.meter;
+  if ("limit" in error) problem["limit"] = error.limit;
   if ("maxAffected" in error) problem["maxAffected"] = error.maxAffected;
   // SAFETY: the fields were copied from a DbError, whose shape matches ProblemDetails.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
@@ -173,6 +179,8 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "required",
     "scopes",
     "retryAfter",
+    "meter",
+    "limit",
     "maxAffected",
   ] as const) {
     if (problem[key] !== undefined) extra[key] = problem[key];

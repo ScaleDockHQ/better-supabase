@@ -95,5 +95,10 @@ export function rawError(cause: unknown): RawDbError | undefined {
     const value = field(key);
     if (value !== undefined) raw[key] = value;
   }
+  // pg names it `detail`; PostgREST, `details`.
+  const detail = field("detail");
+  if (raw["details"] === undefined && detail !== undefined) {
+    raw["details"] = detail;
+  }
   return raw;
 }

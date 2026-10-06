@@ -18,6 +18,7 @@ function outcomeOf(kind: DbErrorKind): Outcome {
     case "timeout":
     case "aborted":
     case "rate_limited":
+    case "quota_exceeded":
     case "serialization":
     case "unauthorized":
     case "unexpected":

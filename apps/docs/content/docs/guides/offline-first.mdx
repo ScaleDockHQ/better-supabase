@@ -78,11 +78,11 @@ columns as SQLite stored them, under their database names; with
 A failed upload returns a [`DbError`](/docs/concepts/results). Its `kind`
 decides what happens to the change:
 
-| Kind                                                                                           | Do                                                                  |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `network`, `timeout`, `aborted`, `rate_limited`, `serialization`, `unauthorized`, `unexpected` | throw: PowerSync keeps the transaction and calls `uploadData` again |
-| `conflict`, `stale`, `foreign_key`                                                             | complete it and show the conflict next to the row                   |
-| `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                       | complete it; the server will never accept it                        |
+| Kind                                                                                                             | Do                                                                  |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `network`, `timeout`, `aborted`, `rate_limited`, `quota_exceeded`, `serialization`, `unauthorized`, `unexpected` | throw: PowerSync keeps the transaction and calls `uploadData` again |
+| `conflict`, `stale`, `foreign_key`                                                                               | complete it and show the conflict next to the row                   |
+| `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                                         | complete it; the server will never accept it                        |
 
 Throwing for a change the server will never accept blocks the queue for
 good, so the kinds that can't succeed on a retry must complete. Completing
