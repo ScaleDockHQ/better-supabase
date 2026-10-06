@@ -1403,7 +1403,7 @@ describe("session cookie encoding (BS412)", () => {
   });
 });
 
-describe("pg-delta schema files (BS317, BS318)", () => {
+describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
   const file = (text: string, path = "supabase/schemas/090_grants.sql") => ({
     path,
@@ -1485,6 +1485,66 @@ describe("pg-delta schema files (BS317, BS318)", () => {
       await run(
         "BS318",
         context(base, { configToml: toml("[db]\n"), sqlFiles: [loop] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags extensions the schema files create that no migration does", async () => {
+    const jobs = file(
+      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;",
+      "supabase/schemas/900_better_supabase_07_jobs.sql",
+    );
+    const own = file(
+      '-- create extension pg_cron;\nCREATE EXTENSION "pg_cron" WITH SCHEMA pg_catalog;\ncreate extension pgmq;',
+      "supabase/schemas/010_extensions.sql",
+    );
+    const migration = file(
+      'create extension if not exists "vector" with schema "extensions";',
+      "supabase/migrations/20260101000000_init.sql",
+    );
+    const findings = await run(
+      "BS321",
+      context(base, {
+        configToml: pgdelta,
+        sqlFiles: [jobs, own, migration],
+      }),
+    );
+    expect(
+      findings.map((finding) => [finding.target, finding.location?.line]),
+    ).toEqual([
+      ["supabase/schemas/900_better_supabase_07_jobs.sql", 2],
+      ["supabase/schemas/010_extensions.sql", 2],
+    ]);
+    expect(findings[0]!.message).toContain("better-supabase sql data");
+    expect(findings[1]!.message).toContain(
+      "create extension if not exists pg_cron;",
+    );
+    const data = file(
+      '-- @bs-module-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
+      "supabase/migrations/20260101000001_better_supabase_module_data.sql",
+    );
+    expect(
+      await run(
+        "BS321",
+        context(base, {
+          configToml: pgdelta,
+          sqlFiles: [jobs, own, migration, data],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS321",
+        context(base, { configToml: pgdelta, sqlFiles: [jobs] }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS321",
+        context(base, {
+          configToml: toml("[db]\n"),
+          sqlFiles: [jobs, migration],
+        }),
       ),
     ).toEqual([]);
   });

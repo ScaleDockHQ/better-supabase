@@ -97,9 +97,21 @@ describe("renderModules", () => {
       }
       for (const file of files.filter((entry) => entry.kind === "data")) {
         expect(file.path).toMatch(/\/better-supabase-data\/[^/]+\.sql$/);
-        expect(file.contents).not.toMatch(/^(create|drop|alter table)\b/im);
+        expect(file.contents).not.toMatch(
+          /^(create(?! extension if not exists "\w+";$)|drop|alter table)\b/im,
+        );
       }
     }
+  });
+
+  it("creates the extensions a module owns in its data file", () => {
+    const data = (layout = {}) =>
+      renderModules(["jobs"], layout).find((file) => file.kind === "data")!
+        .contents;
+    expect(data()).toContain('create extension if not exists "pgmq";');
+    expect(
+      data({ modules: { jobs: { options: { backend: "table" } } } }),
+    ).not.toContain("create extension");
   });
 });
 

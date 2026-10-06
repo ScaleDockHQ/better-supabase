@@ -36,6 +36,12 @@ export default defineConfig({
 });
 ```
 
+On the pgmq backend, the module's data file also runs `create extension if
+not exists pgmq`, so `better-supabase sql data` puts the extension in a
+migration even when the schema diff leaves it out (pg-delta can, because
+pgmq owns its own schema). Doctor warns about an extension no migration
+creates ([BS321](/docs/cli/doctor#bs321)).
+
 Run `better-supabase sql sync` after changing either option. On the table
 backend, completed and dead jobs stay in `job_messages` with `archived_at`
 set. `better_supabase.purge_job_archive(queue, older_than, batch,

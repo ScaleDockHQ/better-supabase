@@ -133,6 +133,12 @@ export interface SqlModule {
    * (`sql data`) instead of the schema file.
    */
   readonly data?: (ctx: ModuleContext, layout: ModuleLayout) => string;
+  /**
+   * Extensions the module creates in an extension-owned schema (`pgmq`).
+   * A schema diff can leave them out of the migration, so the data file
+   * creates them too (`create extension if not exists`).
+   */
+  readonly extensions?: (ctx: ModuleContext) => readonly string[];
   /** pgTAP files for this layout, written to the tests folder next to the `pgtap` module's. */
   readonly tests?: (
     ctx: ModuleContext,
@@ -2891,6 +2897,9 @@ export function renderModules(
       ];
     }
     const data = [
+      (module.extensions?.(ctx) ?? [])
+        .map((name) => `create extension if not exists ${sqlIdent(name)};`)
+        .join("\n"),
       module.data?.(ctx, layout).trim() ?? "",
       moduleRow(module, ctx.mode),
     ]

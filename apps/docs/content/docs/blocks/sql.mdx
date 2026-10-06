@@ -17,8 +17,9 @@ better-supabase sql data
 ```
 
 A schema diff only captures objects, so each module's rows and settings (its
-`better_supabase.modules` row, the reserved slugs, the rate-limit role setting) go to a
-second file in `supabase/better-supabase-data/`, outside the schema folder:
+`better_supabase.modules` row, the reserved slugs, the rate-limit role
+setting) and the extensions it owns in their own schema (`pgmq` for `jobs`)
+go to a second file in `supabase/better-supabase-data/`, outside the schema folder:
 pg-delta loads every file under `supabase/schemas`, nested folders included,
 and refuses a table that has rows afterwards. When `sql.dir` is a folder
 inside the schema folder (`supabase/schemas/block`), the data files still go

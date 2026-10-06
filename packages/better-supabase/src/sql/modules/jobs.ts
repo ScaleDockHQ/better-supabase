@@ -796,6 +796,7 @@ export const JOBS: ModuleDefinition = {
   target: "schema",
   version: 4,
   names: { tables: {}, options: ["backend", "scheduler"] },
+  extensions: (ctx) => (jobsBackend(ctx) === "pgmq" ? ["pgmq"] : []),
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
