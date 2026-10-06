@@ -83,6 +83,23 @@ describe.skipIf(!live)("Postgres executor", async () => {
           .orThrow(),
     ],
     [
+      "json paths and json array containment",
+      (db) =>
+        db.customers
+          .findMany({
+            select: ["id"],
+            where: {
+              OR: [
+                { metadata: { path: ["tier"], in: ["gold", "bronze"] } },
+                { metadata: { path: ["missing"], isNull: false } },
+              ],
+              AND: [{ metadata: { contains: { tags: ["vip"] } } }],
+            },
+            orderBy: { name: "asc" },
+          })
+          .orThrow(),
+    ],
+    [
       "OR and NOT",
       (db) =>
         db.customers

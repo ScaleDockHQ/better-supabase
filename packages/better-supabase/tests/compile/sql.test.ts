@@ -75,6 +75,13 @@ const jsonCol = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value, json: true });
 
+const pathCol = (
+  column: string,
+  op: Extract<Condition, { kind: "column" }>["op"],
+  value: unknown,
+  path: readonly string[],
+): Condition => ({ kind: "column", column, op, value, path });
+
 function rows(op: SelectOp): { text: string; params: readonly unknown[] } {
   const plan = compileSql(op);
   if (!plan.rows) throw new Error("Expected a rows query");
@@ -136,6 +143,18 @@ describe("compileSql column conditions", () => {
       jsonCol("metadata", "contains", [{ type: "x" }]),
       `t0."metadata" @> $1::jsonb`,
       ['[{"type":"x"}]'],
+    ],
+    [
+      "a json path",
+      pathCol("metadata", "eq", "u1", ["owner", "id"]),
+      `(t0."metadata" #>> $1::text[]) = $2`,
+      [["owner", "id"], "u1"],
+    ],
+    [
+      "a json path null check",
+      pathCol("metadata", "is", null, ["owner"]),
+      `(t0."metadata" #>> $1::text[]) is null`,
+      [["owner"]],
     ],
     [
       "containedBy array",
@@ -260,6 +279,24 @@ describe("compileSql boolean conditions", () => {
       },
       `(t0."created_at", t0."id") < ($1, $2)`,
       ["2026-02-01", "c2"],
+    ],
+    [
+      "json path steps as an OR of ANDs",
+      {
+        kind: "or",
+        items: [
+          pathCol("metadata", "gt", "b", ["a"]),
+          {
+            kind: "and",
+            items: [
+              pathCol("metadata", "eq", "b", ["a"]),
+              col("id", "gt", "c2"),
+            ],
+          },
+        ],
+      },
+      `((t0."metadata" #>> $1::text[]) > $2 or ((t0."metadata" #>> $3::text[]) = $4 and t0."id" > $5))`,
+      [["a"], "b", ["a"], "b", "c2"],
     ],
     [
       "mixed directions as an OR of ANDs",

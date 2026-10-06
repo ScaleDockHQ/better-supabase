@@ -84,6 +84,18 @@ function writable(meta: ColumnMeta, mode: "insert" | "update"): boolean {
     : meta.updatable !== false;
 }
 
+/** A json key PostgREST accepts in an arrow path, or an array index. */
+const JSON_KEY = /^[\w$]+$/;
+
+/** Path filters compare text (`->>`), so numbers and booleans become strings. */
+function text(value: unknown): unknown {
+  return typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+    ? String(value)
+    : value;
+}
+
 /** Escapes LIKE wildcards so user input matches literally. */
 export function escapeLike(value: string): string {
   return value.replaceAll(/[\\%_]/g, (char) => `\\${char}`);
@@ -243,6 +255,9 @@ export class IrBuilder {
     const column = this.column(table, name);
     if (value === null)
       return { kind: "column", column, op: "is", value: null };
+    if (isPlainObject(value) && Array.isArray(value["path"])) {
+      return this.pathFilter(table, name, column, value);
+    }
     if (!isOpsObject(value)) {
       return { kind: "column", column, op: "eq", value: encodeValue(value) };
     }
@@ -252,6 +267,83 @@ export class IrBuilder {
       items.push(this.fieldOp(table, name, column, op, operand));
     }
     return and(...items) ?? { kind: "and", items: [] };
+  }
+
+  /** `{ path: ["a", "b"], eq: "x" }` on a json column: compares the text at the path. */
+  private pathFilter(
+    table: TableMeta,
+    name: string,
+    column: string,
+    input: Input,
+  ): Condition {
+    if (!table.columns[name]?.json) {
+      invalidRequest(
+        `"path" needs a json column; "${name}" on "${table.key}" is not one`,
+        table.key,
+      );
+    }
+    const path = input["path"];
+    if (
+      !Array.isArray(path) ||
+      path.length === 0 ||
+      !path.every((key) => typeof key === "string" && JSON_KEY.test(key))
+    ) {
+      invalidRequest(
+        `"path" on "${name}" must be a non-empty list of keys made of letters, digits and _`,
+        table.key,
+      );
+    }
+    const keys: readonly string[] = path;
+    const at = (
+      op: Extract<Condition, { kind: "column" }>["op"],
+      value: unknown,
+    ): Condition => ({ kind: "column", column, op, value, path: keys });
+    const items: Condition[] = [];
+    for (const [op, operand] of Object.entries(input)) {
+      if (op === "path" || operand === undefined) continue;
+      switch (op) {
+        case "eq":
+          items.push(
+            operand === null ? at("is", null) : at("eq", text(operand)),
+          );
+          break;
+        case "neq":
+          items.push(
+            operand === null ? not(at("is", null)) : at("neq", text(operand)),
+          );
+          break;
+        case "in":
+        case "notIn": {
+          if (!Array.isArray(operand)) {
+            invalidRequest(`"${op}" on "${name}" needs an array`, table.key);
+          }
+          const condition = at("in", operand.map(text));
+          items.push(op === "in" ? condition : not(condition));
+          break;
+        }
+        case "isNull":
+          items.push(operand ? at("is", null) : not(at("is", null)));
+          break;
+        case "gt":
+        case "gte":
+        case "lt":
+        case "lte":
+        case "like":
+        case "ilike":
+          items.push(at(op, text(operand)));
+          break;
+        default:
+          invalidRequest(
+            `Unknown operator "${op}" on a path of "${name}"`,
+            table.key,
+          );
+      }
+    }
+    const condition = and(...items);
+    if (!condition) {
+      invalidRequest(`"path" on "${name}" needs an operator`, table.key);
+    }
+    return condition;
   }
 
   private fieldOp(

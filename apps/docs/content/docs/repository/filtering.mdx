@@ -19,7 +19,7 @@ Operators depend on the column type:
 | Text, numbers, dates | `gt`, `gte`, `lt`, `lte`                                        |
 | Text                 | `like`, `ilike`, `contains`, `startsWith`, `endsWith`, `search` |
 | Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                     |
-| jsonb                | `contains` (`@>`)                                               |
+| jsonb                | `contains` (`@>`), `path` with the operators below              |
 
 `contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`
 and `_` in your input. Use `like` or `ilike` when you want wildcards.
@@ -34,6 +34,22 @@ where: {
   }
 }
 ```
+
+`path` compares the text at a key inside a jsonb column, as `->>` does.
+It takes `eq`, `neq`, `in`, `notIn`, `isNull`, `gt`, `gte`, `lt`, `lte`,
+`like` and `ilike`:
+
+```ts
+where: {
+  metadata: { path: ['owner', 'id'], eq: userId },
+  AND: [{ metadata: { path: ['replacedBy'], isNull: true } }],
+}
+```
+
+This sends `metadata->owner->>id=eq.<id>`. Numbers and booleans compare as
+their text, so `gt` and `lt` order strings; `isNull: true` matches a missing
+key and a JSON `null`. Combine several paths on one column with `AND` or `OR`.
+SQLite (PowerSync) returns `unsupported` for path filters.
 
 Enum and CHECK columns only accept their allowed values:
 

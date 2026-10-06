@@ -59,6 +59,30 @@ interface JsonOps<V> {
   readonly contains?: Partial<V> | Record<string, unknown> | readonly unknown[];
 }
 
+type JsonText = string | number | boolean;
+
+/**
+ * Compares the text at a path inside a json column (`column->a->>b`).
+ * Numbers and booleans compare as their text; `isNull` and `eq: null` match a
+ * missing key and JSON `null`.
+ */
+export interface JsonPathOps {
+  /** Keys from the column down; a number-like key indexes an array. */
+  readonly path: readonly [string, ...string[]];
+  readonly eq?: JsonText | null;
+  readonly neq?: JsonText | null;
+  readonly in?: readonly JsonText[];
+  readonly notIn?: readonly JsonText[];
+  readonly isNull?: boolean;
+  /** Text comparison, so `"10" < "9"`; store numbers you compare in a column. */
+  readonly gt?: string;
+  readonly gte?: string;
+  readonly lt?: string;
+  readonly lte?: string;
+  readonly like?: string;
+  readonly ilike?: string;
+}
+
 type OpsFor<V> = [NonNullable<V>] extends [string]
   ? BaseOps<V> & ComparableOps<V> & TextOps
   : [NonNullable<V>] extends [number | bigint]
@@ -67,7 +91,7 @@ type OpsFor<V> = [NonNullable<V>] extends [string]
       ? BaseOps<V>
       : [NonNullable<V>] extends [readonly (infer E)[]]
         ? BaseOps<V> & ArrayOps<E>
-        : BaseOps<V> & JsonOps<NonNullable<V>>;
+        : (BaseOps<V> & JsonOps<NonNullable<V>>) | JsonPathOps;
 
 /** A value (equality, or `null` for `is null`) or an operator object. */
 export type FieldFilter<V> = V | OpsFor<V>;

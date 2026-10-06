@@ -123,6 +123,18 @@ describe("conditional writes", () => {
     expectTypeOf(deleted[0]!.organizationId).toEqualTypeOf<string>();
   });
 
+  it("types json path filters", () => {
+    void db.notes.findMany({
+      where: {
+        attachments: { path: ["owner", "id"], eq: "u1", ilike: "u%" },
+        AND: [{ attachments: { path: ["kind"], in: ["a", 1] } }],
+      },
+    });
+    void db.customers.findMany({
+      where: { metadata: { path: ["tier"], eq: "pro" } },
+    });
+  });
+
   it("takes where and expect operators on update", () => {
     void db.customers.update(
       "c",

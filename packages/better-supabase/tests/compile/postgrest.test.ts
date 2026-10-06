@@ -80,6 +80,13 @@ const jsonCol = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value, json: true });
 
+const pathCol = (
+  column: string,
+  op: Extract<Condition, { kind: "column" }>["op"],
+  value: unknown,
+  path: readonly string[],
+): Condition => ({ kind: "column", column, op, value, path });
+
 const onNotes = (
   quantifier: "some" | "none" | "every",
   where: Condition | undefined,
@@ -189,6 +196,21 @@ describe("compilePostgrest filters", () => {
       filter("parts", "cd", '["a","b"]'),
     ],
     [
+      "a json path",
+      pathCol("metadata", "eq", "u1", ["permdock", "subject", "id"]),
+      filter("metadata->permdock->subject->>id", "eq", "u1"),
+    ],
+    [
+      "a json path null check",
+      { kind: "not", item: pathCol("metadata", "is", null, ["permdock"]) },
+      filter("metadata->>permdock", "not.is", "null"),
+    ],
+    [
+      "a json path in list",
+      pathCol("metadata", "in", ["a", "b c"], ["tier"]),
+      filter("metadata->>tier", "in", '(a,"b c")'),
+    ],
+    [
       "containedBy",
       col("tags", "containedBy", ["a"]),
       filter("tags", "cd", '{"a"}'),
@@ -237,6 +259,17 @@ describe("compilePostgrest filters", () => {
       "an or of columns",
       { kind: "or", items: [col("name", "eq", "A"), col("name", "eq", "B,C")] },
       'name.eq."A",name.eq."B,C"',
+    ],
+    [
+      "an or with json paths",
+      {
+        kind: "or",
+        items: [
+          pathCol("metadata", "eq", "a.b", ["owner", "id"]),
+          { kind: "not", item: pathCol("metadata", "is", null, ["owner"]) },
+        ],
+      },
+      'metadata->owner->>id.eq."a.b",metadata->>owner.not.is.null',
     ],
     [
       "an or with a json array",

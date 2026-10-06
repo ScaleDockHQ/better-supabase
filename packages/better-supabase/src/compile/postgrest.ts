@@ -110,6 +110,14 @@ function list(values: readonly unknown[], open: string, close: string): string {
   return `${open}${values.map(quote).join(",")}${close}`;
 }
 
+/** The filter target: the column, or `column->a->>b` for a json path. */
+function target(condition: Extract<Condition, { kind: "column" }>): string {
+  const { column, path } = condition;
+  if (!path || path.length === 0) return column;
+  const last = path.length - 1;
+  return `${column}${path.map((key, index) => `${index === last ? "->>" : "->"}${key}`).join("")}`;
+}
+
 function isBoolLike(value: unknown): value is null | boolean {
   return value === null || typeof value === "boolean";
 }
@@ -190,7 +198,7 @@ class PostgrestCompiler {
         const { operator, value } = operatorAndValue(condition, false);
         this.filters.push({
           kind: "filter",
-          path: path ? `${path}.${condition.column}` : condition.column,
+          path: path ? `${path}.${target(condition)}` : target(condition),
           operator,
           value,
         });
@@ -202,7 +210,7 @@ class PostgrestCompiler {
           const { operator, value } = operatorAndValue(inner, false);
           this.filters.push({
             kind: "filter",
-            path: path ? `${path}.${inner.column}` : inner.column,
+            path: path ? `${path}.${target(inner)}` : target(inner),
             operator: `not.${operator}`,
             value,
           });
@@ -281,7 +289,7 @@ class PostgrestCompiler {
         const inner = condition.item;
         if (inner.kind === "column") {
           const { operator, value } = operatorAndValue(inner, true);
-          return `${inner.column}.not.${operator}.${value}`;
+          return `${target(inner)}.not.${operator}.${value}`;
         }
         if (inner.kind === "relation") {
           return this.logic(negateRelation(inner), embeds);
@@ -291,7 +299,7 @@ class PostgrestCompiler {
       }
       case "column": {
         const { operator, value } = operatorAndValue(condition, true);
-        return `${condition.column}.${operator}.${value}`;
+        return `${target(condition)}.${operator}.${value}`;
       }
       case "relation": {
         if (condition.quantifier === "every" && !condition.where) {
