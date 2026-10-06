@@ -10,12 +10,12 @@ that way and your policies stop deciding anything for it.
 
 better-supabase gives each of these paths an explicit identity instead:
 
-| Path                  | Runs as                                     | How                                   |
-| --------------------- | ------------------------------------------- | ------------------------------------- |
-| MCP tools             | the signed-in user, from their bearer token | `createMcp` or `withBetterSupabase`   |
-| A job                 | the user who enqueued it, in their tenant   | `bs.forContext(job.context)`          |
-| A webhook or a script | a user you look up from the event           | `bs.actingAs(userId, { tenant_id })`  |
-| Work no user owns     | the service role, bypassing RLS             | `bs.admin()`, on purpose and reviewed |
+| Path                  | Runs as                                     | How                                    |
+| --------------------- | ------------------------------------------- | -------------------------------------- |
+| MCP tools             | the signed-in user, from their bearer token | `createMcp` or `withBetterSupabaseMcp` |
+| A job                 | the user who enqueued it, in their tenant   | `bs.forContext(job.context)`           |
+| A webhook or a script | a user you look up from the event           | `bs.actingAs(userId, { tenant_id })`   |
+| Work no user owns     | the service role, bypassing RLS             | `bs.admin()`, on purpose and reviewed  |
 
 `forContext` and `actingAs` run over direct Postgres with the user's claims
 set for the transaction, the way PostgREST does after checking a token, so
@@ -114,7 +114,7 @@ spans every organization, such as a nightly cleanup, is the case for
 
 ## MCP servers and agents
 
-`createMcp` and `withBetterSupabase` verify the caller's Supabase access
+`createMcp` and `withBetterSupabaseMcp` verify the caller's Supabase access
 token and bind every tool to that user, so RLS decides what the model can
 read and change. There is no service-role mode. Agents that act through an
 OAuth client or a token exchange can be limited further with

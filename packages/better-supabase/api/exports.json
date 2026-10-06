@@ -793,7 +793,7 @@
   "./mcp/sdk": {
     "values": [
       "createMcpAuth",
-      "withBetterSupabase"
+      "withBetterSupabaseMcp"
     ],
     "types": [
       "AllowedCaller",

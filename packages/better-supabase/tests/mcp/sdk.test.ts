@@ -10,7 +10,10 @@ import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import { createMcpAuth, withBetterSupabase } from "../../src/mcp/sdk/index.ts";
+import {
+  createMcpAuth,
+  withBetterSupabaseMcp,
+} from "../../src/mcp/sdk/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -78,7 +81,7 @@ const build = (guarded: boolean) => {
     const inner = guarded
       ? protectServer(base, (permission, scopes) => scopes.includes(permission))
       : base;
-    const server = withBetterSupabase(inner, auth);
+    const server = withBetterSupabaseMcp(inner, auth);
     server.registerTool(
       "whoami",
       { description: "The signed-in user.", permission: "crm:read" },
@@ -227,7 +230,7 @@ describe("createMcpAuth", () => {
   });
 });
 
-describe("withBetterSupabase after permdock's protectServer", () => {
+describe("withBetterSupabaseMcp after permdock's protectServer", () => {
   const app = build(true);
 
   it("runs the tool when the permission check passes", async () => {

@@ -206,7 +206,7 @@ To keep a Supabase library MCP block's pipeline instead, add
 
 ```ts title="src/mcp.ts"
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
-import { createMcpAuth, withBetterSupabase } from "better-supabase/mcp/sdk";
+import { createMcpAuth, withBetterSupabaseMcp } from "better-supabase/mcp/sdk";
 
 import { betterSupabase } from "./lib/supabase/schema";
 
@@ -216,7 +216,7 @@ const auth = createMcpAuth(betterSupabase, {
 });
 
 const handler = createMcpHandler(() => {
-  const server = withBetterSupabase(
+  const server = withBetterSupabaseMcp(
     new McpServer({ name: "crm", version: "0.1.0" }),
     auth,
   );

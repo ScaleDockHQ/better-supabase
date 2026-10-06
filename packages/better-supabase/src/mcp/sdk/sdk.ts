@@ -105,7 +105,7 @@ export interface BetterMcpAuth<
   contextOf(ctx: McpContext): Promise<ServerContext<M, F, E, C, P>>;
 }
 
-/** What `withBetterSupabase` adds to the SDK's tool context. */
+/** What `withBetterSupabaseMcp` adds to the SDK's tool context. */
 export interface BetterToolExtra<
   M extends AnyModels = AnyModels,
   F extends AnyFunctions = AnyFunctions,
@@ -178,7 +178,7 @@ export type BetterMcpServer<
   ): RegisteredTool;
 };
 
-/** The structural part of `McpServer` (or a wrapper of it) that `withBetterSupabase` needs. */
+/** The structural part of `McpServer` (or a wrapper of it) that `withBetterSupabaseMcp` needs. */
 export interface ToolRegistrar {
   registerTool(
     name: string,
@@ -212,7 +212,7 @@ function isUserState<C, P>(
  * Bearer auth for an MCP server built on the official SDK
  * (`@modelcontextprotocol/server` 2.3 or later). Verifies Supabase access
  * tokens locally, serves the RFC 9728 metadata, and binds repositories to
- * the caller. Pair it with `withBetterSupabase` and `createMcpHandler`.
+ * the caller. Pair it with `withBetterSupabaseMcp` and `createMcpHandler`.
  */
 export function createMcpAuth<
   M extends AnyModels,
@@ -357,7 +357,7 @@ export function createMcpAuth<
  * `bs` for the caller on its context. Wrap after permdock's `protectServer`
  * so permissions are checked before the context is built.
  */
-export function withBetterSupabase<
+export function withBetterSupabaseMcp<
   S extends ToolRegistrar,
   M extends AnyModels,
   F extends AnyFunctions,

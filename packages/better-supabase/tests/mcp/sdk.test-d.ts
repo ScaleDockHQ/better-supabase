@@ -6,15 +6,18 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import { createMcpAuth, withBetterSupabase } from "../../src/mcp/sdk/index.ts";
+import {
+  createMcpAuth,
+  withBetterSupabaseMcp,
+} from "../../src/mcp/sdk/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
 const auth = createMcpAuth(betterSupabase);
 
-describe("withBetterSupabase", () => {
+describe("withBetterSupabaseMcp", () => {
   it("types the arguments and the caller's repositories", () => {
-    const server = withBetterSupabase(
+    const server = withBetterSupabaseMcp(
       new McpServer({ name: "crm", version: "1.0.0" }),
       auth,
     );
@@ -44,7 +47,7 @@ describe("withBetterSupabase", () => {
   });
 
   it("keeps the rest of the McpServer surface", () => {
-    const server = withBetterSupabase(
+    const server = withBetterSupabaseMcp(
       new McpServer({ name: "crm", version: "1.0.0" }),
       auth,
     );
