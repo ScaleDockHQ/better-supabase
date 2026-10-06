@@ -10,6 +10,7 @@ import type {
 import {
   createAttachments,
   createAttachmentScanner,
+  createObjectScanner,
 } from "../../../src/blocks/attachments/index.ts";
 
 const row = (overrides: Record<string, unknown> = {}) => ({
@@ -440,5 +441,95 @@ describe("createAttachmentScanner", () => {
       "get_attachment",
       "set_attachment_status",
     ]);
+  });
+});
+
+describe("createObjectScanner", () => {
+  const scan = (row: Record<string, unknown> | null, fail = false) => {
+    const transport = fakeTransport({
+      object_scan: row,
+      set_object_scan: {
+        bucket: "files",
+        object_path: "a/b.pdf",
+        status: fail ? "failed" : "clean",
+        scan_detail: fail ? "boom" : null,
+        scanned_at: "2026-10-06T12:00:00Z",
+      },
+    });
+    const storage = fakeStorage();
+    const seen: string[] = [];
+    return {
+      ...transport,
+      storage,
+      seen,
+      scanner: createObjectScanner({
+        transport: transport.transport,
+        storage: storage.storage,
+        scan: (_file, object) => {
+          seen.push(`${object.bucket}/${object.path}`);
+          if (fail) throw new Error("boom");
+          return { status: "clean" };
+        },
+      }),
+    };
+  };
+
+  it("scans an object once and records the verdict", async () => {
+    const fresh = scan(null);
+    expect(
+      await fresh.scanner.scan("files", "a/b.pdf").orThrow(),
+    ).toMatchObject({
+      bucket: "files",
+      path: "a/b.pdf",
+      status: "clean",
+    });
+    expect(fresh.seen).toEqual(["files/a/b.pdf"]);
+    expect(fresh.calls.at(-1)).toEqual([
+      "set_object_scan",
+      { bucket: "files", path: "a/b.pdf", status: "clean", detail: undefined },
+    ]);
+    const done = scan({
+      bucket: "files",
+      object_path: "a/b.pdf",
+      status: "infected",
+    });
+    expect((await done.scanner.scan("files", "a/b.pdf").orThrow()).status).toBe(
+      "infected",
+    );
+    expect(done.seen).toEqual([]);
+  });
+
+  it("records failed scans and scans object.uploaded events", async () => {
+    const failing = scan(
+      { bucket: "files", object_path: "a/b.pdf", status: "pending" },
+      true,
+    );
+    const result = await failing.scanner.scan("files", "a/b.pdf");
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "ATTACHMENT_SCAN_FAILED",
+    );
+    const fresh = scan(null);
+    await fresh.scanner.sink().send([
+      {
+        id: "1",
+        type: "dev.better-supabase.object.uploaded",
+        source: "s",
+        specversion: "1.0",
+        data: { bucket: "files", path: "a/b.pdf" },
+      },
+      {
+        id: "2",
+        type: "dev.better-supabase.attachment.uploaded",
+        source: "s",
+        specversion: "1.0",
+        data: {},
+      },
+    ]);
+    await fresh.scanner.job(
+      { bucket: "files", path: "c.pdf" },
+      {} as never,
+      new AbortController().signal,
+    );
+    expect(fresh.seen).toEqual(["files/a/b.pdf", "files/c.pdf"]);
   });
 });

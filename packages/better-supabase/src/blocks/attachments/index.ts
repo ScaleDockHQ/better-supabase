@@ -12,7 +12,12 @@ export {
   type AttachmentUpload,
   createAttachments,
   createAttachmentScanner,
+  createObjectScanner,
   type NewAttachment,
+  type ObjectScanJob,
+  type ObjectScanner,
+  type ObjectScannerOptions,
+  type ScannedObject,
   type ScanVerdict,
 } from "./attachments.ts";
 export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";

@@ -6,6 +6,7 @@ import type { AttachmentStorage } from "../../src/blocks/attachments/index.ts";
 import {
   createAttachments,
   createAttachmentScanner,
+  createObjectScanner,
   sqlTransport,
 } from "../../src/blocks/attachments/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -326,6 +327,170 @@ describe.skipIf(!live)("attachments", () => {
           [BUCKET],
         ),
       ).toBe(1);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("routes subjects to their buckets and gates any bucket on a scan", async () => {
+    const s = await BlockSession.open(pool);
+    const DOCS = "bs-it-docs";
+    const DRIVE = "bs-it-drive";
+    try {
+      await s.rows(
+        `create table public.bs_test_tickets (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           private boolean not null default false
+         );
+         alter table public.bs_test_tickets enable row level security;
+         grant select on public.bs_test_tickets to authenticated;
+         create policy "read" on public.bs_test_tickets for select to authenticated
+           using (better_supabase.has_organization_role(organization_id) and not private);
+         insert into storage.buckets (id, name, public) values ('${DRIVE}', '${DRIVE}', false)
+           on conflict (id) do nothing;`,
+      );
+      await s.install(["organizations", "outbox", "attachments"], {
+        modules: {
+          attachments: {
+            options: {
+              bucket: BUCKET,
+              path: "{organization_id}/{subject_type}/{subject_id}/{id}",
+              scanBuckets: [DRIVE],
+              subjects: {
+                ticket: {
+                  table: "bs_test_tickets",
+                  bucket: DOCS,
+                  allowedMimeTypes: ["application/pdf"],
+                  cascade: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const [open, hidden] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_tickets (organization_id, private) values ($1, false), ($1, true) returning id",
+        [organization],
+      );
+      const attachments = createAttachments({
+        transport: sqlTransport(s.sql),
+        storage: storage(),
+      });
+      await s.asRole(member);
+      const upload = await attachments
+        .upload({
+          organizationId: organization,
+          name: "spec.pdf",
+          mimeType: "application/pdf",
+          size: 10,
+          subjectType: "ticket",
+          subjectId: open!.id,
+        })
+        .orThrow();
+      expect(upload.attachment).toMatchObject({
+        bucket: DOCS,
+        path: `${organization}/ticket/${open!.id}/${upload.attachment.id}`,
+      });
+      const refused = async (input: {
+        subjectType: string;
+        subjectId: string;
+        mimeType: string;
+      }) =>
+        (
+          await attachments.upload({
+            organizationId: organization,
+            name: "x",
+            size: 1,
+            ...input,
+          })
+        ).ok;
+      expect(
+        await refused({
+          subjectType: "ticket",
+          subjectId: open!.id,
+          mimeType: "image/png",
+        }),
+      ).toBe(false);
+      expect(
+        await refused({
+          subjectType: "ticket",
+          subjectId: hidden!.id,
+          mimeType: "application/pdf",
+        }),
+      ).toBe(false);
+      expect(
+        await refused({
+          subjectType: "project",
+          subjectId: "p1",
+          mimeType: "application/pdf",
+        }),
+      ).toBe(false);
+
+      await s.service();
+      expect(
+        await s.value<boolean>(
+          "exists (select 1 from storage.buckets where id = $1)",
+          [DOCS],
+        ),
+      ).toBe(true);
+      await s.rows("delete from public.bs_test_tickets where id = $1", [
+        open!.id,
+      ]);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.attachments where subject_id = $1)",
+          [open!.id],
+        ),
+      ).toBe(0);
+
+      await s.rows(
+        `insert into storage.objects (bucket_id, name, metadata) values ($1, 'a/report.pdf', '{}')`,
+        [DRIVE],
+      );
+      expect(
+        await s.value<string>(
+          "(select status from better_supabase.scanned_objects where bucket = $1 and object_path = 'a/report.pdf')",
+          [DRIVE],
+        ),
+      ).toBe("pending");
+      const events = await s.rows<{ type: string }>(
+        "select type from better_supabase.outbox_events where type like '%object.uploaded' and payload ->> 'path' = 'a/report.pdf'",
+      );
+      expect(events).toHaveLength(1);
+      expect(
+        await s.value<boolean>(
+          "better_supabase.object_clean($1, 'a/report.pdf')",
+          [DRIVE],
+        ),
+      ).toBe(false);
+      const scanned: string[] = [];
+      const scanner = createObjectScanner({
+        transport: sqlTransport(s.sql),
+        storage: storage(),
+        scan: (_file, object) => {
+          scanned.push(object.path);
+          return { status: "clean" };
+        },
+      });
+      expect(await scanner.scan(DRIVE, "a/report.pdf").orThrow()).toMatchObject(
+        {
+          status: "clean",
+          bucket: DRIVE,
+        },
+      );
+      await scanner.scan(DRIVE, "a/report.pdf").orThrow();
+      expect(scanned).toEqual(["a/report.pdf"]);
+      await s.asRole(member);
+      expect(
+        await s.value<boolean>(
+          "better_supabase.object_clean($1, 'a/report.pdf')",
+          [DRIVE],
+        ),
+      ).toBe(true);
     } finally {
       await s.close();
     }

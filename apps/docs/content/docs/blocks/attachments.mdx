@@ -54,6 +54,37 @@ bucket keeps its settings. The table checks the same limits. With
 `requireScan: false`, `confirm` marks a file clean right away, and files
 nobody scanned are served too (an `infected` one never is).
 
+### Subjects and buckets
+
+`subjects` maps each subject type to its table, as for
+[comments](/docs/blocks/comments#subjects): uploading and reading a file then
+also need the subject row to be readable through the subject table's own
+policies (and its `permission`), and an unlisted type is refused. A subject
+can keep its files in its own bucket with its own MIME types, so an app with a
+bucket per feature keeps them:
+
+```ts
+options: {
+  bucket: "attachments",
+  path: "{organization_id}/{subject_type}/{subject_id}/{id}",
+  subjects: {
+    chat_message: { table: "chat_messages", bucket: "chat", allowedMimeTypes: ["image/*", "application/pdf"] },
+    expense: { table: "expenses", bucket: "receipts", allowedMimeTypes: ["image/*"], cascade: true },
+  },
+},
+```
+
+The module creates every listed bucket that doesn't exist yet and adds its
+storage policies for each, next to any policies the bucket already has.
+`cascade: true` deletes a subject's attachment rows with the subject row;
+remove the objects with `attachments.remove` or a storage cleanup job.
+
+`path` sets the object path, from `{organization_id}` (required first),
+`{id}` (required), `{subject_type}` and `{subject_id}` (a file without a
+subject gets `-`). It defaults to `{organization_id}/attachments/{id}`.
+Changing it later rewrites the column on Postgres 17; on older versions,
+recreate the column in a migration.
+
 ## Upload and download
 
 Uploading takes three steps: create the record and a signed upload URL on
@@ -136,12 +167,40 @@ throws, the file is marked `failed` with the error as `scan_detail`, the
 result is an error with the hint `ATTACHMENT_SCAN_FAILED`, and the next
 attempt scans it again.
 
+### Any bucket
+
+The scan gate also works without the attachments table, for a file drive,
+avatars or generated exports. `scanned_objects` holds one row per object,
+`object_clean(bucket, path)` answers in any storage policy, and
+`createObjectScanner` records verdicts with `set_object_scan` (service role):
+
+```sql
+create policy "drive files are clean" on storage.objects for select to authenticated
+  using (bucket_id = 'files' and better_supabase.object_clean(bucket_id, name) and ...);
+```
+
+```ts
+const objects = createObjectScanner({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+  scan: (file, { bucket, path }) => scanWithClamav(file),
+});
+await outbox.relay("object-scans", objects.sink());
+```
+
+With `scanBuckets: ["files"]`, a trigger on `storage.objects` gives each new
+or replaced object in those buckets a `pending` row and writes an
+`object.uploaded` event (`{ bucket, path }`), which `objects.sink()` scans;
+`objects.job` takes the same payload from a queue. Scanning an attachment
+also records its object in `scanned_objects`, so both gates agree.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as
 the partition key and `attachments/<id>` as the subject:
 
-| Event                 | When                       | Data                                                                         |
-| --------------------- | -------------------------- | ---------------------------------------------------------------------------- |
-| `attachment.uploaded` | `confirm` saw the object   | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
-| `attachment.scanned`  | a scan result was recorded | `attachmentId`, `status`, `uploadedBy`                                       |
+| Event                 | When                                                   | Data                                                                         |
+| --------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `attachment.uploaded` | `confirm` saw the object                               | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
+| `attachment.scanned`  | a scan result was recorded                             | `attachmentId`, `status`, `uploadedBy`                                       |
+| `object.uploaded`     | an object landed in a `scanBuckets` bucket (no tenant) | `bucket`, `path`                                                             |
