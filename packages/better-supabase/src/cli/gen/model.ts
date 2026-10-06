@@ -29,6 +29,7 @@ import {
 import {
   arrayOf,
   isJsonUdt,
+  parseCheckNotNull,
   parseCheckUnion,
   sameColumns,
   singular,
@@ -227,9 +228,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const tables = included.map((table) => {
     const casing = config.tables[table.name]?.casing ?? config.casing;
     const checks = new Map<string, string[]>();
+    const checkedNotNull = new Set<string>();
     for (const check of table.checks) {
       const union = parseCheckUnion(check.definition);
       if (union) checks.set(union.column, union.values);
+      for (const column of parseCheckNotNull(check.definition))
+        checkedNotNull.add(column);
     }
     const columns = table.columns.map((column): ColumnModel => {
       const enumValues = column.isEnum
@@ -271,8 +275,11 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         db: column.name,
         snapshot: column,
         tsType: columnType,
-        nullable: column.nullable,
-        optional: column.nullable || column.hasDefault || readonly,
+        nullable: column.nullable && !checkedNotNull.has(column.name),
+        optional:
+          (column.nullable && !checkedNotNull.has(column.name)) ||
+          column.hasDefault ||
+          readonly,
         readonly,
         values,
         json,

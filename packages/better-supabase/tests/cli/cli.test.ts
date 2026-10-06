@@ -7,7 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BetterSupabaseConfig } from "../../src/config/index.ts";
 
 import { buildModel } from "../../src/cli/gen/model.ts";
-import { parseCheckUnion } from "../../src/cli/gen/shared.ts";
+import {
+  parseCheckNotNull,
+  parseCheckUnion,
+} from "../../src/cli/gen/shared.ts";
 import { run } from "../../src/cli/run.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { libraryFixture } from "./fixtures/library.ts";
@@ -36,6 +39,32 @@ describe("parseCheckUnion", () => {
     expect(
       parseCheckUnion("CHECK (((a = 'x'::text) OR (b = 'y'::text)))"),
     ).toBeUndefined();
+  });
+});
+
+describe("parseCheckNotNull", () => {
+  it.each<[string, string, string[]]>([
+    ["one column", "CHECK ((slug IS NOT NULL))", ["slug"]],
+    [
+      "a top-level AND",
+      "CHECK (((a IS NOT NULL) AND (b IS NOT NULL) AND (c > 0)))",
+      ["a", "b"],
+    ],
+    ["a quoted name", 'CHECK (("Weird ""x""" IS NOT NULL))', ['Weird "x"']],
+    ["an OR", "CHECK (((a IS NOT NULL) OR (b IS NOT NULL)))", []],
+    ["a NOT", "CHECK ((NOT (a IS NOT NULL)))", []],
+    [
+      "an AND under an OR",
+      "CHECK ((((a IS NOT NULL) AND (b IS NOT NULL)) OR (c IS NULL)))",
+      [],
+    ],
+    ["a CASE", "CHECK ((CASE WHEN a THEN (b IS NOT NULL) ELSE true END))", []],
+    ["a comparison", "CHECK (((a IS NOT NULL) = true))", []],
+    ["a NOT VALID constraint", "CHECK ((slug IS NOT NULL)) NOT VALID", []],
+    ["a string with AND in it", "CHECK ((note <> 'x AND y'))", []],
+    ["something else", "UNIQUE (a)", []],
+  ])("reads %s", (_name, definition, columns) => {
+    expect(parseCheckNotNull(definition)).toEqual(columns);
   });
 });
 
@@ -161,6 +190,50 @@ describe("function results", () => {
     expect(fn(coded, "customers_by_status")?.meta.result).toEqual({
       table: "customers",
     });
+  });
+});
+
+describe("CHECK not null", () => {
+  it("narrows the column in the row, insert and update shapes", async () => {
+    const fixture = await loadFixtureSnapshot();
+    const snapshot = {
+      ...fixture,
+      extras: {
+        ...fixture.extras,
+        tables: fixture.extras.tables.map((table) =>
+          table.schema === "public" && table.name === "customers"
+            ? {
+                ...table,
+                checks: [
+                  ...table.checks,
+                  {
+                    name: "customers_kvk_present",
+                    definition: "CHECK ((kvk IS NOT NULL))",
+                  },
+                  {
+                    name: "customers_contact_or_logo",
+                    definition:
+                      "CHECK (((primary_contact_id IS NOT NULL) OR (logo_path IS NOT NULL)))",
+                  },
+                ],
+              }
+            : table,
+        ),
+      },
+    };
+    const model = buildModel(snapshot, resolveConfig({}, fixtures));
+    const column = (name: string) =>
+      model.tables
+        .find((table) => table.key === "customers")
+        ?.columns.find((entry) => entry.db === name);
+    expect(column("kvk")).toMatchObject({ nullable: false, optional: false });
+    expect(column("primary_contact_id")).toMatchObject({
+      nullable: true,
+      optional: true,
+    });
+    expect(model.meta.tables["customers"]?.columns["kvk"]?.nullable).toBe(
+      false,
+    );
   });
 });
 
