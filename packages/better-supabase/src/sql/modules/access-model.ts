@@ -104,6 +104,7 @@ export const MODULE_PERMISSIONS = {
   onboarding: { read: "onboarding.read", complete: "onboarding.complete" },
   announcements: { manage: "announcements.manage" },
   waitlist: { manage: "waitlist.manage", invite: "members.invite" },
+  flags: { manage: "flags.manage" },
 } as const;
 
 /**
@@ -154,6 +155,7 @@ export const MODULE_PERMISSION_SCOPES: {
   onboarding: { read: "tenant", complete: "tenant" },
   announcements: { manage: "platform" },
   waitlist: { manage: "platform", invite: "tenant" },
+  flags: { manage: "platform" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
