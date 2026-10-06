@@ -1046,6 +1046,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [member],
       );
       expect(rows[0]!.claims).toEqual({ [organization]: ["exports"] });
+      const compact = renderModules(["entitlements"], {
+        entitlements: {
+          key: "id",
+          source: "custom",
+          claim: { maxTenants: 1, keys: { exports: "x" } },
+        },
+      }).find(
+        (file) => file.module === "entitlements" && file.kind === "schema",
+      )!;
+      await client.query("savepoint compact");
+      await client.query(compact.contents);
+      const short = await client.query<{ claims: unknown }>(
+        "select better_supabase.feature_claims($1) as claims",
+        [member],
+      );
+      expect(short.rows[0]!.claims).toEqual({ [organization]: ["x"] });
+      await client.query("rollback to savepoint compact");
       expect(
         await as(
           "select better_supabase.has_entitlement($1, 'exports') as a, better_supabase.has_entitlement($1, 'audit') as b",

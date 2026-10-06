@@ -85,10 +85,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
-  where cardinality(e.keys) > 0
+  select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
+  from (
+    select t.id::text as tenant, e.keys
+    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    where cardinality(e.keys) > 0
+    order by 1
+  ) r
 $$;
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
@@ -234,10 +238,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
-  where cardinality(e.keys) > 0
+  select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
+  from (
+    select t.id::text as tenant, e.keys
+    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    where cardinality(e.keys) > 0
+    order by 1
+  ) r
 $$;
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
@@ -383,10 +391,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
-  where cardinality(e.keys) > 0
+  select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
+  from (
+    select t.id::text as tenant, e.keys
+    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    where cardinality(e.keys) > 0
+    order by 1
+  ) r
 $$;
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
@@ -532,10 +544,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
-  where cardinality(e.keys) > 0
+  select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
+  from (
+    select t.id::text as tenant, e.keys
+    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    where cardinality(e.keys) > 0
+    order by 1
+  ) r
 $$;
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;

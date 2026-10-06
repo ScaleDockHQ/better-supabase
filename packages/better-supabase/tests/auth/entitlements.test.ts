@@ -34,6 +34,15 @@ describe("hasEntitlement", () => {
     features: { [ACME]: ["exports"], [GLOBEX]: [] },
   });
 
+  it("reads short codes from a renamed claim", () => {
+    const compact = session({ plan: { [ACME]: ["x"] } });
+    const options = { claim: "plan", keys: { exports: "x" } };
+    expect(hasEntitlement(compact, ACME, "exports", options)).toBe(true);
+    expect(hasEntitlement(compact, ACME, "sso", options)).toBe(false);
+    expect(hasEntitlement(compact, ACME, "x", { claim: "plan" })).toBe(true);
+    expect(hasEntitlement(compact, ACME, "exports", { keys: {} })).toBe(false);
+  });
+
   it("checks the entitlement within one tenant", () => {
     expect(hasEntitlement(user, ACME, "exports")).toBe(true);
     expect(hasEntitlement(user, ACME, "sso")).toBe(false);

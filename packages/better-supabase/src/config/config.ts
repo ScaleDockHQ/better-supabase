@@ -367,6 +367,19 @@ export interface EntitlementsConfig {
    * writes the checks and the claim over it.
    */
   readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
+  /**
+   * The shape of the features claim `feature_claims` writes, which every
+   * token carries. `false` writes `{}` (check entitlements in SQL with
+   * `has_entitlement` only); `maxTenants` keeps at most that many tenants;
+   * `keys` writes short codes instead of the feature keys. Pass the same
+   * `keys` to `hasEntitlement`.
+   */
+  readonly claim?:
+    | false
+    | {
+        readonly maxTenants?: number;
+        readonly keys?: Readonly<Record<string, string>>;
+      };
 }
 
 /** `entitlements.source.plans`: a plan catalog in your own tables. */
@@ -579,6 +592,7 @@ function entitlementsOf(
           ? {}
           : { scope: config.permdock.scope },
     source: config.source ?? "stripe-sync",
+    ...(config.claim === undefined ? {} : { claim: config.claim }),
   };
 }
 
@@ -656,6 +670,7 @@ export interface ResolvedConfig {
     readonly key: string;
     readonly permdock: false | { readonly scope?: string };
     readonly source: NonNullable<EntitlementsConfig["source"]>;
+    readonly claim?: NonNullable<EntitlementsConfig["claim"]>;
   };
   readonly permdock: Required<PermdockPathsConfig>;
   readonly vectorSearch: readonly ({

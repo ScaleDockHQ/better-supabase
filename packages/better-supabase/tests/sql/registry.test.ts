@@ -104,6 +104,29 @@ describe("renderModules", () => {
     }
   });
 
+  it("shapes the features claim with entitlements.claim", () => {
+    const entitlements = (claim: unknown) =>
+      renderModules(["entitlements"], {
+        entitlements: {
+          key: "id",
+          source: "custom",
+          ...(claim === undefined ? {} : { claim }),
+        },
+      } as never).find((file) => file.module === "entitlements")!.contents;
+    expect(entitlements(undefined)).toContain(
+      "jsonb_object_agg(r.tenant, to_jsonb(r.keys))",
+    );
+    expect(entitlements(false)).toMatch(
+      /feature_claims\(user_id uuid\)[\s\S]*?as \$\$\n  select '\{\}'::jsonb\n\$\$/,
+    );
+    const compact = entitlements({ maxTenants: 20, keys: { exports: "x" } });
+    expect(compact).toContain(
+      `coalesce('{"exports":"x"}'::jsonb ->> k, k) from unnest(r.keys) as k`,
+    );
+    expect(compact).toContain("order by 1\n    limit 20");
+    expect(() => entitlements({ maxTenants: 0 })).toThrow(/maxTenants/);
+  });
+
   it("wraps auth calls in policies so Postgres evaluates them once", () => {
     const names = Object.values(SQL_MODULES)
       .filter((module) => module.target === "schema")

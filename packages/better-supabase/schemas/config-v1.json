@@ -537,6 +537,23 @@
               }
             }
           ]
+        },
+        "claim": {
+          "description": "The shape of the features claim feature_claims writes: false for {}, or maxTenants (at most that many tenants) and keys (short codes for feature keys).",
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxTenants": { "type": "integer", "minimum": 1 },
+                "keys": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          ]
         }
       }
     },

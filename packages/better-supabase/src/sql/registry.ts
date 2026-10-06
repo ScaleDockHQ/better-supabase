@@ -445,10 +445,48 @@ function memberships(layout: ModuleLayout): Memberships {
   };
 }
 
+/** `entitlements.claim`: what `feature_claims` puts in the token. */
+export type FeatureClaimOption =
+  | false
+  | {
+      /** At most this many tenants, the lowest ids first. */
+      readonly maxTenants?: number;
+      /** Short codes written instead of the feature keys: `{ exports: "x" }`. */
+      readonly keys?: Readonly<Record<string, string>>;
+    };
+
+/**
+ * The body of `feature_claims` over `rows`, a query of (tenant text, keys
+ * text[]) rows, shaped by `entitlements.claim`.
+ */
+function featureClaimsBody(
+  rows: string,
+  claim: FeatureClaimOption | undefined,
+): string {
+  if (claim === false) return "  select '{}'::jsonb";
+  const max = claim?.maxTenants;
+  if (max !== undefined && (!Number.isInteger(max) || max < 1)) {
+    throw new TypeError(
+      "entitlements.claim.maxTenants must be a positive integer",
+    );
+  }
+  const keys = claim?.keys ?? {};
+  const mapped =
+    Object.keys(keys).length === 0
+      ? "to_jsonb(r.keys)"
+      : `to_jsonb(array(select coalesce(${sqlString(JSON.stringify(keys))}::jsonb ->> k, k) from unnest(r.keys) as k))`;
+  return `  select coalesce(jsonb_object_agg(r.tenant, ${mapped}), '{}'::jsonb)
+  from (
+${rows}
+    order by 1${max === undefined ? "" : `\n    limit ${String(max)}`}
+  ) r`;
+}
+
 /** `has_entitlement` and `feature_claims` on the tenant module's memberships. */
 const tenantEntitlementChecks = (
   claims: ClaimsMeta,
   m: Memberships,
+  claim?: FeatureClaimOption,
 ): string => `
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant ${m.idType}, key text)
@@ -494,17 +532,21 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(m.${m.tenant}::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from ${m.table} m
-  cross join lateral (select better_supabase.tenant_entitlements(m.${m.tenant}) as keys) e
-  where m.${m.user} = feature_claims.user_id
-    and cardinality(e.keys) > 0
+${featureClaimsBody(
+  `    select m.${m.tenant}::text as tenant, e.keys
+    from ${m.table} m
+    cross join lateral (select better_supabase.tenant_entitlements(m.${m.tenant}) as keys) e
+    where m.${m.user} = feature_claims.user_id
+      and cardinality(e.keys) > 0`,
+  claim,
+)}
 $$;`;
 
 /** `has_entitlement` and `feature_claims` on PermDock's `member_<scope>_ids` helpers. */
 const permdockEntitlementChecks = (
   claims: ClaimsMeta,
   permdock: ModulePermdock,
+  claim?: FeatureClaimOption,
 ): string => {
   const member = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids`)}`;
   const memberFor = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids_for`)}`;
@@ -557,10 +599,13 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from ${memberFor}(feature_claims.user_id) as t(id)
-  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
-  where cardinality(e.keys) > 0
+${featureClaimsBody(
+  `    select t.id::text as tenant, e.keys
+    from ${memberFor}(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    where cardinality(e.keys) > 0`,
+  claim,
+)}
 $$;`;
 };
 
@@ -578,7 +623,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 -- entitlements.source is "custom": your better_supabase.tenant_entitlements(tenant ${id})
 -- returns the tenant's feature keys (text[]); the checks below call it.
 set check_function_bodies = off;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;
@@ -588,7 +633,7 @@ reset check_function_bodies;`;
     return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 ${planEntitlements(source.plans, id)}
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -622,7 +667,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -2247,6 +2292,7 @@ interface EntitlementsSource {
   readonly key: string;
   /** Where entitlements come from; the customer lookups are for `stripe-sync` only. */
   readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
+  readonly claim?: FeatureClaimOption;
 }
 
 /** Privileges one role gets on a table or view. */
@@ -2364,7 +2410,7 @@ function permdockEntitlementMembers(permdock: ModulePermdock): string {
 function customerSource(
   layout: ModuleLayout,
   installed: readonly string[],
-): Required<Omit<EntitlementsSource, "source">> & {
+): Required<Omit<EntitlementsSource, "source" | "claim">> & {
   readonly deferred: boolean;
 } {
   const configured = layout.entitlements;
@@ -2407,7 +2453,7 @@ function customerSource(
 }
 
 function entitlementsSource(
-  source: Required<Omit<EntitlementsSource, "source">> & {
+  source: Required<Omit<EntitlementsSource, "source" | "claim">> & {
     readonly deferred: boolean;
   },
   layout: ModuleLayout,
