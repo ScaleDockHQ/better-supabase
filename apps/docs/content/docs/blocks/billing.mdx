@@ -161,7 +161,7 @@ with `billing.read`; they return `[]` until the Sync Engine has the tables.
 `voidInvoice` and `markInvoiceUncollectible` act only on the tenant's own
 invoices (`BILLING_INVOICE_NOT_FOUND` otherwise).
 
-### Subscriptions in full, and every tenant's
+### Subscriptions in full, and every tenant's billing
 
 `subscription(organizationId)` returns the tenant's newest subscription as
 the Sync Engine stores it, every column with its `items`, preferring an
@@ -184,7 +184,11 @@ const next = await billing
   .orThrow();
 ```
 
-Both are open to platform staff with `billing.read` in the platform scope
+`allInvoices({ status, limit, before })` does the same for invoices, across
+tenants, as `{ organizationId, customerId, row }`, and platform staff also
+read one tenant's `invoices` and `paymentMethods`.
+
+These are open to platform staff with `billing.read` in the platform scope
 (the module's `viewAll` permission, checked with `is_platform()`), and
 `allSubscriptions` to the service role. `subscription` also answers members
 with `billing.read` in the tenant.
@@ -328,6 +332,7 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 | `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, seats, subscription }`                                                      |
 | `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff |
 | `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                               |
+| `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                    |
 | `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer                                                                      |
 | `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id                                                                            |
 | `billing_seat_count(tenant)`                                      | `service_role`                  | the seat count                                                                           |

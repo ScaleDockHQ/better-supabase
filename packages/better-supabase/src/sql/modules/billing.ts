@@ -289,7 +289,8 @@ $$;
 
 ${planPrice(ctx, plansOf(ctx))}
 -- Rows of a Stripe Sync Engine table for the tenant's customer, newest
--- first, or [] when the table doesn't exist. Reads need billing.read.
+-- first, or [] when the table doesn't exist. Reads need billing.read in the
+-- tenant, or platform staff.
 create or replace function ${fn("billing_stripe_rows")}(tenant ${id}, source text, max_rows integer default 50)
 returns jsonb
 language plpgsql
@@ -301,7 +302,7 @@ declare
   customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_stripe_rows.tenant);
   found jsonb;
 begin
-  if not ${can("tenant", "read")} then
+  if not (${can("tenant", "read")} or ${viewAll}) then
     raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   if billing_stripe_rows.source not in ('invoices', 'payment_methods', 'subscriptions', 'customers') then
@@ -428,6 +429,40 @@ begin
 end;
 $$;
 
+-- Every tenant's invoices, for platform staff: [{ tenant, customer, invoice }],
+-- newest first, of one status when given, created before before_created.
+create or replace function ${fn("billing_all_invoices")}(for_status text default null, max_rows integer default 100, before_created bigint default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  found jsonb;
+begin
+  if not (${SERVICE_CALLER} or ${viewAll}) then
+    raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  if to_regclass('stripe.invoices') is null then
+    return '[]'::jsonb;
+  end if;
+  execute $q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', p.tenant, 'customer', p.customer, 'invoice', p.invoice) order by p.created desc nulls last), '[]'::jsonb)
+    from (
+      select b.${c("tenant")}::text as tenant, b.${c("customer")} as customer, x.created, to_jsonb(x.*) as invoice
+      from ${t} b
+      join stripe.invoices x on x.customer = b.${c("customer")}
+      where ($1::text is null or x.status = $1)
+        and ($3::bigint is null or x.created < $3)
+      order by x.created desc nulls last
+      limit greatest(1, least(coalesce($2, 100), 500))
+    ) p
+  $q$ into found using for_status, max_rows, before_created;
+  return coalesce(found, '[]'::jsonb);
+end;
+$$;
+
 -- For the billing page: { customer, seats, subscription }.
 create or replace function ${fn("billing_status")}(tenant ${id})
 returns jsonb
@@ -464,6 +499,8 @@ revoke execute on function ${fn("billing_subscription_item")}(${id}, text) from 
 revoke execute on function ${fn("billing_status")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_subscription")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) from public, anon;
+revoke execute on function ${fn("billing_all_invoices")}(text, integer, bigint) from public, anon;
+grant execute on function ${fn("billing_all_invoices")}(text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("billing_subscription")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("billing_customer")}(${id}) to authenticated, service_role;
@@ -487,6 +524,11 @@ function contract(): readonly ModuleContractFunction[] {
     },
     { name: "billing_status", args: ["{id}"], returns: "jsonb" },
     { name: "billing_subscription", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "billing_all_invoices",
+      args: ["text", "integer", "bigint"],
+      returns: "jsonb",
+    },
     {
       name: "billing_all_subscriptions",
       args: ["text", "integer", "bigint"],

@@ -248,7 +248,14 @@ export interface Billing {
     organizationId: string,
     cancel: boolean,
   ): AsyncResult<string>;
-  /** The tenant's invoices from the Sync Engine, newest first (`billing.read`). */
+  /**
+   * Every tenant's invoices, newest first, for platform staff (`billing.read`
+   * in the platform scope) or a service transport.
+   */
+  allInvoices(
+    options?: PlatformListOptions,
+  ): AsyncResult<readonly TenantStripeRow[]>;
+  /** The tenant's invoices from the Sync Engine, newest first (`billing.read`, or platform staff). */
   invoices(
     organizationId: string,
     options?: { readonly limit?: number },
@@ -897,6 +904,8 @@ export function createBilling(options: BillingOptions): Billing {
       call("billing_subscription", { tenant: organizationId }, (value) =>
         isRecord(value) ? value : undefined,
       ),
+    allInvoices: (list) =>
+      call("billing_all_invoices", platformArgs(list), tenantRows("invoice")),
     allSubscriptions: (list) =>
       call(
         "billing_all_subscriptions",

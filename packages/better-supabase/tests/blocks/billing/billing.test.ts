@@ -623,7 +623,18 @@ describe("createBilling", () => {
       max_rows: 100,
       before_created: undefined,
     });
+    const invoices = createBilling(
+      setup((fn) =>
+        fn === "billing_all_invoices"
+          ? [{ tenant: "org", customer: "cus_1", invoice: { id: "in_1" } }]
+          : null,
+      ),
+    );
+    expect(await invoices.allInvoices({ status: "open" }).orThrow()).toEqual([
+      { organizationId: "org", customerId: "cus_1", row: { id: "in_1" } },
+    ]);
     const none = createBilling(setup(() => null));
+    expect(await none.allInvoices().orThrow()).toEqual([]);
     expect(await none.subscription("org").orThrow()).toBeUndefined();
     expect(await none.allSubscriptions().orThrow()).toEqual([]);
   });

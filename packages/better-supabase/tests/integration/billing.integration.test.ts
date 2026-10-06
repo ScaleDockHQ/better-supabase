@@ -269,6 +269,29 @@ describe.skipIf(!live)("billing", () => {
       expect(invoices.map((row) => row["id"])).toEqual(["in_bs_2", "in_bs_1"]);
       await s.asRole(member);
       expect((await billing.invoices(organization)).ok).toBe(false);
+      expect(await billing.allInvoices()).toMatchObject({
+        error: { hint: "BILLING_FORBIDDEN" },
+      });
+      await s.service();
+      const staff = await s.user("staff");
+      await s.asRole(staff, { platform_permissions: ["billing.read"] });
+      expect(
+        (await billing.invoices(organization).orThrow()).map(
+          (row) => row["id"],
+        ),
+      ).toEqual(["in_bs_2", "in_bs_1"]);
+      const open = await billing.allInvoices({ status: "open" }).orThrow();
+      expect(
+        open
+          .filter((entry) => entry.organizationId === organization)
+          .map((entry) => entry.row["id"]),
+      ).toEqual(["in_bs_2"]);
+      expect(open.some((entry) => entry.row["id"] === "in_bs_x")).toBe(false);
+      expect(
+        (await billing.allInvoices({ before: 2, limit: 5 }).orThrow()).map(
+          (entry) => entry.row["id"],
+        ),
+      ).toContain("in_bs_1");
     } finally {
       await s.close();
     }
