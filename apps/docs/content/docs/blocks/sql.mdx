@@ -7,7 +7,10 @@ description: Idempotent SQL modules for the database work every app repeats, wri
 `supabase db schema declarative sync` turns them into a migration. The files are plain SQL that
 you can read and commit, so nothing runs behind your back. Every module can be
 re-run safely, and it keeps everything it creates in the `better_supabase`
-schema.
+schema. `sql add` renders the new modules next to the ones `sql.modules`
+already lists, so a module sees what is installed (billing's foreign key to
+the organizations table, for example), and writes only the named modules and
+the ones they need.
 
 ```bash
 better-supabase sql list

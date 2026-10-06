@@ -345,12 +345,20 @@ async function write(
   args: SqlArgs,
   names: readonly string[],
   sqlLayout: ModuleLayout,
+  only?: readonly string[],
 ): Promise<string[]> {
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
   let data = false;
-  const files = renderModules(names, sqlLayout);
-  for (const path of await staleModuleTests(config, names, sqlLayout, files)) {
+  const files = renderModules(names, sqlLayout).filter(
+    (file) => only === undefined || only.includes(file.module),
+  );
+  for (const path of await staleModuleTests(
+    config,
+    only ?? names,
+    sqlLayout,
+    files,
+  )) {
     const shown = display(config.root, path);
     if (dryRun) {
       lines.push(`Would remove ${shown}`);
@@ -610,8 +618,18 @@ export async function runSql(
           ].join("\n"),
         };
       }
-      const sqlLayout = await layoutFor(config, args, names);
-      const lines = await write(config, args, names, sqlLayout);
+      // Render with the modules sql.modules already lists, so the new ones
+      // see them (a foreign key to the organizations table, plan quotas
+      // over entitlements), but write only the named ones and what they need.
+      const listed = [
+        ...config.sql.moduleNames,
+        ...names.filter((name) => !config.sql.moduleNames.includes(name)),
+      ];
+      const sqlLayout = await layoutFor(config, args, listed);
+      const added = resolveModules(names, sqlLayout).map(
+        (module) => module.name,
+      );
+      const lines = await write(config, args, listed, sqlLayout, added);
       const pulledIn = resolveModules(names, sqlLayout)
         .map((module) => module.name)
         .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));

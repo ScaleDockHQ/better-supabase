@@ -113,6 +113,20 @@ describe("runSql", () => {
     expect((await sql(["print", "nope"])).code).toBe(2);
   });
 
+  it("adds a module next to the ones sql.modules lists", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["organizations"] },
+    };
+    const added = await sql(["add", "billing"], config);
+    expect(added.output).toContain("(billing)");
+    expect(added.output).not.toContain("(organizations)");
+    const path = /Wrote (supabase\/schemas\/\S+) \(billing\)/.exec(
+      added.output ?? "",
+    )?.[1];
+    const billing = await readFile(join(root, path ?? "missing"), "utf8");
+    expect(billing).toContain("billing_customers_tenant_fkey");
+  });
+
   it("has nothing to sync for an empty sql.modules", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,
