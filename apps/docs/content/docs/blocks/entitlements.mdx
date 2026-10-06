@@ -37,6 +37,47 @@ request later. The module reads the tables of Stripe Sync Engine 0.48.5
 (`SPEC_PINS.stripeSyncEngine`). Before the engine is installed, every tenant
 has no entitlements.
 
+### Other sources
+
+Apps that keep their own billing mirror don't need the Sync Engine.
+`entitlements.source` picks where the features come from; the checks,
+the claim and `hasEntitlement` stay the same.
+
+A plan catalog in your tables: the tenant's subscription names a plan, and a
+features table lists what each plan includes. With `status`, only
+subscriptions in `activeStatuses` (`active` and `trialing` by default) count;
+with `included`, only rows where it is true.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  entitlements: {
+    source: {
+      plans: {
+        subscriptions: {
+          table: "public.subscriptions",
+          tenant: "organization_id",
+          plan: "plan_key",
+          status: "status",
+        },
+        features: {
+          table: "public.plan_features",
+          plan: "plan_key",
+          feature: "feature_key",
+          included: "included",
+        },
+      },
+    },
+  },
+});
+```
+
+`source: "custom"` writes everything except
+`better_supabase.tenant_entitlements(tenant)`, which you write yourself and
+which returns the tenant's feature keys as `text[]`, such as plan features
+plus per-tenant overrides. Neither source needs `customer`, and
+`entitlementMembers` (the Stripe event helper below) applies to the Sync
+Engine only.
+
 ## SQL
 
 | Function                           | Grants                                | Returns                                                           |

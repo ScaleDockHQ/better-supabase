@@ -179,6 +179,28 @@ const ConfigSchema = v.strictObject({
           v.strictObject({ scope: v.optional(v.string()) }),
         ]),
       ),
+      source: v.optional(
+        v.union([
+          v.picklist(["stripe-sync", "custom"]),
+          v.strictObject({
+            plans: v.strictObject({
+              subscriptions: v.strictObject({
+                table: v.string(),
+                tenant: v.string(),
+                plan: v.string(),
+                status: v.optional(v.string()),
+                activeStatuses: v.optional(strings),
+              }),
+              features: v.strictObject({
+                table: v.string(),
+                plan: v.string(),
+                feature: v.string(),
+                included: v.optional(v.string()),
+              }),
+            }),
+          }),
+        ]),
+      ),
     }),
   ),
   permdock: v.optional(
