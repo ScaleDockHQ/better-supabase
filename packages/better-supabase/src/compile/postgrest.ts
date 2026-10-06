@@ -93,6 +93,19 @@ function quote(value: unknown): string {
   return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
+/**
+ * Values PostgREST reads the same with or without quotes in an `in` list:
+ * uuids, numbers, ISO dates and times, enum values, slugs and emails.
+ * `null` stays quoted, so it keeps meaning the string.
+ */
+const BARE = /^[\w.:+@-]+$/;
+
+/** An `in` list element; quoted only when it needs to be, as supabase-js does. */
+function listItem(value: unknown): string {
+  const text = scalar(value);
+  return BARE.test(text) && text.toLowerCase() !== "null" ? text : quote(text);
+}
+
 function list(values: readonly unknown[], open: string, close: string): string {
   return `${open}${values.map(quote).join(",")}${close}`;
 }
@@ -120,7 +133,10 @@ function operatorAndValue(
       return { operator: op, value: plain(value) };
     case "in":
       if (!Array.isArray(value)) invalidRequest('"in" needs an array');
-      return { operator: "in", value: list(value, "(", ")") };
+      return {
+        operator: "in",
+        value: `(${value.map(listItem).join(",")})`,
+      };
     case "is":
       if (!isBoolLike(value)) invalidRequest('"is" needs null, true or false');
       return { operator: "is", value: String(value) };

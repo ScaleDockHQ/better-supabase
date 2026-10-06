@@ -54,7 +54,7 @@ describe("reads", () => {
     });
     expect(query(last())).toEqual([
       "select=id",
-      'status=in.("lead","active")',
+      "status=in.(lead,active)",
       "name=ilike.%50\\%\\_off%",
       "kvk=is.null",
       "archived_at=is.null",
