@@ -2058,6 +2058,42 @@ describe("createInbox", () => {
     }
   });
 
+  it("stops claiming once the budget is spent, finishing claimed messages", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const fake = fakeSql([
+      [
+        "claim_webhooks",
+        [
+          {
+            id: 1,
+            source: "crm",
+            message_id: "m1",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 1,
+            received_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      ],
+    ]);
+    const inbox = createInbox(fake.sql, { source: "crm" });
+    const result = await inbox.process(
+      () => {
+        vi.setSystemTime(Date.now() + 600);
+      },
+      { budgetMs: 1000 },
+    );
+    expect(result).toEqual({ succeeded: 2, failed: 0 });
+    expect(
+      fake.calls.filter((call) => call.text.includes("claim_webhooks")),
+    ).toHaveLength(2);
+    expect(await inbox.process(() => undefined, { budgetMs: 0 })).toEqual({
+      succeeded: 0,
+      failed: 0,
+    });
+  });
+
   it("claims ten messages for 300 seconds with a generated worker id by default", async () => {
     const fake = fakeSql();
     const result = await createInbox(fake.sql, {

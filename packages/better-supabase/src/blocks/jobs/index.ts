@@ -10,6 +10,7 @@ export type {
   InboxListOptions,
   InboxMessage,
   InboxOptions,
+  InboxProcessOptions,
   InboxPurgeOptions,
 } from "./jobs.ts";
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";

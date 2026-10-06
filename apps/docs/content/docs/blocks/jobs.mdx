@@ -402,6 +402,18 @@ await crm.process(async (message) => {
 A message whose worker died during its last attempt is marked dead by the
 next `process` instead of running again.
 
+`process` runs until no message is ready. In a serverless function, pass
+`budgetMs` so a backlog can't outrun the function's maximum duration: it
+stops claiming once the budget is spent, finishes the messages it already
+claimed, and the next call picks up the rest. `batch` (10) and `lease` (300
+seconds) set how many messages one claim takes and how long they stay with
+the worker.
+
+```ts title="app/api/inbox/route.ts"
+export const GET = async () =>
+  Response.json(await inbox.process(handleMessage, { budgetMs: 50_000 }));
+```
+
 A webhook carries no session, so pick the identity in the handler. Look up
 the user and tenant the event belongs to (a Stripe customer id maps to an
 organization and its owner), then run the work with

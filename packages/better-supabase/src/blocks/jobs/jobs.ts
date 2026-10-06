@@ -331,6 +331,19 @@ export interface InboxOptions
   readonly maxAttempts?: number;
 }
 
+export interface InboxProcessOptions {
+  /** Messages claimed at once. Defaults to 10. */
+  readonly batch?: number;
+  /** How long a claimed message stays with this worker. Defaults to 300 seconds. */
+  readonly lease?: number | string;
+  /**
+   * Stop claiming after this many ms, so a backlog can't outrun a
+   * serverless function's maximum duration; claimed messages still finish.
+   * Defaults to no limit.
+   */
+  readonly budgetMs?: number;
+}
+
 export interface InboxListOptions {
   readonly tenant: string;
   /** Only this status: `pending`, `processing`, `processed` or `dead`. */
@@ -374,10 +387,13 @@ export interface Inbox {
    * before.
    */
   store(event: InboxEvent): AsyncResult<{ id: number; duplicate: boolean }>;
-  /** Processes stored messages until none are ready. */
+  /**
+   * Processes stored messages until none are ready, or until `budgetMs`
+   * is spent.
+   */
   process<T = unknown>(
     handler: (message: InboxMessage<T>) => unknown,
-    options?: { readonly batch?: number; readonly lease?: number | string },
+    options?: InboxProcessOptions,
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
   list(options: InboxListOptions): AsyncResult<InboxEntry[]>;
@@ -537,7 +553,13 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
     async process(handler, processOptions = {}) {
       let succeeded = 0;
       let failed = 0;
+      const deadline =
+        processOptions.budgetMs === undefined
+          ? undefined
+          : Date.now() + processOptions.budgetMs;
       for (;;) {
+        if (deadline !== undefined && Date.now() >= deadline)
+          return { succeeded, failed };
         const rows = await sql.queryRaw<InboxRow>(
           "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
           [
