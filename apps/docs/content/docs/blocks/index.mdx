@@ -42,40 +42,10 @@ The other SQL modules (`updated-at`, `actor`, `audit`, `rate-limit`,
 `support-sessions` and the rest) are listed on the
 [SQL modules](/docs/blocks/sql#modules) page.
 
-## Missing blocks
+## Planned blocks
 
-These blocks are standard in large SaaS apps and are not built yet. The list is
-ranked by how often apps need them and how much they would reuse.
-
-1. **API keys** (`better-supabase/blocks/api-keys`): hashed keys per tenant and
-   per user, with scopes, prefixes, last-used tracking, rotation and expiry,
-   checked through the access contract and the `rate-limit` module. Today an
-   app writes its own [`AuthResolver`](/docs/auth#custom-credentials).
-2. **Billing** (`better-supabase/blocks/billing`): Stripe Checkout and customer
-   portal sessions, seat sync from memberships, and plan changes handled
-   through the webhook inbox. Today [entitlements](/docs/blocks/entitlements)
-   only read what the Stripe Sync Engine stores.
-3. **Audit log API** (`better-supabase/blocks/audit`): the `audit` SQL module
-   exists but has no TypeScript side. This block would add a typed list query
-   over the audit table, a per-tenant export and retention settings.
-4. **Usage metering and quotas** (`better-supabase/blocks/usage`): counters per
-   tenant and period, quota checks in RLS and RPCs, and reporting to Stripe
-   meters.
-5. **Enterprise identity** (`better-supabase/blocks/sso`): verified domains
-   that join users to an organization, Supabase SAML SSO per organization, and
-   SCIM 2.0 provisioning.
-6. **Feature flags** (`better-supabase/blocks/flags`): flags per tenant and per
-   user with rollouts, served through an OpenFeature provider, separate from
-   plan entitlements.
-7. **Data lifecycle** (`better-supabase/blocks/data-lifecycle`): an export of a
-   user's or an organization's data, and organization deletion with a grace
-   period. Today only [account deletion](/docs/auth/account-deletion) exists.
-8. **Settings** (`better-supabase/blocks/settings`): typed settings per user and
-   per organization, validated with Standard Schema.
-9. **Comments and activity** (`better-supabase/blocks/comments`): comments on
-   any record, mentions that feed the notifications block, and an activity
-   feed built from the outbox.
-10. **Attachments** (`better-supabase/blocks/attachments`): records linked to
-    Storage objects, with tenant-scoped policies and a scan hook.
-11. Lower priority: onboarding checklists, a waitlist with invite codes, and
-    in-app announcements.
+API keys, billing, an audit log API, usage metering, enterprise identity,
+data lifecycle, settings, comments and attachments are not built yet. The
+[roadmap](/docs/roadmap#later) ranks them and says what each would add, and
+lists feature flags, which come through OpenFeature, under
+[Next](/docs/roadmap#next).

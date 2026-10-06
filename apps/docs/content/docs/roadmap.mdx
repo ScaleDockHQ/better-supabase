@@ -1,0 +1,130 @@
+---
+title: Roadmap
+description: What better-supabase is building now, next and later, with the upstream source each item follows and the subpath it lands in.
+---
+
+The roadmap groups work by horizon. Each item names the upstream project it
+follows and the subpath where it lands, so you can tell which import changes
+when it ships. Items move between horizons as upstream releases land; the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/CHANGELOG.md)
+records what shipped.
+
+## Now
+
+Work in the current refactor, which rebuilds the server layer on
+`@supabase/middleware` and `@supabase/server` 1.9.
+
+- **Entries and the composite** (`better-supabase/server`). One
+  single-key `@supabase/middleware` entry per concern (session, claims,
+  guard, `db`, `sql`, tenant, replica, support), bundled by
+  `withBetterSupabase` with `defineComposite`. The keys `jwtClaims`,
+  `userClaims` and `authMode` match `withSupabase`, so upstream entries
+  compose after it. Upstream: `@supabase/middleware` 1.0.
+- **Framework bridges** (one subpath per framework, next to
+  `better-supabase/hono`, `better-supabase/orpc`, `better-supabase/expo` and
+  `better-supabase/edge`). Each bridge runs the entries inside the framework's
+  middleware slot, and TanStack Start, SvelteKit, React Router, H3 and Elysia
+  get one. Upstream: the bridge examples in `@supabase/server`, which
+  deprecated its framework adapters and removes them on 2026-12-01.
+- **Upstream CORS and OAuth metadata** (`better-supabase/edge`,
+  `better-supabase/mcp`). CORS through `@supabase/middleware/cors`, and the
+  RFC 9728 protected resource metadata and 401 challenge through
+  `withOAuthProtectedResource`. Upstream: `@supabase/middleware` and
+  `@supabase/server`.
+- **`audience` and `issuer` pinning** (`better-supabase/server`), passed to
+  `verifyCredentials`. Upstream: `@supabase/server` 1.7.
+- **`pgrst.db_schemas` in doctor** (`better-supabase doctor`). The Supabase
+  advisors report API-exposure lints for the schemas in `[api] schemas`.
+  Upstream: `supabase/splinter`.
+- **`tokens-only` cookies and the current `@supabase/ssr` patterns**
+  (`better-supabase/server`, `better-supabase/client`). Both sides read and
+  write the `tokens-only` encoding, `auth.userStorage` passes through, a
+  `cookieScopes` option migrates cookie domains and paths, and `jwtClaims` is
+  the documented check. Upstream: `@supabase/ssr` 0.12.
+- **PostgREST options in the executor** (`better-supabase`). `maxAffected`,
+  `retry`, `timeout`, `urlLengthLimit`, `defaultToNull` and mutated-row
+  counts per call and per connection. Upstream: supabase-js 2.117 and
+  postgrest-js.
+- **`gen` as a `GeneratorMetadata` stdin generator**
+  (`better-supabase gen --metadata`). Reads the document `@supabase/typegen` pipes to
+  out-of-process generators and prints one file on stdout. See
+  [gen](/docs/cli/gen#from-a-generatormetadata-document). Upstream:
+  `@supabase/postgrest-typegen` and `@supabase/typegen`.
+
+## Next
+
+Parity gaps with what Supabase ships today.
+
+- **Storage parity in `defineBucket`** (`better-supabase/storage`):
+  versioning and lifecycle rules, CDN purge and the cache nonce, vector
+  buckets, and analytics buckets with the Iceberg catalog. Upstream:
+  supabase-js 2.117.
+- **Feature flags** (`better-supabase/server`, `better-supabase/blocks/flags`).
+  `withOpenFeature` composes after the entries, since they contribute
+  `jwtClaims`, and a flags block serves flags per tenant and per user with
+  rollouts as an OpenFeature provider over Postgres, separate from plan
+  entitlements. Upstream: `@supabase-labs/middleware-openfeature` and
+  OpenFeature.
+- **Compiled JSON Schemas** (the `jsonb-schemas` SQL module). CHECK
+  constraints use `pg_jsonschema`'s compiled `jsonschema` type, and
+  `jsonschema_validation_errors` maps a failure to the `validation`
+  `DbError`, once the extension version the platform ships is verified.
+  Upstream: `supabase/pg_jsonschema`.
+- **Doctor deduplication and reserved roles** (`better-supabase doctor`).
+  BS codes that repeat a splinter lint defer to it, and a check flags SQL
+  modules that alter a reserved role. Upstream: `supabase/splinter` and
+  `supabase/supautils`.
+- **An event-trigger SQL module** (`better-supabase sql add`) that enables RLS
+  on every new table, through the privileged role. Upstream:
+  `supabase/supautils`.
+- **A diagnostics logger option** (`better-supabase`), following the
+  "Diagnostic Logging" capability. Upstream: the `supabase/sdk` capability
+  matrix.
+- **A `better-supabase` entry in the `@supabase/typegen` language registry**,
+  so `supabase gen types --lang better-supabase` runs `gen --metadata`. An
+  upstream pull request, now that the stdin generator ships. Upstream:
+  `@supabase/typegen`.
+
+## Later
+
+- **AsyncAPI 3 for realtime topics** (`better-supabase/realtime`): a document
+  describing each `defineTopic` channel and its payloads. Upstream: AsyncAPI 3.
+- **A machine-readable capability file** for better-supabase itself, in the
+  shape of the `supabase/sdk` capability matrix. Upstream: `supabase/sdk`.
+- **The remaining blocks.** These are standard in large SaaS apps and are
+  ranked by how often apps need them and how much they would reuse. Feature
+  flags are under Next.
+  1. **API keys** (`better-supabase/blocks/api-keys`): hashed keys per tenant
+     and per user, with scopes, prefixes, last-used tracking, rotation and
+     expiry, checked through the access contract and the `rate-limit` module.
+     Today an app writes its own
+     [`AuthResolver`](/docs/auth#custom-credentials).
+  2. **Billing** (`better-supabase/blocks/billing`): Stripe Checkout and
+     customer portal sessions, seat sync from memberships, and plan changes
+     handled through the webhook inbox. Today
+     [entitlements](/docs/blocks/entitlements) only read what the Stripe Sync
+     Engine stores. Upstream: Stripe.
+  3. **Audit log API** (`better-supabase/blocks/audit`): the `audit` SQL module
+     exists but has no TypeScript side. This block would add a typed list
+     query over the audit table, a per-tenant export and retention settings.
+  4. **Usage metering and quotas** (`better-supabase/blocks/usage`): counters
+     per tenant and period, quota checks in RLS and RPCs, and reporting to
+     Stripe meters. Upstream: Stripe.
+  5. **Enterprise identity** (`better-supabase/blocks/sso`): verified domains
+     that join users to an organization, Supabase SAML SSO per organization,
+     and SCIM 2.0 provisioning. Upstream: Supabase Auth and SCIM 2.0.
+  6. **Data lifecycle** (`better-supabase/blocks/data-lifecycle`): an export
+     of a user's or an organization's data, and organization deletion with a
+     grace period. Today only [account deletion](/docs/auth/account-deletion)
+     exists.
+  7. **Settings** (`better-supabase/blocks/settings`): typed settings per user
+     and per organization, validated with Standard Schema.
+  8. **Comments and activity** (`better-supabase/blocks/comments`): comments
+     on any record, mentions that feed the notifications block, and an
+     activity feed built from the outbox.
+  9. **Attachments** (`better-supabase/blocks/attachments`): records linked to
+     Storage objects, with tenant-scoped policies and a scan hook.
+  10. Lower priority: onboarding checklists, a waitlist with invite codes, and
+      in-app announcements.
+
+The [blocks overview](/docs/blocks) lists the blocks that exist today.
