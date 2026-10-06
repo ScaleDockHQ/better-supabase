@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/registry.ts";
 
 const billing = (options?: Record<string, unknown>) =>
   moduleBody("billing", {
@@ -35,6 +35,27 @@ describe("billing module", () => {
     expect(() =>
       billing({ plans: { table: "plans", key: "Bad Key" } }),
     ).toThrow(/lowercase identifier/);
+  });
+
+  it("references the tenant table through the mapping", () => {
+    expect(billing()).not.toContain("billing_customers_tenant_fkey");
+    expect(billing({ tenantKey: "app.accounts.account_id" })).toContain(
+      `foreign key ("organization_id") references "app"."accounts" ("account_id") on delete cascade`,
+    );
+    const withOrganizations = renderModules(["organizations", "billing"]).find(
+      (file) => file.module === "billing" && file.kind === "schema",
+    )!.contents;
+    expect(withOrganizations).toContain(
+      'constraint "billing_customers_tenant_fkey"\n      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade',
+    );
+    const off = renderModules(["organizations", "billing"], {
+      modules: { billing: { options: { tenantKey: false } } },
+    }).find((file) => file.module === "billing" && file.kind === "schema")!;
+    expect(off.contents).not.toContain("billing_customers_tenant_fkey");
+    expect(() => billing({ tenantKey: "accounts" })).toThrow(
+      /schema.table.column/,
+    );
+    expect(() => billing({ tenantKey: 1 })).toThrow(/or false/);
   });
 
   it("reads invoices, payment methods and the customer from the Sync Engine", () => {

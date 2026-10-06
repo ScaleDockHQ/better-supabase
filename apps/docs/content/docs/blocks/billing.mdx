@@ -15,7 +15,13 @@ better-supabase sql add billing entitlements   # adds tenant and access as well
 pnpm add stripe                                # optional: or pass your own client
 ```
 
-`billing_customers` maps `organization_id` to `stripe_customer_id`. With
+`billing_customers` maps `organization_id` to `stripe_customer_id`, with a
+foreign key to the tenant table (`billing_customers_tenant_fkey`, `on delete
+cascade`), so a deleted tenant takes its row along. The key references the
+[organizations](/docs/blocks/organizations) module's table when it is
+installed; set `options.tenantKey` to `"schema.table.column"` for your own
+tenant table, or to `false` for none. Existing rows without a tenant leave
+the key unvalidated, with a warning. With
 `billing` installed, the `entitlements` module reads it as its customer
 source, so you don't set `entitlements.customer`. Members with `billing.read`
 can read their tenant's row and `billing_status`; the default `admin` role

@@ -6,11 +6,16 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  addForeignKey,
+  columnRef,
+  schemaPreamble,
+  SERVICE_CALLER,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["seatRoles", "plans"],
+  options: ["seatRoles", "plans", "tenantKey"],
   tables: {
     customers: {
       name: "billing_customers",
@@ -115,6 +120,28 @@ grant execute on function ${fn}(text, text) to authenticated, service_role;
 `;
 }
 
+/**
+ * The tenant row `billing_customers` references: `options.tenantKey`
+ * (`schema.table.column`, `false` for none), else the organizations
+ * module's table when it is installed.
+ */
+function tenantReference(ctx: ModuleContext): string | undefined {
+  const configured = ctx.option("tenantKey");
+  if (configured === false) return undefined;
+  if (configured !== undefined) {
+    if (typeof configured !== "string") {
+      throw new TypeError(
+        'sql.modules.billing.options.tenantKey must be "schema.table.column" or false',
+      );
+    }
+    const ref = columnRef("sql.modules.billing.options.tenantKey", configured);
+    return `${ref.table} (${ref.column})`;
+  }
+  if (!ctx.installed("organizations")) return undefined;
+  const organizations = ctx.of("organizations");
+  return `${organizations.table("organizations")} (${organizations.col("organizations", "id")})`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
@@ -128,6 +155,17 @@ function build(ctx: ModuleContext): string {
   const can = (scope: string, action: "read" | "manage"): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${scope}, ${ctx.permission(action, permissions[action])}), false))`;
   const seatRoles = ctx.list("seatRoles", []);
+  const references = ctx.manages ? tenantReference(ctx) : undefined;
+  const tenantKey =
+    references === undefined
+      ? ""
+      : `${addForeignKey({
+          table: t,
+          name: "billing_customers_tenant_fkey",
+          column: c("tenant"),
+          references,
+          onDelete: "cascade",
+        })}\n`;
   const seatFilter =
     seatRoles.length === 0
       ? ""
@@ -145,7 +183,7 @@ alter table ${t} enable row level security;
 revoke all on ${t} from anon, authenticated;
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
-drop policy if exists "billing_customers_read" on ${t};
+${tenantKey}drop policy if exists "billing_customers_read" on ${t};
 create policy "billing_customers_read" on ${t} for select to authenticated
   using (${can(c("tenant"), "read")});
 
