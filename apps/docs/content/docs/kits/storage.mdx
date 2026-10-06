@@ -262,6 +262,20 @@ request. Failures become `DbError`s: `invalid_input` with status 413 or 415,
 for 5xx responses. TTL presets are `minute`, `hour`, `day` and `week`, or pass
 a number of seconds.
 
+`copy(from, to)` and `move(from, to)` copy or move an object to another path
+in the same bucket in one Storage request, and return the new path. Both
+paths are checked against the template (and the tenant, below) first; an
+object already at `to` is a `conflict`:
+
+```ts
+await storage
+  .copy(
+    { orgId, customerId, version: "v1" },
+    { orgId, customerId, version: "v2" },
+  )
+  .orThrow();
+```
+
 A page that renders the same object many times can reuse its signed URL:
 
 ```ts
@@ -278,7 +292,7 @@ per request and URLs signed for one user never reach another.
 Setting `tenant` on the bucket also makes connected clients check paths
 before they reach Storage, which matters for the secret-key client that
 policies don't limit. Every path the client builds, accepts, signs, uploads,
-removes or reserves must hold the caller's tenant in the `tenant.param`
+copies, moves, removes or reserves must hold the caller's tenant in the `tenant.param`
 segment (`{orgId}` by default), and `list()` lists only under it:
 
 ```ts

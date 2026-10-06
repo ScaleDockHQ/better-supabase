@@ -79,6 +79,23 @@ or time columns, which are sorted again after the merge. Other reads that are
 too long return `invalid_request`: page through a shorter list, or pass the
 list to a function. Set the limit with `defineSupabase(schema, { maxUrlLength })`.
 
+## Building a filter step by step
+
+`WhereInput` is read-only, like every argument type. The generated module
+exports `WhereOf<"table">`, the same shape with writable keys, for a filter
+you assemble one condition at a time:
+
+```ts
+import type { WhereOf } from "@/lib/supabase/generated";
+
+const where: WhereOf<"customers"> = {};
+if (status) where.status = status;
+if (search) where.name = { ilike: `%${search}%` };
+await db.customers.findMany({ where });
+```
+
+`MutableWhere<Models, T>` from `better-supabase` is the generic form.
+
 ## Combining
 
 ```ts

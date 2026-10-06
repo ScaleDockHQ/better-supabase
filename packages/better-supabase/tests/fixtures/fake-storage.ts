@@ -12,6 +12,8 @@ type Method =
   | "download"
   | "exists"
   | "remove"
+  | "copy"
+  | "move"
   | "list"
   | "createSignedUrl"
   | "createSignedUrls"
@@ -131,6 +133,38 @@ export function fakeStorage(
         if (failed) return failed;
         for (const path of paths) files.delete(key(path));
         return { data: paths.map((name) => ({ name })), error: null };
+      },
+      async copy(fromPath: string, toPath: string) {
+        const failed = record("copy", [fromPath, toPath]);
+        if (failed) return failed;
+        const file = files.get(key(fromPath));
+        if (!file)
+          return {
+            data: null,
+            error: storageError("Object not found", { statusCode: "404" }),
+          };
+        if (files.has(key(toPath)))
+          return {
+            data: null,
+            error: storageError("The resource already exists", {
+              statusCode: "409",
+            }),
+          };
+        files.set(key(toPath), file);
+        return { data: { path: toPath }, error: null };
+      },
+      async move(fromPath: string, toPath: string) {
+        const failed = record("move", [fromPath, toPath]);
+        if (failed) return failed;
+        const file = files.get(key(fromPath));
+        if (!file)
+          return {
+            data: null,
+            error: storageError("Object not found", { statusCode: "404" }),
+          };
+        files.delete(key(fromPath));
+        files.set(key(toPath), file);
+        return { data: { message: "Successfully moved" }, error: null };
       },
       async list(folder: string, opts?: { limit?: number; offset?: number }) {
         const failed = record("list", [folder, opts]);

@@ -140,6 +140,15 @@ export type WhereInput<M extends AnyModels, T extends keyof M> = {
   readonly NOT?: WhereInput<M, T>;
 };
 
+/**
+ * A `where` you build one statement at a time:
+ * `const where: MutableWhere<Models, "customers"> = {}; if (status) where.status = status;`.
+ * The generated module exports it per table as `WhereOf<"customers">`.
+ */
+export type MutableWhere<M extends AnyModels, T extends keyof M> = {
+  -readonly [K in keyof WhereInput<M, T>]?: WhereInput<M, T>[K];
+};
+
 // ---------------------------------------------------------------------------
 // Ordering, selection, includes
 

@@ -155,6 +155,19 @@ describe.skipIf(!live)("Storage kit", async () => {
     expect(rendered.searchParams.get("token")).toBeTruthy();
   });
 
+  it("copies and moves objects as the tenant user", async () => {
+    const target = { orgId: ACME, customerId: CUSTOMER, version: "v1" };
+    const copy = { ...target, version: "copy" };
+    const moved = { ...target, version: "moved" };
+    expect(await user.copy(target, copy).orThrow()).toEqual({
+      path: `${ACME}/${CUSTOMER}/logo/copy.webp`,
+    });
+    await user.move(copy, moved).orThrow();
+    expect(await user.exists(copy).orThrow()).toBe(false);
+    expect(await (await user.download(moved).orThrow()).text()).toBe("one");
+    await user.remove([moved]).orThrow();
+  });
+
   it("builds public render URLs the next/image loader keeps in sync", async () => {
     const target = { orgId: ACME, file: `${CUSTOMER}.webp` };
     await publicAdmin.upload(target, image("face"), { upsert: true }).orThrow();
