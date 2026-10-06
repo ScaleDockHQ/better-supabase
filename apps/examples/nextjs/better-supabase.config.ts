@@ -40,12 +40,19 @@ export default defineConfig({
   // The block files live in the repo's fixture, so the stack runs them.
   sql: {
     dir: "../../../supabase/schemas",
-    modules: [
-      "updated-at",
-      "read-sets",
-      "realtime-tables",
-      "rate-limit",
-      "vector-search",
-    ],
+    modules: {
+      "updated-at": {},
+      "read-sets": {},
+      "realtime-tables": {},
+      "rate-limit": {},
+      "vector-search": {},
+      tenant: { mode: "custom" },
+      access: { mode: "custom" },
+      // The fixture audits none of its CRM tables (doctor BS315).
+      audit: { options: { exempt: ["public.*"] } },
+      "api-keys": {},
+      settings: {},
+      comments: {},
+    },
   },
 });
