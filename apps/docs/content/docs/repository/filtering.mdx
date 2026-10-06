@@ -96,6 +96,19 @@ await db.customers.findMany({ where });
 
 `MutableWhere<Models, T>` from `better-supabase` is the generic form.
 
+`OrderByOf<"table">` types a sort you build outside the call, one term or a
+list:
+
+```ts
+import type { OrderByOf } from "@/lib/supabase/generated";
+
+const orderBy: OrderByOf<"customers"> =
+  sort === "newest" ? { createdAt: "desc" } : [{ name: "asc" }, { id: "asc" }];
+await db.customers.findMany({ where, orderBy });
+```
+
+`OrderByArg<Models, T>` from `better-supabase` is the generic form.
+
 ## Combining
 
 ```ts

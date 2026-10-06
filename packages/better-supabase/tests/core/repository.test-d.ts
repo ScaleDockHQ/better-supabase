@@ -17,6 +17,7 @@ import {
   type CustomersStatus,
   type TagsColor,
   type NoteKind,
+  type OrderByOf,
   type WhereOf,
 } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
@@ -121,6 +122,17 @@ describe("MutableWhere and WhereOf", () => {
       return db.customers.findMany({ where });
     };
     void filter;
+  });
+});
+
+describe("OrderByOf", () => {
+  it("types a sort built outside the call", () => {
+    const sort = (newest: boolean): OrderByOf<"customers"> =>
+      newest ? [{ createdAt: "desc" }, { name: "asc" }] : { name: "asc" };
+    void db.customers.findMany({ orderBy: sort(true) });
+    // @ts-expect-error not a column of customers
+    const wrong: OrderByOf<"customers"> = { nope: "asc" };
+    void wrong;
   });
 });
 
