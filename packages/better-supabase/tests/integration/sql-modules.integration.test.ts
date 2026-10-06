@@ -77,8 +77,12 @@ async function installSchemaModules(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // ensure-rls would enable RLS on every table later tests create, so it
+    // only runs in its own rolled-back transaction below.
     const names = Object.values(SQL_MODULES)
-      .filter((module) => module.target === "schema")
+      .filter(
+        (module) => module.target === "schema" && module.name !== "ensure-rls",
+      )
       .map((module) => module.name);
     for (const file of renderModules(names))
       if (file.kind !== "test") await client.query(file.contents);
@@ -161,6 +165,39 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("is idempotent", async () => {
     await installSchemaModules(pool);
+  });
+
+  it("ensure-rls enables RLS on new tables outside the managed schemas", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const [file] = renderModules(["ensure-rls"]);
+      await client.query(file!.contents);
+      await client.query(file!.contents);
+      await client.query(`
+        create table public.bs_rls_plain_${RUN} (id int);
+        create table public.bs_rls_as_${RUN} as select 1 as id;
+        select 1 as id into public.bs_rls_into_${RUN};
+        create table extensions.bs_rls_skipped_${RUN} (id int);
+      `);
+      const { rows } = await client.query<{
+        relname: string;
+        relrowsecurity: boolean;
+      }>(
+        `select relname, relrowsecurity from pg_class
+         where relname like $1 order by relname`,
+        [`bs_rls_%_${RUN}`],
+      );
+      expect(rows).toEqual([
+        { relname: `bs_rls_as_${RUN}`, relrowsecurity: true },
+        { relname: `bs_rls_into_${RUN}`, relrowsecurity: true },
+        { relname: `bs_rls_plain_${RUN}`, relrowsecurity: true },
+        { relname: `bs_rls_skipped_${RUN}`, relrowsecurity: false },
+      ]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
   });
 
   it("passes plpgsql_check (supabase db lint) without the app's hook functions", async () => {

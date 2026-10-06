@@ -1602,6 +1602,67 @@ const VECTOR_SEARCH: SqlModule = {
 -- (pgvector 0.8+) instead of returning fewer.`,
 };
 
+/** Schemas whose tables Supabase or Postgres own; the event trigger leaves them alone. */
+const ENSURE_RLS_SKIPPED_SCHEMAS = [
+  "auth",
+  "storage",
+  "realtime",
+  "_realtime",
+  "_analytics",
+  "extensions",
+  "graphql",
+  "graphql_public",
+  "vault",
+  "pgsodium",
+  "pgsodium_masks",
+  "net",
+  "cron",
+  "pgbouncer",
+  "supabase_functions",
+  "supabase_migrations",
+  "information_schema",
+];
+
+const ENSURE_RLS: SqlModule = {
+  name: "ensure-rls",
+  title: "RLS on every new table",
+  description:
+    "An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.",
+  requires: [],
+  target: "schema",
+  sql: `${SCHEMA}
+
+-- Runs after CREATE TABLE, CREATE TABLE AS and SELECT INTO. A table without
+-- policies then denies every API role until you add one.
+create or replace function better_supabase.enable_rls_on_new_table()
+returns event_trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  command record;
+begin
+  for command in
+    select objid, schema_name
+    from pg_event_trigger_ddl_commands()
+    where object_type = 'table'
+      and command_tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+  loop
+    continue when command.schema_name in (${ENSURE_RLS_SKIPPED_SCHEMAS.map((name) => `'${name}'`).join(", ")})
+      or command.schema_name like 'pg\\_%';
+    execute format('alter table %s enable row level security', command.objid::regclass);
+  end loop;
+end;
+$$;
+
+revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
+
+drop event trigger if exists bs_ensure_rls;
+create event trigger bs_ensure_rls on ddl_command_end
+  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+  execute function better_supabase.enable_rls_on_new_table();`,
+};
+
 /** New modules go at the end: the position is part of the file name. */
 export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
   Object.fromEntries(
@@ -1645,6 +1706,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ONBOARDING),
       built(WAITLIST),
       built(ANNOUNCEMENTS),
+      ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
 

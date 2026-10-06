@@ -103,6 +103,25 @@ describe("renderModules", () => {
   });
 });
 
+describe("ensure-rls", () => {
+  it("installs a replaceable event trigger that skips managed schemas", () => {
+    const [file] = renderModules(["ensure-rls"]);
+    expect(file!.path).toMatch(/_ensure_rls\.sql$/);
+    expect(file!.contents).toContain(
+      "drop event trigger if exists bs_ensure_rls;",
+    );
+    expect(file!.contents).toContain(
+      "create event trigger bs_ensure_rls on ddl_command_end",
+    );
+    expect(file!.contents).toContain(
+      "when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')",
+    );
+    for (const schema of ["auth", "storage", "realtime", "extensions"])
+      expect(file!.contents).toContain(`'${schema}'`);
+    expect(file!.contents).toContain(String.raw`like 'pg\_%'`);
+  });
+});
+
 describe("sameModuleFile", () => {
   it("ignores the version in the header only", () => {
     const [file] = renderModules(["updated-at"], { version: "1.2.0" });
