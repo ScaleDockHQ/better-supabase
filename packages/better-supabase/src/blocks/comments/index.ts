@@ -1,5 +1,7 @@
 export {
   type ActivityDescription,
+  type ActivityEntry,
+  type ActivityHistoryOptions,
   type ActivityFacet,
   activityListQuery,
   activitySink,

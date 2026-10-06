@@ -55,4 +55,29 @@ describe("comments module", () => {
   ])("rejects %j", (options, message) => {
     expect(() => sqlOf(["comments"], options)).toThrow(message);
   });
+
+  it("cascades subject deletes and checks the document with a JSON Schema", () => {
+    const sql = sqlOf(["jsonb-schemas", "comments"], {
+      subjects: {
+        task: { table: "app.tasks", cascade: true },
+        note: { table: "notes" },
+      },
+      documentSchema: { type: "object", required: ["type"] },
+    });
+    expect(sql).toContain('create trigger "bs_comments_task_cascade"');
+    expect(sql).toContain('after delete on "app"."tasks"');
+    expect(sql).not.toContain("bs_comments_note_cascade");
+    expect(sql).toContain("bs_json_document");
+    expect(() =>
+      sqlOf(["comments"], { documentSchema: { type: "object" } }),
+    ).toThrow(/add the jsonb-schemas module/);
+    expect(() =>
+      sqlOf(["comments"], { subjects: { task: { table: "t", bucket: "x" } } }),
+    ).toThrow(/subjects.task.bucket is not an option/);
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { task: { table: "t", cascade: "yes" } },
+      }),
+    ).toThrow(/cascade must be true or false/);
+  });
 });
