@@ -333,6 +333,20 @@ export const notATopic = { template: "x" };
     );
   });
 
+  it("never reuses a timestamp another tool's migration took", async () => {
+    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
+    await sql(["sync"], config);
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/39991231235959-permdock_seeds.sql"),
+      "",
+    );
+    await writeFile(join(root, "supabase/migrations/40000101000000.sql"), "");
+    expect((await sql(["data"], config)).output).toBe(
+      "Wrote supabase/migrations/40000101000001_better_supabase_module_data.sql",
+    );
+  });
+
   it("puts migrations next to the config.toml above sql.dir", async () => {
     await mkdir(join(root, "db/supabase/schemas"), { recursive: true });
     await writeFile(join(root, "db/supabase/config.toml"), "");

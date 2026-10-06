@@ -323,8 +323,13 @@ const migrationStamp = (now: Date): string =>
  * stamp, and the data has to run after the schema.
  */
 function stampAfter(migrations: readonly string[], now: Date): string {
+  // Every name that starts with 14 digits counts, whatever follows them
+  // (another tool's `<stamp>-seeds.sql` or `<stamp>.sql`), so the data
+  // migration never shares a timestamp with one.
   const newest = migrations
-    .map((name) => /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name))
+    .map((name) =>
+      /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?!\d)/.exec(name),
+    )
     .filter((match) => match !== null)
     .map((match) =>
       Date.UTC(
