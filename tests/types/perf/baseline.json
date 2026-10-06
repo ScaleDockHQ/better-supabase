@@ -1,7 +1,7 @@
 {
   "calibration": {
-    "ts6": 0.11,
-    "ts7": 0.021
+    "ts6": 0.1,
+    "ts7": 0.022
   },
   "profiles": {
     "default": {
@@ -10,20 +10,20 @@
       "composite": false,
       "measurement": {
         "ts6": {
-          "types": 11869,
-          "instantiations": 33847,
-          "checkTime": 0.18
+          "types": 12154,
+          "instantiations": 35993,
+          "checkTime": 0.17
         },
         "ts7": {
-          "types": 15989,
-          "instantiations": 33855,
+          "types": 16857,
+          "instantiations": 37320,
           "checkTime": 0.024
         }
       },
       "gen": {
-        "cold": 0.17,
-        "warm": 0.17,
-        "incremental": 0.17
+        "cold": 0.16,
+        "warm": 0.16,
+        "incremental": 0.16
       }
     },
     "centrakit": {
@@ -32,20 +32,20 @@
       "composite": true,
       "measurement": {
         "ts6": {
-          "types": 15666,
-          "instantiations": 37870,
-          "checkTime": 0.25
+          "types": 15951,
+          "instantiations": 40016,
+          "checkTime": 0.22
         },
         "ts7": {
-          "types": 21826,
-          "instantiations": 37875,
-          "checkTime": 0.038
+          "types": 22694,
+          "instantiations": 41340,
+          "checkTime": 0.037
         }
       },
       "gen": {
-        "cold": 0.18,
-        "warm": 0.18,
-        "incremental": 0.18
+        "cold": 0.17,
+        "warm": 0.17,
+        "incremental": 0.17
       }
     }
   }
