@@ -98,7 +98,7 @@ describe("renderModules", () => {
       for (const file of files.filter((entry) => entry.kind === "data")) {
         expect(file.path).toMatch(/\/better-supabase-data\/[^/]+\.sql$/);
         expect(file.contents).not.toMatch(
-          /^(create(?! extension if not exists "\w+";$)|drop|alter table)\b/im,
+          /^(create(?! extension if not exists "\w+"( with schema "\w+")?;$)|drop|alter table)\b/im,
         );
       }
     }
@@ -140,14 +140,21 @@ describe("renderModules", () => {
     expect(unwrapped).toEqual([]);
   });
 
-  it("creates the extensions a module owns in its data file", () => {
-    const data = (layout = {}) =>
-      renderModules(["jobs"], layout).find((file) => file.kind === "data")!
-        .contents;
-    expect(data()).toContain('create extension if not exists "pgmq";');
+  it("creates the extensions a module's schema file creates in its data file", () => {
+    const data = (name: string, layout = {}) =>
+      renderModules([name], layout).find(
+        (file) => file.kind === "data" && file.module === name,
+      )!.contents;
+    expect(data("jobs")).toContain('create extension if not exists "pgmq";');
     expect(
-      data({ modules: { jobs: { options: { backend: "table" } } } }),
+      data("jobs", { modules: { jobs: { options: { backend: "table" } } } }),
     ).not.toContain("create extension");
+    expect(data("jsonb-schemas")).toContain(
+      'create extension if not exists "pg_jsonschema" with schema "extensions";',
+    );
+    expect(data("flags")).toContain(
+      'create extension if not exists "pgcrypto" with schema "extensions";',
+    );
   });
 });
 

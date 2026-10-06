@@ -133,12 +133,6 @@ export interface SqlModule {
    * (`sql data`) instead of the schema file.
    */
   readonly data?: (ctx: ModuleContext, layout: ModuleLayout) => string;
-  /**
-   * Extensions the module creates in an extension-owned schema (`pgmq`).
-   * A schema diff can leave them out of the migration, so the data file
-   * creates them too (`create extension if not exists`).
-   */
-  readonly extensions?: (ctx: ModuleContext) => readonly string[];
   /** pgTAP files for this layout, written to the tests folder next to the `pgtap` module's. */
   readonly tests?: (
     ctx: ModuleContext,
@@ -2912,6 +2906,28 @@ function moduleDataPath(module: SqlModule, layout: ModuleLayout): string {
 /** The `@bs-module-data` line of a data file. */
 const MODULE_DATA_MARKER: RegExp = /^-- @bs-module-data ([a-z0-9-]+)$/m;
 
+const CREATE_EXTENSION =
+  /^create extension if not exists "?([a-z_][a-z0-9_]*)"?(?: with schema "?([a-z_][a-z0-9_]*)"?)?;/gim;
+
+/**
+ * The extensions a module's schema file creates, again for its data file. A
+ * schema diff can leave an extension out of the migration (pg-delta skips
+ * one in a schema it doesn't manage, such as `extensions` or pgmq's own),
+ * and `sql data` then still puts it in one.
+ */
+function moduleExtensions(body: string): string {
+  const seen = new Set<string>();
+  return [...body.matchAll(CREATE_EXTENSION)]
+    .flatMap(([, name = "", schema]) => {
+      if (seen.has(name)) return [];
+      seen.add(name);
+      return [
+        `create extension if not exists ${sqlIdent(name)}${schema === undefined ? "" : ` with schema ${sqlIdent(schema)}`};`,
+      ];
+    })
+    .join("\n");
+}
+
 /** Whether `contents` is a data file `renderModules` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>
   MODULE_DATA_MARKER.test(contents);
@@ -2961,9 +2977,7 @@ export function renderModules(
       ];
     }
     const data = [
-      (module.extensions?.(ctx) ?? [])
-        .map((name) => `create extension if not exists ${sqlIdent(name)};`)
-        .join("\n"),
+      moduleExtensions(body),
       module.data?.(ctx, layout).trim() ?? "",
       moduleRow(module, ctx.mode),
     ]
