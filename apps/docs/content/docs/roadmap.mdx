@@ -85,36 +85,5 @@ Parity gaps with what Supabase ships today.
   describing each `defineTopic` channel and its payloads. Upstream: AsyncAPI 3.
 - **A machine-readable capability file** for better-supabase itself, in the
   shape of the `supabase/sdk` capability matrix. Upstream: `supabase/sdk`.
-- **The remaining blocks.** These are standard in large SaaS apps and are
-  ranked by how often apps need them and how much they would reuse.
-  1. **API keys** (`better-supabase/blocks/api-keys`): hashed keys per tenant
-     and per user, with scopes, prefixes, last-used tracking, rotation and
-     expiry, checked through the access contract and the `rate-limit` module.
-     Today an app writes its own
-     [`AuthResolver`](/docs/auth#custom-credentials).
-  2. **Billing** (`better-supabase/blocks/billing`): Stripe Checkout and
-     customer portal sessions, seat sync from memberships, and plan changes
-     handled through the webhook inbox. Today
-     [entitlements](/docs/blocks/entitlements) only read what the Stripe Sync
-     Engine stores. Upstream: Stripe.
-  3. **Usage metering and quotas** (`better-supabase/blocks/usage`): counters
-     per tenant and period, quota checks in RLS and RPCs, and reporting to
-     Stripe meters. Upstream: Stripe.
-  4. **Enterprise identity** (`better-supabase/blocks/sso`): verified domains
-     that join users to an organization, Supabase SAML SSO per organization,
-     and SCIM 2.0 provisioning. Upstream: Supabase Auth and SCIM 2.0.
-  5. **Data lifecycle** (`better-supabase/blocks/data-lifecycle`): an export
-     of a user's or an organization's data, and organization deletion with a
-     grace period. Today only [account deletion](/docs/auth/account-deletion)
-     exists.
-  6. **Settings** (`better-supabase/blocks/settings`): typed settings per user
-     and per organization, validated with Standard Schema.
-  7. **Comments and activity** (`better-supabase/blocks/comments`): comments
-     on any record, mentions that feed the notifications block, and an
-     activity feed built from the outbox.
-  8. **Attachments** (`better-supabase/blocks/attachments`): records linked to
-     Storage objects, with tenant-scoped policies and a scan hook.
-  9. Lower priority: onboarding checklists, a waitlist with invite codes, and
-     in-app announcements.
 
-The [blocks overview](/docs/blocks) lists the blocks that exist today.
+The [blocks overview](/docs/blocks) lists the blocks that ship today.

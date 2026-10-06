@@ -165,7 +165,7 @@ function build(ctx: ModuleContext): string {
   const can = (tenant: string): string =>
     `coalesce(better_supabase.can('tenant', ${tenant}, ${key}), false)`;
   const actorCan = (tenant: string, actor: string): string =>
-    `(${actor} is null or coalesce(better_supabase.member_can(${actor}, ${tenant}, ${key}), false))`;
+    `(${actor} is null or coalesce(better_supabase.can_user(${actor}, 'tenant', ${tenant}, ${key}), false))`;
   const tenant = ctx.of("tenant");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");

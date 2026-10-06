@@ -78,6 +78,18 @@ lists the steps to move to pg-delta.
 | `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/blocks/notifications)           |
 | `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks-out) |
 | `webhooks-in`      | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox. See [Incoming webhooks](/docs/blocks/webhooks-in)                              |
+| `api-keys`         | `api_keys` with only the SHA-256 of each secret, `create_api_key`, `rotate_api_key`, `revoke_api_key`, `verify_api_key(public_id, secret_hash)` for the server and `has_scope(scope)` for policies. See [API keys](/docs/blocks/api-keys)                        |
+| `settings`         | Per-user and per-organization settings with defaults, `get_user_settings()`, `set_organization_setting(tenant, key, value)` and the reset functions. See [Settings](/docs/blocks/settings)                                                                       |
+| `usage`            | Usage counters per tenant, meter and period, `record_usage` with idempotency keys, quotas per tenant or plan, and `within_quota(tenant, meter)` and `consume_quota` for RLS and RPCs. See [Usage and quotas](/docs/blocks/usage)                                 |
+| `billing`          | Stripe customers per tenant, `billing_status(tenant)`, `billing_seat_count(tenant)` and `link_billing_customer`. See [Billing](/docs/blocks/billing)                                                                                                             |
+| `flags`            | Flags with targeting rules, overrides and percentage rollouts, and `flag_enabled(key)` for policies, bucketed the same way as the TypeScript provider. See [Feature flags](/docs/blocks/flags)                                                                   |
+| `comments`         | Threaded comments on any record with mentions, `create_comment`, `list_comments`, and an activity feed built from outbox events. See [Comments and activity](/docs/blocks/comments)                                                                              |
+| `attachments`      | Attachment records linked to Storage objects, tenant-scoped Storage policies, and a scan status that gates downloads. See [Attachments](/docs/blocks/attachments)                                                                                                |
+| `data-lifecycle`   | Data exports per user or organization, `request_organization_deletion(tenant)` with a grace period, `cancel_organization_deletion` and `purge_organization`. See [Data lifecycle](/docs/blocks/data-lifecycle)                                                   |
+| `sso`              | Verified organization domains with auto-join, SAML providers per organization, SSO enforcement in the access token hook and the SCIM user and group functions. See [SSO and SCIM](/docs/blocks/sso)                                                              |
+| `onboarding`       | `onboarding_progress` per user or organization, `complete_onboarding_step(checklist, step, tenant)` and a trigger that completes steps from outbox events. See [Onboarding](/docs/blocks/onboarding)                                                             |
+| `waitlist`         | `join_waitlist(email)`, approvals, hashed invite codes with use limits and an optional organization, and a trigger that redeems the code on sign-up. See [Waitlist and invite codes](/docs/blocks/waitlist)                                                      |
+| `announcements`    | Announcements with audiences, a time window and severity, `active_announcements(tenant)`, `dismiss_announcement(id)` and a broadcast on a Realtime topic. See [Announcements](/docs/blocks/announcements)                                                        |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
@@ -291,7 +303,10 @@ registered yet and returns how many. Doctor [BS315](/docs/cli/doctor#bs315)
 flags any table left out.
 
 The [audit block](/docs/blocks/audit) reads the log from TypeScript: a list
-query, revealing restricted details and CSV exports.
+query, NDJSON and OCSF exports, and retention per tenant. In SQL,
+`list_audit_events` lists the entries the caller can read, and
+`reveal_audit_entry(entry)` returns an entry's restricted details and records
+the read as `audit.revealed`.
 
 ## Retention
 
