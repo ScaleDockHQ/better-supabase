@@ -223,6 +223,15 @@ const ConfigSchema = v.strictObject({
           }),
         ]),
       ),
+      claim: v.optional(
+        v.union([
+          v.literal(false),
+          v.strictObject({
+            maxTenants: v.optional(v.number()),
+            keys: v.optional(stringRecord),
+          }),
+        ]),
+      ),
     }),
   ),
   permdock: v.optional(
@@ -250,6 +259,9 @@ const ConfigSchema = v.strictObject({
           ),
           boost: v.optional(v.string()),
           prefilter: v.optional(strings),
+          predicate: v.optional(v.string()),
+          boostMode: v.optional(v.picklist(["multiply", "add"])),
+          order: v.optional(v.string()),
         }),
       ]),
     ),
