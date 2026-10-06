@@ -8,11 +8,12 @@ import type {
   PermdockBucketPolicy,
 } from "../schema/types.ts";
 import type { PathIn, StoragePath } from "./path.ts";
+import type { TtlPreset } from "./ttl.ts";
 
 import { tenantClaimPaths } from "../core/claims.ts";
 import { type DbError, DbException, dbError } from "../core/errors.ts";
 import {
-  AsyncResult,
+  type AsyncResult,
   err,
   ok,
   type Result,
@@ -25,12 +26,18 @@ import {
   type TemplateParams,
   type TemplateValues,
 } from "../core/template.ts";
-import { temporalMissing } from "../core/temporal-required.ts";
-import { optionalTemporal } from "../core/temporal.ts";
-import { fromStorageError } from "./errors.ts";
-import { inScope, pathLayouts } from "./layouts.ts";
+import { type AppliedBucket, applyBucket } from "./apply.ts";
+import { connectBucket } from "./connect.ts";
+import { pathLayouts } from "./layouts.ts";
 import { policyChecks } from "./policy.ts";
-import { type TenantGuard, tenantGuard } from "./tenant-scope.ts";
+import { tenantGuard } from "./tenant-scope.ts";
+import {
+  type BucketLifecycle,
+  lifecyclePayload,
+  type ObjectVersion,
+  sameLifecycle,
+  type VersioningStatus,
+} from "./versioning.ts";
 
 export type BucketPolicy =
   | BucketPolicyName
@@ -84,6 +91,16 @@ export interface BucketConfig<
   /** `['image/png', 'image/*']`. */
   readonly allowedMimeTypes?: readonly string[];
   /**
+   * Keep earlier versions of an object when it is overwritten or removed.
+   * Set by `apply()` through the Storage API; `sql()` can't write it.
+   */
+  readonly versioning?: boolean;
+  /**
+   * When noncurrent versions expire. Needs `versioning: true`; set by
+   * `apply()`, which removes a stored policy when this is unset.
+   */
+  readonly lifecycle?: BucketLifecycle;
+  /**
    * The tenant segment. Set it and connected clients only touch paths whose
    * `param` holds the caller's tenant: pass `{ context }` or `{ tenant }` to
    * `connect()`, or `{ allTenants: true }` for cross-tenant admin work.
@@ -116,13 +133,7 @@ export type ObjectTarget<P extends string, Id extends string = string> =
   | PathValues<P>
   | PathIn<Id>;
 
-export const TTL = {
-  minute: 60,
-  hour: 3600,
-  day: 86_400,
-  week: 604_800,
-} as const;
-export type TtlPreset = keyof typeof TTL;
+export { TTL, type TtlPreset } from "./ttl.ts";
 
 export interface TransformOptions {
   readonly width?: number;
@@ -154,6 +165,27 @@ export interface UrlOptions {
   readonly transform?: TransformOptions;
   /** Serve as an attachment, optionally with a file name. */
   readonly download?: boolean | string;
+  /** Added to the URL so the CDN and browsers fetch it again, e.g. the object's `updatedAt`. */
+  readonly cacheNonce?: string;
+  /** A URL for this version of the object instead of the current one (a versioned bucket). */
+  readonly versionId?: string;
+}
+
+export interface DownloadOptions {
+  /** Read this version of the object instead of the current one. */
+  readonly versionId?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface TransferOptions {
+  /** Copy or move this version of the source instead of the current one. */
+  readonly versionId?: string;
+}
+
+export interface PurgeCacheOptions {
+  /** Purge only the transformed variants and keep the cached original. */
+  readonly transformations?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 export interface StoredObject {
@@ -217,7 +249,13 @@ export interface SweepResult {
 }
 
 export interface BucketDrift {
-  readonly field: "missing" | "public" | "fileSizeLimit" | "allowedMimeTypes";
+  readonly field:
+    | "missing"
+    | "public"
+    | "fileSizeLimit"
+    | "allowedMimeTypes"
+    | "versioning"
+    | "lifecycle";
   readonly expected: unknown;
   readonly actual: unknown;
   readonly message: string;
@@ -228,6 +266,10 @@ export interface ActualBucket {
   readonly public: boolean;
   readonly fileSizeLimit?: number | null;
   readonly allowedMimeTypes?: readonly string[] | null;
+  /** `storage.buckets.versioning_status`; leave it out when Storage has no versioning, and it isn't compared. */
+  readonly versioning?: VersioningStatus | null;
+  /** `storage.buckets.lifecycle_configuration`; leave it out to skip the comparison. */
+  readonly lifecycle?: unknown;
 }
 
 export type StorageClient = Pick<SupabaseClient, "storage">;
@@ -243,7 +285,7 @@ export interface BucketClient<P extends string, Id extends string = string> {
   ): AsyncResult<{ path: StoragePath<Id> }>;
   download(
     target: ObjectTarget<P, Id>,
-    options?: { signal?: AbortSignal },
+    options?: DownloadOptions,
   ): AsyncResult<Blob>;
   exists(target: ObjectTarget<P, Id>): AsyncResult<boolean>;
   remove(
@@ -253,12 +295,32 @@ export interface BucketClient<P extends string, Id extends string = string> {
   copy(
     from: ObjectTarget<P, Id>,
     to: ObjectTarget<P, Id>,
+    options?: TransferOptions,
   ): AsyncResult<{ path: StoragePath<Id> }>;
   /** Moves an object to another path in the bucket, as one Storage request. */
   move(
     from: ObjectTarget<P, Id>,
     to: ObjectTarget<P, Id>,
+    options?: TransferOptions,
   ): AsyncResult<{ path: StoragePath<Id> }>;
+  /** Every version of the object, newest first, including delete markers. */
+  versions(
+    target: ObjectTarget<P, Id>,
+    options?: { signal?: AbortSignal },
+  ): AsyncResult<readonly ObjectVersion[]>;
+  /** Permanently removes versions of the object, current or noncurrent. */
+  removeVersions(
+    target: ObjectTarget<P, Id>,
+    versionIds: readonly string[],
+  ): AsyncResult<readonly string[]>;
+  /**
+   * Purges the CDN cache for the object. Needs the secret key, and on
+   * self-hosted Storage a configured CDN purge endpoint.
+   */
+  purgeCache(
+    target: ObjectTarget<P, Id>,
+    options?: PurgeCacheOptions,
+  ): AsyncResult<void>;
   list(
     within?: Partial<TemplateValues<P>>,
     options?: { signal?: AbortSignal },
@@ -324,6 +386,8 @@ export interface Bucket<P extends string, Id extends string = string> {
   readonly tenant: string | undefined;
   readonly fileSizeLimit: number | undefined;
   readonly allowedMimeTypes: readonly string[] | undefined;
+  readonly versioning: boolean;
+  readonly lifecycle: BucketLifecycle | undefined;
   /**
    * Builds a path with the template whose placeholders are exactly the keys
    * of `values`. A value Storage would refuse, or keys no template takes, is
@@ -341,6 +405,12 @@ export interface Bucket<P extends string, Id extends string = string> {
   /** A `[storage.buckets.<id>]` section for `supabase/config.toml`. */
   toml(): string;
   drift(actual: ActualBucket | undefined): readonly BucketDrift[];
+  /**
+   * Creates or updates the bucket through the Storage API, including
+   * versioning and the lifecycle policy, which `sql()` can't set. Needs the
+   * secret key. Idempotent.
+   */
+  apply(client: StorageClient): AsyncResult<AppliedBucket>;
   connect(
     client: StorageClient,
     options?: BucketConnectOptions,
@@ -448,6 +518,14 @@ export function defineBucket<
       ? undefined
       : parseSize(config.fileSizeLimit);
   const allowedMimeTypes = config.allowedMimeTypes;
+  const versioning = config.versioning ?? false;
+  if (config.lifecycle && !versioning)
+    throw new TypeError(
+      `defineBucket("${config.id}"): lifecycle expires noncurrent versions, so it needs versioning: true`,
+    );
+  const lifecycle = config.lifecycle
+    ? lifecyclePayload(config.id, config.lifecycle)
+    : undefined;
   const segmentFor = (param: string, kind: string): number =>
     layouts.segmentOf(param, kind);
   const tenantParam = config.tenant
@@ -557,6 +635,8 @@ export function defineBucket<
     policy,
     fileSizeLimit,
     allowedMimeTypes,
+    versioning,
+    lifecycle: config.lifecycle,
     path: (values) => {
       try {
         // SAFETY: the template builds the path from typed values.
@@ -738,8 +818,43 @@ export function defineBucket<
           message: `Bucket "${config.id}" allowed MIME types differ`,
         });
       }
+      if (
+        actual.versioning !== undefined &&
+        actual.versioning !== null &&
+        (actual.versioning === "ENABLED") !== versioning
+      ) {
+        issues.push({
+          field: "versioning",
+          expected: versioning ? "ENABLED" : "DISABLED or SUSPENDED",
+          actual: actual.versioning,
+          message: `Bucket "${config.id}" versioning is ${actual.versioning}`,
+        });
+      }
+      if (
+        actual.lifecycle !== undefined &&
+        !sameLifecycle(lifecycle, actual.lifecycle)
+      ) {
+        issues.push({
+          field: "lifecycle",
+          expected: lifecycle ?? null,
+          actual: actual.lifecycle,
+          message: `Bucket "${config.id}" lifecycle policy differs`,
+        });
+      }
       return issues;
     },
+    apply: (client) =>
+      applyBucket(
+        {
+          id: config.id,
+          public: bucket.public,
+          fileSizeLimit,
+          allowedMimeTypes,
+          versioning,
+          lifecycle,
+        },
+        client,
+      ),
     connect: (client, options = {}) =>
       connectBucket(
         bucket,
@@ -756,373 +871,4 @@ export function defineBucket<
       ),
   };
   return bucket;
-}
-
-function bodyInfo(
-  body: UploadBody,
-  contentType: string | undefined,
-): { size?: number; type?: string } {
-  const info: { size?: number; type?: string } = {};
-  if (typeof Blob !== "undefined" && body instanceof Blob) {
-    info.size = body.size;
-    if (body.type) info.type = body.type;
-  } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
-    info.size = body.byteLength;
-  }
-  if (contentType) info.type = contentType;
-  return info;
-}
-
-function ttlSeconds(ttl: number | TtlPreset | undefined): number {
-  return typeof ttl === "number" ? ttl : TTL[ttl ?? "hour"];
-}
-
-function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
-  // SAFETY: value is a non-null object here, and each property read is type-checked.
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { ok?: unknown }).ok === false &&
-    "error" in value
-  );
-}
-
-function connectBucket<P extends string, Id extends string>(
-  bucket: Bucket<P, Id>,
-  client: StorageClient,
-  resolveTarget: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
-  connectOptions: BucketConnectOptions,
-  guard: TenantGuard | undefined,
-): BucketClient<P, Id> {
-  const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
-    const path = resolveTarget(target);
-    return guard ? guard.path(path) : path;
-  };
-  const scopedWithin = (
-    within: Partial<TemplateValues<P>> | undefined,
-  ): Partial<TemplateValues<P>> =>
-    guard ? { ...within, [guard.param]: guard.within(within) } : (within ?? {});
-  const api = () => client.storage.from(bucket.id);
-  const signed = connectOptions.cacheSignedUrls
-    ? new Map<string, { readonly url: string; readonly until: number }>()
-    : undefined;
-  const run = <T>(
-    fn: () => PromiseLike<{ data: T; error: unknown }>,
-  ): AsyncResult<NonNullable<T>> =>
-    AsyncResult.from(async () => {
-      try {
-        const { data, error } = await fn();
-        // SAFETY: the null check above excludes null data.
-        return error || data === null
-          ? err(fromStorageError(error, bucket.id))
-          : ok(data as NonNullable<T>);
-      } catch (cause) {
-        return err(fromStorageError(cause, bucket.id));
-      }
-    });
-  const fileOptions = (
-    options: UploadOptions | undefined,
-    contentType: string | undefined,
-  ) => ({
-    ...(contentType ? { contentType } : {}),
-    ...(options?.cacheControl ? { cacheControl: options.cacheControl } : {}),
-    ...(options?.metadata ? { metadata: { ...options.metadata } } : {}),
-    upsert: options?.upsert ?? false,
-  });
-  const download = (value: boolean | string | undefined) =>
-    value === undefined ? {} : { download: value };
-
-  const upload: BucketClient<P, Id>["upload"] = (target, body, options) =>
-    AsyncResult.from(async () => {
-      options?.signal?.throwIfAborted();
-      const path = resolve(target);
-      const contentType = options?.contentType;
-      const problem = bucket.check(bodyInfo(body, contentType));
-      if (problem) return err(problem);
-      return run(() =>
-        api().upload(path, body, fileOptions(options, contentType)),
-      ).map(() => ({ path }));
-    });
-
-  const remove: BucketClient<P, Id>["remove"] = (targets) =>
-    AsyncResult.from(async () => {
-      const paths = targets.map(resolve);
-      if (paths.length === 0) return ok([]);
-      return run(() => api().remove(paths)).map(() => paths);
-    });
-
-  const transfer =
-    (method: "copy" | "move"): BucketClient<P, Id>["copy"] =>
-    (from, to) =>
-      AsyncResult.from(async () => {
-        const [source, path] = [resolve(from), resolve(to)];
-        const result = run<unknown>(() => api()[method](source, path));
-        return result.map(() => ({ path }));
-      });
-
-  const walk = async (
-    folder: string,
-    signal: AbortSignal | undefined,
-    out: StoredObject[],
-  ) => {
-    const limit = 1000;
-    for (let offset = 0; ; offset += limit) {
-      signal?.throwIfAborted();
-      const { data, error } = await api().list(
-        folder,
-        { limit, offset, sortBy: { column: "name", order: "asc" } },
-        signal ? { signal } : {},
-      );
-      if (error) throw new DbException(fromStorageError(error, bucket.id));
-      for (const item of data) {
-        const path = folder ? `${folder}/${item.name}` : item.name;
-        if (item.id === null) await walk(path, signal, out);
-        else {
-          // SAFETY: Storage returns object metadata as JSON with optional size
-          // and type fields.
-          const metadata = (item.metadata ?? {}) as {
-            size?: number;
-            mimetype?: string;
-          };
-          out.push({
-            path,
-            ...(typeof metadata.size === "number"
-              ? { size: metadata.size }
-              : {}),
-            ...(metadata.mimetype ? { contentType: metadata.mimetype } : {}),
-            createdAt: item.created_at,
-            updatedAt: item.updated_at,
-          });
-        }
-      }
-      if (data.length < limit) return;
-    }
-  };
-
-  const list: BucketClient<P, Id>["list"] = (within, options) =>
-    AsyncResult.from(async () => {
-      const out: StoredObject[] = [];
-      await walk(bucket.prefix(scopedWithin(within)), options?.signal, out);
-      return ok(out);
-    }).mapError((error) => ({ ...error, table: bucket.id }));
-
-  const signedUrl: BucketClient<P, Id>["signedUrl"] = (target, options) =>
-    AsyncResult.from(async () => {
-      const path = resolve(target);
-      const ttl = ttlSeconds(options?.ttl);
-      const key = signed
-        ? JSON.stringify([path, ttl, options?.transform, options?.download])
-        : "";
-      const cached = signed?.get(key);
-      if (cached && cached.until > Date.now()) return ok(cached.url);
-      const result = await run(() =>
-        api().createSignedUrl(path, ttl, {
-          ...download(options?.download),
-          ...(options?.transform
-            ? { transform: { ...options.transform } }
-            : {}),
-        }),
-      ).map((data) => data.signedUrl);
-      if (signed && result.ok) {
-        const margin = Math.min(60, ttl / 10);
-        signed.set(key, {
-          url: result.data,
-          until: Date.now() + (ttl - margin) * 1000,
-        });
-      }
-      return result;
-    });
-
-  return {
-    bucket,
-    path: (target) => {
-      try {
-        return ok(resolve(target));
-      } catch (cause) {
-        return err(toDbError(cause));
-      }
-    },
-    upload,
-    download: (target, options) =>
-      AsyncResult.from(async () => {
-        const path = resolve(target);
-        return run(() =>
-          api().download(
-            path,
-            {},
-            options?.signal ? { signal: options.signal } : {},
-          ),
-        );
-      }),
-    exists: (target) =>
-      AsyncResult.from(async () => {
-        const path = resolve(target);
-        const found = await api().exists(path);
-        if (!found.data) return ok(false);
-        return found.error
-          ? err(fromStorageError(found.error, bucket.id))
-          : ok(true);
-      }),
-    remove,
-    copy: transfer("copy"),
-    move: transfer("move"),
-    list,
-    signedUrl,
-    signedUrls: (targets, options) =>
-      AsyncResult.from(async () => {
-        const paths = targets.map(resolve);
-        if (paths.length === 0) return ok([]);
-        return run(() =>
-          api().createSignedUrls(
-            paths,
-            ttlSeconds(options?.ttl),
-            download(options?.download),
-          ),
-        ).andThen((data) => {
-          const failed = data.find(
-            (entry) => entry.error != null || !entry.signedUrl,
-          );
-          if (failed)
-            return Promise.resolve(
-              err(
-                dbError(
-                  "not_found",
-                  failed.error ?? `No URL for ${String(failed.path)}`,
-                  { table: bucket.id },
-                ),
-              ),
-            );
-          // SAFETY: the failure check above returned early, so every entry has
-          // a signed URL.
-          return Promise.resolve(ok(data.map((entry) => entry.signedUrl!)));
-        });
-      }),
-    publicUrl(target, options) {
-      try {
-        return ok(
-          api().getPublicUrl(resolve(target), {
-            ...download(options?.download),
-            ...(options?.transform
-              ? { transform: { ...options.transform } }
-              : {}),
-          }).data.publicUrl,
-        );
-      } catch (cause) {
-        return err(toDbError(cause));
-      }
-    },
-    renderUrl(target, transform, options) {
-      if (!bucket.public) return signedUrl(target, { ...options, transform });
-      return AsyncResult.from(() =>
-        Promise.resolve(
-          ok(
-            api().getPublicUrl(resolve(target), {
-              ...download(options?.download),
-              transform: { ...transform },
-            }).data.publicUrl,
-          ),
-        ),
-      );
-    },
-    replace: (target, body, options = {}) =>
-      AsyncResult.from<ReplaceResult<Id>>(async () => {
-        const path = resolve(target);
-        const previous =
-          options.previous == null ? null : resolve(options.previous);
-        const same = previous === path;
-        const uploaded = await upload(path, body, {
-          ...options,
-          upsert: same || (options.upsert ?? false),
-        });
-        if (!uploaded.ok) return uploaded;
-        const undo = async (error: DbError) => {
-          if (!same) await remove([path]);
-          return err(error);
-        };
-        try {
-          options.signal?.throwIfAborted();
-          const outcome: unknown = await options.commit?.(path);
-          if (isErrorResult(outcome)) return await undo(outcome.error);
-        } catch (cause) {
-          return undo(fromStorageError(cause, bucket.id));
-        }
-        if (!previous || same) return ok({ path, removed: null });
-        const removed = await run(() => api().remove([previous]));
-        return ok(
-          removed.ok
-            ? { path, removed: previous }
-            : { path, removed: null, cleanup: removed.error },
-        );
-      }),
-    reserve: (target, options) =>
-      AsyncResult.from(async () => {
-        const path = resolve(target);
-        return run(() =>
-          api().createSignedUploadUrl(
-            path,
-            options?.upsert ? { upsert: true } : undefined,
-          ),
-        ).map((data) => ({
-          path: data.path,
-          token: data.token,
-          signedUrl: data.signedUrl,
-        }));
-      }),
-    uploadReserved: (reservation, body, options) =>
-      AsyncResult.from(async () => {
-        options?.signal?.throwIfAborted();
-        const path = resolve(reservation.path);
-        const problem = bucket.check(bodyInfo(body, options?.contentType));
-        if (problem) return err(problem);
-        return run(() =>
-          api().uploadToSignedUrl(
-            path,
-            reservation.token,
-            body,
-            fileOptions(options, options?.contentType),
-          ),
-        ).map(() => ({ path }));
-      }),
-    sweep: (options) =>
-      AsyncResult.from(async () => {
-        const namespace = optionalTemporal();
-        if (namespace === undefined) return err(temporalMissing());
-        const now = options.now?.() ?? namespace.Now.instant();
-        const cutoff =
-          options.olderThan instanceof namespace.Instant
-            ? options.olderThan.epochMilliseconds
-            : now.epochMilliseconds - options.olderThan.total("milliseconds");
-        const found = await list(
-          options.within,
-          options.signal ? { signal: options.signal } : undefined,
-        );
-        if (!found.ok) return found;
-        const scope = scopedWithin(options.within);
-        const candidates = found.data
-          .filter((object) => inScope(bucket.match(object.path), scope))
-          .filter((object) => {
-            // Storage sends ISO text; epoch milliseconds compare directly.
-            const created = Date.parse(
-              object.createdAt ?? object.updatedAt ?? "",
-            );
-            return Number.isFinite(created) && created < cutoff;
-          })
-          .map((object) => object.path);
-        const size = options.batchSize ?? 100;
-        const orphans: string[] = [];
-        const removed: string[] = [];
-        for (let index = 0; index < candidates.length; index += size) {
-          options.signal?.throwIfAborted();
-          const batch = candidates.slice(index, index + size);
-          const keep = new Set(await options.referenced(batch));
-          const unreferenced = batch.filter((path) => !keep.has(path));
-          orphans.push(...unreferenced);
-          if (options.dryRun || unreferenced.length === 0) continue;
-          const result = await run(() => api().remove(unreferenced));
-          if (!result.ok) return result;
-          removed.push(...unreferenced);
-        }
-        return ok({ scanned: found.data.length, orphans, removed });
-      }),
-  };
 }

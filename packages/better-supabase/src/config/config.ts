@@ -5,6 +5,7 @@ import type {
   PermdockBucketPolicy,
   SchemaMeta,
 } from "../schema/types.ts";
+import type { BucketLifecycle } from "../storage/versioning.ts";
 import type { ModulesConfig } from "./modules.ts";
 import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
@@ -163,6 +164,10 @@ export interface BucketConfig {
     | AccessBucketPolicy;
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
+  /** Keep earlier object versions. `bucket.apply()` sets it; doctor (BS302) compares it. */
+  readonly versioning?: boolean;
+  /** When noncurrent versions expire. Needs `versioning: true`. */
+  readonly lifecycle?: BucketLifecycle;
 }
 
 export interface SqlConfig {

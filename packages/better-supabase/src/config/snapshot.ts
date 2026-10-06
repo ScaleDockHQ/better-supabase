@@ -187,6 +187,10 @@ export interface SnapshotBucket {
   readonly public: boolean;
   readonly fileSizeLimit: number | null;
   readonly allowedMimeTypes: readonly string[] | null;
+  /** `versioning_status`; absent when Storage has no versioning. */
+  readonly versioning?: "DISABLED" | "ENABLED" | "SUSPENDED" | null;
+  /** `lifecycle_configuration`; absent when Storage has no lifecycles. */
+  readonly lifecycle?: unknown;
 }
 
 /**

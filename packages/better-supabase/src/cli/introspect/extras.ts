@@ -181,8 +181,12 @@ group by 1, 2, 3
 order by 1, 2, 3`;
 
 const BUCKETS = `
-select id, public, file_size_limit, allowed_mime_types
-from storage.buckets
+select id, public, file_size_limit, allowed_mime_types,
+  to_jsonb(b) ? 'versioning_status' as has_versioning,
+  to_jsonb(b) -> 'versioning_status' as versioning_status,
+  to_jsonb(b) ? 'lifecycle_configuration' as has_lifecycle,
+  to_jsonb(b) -> 'lifecycle_configuration' as lifecycle_configuration
+from storage.buckets b
 order by id`;
 
 const REALTIME = `
@@ -350,6 +354,10 @@ interface BucketRow {
   public: boolean;
   file_size_limit: number | string | null;
   allowed_mime_types: string[] | null;
+  has_versioning: boolean;
+  versioning_status: "DISABLED" | "ENABLED" | "SUSPENDED" | null;
+  has_lifecycle: boolean;
+  lifecycle_configuration: unknown;
 }
 
 async function rows<R>(db: Queryable, sql: string): Promise<R[]> {
@@ -510,6 +518,8 @@ export async function readExtras(
       fileSizeLimit:
         row.file_size_limit === null ? null : Number(row.file_size_limit),
       allowedMimeTypes: row.allowed_mime_types,
+      ...(row.has_versioning ? { versioning: row.versioning_status } : {}),
+      ...(row.has_lifecycle ? { lifecycle: row.lifecycle_configuration } : {}),
     })),
     realtime: realtime.map((row) => row.name),
     roleSettings,

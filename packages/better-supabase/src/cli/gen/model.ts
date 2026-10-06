@@ -713,6 +713,8 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
                 ...(bucket.allowedMimeTypes
                   ? { allowedMimeTypes: bucket.allowedMimeTypes }
                   : {}),
+                ...(bucket.versioning ? { versioning: true } : {}),
+                ...(bucket.lifecycle ? { lifecycle: bucket.lifecycle } : {}),
               },
             ]),
           ),
