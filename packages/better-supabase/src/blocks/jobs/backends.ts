@@ -24,6 +24,29 @@ export interface QueueMessageRow {
   readonly message: QueueMessageBody | null;
 }
 
+/** A queue's counts, as `jobs.stats` returns them. */
+export interface QueueStats {
+  /** Visible now: the next claim takes them. */
+  readonly ready: number;
+  /** Claimed by a worker, or waiting out the backoff before a retry. */
+  readonly inFlight: number;
+  /** Enqueued with a delay and not claimed yet. */
+  readonly delayed: number;
+  /** Dead letters kept in the archive. */
+  readonly dead: number;
+  /** Seconds since the oldest message that isn't done was enqueued; null when none is waiting. */
+  readonly oldestAgeSeconds: number | null;
+}
+
+/** A dead letter, as `better_supabase.list_dead_jobs` returns it. */
+export interface DeadJobRow {
+  readonly id: string | number;
+  readonly attempts: number;
+  readonly enqueued_at: Date | string;
+  readonly died_at: Date | string | null;
+  readonly message: QueueMessageBody | null;
+}
+
 /** A schedule whose run is due, claimed by `runSchedules`. */
 export interface DueSchedule {
   readonly name: string;
@@ -78,6 +101,20 @@ export interface QueueBackend {
   extend(job: Job, lease: number): Promise<boolean>;
   /** Re-enqueues a dead letter; `null` when it isn't one. Absent when the backend can't. */
   replay?(queue: string, id: number): Promise<number | null>;
+  /** Counts for one queue. Absent when the backend can't. */
+  stats?(queue: string): Promise<QueueStats>;
+  /** Dead letters, newest first, before `before` when given. Absent when the backend can't. */
+  listDead?(
+    queue: string,
+    limit: number,
+    before: number | undefined,
+  ): Promise<readonly DeadJobRow[]>;
+  /** Re-enqueues the dead letters `ids`, or the newest `limit`; returns how many. */
+  retryDead?(
+    queue: string,
+    ids: readonly number[] | undefined,
+    limit: number,
+  ): Promise<number>;
   schedule(
     name: string,
     cron: string,
@@ -201,6 +238,38 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
         [queue, id],
       );
       return row?.id === null || row?.id === undefined ? null : Number(row.id);
+    },
+    async stats(queue) {
+      const [row] = await sql.queryRaw<{
+        ready: string | number;
+        in_flight: string | number;
+        delayed: string | number;
+        dead: string | number;
+        oldest_age_seconds: string | number | null;
+      }>("select * from better_supabase.job_queue_stats($1)", [queue]);
+      return {
+        ready: Number(row?.ready ?? 0),
+        inFlight: Number(row?.in_flight ?? 0),
+        delayed: Number(row?.delayed ?? 0),
+        dead: Number(row?.dead ?? 0),
+        oldestAgeSeconds:
+          row?.oldest_age_seconds === null ||
+          row?.oldest_age_seconds === undefined
+            ? null
+            : Number(row.oldest_age_seconds),
+      };
+    },
+    listDead: (queue, limit, before) =>
+      sql.queryRaw<DeadJobRow>(
+        "select * from better_supabase.list_dead_jobs($1, $2, $3)",
+        [queue, limit, before ?? null],
+      ),
+    async retryDead(queue, ids, limit) {
+      const [row] = await sql.queryRaw<{ retried: number }>(
+        "select better_supabase.retry_dead_jobs($1, $2, $3) as retried",
+        [queue, ids === undefined ? null : [...ids], limit],
+      );
+      return row?.retried ?? 0;
     },
     async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
       await sql.queryRaw(

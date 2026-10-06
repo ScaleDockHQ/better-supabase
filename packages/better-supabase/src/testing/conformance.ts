@@ -607,6 +607,33 @@ export function testQueueBackend(
         );
       },
     ],
+    backend.stats &&
+      backend.listDead && [
+        "counts and lists dead letters",
+        async () => {
+          const stats = await backend.stats?.(queue);
+          expect((stats?.dead ?? 0) >= 1, "stats must count the dead letter");
+          const [dead] = (await backend.listDead?.(queue, 10, undefined)) ?? [];
+          expect(dead, "listDead must return the dead letter");
+          expect(
+            same(dead.message?.payload, { n: 3 }),
+            "listDead must return the newest dead letter first",
+          );
+          if (backend.retryDead) {
+            expect(
+              (await backend.retryDead(queue, [Number(dead.id)], 10)) === 1,
+              "retryDead must enqueue the dead letter again",
+            );
+            const job = await claimOne();
+            expect(job, "the retried job must be claimable");
+            expect(
+              same(job.payload, { n: 3 }),
+              "the retried job must keep its payload",
+            );
+            await backend.complete(job);
+          }
+        },
+      ],
     (options.dedupe ?? backend.leases) && [
       "returns the first id for a repeated dedupe key",
       async () => {

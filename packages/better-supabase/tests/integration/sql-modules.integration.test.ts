@@ -1820,6 +1820,74 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("reports queue health and retries dead letters on both backends", async () => {
+    const check = async (queue: string) => {
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ n: v.number() }),
+      });
+      expect((await jobs.stats().orThrow())[queue]).toEqual({
+        ready: 0,
+        inFlight: 0,
+        delayed: 0,
+        dead: 0,
+        oldestAgeSeconds: null,
+      });
+      await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
+      await jobs.enqueue(queue, { n: 2 }, { maxAttempts: 1 }).orThrow();
+      await jobs.enqueue(queue, { n: 3 }, { delay: 3600 }).orThrow();
+      await jobs.enqueue(queue, { n: 4 }).orThrow();
+      const [claimed] = await jobs.claim(queue, { batch: 1 }).orThrow();
+      expect(claimed!.payload.n).toBe(1);
+      const before = (await jobs.stats().orThrow())[queue];
+      expect(before).toMatchObject({
+        ready: 2,
+        inFlight: 1,
+        delayed: 1,
+        dead: 0,
+      });
+      expect(before?.oldestAgeSeconds).toBeGreaterThanOrEqual(0);
+      await jobs.fail(claimed!, "gone").orThrow();
+      const [second] = await jobs.claim(queue).orThrow();
+      await jobs.fail(second!, "gone too").orThrow();
+      expect((await jobs.stats().orThrow())[queue]).toMatchObject({
+        ready: 1,
+        inFlight: 0,
+        dead: 2,
+      });
+      const dead = await jobs.listDead(queue).orThrow();
+      expect(dead.map((job) => [job.payload.n, job.lastError])).toEqual([
+        [2, "gone too"],
+        [1, "gone"],
+      ]);
+      expect(
+        await jobs.listDead(queue, { before: dead[0]!.id }).orThrow(),
+      ).toHaveLength(1);
+      expect(
+        await jobs.retryDead(queue, { ids: [dead[1]!.id] }).orThrow(),
+      ).toBe(1);
+      expect(await jobs.retryDead(queue).orThrow()).toBe(1);
+      expect((await jobs.stats().orThrow())[queue]).toMatchObject({
+        ready: 3,
+        dead: 0,
+      });
+    };
+    await check(`block_${RUN}_health`);
+    await pool.query(
+      moduleBody("jobs", {
+        modules: { jobs: { options: { backend: "table" } } },
+      })!,
+    );
+    try {
+      await check(`block_${RUN}_health_table`);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [`block_${RUN}_health_table`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency(postgres.admin, { scope: RUN });
     let runs = 0;

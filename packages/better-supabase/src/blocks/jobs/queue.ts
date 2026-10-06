@@ -2,7 +2,6 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SqlClient } from "../../postgres/executor.ts";
 
-import { impersonatorClaim, impersonatorOf } from "../../auth/impersonation.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { type DbError, dbError } from "../../core/errors.ts";
 import {
@@ -36,6 +35,7 @@ import { verifySharedSecret } from "../webhooks/verify.ts";
 import {
   millis,
   type QueueBackend,
+  type QueueStats,
   type QueueMessageRow,
   type QueueRpcClient,
   pgmqPublicBackend,
@@ -43,6 +43,7 @@ import {
   sqlQueueBackend,
 } from "./backends.ts";
 import { nextCronRun } from "./cron.ts";
+import { unwrap, withContext } from "./envelope.ts";
 
 // ---------------------------------------------------------------------------
 // Job queue (SQL module `jobs`, on Supabase Queues / pgmq)
@@ -161,6 +162,35 @@ export interface EnsureSchedulesResult {
   readonly scheduled: readonly string[];
   /** Schedules under the prefix that the set no longer names. */
   readonly removed: readonly string[];
+}
+
+export interface ListDeadOptions {
+  /** Defaults to 100, at most 1000. */
+  readonly limit?: number;
+  /** Only dead letters with a lower id, for the next page. */
+  readonly before?: number;
+}
+
+export interface RetryDeadOptions {
+  /** The dead letters to retry. Defaults to the newest `limit`. */
+  readonly ids?: readonly number[];
+  /** Defaults to 1000. */
+  readonly limit?: number;
+}
+
+/** A dead letter as `listDead` returns it. */
+export interface DeadJob<P = unknown> {
+  readonly id: number;
+  readonly queue: string;
+  /** The stored payload, unvalidated: its schema may have changed since. */
+  readonly payload: P;
+  readonly context: RequestContext;
+  readonly attempts: number;
+  readonly maxAttempts: number;
+  readonly lastError: string | null;
+  readonly enqueuedAt: Temporal.Instant;
+  /** When it was archived as dead. */
+  readonly diedAt: Temporal.Instant | null;
 }
 
 export interface RunSchedulesOptions {
@@ -318,6 +348,28 @@ export interface Jobs<Q extends QueueSchemas> {
     id: number,
   ): AsyncResult<number | null>;
   /**
+   * Counts per queue (ready, in flight, delayed, dead and the oldest
+   * waiting message's age), for an admin page. Defaults to every queue
+   * `createJobs` declared. SQL connections only.
+   */
+  stats<N extends Extract<keyof Q, string>>(
+    queues?: readonly N[],
+  ): AsyncResult<Record<N, QueueStats>>;
+  /** A queue's dead letters, newest first, for an admin page. SQL connections only. */
+  listDead<N extends Extract<keyof Q, string>>(
+    queue: N,
+    options?: ListDeadOptions,
+  ): AsyncResult<DeadJob<PayloadOut<Q, N>>[]>;
+  /**
+   * Enqueues dead letters again, the `ids` given or the newest `limit`
+   * (1000), each with its payload, attempts and dedupe key. Returns how many
+   * went back on the queue. SQL connections only.
+   */
+  retryDead(
+    queue: Extract<keyof Q, string>,
+    options?: RetryDeadOptions,
+  ): AsyncResult<number>;
+  /**
    * Enqueues `payload` on a cron schedule (`'0 3 * * *'`, `'@daily'`,
    * `'30 seconds'`), with pg_cron or the drain scheduler
    * (`sql.modules.jobs.options.scheduler`). Re-scheduling a name replaces it. SQL
@@ -371,67 +423,6 @@ export interface Jobs<Q extends QueueSchemas> {
     handler: JobHandler<PayloadOut<Q, N>>,
     options?: WorkOptions,
   ): Promise<DrainResult>;
-}
-
-/** Marks a payload that carries a job context; pgmq stores it as the payload. */
-const ENVELOPE = "$bs";
-
-function withContext(
-  payload: unknown,
-  context: RequestContext | undefined,
-): unknown {
-  if (!context) return payload;
-  const tenant = tenantFrom(context, tenantPathsFor(undefined));
-  const impersonator = context.claims
-    ? impersonatorOf(context.claims)
-    : undefined;
-  const recorded: JobContext = {
-    ...(context.actor ? { actor: context.actor } : {}),
-    ...(tenant === undefined ? {} : { tenant }),
-    ...(impersonator ? { act: impersonatorClaim(impersonator) } : {}),
-  };
-  if (!recorded.actor && recorded.tenant === undefined) return payload;
-  return { [ENVELOPE]: 1, context: recorded, payload };
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isActor(value: unknown): value is Actor {
-  return (
-    isRecord(value) &&
-    typeof value["id"] === "string" &&
-    (value["kind"] === "user" ||
-      value["kind"] === "service" ||
-      value["kind"] === "anon")
-  );
-}
-
-function unwrap(stored: unknown): {
-  payload: unknown;
-  context: RequestContext;
-} {
-  if (
-    !isRecord(stored) ||
-    stored[ENVELOPE] !== 1 ||
-    !Object.hasOwn(stored, "payload")
-  ) {
-    return { payload: stored, context: {} };
-  }
-  const recorded = isRecord(stored["context"]) ? stored["context"] : {};
-  const { actor, tenant, act } = recorded;
-  const impersonator = act === undefined ? undefined : impersonatorOf({ act });
-  return {
-    payload: stored["payload"],
-    context: {
-      ...(isActor(actor) ? { actor } : {}),
-      ...(typeof tenant === "string" && tenant.length > 0 ? { tenant } : {}),
-      ...(impersonator
-        ? { claims: { act: impersonatorClaim(impersonator) } }
-        : {}),
-    },
-  };
 }
 
 function toJob(queue: string, row: QueueMessageRow): Job {
@@ -770,6 +761,59 @@ export function createJobs<const Q extends QueueSchemas>(
     complete,
     fail,
     extend: (job, lease) => run(() => transport.extend(job, lease)),
+    stats: (names) =>
+      run(async () => {
+        const stats = (queue: string): Promise<QueueStats> =>
+          transport.stats?.(queue) ?? sqlOnly("stats");
+        const list = names ?? Object.keys(queues);
+        const entries = await Promise.all(
+          list.map(async (queue) => {
+            schemaOf(queue);
+            return [queue, await stats(queue)] as const;
+          }),
+        );
+        // SAFETY: the entries are exactly the requested queue names.
+        return Object.fromEntries(entries) as Record<
+          (typeof list)[number],
+          QueueStats
+        >;
+      }),
+    listDead: (queue, listOptions = {}) =>
+      run(async () => {
+        if (!transport.listDead) sqlOnly("listDead");
+        schemaOf(queue);
+        const rows = await transport.listDead(
+          queue,
+          listOptions.limit ?? 100,
+          listOptions.before,
+        );
+        return rows.map((row) => {
+          const message = row.message ?? {};
+          const { payload, context } = unwrap(message.payload);
+          return {
+            id: Number(row.id),
+            queue,
+            // SAFETY: the payload was validated with this queue's schema at enqueue.
+            payload: payload as never,
+            context,
+            attempts: row.attempts,
+            maxAttempts: message.max_attempts ?? 5,
+            lastError: message.last_error ?? null,
+            enqueuedAt: toInstant(row.enqueued_at),
+            diedAt: row.died_at === null ? null : toInstant(row.died_at),
+          };
+        });
+      }),
+    retryDead: (queue, retryOptions = {}) =>
+      run(async () => {
+        if (!transport.retryDead) sqlOnly("retryDead");
+        schemaOf(queue);
+        return transport.retryDead(
+          queue,
+          retryOptions.ids,
+          retryOptions.limit ?? 1000,
+        );
+      }),
     replay: (queue, id) =>
       run(() => {
         if (!transport.replay) sqlOnly("replay");

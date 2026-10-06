@@ -115,6 +115,39 @@ await jobs.work(
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
 
+### Queue health
+
+An admin page reads each queue's state with `stats`, pages through dead
+letters with `listDead`, and puts them back with `retryDead`:
+
+```ts
+const stats = await jobs.stats().orThrow();
+// { send_email: { ready, inFlight, delayed, dead, oldestAgeSeconds } }
+
+const dead = await jobs.listDead("send_email", { limit: 50 }).orThrow();
+// [{ id, payload, context, attempts, maxAttempts, lastError, enqueuedAt, diedAt }]
+const next = await jobs
+  .listDead("send_email", { limit: 50, before: dead.at(-1)?.id })
+  .orThrow();
+
+await jobs.retryDead("send_email", { ids: [dead[0]!.id] }).orThrow();
+await jobs.retryDead("send_email").orThrow(); // the newest 1000
+```
+
+| Field              | Counts                                                              |
+| ------------------ | ------------------------------------------------------------------- |
+| `ready`            | messages the next claim takes                                       |
+| `inFlight`         | messages a worker holds, or that wait out a retry backoff           |
+| `delayed`          | messages enqueued for later that no worker claimed yet              |
+| `dead`             | dead letters in the archive, until `purge_job_archive` removes them |
+| `oldestAgeSeconds` | the age of the oldest message that isn't done, null when none       |
+
+`stats` takes a list of queue names and defaults to every queue
+`createJobs` declared. `listDead` returns stored payloads without
+validating them, since the schema may have changed since. All three call
+`better_supabase.job_queue_stats`, `list_dead_jobs` and `retry_dead_jobs`,
+so they need a SQL connection.
+
 ### Actor and tenant
 
 The queue itself runs on a service-role connection, but the work inside a
@@ -377,7 +410,8 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 - there is no lease check on `complete`;
 - a failed job reappears when its lease ends (`retryIn` is ignored), and
   there's no heartbeat;
-- `dedupeKey` and `schedule` return `invalid_request`.
+- `dedupeKey`, `schedule`, `stats`, `listDead` and `retryDead` return
+  `invalid_request`.
 
 ## Idempotency keys
 

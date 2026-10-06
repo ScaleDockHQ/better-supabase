@@ -269,6 +269,79 @@ begin
     msg ->> 'dedupe_key'
   );
 end;
+$$;
+
+-- Counts for an admin page: ready (visible now), in flight (claimed, or
+-- waiting out a retry backoff), delayed (enqueued for later, never claimed),
+-- dead letters, and the age of the oldest message not yet done.
+create or replace function better_supabase.job_queue_stats(queue text)
+returns table (ready bigint, in_flight bigint, delayed bigint, dead bigint, oldest_age_seconds double precision)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+    return query select 0::bigint, 0::bigint, 0::bigint, 0::bigint, null::double precision;
+    return;
+  end if;
+  return query execute format(
+    'select count(*) filter (where q.vt <= clock_timestamp()),
+       count(*) filter (where q.vt > clock_timestamp() and q.read_ct > 0),
+       count(*) filter (where q.vt > clock_timestamp() and q.read_ct = 0),
+       (select count(*) from pgmq.%2$I a where a.message ? ''dead''),
+       extract(epoch from clock_timestamp() - min(q.enqueued_at))::double precision
+     from pgmq.%1$I q',
+    'q_' || queue, 'a_' || queue
+  );
+end;
+$$;
+
+-- A queue's dead letters, newest first, before before_id when given.
+create or replace function better_supabase.list_dead_jobs(queue text, max_rows integer default 100, before_id bigint default null)
+returns table (id bigint, attempts integer, enqueued_at timestamptz, died_at timestamptz, message jsonb)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if pg_catalog.to_regclass(format('pgmq.%I', 'a_' || queue)) is null then
+    return;
+  end if;
+  return query execute format(
+    'select a.msg_id, a.read_ct, a.enqueued_at, a.archived_at, a.message from pgmq.%I a
+     where a.message ? ''dead'' and ($2 is null or a.msg_id < $2)
+     order by a.msg_id desc limit least(greatest($1, 1), 1000)',
+    'a_' || queue
+  ) using max_rows, before_id;
+end;
+$$;
+
+-- Enqueues dead letters again: the ids given, or the newest batch of them.
+-- Returns how many went back on the queue.
+create or replace function better_supabase.retry_dead_jobs(queue text, ids bigint[] default null, batch integer default 1000)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  dead_id bigint;
+  retried integer := 0;
+begin
+  for dead_id in
+    select d.id from better_supabase.list_dead_jobs(queue, batch) d where ids is null
+    union all
+    select unnest(ids) where ids is not null
+  loop
+    if better_supabase.replay_dead_job(queue, dead_id) is not null then
+      retried := retried + 1;
+    end if;
+  end loop;
+  return retried;
+end;
 $$;`;
 
 const TABLE = `-- Jobs in a plain table, for projects without pgmq. Messages have the same
@@ -493,6 +566,67 @@ begin
     coalesce((msg ->> 'max_attempts')::integer, 5),
     msg ->> 'dedupe_key'
   );
+end;
+$$;
+
+-- Counts for an admin page: ready (visible now), in flight (claimed, or
+-- waiting out a retry backoff), delayed (enqueued for later, never claimed),
+-- dead letters, and the age of the oldest message not yet done.
+create or replace function better_supabase.job_queue_stats(queue text)
+returns table (ready bigint, in_flight bigint, delayed bigint, dead bigint, oldest_age_seconds double precision)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    count(*) filter (where m.archived_at is null and m.visible_at <= clock_timestamp()),
+    count(*) filter (where m.archived_at is null and m.visible_at > clock_timestamp() and m.attempts > 0),
+    count(*) filter (where m.archived_at is null and m.visible_at > clock_timestamp() and m.attempts = 0),
+    count(*) filter (where m.dead),
+    extract(epoch from clock_timestamp() - min(m.enqueued_at) filter (where m.archived_at is null))::double precision
+  from better_supabase.job_messages m
+  where m.queue = job_queue_stats.queue;
+$$;
+
+-- A queue's dead letters, newest first, before before_id when given.
+create or replace function better_supabase.list_dead_jobs(queue text, max_rows integer default 100, before_id bigint default null)
+returns table (id bigint, attempts integer, enqueued_at timestamptz, died_at timestamptz, message jsonb)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.id, m.attempts, m.enqueued_at, m.archived_at, m.message
+  from better_supabase.job_messages m
+  where m.queue = list_dead_jobs.queue and m.dead
+    and (before_id is null or m.id < before_id)
+  order by m.id desc
+  limit least(greatest(max_rows, 1), 1000);
+$$;
+
+-- Enqueues dead letters again: the ids given, or the newest batch of them.
+-- Returns how many went back on the queue.
+create or replace function better_supabase.retry_dead_jobs(queue text, ids bigint[] default null, batch integer default 1000)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  dead_id bigint;
+  retried integer := 0;
+begin
+  for dead_id in
+    select d.id from better_supabase.list_dead_jobs(queue, batch) d where ids is null
+    union all
+    select unnest(ids) where ids is not null
+  loop
+    if better_supabase.replay_dead_job(queue, dead_id) is not null then
+      retried := retried + 1;
+    end if;
+  end loop;
+  return retried;
 end;
 $$;`;
 
@@ -792,7 +926,10 @@ begin
     'claim_due_schedules(integer, integer)',
     'advance_schedule(text, timestamptz, timestamptz)',
     'purge_job_archive(text, interval, integer, interval)',
-    'replay_dead_job(text, bigint)'
+    'replay_dead_job(text, bigint)',
+    'job_queue_stats(text)',
+    'list_dead_jobs(text, integer, bigint)',
+    'retry_dead_jobs(text, bigint[], integer)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);
@@ -816,7 +953,7 @@ export const JOBS: ModuleDefinition = {
   name: "jobs",
   title: "Job queue",
   description:
-    "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
+    "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
   version: 5,

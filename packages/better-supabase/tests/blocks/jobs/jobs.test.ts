@@ -1222,6 +1222,143 @@ describe("drainRoute", () => {
   });
 });
 
+describe("queue health", () => {
+  it("reads stats per queue, lists dead letters and retries them", async () => {
+    const fake = fakeSql([
+      [
+        "job_queue_stats",
+        [
+          {
+            ready: "2",
+            in_flight: 1,
+            delayed: "0",
+            dead: "3",
+            oldest_age_seconds: "12.5",
+          },
+        ],
+      ],
+      [
+        "list_dead_jobs",
+        [
+          {
+            id: "9",
+            attempts: 5,
+            enqueued_at: "2026-01-01T00:00:00Z",
+            died_at: new Date("2026-01-01T01:00:00Z"),
+            message: {
+              payload: {
+                $bs: 1,
+                context: { tenant: "t1" },
+                payload: { to: "a@example.com" },
+              },
+              max_attempts: 5,
+              last_error: "boom",
+            },
+          },
+          {
+            id: 8,
+            attempts: 1,
+            enqueued_at: "2026-01-01T00:00:00Z",
+            died_at: null,
+            message: null,
+          },
+        ],
+      ],
+      ["retry_dead_jobs", [{ retried: 2 }]],
+    ]);
+    const jobs = createJobs(fake.sql, queues);
+    expect(await jobs.stats().orThrow()).toEqual({
+      emails: {
+        ready: 2,
+        inFlight: 1,
+        delayed: 0,
+        dead: 3,
+        oldestAgeSeconds: 12.5,
+      },
+      reports: {
+        ready: 2,
+        inFlight: 1,
+        delayed: 0,
+        dead: 3,
+        oldestAgeSeconds: 12.5,
+      },
+    });
+    expect(Object.keys(await jobs.stats(["emails"]).orThrow())).toEqual([
+      "emails",
+    ]);
+    const dead = await jobs
+      .listDead("emails", { limit: 5, before: 10 })
+      .orThrow();
+    expect(dead[0]).toMatchObject({
+      id: 9,
+      queue: "emails",
+      payload: { to: "a@example.com" },
+      context: { tenant: "t1" },
+      maxAttempts: 5,
+      lastError: "boom",
+    });
+    expect(dead[0]!.diedAt?.toString()).toBe("2026-01-01T01:00:00Z");
+    expect(dead[1]).toMatchObject({
+      id: 8,
+      payload: undefined,
+      maxAttempts: 5,
+      lastError: null,
+      diedAt: null,
+    });
+    await jobs.listDead("emails").orThrow();
+    expect(await jobs.retryDead("emails", { ids: [9, 8] }).orThrow()).toBe(2);
+    await jobs.retryDead("emails").orThrow();
+    const values = fake.calls.map((call) => call.values);
+    expect(values.slice(3)).toEqual([
+      ["emails", 5, 10],
+      ["emails", 100, null],
+      ["emails", [9, 8], 1000],
+      ["emails", null, 1000],
+    ]);
+    expect(await jobs.stats(["nope" as "emails"])).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it("answers zeros for a queue with no row and refuses over pgmq_public", async () => {
+    const fake = fakeSql([
+      [
+        "job_queue_stats",
+        [
+          {
+            ready: 0,
+            in_flight: 0,
+            delayed: 0,
+            dead: 0,
+            oldest_age_seconds: null,
+          },
+        ],
+      ],
+    ]);
+    expect(
+      (await createJobs(fake.sql, queues).stats(["emails"]).orThrow()).emails,
+    ).toEqual({
+      ready: 0,
+      inFlight: 0,
+      delayed: 0,
+      dead: 0,
+      oldestAgeSeconds: null,
+    });
+    expect(
+      await createJobs(fakeSql([]).sql, queues).retryDead("emails").orThrow(),
+    ).toBe(0);
+    const { client } = fakeClient(() => []);
+    const remote = createJobs(client, queues);
+    for (const result of [
+      await remote.stats(),
+      await remote.listDead("emails"),
+      await remote.retryDead("emails"),
+    ]) {
+      expect(result).toMatchObject({ error: { kind: "invalid_request" } });
+    }
+  });
+});
+
 describe("drain budget", () => {
   it("stops claiming at the deadline", async () => {
     const fake = fakeSql([

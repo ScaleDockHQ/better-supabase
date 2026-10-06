@@ -15,11 +15,13 @@ export type {
 } from "./jobs.ts";
 export { pgmqPublicBackend, sqlQueueBackend } from "./backends.ts";
 export type {
+  DeadJobRow,
   DueSchedule,
   QueueBackend,
   QueueMessageBody,
   QueueMessageRow,
   QueueRpcClient,
+  QueueStats,
 } from "./backends.ts";
 export { createJobs } from "./queue.ts";
 export { createRateLimit, rateLimited } from "./rate-limit.ts";
@@ -30,6 +32,7 @@ export type {
 } from "./rate-limit.ts";
 export type {
   ClaimOptions,
+  DeadJob,
   DrainMonitor,
   DrainOptions,
   DrainResult,
@@ -43,7 +46,9 @@ export type {
   JobContext,
   JobHandler,
   Jobs,
+  ListDeadOptions,
   QueueSchemas,
+  RetryDeadOptions,
   RunSchedulesOptions,
   ScheduleDefinition,
   ScheduleDefinitions,
