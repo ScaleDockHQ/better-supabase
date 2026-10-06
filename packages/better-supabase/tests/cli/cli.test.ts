@@ -164,6 +164,16 @@ describe("function results", () => {
   });
 });
 
+describe("function arguments", () => {
+  it("accept null, and stay optional when they have a default", async () => {
+    const snake = (await renderFixtures()).find((file) =>
+      file.path.endsWith("/generated.ts"),
+    );
+    expect(snake?.contents).toContain("p_limit?: number | null;");
+    expect(snake?.contents).toContain("p_status: string | null;");
+  });
+});
+
 describe("plugin flags", () => {
   it("rejects a soft-delete column that is not a timestamp", async () => {
     const config = resolveConfig(
