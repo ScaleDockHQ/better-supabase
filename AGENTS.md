@@ -7,7 +7,7 @@ or `better-supabase skills install`). `CLAUDE.md` is the one line `@AGENTS.md`
 so tools that read both names load this file once; put everything here.
 
 `better-supabase` is an ESM package (`packages/better-supabase`) with subpath
-exports, plugins and kits. Its CLI (the `better-supabase` bin) ships in the same
+exports, plugins and blocks (`better-supabase/blocks/*`). Its CLI (the `better-supabase` bin) ships in the same
 package, from `src/cli`, with its dependencies inlined at build time. Docs live in `apps/docs`
 (Fumadocs), examples in `apps/examples/*`, cross-package tests in `tests/*`.
 
@@ -194,33 +194,34 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 
 ## When you change X, also update Y
 
-| Change                              | Also update                                                                                                                                                  |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A generated-file shape              | `packages/better-supabase/tests/fixtures` (`pnpm --filter better-supabase gen:fixtures`), `apps/examples/*/src/lib/supabase/*`                               |
-| A doctor finding                    | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`)                                               |
-| The splinter pin                    | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together                                                                                                             |
-| A rule in `plugins/rules` or `lint` | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx`                                                                              |
-| A SQL kit module                    | `src/sql/kit.ts` registry, `sql-kit.integration.test.ts`, `kits/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`)    |
-| A `DbError` kind                    | `problem.ts` status map, the errors docs page                                                                                                                |
-| A subpath                           | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md`                    |
-| A public export                     | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                                         |
-| An extension interface              | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page                                                      |
-| A spec version                      | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin                                                                         |
-| An adopted standard                 | a conformance test in `tests/standards` or `tests/cli/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |
-| A vendored official schema          | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256)                                                                                                 |
-| A consumer skill                    | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests            |
-| The package version                 | nothing by hand: `pnpm version-packages` writes `VERSION`, the plugin manifests and `server.json` (`scripts/sync-versions.ts`)                               |
-| A workflow                          | GitHub-owned actions on their major tag, third-party actions on a commit SHA with a `# vX.Y.Z` comment; zizmor checks both (`.github/zizmor.yml`)            |
-| A docs route (`/mcp`, `/llms*`)     | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts`                                                                             |
-| A fixture table                     | its file in `supabase/schemas`, a migration from `pnpm supabase:sync` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                  |
-| An env key                          | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example`                                                  |
-| A route in docs or marketing        | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public                 |
-| A UI primitive in marketing         | `DESIGN.md`                                                                                                                                                  |
-| A dependency bump                   | the catalog pin in `pnpm-workspace.yaml`, the "Pre-release pins" list, the changeset or commit note, an ADR when it changes a one-library line               |
-| A CLI command or flag               | its docs page under `cli/`, the help snapshot (`tests/cli/help.test.ts`), the changeset                                                                      |
-| A `typescript` bump                 | `oxlint-tsgolint` in the same commit                                                                                                                         |
-| A Next.js bump                      | run `next dev` once in each Next.js app, and keep the managed `AGENTS.md` files it writes gitignored                                                         |
-| A user-visible change               | a changeset (`pnpm changeset`)                                                                                                                               |
+| Change                              | Also update                                                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A generated-file shape              | `packages/better-supabase/tests/fixtures` (`pnpm --filter better-supabase gen:fixtures`), `apps/examples/*/src/lib/supabase/*`                                    |
+| A doctor finding                    | `schemas/doctor-report-v1.json`, the doctor docs page; retired codes stay reserved (`extending/stability.mdx`)                                                    |
+| The splinter pin                    | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together                                                                                                                  |
+| A rule in `plugins/rules` or `lint` | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx`                                                                                   |
+| A SQL module                        | `src/sql/blocks.ts` registry, `sql-blocks.integration.test.ts`, `blocks/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`) |
+| A block                             | its code in `src/blocks/<name>` and subpath `better-supabase/blocks/<name>` (see A subpath), its page and the table in `apps/docs/content/docs/blocks/index.mdx`  |
+| A `DbError` kind                    | `problem.ts` status map, the errors docs page                                                                                                                     |
+| A subpath                           | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md`                         |
+| A public export                     | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                                              |
+| An extension interface              | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page                                                           |
+| A spec version                      | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin                                                                              |
+| An adopted standard                 | a conformance test in `tests/standards` or `tests/cli/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both)      |
+| A vendored official schema          | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256)                                                                                                      |
+| A consumer skill                    | `packages/better-supabase/skills/*`, `.claude-plugin/marketplace.json` (new skill paths), `for-ai-agents.mdx`, `src/cli/commands/skills.ts` tests                 |
+| The package version                 | nothing by hand: `pnpm version-packages` writes `VERSION`, the plugin manifests and `server.json` (`scripts/sync-versions.ts`)                                    |
+| A workflow                          | GitHub-owned actions on their major tag, third-party actions on a commit SHA with a `# vX.Y.Z` comment; zizmor checks both (`.github/zizmor.yml`)                 |
+| A docs route (`/mcp`, `/llms*`)     | the rewrites in `vercel.json` and `docsPaths` in `apps/marketing/next.config.ts`                                                                                  |
+| A fixture table                     | its file in `supabase/schemas`, a migration from `pnpm supabase:sync` (reviewed), RLS, `supabase/tests`, `supabase/seed.sql`, `pnpm db:gen`                       |
+| An env key                          | the app's `env.ts`, all three Vercel environments, `turbo.json` (`env` or `passThroughEnv`), `.env.example`                                                       |
+| A route in docs or marketing        | the nav links (`apps/docs/lib/layout.shared.tsx` or `apps/marketing/components/site/navbar.tsx`), the sitemap, a docs page when it is public                      |
+| A UI primitive in marketing         | `DESIGN.md`                                                                                                                                                       |
+| A dependency bump                   | the catalog pin in `pnpm-workspace.yaml`, the "Pre-release pins" list, the changeset or commit note, an ADR when it changes a one-library line                    |
+| A CLI command or flag               | its docs page under `cli/`, the help snapshot (`tests/cli/help.test.ts`), the changeset                                                                           |
+| A `typescript` bump                 | `oxlint-tsgolint` in the same commit                                                                                                                              |
+| A Next.js bump                      | run `next dev` once in each Next.js app, and keep the managed `AGENTS.md` files it writes gitignored                                                              |
+| A user-visible change               | a changeset (`pnpm changeset`)                                                                                                                                    |
 
 ## Agent workflow
 
