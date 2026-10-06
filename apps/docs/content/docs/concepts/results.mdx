@@ -34,7 +34,7 @@ const name = await db.customers
 
 | kind              | status | From                                                                                                |
 | ----------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| `not_found`       | 404    | `findById`, `update`, `delete` with no row, `PGRST116`                                              |
+| `not_found`       | 404    | `findById`, `update`, `delete` with no row, `PGRST116`, `P0002` (`no_data_found`)                   |
 | `unauthorized`    | 401    | Missing or expired JWT                                                                              |
 | `forbidden`       | 403    | `42501`, RLS `WITH CHECK` failures; guards with `aal` set `required` ([MFA](/docs/auth/mfa-sso))    |
 | `conflict`        | 409    | `23505` unique violation, with `constraint` and `columns`                                           |
