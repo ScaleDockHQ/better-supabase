@@ -57,6 +57,20 @@ export interface WebhookEventData {
   readonly error?: string;
 }
 
+/** `billing.*`: Stripe customers, checkouts, subscriptions and seats. */
+export interface BillingEventData {
+  readonly organizationId: string;
+  readonly customerId?: string;
+  readonly subscriptionId?: string;
+  /** The Stripe subscription status. */
+  readonly status?: string;
+  /** `billing.seats_synced`: the new and the previous quantity. */
+  readonly quantity?: number;
+  readonly previousQuantity?: number;
+  /** The Stripe event that caused it. */
+  readonly stripeEventId?: string;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -82,6 +96,12 @@ export interface BlockEventMap {
   "webhook.delivered": WebhookEventData;
   "webhook.failed": WebhookEventData;
   "webhook.disabled": WebhookEventData;
+  "billing.customer_linked": BillingEventData;
+  "billing.checkout_completed": BillingEventData;
+  "billing.subscription_created": BillingEventData;
+  "billing.subscription_updated": BillingEventData;
+  "billing.subscription_deleted": BillingEventData;
+  "billing.seats_synced": BillingEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

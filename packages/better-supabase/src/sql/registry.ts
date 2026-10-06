@@ -21,6 +21,7 @@ import {
 import { ACCESS } from "./modules/access.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { AUDIT } from "./modules/audit.ts";
+import { BILLING } from "./modules/billing.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
@@ -1627,6 +1628,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(API_KEYS),
       built(SETTINGS),
       built(USAGE),
+      built(BILLING),
     ].map((module) => [module.name, module]),
   );
 
@@ -2056,6 +2058,20 @@ function customerSource(
       column: configured.column,
       key: configured.key,
       deferred: false,
+    };
+  }
+  if (
+    installed.includes("billing") &&
+    moduleContext("billing", layout, installed).manages
+  ) {
+    const customers = moduleContext("billing", layout, installed).tableName(
+      "customers",
+    );
+    return {
+      table: `${customers.schema}.${customers.name}`,
+      column: "stripe_customer_id",
+      key: "organization_id",
+      deferred: true,
     };
   }
   if (

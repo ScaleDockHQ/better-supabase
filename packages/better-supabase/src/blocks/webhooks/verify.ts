@@ -225,6 +225,136 @@ export function verifySharedSecret(
 }
 
 // ---------------------------------------------------------------------------
+// Stripe
+
+const toHex = (bytes: Uint8Array): string =>
+  Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+/** Stripe signs with the endpoint secret's UTF-8 bytes, not its base64 decoding. */
+async function stripeSignature(
+  secret: string,
+  content: string,
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return toHex(
+    new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, encoder.encode(content)),
+    ),
+  );
+}
+
+/** The `Stripe-Signature` header for `body`, for tests and local replays. */
+export async function signStripeWebhook(
+  secret: string,
+  body: string,
+  timestamp: Temporal.Instant = nowInstant(),
+): Promise<string> {
+  const seconds = String(Math.floor(timestamp.epochMilliseconds / 1000));
+  return `t=${seconds},v1=${await stripeSignature(secret, `${seconds}.${body}`)}`;
+}
+
+/**
+ * Verifies a `Stripe-Signature` header (`t=…,v1=…`) with the endpoint's
+ * `whsec_…` secret and parses the event. Pass several secrets while rolling
+ * the endpoint secret. Runs on WebCrypto, so it needs no `stripe` package.
+ */
+export async function verifyStripeWebhook<T = unknown>(
+  input: WebhookInput,
+  secrets: string | readonly string[],
+  options: VerifyOptions = {},
+): Promise<Result<VerifiedWebhook<T>>> {
+  const value = header(input.headers, "stripe-signature");
+  if (!value)
+    return err(
+      unauthorized(
+        "WEBHOOK_MISSING_HEADERS",
+        "Missing Stripe-Signature header",
+      ),
+    );
+  const parts = value.split(",").map((part) => {
+    const index = part.indexOf("=");
+    return [part.slice(0, index).trim(), part.slice(index + 1).trim()] as const;
+  });
+  const timestamp = parts.find(([name]) => name === "t")?.[1] ?? "";
+  const offered = parts.filter(([name]) => name === "v1").map(([, sig]) => sig);
+  if (!/^\d+$/.test(timestamp))
+    return err(
+      unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
+    );
+  const namespace = optionalTemporal();
+  if (namespace === undefined) return err(temporalMissing());
+  const seconds = Number(timestamp);
+  const now =
+    (options.now?.() ?? namespace.Now.instant()).epochMilliseconds / 1000;
+  if (Math.abs(now - seconds) > (options.tolerance ?? 300))
+    return err(
+      unauthorized(
+        "WEBHOOK_TIMESTAMP_OUT_OF_RANGE",
+        "Webhook timestamp is outside the tolerance",
+      ),
+    );
+  const body = input instanceof Request ? await input.text() : input.body;
+  let valid = false;
+  for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
+    const expected = await stripeSignature(secret, `${timestamp}.${body}`);
+    for (const candidate of offered) {
+      if (timingSafeEqual(candidate, expected)) valid = true;
+    }
+  }
+  if (!valid)
+    return err(
+      unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
+    );
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    return err(dbError("invalid_request", "Webhook body is not JSON"));
+  }
+  const id =
+    typeof payload === "object" && payload !== null && "id" in payload
+      ? String(payload.id)
+      : "";
+  // SAFETY: the caller names the event type T; the signature proves the
+  // sender, not the shape.
+  return ok({
+    id,
+    timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),
+    payload: payload as T,
+    body,
+  });
+}
+
+/**
+ * `createInbox({ source: 'stripe', verify: stripeInboxVerify(secret) })`:
+ * stores Stripe events keyed by their event id.
+ */
+export function stripeInboxVerify(
+  secrets: string | readonly string[],
+  options: VerifyOptions = {},
+): (
+  request: Request,
+  body: string,
+) => Promise<Result<{ id: string; payload: unknown }>> {
+  return async (request, body) => {
+    const verified = await verifyStripeWebhook(
+      { headers: request.headers, body },
+      secrets,
+      options,
+    );
+    return verified.ok
+      ? ok({ id: verified.data.id, payload: verified.data.payload })
+      : verified;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Supabase Auth hooks
 
 interface HookUser {

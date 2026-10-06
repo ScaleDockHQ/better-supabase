@@ -1106,6 +1106,7 @@
       "toHttp"
     ],
     "types": [
+      "BillingEventData",
       "BlockEvent",
       "BlockEventMap",
       "BlockEventMeta",
@@ -1141,12 +1142,15 @@
       "isPublicAddress",
       "publicUrl",
       "rpcTransport",
+      "signStripeWebhook",
       "signWebhook",
       "sqlSecretStore",
       "sqlTransport",
       "standardWebhooks",
+      "stripeInboxVerify",
       "timingSafeEqual",
       "verifySharedSecret",
+      "verifyStripeWebhook",
       "verifyWebhook",
       "WebhookPolicyError"
     ],
@@ -1261,6 +1265,31 @@
       "UsagePeriod",
       "UsageRecorded",
       "UsageStatus"
+    ]
+  },
+  "./blocks/billing": {
+    "values": [
+      "createBilling",
+      "rpcTransport",
+      "signStripeWebhook",
+      "sqlTransport",
+      "stripeInboxVerify",
+      "verifyStripeWebhook"
+    ],
+    "types": [
+      "Billing",
+      "BillingEventData",
+      "BillingOptions",
+      "BillingStatus",
+      "BlockTransport",
+      "CheckoutOptions",
+      "CustomerDetails",
+      "SeatSync",
+      "StripeClient",
+      "StripeEvent",
+      "StripeEventOutcome",
+      "StripeSource",
+      "SubscriptionItem"
     ]
   },
   "./openapi": {

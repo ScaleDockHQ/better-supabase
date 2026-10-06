@@ -16,6 +16,7 @@
     "audit",
     "settings",
     "usage",
+    "billing",
     "entitlements",
     "vector-search"
   ]

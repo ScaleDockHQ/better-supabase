@@ -17,10 +17,12 @@ better-supabase sql add entitlements   # adds tenant as well
 
 ## Configuration
 
-Each tenant needs its Stripe customer id somewhere. With the managed
-[`organizations` module](/docs/blocks/organizations) installed alongside, the module adds
+Each tenant needs its Stripe customer id somewhere. With the
+[`billing` module](/docs/blocks/billing) installed alongside, the module reads
+`better_supabase.billing_customers`, which checkout fills. Otherwise, with the
+managed [`organizations` module](/docs/blocks/organizations), it adds
 `better_supabase.organizations.stripe_customer_id` (unique) and reads it.
-Otherwise point the module at your own column; `sql add` stops without one:
+Without either, point the module at your own column; `sql add` stops without one:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
