@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   accessPermdockMode,
   entitlementsMode,
-  blockKeyProblems,
+  moduleKeyProblems,
   parseGrantsMarker,
   parseHookMarker,
   parseManifest,
@@ -385,7 +385,10 @@ describe("accessPermdockMode", () => {
     extra: Parameters<typeof resolveConfig>[0] = {},
   ) =>
     resolveConfig(
-      { blocks: { access: { model: "permdock", ...access } }, ...extra },
+      {
+        sql: { modules: { access: { model: "permdock", ...access } } },
+        ...extra,
+      },
       "/project",
     );
 
@@ -411,7 +414,10 @@ describe("accessPermdockMode", () => {
   it("is off for the other models", () => {
     expect(
       accessPermdockMode(
-        resolveConfig({ blocks: { access: { model: "roles" } } }, "/project"),
+        resolveConfig(
+          { sql: { modules: { access: { model: "roles" } } } },
+          "/project",
+        ),
         authz,
       ),
     ).toEqual({ kind: "off" });
@@ -432,7 +438,7 @@ describe("accessPermdockMode", () => {
         config: "permdock.config.ts",
       }),
     ).toEqual(
-      invalid(/there is no permdock\.manifest\.json.*blocks\.access\.model/),
+      invalid(/there is no permdock\.manifest\.json.*modules\.access\.model/),
     );
     const { rls: _rls, ...withoutRls } = manifest;
     expect(
@@ -456,7 +462,7 @@ describe("accessPermdockMode", () => {
     };
     expect(accessPermdockMode(config(), twoRoots)).toEqual(
       invalid(
-        /no single root scope \(tenant, workspace\).*blocks\.access\.permdock: \{ scope \}/,
+        /no single root scope \(tenant, workspace\).*modules\.access\.permdock: \{ scope \}/,
       ),
     );
     expect(
@@ -466,7 +472,7 @@ describe("accessPermdockMode", () => {
       ),
     ).toEqual(
       invalid(
-        /blocks\.access\.permdock\.scope is "organization", but .* tenant, team/,
+        /modules\.access\.permdock\.scope is "organization", but .* tenant, team/,
       ),
     );
     expect(
@@ -477,7 +483,7 @@ describe("accessPermdockMode", () => {
       ),
     );
     expect(accessPermdockMode(config({ idType: "uuid" }), authz)).toEqual(
-      invalid(/blocks\.access\.idType is "uuid", but .* the type text/),
+      invalid(/modules\.access\.idType is "uuid", but .* the type text/),
     );
     const untyped = {
       ...project,
@@ -492,7 +498,7 @@ describe("accessPermdockMode", () => {
   });
 });
 
-describe("blockKeyProblems", () => {
+describe("moduleKeyProblems", () => {
   const access = { schema: "authz", scope: "tenant", idType: "uuid" } as const;
   const catalog = parseCatalog({
     version: 1,
@@ -536,21 +542,21 @@ describe("blockKeyProblems", () => {
   ] as const;
 
   it("passes scope-only keys and refuses the other statuses", () => {
-    expect(blockKeyProblems(project, keys, access)).toEqual([
+    expect(moduleKeyProblems(project, keys, access)).toEqual([
       {
-        target: "blocks.invitations.permissions.invite",
+        target: "sql.modules.invitations.permissions.invite",
         message: expect.stringMatching(
           /checks "members\.invite" \(invite\) with authz\.permitted_tenant_ids, but it has row conditions.*rowConditions: false/,
         ),
       },
       {
-        target: "blocks.support-sessions.permissions.start",
+        target: "sql.modules.support-sessions.permissions.start",
         message: expect.stringMatching(
           /checks "support\.start" \(start\) with authz\.permdock_has, but it has no rowConditions flag.*permdock catalog/,
         ),
       },
       {
-        target: "blocks.notifications.permissions.send",
+        target: "sql.modules.notifications.permissions.send",
         message: expect.stringMatching(
           /"notifications\.send".*is not in permissions\.catalog\.json.*permdock catalog.*a key the catalog lists/,
         ),
@@ -560,7 +566,7 @@ describe("blockKeyProblems", () => {
 
   it("refuses every key without a readable catalog", () => {
     const { catalog: _, ...withoutCatalog } = project;
-    expect(blockKeyProblems(withoutCatalog, keys, access)).toEqual([
+    expect(moduleKeyProblems(withoutCatalog, keys, access)).toEqual([
       {
         target: "permissions.catalog.json",
         message: expect.stringContaining(
@@ -569,7 +575,7 @@ describe("blockKeyProblems", () => {
       },
     ]);
     expect(
-      blockKeyProblems(
+      moduleKeyProblems(
         {
           ...withoutCatalog,
           problems: ["permissions.catalog.json: version 2 is not supported"],
@@ -583,7 +589,7 @@ describe("blockKeyProblems", () => {
         message: expect.stringContaining("Could not read PermDock's catalog"),
       },
     ]);
-    expect(blockKeyProblems(withoutCatalog, [], access)).toEqual([]);
+    expect(moduleKeyProblems(withoutCatalog, [], access)).toEqual([]);
   });
 });
 

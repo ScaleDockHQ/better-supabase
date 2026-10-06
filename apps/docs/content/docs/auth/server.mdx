@@ -175,7 +175,7 @@ pass `tenant`. It returns the tenant id for a request, or `undefined`. The
 result becomes `context.tenant` for the [`tenant()` plugin](/docs/plugins/tenant),
 the `better_supabase.tenant` setting for `ctx.sql` and the `x-bs-tenant`
 header (`TENANT_HEADER`) for `ctx.db`, which `current_tenant_id()` reads with
-`blocks.access.activeTenant: 'resolver'`. See
+`sql.modules.access.activeTenant: 'resolver'`. See
 [The active tenant](/docs/blocks/access#the-active-tenant).
 
 ```ts

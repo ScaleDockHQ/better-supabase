@@ -1,5 +1,5 @@
-import type { BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext, BlockNames } from "../context.ts";
+import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -9,10 +9,10 @@ import {
   SERVICE_CALLER,
   updatedAt,
 } from "../shared.ts";
-import { accessModel, BLOCK_PERMISSIONS, roleNames } from "./access-model.ts";
+import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
-const NAMES: BlockNames = {
+const NAMES: ModuleNames = {
   options: [
     "attributes",
     "deleteMode",
@@ -72,11 +72,11 @@ interface OrganizationNames {
   readonly tenant: string;
   readonly user: string;
   readonly role: string;
-  /** The role name owners hold (`blocks.organizations.options.ownerRole`). */
+  /** The role name owners hold (`sql.modules.organizations.options.ownerRole`). */
   readonly ownerRole: string;
 }
 
-function namesOf(ctx: BlockContext): OrganizationNames {
+function namesOf(ctx: ModuleContext): OrganizationNames {
   const t = ctx.of("tenant");
   return {
     organization: ctx.table("organizations"),
@@ -93,7 +93,7 @@ function namesOf(ctx: BlockContext): OrganizationNames {
  * A role argument as the membership role column stores it: the name for the
  * roles model, the catalog role id (looked up by id or key) for `catalog`.
  */
-export function roleValue(ctx: BlockContext, expr: string): string {
+export function roleValue(ctx: ModuleContext, expr: string): string {
   if (accessModel(ctx) !== "catalog") return expr;
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
@@ -103,7 +103,7 @@ export function roleValue(ctx: BlockContext, expr: string): string {
 }
 
 /** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
-function checkRole(ctx: BlockContext, expr: string): string {
+function checkRole(ctx: ModuleContext, expr: string): string {
   const model = accessModel(ctx);
   if (model === "permdock" || model === "custom") return "";
   const known =
@@ -117,7 +117,7 @@ function checkRole(ctx: BlockContext, expr: string): string {
 }
 
 const isOwner = (
-  ctx: BlockContext,
+  ctx: ModuleContext,
   n: OrganizationNames,
   alias: string,
 ): string =>
@@ -125,7 +125,7 @@ const isOwner = (
 
 /** True while the organization exists and is neither deleted nor disabled. */
 function activeOrganization(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   n: OrganizationNames,
   organization: string,
 ): string {
@@ -137,7 +137,7 @@ function activeOrganization(
   return `exists (select 1 from ${n.organization} o where o.${n.id} = ${organization}${flags}) and not better_supabase.tenant_disabled(${organization})`;
 }
 
-function idColumn(ctx: BlockContext, column: string): string {
+function idColumn(ctx: ModuleContext, column: string): string {
   switch (ctx.idType) {
     case "uuid":
       return `${column} uuid primary key default gen_random_uuid()`;
@@ -153,10 +153,10 @@ function idColumn(ctx: BlockContext, column: string): string {
   }
 }
 
-function table(ctx: BlockContext, n: OrganizationNames): string {
+function table(ctx: ModuleContext, n: OrganizationNames): string {
   if (!ctx.manages) {
     return `
--- Adopted: ${n.organization} belongs to the app (blocks.organizations.tables.organizations).
+-- Adopted: ${n.organization} belongs to the app (modules.organizations.tables.organizations).
 `;
   }
   const c = (logical: string) => ctx.col("organizations", logical);
@@ -188,7 +188,7 @@ create policy bs_organizations_read on ${n.organization} for select to authentic
 }
 
 /** `organization_slug_problem(slug)`: `invalid`, `reserved`, `taken` or null. */
-function slugCheck(ctx: BlockContext, n: OrganizationNames): string {
+function slugCheck(ctx: ModuleContext, n: OrganizationNames): string {
   if (!ctx.has("organizations", "slug")) return "";
   const slug = ctx.col("organizations", "slug");
   const pattern = sqlString(ctx.text("slugPattern", DEFAULT_SLUG_PATTERN));
@@ -212,7 +212,7 @@ function slugCheck(ctx: BlockContext, n: OrganizationNames): string {
     : "";
   return `
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
--- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
+-- sql.modules.organizations.options), 'reserved' or 'taken'. except_organization skips the
 -- organization being renamed.
 create or replace function ${ctx.fn("organization_slug_problem")}(value text, except_organization ${ctx.idType} default null)
 returns text
@@ -237,7 +237,11 @@ grant execute on function ${ctx.fn("organization_slug_problem")}(text, ${ctx.idT
 `;
 }
 
-const raiseSlug = (ctx: BlockContext, value: string, except: string): string =>
+const raiseSlug = (
+  ctx: ModuleContext,
+  value: string,
+  except: string,
+): string =>
   ctx.has("organizations", "slug")
     ? `
   case ${ctx.fn("organization_slug_problem")}(${ctx.manages ? `coalesce(${value}, '')` : value}, ${except})
@@ -249,11 +253,11 @@ const raiseSlug = (ctx: BlockContext, value: string, except: string): string =>
     : "";
 
 /** The columns `create_organization` and `update_organization` copy from `attrs`. */
-function attributeColumns(ctx: BlockContext): readonly string[] {
+function attributeColumns(ctx: ModuleContext): readonly string[] {
   const extra = ctx.list("attributes", []).map((column) => {
     if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
       throw new TypeError(
-        `blocks.organizations.options.attributes: "${column}" is not a valid column`,
+        `sql.modules.organizations.options.attributes: "${column}" is not a valid column`,
       );
     }
     return sqlIdent(column);
@@ -274,7 +278,7 @@ const unquoted = (ident: string): string =>
 const event = (organization: string, user: string, extra = ""): string =>
   `jsonb_build_object('organizationId', ${organization}::text, 'userId', ${user}${extra})`;
 
-function create(ctx: BlockContext, n: OrganizationNames): string {
+function create(ctx: ModuleContext, n: OrganizationNames): string {
   const id = ctx.idType;
   const columns = attributeColumns(ctx);
   const fixed = ctx.has("organizations", "slug") ? 2 : 1;
@@ -321,7 +325,7 @@ function create(ctx: BlockContext, n: OrganizationNames): string {
     : undefined;
   return `
 -- Creates an organization from attrs (its name${slug ? ", slug" : ""} and the columns in
--- blocks.organizations.options.attributes) and makes the caller its owner. The
+-- sql.modules.organizations.options.attributes) and makes the caller its owner. The
 -- service role passes the owner as attrs.owner_id.
 create or replace function ${ctx.fn("create_organization")}(attrs jsonb)
 returns ${id}
@@ -368,7 +372,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", BLOCK_PERMISSIONS.organizations.update)}), false) then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", MODULE_PERMISSIONS.organizations.update)}), false) then
     raise exception 'Not allowed to update the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "organization").replaceAll("\n", "\n  ")}\n  end if;` : ""}
   update ${n.organization} o
@@ -385,12 +389,12 @@ $$;
 `;
 }
 
-function remove(ctx: BlockContext, n: OrganizationNames): string {
+function remove(ctx: ModuleContext, n: OrganizationNames): string {
   const id = ctx.idType;
   const soft = ctx.text("deleteMode", "hard") === "soft";
   if (soft && !ctx.has("organizations", "deletedAt")) {
     throw new TypeError(
-      "blocks.organizations.options.deleteMode 'soft' needs the deletedAt column",
+      "sql.modules.organizations.options.deleteMode 'soft' needs the deletedAt column",
     );
   }
   const audit = ctx.installed("audit")
@@ -406,7 +410,7 @@ function remove(ctx: BlockContext, n: OrganizationNames): string {
     ? `update ${n.organization} set ${ctx.col("organizations", "deletedAt")} = now() where ${n.id} = organization and ${ctx.col("organizations", "deletedAt")} is null;`
     : `delete from ${n.organization} where ${n.id} = organization;`;
   return `
--- Deletes an organization (blocks.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
+-- Deletes an organization (modules.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
 create or replace function ${ctx.fn("delete_organization")}(organization ${id})
 returns boolean
 language plpgsql
@@ -415,7 +419,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", BLOCK_PERMISSIONS.organizations.delete)}), false) then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false) then
     raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   ${action}
@@ -430,10 +434,10 @@ $$;
 }
 
 /**
- * When the block owns the organizations table, the tenant rows of memberships,
+ * When the module owns the organizations table, the tenant rows of memberships,
  * invitations and permission overrides go with their organization.
  */
-function tenantKeys(ctx: BlockContext, n: OrganizationNames): string {
+function tenantKeys(ctx: ModuleContext, n: OrganizationNames): string {
   if (!ctx.manages) return "";
   const references = `${n.organization} (${n.id})`;
   const keys: string[] = [];
@@ -477,7 +481,7 @@ ${keys.join("\n")}
 }
 
 /** The deferred owner check and the role guard on the memberships table. */
-function guards(ctx: BlockContext, n: OrganizationNames): string {
+function guards(ctx: ModuleContext, n: OrganizationNames): string {
   const invariant = ctx.flag("ownerInvariant", true)
     ? `
 -- Checked at commit, so one transaction can promote one owner and demote
@@ -541,9 +545,9 @@ revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, au
   return `${invariant}${ceiling}`;
 }
 
-function members(ctx: BlockContext, n: OrganizationNames): string {
+function members(ctx: ModuleContext, n: OrganizationNames): string {
   const id = ctx.idType;
-  const p = BLOCK_PERMISSIONS.organizations;
+  const p = MODULE_PERMISSIONS.organizations;
   const can = (action: keyof typeof p) =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission(action, p[action])}), false))`;
   const active = `
@@ -642,7 +646,7 @@ end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (blocks.organizations.options.formerOwnerRole).
+-- former_role (modules.organizations.options.formerOwnerRole).
 create or replace function ${ctx.fn("transfer_ownership")}(organization ${id}, new_owner uuid, former_role text default ${former})
 returns boolean
 language plpgsql
@@ -698,10 +702,10 @@ $$;
 
 /**
  * `switch_organization(organization)`: makes organization the caller's active tenant through
- * `blocks.access.activeTenant`. A claim source writes \`app_metadata\` and
+ * `sql.modules.access.activeTenant`. A claim source writes \`app_metadata\` and
  * returns refresh = true, so the client refreshes its session.
  */
-function switcher(ctx: BlockContext, n: OrganizationNames): string {
+function switcher(ctx: ModuleContext, n: OrganizationNames): string {
   const source = activeTenantSource(ctx);
   let write: string;
   let refresh = "false";
@@ -714,18 +718,18 @@ function switcher(ctx: BlockContext, n: OrganizationNames): string {
     write = "-- The server's tenant resolver picks the tenant per request.";
   } else {
     const profile = columnRef(
-      "blocks.access.activeTenant.profileColumn",
+      "sql.modules.access.activeTenant.profileColumn",
       source.profileColumn,
     );
     write = `update ${profile.table} set ${profile.column} = organization where ${sqlIdent(source.key ?? "id")} = me;`;
   }
-  const tenantBlock = ctx.of("tenant");
-  const lastUsed = tenantBlock.has("memberships", "lastUsedAt")
+  const tenantModule = ctx.of("tenant");
+  const lastUsed = tenantModule.has("memberships", "lastUsedAt")
     ? `
-  update ${n.m} set ${tenantBlock.col("memberships", "lastUsedAt")} = now() where ${n.tenant} = organization and ${n.user} = me;`
+  update ${n.m} set ${tenantModule.col("memberships", "lastUsedAt")} = now() where ${n.tenant} = organization and ${n.user} = me;`
     : "";
   return `
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (modules.access.activeTenant).
 create or replace function ${ctx.fn("switch_organization")}(organization ${ctx.idType})
 returns jsonb
 language plpgsql
@@ -762,7 +766,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["switch_organization", id],
 ];
 
-function organizationsSql(ctx: BlockContext): string {
+function organizationsSql(ctx: ModuleContext): string {
   const n = namesOf(ctx);
   const grants = FUNCTIONS(ctx.idType)
     .map(
@@ -778,7 +782,7 @@ ${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remo
 ${grants}`;
 }
 
-export const ORGANIZATIONS: BlockModuleDefinition = {
+export const ORGANIZATIONS: ModuleDefinition = {
   name: "organizations",
   title: "Organizations",
   description:

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { createModuleContext } from "../../src/sql/context.ts";
 import {
   deprecationWrappers,
-  blockDeprecations,
+  moduleDeprecations,
   type SqlModule,
   upgradePlan,
-} from "../../src/sql/blocks.ts";
-import { createBlockContext } from "../../src/sql/context.ts";
+} from "../../src/sql/registry.ts";
 
 const widget: SqlModule = {
   name: "widget",
@@ -81,7 +81,7 @@ describe("upgradePlan", () => {
   it("renders steps for the module's configured schema", () => {
     const [plan] = upgradePlan(
       [{ module: "widget", version: 3 }],
-      { blocks: { widget: { schema: "app" } } },
+      { modules: { widget: { schema: "app" } } },
       modules,
     );
     expect(plan!.steps.map((step) => step.sql)).toEqual([
@@ -126,7 +126,7 @@ describe("upgradePlan", () => {
     expect(
       upgradePlan(
         [{ module: "widget", version: 1 }],
-        { blocks: { widget: { mode: "custom" } } },
+        { modules: { widget: { mode: "custom" } } },
         modules,
       ),
     ).toEqual([]);
@@ -153,7 +153,7 @@ describe("upgradePlan", () => {
 
 describe("deprecations", () => {
   it("writes wrappers only for symbols not removed yet", () => {
-    const ctx = createBlockContext("widget", () => undefined);
+    const ctx = createModuleContext("widget", () => undefined);
     const wrappers = deprecationWrappers(widget, ctx);
     expect(wrappers).toContain(
       "-- Deprecated since 0.5.0: use better_supabase.widget_total().",
@@ -168,12 +168,12 @@ describe("deprecations", () => {
   });
 
   it("lists every deprecated symbol with its module", () => {
-    expect(blockDeprecations(modules).map((entry) => entry.symbol)).toEqual([
+    expect(moduleDeprecations(modules).map((entry) => entry.symbol)).toEqual([
       "better_supabase.widget_count",
       "widget_ids",
       "better_supabase.old_widget",
     ]);
-    expect(blockDeprecations()).toContainEqual(
+    expect(moduleDeprecations()).toContainEqual(
       expect.objectContaining({
         module: "tenant",
         symbol: "better_supabase.current_org_id",

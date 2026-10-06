@@ -5,7 +5,7 @@ import type { CloudEvent } from "../../src/events/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
-import { renderBlocks } from "../../src/sql/blocks.ts";
+import { renderModules } from "../../src/sql/registry.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -45,16 +45,16 @@ describe.skipIf(!live)("outbox", () => {
 
   beforeAll(async () => {
     const { rows } = await pool.query(
-      "select to_regclass('better_supabase.block_modules') is not null and exists (select 1 from better_supabase.block_modules where name = 'outbox') as present",
+      "select to_regclass('better_supabase.modules') is not null and exists (select 1 from better_supabase.modules where name = 'outbox') as present",
     );
     registered = Boolean(rows[0]?.present);
     const layout = {
-      blocks: { outbox: { schema: SCHEMA, idType: "text" as const } },
+      modules: { outbox: { schema: SCHEMA, idType: "text" as const } },
     };
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderBlocks(["outbox"], layout))
+      for (const file of renderModules(["outbox"], layout))
         await client.query(file.contents);
       await client.query(
         `create table ${SCHEMA}.widgets (id bigint primary key, organization text, name text)`,
@@ -75,7 +75,7 @@ describe.skipIf(!live)("outbox", () => {
     await pool.query(`drop schema if exists ${SCHEMA} cascade`);
     if (!registered) {
       await pool.query(
-        "delete from better_supabase.block_modules where name = 'outbox'",
+        "delete from better_supabase.modules where name = 'outbox'",
       );
     }
     await pool.end();

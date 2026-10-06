@@ -10,8 +10,8 @@ export interface TestNotificationChannelOptions {
   /** The recipient's email in the sample message. Defaults to `null`. */
   readonly email?: string | null;
   /**
-   * The delivery ids the provider received, read after the block sends. When
-   * given, the block checks that the sample message arrived.
+   * The delivery ids the provider received, read after the module sends. When
+   * given, the module checks that the sample message arrived.
    */
   readonly received?: () => Promise<readonly string[]>;
 }

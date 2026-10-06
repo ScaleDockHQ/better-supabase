@@ -484,19 +484,23 @@ no `rls.memberships` entry.
 
 ## The access block with PermDock
 
-Set `blocks.access.model: 'permdock'` and the SQL modules' `can()`, the
+Set `sql.modules.access.model: 'permdock'` and the SQL modules' `can()`, the
 organizations, invitations, audit, support-sessions, notifications and
 webhooks modules check permissions through PermDock's helpers instead of a
 role catalog of their own:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["access", "organizations", "invitations", "audit"] },
-  blocks: {
-    access: {
-      model: "permdock",
-      functions: {
-        canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
+  sql: {
+    modules: {
+      organizations: {},
+      invitations: {},
+      audit: {},
+      access: {
+        model: "permdock",
+        functions: {
+          canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
+        },
       },
     },
   },
@@ -512,12 +516,12 @@ module uses PermDock:
   that scope's `type`. A manifest with `rls.schema: "authz"` and a root scope
   `tenant` gets `authz.permitted_tenant_ids`;
 - `sql add` stops on a missing manifest, no single root scope, a
-  `blocks.access.permdock.scope` the manifest doesn't declare, or a schema or
-  `blocks.access.idType` that disagrees with it;
+  `sql.modules.access.permdock.scope` the manifest doesn't declare, or a schema or
+  `sql.modules.access.idType` that disagrees with it;
 - every permission key the SQL modules check must be `rowConditions: false`
   in `permissions.catalog.json`, because the helpers check role and scope
-  only. `blockPermissionKeys` from `better-supabase/sql` lists the keys; map
-  one to another key with `blocks.<module>.permissions`;
+  only. `modulePermissionKeys` from `better-supabase/sql` lists the keys; map
+  one to another key with `sql.modules.<module>.permissions`;
 - `canAssign` names PermDock's assignment rule, `permdock_can_assign`, which
   PermDock writes when a role declares `assigns`. Without it only the
   service role assigns roles.

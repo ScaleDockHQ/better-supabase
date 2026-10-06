@@ -32,12 +32,12 @@ export interface SendInput<D = unknown> {
   readonly subject?: NotificationSubject;
   readonly summary?: string;
   readonly actionPath?: string;
-  /** One of `blocks.notifications.options.priorities`. Defaults to `normal`. */
+  /** One of `sql.modules.notifications.options.priorities`. Defaults to `normal`. */
   readonly priority?: string;
   readonly data: D;
   /** With a key, sending again (per tenant) returns the first notification. */
   readonly key?: string;
-  /** Defaults to `blocks.notifications.options.channels`. */
+  /** Defaults to `sql.modules.notifications.options.channels`. */
   readonly channels?: readonly string[];
   /** Also notify the user who caused it. Defaults to `false`. */
   readonly includeActor?: boolean;
@@ -112,7 +112,7 @@ export interface NotificationsOptions<K extends NotificationTypes> {
   readonly transport: BlockTransport;
   /** Each type's `data` schema: `send` validates against it. */
   readonly types: K;
-  /** `blocks.notifications.schema`. Defaults to `better_supabase`. */
+  /** `sql.modules.notifications.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** Turns a notification into text at read time, in the reader's locale. */
   readonly render?: (

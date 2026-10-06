@@ -92,7 +92,7 @@ export async function inviteMember(organizationId: string, email: string) {
 ```
 
 `rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
-`better_supabase` or a `blocks.<module>.schema` to `[api] schemas`: those
+`better_supabase` or a `sql.modules.<module>.schema` to `[api] schemas`: those
 schemas hold internal helpers that policies call, and doctor reports exposing
 them as BS312. Create a separate API schema, such as `api`, that holds only the
 RPC entry points: one `security invoker` function per block function you call,
@@ -138,7 +138,7 @@ never part of an event, and by default only its SHA-256 hash is stored.
 ## Switching organizations
 
 `switch_organization(organization)` checks the caller is a member and the organization
-is active, then follows `blocks.access.activeTenant`:
+is active, then follows `sql.modules.access.activeTenant`:
 
 | Source          | `switch_organization` writes                               | `refresh` |
 | --------------- | ---------------------------------------------------------- | --------- |
@@ -152,7 +152,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 ## Options
 
-`blocks.organizations.options`:
+`sql.modules.organizations.options`:
 
 | Option            | Default                             | What it does                                                                                                 |
 | ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -170,7 +170,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.
 
-`blocks.invitations.options` (`tokenStorage: "plain"` is migration-only: the
+`sql.modules.invitations.options` (`tokenStorage: "plain"` is migration-only: the
 config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 
 | Option                  | Default    | What it does                                                 |
@@ -187,13 +187,13 @@ Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.
 
 An invitation with a null organization is a platform invitation. It needs
-`blocks.access.model: "catalog"` with a `platformAssignments` table, and lives in
+`sql.modules.access.model: "catalog"` with a `platformAssignments` table, and lives in
 its own `platform_invitations` table. The inviter needs the `invitePlatform`
 permission (`platform.invite`) and every permission the platform role grants,
 both when inviting and when the invitation is accepted. Managed catalog roles
 have a `scope` column (`tenant` or `platform`), and neither kind of role is
-assignable as the other. An adopted catalog maps `blocks.access.columns.roles.scope`
-and names its values in `blocks.access.options.tenantRoleScope` and
+assignable as the other. An adopted catalog maps `sql.modules.access.columns.roles.scope`
+and names its values in `sql.modules.access.options.tenantRoleScope` and
 `platformRoleScope`; an adopted invitations table that also holds platform
 invitations (rows without an organization) maps `tables.platformInvitations`
 to itself.
@@ -205,31 +205,34 @@ names and set the columns you don't have to `null`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["organizations", "invitations"] },
-  blocks: {
-    access: { model: "catalog" },
-    tenant: {
-      mode: "adopt",
-      tables: { memberships: "public.organization_users" },
-      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
-    },
-    organizations: {
-      mode: "adopt",
-      tables: { organizations: "public.organizations" },
-      columns: { organizations: { createdBy: null, deletedAt: null } },
-      options: { attributes: ["logo_url"] },
-    },
-    invitations: {
-      mode: "adopt",
-      tables: { invitations: "public.organization_invitations" },
-      columns: {
-        invitations: {
-          tenant: "organization_id",
-          role: "role_id",
-          tokenHash: "token",
+  sql: {
+    modules: {
+      access: { model: "catalog" },
+      tenant: {
+        mode: "adopt",
+        tables: { memberships: "public.organization_users" },
+        columns: {
+          memberships: { tenant: "organization_id", role: "role_id" },
         },
       },
-      options: { tokenStorage: "plain" },
+      organizations: {
+        mode: "adopt",
+        tables: { organizations: "public.organizations" },
+        columns: { organizations: { createdBy: null, deletedAt: null } },
+        options: { attributes: ["logo_url"] },
+      },
+      invitations: {
+        mode: "adopt",
+        tables: { invitations: "public.organization_invitations" },
+        columns: {
+          invitations: {
+            tenant: "organization_id",
+            role: "role_id",
+            tokenHash: "token",
+          },
+        },
+        options: { tokenStorage: "plain" },
+      },
     },
   },
 });

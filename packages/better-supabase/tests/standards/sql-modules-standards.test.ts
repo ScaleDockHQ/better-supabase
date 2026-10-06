@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { resolveConfig } from "../../src/config/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
-import { renderBlocks } from "../../src/sql/blocks.ts";
-import { blockLayout } from "../../src/sql/layout.ts";
+import { moduleLayout } from "../../src/sql/layout.ts";
+import { renderModules } from "../../src/sql/registry.ts";
 
 const contents = (name: string, config: Record<string, unknown> = {}) =>
-  renderBlocks([name], blockLayout(resolveConfig(config, "/project"))).find(
+  renderModules([name], moduleLayout(resolveConfig(config, "/project"))).find(
     (file) => file.path.includes(name.replaceAll("-", "_")),
   )!;
 

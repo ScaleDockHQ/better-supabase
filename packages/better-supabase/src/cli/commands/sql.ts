@@ -11,19 +11,19 @@ import {
   auditRegistrations,
   contractSignature,
   customContracts,
-  type InstalledBlockModule,
-  type BlockAccessPermdock,
-  type BlockFile,
-  blockFileVersion,
-  type BlockLayout,
-  type BlockPermdock,
-  blockFilePaths,
-  blockLayout,
-  blockPermissionKeys,
+  type InstalledModule,
+  type ModuleAccessPermdock,
+  type ModuleFile,
+  moduleFileVersion,
+  type ModuleLayout,
+  type ModulePermdock,
+  moduleFilePaths,
+  moduleLayout,
+  modulePermissionKeys,
   moduleBody,
-  renderBlocks,
+  renderModules,
   resolveModules,
-  sameBlockFile,
+  sameModuleFile,
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
@@ -33,7 +33,7 @@ import { display, writeIfChanged } from "../io.ts";
 import {
   accessPermdockMode,
   entitlementsMode,
-  blockKeyProblems,
+  moduleKeyProblems,
   permdockSource,
   readPermdock,
 } from "../permdock.ts";
@@ -86,7 +86,7 @@ const PERMDOCK_OWNED: ReadonlySet<string> = new Set(["tenant"]);
 async function permdockFor(
   config: ResolvedConfig,
   names?: readonly string[],
-): Promise<BlockPermdock | undefined> {
+): Promise<ModulePermdock | undefined> {
   const mode = entitlementsMode(
     config,
     await readPermdock(config.root, config.permdock),
@@ -115,14 +115,14 @@ async function permdockFor(
 /**
  * PermDock's helpers for the `access` module's `permdock` model, read from
  * the manifest whatever `entitlements` says. When `names` resolve to
- * `access`, an invalid mode throws, and so does a block permission key the
+ * `access`, an invalid mode throws, and so does a module permission key the
  * catalog doesn't mark `rowConditions: false`. `sql list` (no `names`)
  * doesn't render, so it doesn't throw.
  */
 async function accessPermdockFor(
   config: ResolvedConfig,
   names?: readonly string[],
-): Promise<BlockAccessPermdock | undefined> {
+): Promise<ModuleAccessPermdock | undefined> {
   const project = await readPermdock(config.root, config.permdock);
   const mode = accessPermdockMode(config, project);
   const renders =
@@ -133,9 +133,9 @@ async function accessPermdockFor(
       return undefined;
     case "permdock": {
       if (!renders || !project) return mode.access;
-      const problems = blockKeyProblems(
+      const problems = moduleKeyProblems(
         project,
-        blockPermissionKeys(config.blocks, names),
+        modulePermissionKeys(config.sql.modules, names),
         mode.access,
       );
       if (problems.length > 0) {
@@ -159,9 +159,9 @@ async function layout(
   config: ResolvedConfig,
   args: SqlArgs,
   names?: readonly string[],
-): Promise<BlockLayout> {
+): Promise<ModuleLayout> {
   return {
-    ...blockLayout(
+    ...moduleLayout(
       config,
       args["tests-dir"],
       [],
@@ -205,7 +205,7 @@ async function layoutFor(
   config: ResolvedConfig,
   args: SqlArgs,
   names: readonly string[],
-): Promise<BlockLayout> {
+): Promise<ModuleLayout> {
   const permdock = await permdockFor(config, names);
   const resolved = new Set(
     resolveModules(names, {
@@ -213,7 +213,7 @@ async function layoutFor(
     }).map((module) => module.name),
   );
   return {
-    ...blockLayout(
+    ...moduleLayout(
       config,
       args["tests-dir"],
       resolved.has("read-sets") ? await compiledReadSets(config) : [],
@@ -227,32 +227,32 @@ async function layoutFor(
   };
 }
 
-const BLOCK_TEST_MARKER = /^-- @bs-block-test ([a-z0-9-]+)$/m;
+const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
 
 /**
  * Test files a SQL module wrote for an earlier layout (a table that is no
  * longer audited), for the modules in `names`.
  */
-async function staleBlockTests(
+async function staleModuleTests(
   config: ResolvedConfig,
   names: readonly string[],
-  block: BlockLayout,
-  files: readonly BlockFile[],
+  sqlLayout: ModuleLayout,
+  files: readonly ModuleFile[],
 ): Promise<string[]> {
-  const dir = (block.testsDir ?? "supabase/tests").replace(/\/$/, "");
+  const dir = (sqlLayout.testsDir ?? "supabase/tests").replace(/\/$/, "");
   const entries: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );
   const current = new Set(files.map((file) => file.path));
   const modules = new Set(
-    resolveModules(names, block).map((module) => module.name),
+    resolveModules(names, sqlLayout).map((module) => module.name),
   );
   const stale: string[] = [];
   for (const name of entries.toSorted()) {
     const path = `${dir}/${name}`;
     if (!name.endsWith(".test.sql") || current.has(path)) continue;
     const text = await readFile(resolve(config.root, path), "utf8");
-    const module = BLOCK_TEST_MARKER.exec(text)?.[1];
+    const module = MODULE_TEST_MARKER.exec(text)?.[1];
     if (module !== undefined && modules.has(module)) stale.push(path);
   }
   return stale;
@@ -312,13 +312,13 @@ async function write(
   config: ResolvedConfig,
   args: SqlArgs,
   names: readonly string[],
-  block: BlockLayout,
+  sqlLayout: ModuleLayout,
 ): Promise<string[]> {
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
   let data = false;
-  const files = renderBlocks(names, block);
-  for (const path of await staleBlockTests(config, names, block, files)) {
+  const files = renderModules(names, sqlLayout);
+  for (const path of await staleModuleTests(config, names, sqlLayout, files)) {
     const shown = display(config.root, path);
     if (dryRun) {
       lines.push(`Would remove ${shown}`);
@@ -344,7 +344,7 @@ async function write(
 
 const DATA_NEXT =
   "The better-supabase-data files hold rows and settings a schema diff skips: after the schema migration, run `better-supabase sql data`.";
-const DATA_SUFFIX = "_better_supabase_block_data.sql";
+const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
 /**
  * Writes the data files of `sql.modules` into one migration, meant to run after
@@ -355,12 +355,12 @@ async function dataMigration(
   config: ResolvedConfig,
   args: SqlArgs,
 ): Promise<CommandResult> {
-  if (config.sql.modules.length === 0) {
+  if (config.sql.moduleNames.length === 0) {
     return { code: 0, output: "sql.modules is empty; nothing to write." };
   }
-  const files = renderBlocks(
-    config.sql.modules,
-    await layoutFor(config, args, config.sql.modules),
+  const files = renderModules(
+    config.sql.moduleNames,
+    await layoutFor(config, args, config.sql.moduleNames),
   ).filter((file) => file.kind === "data");
   const contents = `-- better-supabase sql data: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
   const dir = migrationsDir(config);
@@ -387,11 +387,11 @@ async function dataMigration(
   return { code: 0, output: `Wrote ${path}` };
 }
 
-/** A note when migra's `schema_paths` is set and misses block files, which `supabase db diff` would then skip. */
-async function unlistedBlockFiles(
+/** A note when migra's `schema_paths` is set and misses module files, which `supabase db diff` would then skip. */
+async function unlistedModuleFiles(
   config: ResolvedConfig,
   names: readonly string[],
-  block: BlockLayout,
+  sqlLayout: ModuleLayout,
 ): Promise<string[]> {
   const toml = await readSupabaseToml(config.root);
   const order = await schemaPaths(config.root, toml);
@@ -400,7 +400,7 @@ async function unlistedBlockFiles(
   const unlisted = new Set(order.unlisted);
   const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
   const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
-  const missing = renderBlocks(names, block)
+  const missing = renderModules(names, sqlLayout)
     .filter((file) => file.kind !== "data")
     .map((file) => file.path)
     .filter((path) => path.startsWith(dir) && !listed.has(path));
@@ -417,7 +417,7 @@ async function unlistedBlockFiles(
 }
 
 /**
- * Rewrites the block files of modules behind the current version, and writes
+ * Rewrites the module files of modules behind the current version, and writes
  * their upgrade steps (renames, backfills) as a migration that runs before
  * the one the schema diff creates.
  */
@@ -426,13 +426,13 @@ async function upgrade(
   args: SqlArgs,
   paint: Paint,
 ): Promise<CommandResult> {
-  if (config.sql.modules.length === 0) {
+  if (config.sql.moduleNames.length === 0) {
     return { code: 0, output: "sql.modules is empty; nothing to upgrade." };
   }
-  const block = await layoutFor(config, args, config.sql.modules);
-  const files = renderBlocks(config.sql.modules, block);
-  const installed: InstalledBlockModule[] = [];
-  const stale: BlockFile[] = [];
+  const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
+  const files = renderModules(config.sql.moduleNames, sqlLayout);
+  const installed: InstalledModule[] = [];
+  const stale: ModuleFile[] = [];
   const diffs: string[] = [];
   for (const file of files) {
     if (file.kind === "data") continue;
@@ -443,9 +443,9 @@ async function upgrade(
     if (current === undefined) continue;
     installed.push({
       module: file.module,
-      version: blockFileVersion(current)?.version ?? 1,
+      version: moduleFileVersion(current)?.version ?? 1,
     });
-    if (!sameBlockFile(current, file.contents)) {
+    if (!sameModuleFile(current, file.contents)) {
       stale.push(file);
       diffs.push(
         fileDiff(
@@ -457,7 +457,7 @@ async function upgrade(
       );
     }
   }
-  const plan = upgradePlan(installed, block);
+  const plan = upgradePlan(installed, sqlLayout);
   const behind = plan.map(
     (entry) =>
       `${entry.module} is at version ${String(entry.from)}; the current version is ${String(entry.to)}`,
@@ -516,9 +516,9 @@ async function upgrade(
     );
   }
   lines.push(
-    ...(await write(config, args, config.sql.modules, block)),
+    ...(await write(config, args, config.sql.moduleNames, sqlLayout)),
     "",
-    `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_block")}`,
+    `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_module")}`,
   );
   return { code: 0, output: lines.join("\n") };
 }
@@ -531,17 +531,17 @@ export async function runSql(
   const [action, ...names] = args._;
   switch (action) {
     case "list": {
-      const block = await layout(config, args);
-      const files = blockFilePaths(Object.keys(SQL_MODULES), block);
+      const sqlLayout = await layout(config, args);
+      const files = moduleFilePaths(Object.keys(SQL_MODULES), sqlLayout);
       const lines = Object.values(SQL_MODULES).map((module) => {
         const path = files.get(module.name);
         const installed =
           path !== undefined && existsSync(resolve(config.root, path));
-        const tracked = config.sql.modules.includes(module.name);
+        const tracked = config.sql.moduleNames.includes(module.name);
         const mark =
           path === undefined ? "◇" : installed ? (tracked ? "●" : "○") : " ";
         const requires =
-          block.permdock && module.permdockRequires
+          sqlLayout.permdock && module.permdockRequires
             ? module.permdockRequires
             : module.requires;
         const needs =
@@ -577,9 +577,9 @@ export async function runSql(
           ].join("\n"),
         };
       }
-      const block = await layoutFor(config, args, names);
-      const lines = await write(config, args, names, block);
-      const pulledIn = resolveModules(names, block)
+      const sqlLayout = await layoutFor(config, args, names);
+      const lines = await write(config, args, names, sqlLayout);
+      const pulledIn = resolveModules(names, sqlLayout)
         .map((module) => module.name)
         .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));
       if (permdock && pulledIn.length > 0) {
@@ -590,26 +590,26 @@ export async function runSql(
           "List better_supabase.memberships as a PermDock membership source if both should agree.",
         );
       }
-      const untracked = resolveModules(names, block)
+      const untracked = resolveModules(names, sqlLayout)
         .map((module) => module.name)
-        .filter((name) => !config.sql.modules.includes(name));
+        .filter((name) => !config.sql.moduleNames.includes(name));
       if (untracked.length > 0) {
         lines.push(
           "",
           `Add them to your config so \`sql sync --check\` keeps them current:`,
-          `  sql: { modules: [${[...config.sql.modules, ...untracked].map((name) => `'${name}'`).join(", ")}] }`,
+          `  sql: { modules: [${[...config.sql.moduleNames, ...untracked].map((name) => `'${name}'`).join(", ")}] }`,
         );
       }
       if (args["dry-run"] !== true)
-        lines.push(...(await unlistedBlockFiles(config, names, block)));
+        lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
       lines.push(
         "",
-        `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_block")}`,
+        `Then create a migration: ${migrationCommand(await readSupabaseToml(config.root), "better_supabase_module")}`,
       );
       return { code: 0, output: lines.join("\n") };
     }
     case "sync": {
-      if (config.sql.modules.length === 0) {
+      if (config.sql.moduleNames.length === 0) {
         return { code: 0, output: "sql.modules is empty; nothing to sync." };
       }
       if (args.check !== true) {
@@ -619,16 +619,16 @@ export async function runSql(
             await write(
               config,
               args,
-              config.sql.modules,
-              await layoutFor(config, args, config.sql.modules),
+              config.sql.moduleNames,
+              await layoutFor(config, args, config.sql.moduleNames),
             )
           ).join("\n"),
         };
       }
-      const block = await layoutFor(config, args, config.sql.modules);
-      const files = renderBlocks(config.sql.modules, block);
+      const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
+      const files = renderModules(config.sql.moduleNames, sqlLayout);
       const stale: string[] = (
-        await staleBlockTests(config, config.sql.modules, block, files)
+        await staleModuleTests(config, config.sql.moduleNames, sqlLayout, files)
       ).map((path) => display(config.root, path));
       const diffs: string[] = stale.map(
         (path) => `${path} is no longer written; \`sql sync\` removes it.`,
@@ -638,7 +638,7 @@ export async function runSql(
           resolve(config.root, file.path),
           "utf8",
         ).catch(() => undefined);
-        if (!sameBlockFile(current, file.contents)) {
+        if (!sameModuleFile(current, file.contents)) {
           const shown = display(config.root, file.path);
           stale.push(shown);
           diffs.push(fileDiff(shown, current, file.contents, paint));
@@ -672,7 +672,7 @@ export async function runSql(
       if (body === undefined) {
         return {
           code: 0,
-          output: `-- blocks.${module.name} is in custom mode: the app writes these functions.\n${customContracts(
+          output: `-- sql.modules.${module.name} is in custom mode: the app writes these functions.\n${customContracts(
             [module.name],
             await layout(config, args, [module.name]),
           )

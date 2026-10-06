@@ -1,21 +1,21 @@
 import type { ResolvedConfig } from "../config/config.ts";
 import type {
-  BlockAccessPermdock,
-  BlockLayout,
-  BlockPermdock,
-} from "./blocks.ts";
+  ModuleAccessPermdock,
+  ModuleLayout,
+  ModulePermdock,
+} from "./registry.ts";
 
 import { resolveJsonSchema } from "../config/config.ts";
 import { VERSION } from "../core/version.ts";
 
-/** Where and how `sql add` writes block files for this config. */
-export function blockLayout(
+/** Where and how `sql add` writes module files for this config. */
+export function moduleLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
-  readSets: BlockLayout["readSets"] = [],
-  permdock?: BlockPermdock,
-  accessPermdock?: BlockAccessPermdock,
-): BlockLayout {
+  readSets: ModuleLayout["readSets"] = [],
+  permdock?: ModulePermdock,
+  accessPermdock?: ModuleAccessPermdock,
+): ModuleLayout {
   return {
     ...(permdock ? { permdock } : {}),
     ...(accessPermdock ? { accessPermdock } : {}),
@@ -28,7 +28,7 @@ export function blockLayout(
     realtimeGlobal: config.realtime.global,
     entitlements: config.entitlements,
     claims: config.claims,
-    blocks: config.blocks,
+    modules: config.sql.modules,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: "anon" as const, privileges: roles.anon },

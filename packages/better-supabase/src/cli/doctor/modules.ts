@@ -5,10 +5,10 @@ import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   contractSignature,
   customContracts,
-  type BlockDeprecation,
-  blockDeprecations,
-  blockFileVersion,
-  blockLayout,
+  type ModuleDeprecation,
+  moduleDeprecations,
+  moduleFileVersion,
+  moduleLayout,
   migrationOptionUses,
 } from "../../sql/index.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
@@ -44,8 +44,8 @@ interface ContractCheck {
 
 function contractChecks(context: DoctorContext): ContractCheck[] {
   return customContracts(
-    context.config.sql.modules,
-    blockLayout(context.config),
+    context.config.sql.moduleNames,
+    moduleLayout(context.config),
   ).flatMap((contract) =>
     contract.functions.map((fn) => ({
       module: contract.module,
@@ -95,7 +95,7 @@ from (
 async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   const db = context.database;
   if (
-    !context.config.sql.modules.includes("rate-limit") ||
+    !context.config.sql.moduleNames.includes("rate-limit") ||
     !db ||
     "skipped" in db
   )
@@ -132,7 +132,7 @@ async function missingContracts(
     return checks
       .filter((check) => !declared(context, check))
       .map((check) => ({
-        message: `blocks.${check.module} is in custom mode, but no SQL file declares ${check.schema}.${check.name}(${check.args}). Write it, or switch the module to adopt or managed.`,
+        message: `sql.modules.${check.module} is in custom mode, but no SQL file declares ${check.schema}.${check.name}(${check.args}). Write it, or switch the module to adopt or managed.`,
         target: `${check.schema}.${check.name}`,
         object: { kind: "function", schema: check.schema, name: check.name },
       }));
@@ -153,8 +153,8 @@ async function missingContracts(
     return [
       {
         severity: "info",
-        message: `Reading the custom block contract functions failed: ${errorText(cause)}`,
-        target: "blocks",
+        message: `Reading the custom module contract functions failed: ${errorText(cause)}`,
+        target: "modules",
       },
     ];
   }
@@ -171,7 +171,7 @@ async function missingContracts(
     if (found.length === 0) {
       return [
         {
-          message: `blocks.${check.module} is in custom mode, but ${target}(${check.args}) doesn't exist. Write it, or switch the module to adopt or managed.`,
+          message: `sql.modules.${check.module} is in custom mode, but ${target}(${check.args}) doesn't exist. Write it, or switch the module to adopt or managed.`,
           target,
           object,
         },
@@ -206,10 +206,10 @@ async function missingContracts(
 async function missingTenantClaim(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
-  if (!context.config.sql.modules.includes("tenant")) return [];
+  if (!context.config.sql.moduleNames.includes("tenant")) return [];
   if (
-    (context.config.blocks.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT) !==
-    "claim"
+    (context.config.sql.modules.access?.activeTenant ??
+      DEFAULT_ACTIVE_TENANT) !== "claim"
   ) {
     return [];
   }
@@ -235,7 +235,7 @@ async function missingTenantClaim(
       );
       if (found) continue;
       findings.push({
-        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.access.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set blocks.access.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
+        message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and sql.modules.access.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set sql.modules.access.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
         target,
         object: { kind: "function", schema: fn.schema, name: fn.name },
       });
@@ -245,7 +245,7 @@ async function missingTenantClaim(
 }
 
 /** Where a deprecated symbol is used: a call, a qualified name or a claim lookup. */
-function deprecationPattern(entry: BlockDeprecation): RegExp {
+function deprecationPattern(entry: ModuleDeprecation): RegExp {
   const [first = "", second] = entry.symbol.split(".");
   const qualified =
     second === undefined ? ident(first) : `${ident(first)}\\.${ident(second)}`;
@@ -278,7 +278,7 @@ const bareWord = (name: string): RegExp =>
  * policy on that table.
  */
 function lineOfUse(
-  entry: BlockDeprecation,
+  entry: ModuleDeprecation,
   text: string,
   policyTable?: string,
 ): number | undefined {
@@ -299,21 +299,22 @@ function lineOfUse(
 /** SQL files and policies that still use a symbol a SQL module deprecated or removed. */
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
-  const entries = blockDeprecations().filter(
+  const entries = moduleDeprecations().filter(
     (entry) =>
-      context.config.sql.modules.includes(entry.module) &&
+      context.config.sql.moduleNames.includes(entry.module) &&
       !(entry.kind === "claim" && configured.has(entry.symbol)) &&
       // Adopted and custom tables keep the app's names.
       !(
         (entry.kind === "table" || entry.kind === "column") &&
-        (context.config.blocks[entry.module]?.mode ?? "managed") !== "managed"
+        (context.config.sql.modules[entry.module]?.mode ?? "managed") !==
+          "managed"
       ),
   );
   if (entries.length === 0) return [];
   const files = (context.sqlFiles ?? []).filter(
     (file) =>
       !file.path.startsWith("supabase/migrations/") &&
-      blockFileVersion(file.text) === undefined,
+      moduleFileVersion(file.text) === undefined,
   );
   const findings: FindingInput[] = [];
   for (const entry of entries) {
@@ -346,7 +347,7 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   return findings;
 }
 
-/** Block triggers and the equivalent triggers they replace. */
+/** Module triggers and the equivalent triggers they replace. */
 const EQUIVALENT_TRIGGERS = [
   {
     trigger: "bs_updated_at",
@@ -356,7 +357,7 @@ const EQUIVALENT_TRIGGERS = [
   { trigger: "bs_audit", call: "audit", pattern: /audit/i },
 ] as const;
 
-/** Tables where a block trigger and an older trigger do the same work. */
+/** Tables where a module trigger and an older trigger do the same work. */
 function duplicateTriggers(context: DoctorContext): FindingInput[] {
   return catalogOf(context).tables.flatMap((table) =>
     EQUIVALENT_TRIGGERS.flatMap(({ trigger, call, pattern }) => {
@@ -385,14 +386,14 @@ const globs = (value: unknown): RegExp[] =>
         new RegExp(`^${glob.split("*").map(escapeRegExp).join(".*")}$`, "i"),
     );
 
-/** The block schemas and the app tables SQL modules adopted, which the audit trigger skips. */
-function blockOwned(context: DoctorContext): {
+/** The module schemas and the app tables SQL modules adopted, which the audit trigger skips. */
+function moduleOwned(context: DoctorContext): {
   schemas: ReadonlySet<string>;
   tables: ReadonlySet<string>;
 } {
   const schemas = new Set<string>(["better_supabase"]);
   const tables = new Set<string>();
-  for (const module of Object.values(context.config.blocks)) {
+  for (const module of Object.values(context.config.sql.modules)) {
     if (module?.schema !== undefined) schemas.add(module.schema);
     for (const table of Object.values(module?.tables ?? {})) {
       if (table === null) continue;
@@ -408,9 +409,11 @@ function blockOwned(context: DoctorContext): {
 
 /** Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is in `sql.modules`. */
 function unauditedTables(context: DoctorContext): FindingInput[] {
-  if (!context.config.sql.modules.includes("audit")) return [];
-  const exempt = globs(context.config.blocks["audit"]?.options?.["exempt"]);
-  const owned = blockOwned(context);
+  if (!context.config.sql.moduleNames.includes("audit")) return [];
+  const exempt = globs(
+    context.config.sql.modules["audit"]?.options?.["exempt"],
+  );
+  const owned = moduleOwned(context);
   return catalogOf(context)
     .tables.filter(
       (table) =>
@@ -426,44 +429,44 @@ function unauditedTables(context: DoctorContext): FindingInput[] {
         ),
     )
     .map((table) => ({
-      message: `${qualified(table)} has no audit trigger, so its inserts, updates and deletes are not in the audit log. Run \`select better_supabase.audit('${qualified(table)}')\` in a schema file, or list it in blocks.audit.options.exempt.`,
+      message: `${qualified(table)} has no audit trigger, so its inserts, updates and deletes are not in the audit log. Run \`select better_supabase.audit('${qualified(table)}')\` in a schema file, or list it in sql.modules.audit.options.exempt.`,
       target: qualified(table),
       object: tableObject(table),
     }));
 }
 
-/** `better_supabase` and every `blocks.*.schema` that `[api] schemas` serves through the Data API. */
-function exposedBlockSchemas(context: DoctorContext): FindingInput[] {
-  if (context.config.sql.modules.length === 0) return [];
-  const blockSchemas = new Set<string>(["better_supabase"]);
-  for (const module of Object.values(context.config.blocks)) {
-    if (module?.schema !== undefined) blockSchemas.add(module.schema);
+/** `better_supabase` and every `modules.*.schema` that `[api] schemas` serves through the Data API. */
+function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
+  if (context.config.sql.moduleNames.length === 0) return [];
+  const moduleSchemas = new Set<string>(["better_supabase"]);
+  for (const module of Object.values(context.config.sql.modules)) {
+    if (module?.schema !== undefined) moduleSchemas.add(module.schema);
   }
   return exposedSchemas(context)
-    .filter((schema) => blockSchemas.has(schema))
+    .filter((schema) => moduleSchemas.has(schema))
     .map((schema) => ({
-      message: `The Data API serves the block schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), and call the block functions through a wrapper in an exposed schema.`,
+      message: `The Data API serves the module schema ${schema}, so its tables and internal helpers are reachable over REST and RPC. Remove it from [api] schemas in supabase/config.toml (and the dashboard's exposed schemas), and call the module functions through a wrapper in an exposed schema.`,
       target: schema,
     }));
 }
 
 function migrationOptions(context: DoctorContext): FindingInput[] {
-  const block = new Set(context.config.sql.modules);
-  return migrationOptionUses(context.config.blocks)
-    .filter((use) => block.has(use.module))
+  const module = new Set(context.config.sql.moduleNames);
+  return migrationOptionUses(context.config.sql.modules)
+    .filter((use) => module.has(use.module))
     .map((use) => ({
       message: `${use.message} It exists to adopt an existing schema; remove it once your data matches the managed default.`,
-      target: `blocks.${use.module}.options.${use.option}`,
+      target: `sql.modules.${use.module}.options.${use.option}`,
     }));
 }
 
-export const BLOCK_RULES: readonly Rule[] = [
+export const MODULE_RULES: readonly Rule[] = [
   {
     code: "BS307",
     severity: "error",
     title: "Custom SQL module without its contract",
     description:
-      "A module in `blocks` uses `mode: 'custom'`, so the app writes its contract functions. One is missing or has another signature, and the modules and TypeScript APIs that call it fail at run time.",
+      "A module in `sql.modules` uses `mode: 'custom'`, so the app writes its contract functions. One is missing or has another signature, and the modules and TypeScript APIs that call it fail at run time.",
     check: missingContracts,
   },
   {
@@ -471,7 +474,7 @@ export const BLOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant claim the hook does not write",
     description:
-      "With the `tenant` module and `blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
+      "With the `tenant` module and `sql.modules.access.activeTenant: 'claim'`, `current_tenant_id()` and the `tenant()` plugin read the tenant from the `claims.tenant` claim, at the top level or in `app_metadata`. With `--as <user id>` doctor calls the custom access token hook for that user and warns when the claims it returns have neither. The default source, `'resolver'`, takes the tenant from the request instead.",
     check: missingTenantClaim,
   },
   {
@@ -485,9 +488,9 @@ export const BLOCK_RULES: readonly Rule[] = [
   {
     code: "BS310",
     severity: "warning",
-    title: "Duplicate block trigger",
+    title: "Duplicate module trigger",
     description:
-      "A table has a block trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
+      "A table has a module trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
     check: duplicateTriggers,
   },
   {
@@ -501,15 +504,15 @@ export const BLOCK_RULES: readonly Rule[] = [
   {
     code: "BS312",
     severity: "error",
-    title: "Block schema exposed through the Data API",
+    title: "Module schema exposed through the Data API",
     description:
-      "`[api] schemas` in `config.toml` lists `better_supabase` or a `blocks.*.schema`. The block schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
-    check: exposedBlockSchemas,
+      "`[api] schemas` in `config.toml` lists `better_supabase` or a `modules.*.schema`. The module schemas hold internal tables and helpers that are granted to `authenticated` for policies, so exposing them makes those callable over REST and RPC.",
+    check: exposedModuleSchemas,
   },
   {
     code: "BS314",
     severity: "warning",
-    title: "Migration-only block option",
+    title: "Migration-only module option",
     description:
       "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets in a column, non-text webhook ids, or a custom outbox source. Remove it once the data matches the managed default.",
     check: migrationOptions,
@@ -519,7 +522,7 @@ export const BLOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without an audit trigger",
     description:
-      "The `audit` module is in `sql.modules`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
+      "The `audit` module is in `sql.modules`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `sql.modules.audit.options.exempt` lists more, as `schema.table` globs such as `public.*_archive`.",
     check: unauditedTables,
   },
 ];

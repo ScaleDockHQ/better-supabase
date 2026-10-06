@@ -555,7 +555,7 @@ describe("conform", () => {
       [
         "throws a string",
         () => {
-          // oxlint-disable-next-line typescript/only-throw-error -- the block must report non-Error throws.
+          // oxlint-disable-next-line typescript/only-throw-error -- the module must report non-Error throws.
           throw "boom";
         },
       ],
@@ -766,7 +766,7 @@ describe("testAuthResolver edge cases", () => {
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
         if (key === null) return;
-        // oxlint-disable-next-line typescript/only-throw-error -- the block must report non-Error throws.
+        // oxlint-disable-next-line typescript/only-throw-error -- the module must report non-Error throws.
         if (key === "throw") throw "offline";
         return key === "user"
           ? {

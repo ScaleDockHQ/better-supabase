@@ -17,7 +17,7 @@ import { temporal } from "../../core/temporal-required.ts";
 
 /**
  * Organization columns by database name: `name`, `slug` and the columns in
- * `blocks.organizations.options.attributes`. Other keys are ignored.
+ * `sql.modules.organizations.options.attributes`. Other keys are ignored.
  */
 export interface OrganizationAttributes {
   readonly name?: string;
@@ -33,7 +33,7 @@ export interface CreateOrganizationOptions {
 export type SlugProblem = "invalid" | "reserved" | "taken";
 
 export interface InviteRequest {
-  /** `null` invites to the platform (`blocks.access.model: 'catalog'`). */
+  /** `null` invites to the platform (`sql.modules.access.model: 'catalog'`). */
   readonly organizationId: string | null;
   readonly email: string;
   /** A role name, or a role id or key under the catalog model. */
@@ -90,7 +90,7 @@ export interface OrganizationsOptions {
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /**
-   * The schema holding the functions: `blocks.<module>.schema` with
+   * The schema holding the functions: `sql.modules.<module>.schema` with
    * `sqlTransport`, the exposed API schema of wrappers with `rpcTransport`.
    * One schema for both modules, or one per module. Defaults to
    * `better_supabase`.

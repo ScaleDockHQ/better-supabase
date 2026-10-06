@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccessBlockConfig } from "../../../src/config/blocks.ts";
+import type { AccessModuleConfig } from "../../../src/config/modules.ts";
 
+import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
 import {
   moduleBody,
-  renderBlocks,
+  renderModules,
   SQL_MODULES,
-} from "../../../src/sql/blocks.ts";
-import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
+} from "../../../src/sql/registry.ts";
 
-const access = (config: AccessBlockConfig, tenant?: object) =>
+const access = (config: AccessModuleConfig, tenant?: object) =>
   moduleBody("access", {
-    blocks: { access: config, ...(tenant ? { tenant } : {}) },
+    modules: { access: config, ...(tenant ? { tenant } : {}) },
   })!;
 
-const CATALOG: AccessBlockConfig = {
+const CATALOG: AccessModuleConfig = {
   mode: "adopt",
   model: "catalog",
   tables: {
@@ -110,7 +110,7 @@ describe("access module", () => {
 
   it("takes the permdock model's schema, scope and id type from the manifest", () => {
     const sql = moduleBody("access", {
-      blocks: { access: { model: "permdock" } },
+      modules: { access: { model: "permdock" } },
       accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
     })!;
     expect(sql).toContain('"authz"."permitted_tenant_ids"(permission)');
@@ -126,7 +126,7 @@ describe("access module", () => {
       ).toThrow(/needs PermDock's manifest/);
     expect(() =>
       moduleBody("access", {
-        blocks: { access: { model: "permdock", idType: "uuid" } },
+        modules: { access: { model: "permdock", idType: "uuid" } },
         accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
       }),
     ).toThrow(
@@ -182,7 +182,7 @@ describe("access module", () => {
     expect(sql).toContain("public.user_can(member, tenant, permission)");
     expect(sql).toContain("public.permission_claims(user_id)");
     expect(() => access({ model: "custom" })).toThrow(
-      /needs blocks.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
+      /needs sql.modules.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
     );
     expect(() =>
       access({
@@ -201,8 +201,8 @@ describe("access module", () => {
     const permdock = { schema: "permdock", scope: "organization" };
     const alone = access({ model: "permdock", permdock });
     expect(alone).toMatch(/or coalesce\(\(false\), false\)/);
-    const withTenant = renderBlocks(["tenant", "access"], {
-      blocks: { access: { model: "permdock", permdock } },
+    const withTenant = renderModules(["tenant", "access"], {
+      modules: { access: { model: "permdock", permdock } },
     })
       .map((file) => file.contents)
       .join("\n");

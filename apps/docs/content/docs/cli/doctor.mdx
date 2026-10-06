@@ -541,7 +541,7 @@ primary key, or run `alter table ... replica identity full`.
 
 ### BS307
 
-**Error: custom SQL module without its contract.** A module in `blocks` uses
+**Error: custom SQL module without its contract.** A module in `sql.modules` uses
 `mode: 'custom'`, so the app writes the functions other modules and the
 TypeScript APIs call. With a database connection, doctor compares each
 function's argument and return types with the contract; without one, it looks
@@ -552,7 +552,7 @@ print <module>` lists the signatures.
 ### BS308
 
 **Warning: tenant claim the hook does not write.** With the `tenant` module and
-`blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the
+`sql.modules.access.activeTenant: 'claim'`, `current_tenant_id()` and the
 `tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
@@ -584,7 +584,7 @@ older trigger, or call `track_updated_at()` or `audit()` with
 ### BS311
 
 **Warning: SQL module behind its current version.** A module file's
-`@bs-block` line, or its row in `better_supabase.block_modules` on a live database,
+`@bs-module` line, or its row in `better_supabase.modules` on a live database,
 records an older version than this release ships. Run `better-supabase sql
 upgrade`, which writes the forward steps into a migration and rewrites the
 files, then create the schema migration. BS304 skips files this check reports.
@@ -592,7 +592,7 @@ files, then create the schema migration. BS304 skips files this check reports.
 ### BS312
 
 **Error: block schema exposed through the Data API.** `[api] schemas` in
-`supabase/config.toml` lists `better_supabase` or a schema a module in `blocks`
+`supabase/config.toml` lists `better_supabase` or a schema a module in `sql.modules`
 sets. Block schemas hold internal tables and helpers that `authenticated` can
 execute so policies can call them; exposing the schema makes them callable over
 REST and RPC as well. Remove the schema from `[api] schemas` and from the
@@ -628,14 +628,15 @@ trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
 skips the block schemas and the tables SQL modules adopt; list other tables in
-`blocks.audit.options.exempt` as `schema.table` globs, where `*` matches any run
+`sql.modules.audit.options.exempt` as `schema.table` globs, where `*` matches any run
 of characters:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["audit"] },
-  blocks: {
-    audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
+  sql: {
+    modules: {
+      audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
+    },
   },
 });
 ```
@@ -854,30 +855,30 @@ finding; verify the request there with `authHook` from
 ### BS411
 
 **Error: the permdock access model doesn't match PermDock's manifest.** With
-`blocks.access.model: 'permdock'`, `can()` and the SQL modules call PermDock's
+`sql.modules.access.model: 'permdock'`, `can()` and the SQL modules call PermDock's
 `<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and
 `<rls.schema>.permdock_has(permission)` for platform checks. The schema,
 scope and id type come from `permdock.manifest.json`, whatever
 `entitlements.permdock` says: `rls.schema`, the root scope (the `rls.scopes`
-entry without `within`) unless `blocks.access.permdock.scope` names another,
+entry without `within`) unless `sql.modules.access.permdock.scope` names another,
 and that scope's `type`. Doctor reports, and `sql add` refuses:
 
 - no PermDock project, a missing or unreadable manifest, or no `rls` block;
-- no single root scope, or a `blocks.access.permdock.scope`,
-  `blocks.access.permdock.schema` or `blocks.access.idType` the manifest doesn't
+- no single root scope, or a `sql.modules.access.permdock.scope`,
+  `sql.modules.access.permdock.schema` or `sql.modules.access.idType` the manifest doesn't
   declare;
 - a scope `type` other than `uuid`, `text`, `bigint` or `integer`;
 - a helper the manifest's `rls.helpers` doesn't list, doesn't let
   `authenticated` execute, or the database lacks;
-- a permission key a SQL module checks (`blockPermissionKeys` from
+- a permission key a SQL module checks (`modulePermissionKeys` from
   `better-supabase/sql` lists them) whose `permissions.catalog.json` entry
   isn't `rowConditions: false`. PermDock's helpers check role and scope only,
   so a key with row conditions would be granted everywhere in the scope. A key
   without the flag, a key the catalog doesn't list and a missing catalog are
   reported too. Map the action to another key in
-  `blocks.<module>.permissions`, or regenerate the catalog with `permdock catalog`.
+  `sql.modules.<module>.permissions`, or regenerate the catalog with `permdock catalog`.
 
-It warns when `blocks.access.functions.canAssign` is not set, because only the
+It warns when `sql.modules.access.functions.canAssign` is not set, because only the
 service role then assigns roles, and notes a `permdock_can_assign` template
 the manifest doesn't list (PermDock writes it only when a role declares
 `assigns`). See [the access block](/docs/blocks/access#permdock) for the recipe.

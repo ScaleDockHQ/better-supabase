@@ -1,8 +1,8 @@
-import type { BlockPermdock, PermdockCatalog } from "../../sql/index.ts";
+import type { ModulePermdock, PermdockCatalog } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import {
-  blockPermissionKeys,
+  modulePermissionKeys,
   PERMDOCK_SCHEMA,
   permdockKeys,
   resolveModules,
@@ -13,7 +13,7 @@ import {
   accessRequirements,
   entitlementRequirements,
   entitlementsMode,
-  blockKeyProblems,
+  moduleKeyProblems,
   parseGrantsMarker,
   parseHookMarker,
   type PermdockManifest,
@@ -172,19 +172,19 @@ function placementProblems(
 }
 
 /** PermDock's helpers for the `entitlements` SQL module, when the manifest allows PermDock mode. */
-export function entitlementsBlock(
+export function entitlementsModule(
   context: Pick<DoctorContext, "config" | "permdock">,
-): BlockPermdock | undefined {
+): ModulePermdock | undefined {
   const mode = entitlementsMode(context.config, context.permdock);
   return mode.kind === "permdock" ? mode.permdock : undefined;
 }
 
 /** PermDock's helpers for the `permdock` access model, when `sql.modules` installs `access`. */
-export function accessBlock(
+export function accessModule(
   context: Pick<DoctorContext, "config" | "permdock">,
 ): AccessPermdockMode {
   if (
-    !resolveModules(context.config.sql.modules, {}).some(
+    !resolveModules(context.config.sql.moduleNames, {}).some(
       (module) => module.name === "access",
     )
   )
@@ -276,9 +276,9 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "PermDock helpers the entitlements module calls are missing",
     description:
-      "With a PermDock manifest, the `entitlements` SQL module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when a PermDock project has no readable manifest or no `rls` block, when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text`, `bigint` or `integer`, when the manifest has no `claims.features` claim filled by `better_supabase.feature_claims`, when no membership source covers the scope, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
+      "With a PermDock manifest, the `entitlements` SQL module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when a PermDock project has no readable manifest or no `rls` module, when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text`, `bigint` or `integer`, when the manifest has no `claims.features` claim filled by `better_supabase.feature_claims`, when no membership source covers the scope, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
     check: (context) => {
-      if (!context.config.sql.modules.includes("entitlements")) return [];
+      if (!context.config.sql.moduleNames.includes("entitlements")) return [];
       const mode = entitlementsMode(context.config, context.permdock);
       if (mode.kind === "tenant") return [];
       const manifest = context.config.permdock.manifest;
@@ -429,12 +429,14 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "error",
     title: "The permdock access model doesn't match PermDock's manifest",
     description:
-      "With `blocks.access.model: 'permdock'`, the `access` module calls PermDock's `<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and `<rls.schema>.permdock_has(permission)` for platform checks, with the manifest's root scope unless `blocks.access.permdock.scope` names another. Doctor reports a project without a readable manifest or `rls` block, no single root scope, a scope, schema or id type the manifest doesn't declare, a helper the manifest doesn't list, doesn't let `authenticated` execute or the database lacks, and every block permission key (from `blockPermissionKeys`) whose catalog entry isn't `rowConditions: false`, since the helpers check role and scope only. It warns when `blocks.access.functions.canAssign` is not set, because only the service role then assigns roles, and notes a `permdock_can_assign` template the manifest's helpers lack.",
+      "With `sql.modules.access.model: 'permdock'`, the `access` module calls PermDock's `<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and `<rls.schema>.permdock_has(permission)` for platform checks, with the manifest's root scope unless `sql.modules.access.permdock.scope` names another. Doctor reports a project without a readable manifest or `rls` module, no single root scope, a scope, schema or id type the manifest doesn't declare, a helper the manifest doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) whose catalog entry isn't `rowConditions: false`, since the helpers check role and scope only. It warns when `sql.modules.access.functions.canAssign` is not set, because only the service role then assigns roles, and notes a `permdock_can_assign` template the manifest's helpers lack.",
     check: (context) => {
-      const mode = accessBlock(context);
+      const mode = accessModule(context);
       if (mode.kind === "off") return [];
       if (mode.kind === "invalid")
-        return [{ message: mode.problem, target: "blocks.access.permdock" }];
+        return [
+          { message: mode.problem, target: "sql.modules.access.permdock" },
+        ];
       const project = context.permdock;
       const manifest = context.config.permdock.manifest;
       const findings: FindingInput[] = [];
@@ -469,23 +471,23 @@ export const PERMDOCK_RULES: readonly Rule[] = [
       }
       if (project) {
         findings.push(
-          ...blockKeyProblems(
+          ...moduleKeyProblems(
             project,
-            blockPermissionKeys(
-              context.config.blocks,
+            modulePermissionKeys(
               context.config.sql.modules,
+              context.config.sql.moduleNames,
             ),
             mode.access,
           ),
         );
       }
-      const canAssign = context.config.blocks.access?.functions?.canAssign;
+      const canAssign = context.config.sql.modules.access?.functions?.canAssign;
       const recipe = `${mode.access.schema}.permdock_can_assign({role}, {tenant}::text)`;
       if (canAssign === undefined) {
         findings.push({
           severity: "warning",
-          message: `blocks.access.functions.canAssign is not set, so under the permdock model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes${context.config.sql.modules.includes("tenant") ? "" : " (the owner-role fallback needs the tenant module, which PermDock projects don't install)"}. Set canAssign: "${recipe}", which PermDock writes when a role declares \`assigns\`.`,
-          target: "blocks.access.functions.canAssign",
+          message: `sql.modules.access.functions.canAssign is not set, so under the permdock model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes${context.config.sql.moduleNames.includes("tenant") ? "" : " (the owner-role fallback needs the tenant module, which PermDock projects don't install)"}. Set canAssign: "${recipe}", which PermDock writes when a role declares \`assigns\`.`,
+          target: "sql.modules.access.functions.canAssign",
         });
       } else if (
         canAssign.includes("permdock_can_assign") &&
@@ -493,8 +495,8 @@ export const PERMDOCK_RULES: readonly Rule[] = [
       ) {
         findings.push({
           severity: "info",
-          message: `blocks.access.functions.canAssign calls permdock_can_assign, but ${manifest} doesn't list ${mode.access.schema}.permdock_can_assign. PermDock writes it only when a role in permdock.config.ts declares \`assigns\`; add one, then run \`permdock rls generate\` and \`permdock supabase inspect --out\`.`,
-          target: "blocks.access.functions.canAssign",
+          message: `sql.modules.access.functions.canAssign calls permdock_can_assign, but ${manifest} doesn't list ${mode.access.schema}.permdock_can_assign. PermDock writes it only when a role in permdock.config.ts declares \`assigns\`; add one, then run \`permdock rls generate\` and \`permdock supabase inspect --out\`.`,
+          target: "sql.modules.access.functions.canAssign",
         });
       }
       return findings;

@@ -58,7 +58,7 @@ export interface RpcClient {
 /**
  * Calls the functions over the Data API with the user's session. The block
  * schema must be exposed (`[api] schemas` in `config.toml`), or the modules
- * installed in `public` (`blocks.<module>.schema`).
+ * installed in `public` (`sql.modules.<module>.schema`).
  */
 export function rpcTransport(client: RpcClient): BlockTransport {
   return {

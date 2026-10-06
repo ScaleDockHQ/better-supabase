@@ -1,4 +1,4 @@
-import type { BlockModuleConfig, BlocksConfig } from "../config/blocks.ts";
+import type { ModuleConfig, ModulesConfig } from "../config/modules.ts";
 
 /** A module option that only fits a schema being adopted. */
 interface MigrationOption {
@@ -40,7 +40,7 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
     module: "outbox",
     option: "blockSource",
     departs: (value) => value !== "better-supabase/{module}",
-    effect: "replaces the CloudEvents source of block events",
+    effect: "replaces the CloudEvents source of module events",
   },
   {
     module: "outbox",
@@ -56,19 +56,19 @@ export interface MigrationOptionUse {
   readonly option: string;
   readonly value: unknown;
   readonly adopted: boolean;
-  /** `blocks.<module>.options.<option> ... It <effect>.` */
+  /** `sql.modules.<module>.options.<option> ... It <effect>.` */
   readonly message: string;
 }
 
 /**
- * The migration-only options `blocks` sets to a value other than the managed
+ * The migration-only options `sql.modules` sets to a value other than the managed
  * default. They are accepted in `adopt` mode only; doctor warns about each.
  */
 export function migrationOptionUses(
-  blocks: BlocksConfig = {},
+  modules: ModulesConfig = {},
 ): MigrationOptionUse[] {
   return MIGRATION_OPTIONS.flatMap((entry) => {
-    const config: BlockModuleConfig | undefined = blocks[entry.module];
+    const config: ModuleConfig | undefined = modules[entry.module];
     const options = config?.options ?? {};
     if (!(entry.option in options)) return [];
     const value = options[entry.option];
@@ -79,7 +79,7 @@ export function migrationOptionUses(
         option: entry.option,
         value,
         adopted: config?.mode === "adopt",
-        message: `blocks.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
+        message: `sql.modules.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
       },
     ];
   });

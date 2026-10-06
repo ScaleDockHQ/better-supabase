@@ -1,5 +1,5 @@
 /**
- * A callback that decides something a block would otherwise allow or refuse
+ * A callback that decides something a module would otherwise allow or refuse
  * by default: `authorize`, `canInvite`, `shouldDeliver`, `allowUrl`. Only
  * `true` allows; `false`, any other value, a throw or a rejection denies.
  */

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { ModulesConfig } from "../../../src/config/modules.ts";
 
 import {
   moduleBody,
-  renderBlocks,
+  renderModules,
   resolveModules,
-} from "../../../src/sql/blocks.ts";
+} from "../../../src/sql/registry.ts";
 
-const CENTRAKIT: BlocksConfig = {
+const CENTRAKIT: ModulesConfig = {
   profiles: {
     mode: "adopt",
     tables: { profiles: "public.profiles" },
@@ -33,7 +33,7 @@ const CENTRAKIT: BlocksConfig = {
   },
 };
 
-const body = (blocks: BlocksConfig) => moduleBody("profiles", { blocks })!;
+const body = (modules: ModulesConfig) => moduleBody("profiles", { modules })!;
 
 describe("profiles module", () => {
   it("owns its table with grants, a guard and the auth triggers", () => {
@@ -89,8 +89,8 @@ describe("profiles module", () => {
   });
 
   it("adds extra columns and a members read policy", () => {
-    const sql = renderBlocks(["tenant", "profiles"], {
-      blocks: {
+    const sql = renderModules(["tenant", "profiles"], {
+      modules: {
         profiles: {
           options: {
             extraColumns: { locale: "text not null default 'en'" },
@@ -144,7 +144,7 @@ describe("profiles module", () => {
 
   it("writes nothing in custom mode", () => {
     expect(
-      moduleBody("profiles", { blocks: { profiles: { mode: "custom" } } }),
+      moduleBody("profiles", { modules: { profiles: { mode: "custom" } } }),
     ).toBeUndefined();
   });
 

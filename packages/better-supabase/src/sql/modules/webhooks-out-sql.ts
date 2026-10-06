@@ -1,14 +1,14 @@
-import type { BlockContext } from "../context.ts";
+import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
-import { BLOCK_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 export interface HookNames {
   readonly table: (table: string) => string;
   readonly col: (table: string, logical: string) => string;
   readonly has: (table: string, logical: string) => boolean;
-  /** A member check on `tenant` (a SQL expression) for a block action. */
+  /** A member check on `tenant` (a SQL expression) for a module action. */
   readonly can: (tenant: string, action: "manage" | "view") => string;
   /**
    * `tenant in (select tenant_ids_with(...))` for policies: the set is
@@ -41,14 +41,14 @@ export type WebhookStatus = (typeof WEBHOOK_STATUSES)[number];
 const isStatus = (value: string): value is WebhookStatus =>
   WEBHOOK_STATUSES.some((status) => status === value);
 
-/** `blocks.webhooks-out.options.statuses`: the values an adopted table stores. */
+/** `sql.modules.webhooks-out.options.statuses`: the values an adopted table stores. */
 function statusValues(
-  ctx: BlockContext,
+  ctx: ModuleContext,
 ): Readonly<Record<WebhookStatus, string>> {
   const configured = ctx.option("statuses") ?? {};
   if (typeof configured !== "object" || Array.isArray(configured)) {
     throw new TypeError(
-      "blocks.webhooks-out.options.statuses must map status names to the stored values",
+      "sql.modules.webhooks-out.options.statuses must map status names to the stored values",
     );
   }
   const values: Record<WebhookStatus, string> = {
@@ -62,17 +62,17 @@ function statusValues(
   for (const [name, value] of Object.entries(configured)) {
     if (!isStatus(name)) {
       throw new TypeError(
-        `blocks.webhooks-out.options.statuses: unknown status "${name}". Statuses: ${WEBHOOK_STATUSES.join(", ")}`,
+        `sql.modules.webhooks-out.options.statuses: unknown status "${name}". Statuses: ${WEBHOOK_STATUSES.join(", ")}`,
       );
     }
     if (typeof value !== "string" || value.length === 0) {
       throw new TypeError(
-        `blocks.webhooks-out.options.statuses.${name} must be a non-empty string`,
+        `sql.modules.webhooks-out.options.statuses.${name} must be a non-empty string`,
       );
     }
     if (ctx.manages) {
       throw new TypeError(
-        "blocks.webhooks-out.options.statuses maps an adopted table's values; managed tables use the default statuses",
+        "sql.modules.webhooks-out.options.statuses maps an adopted table's values; managed tables use the default statuses",
       );
     }
     values[name] = value;
@@ -82,32 +82,32 @@ function statusValues(
 
 const TYPE = /^[a-z][a-z0-9_ ]*$/;
 
-function typeOption(ctx: BlockContext, name: string): string {
+function typeOption(ctx: ModuleContext, name: string): string {
   const type = ctx.text(name, "text");
   if (!TYPE.test(type)) {
     throw new TypeError(
-      `blocks.webhooks-out.options.${name} must be a type name such as "uuid", not "${type}"`,
+      `sql.modules.webhooks-out.options.${name} must be a type name such as "uuid", not "${type}"`,
     );
   }
   return type;
 }
 
-export function hookNames(ctx: BlockContext): HookNames {
+export function hookNames(ctx: ModuleContext): HookNames {
   const has = (table: string, logical: string) => ctx.has(table, logical);
   const storage = ctx.text("secretStorage", "vault");
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
-      `blocks.webhooks-out.options.secretStorage must be "vault" or "column", not "${storage}"`,
+      `sql.modules.webhooks-out.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
   const vault = storage === "vault";
   if (!has("secrets", vault ? "vaultId" : "secret")) {
     throw new TypeError(
-      `blocks.webhooks-out: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
+      `sql.modules.webhooks-out: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
     );
   }
   const access = ctx.installed("access");
-  const permissions = BLOCK_PERMISSIONS["webhooks-out"];
+  const permissions = MODULE_PERMISSIONS["webhooks-out"];
   const values = statusValues(ctx);
   return {
     table: (table) => ctx.table(table),
@@ -170,7 +170,7 @@ const touched = (n: HookNames, table: string, alias = ""): string =>
     ? `, ${alias}${n.col(table, "updatedAt")} = now()`
     : "";
 
-function publish(ctx: BlockContext, n: HookNames): string {
+function publish(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("publish_webhook_event");
   const id = ctx.idType;
   const d = (logical: string) => n.col("endpoints", logical);
@@ -235,7 +235,7 @@ $$;
 ${grants(fn, `text, jsonb, ${id}, text`, false)}`;
 }
 
-function dispatch(ctx: BlockContext, n: HookNames): string {
+function dispatch(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("dispatch_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
   const columns: [string, string][] = [
@@ -309,7 +309,7 @@ $$;
 ${grants(fn, "uuid, text, jsonb, text, text", true)}`;
 }
 
-function claim(ctx: BlockContext, n: HookNames): string {
+function claim(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("claim_webhook_deliveries");
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
@@ -393,14 +393,14 @@ $$;
 ${grants(fn, "integer, interval, integer", false)}`;
 }
 
-function complete(ctx: BlockContext, n: HookNames): string {
+function complete(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("complete_webhook_delivery");
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
   const window = ctx.text("disableAfter", "5 days");
   if (!/^\d+ (minute|hour|day|week)s?$/.test(window)) {
     throw new TypeError(
-      `blocks.webhooks-out.options.disableAfter must be an interval such as "5 days", not "${window}"`,
+      `sql.modules.webhooks-out.options.disableAfter must be an interval such as "5 days", not "${window}"`,
     );
   }
   const disableAfter = sqlString(window);
@@ -509,7 +509,7 @@ $$;
 ${grants(fn, "uuid, jsonb", false)}`;
 }
 
-function redeliver(ctx: BlockContext, n: HookNames): string {
+function redeliver(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("redeliver_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
   const resets = [
@@ -560,7 +560,7 @@ $$;
 ${grants(fn, "uuid", true)}`;
 }
 
-function purge(ctx: BlockContext, n: HookNames): string {
+function purge(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("purge_webhook_deliveries");
   const v = (logical: string) => n.col("deliveries", logical);
   return `
@@ -592,7 +592,7 @@ $$;
 ${grants(fn, "interval, boolean, integer", false)}`;
 }
 
-function secrets(ctx: BlockContext, n: HookNames): string {
+function secrets(ctx: ModuleContext, n: HookNames): string {
   const rotate = ctx.fn("rotate_webhook_secret");
   const read = ctx.fn("webhook_secrets");
   const s = (logical: string) => n.col("secrets", logical);
@@ -684,7 +684,7 @@ $$;
 ${grants(read, "uuid", false)}`;
 }
 
-export function functions(ctx: BlockContext, n: HookNames): string {
+export function functions(ctx: ModuleContext, n: HookNames): string {
   return [
     publish(ctx, n),
     dispatch(ctx, n),

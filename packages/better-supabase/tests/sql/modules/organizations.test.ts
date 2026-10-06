@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, resolveModules } from "../../../src/sql/blocks.ts";
+import { moduleBody, resolveModules } from "../../../src/sql/registry.ts";
 
-const CENTRAKIT: BlocksConfig = {
+const CENTRAKIT: ModulesConfig = {
   access: { model: "catalog", platformClaim: "system_permissions" },
   tenant: {
     mode: "adopt",
@@ -33,7 +33,8 @@ const CENTRAKIT: BlocksConfig = {
   },
 };
 
-const body = (blocks: BlocksConfig) => moduleBody("organizations", { blocks })!;
+const body = (modules: ModulesConfig) =>
+  moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
   it("owns its table and makes the creator the owner", () => {
@@ -127,7 +128,7 @@ describe("organizations module", () => {
     expect(names).toEqual(["updated-at", "tenant", "access", "organizations"]);
     expect(
       moduleBody("organizations", {
-        blocks: { organizations: { mode: "custom" } },
+        modules: { organizations: { mode: "custom" } },
       }),
     ).toBeUndefined();
   });

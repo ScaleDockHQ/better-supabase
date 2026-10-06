@@ -14,10 +14,10 @@ import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
 import {
-  type BlockFile,
-  blockLayout,
-  renderBlocks,
-  sameBlockFile,
+  type ModuleFile,
+  moduleLayout,
+  renderModules,
+  sameModuleFile,
 } from "../../sql/index.ts";
 import { defineCliCommand } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
@@ -164,12 +164,12 @@ export async function render(
 /** The `read-sets` SQL module file for `config.readSets`, if any are configured. */
 async function readSetFile(
   config: ResolvedConfig,
-): Promise<BlockFile | undefined> {
+): Promise<ModuleFile | undefined> {
   if (config.readSets.length === 0) return undefined;
   const readSets = await compiledReadSets(config);
-  return renderBlocks(
+  return renderModules(
     ["read-sets"],
-    blockLayout(config, config.sql.testsDir, readSets),
+    moduleLayout(config, config.sql.testsDir, readSets),
   )[0];
 }
 
@@ -266,7 +266,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
   const { files, warnings } = await render(config, snapshot);
-  const pathsOf = (readSets: BlockFile | undefined): string[] =>
+  const pathsOf = (readSets: ModuleFile | undefined): string[] =>
     [...files, ...(readSets ? [readSets] : [])].map((file) =>
       manifestPath(config.root, file.path),
     );
@@ -298,7 +298,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       const current = existsSync(path)
         ? await readFile(path, "utf8")
         : undefined;
-      if (!sameBlockFile(current, readSets.contents))
+      if (!sameModuleFile(current, readSets.contents))
         compare(readSets, current);
     }
     if (stale.length > 0 || leftovers.length > 0) {

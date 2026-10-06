@@ -7,10 +7,10 @@ import { dbError, DbException } from "../core/errors.ts";
 import { PRIMARY_COOKIE } from "../server/replicas.ts";
 import { type ConformanceReport, conform, expect } from "./conformance.ts";
 
-// oxlint-disable-next-line typescript/no-explicit-any -- the block accepts a definition of any schema.
+// oxlint-disable-next-line typescript/no-explicit-any -- the module accepts a definition of any schema.
 type AnySupabase = BetterSupabase<any, any, any, any>;
 
-/** What the adapter block asks a handler to do with the caller's context. */
+/** What the adapter module asks a handler to do with the caller's context. */
 export type AdapterRun = (
   ctx: Pick<
     ServerContext<AnyModels, AnyFunctions, unknown>,
@@ -19,13 +19,13 @@ export type AdapterRun = (
 ) => unknown;
 
 export interface TestAdapterOptions {
-  /** The definition the adapter is built from: the block tracks event sends on its `events`. */
+  /** The definition the adapter is built from: the module tracks event sends on its `events`. */
   readonly betterSupabase: AnySupabase;
   /**
    * Builds the adapter with `server` (pass it to `createX(betterSupabase,
    * server)`) and returns a fetch function that answers a request with
    * `run` as the caller, behind a guard that allows `allow`. Translate the
-   * block's bare GET into what the adapter expects (a JSON-RPC `tools/call`,
+   * module's bare GET into what the adapter expects (a JSON-RPC `tools/call`,
    * an oRPC call) inside the function.
    */
   readonly serve: (
@@ -42,7 +42,7 @@ export interface TestAdapterOptions {
   readonly cookies?: false;
 }
 
-const BLOCK_SERVER = {
+const MODULE_SERVER = {
   env: {
     url: "http://127.0.0.1:54321",
     publishableKey: "sb_publishable_kit",
@@ -69,8 +69,8 @@ export function testAdapter(
     allow: NonNullable<GuardOptions["allow"]> = ["anon"],
     waitUntil: (promise: Promise<unknown>) => void = () => undefined,
   ): Promise<Response> =>
-    options.serve(BLOCK_SERVER, run, { allow, waitUntil })(
-      new Request("http://127.0.0.1/block"),
+    options.serve(MODULE_SERVER, run, { allow, waitUntil })(
+      new Request("http://127.0.0.1/module"),
     );
   const errorStatus = (expected: number): number =>
     options.errorsInBody ? 200 : expected;
@@ -92,7 +92,7 @@ export function testAdapter(
     [
       "runs the handler for an allowed caller",
       async () => {
-        const response = await call(() => ({ block: "ran" }));
+        const response = await call(() => ({ module: "ran" }));
         expect(response.status === 200, `expected 200, got ${response.status}`);
         const body = await response.text();
         expect(body.includes("ran"), `the handler's data is missing: ${body}`);
@@ -102,7 +102,7 @@ export function testAdapter(
       "answers a DbError with its status",
       async () => {
         const response = await call(() => {
-          throw new DbException(dbError("not_found", "block: no such row"));
+          throw new DbException(dbError("not_found", "module: no such row"));
         });
         expect(
           response.status === errorStatus(404),
@@ -110,7 +110,7 @@ export function testAdapter(
         );
         const body = await response.text();
         expect(
-          body.includes("block: no such row"),
+          body.includes("module: no such row"),
           `the error message is missing: ${body}`,
         );
       },
@@ -119,7 +119,7 @@ export function testAdapter(
       "hides the message of an unexpected error",
       async () => {
         const response = await call(() => {
-          throw new Error("block-internal-detail");
+          throw new Error("module-internal-detail");
         });
         expect(
           response.status === errorStatus(500),
@@ -127,7 +127,7 @@ export function testAdapter(
         );
         const body = await response.text();
         expect(
-          !body.includes("block-internal-detail"),
+          !body.includes("module-internal-detail"),
           "the response leaks the error message",
         );
       },

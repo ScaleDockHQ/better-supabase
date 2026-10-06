@@ -67,15 +67,17 @@ service columns. To disable users through the profile, point the access
 contract at its column:
 
 ```ts title="better-supabase.config.ts"
-blocks: {
-  access: { disabled: { user: "better_supabase.profiles.disabled_at" } },
-  profiles: {},
+sql: {
+  modules: {
+    access: { disabled: { user: "better_supabase.profiles.disabled_at" } },
+    profiles: {},
+  },
 },
 ```
 
 ## Options
 
-`blocks.profiles.options`:
+`sql.modules.profiles.options`:
 
 | Option              | Default                                               | What it does                                                                                   |
 | ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -101,21 +103,26 @@ table and leaves its columns, policies and grants alone. Map the key and
 the columns you have, and set the others to `null`:
 
 ```ts title="better-supabase.config.ts"
-blocks: {
-  profiles: {
-    mode: "adopt",
-    tables: { profiles: "public.profiles" },
-    columns: {
-      profiles: {
-        key: "user_id",
-        fullName: null,
-        avatar: "avatar_path",
-        activeTenant: "active_organization_id",
-        onboarding: null,
+sql: {
+  modules: {
+    profiles: {
+      mode: "adopt",
+      tables: { profiles: "public.profiles" },
+      columns: {
+        profiles: {
+          key: "user_id",
+          fullName: null,
+          avatar: "avatar_path",
+          activeTenant: "active_organization_id",
+          onboarding: null,
+        },
       },
+      hooks: {
+        schema: "public",
+        functions: { after_profile_sync: "create_contact_profile" },
+      },
+      options: { syncTrigger: false, usernameMaxLength: 30 },
     },
-    hooks: { schema: "public", functions: { after_profile_sync: "create_contact_profile" } },
-    options: { syncTrigger: false, usernameMaxLength: 30 },
   },
 },
 ```

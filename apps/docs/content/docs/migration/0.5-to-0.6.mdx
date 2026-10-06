@@ -26,22 +26,32 @@ one change.
 Types follow the same pattern: `Orgs`, `OrgsOptions`, `CreateOrgOptions`,
 `OrgAttributes` and `OrgEventData` become `Organizations`,
 `OrganizationsOptions`, `CreateOrganizationOptions`, `OrganizationAttributes`
-and `OrganizationEventData`. Every `Kit` name becomes `Block`: `KitsConfig` is
-`BlocksConfig`, `KitEvent` is `BlockEvent`, `onKitEvent` is `onBlockEvent`,
-`forwardKitEvents` is `forwardBlockEvents`, `KIT_ATTRIBUTES` is
-`BLOCK_ATTRIBUTES` and `renderKit` is `renderBlocks`.
+and `OrganizationEventData`. `Kit` names that describe a feature become
+`Block` names: `KitEvent` is `BlockEvent`, `onKitEvent` is `onBlockEvent`,
+`forwardKitEvents` is `forwardBlockEvents` and `KIT_ATTRIBUTES` is
+`BLOCK_ATTRIBUTES`. `Kit` names that describe a SQL module become `Module`
+names: `KitsConfig` is `ModulesConfig`, `KitModuleConfig` is `ModuleConfig`,
+`renderKit` is `renderModules`, `kitLayout` is `moduleLayout` and
+`kitPermissionKeys` is `modulePermissionKeys`.
 
 `list`, `storage`, `realtime` and `events` keep their subpaths.
 
 ## Update the config
 
-The `kits` key becomes `blocks`, and `sql.kit` (the modules to keep in sync)
-becomes `sql.modules`:
+`sql.kit` (the modules to keep in sync) and the `kits` key (their settings)
+merge into one key, `sql.modules`. It takes an object keyed by module name,
+where every key is a module to keep in sync and its value is that module's
+settings. A list of names still works when no module needs settings.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: { access: { roles: ["owner", "admin", "member"] } },
-  sql: { modules: ["access", "organizations", "invitations"] },
+  sql: {
+    modules: {
+      access: { roles: ["owner", "admin", "member"] },
+      organizations: {},
+      invitations: {},
+    },
+  },
 });
 ```
 
@@ -56,8 +66,9 @@ webhook subscriptions that name an `org.*` type.
 
 ## Regenerate the SQL modules
 
-The module files now start with `-- @bs-block`, and the module registry table
-is `better_supabase.block_modules`. These SQL functions were renamed:
+The module files now start with `-- @bs-module` (`-- @bs-module-data` for the
+data files), and the module registry table `better_supabase.kit_modules` is
+now `better_supabase.modules`. These SQL functions were renamed:
 
 | 0.5                                            | 0.6                                              |
 | ---------------------------------------------- | ------------------------------------------------ |
@@ -76,6 +87,6 @@ better-supabase sql data
 ```
 
 The schema diff drops `kit_modules` and the old functions and creates the new
-ones, and `sql data` writes the `block_modules` rows into a migration after it.
+ones, and `sql data` writes the `modules` rows into a migration after it.
 A function whose parameter was renamed can't be replaced in place, so apply
 the files through the diff rather than by running them on the database.

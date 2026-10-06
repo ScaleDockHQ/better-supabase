@@ -268,7 +268,7 @@ describe("testAdapter", () => {
           version: "1.0.0",
         }).tool({
           name: "run",
-          description: "Runs the block.",
+          description: "Runs the module.",
           run: (_a, ctx) => run(ctx),
         });
         return (request) =>

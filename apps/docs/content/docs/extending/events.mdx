@@ -113,20 +113,22 @@ Spans and events use fixed attribute names (`BLOCK_ATTRIBUTES` from
 
 ## SQL hooks
 
-Block modules call optional app functions around their work, for example
+SQL modules call optional app functions around their work, for example
 `after_organization_create(organization uuid, user_id uuid)`. A hook runs in the same
 transaction when a function with that name and argument list exists in
 `public`, and is skipped otherwise. Raise an exception in a `before_*` hook
 to refuse the operation. Point a module at another schema or function with
-`blocks.<module>.hooks`:
+`sql.modules.<module>.hooks`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    organizations: {
-      hooks: {
-        schema: "app",
-        functions: { after_organization_create: "private.seed_organization" },
+  sql: {
+    modules: {
+      organizations: {
+        hooks: {
+          schema: "app",
+          functions: { after_organization_create: "private.seed_organization" },
+        },
       },
     },
   },
@@ -135,5 +137,5 @@ export default defineConfig({
 
 Each module's page lists its hooks and their arguments. With the `outbox`
 module installed, modules also write their events with `emit_event` in the
-same transaction; `blocks.<module>.events: false` turns that off for one
+same transaction; `sql.modules.<module>.events: false` turns that off for one
 module.

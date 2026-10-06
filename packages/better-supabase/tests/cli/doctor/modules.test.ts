@@ -17,12 +17,13 @@ import { snapshotFixture as fixture } from "../fixtures/library.ts";
 const snapshot = await parseSnapshot(fixture);
 
 const CUSTOM: BetterSupabaseConfig = {
-  sql: { modules: ["access"] },
-  blocks: {
-    access: {
-      mode: "custom",
-      model: "custom",
-      functions: { can: "x()", tenantIdsWith: "y()", isPlatform: "z()" },
+  sql: {
+    modules: {
+      access: {
+        mode: "custom",
+        model: "custom",
+        functions: { can: "x()", tenantIdsWith: "y()", isPlatform: "z()" },
+      },
     },
   },
 };
@@ -66,7 +67,7 @@ const fn = (name: string, args: string, returns = "boolean") => ({
   returns,
 });
 
-describe("BS307 custom block contracts", () => {
+describe("BS307 custom module contracts", () => {
   it("passes when no module is in custom mode", async () => {
     expect(await run(context({ sql: { modules: ["access"] } }))).toEqual([]);
   });

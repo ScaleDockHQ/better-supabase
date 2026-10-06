@@ -98,15 +98,15 @@ the other.
 
 - Doctor BS405 measures `memberships` plus `attrs` against PermDock's 1 KB
   budget and the whole token against 2 KB; run `doctor --as <user id>`.
-- For the SQL modules, set `blocks.access.model: 'permdock'` and
-  `blocks.access.functions.canAssign: 'permdock.permdock_can_assign({role}, {tenant}::text)'`
+- For the SQL modules, set `sql.modules.access.model: 'permdock'` and
+  `sql.modules.access.functions.canAssign: 'permdock.permdock_can_assign({role}, {tenant}::text)'`
   (use the manifest's `rls.schema`), then run `permdock supabase inspect --out`
   before `sql add`. The block reads the schema, the root scope and its id type
   from `permdock.manifest.json`, and `sql add` stops instead of guessing when
   the manifest can't give them. Every permission key the SQL modules check
-  (`blockPermissionKeys` from `better-supabase/sql`) must be
+  (`modulePermissionKeys` from `better-supabase/sql`) must be
   `rowConditions: false` in `permissions.catalog.json`; map others with
-  `blocks.<module>.permissions`. Doctor reports BS411.
+  `sql.modules.<module>.permissions`. Doctor reports BS411.
 - Under that model `can_user()` and `member_can()` answer for the caller only
   and raise SQLSTATE `0A000` for another user. Invitations skip the inviter
   re-check at accept time and notifications don't filter recipients by read

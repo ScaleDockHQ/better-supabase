@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { ModulesConfig } from "../../../src/config/modules.ts";
 
 import {
   customContracts,
   moduleBody,
-  renderBlocks,
-} from "../../../src/sql/blocks.ts";
+  renderModules,
+} from "../../../src/sql/registry.ts";
 
-const body = (blocks: BlocksConfig = {}) =>
-  moduleBody("webhooks-out", { blocks })!;
+const body = (modules: ModulesConfig = {}) =>
+  moduleBody("webhooks-out", { modules })!;
 
-const CENTRAKIT: BlocksConfig = {
+const CENTRAKIT: ModulesConfig = {
   "webhooks-out": {
     mode: "adopt",
     schema: "public",
@@ -75,10 +75,10 @@ describe("webhooks-out module", () => {
     expect(
       body({ "webhooks-out": { options: { allowHttp: true } } }),
     ).not.toContain(`"url" ~* '^https://'`);
-    const plain = renderBlocks(["webhooks-out"]).at(-1)!.contents;
+    const plain = renderModules(["webhooks-out"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
     expect(plain).not.toContain("tenant_ids_with(");
-    const sql = renderBlocks(["access", "outbox", "webhooks-out"]).find(
+    const sql = renderModules(["access", "outbox", "webhooks-out"]).find(
       (file) => file.path.includes("webhooks_out"),
     )!.contents;
     expect(sql).toContain("better_supabase.can('tenant', ");
@@ -137,9 +137,9 @@ describe("webhooks-out module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: BlocksConfig = { "webhooks-out": { mode: "custom" } };
-    expect(moduleBody("webhooks-out", { blocks: custom })).toBe(undefined);
-    const [contract] = customContracts(["webhooks-out"], { blocks: custom });
+    const custom: ModulesConfig = { "webhooks-out": { mode: "custom" } };
+    expect(moduleBody("webhooks-out", { modules: custom })).toBe(undefined);
+    const [contract] = customContracts(["webhooks-out"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "publish_webhook_event",
       "dispatch_webhook",

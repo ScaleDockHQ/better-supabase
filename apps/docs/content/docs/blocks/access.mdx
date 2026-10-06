@@ -5,7 +5,7 @@ description: One permission check for RLS policies and SQL modules, over a role 
 
 The `access` SQL module gives policies and the other SQL modules one way to
 ask "may the caller do this": `can(scope, id, permission)`. The functions behind
-it come from the access model you pick in `blocks.access`, so the same policies
+it come from the access model you pick in `sql.modules.access`, so the same policies
 work over a fixed role list, a role and permission catalog you already have,
 PermDock, or functions your app already wrote.
 
@@ -46,15 +46,17 @@ evaluates it once.
 | `permission_claims(user)`                     | a `jsonb` claim for your access token hook                               |
 
 Permission keys are dotted strings. A granted `*` matches every key, and
-`members.*` matches every key that starts with `members.`. Block modules check
-the keys in their `permissions` config, so `blocks.invitations.permissions.invite`
+`members.*` matches every key that starts with `members.`. SQL modules check
+the keys in their `permissions` config, so `sql.modules.invitations.permissions.invite`
 can be `organization.members.invite` in an app that already uses that name:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["access", "invitations"] },
-  blocks: {
-    invitations: { permissions: { invite: "organization.members.invite" } },
+  sql: {
+    modules: {
+      access: {},
+      invitations: { permissions: { invite: "organization.members.invite" } },
+    },
   },
 });
 ```
@@ -72,7 +74,7 @@ Keys follow one scheme, `<area>.<verb>`, with `read` for viewing. Platform-wide 
 
 ## Models
 
-`blocks.access.model` picks where permissions come from. Every model writes the
+`sql.modules.access.model` picks where permissions come from. Every model writes the
 same contract, so you can change models without touching your policies.
 
 ### roles (the default)
@@ -84,13 +86,14 @@ Platform permissions come from the `platform_permissions` claim
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["access"] },
-  blocks: {
-    access: {
-      roles: {
-        owner: ["*"],
-        admin: ["organization.*", "members.*", "billing.*"],
-        member: ["organization.read", "projects.*"],
+  sql: {
+    modules: {
+      access: {
+        roles: {
+          owner: ["*"],
+          admin: ["organization.*", "members.*", "billing.*"],
+          member: ["organization.read", "projects.*"],
+        },
       },
     },
   },
@@ -110,32 +113,33 @@ creates the tables; in `adopt` mode you point it at yours:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["access"] },
-  blocks: {
-    tenant: {
-      mode: "adopt",
-      tables: { memberships: "public.organization_members" },
-      columns: {
-        memberships: {
-          tenant: "organization_id",
-          role: "role_id",
-          lastUsedAt: null,
+  sql: {
+    modules: {
+      tenant: {
+        mode: "adopt",
+        tables: { memberships: "public.organization_members" },
+        columns: {
+          memberships: {
+            tenant: "organization_id",
+            role: "role_id",
+            lastUsedAt: null,
+          },
         },
       },
-    },
-    access: {
-      mode: "adopt",
-      model: "catalog",
-      tables: {
-        roles: "public.roles",
-        permissions: "public.permissions",
-        rolePermissions: "public.role_permissions",
-        overrides: "public.organization_role_overrides",
-        platformAssignments: "public.user_roles",
-      },
-      columns: {
-        roles: { key: "slug" },
-        overrides: { tenant: "organization_id" },
+      access: {
+        mode: "adopt",
+        model: "catalog",
+        tables: {
+          roles: "public.roles",
+          permissions: "public.permissions",
+          rolePermissions: "public.role_permissions",
+          overrides: "public.organization_role_overrides",
+          platformAssignments: "public.user_roles",
+        },
+        columns: {
+          roles: { key: "slug" },
+          overrides: { tenant: "organization_id" },
+        },
       },
     },
   },
@@ -161,18 +165,18 @@ uses PermDock:
 | Id type | that scope's `type`: `uuid`, `text`, `bigint` or `integer` |
 
 A manifest with `rls.schema: "authz"` and a root scope `tenant` renders
-`authz.permitted_tenant_ids`. `blocks.access.permdock.scope` picks another
+`authz.permitted_tenant_ids`. `sql.modules.access.permdock.scope` picks another
 declared scope. `sql add` refuses, instead of guessing, when the manifest is
 missing, has no `rls` block or no single root scope, names a scope it doesn't
-declare, or disagrees with `blocks.access.permdock.schema` or
-`blocks.access.idType`. Code that renders the block without the CLI
-(`renderBlocks`, `moduleBody`) sets both `blocks.access.permdock.schema` and
-`blocks.access.permdock.scope`.
+declare, or disagrees with `sql.modules.access.permdock.schema` or
+`sql.modules.access.idType`. Code that renders the block without the CLI
+(`renderModules`, `moduleBody`) sets both `sql.modules.access.permdock.schema` and
+`sql.modules.access.permdock.scope`.
 
 PermDock's helpers check role and scope, never row conditions. Every
 permission key a SQL module checks must be `rowConditions: false` in
 `permissions.catalog.json`, or `sql add` and [doctor](/docs/cli/doctor#bs411)
-stop. Map an action to another key with `blocks.<module>.permissions`.
+stop. Map an action to another key with `sql.modules.<module>.permissions`.
 
 PermDock has no role catalog the block can compare roles against, so set
 `canAssign` to PermDock's assignment rule, `permdock_can_assign` (PermDock
@@ -180,12 +184,15 @@ writes it when a role declares `assigns`):
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["access", "organizations", "invitations"] },
-  blocks: {
-    access: {
-      model: "permdock",
-      functions: {
-        canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
+  sql: {
+    modules: {
+      organizations: {},
+      invitations: {},
+      access: {
+        model: "permdock",
+        functions: {
+          canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
+        },
       },
     },
   },
@@ -213,15 +220,16 @@ placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { modules: ["access"] },
-  blocks: {
-    access: {
-      model: "custom",
-      functions: {
-        can: "public.authorize({scope}, {id}, {permission})",
-        tenantIdsWith: "public.organizations_with({permission})",
-        isPlatform: "public.is_staff({permission})",
-        canAssign: "public.can_grant_role({tenant}, {role})",
+  sql: {
+    modules: {
+      access: {
+        model: "custom",
+        functions: {
+          can: "public.authorize({scope}, {id}, {permission})",
+          tenantIdsWith: "public.organizations_with({permission})",
+          isPlatform: "public.is_staff({permission})",
+          canAssign: "public.can_grant_role({tenant}, {role})",
+        },
       },
     },
   },
@@ -235,17 +243,19 @@ them.
 
 ## Disabled tenants and users
 
-`blocks.access.disabled` names columns that switch a tenant or a user off when
+`sql.modules.access.disabled` names columns that switch a tenant or a user off when
 they are set, such as `disabled_at`. A disabled tenant or user gets no
 permissions, and `membership_claims()` leaves them out of the token.
 
 ```ts
-blocks: {
-  access: {
-    disabled: {
-      tenant: "public.organizations.disabled_at",
-      user: "public.profiles.disabled_at",
-      userKey: "user_id",
+sql: {
+  modules: {
+    access: {
+      disabled: {
+        tenant: "public.organizations.disabled_at",
+        user: "public.profiles.disabled_at",
+        userKey: "user_id",
+      },
     },
   },
 },
@@ -257,7 +267,7 @@ column matched against the user id; it defaults to `id`.
 ## The active tenant
 
 `current_tenant_id()` and the [`tenant()` plugin](/docs/plugins/tenant) need
-the tenant a request works in. `blocks.access.activeTenant` says where it comes
+the tenant a request works in. `sql.modules.access.activeTenant` says where it comes
 from.
 
 | Source                   | Reads                                                                             |
@@ -310,6 +320,6 @@ begin
 end $$;
 ```
 
-`blocks.tenant.options.claimFormat` picks the memberships claim's form:
+`sql.modules.tenant.options.claimFormat` picks the memberships claim's form:
 `'array'` (the default, PermDock's `[{ scope, id, roles }]`) or `'map'`
 (`{ "<tenant id>": "<role>" }`).

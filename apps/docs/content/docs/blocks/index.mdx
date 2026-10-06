@@ -18,8 +18,8 @@ pnpm better-supabase sql add organizations invitations
 import { createOrganizations } from "better-supabase/blocks/organizations";
 ```
 
-Configure each module under `blocks` in `better-supabase.config.ts`, and list
-the modules to keep in sync in `sql.modules`. The primitives that every app
+List the modules to keep in sync in `sql.modules` in `better-supabase.config.ts`,
+keyed by module name, with each module's settings as the value. The primitives that every app
 uses, such as [list queries](/docs/platform/list),
 [storage](/docs/platform/storage) and [realtime topics](/docs/platform/realtime),
 are not blocks and keep their top-level subpaths.

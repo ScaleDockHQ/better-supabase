@@ -39,8 +39,8 @@ import {
   type SupabaseToml,
 } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { blockPermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
-import { blockSnapshotFixture as fixture } from "../fixtures/library.ts";
+import { modulePermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
+import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
 const base = await parseSnapshot(fixture);
@@ -1371,22 +1371,22 @@ uri = "https://example.com/hook"
       ]);
     });
 
-    it("flags a block hook next to PermDock (BS407)", async () => {
-      const blockHook = hookFn({
+    it("flags a module hook next to PermDock (BS407)", async () => {
+      const moduleHook = hookFn({
         source:
           "begin claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid)); end",
       });
-      expect(await codes(hookContext(withHook([blockHook])), "BS407")).toEqual(
+      expect(await codes(hookContext(withHook([moduleHook])), "BS407")).toEqual(
         [],
       );
       expect(
         await codes(
-          hookContext(withHook([blockHook]), { permdock: PERMDOCK }),
+          hookContext(withHook([moduleHook]), { permdock: PERMDOCK }),
           "BS407",
         ),
       ).toEqual(["BS407"]);
       const both = hookFn({
-        source: `${blockHook.source ?? ""} perform permdock.permdock_claims(event);`,
+        source: `${moduleHook.source ?? ""} perform permdock.permdock_claims(event);`,
       });
       expect(await codes(hookContext(withHook([both])), "BS407")).toEqual([
         "BS407",
@@ -2156,7 +2156,7 @@ uri = "https://example.com/hook"
   describe("PermDock access model (BS411)", () => {
     const only = RULES.filter((rule) => rule.code === "BS411");
     const allScopeOnly = (): PermdockProject["catalog"] => ({
-      permissions: blockPermissionKeys(
+      permissions: modulePermissionKeys(
         { access: { model: "permdock" } },
         Object.keys(SQL_MODULES),
       ).map((entry) => ({ key: entry.key, rowConditions: false })),
@@ -2173,22 +2173,30 @@ uri = "https://example.com/hook"
     const run = async (
       access: object = {},
       extra: Partial<DoctorContext> = {},
-      block: string[] = ["access", "organizations"],
+      modules: string[] = ["access", "organizations"],
     ) =>
       runRules(
         context(withHelpers, {
           permdock: project,
           config: resolveConfig(
             {
-              sql: { modules: block },
-              blocks: {
-                access: {
-                  model: "permdock",
-                  functions: {
-                    canAssign:
-                      "public.permdock_can_assign({role}, {tenant}::text)",
-                  },
-                  ...access,
+              sql: {
+                modules: {
+                  ...Object.fromEntries(
+                    modules.map((name) => [
+                      name,
+                      name === "access"
+                        ? {
+                            model: "permdock",
+                            functions: {
+                              canAssign:
+                                "public.permdock_can_assign({role}, {tenant}::text)",
+                            },
+                            ...access,
+                          }
+                        : {},
+                    ]),
+                  ),
                 },
               },
             },
@@ -2217,15 +2225,15 @@ uri = "https://example.com/hook"
     it("reports a manifest that can't back the model", async () => {
       expect(await run({}, { permdock: PERMDOCK })).toMatchObject([
         {
-          target: "blocks.access.permdock",
+          target: "sql.modules.access.permdock",
           message: expect.stringContaining("has no rls block"),
         },
       ]);
       expect(await run({ permdock: { scope: "tenant" } })).toMatchObject([
         {
-          target: "blocks.access.permdock",
+          target: "sql.modules.access.permdock",
           message: expect.stringContaining(
-            'blocks.access.permdock.scope is "tenant"',
+            'sql.modules.access.permdock.scope is "tenant"',
           ),
         },
       ]);
@@ -2277,7 +2285,7 @@ uri = "https://example.com/hook"
       ]);
     });
 
-    it("reports block permission keys the catalog doesn't mark scope-only", async () => {
+    it("reports module permission keys the catalog doesn't mark scope-only", async () => {
       const findings = await run(
         {},
         {
@@ -2294,13 +2302,13 @@ uri = "https://example.com/hook"
       expect(findings).toContainEqual(
         expect.objectContaining({
           severity: "error",
-          target: "blocks.organizations.permissions.update",
+          target: "sql.modules.organizations.permissions.update",
           message: expect.stringContaining("has row conditions"),
         }),
       );
       expect(findings).toContainEqual(
         expect.objectContaining({
-          target: "blocks.organizations.permissions.delete",
+          target: "sql.modules.organizations.permissions.delete",
           message: expect.stringContaining(
             "is not in permissions.catalog.json",
           ),
@@ -2313,7 +2321,7 @@ uri = "https://example.com/hook"
       expect(findings).toMatchObject([
         {
           severity: "warning",
-          target: "blocks.access.functions.canAssign",
+          target: "sql.modules.access.functions.canAssign",
           message: expect.stringContaining(
             'Set canAssign: "public.permdock_can_assign({role}, {tenant}::text)"',
           ),

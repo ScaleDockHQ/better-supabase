@@ -1,5 +1,5 @@
-import type { BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext, BlockNames } from "../context.ts";
+import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -12,7 +12,7 @@ import {
 import {
   accessModel,
   hasPlatformRoles,
-  BLOCK_PERMISSIONS,
+  MODULE_PERMISSIONS,
   roleNames,
   roleScopeIs,
   tenantScope,
@@ -34,7 +34,7 @@ const PLATFORM_COLUMNS = {
   revokedAt: "revoked_at",
 } as const;
 
-const NAMES: BlockNames = {
+const NAMES: ModuleNames = {
   options: [
     "maxValidFor",
     "prefill",
@@ -107,16 +107,16 @@ function raise(
 }
 
 /**
- * How tokens are stored (`blocks.invitations.options.tokenStorage`): `sha256`
+ * How tokens are stored (`sql.modules.invitations.options.tokenStorage`): `sha256`
  * (the default) keeps only the hash; `plain` keeps the token itself, for an
  * adopted table whose open invitations hold plain tokens.
  */
-function tokenHash(ctx: BlockContext, token: string): string {
+function tokenHash(ctx: ModuleContext, token: string): string {
   const storage = ctx.text("tokenStorage", "sha256");
   if (storage === "plain") return token;
   if (storage !== "sha256") {
     throw new TypeError(
-      `blocks.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
+      `sql.modules.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
     );
   }
   return `encode(extensions.digest(${token}, 'sha256'), 'hex')`;
@@ -132,7 +132,7 @@ interface InviteTable {
 }
 
 /** Whether platform invitations live in the tenant table, as rows without a tenant. */
-function sharesTable(ctx: BlockContext): boolean {
+function sharesTable(ctx: ModuleContext): boolean {
   return (
     !ctx.manages &&
     ctx.config.tables["platformInvitations"] != null &&
@@ -140,9 +140,9 @@ function sharesTable(ctx: BlockContext): boolean {
   );
 }
 
-function tenantTable(ctx: BlockContext): InviteTable {
+function tenantTable(ctx: ModuleContext): InviteTable {
   const shared = sharesTable(ctx);
-  // Managed tables add prefill only on request (`blocks.invitations.options.prefill`).
+  // Managed tables add prefill only on request (`sql.modules.invitations.options.prefill`).
   const prefill =
     ctx.has("invitations", "prefill") &&
     (!ctx.manages || ctx.flag("prefill", false));
@@ -160,10 +160,10 @@ function tenantTable(ctx: BlockContext): InviteTable {
 
 /**
  * Platform invitations, with the catalog model's platform roles. Managed:
- * their own table. Adopted: `blocks.invitations.tables.platformInvitations`,
+ * their own table. Adopted: `sql.modules.invitations.tables.platformInvitations`,
  * which may name the tenant table.
  */
-function platformTable(ctx: BlockContext): InviteTable | undefined {
+function platformTable(ctx: ModuleContext): InviteTable | undefined {
   if (!hasPlatformRoles(ctx) || !ctx.hasTable("platformInvitations")) {
     return undefined;
   }
@@ -218,7 +218,7 @@ function openFilter(t: InviteTable, alias: string): string {
 
 /** The catalog role id for a key or id, in `scope`; `expr` itself in other models. */
 function roleIn(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   expr: string,
   scope: "tenant" | "platform",
 ): string {
@@ -232,12 +232,12 @@ function roleIn(
   return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped} order by (r.${rid}::text = ${text}) desc limit 1)`;
 }
 
-function tenantTableSql(ctx: BlockContext): string {
+function tenantTableSql(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const c = (logical: string) => t.col(logical);
   if (!ctx.manages) {
     return `
--- Adopted: ${t.table} belongs to the app (blocks.invitations.tables.invitations).
+-- Adopted: ${t.table} belongs to the app (modules.invitations.tables.invitations).
 `;
   }
   const add = (logical: string, type: string) =>
@@ -285,7 +285,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select better_supabase.tenant_ids_with(${ctx.permission("view", BLOCK_PERMISSIONS.invitations.view)});
+  return query select better_supabase.tenant_ids_with(${ctx.permission("view", MODULE_PERMISSIONS.invitations.view)});
 end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
@@ -296,7 +296,7 @@ create policy bs_invitations_read on ${t.table} for select to authenticated
 `;
 }
 
-function platformTableSql(ctx: BlockContext): string {
+function platformTableSql(ctx: ModuleContext): string {
   const p = platformTable(ctx);
   if (!p || !ctx.manages) return "";
   const c = (logical: string) => p.col(logical);
@@ -341,10 +341,10 @@ create policy bs_platform_invitations_read on ${p.table} for select to authentic
 `;
 }
 
-const invitePlatform = (ctx: BlockContext): string =>
+const invitePlatform = (ctx: ModuleContext): string =>
   ctx.permission(
     "invitePlatform",
-    BLOCK_PERMISSIONS.invitations.invitePlatform,
+    MODULE_PERMISSIONS.invitations.invitePlatform,
   );
 
 /** The invitation as returned to the inviter; the token only right after creating it. */
@@ -367,20 +367,23 @@ function inviteJson(
   )`;
 }
 
-/** Raises unless `valid_for` is positive and at most `blocks.invitations.options.maxValidFor`. */
-function validity(ctx: BlockContext): string {
+/** Raises unless `valid_for` is positive and at most `sql.modules.invitations.options.maxValidFor`. */
+function validity(ctx: ModuleContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
   return `if valid_for is null or valid_for <= interval '0' or valid_for > ${max}::interval then
     ${raise("INVITATION_VALIDITY", "An invitation is valid for at most %", max)}
   end if;`;
 }
 
-function platformInvite(ctx: BlockContext, p: InviteTable | undefined): string {
+function platformInvite(
+  ctx: ModuleContext,
+  p: InviteTable | undefined,
+): string {
   const fail = raise;
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
-      "Platform invitations need blocks.access.model 'catalog' with platform assignments",
+      "Platform invitations need sql.modules.access.model 'catalog' with platform assignments",
     );
   }
   const c = (logical: string) => p.col(logical);
@@ -417,7 +420,7 @@ function platformInvite(ctx: BlockContext, p: InviteTable | undefined): string {
     return ${inviteJson(p, "platform_created", "token", "null")};`;
 }
 
-function invite(ctx: BlockContext): string {
+function invite(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
@@ -465,7 +468,7 @@ function invite(ctx: BlockContext): string {
     : "";
   return `
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
--- role id or key under blocks.access.model 'catalog'. Returns the invitation
+-- role id or key under sql.modules.access.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
 create or replace function ${ctx.fn("invite_member")}(
@@ -490,7 +493,7 @@ begin
   if tenant is null then
     ${platformInvite(ctx, p)}
   end if;
-  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", BLOCK_PERMISSIONS.invitations.invite)}), false) then
+  if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", MODULE_PERMISSIONS.invitations.invite)}), false) then
     ${fail("INVITATION_FORBIDDEN", "Not allowed to invite members")}
   end if;
   if better_supabase.tenant_disabled(tenant) or ${organizationMissing(ctx, "tenant")} then
@@ -570,12 +573,12 @@ $$;
 }
 
 /** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
-function canManage(ctx: BlockContext, alias: string): string {
+function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
-  return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${ctx.permission("revoke", BLOCK_PERMISSIONS.invitations.revoke)}), false)`;
+  return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${ctx.permission("revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
 }
 
-function close(ctx: BlockContext): string {
+function close(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   /** Ends open invitations of `table` matching `where`: sets `logical`, or deletes when the table lacks it. */
@@ -652,7 +655,7 @@ $$;
 }
 
 /** `invitation_preview(token)`: what the accept page shows before sign-in. */
-function preview(ctx: BlockContext): string {
+function preview(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => `i.${t.col(logical)}`;
@@ -662,7 +665,7 @@ function preview(ctx: BlockContext): string {
     const columns = ctx.list("previewColumns", ["name"]).map((column) => {
       if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
         throw new TypeError(
-          `blocks.invitations.options.previewColumns: "${column}" is not a valid column`,
+          `sql.modules.invitations.options.previewColumns: "${column}" is not a valid column`,
         );
       }
       return `, ${sqlString(column)}, o.${sqlIdent(column)}`;
@@ -688,7 +691,7 @@ function preview(ctx: BlockContext): string {
   return `
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
--- blocks.invitations.options.previewColumns) and prefill. Null for an unknown token.
+-- sql.modules.invitations.options.previewColumns) and prefill. Null for an unknown token.
 create or replace function ${ctx.fn("invitation_preview")}(token text)
 returns jsonb
 language plpgsql
@@ -708,7 +711,7 @@ $$;
 `;
 }
 
-function accept(ctx: BlockContext): string {
+function accept(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
@@ -722,7 +725,7 @@ function accept(ctx: BlockContext): string {
   const model = accessModel(ctx);
   const invitePermission = ctx.permission(
     "invite",
-    BLOCK_PERMISSIONS.invitations.invite,
+    MODULE_PERMISSIONS.invitations.invite,
   );
   const roleOf = (expr: string) =>
     model === "catalog" ? roleValue(ctx, expr) : expr;
@@ -860,7 +863,7 @@ $$;
 `;
 }
 
-function invitationsSql(ctx: BlockContext): string {
+function invitationsSql(ctx: ModuleContext): string {
   const id = ctx.idType;
   const grant = (
     fn: string,
@@ -881,7 +884,7 @@ ${grant("invitation_preview", "text", "anon, authenticated, service_role", "publ
 ${grant("accept_invitation", "text", "authenticated")}`;
 }
 
-export const INVITATIONS: BlockModuleDefinition = {
+export const INVITATIONS: ModuleDefinition = {
   name: "invitations",
   title: "Invitations",
   description:
@@ -907,7 +910,7 @@ export const INVITATIONS: BlockModuleDefinition = {
     {
       from: 1,
       description:
-        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from blocks.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
+        "Renames invitations.org_id to organization_id, adds updated_at, declined_at and revoked_at (and prefill on request), a platform_invitations table for platform roles, takes roles from sql.modules.access, and adds invite_member, resend, revoke, decline and invitation_preview. create_invitation keeps its 0.4 signature.",
       sql: (ctx) =>
         ctx.manages
           ? renameSql({

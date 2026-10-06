@@ -51,7 +51,7 @@ export interface SupportOptions {
   /**
    * Whether `admin` may view the app as the target. A throw or rejection
    * counts as a deny. Defaults to allowing, so the store decides: the SQL
-   * store checks `is_platform(blocks.support-sessions.permissions.start)`.
+   * store checks `is_platform(modules.support-sessions.permissions.start)`.
    */
   readonly authorize?: (
     input: SupportAuthorizeInput,

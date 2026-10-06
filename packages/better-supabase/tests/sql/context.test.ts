@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  checkBlocks,
+  contractSignature,
+  createModuleContext,
+} from "../../src/sql/context.ts";
+import {
+  checkModules,
   customContracts,
-  isBlockDataFile,
-  blockContext,
-  blockFileVersion,
+  isModuleDataFile,
+  moduleContext,
+  moduleFileVersion,
   moduleBody,
-  renderBlocks,
+  renderModules,
   resolveModules,
   SQL_MODULES,
-} from "../../src/sql/blocks.ts";
-import {
-  contractSignature,
-  createBlockContext,
-} from "../../src/sql/context.ts";
+} from "../../src/sql/registry.ts";
 
 const names = {
   tables: {
@@ -28,9 +28,9 @@ const names = {
   options: ["flavour", "size", "on", "list", "missing"],
 };
 
-describe("createBlockContext", () => {
+describe("createModuleContext", () => {
   it("resolves default names in the module schema", () => {
-    const ctx = createBlockContext("demo", () => names);
+    const ctx = createModuleContext("demo", () => names);
     expect(ctx.mode).toBe("managed");
     expect(ctx.manages).toBe(true);
     expect(ctx.table("items")).toBe('"better_supabase"."items"');
@@ -41,9 +41,9 @@ describe("createBlockContext", () => {
     expect(ctx.hasTable("extras")).toBe(true);
   });
 
-  it("maps tables, columns, schema, id type and permissions from blocks", () => {
-    const ctx = createBlockContext("demo", () => names, {
-      blocks: {
+  it("maps tables, columns, schema, id type and permissions from modules", () => {
+    const ctx = createModuleContext("demo", () => names, {
+      modules: {
         demo: {
           mode: "adopt",
           schema: "app",
@@ -83,7 +83,7 @@ describe("createBlockContext", () => {
 
   it("rejects unknown tables and columns, required nulls and bad names", () => {
     const build = (demo: object) => () =>
-      createBlockContext("demo", () => names, { blocks: { demo } });
+      createModuleContext("demo", () => names, { modules: { demo } });
     expect(build({ tables: { nope: "x" } })).toThrow(/unknown table "nope"/);
     expect(build({ columns: { nope: {} } })).toThrow(/unknown table "nope"/);
     expect(build({ columns: { items: { nope: "x" } } })).toThrow(
@@ -97,14 +97,14 @@ describe("createBlockContext", () => {
     expect(build({ schema: "1x" })).toThrow(/not a valid identifier/);
     expect(build({ idType: "jsonb" })).toThrow(/idType/);
     expect(build({ options: { flavor: "map" } })).toThrow(
-      'blocks.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
+      'sql.modules.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
     );
     expect(() =>
-      createBlockContext("bare", () => undefined, {
-        blocks: { bare: { options: { size: 1 } } },
+      createModuleContext("bare", () => undefined, {
+        modules: { bare: { options: { size: 1 } } },
       }),
-    ).toThrow('blocks.bare.options: unknown option "size". Options: none');
-    const ctx = createBlockContext("demo", () => names);
+    ).toThrow('sql.modules.bare.options: unknown option "size". Options: none');
+    const ctx = createModuleContext("demo", () => names);
     expect(() => ctx.table("nope")).toThrow(/no table/);
     expect(() => ctx.col("items", "nope")).toThrow(/no column/);
     expect(() => ctx.hasTable("nope")).toThrow(/no table/);
@@ -114,20 +114,20 @@ describe("createBlockContext", () => {
     expect(ctx.option("size")).toBeUndefined();
   });
 
-  it("takes the id type from blocks.access, then PermDock", () => {
+  it("takes the id type from sql.modules.access, then PermDock", () => {
     expect(
-      createBlockContext("demo", () => names, {
-        blocks: { access: { idType: "text" } },
+      createModuleContext("demo", () => names, {
+        modules: { access: { idType: "text" } },
       }).idType,
     ).toBe("text");
     expect(
-      createBlockContext("demo", () => names, { permdockIdType: "integer" })
+      createModuleContext("demo", () => names, { permdockIdType: "integer" })
         .idType,
     ).toBe("integer");
   });
 
   it("knows the modules installed with it and reaches other modules", () => {
-    const ctx = blockContext("access", {}, ["tenant", "access"]);
+    const ctx = moduleContext("access", {}, ["tenant", "access"]);
     expect(ctx.installed("tenant")).toBe(true);
     expect(ctx.installed("outbox")).toBe(false);
     expect(ctx.of("tenant").table("memberships")).toBe(
@@ -149,7 +149,7 @@ describe("hooks and events", () => {
   const hooked = { ...names, hooks: ["after_item_create"] };
 
   it("calls the app's hook function when it exists", () => {
-    const ctx = createBlockContext("demo", () => hooked);
+    const ctx = createModuleContext("demo", () => hooked);
     expect(
       ctx.hook("after_item_create", [
         ["uuid", "new_id"],
@@ -161,7 +161,7 @@ describe("hooks and events", () => {
       using new_id, auth.uid();
   end if;`);
     expect(
-      createBlockContext("demo", () => ({
+      createModuleContext("demo", () => ({
         ...names,
         hooks: ["on_tick"],
       })).hook("on_tick", []),
@@ -174,8 +174,8 @@ describe("hooks and events", () => {
   });
 
   it("looks hooks up in the configured schema and functions", () => {
-    const ctx = createBlockContext("demo", () => hooked, {
-      blocks: {
+    const ctx = createModuleContext("demo", () => hooked, {
+      modules: {
         demo: {
           hooks: {
             schema: "app",
@@ -188,29 +188,29 @@ describe("hooks and events", () => {
       `execute format('select %s($1::uuid)', to_regprocedure('"private"."seed_item"(uuid)')::oid::regproc)`,
     );
     expect(() =>
-      createBlockContext("demo", () => hooked, {
-        blocks: { demo: { hooks: { functions: { nope: "x" } } } },
+      createModuleContext("demo", () => hooked, {
+        modules: { demo: { hooks: { functions: { nope: "x" } } } },
       }),
     ).toThrow(
-      'blocks.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
+      'sql.modules.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
     );
     expect(() =>
-      createBlockContext("demo", () => names, {
-        blocks: { demo: { hooks: { functions: { nope: "x" } } } },
+      createModuleContext("demo", () => names, {
+        modules: { demo: { hooks: { functions: { nope: "x" } } } },
       }),
     ).toThrow("Hooks: none");
     expect(() =>
-      createBlockContext("demo", () => hooked, {
-        blocks: {
+      createModuleContext("demo", () => hooked, {
+        modules: {
           demo: { hooks: { functions: { after_item_create: "bad name" } } },
         },
       }),
     ).toThrow("is not a valid identifier");
     expect(() =>
-      createBlockContext("demo", () => hooked, {
-        blocks: { demo: { hooks: { schema: "1x" } } },
+      createModuleContext("demo", () => hooked, {
+        modules: { demo: { hooks: { schema: "1x" } } },
       }),
-    ).toThrow("blocks.demo.hooks.schema");
+    ).toThrow("sql.modules.demo.hooks.schema");
   });
 
   it("writes outbox events only with the outbox installed", () => {
@@ -220,10 +220,10 @@ describe("hooks and events", () => {
       subject: "'items/' || new_id",
       tenant: "organization",
     };
-    expect(createBlockContext("demo", () => names).emit(event)).toBe("");
-    const ctx = createBlockContext("demo", () => names, {
+    expect(createModuleContext("demo", () => names).emit(event)).toBe("");
+    const ctx = createModuleContext("demo", () => names, {
       installed: ["demo", "outbox"],
-      blocks: { outbox: { schema: "events" } },
+      modules: { outbox: { schema: "events" } },
     });
     expect(ctx.emit(event)).toBe(
       `perform "events".emit_event('item.created', jsonb_build_object('id', new_id), 'items/' || new_id, (organization)::text, null, 'better-supabase/demo');`,
@@ -232,56 +232,56 @@ describe("hooks and events", () => {
       `perform "events".emit_event('x', '{}', null, null, k, 'better-supabase/demo');`,
     );
     expect(
-      createBlockContext("demo", () => names, {
+      createModuleContext("demo", () => names, {
         installed: ["demo", "outbox"],
-        blocks: { demo: { events: false } },
+        modules: { demo: { events: false } },
       }).emit(event),
     ).toBe("");
-    const sourced = createBlockContext("demo", () => names, {
+    const sourced = createModuleContext("demo", () => names, {
       installed: ["demo", "outbox"],
-      blocks: { outbox: { options: { blockSource: "app/{module}" } } },
+      modules: { outbox: { options: { blockSource: "app/{module}" } } },
     });
     expect(sourced.emit({ type: "x", payload: "'{}'" })).toContain(
       "'app/demo');",
     );
     expect(() =>
-      createBlockContext("demo", () => names, {
+      createModuleContext("demo", () => names, {
         installed: ["demo", "outbox"],
-        blocks: { outbox: { options: { blockSource: 1 } } },
+        modules: { outbox: { options: { blockSource: 1 } } },
       }).emit(event),
     ).toThrow("blockSource must be a string");
   });
 });
 
-describe("block modes", () => {
-  it("rejects blocks for unknown modules and unsupported modes", () => {
+describe("module modes", () => {
+  it("rejects modules for unknown modules and unsupported modes", () => {
     expect(() => {
-      checkBlocks({ nope: {} });
+      checkModules({ nope: {} });
     }).toThrow(/no SQL module "nope"/);
     expect(() => {
-      checkBlocks({ mfa: { mode: "adopt" } });
+      checkModules({ mfa: { mode: "adopt" } });
     }).toThrow(/supports managed, not adopt/);
     expect(() =>
-      renderBlocks(["mfa"], { blocks: { mfa: { mode: "custom" } } }),
+      renderModules(["mfa"], { modules: { mfa: { mode: "custom" } } }),
     ).toThrow(/supports managed/);
   });
 
   it("accepts migration-only options in adopt mode only", () => {
     expect(() => {
-      checkBlocks({ invitations: { options: { tokenStorage: "plain" } } });
+      checkModules({ invitations: { options: { tokenStorage: "plain" } } });
     }).toThrow(
-      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set blocks.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
+      'sql.modules.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set sql.modules.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
     );
     expect(() => {
-      checkBlocks({ outbox: { options: { blockSource: "domain" } } });
+      checkModules({ outbox: { options: { blockSource: "domain" } } });
     }).toThrow(/outbox\.options\.blockSource/);
     expect(() => {
-      checkBlocks({ "webhooks-out": { options: { eventIdType: "uuid" } } });
+      checkModules({ "webhooks-out": { options: { eventIdType: "uuid" } } });
     }).toThrow(/eventIdType/);
-    checkBlocks({
+    checkModules({
       invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
     });
-    checkBlocks({
+    checkModules({
       outbox: {
         options: {
           settle: "2 seconds",
@@ -290,7 +290,7 @@ describe("block modes", () => {
         },
       },
     });
-    checkBlocks({
+    checkModules({
       "webhooks-out": {
         options: { secretStorage: "vault", eventIdType: "text" },
       },
@@ -298,56 +298,56 @@ describe("block modes", () => {
   });
 
   it("stamps the module version and mode, and records the module", () => {
-    const tenant = renderBlocks(["tenant"]).filter(
-      (block) => block.module === "tenant",
+    const tenant = renderModules(["tenant"]).filter(
+      (module) => module.module === "tenant",
     );
-    const file = tenant.find((block) => block.kind === "schema");
-    expect(file!.contents).toContain("-- @bs-block tenant@2 managed\n");
-    expect(blockFileVersion(file!.contents)).toEqual({
+    const file = tenant.find((module) => module.kind === "schema");
+    expect(file!.contents).toContain("-- @bs-module tenant@2 managed\n");
+    expect(moduleFileVersion(file!.contents)).toEqual({
       module: "tenant",
       version: 2,
     });
-    expect(blockFileVersion("-- no marker")).toBeUndefined();
+    expect(moduleFileVersion("-- no marker")).toBeUndefined();
     expect(file!.contents).not.toContain("insert into");
     expect(file!.contents).toContain(
-      "create table if not exists better_supabase.block_modules",
+      "create table if not exists better_supabase.modules",
     );
-    const data = tenant.find((block) => block.kind === "data");
+    const data = tenant.find((module) => module.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
       path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     });
-    expect(data!.contents).toContain("-- @bs-block-data tenant\n");
+    expect(data!.contents).toContain("-- @bs-module-data tenant\n");
     expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
-    expect(isBlockDataFile(data!.contents)).toBe(true);
-    expect(isBlockDataFile(file!.contents)).toBe(false);
-    const dataPath = (layout: Parameters<typeof renderBlocks>[1]) =>
-      renderBlocks(["tenant"], layout).find(
-        (block) => block.kind === "data" && block.module === "tenant",
+    expect(isModuleDataFile(data!.contents)).toBe(true);
+    expect(isModuleDataFile(file!.contents)).toBe(false);
+    const dataPath = (layout: Parameters<typeof renderModules>[1]) =>
+      renderModules(["tenant"], layout).find(
+        (module) => module.kind === "data" && module.module === "tenant",
       )!.path;
     expect(dataPath({ dir: "supabase/schemas/_custom/better_supabase" })).toBe(
       "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
-    expect(dataPath({ dir: "./supabase/schemas/block/" })).toBe(
+    expect(dataPath({ dir: "./supabase/schemas/module/" })).toBe(
       "./supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
     expect(
       dataPath({
-        dir: "supabase/declarative/block",
+        dir: "supabase/declarative/module",
         schemasDir: "supabase/declarative",
       }),
     ).toBe("supabase/better-supabase-data/900_better_supabase_04_tenant.sql");
-    expect(dataPath({ dir: "db/block" })).toBe(
+    expect(dataPath({ dir: "db/module" })).toBe(
       "db/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
-    const pgtap = renderBlocks(["pgtap"]);
+    const pgtap = renderModules(["pgtap"]);
     expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
-    expect(pgtap[0]!.contents).not.toContain("block_modules");
+    expect(pgtap[0]!.contents).not.toContain("better_supabase.modules");
   });
 
   it("writes no file in custom mode and lists the contract instead", () => {
-    const layout = { blocks: { tenant: { mode: "custom" as const } } };
-    const files = renderBlocks(["invitations"], layout);
+    const layout = { modules: { tenant: { mode: "custom" as const } } };
+    const files = renderModules(["invitations"], layout);
     expect(
       files.filter((file) => file.kind === "schema").map((file) => file.module),
     ).toEqual(["updated-at", "invitations", "access"]);
@@ -365,7 +365,7 @@ describe("block modes", () => {
 
   it("adopts an existing memberships table without creating it", () => {
     const sql = moduleBody("tenant", {
-      blocks: {
+      modules: {
         tenant: {
           mode: "adopt",
           tables: { memberships: "public.organization_users" },
@@ -384,7 +384,7 @@ describe("block modes", () => {
     expect(sql).toContain("Adopted:");
   });
 
-  it("keeps the managed tenant module's names and takes roles from blocks.access", () => {
+  it("keeps the managed tenant module's names and takes roles from sql.modules.access", () => {
     const sql = SQL_MODULES["tenant"]!.sql;
     expect(sql).toContain(
       'create table if not exists "better_supabase"."memberships"',
@@ -393,21 +393,21 @@ describe("block modes", () => {
       `check ("role" in ('owner', 'admin', 'member', 'viewer'))`,
     );
     const custom = moduleBody("tenant", {
-      blocks: { access: { roles: { lead: ["*"], guest: [] } } },
+      modules: { access: { roles: { lead: ["*"], guest: [] } } },
     })!;
     expect(custom).toContain(`check ("role" in ('lead', 'guest'))`);
   });
 
   it("renders the membership claim as a map on request", () => {
     const sql = moduleBody("tenant", {
-      blocks: { tenant: { options: { claimFormat: "map" } } },
+      modules: { tenant: { options: { claimFormat: "map" } } },
     })!;
     expect(sql).toContain('jsonb_object_agg(m."organization_id"::text');
   });
 
   it("reads the active tenant from the configured source, members only", () => {
     const claim = moduleBody("tenant", {
-      blocks: { access: { activeTenant: "claim" } },
+      modules: { access: { activeTenant: "claim" } },
     })!;
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
     expect(claim).not.toContain("x-bs-tenant");
@@ -420,7 +420,7 @@ describe("block modes", () => {
     );
     expect(resolver).toContain("->> 'x-bs-tenant'");
     const profile = moduleBody("tenant", {
-      blocks: {
+      modules: {
         access: {
           activeTenant: {
             profileColumn: "public.profiles.active_organization_id",
@@ -434,14 +434,14 @@ describe("block modes", () => {
     );
     expect(() =>
       moduleBody("tenant", {
-        blocks: { access: { activeTenant: { profileColumn: "profiles.x" } } },
+        modules: { access: { activeTenant: { profileColumn: "profiles.x" } } },
       }),
     ).toThrow(/schema.table.column/);
   });
 
   it("honours disabled tenants and users", () => {
     const sql = moduleBody("tenant", {
-      blocks: {
+      modules: {
         access: {
           disabled: {
             tenant: "public.organizations.disabled_at",
@@ -461,7 +461,7 @@ describe("block modes", () => {
 
   it("pulls in tenant for the roles and catalog models only", () => {
     const names = (model: "roles" | "catalog" | "permdock" | "custom") =>
-      resolveModules(["access"], { blocks: { access: { model } } }).map(
+      resolveModules(["access"], { modules: { access: { model } } }).map(
         (module) => module.name,
       );
     expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);
