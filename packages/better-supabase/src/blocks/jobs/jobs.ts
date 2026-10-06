@@ -4,8 +4,8 @@ import type { DrainResult } from "./queue.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
+import { errorText, run, seconds, toInstant, workerId } from "../shared.ts";
 import { verifyWebhook } from "../webhooks/verify.ts";
-import { errorText, run, seconds, toInstant, workerId } from "./shared.ts";
 
 // ---------------------------------------------------------------------------
 // Idempotency keys (SQL module `idempotency`)

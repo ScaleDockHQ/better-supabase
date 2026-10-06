@@ -27,6 +27,7 @@ catalog:
   "@modelcontextprotocol/client": 2.3.0
   "@modelcontextprotocol/server": 2.3.0
   "@op-engineering/op-sqlite": 18.2.5
+  "@openfeature/server-sdk": 1.23.0
   "@opentelemetry/api": 1.9.1
   "@orpc/contract": 2.0.0-beta.42
   "@orpc/openapi": 2.0.0-beta.42
@@ -34,6 +35,7 @@ catalog:
   "@powersync/common": 2.3.1
   "@powersync/react-native": 2.3.1
   "@react-native/metro-config": 0.86.3
+  "@supabase-labs/middleware-openfeature": 0.2.0
   "@supabase/config": 0.11.1
   "@supabase/middleware": 1.0.0
   "@supabase/postgrest-typegen": 0.4.0
@@ -111,6 +113,7 @@ catalog:
   shadcn: 4.21.1
   shiki: 4.5.0
   smol-toml: 1.9.0
+  stripe: 23.0.0
   # Keep on the SUPABASE_CLI_VERSION that CI installs.
   supabase: 2.119.0
   tailwind-merge: 3.7.0
@@ -163,6 +166,8 @@ catalogs:
     oxfmt: ">=0.66.0 <1"
     pg: ">=8.15 <9"
     react: "^19"
+    # 17 is the first release with createFetchHttpClient and billing.meterEvents.
+    stripe: ">=17 <24"
     temporal-polyfill: ">=1"
 
 catalogMode: strict
