@@ -18,7 +18,7 @@ Once the module is installed, the other SQL modules write their events to
 it: `organizations` emits `organization.created`, `organization.switched` and the member
 events, and `support-sessions` emits `support.started` and
 `support.ended`. Set
-`blocks.<module>.events` to `false` to keep one module out of the outbox.
+`sql.modules.<module>.events` to `false` to keep one module out of the outbox.
 
 ## Emitting from SQL
 
@@ -47,7 +47,7 @@ perform better_supabase.emit_event(
 The signed-in user (`auth.uid()`) is stored as the actor. Only
 `service_role` can call `emit_event` directly; the module's own functions are
 `security definer` and call it for the user. Add roles with
-`blocks.outbox.options.emitRoles`.
+`sql.modules.outbox.options.emitRoles`.
 
 `track_events(table, type_prefix, tenant_column)` adds a row trigger that
 emits `<prefix>.created`, `.updated` and `.deleted` with the row as payload
@@ -146,7 +146,7 @@ subject, oldest first, for an activity feed or a debugging view. Filter by
 
 `outbox.purge(olderThan, batch)` (SQL `purge_outbox(older_than, batch)`)
 deletes up to `batch` events (10,000 by default) older than
-`blocks.outbox.options.retention` (`30 days` by default), but never one that a
+`sql.modules.outbox.options.retention` (`30 days` by default), but never one that a
 registered consumer hasn't passed. It returns how many it deleted; run it
 again while that equals `batch`. Schedule it with the jobs schedules or
 pg_cron.
@@ -162,15 +162,17 @@ that. Other columns you don't have map to `null`.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    outbox: {
-      mode: "adopt",
-      tables: { events: "public.domain_events" },
-      idType: "uuid",
-      columns: {
-        events: { type: "kind", position: "seq", xid: null, key: null },
+  sql: {
+    modules: {
+      outbox: {
+        mode: "adopt",
+        tables: { events: "public.domain_events" },
+        idType: "uuid",
+        columns: {
+          events: { type: "kind", position: "seq", xid: null, key: null },
+        },
+        options: { settle: "2 seconds" },
       },
-      options: { settle: "2 seconds" },
     },
   },
 });

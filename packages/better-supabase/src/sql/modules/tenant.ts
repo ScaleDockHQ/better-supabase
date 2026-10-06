@@ -1,8 +1,8 @@
-import type { ActiveTenantSource } from "../../config/blocks.ts";
-import type { BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext } from "../context.ts";
+import type { ActiveTenantSource } from "../../config/modules.ts";
+import type { ModuleContext } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
-import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
+import { DEFAULT_ACTIVE_TENANT } from "../../config/modules.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   columnRef,
@@ -16,15 +16,15 @@ import {
 import { accessModel, roleNames } from "./access-model.ts";
 
 /** Expression for a membership row's role name, whatever the role column holds. */
-export function roleNameOf(ctx: BlockContext, alias: string): string {
+export function roleNameOf(ctx: ModuleContext, alias: string): string {
   const role = `${alias}.${ctx.col("memberships", "role")}`;
   if (accessModel(ctx) !== "catalog") return role;
   const access = ctx.of("access");
   return `(select r.${access.col("roles", "key")} from ${access.table("roles")} r where r.${access.col("roles", "id")} = ${role})`;
 }
 
-/** The active tenant: `blocks.access.activeTenant` (claim, resolver or profile column). */
-function currentTenant(ctx: BlockContext): string {
+/** The active tenant: `sql.modules.access.activeTenant` (claim, resolver or profile column). */
+function currentTenant(ctx: ModuleContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -52,7 +52,7 @@ function currentTenant(ctx: BlockContext): string {
   )`;
   } else {
     const profile = columnRef(
-      "blocks.access.activeTenant.profileColumn",
+      "sql.modules.access.activeTenant.profileColumn",
       source.profileColumn,
     );
     const key = sqlIdent(source.key ?? "id");
@@ -78,16 +78,16 @@ revoke execute on function better_supabase.current_tenant_id() from public;
 grant execute on function better_supabase.current_tenant_id() to anon, authenticated, service_role, supabase_auth_admin;${source === "claim" ? clearClaim(ctx) : ""}`;
 }
 
-/** `blocks.access.activeTenant`, defaulting to the resolver (URL tenancy). */
-export function activeTenantSource(ctx: BlockContext): ActiveTenantSource {
-  return ctx.blocks.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
+/** `sql.modules.access.activeTenant`, defaulting to the resolver (URL tenancy). */
+export function activeTenantSource(ctx: ModuleContext): ActiveTenantSource {
+  return ctx.modules.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
 }
 
 /**
  * With the claim source, removing a membership also clears the claim that
  * points at it, so the next token carries no tenant.
  */
-function clearClaim(ctx: BlockContext): string {
+function clearClaim(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -115,7 +115,7 @@ create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
   for each row execute function better_supabase.clear_tenant_claim();`;
 }
 
-function tenantSql(ctx: BlockContext): string {
+function tenantSql(ctx: ModuleContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -155,7 +155,7 @@ grant select on ${m} to authenticated;
 grant all on ${m} to service_role;
 `
     : `
--- Adopted: ${m} belongs to the app (blocks.tenant.tables.memberships).
+-- Adopted: ${m} belongs to the app (modules.tenant.tables.memberships).
 `;
   const policy = ctx.manages
     ? `
@@ -237,7 +237,7 @@ grant execute on function better_supabase.organization_member_role(${id}, uuid) 
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));
--- Disabled users and tenants (blocks.access.disabled) are left out.
+-- Disabled users and tenants (modules.access.disabled) are left out.
 create or replace function better_supabase.membership_claims(user_id uuid)
 returns jsonb
 language sql
@@ -256,11 +256,11 @@ revoke execute on function better_supabase.membership_claims(uuid) from public, 
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;${deferBodies ? "\nreset check_function_bodies;" : ""}`;
 }
 
-export const TENANT: BlockModuleDefinition = {
+export const TENANT: ModuleDefinition = {
   name: "tenant",
   title: "Tenant memberships and permission helper",
   description:
-    "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.tenant.",
+    "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through sql.modules.tenant.",
   requires: ["updated-at"],
   target: "schema",
   version: 2,
@@ -301,7 +301,7 @@ export const TENANT: BlockModuleDefinition = {
     {
       from: 1,
       description:
-        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and organization_member_role(); the role check follows blocks.access.roles.",
+        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and organization_member_role(); the role check follows sql.modules.access.roles.",
       sql: (ctx) =>
         ctx.manages
           ? renameSql({

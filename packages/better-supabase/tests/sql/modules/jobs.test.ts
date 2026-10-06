@@ -4,10 +4,10 @@ import {
   moduleBody,
   SQL_MODULES,
   upgradePlan,
-} from "../../../src/sql/blocks.ts";
+} from "../../../src/sql/registry.ts";
 
 const jobs = (options?: Readonly<Record<string, unknown>>) =>
-  moduleBody("jobs", options ? { blocks: { jobs: { options } } } : {})!;
+  moduleBody("jobs", options ? { modules: { jobs: { options } } } : {})!;
 
 describe("jobs module", () => {
   it("defaults to pgmq and pg_cron", () => {
@@ -71,7 +71,7 @@ describe("jobs module", () => {
   it("dead-letters lost last attempts, jitters retries and replays dead letters", () => {
     for (const backend of ["pgmq", "table"]) {
       const sql = moduleBody("jobs", {
-        blocks: { jobs: { options: { backend } } },
+        modules: { jobs: { options: { backend } } },
       })!;
       expect(sql).toContain("The lease ran out on the last attempt");
       expect(sql).toContain(

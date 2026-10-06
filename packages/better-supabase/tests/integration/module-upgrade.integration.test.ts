@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { renderBlocks, upgradePlan } from "../../src/sql/blocks.ts";
+import { renderModules, upgradePlan } from "../../src/sql/registry.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -26,7 +26,7 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-const FIXTURES = new URL("../fixtures/block-0.4.0/", import.meta.url);
+const FIXTURES = new URL("../fixtures/module-0.4.0/", import.meta.url);
 const MODULES = ["tenant", "audit", "invitations"];
 
 describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
@@ -72,7 +72,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       );
       for (const plan of plans)
         for (const step of plan.steps) await client.query(step.sql);
-      for (const file of renderBlocks(MODULES))
+      for (const file of renderModules(MODULES))
         if (file.kind !== "test") await client.query(file.contents);
 
       await client.query(

@@ -1,8 +1,8 @@
--- better-supabase block: read-sets (0.5.1)
--- @bs-block read-sets@1 managed
+-- better-supabase module: read-sets (0.5.1)
+-- @bs-module read-sets@1 managed
 -- One `stable` function per `defineReadSet` in `readSets`, so `db.$many(readSet, params)` is a single GET.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Functions for the read sets in `readSets` (better-supabase.config.ts); `gen` and `sql sync` rewrite them.
 -- They are security invoker: RLS decides what each caller reads, as for any other query.
@@ -24,13 +24,13 @@ revoke execute on function public.rs_workspace_summary(jsonb) from public, anon,
 grant execute on function public.rs_workspace_summary(jsonb) to authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.block_modules (
+create table if not exists better_supabase.modules (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.block_modules enable row level security;
-revoke all on better_supabase.block_modules from anon, authenticated;
-grant select on better_supabase.block_modules to service_role;
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;

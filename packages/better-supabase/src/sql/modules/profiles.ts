@@ -1,5 +1,5 @@
-import type { BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext, BlockNames } from "../context.ts";
+import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -8,7 +8,7 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 
-const NAMES: BlockNames = {
+const NAMES: ModuleNames = {
   options: [
     "columnGrants",
     "extraColumns",
@@ -86,20 +86,22 @@ function column(where: string, name: string): string {
 }
 
 function record(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = ctx.option(name);
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`blocks.profiles.options.${name} must be an object`);
+    throw new TypeError(
+      `sql.modules.profiles.options.${name} must be an object`,
+    );
   }
   return Object.fromEntries(Object.entries(value));
 }
 
 /** `extraColumns`: column name to SQL type, created on a managed table. */
 function extraColumns(
-  ctx: BlockContext,
+  ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {
   return Object.entries(record(ctx, "extraColumns") ?? {}).map(
     ([name, type]) => {
@@ -109,26 +111,26 @@ function extraColumns(
         type.includes("--")
       ) {
         throw new TypeError(
-          `blocks.profiles.options.extraColumns.${name} must be a SQL type such as "text not null default 'en'"`,
+          `sql.modules.profiles.options.extraColumns.${name} must be a SQL type such as "text not null default 'en'"`,
         );
       }
-      return [column("blocks.profiles.options.extraColumns", name), type];
+      return [column("sql.modules.profiles.options.extraColumns", name), type];
     },
   );
 }
 
 /** Column to the metadata keys it reads: `options.metadata` or the defaults. */
-function metadataColumns(ctx: BlockContext): Map<string, string[]> {
+function metadataColumns(ctx: ModuleContext): Map<string, string[]> {
   const map = new Map<string, string[]>();
   const configured = record(ctx, "metadata");
   if (configured) {
     for (const [key, target] of Object.entries(configured)) {
       if (typeof target !== "string") {
         throw new TypeError(
-          `blocks.profiles.options.metadata.${key} must be a column name`,
+          `sql.modules.profiles.options.metadata.${key} must be a column name`,
         );
       }
-      const name = column("blocks.profiles.options.metadata", target);
+      const name = column("sql.modules.profiles.options.metadata", target);
       map.set(name, [...(map.get(name) ?? []), key]);
     }
     return map;
@@ -147,7 +149,7 @@ const fromMeta = (keys: readonly string[]): string =>
     : `nullif(btrim(coalesce(${keys.map((key) => `meta ->> ${sqlString(key)}`).join(", ")})), '')`;
 
 /** Column to the SQL expression `sync_profile` inserts. */
-function syncValues(ctx: BlockContext): Map<string, string> {
+function syncValues(ctx: ModuleContext): Map<string, string> {
   const values = new Map<string, string>();
   const has = (logical: string) => ctx.has("profiles", logical);
   const col = (logical: string) => ctx.col("profiles", logical);
@@ -196,7 +198,7 @@ const PRIVATE_COLUMNS: ReadonlySet<string> = new Set([
   "onboarding",
 ]);
 
-/** Names no one gets as a username, from `blocks.profiles.options.reservedUsernames`. */
+/** Names no one gets as a username, from `sql.modules.profiles.options.reservedUsernames`. */
 const RESERVED_USERNAMES = [
   "admin",
   "administrator",
@@ -217,7 +219,7 @@ const RESERVED_USERNAMES = [
   "www",
 ];
 
-function usernameRules(ctx: BlockContext): {
+function usernameRules(ctx: ModuleContext): {
   readonly min: number;
   readonly max: number;
   readonly reserved: string;
@@ -231,7 +233,7 @@ function usernameRules(ctx: BlockContext): {
     max < min + 4
   ) {
     throw new TypeError(
-      "blocks.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
+      "sql.modules.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
     );
   }
   const names = ctx
@@ -239,7 +241,7 @@ function usernameRules(ctx: BlockContext): {
     .map((name) => {
       if (!/^[a-z0-9_]+$/.test(name)) {
         throw new TypeError(
-          `blocks.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
+          `sql.modules.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
         );
       }
       return sqlString(name);
@@ -256,7 +258,7 @@ function usernameRules(ctx: BlockContext): {
  * The username's length, characters and reserved names, as a check on the
  * managed table. Existing rows that break it leave the check unvalidated.
  */
-function usernameCheck(ctx: BlockContext): string {
+function usernameCheck(ctx: ModuleContext): string {
   const t = ctx.table("profiles");
   const u = ctx.col("profiles", "username");
   const { min, max, reserved } = usernameRules(ctx);
@@ -277,7 +279,7 @@ end;
 $$;`;
 }
 
-function table(ctx: BlockContext): string {
+function table(ctx: ModuleContext): string {
   if (!ctx.manages) return "";
   const t = ctx.table("profiles");
   const c = (logical: string) => ctx.col("profiles", logical);
@@ -356,7 +358,7 @@ grant all on ${t} to service_role;
 }
 
 /** Profiles of the caller and of everyone who shares a tenant with them. */
-function membersRead(ctx: BlockContext): string {
+function membersRead(ctx: ModuleContext): string {
   return `${ctx.col("profiles", "key")} in (select ${ctx.fn("profile_peer_ids")}())`;
 }
 
@@ -364,11 +366,11 @@ function membersRead(ctx: BlockContext): string {
  * `profile_peer_ids()`: the caller and the users who share a tenant with
  * them. Security definer, so the memberships policies don't hide peers.
  */
-function peers(ctx: BlockContext): string {
+function peers(ctx: ModuleContext): string {
   if (ctx.text("readPolicy", "self") !== "members") return "";
   if (!ctx.installed("tenant")) {
     throw new TypeError(
-      "blocks.profiles.options.readPolicy 'members' needs the tenant module",
+      "sql.modules.profiles.options.readPolicy 'members' needs the tenant module",
     );
   }
   const tenant = ctx.of("tenant");
@@ -395,7 +397,7 @@ grant execute on function ${ctx.fn("profile_peer_ids")}() to authenticated, serv
 }
 
 /** Column grants: users update only the columns in `options.updatable`. */
-function grants(ctx: BlockContext): string {
+function grants(ctx: ModuleContext): string {
   if (!ctx.flag("columnGrants", ctx.manages)) return "";
   const defaults = [
     "fullName",
@@ -413,7 +415,9 @@ function grants(ctx: BlockContext): string {
       ? [...defaults, ...extraColumns(ctx).map(([name]) => name)]
       : ctx
           .list("updatable", [])
-          .map((name) => column("blocks.profiles.options.updatable", name));
+          .map((name) =>
+            column("sql.modules.profiles.options.updatable", name),
+          );
   if (ctx.has("profiles", "updatedAt"))
     columns.push(ctx.col("profiles", "updatedAt"));
   const t = ctx.table("profiles");
@@ -424,7 +428,7 @@ ${columns.length > 0 ? `grant update (${[...new Set(columns)].join(", ")}) on ${
 }
 
 /** Rejects changes to service-owned columns from the API roles. */
-function guard(ctx: BlockContext): string {
+function guard(ctx: ModuleContext): string {
   const defaults = [
     "email",
     "disabledAt",
@@ -440,7 +444,7 @@ function guard(ctx: BlockContext): string {
       : ctx
           .list("serviceColumns", [])
           .map((name) =>
-            column("blocks.profiles.options.serviceColumns", name),
+            column("sql.modules.profiles.options.serviceColumns", name),
           );
   const t = ctx.table("profiles");
   const trigger = ctx.trigger("profile_guard");
@@ -476,7 +480,7 @@ create trigger ${trigger} before update on ${t}
   for each row execute function ${ctx.fn("guard_profile")}();`;
 }
 
-function functions(ctx: BlockContext): string {
+function functions(ctx: ModuleContext): string {
   const t = ctx.table("profiles");
   const key = ctx.col("profiles", "key");
   const values = syncValues(ctx);
@@ -530,7 +534,7 @@ grant execute on function ${ctx.fn("allocate_username")}(text, uuid) to authenti
   return `${allocate}
 
 -- Creates the user's profile from auth.users when it has none: metadata
--- keys (blocks.profiles.options.metadata), the email and a username. The
+-- keys (modules.profiles.options.metadata), the email and a username. The
 -- after_profile_sync hook runs only for a profile it created.
 create or replace function ${ctx.fn("sync_profile")}(user_id uuid)
 returns boolean
@@ -589,7 +593,7 @@ grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;`;
 }
 
 /** The auth.users triggers: sync on sign-up and the email mirror. */
-function authTriggers(ctx: BlockContext): string {
+function authTriggers(ctx: ModuleContext): string {
   const t = ctx.table("profiles");
   const key = ctx.col("profiles", "key");
   const sync = ctx.trigger("profile_sync");
@@ -646,12 +650,12 @@ create trigger ${mirror} after update of email on auth.users
   return parts.join("\n");
 }
 
-function build(ctx: BlockContext): string {
+function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const read = ctx.text("readPolicy", "self");
   if (read !== "self" && read !== "members") {
     throw new TypeError(
-      `blocks.profiles.options.readPolicy must be "self" or "members", not "${read}"`,
+      `sql.modules.profiles.options.readPolicy must be "self" or "members", not "${read}"`,
     );
   }
   return [
@@ -663,7 +667,7 @@ function build(ctx: BlockContext): string {
   ].join("\n");
 }
 
-export const PROFILES: BlockModuleDefinition = {
+export const PROFILES: ModuleDefinition = {
   name: "profiles",
   title: "Profiles",
   description:

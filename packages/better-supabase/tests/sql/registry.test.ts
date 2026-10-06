@@ -3,14 +3,14 @@ import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
+import { moduleLayout } from "../../src/sql/layout.ts";
 import {
-  blockPermissionKeys,
-  renderBlocks,
+  modulePermissionKeys,
+  renderModules,
   resolveModules,
-  sameBlockFile,
+  sameModuleFile,
   SQL_MODULES,
-} from "../../src/sql/blocks.ts";
-import { blockLayout } from "../../src/sql/layout.ts";
+} from "../../src/sql/registry.ts";
 
 describe("resolveModules", () => {
   it("adds dependencies and keeps registry order", () => {
@@ -27,10 +27,10 @@ describe("resolveModules", () => {
   });
 });
 
-describe("renderBlocks", () => {
+describe("renderModules", () => {
   it("numbers files by registry position so paths stay stable", () => {
-    const all = renderBlocks(Object.keys(SQL_MODULES));
-    const jobs = renderBlocks(["jobs"]);
+    const all = renderModules(Object.keys(SQL_MODULES));
+    const jobs = renderModules(["jobs"]);
     expect(jobs[0]!.path).toBe(
       all.find((file) => file.module === "jobs")!.path,
     );
@@ -40,29 +40,29 @@ describe("renderBlocks", () => {
   });
 
   it("writes pgtap to the tests directory with a managed header", () => {
-    const [file] = renderBlocks(["pgtap"], {
+    const [file] = renderModules(["pgtap"], {
       testsDir: "db/tests/",
       version: "1.2.3",
     });
     expect(file!.path).toBe("db/tests/000_better_supabase_pgtap.test.sql");
     expect(file!.contents).toMatch(
-      /^-- better-supabase block: pgtap \(1\.2\.3\)\n/,
+      /^-- better-supabase module: pgtap \(1\.2\.3\)\n/,
     );
     expect(file!.contents).toContain("Managed by `better-supabase sql add`");
     expect(file!.contents.endsWith("\n")).toBe(true);
   });
 
   it("honours dir and prefix", () => {
-    const [file] = renderBlocks(["audit"], { dir: "schemas/", prefix: "zz" });
+    const [file] = renderModules(["audit"], { dir: "schemas/", prefix: "zz" });
     expect(file!.path).toMatch(/^schemas\/zz_\d\d_audit\.sql$/);
   });
 
   it("renders the audit log's tenant column from config and keys rows by their primary key", () => {
-    const [plain] = renderBlocks(["audit"]);
+    const [plain] = renderModules(["audit"]);
     expect(plain!.contents).toContain(
       "row_data ->> coalesce(entry.tenant_column, 'organization_id')",
     );
-    const [file] = renderBlocks(["audit"], { tenantColumn: "team_id" });
+    const [file] = renderModules(["audit"], { tenantColumn: "team_id" });
     expect(file!.contents).toContain(
       "row_data ->> coalesce(entry.tenant_column, 'team_id')",
     );
@@ -86,10 +86,10 @@ describe("renderBlocks", () => {
   it("keeps statements a schema diff skips out of the schema files", () => {
     const layouts = [
       {},
-      { blocks: { jobs: { options: { backend: "table" } } } },
+      { modules: { jobs: { options: { backend: "table" } } } },
     ];
     for (const layout of layouts) {
-      const files = renderBlocks(Object.keys(SQL_MODULES), layout);
+      const files = renderModules(Object.keys(SQL_MODULES), layout);
       for (const file of files.filter((entry) => entry.kind === "schema")) {
         expect(file.contents).not.toMatch(
           /^(insert|update|delete|select|truncate|notify|alter role|call)\b/im,
@@ -103,20 +103,20 @@ describe("renderBlocks", () => {
   });
 });
 
-describe("sameBlockFile", () => {
+describe("sameModuleFile", () => {
   it("ignores the version in the header only", () => {
-    const [file] = renderBlocks(["updated-at"], { version: "1.2.0" });
+    const [file] = renderModules(["updated-at"], { version: "1.2.0" });
     const older = file!.contents.replace(" (1.2.0)", " (0.0.1)");
     expect(older).not.toBe(file!.contents);
-    expect(sameBlockFile(older, file!.contents)).toBe(true);
-    expect(sameBlockFile(`${file!.contents}-- edited\n`, file!.contents)).toBe(
+    expect(sameModuleFile(older, file!.contents)).toBe(true);
+    expect(sameModuleFile(`${file!.contents}-- edited\n`, file!.contents)).toBe(
       false,
     );
-    expect(sameBlockFile(undefined, file!.contents)).toBe(false);
+    expect(sameModuleFile(undefined, file!.contents)).toBe(false);
   });
 
   it("registers realtime tables with the tenant column", () => {
-    const [file] = renderBlocks(["realtime-tables"], {
+    const [file] = renderModules(["realtime-tables"], {
       realtimeTables: ["customers", "billing.invoices", "plans"],
       realtimeGlobal: ["public.plans"],
       tenantColumn: "organization_id",
@@ -131,7 +131,7 @@ describe("sameBlockFile", () => {
       "select better_supabase.track_realtime('public.plans', tenant_column => null);",
     );
     expect(file!.contents).toContain("raise exception '% has no column %'");
-    expect(renderBlocks(["realtime-tables"])[0]!.contents).not.toContain(
+    expect(renderModules(["realtime-tables"])[0]!.contents).not.toContain(
       "config.realtime.tables",
     );
   });
@@ -145,7 +145,7 @@ describe("sameBlockFile", () => {
       required: ["source"],
     });
     expect(resolveJsonSchema({ type: "array" })).toEqual({ type: "array" });
-    const [file] = renderBlocks(["jsonb-schemas"], {
+    const [file] = renderModules(["jsonb-schemas"], {
       jsonSchemas: [
         { table: "customers", column: "metadata", schema: { type: "object" } },
         {
@@ -176,7 +176,7 @@ describe("sameBlockFile", () => {
       },
       "/project",
     );
-    const [file] = renderBlocks(["grants"], blockLayout(config));
+    const [file] = renderModules(["grants"], moduleLayout(config));
     expect(file!.path).toBe(
       "supabase/schemas/900_better_supabase_13_grants.sql",
     );
@@ -188,7 +188,7 @@ describe("sameBlockFile", () => {
         'grant select on table "billing"."invoices" to authenticated;',
       ].join("\n"),
     );
-    expect(renderBlocks(["grants"])[0]!.contents).not.toContain(
+    expect(renderModules(["grants"])[0]!.contents).not.toContain(
       "config.expose",
     );
   });
@@ -203,7 +203,7 @@ describe("sameBlockFile", () => {
       },
       "/project",
     );
-    const [file] = renderBlocks(["vector-search"], blockLayout(config));
+    const [file] = renderModules(["vector-search"], moduleLayout(config));
     expect(file!.path).toBe(
       "supabase/schemas/900_better_supabase_18_vector_search.sql",
     );
@@ -227,7 +227,7 @@ describe("sameBlockFile", () => {
     expect(file!.contents).toContain(
       'grant execute on function "docs"."search_pages"(extensions.vector, integer) to authenticated, service_role;',
     );
-    expect(renderBlocks(["vector-search"])[0]!.contents).not.toContain(
+    expect(renderModules(["vector-search"])[0]!.contents).not.toContain(
       "config.vectorSearch",
     );
   });
@@ -271,7 +271,7 @@ describe("entitlements in PermDock mode", () => {
   });
 
   it("reads member_<scope>_ids and member_<scope>_ids_for", () => {
-    const [file] = renderBlocks(["entitlements"], { permdock, entitlements });
+    const [file] = renderModules(["entitlements"], { permdock, entitlements });
     const sql = file!.contents;
     expect(sql).toContain(
       'select tenant in (select "authz"."member_organization_ids"())',
@@ -292,7 +292,7 @@ describe("entitlements in PermDock mode", () => {
   it.each(["uuid", "text", "bigint", "integer"] as const)(
     "renders the %s scope id type in every tenant signature",
     (idType) => {
-      const file = renderBlocks(["entitlements"], {
+      const file = renderModules(["entitlements"], {
         permdock: { ...permdock, idType },
         entitlements,
       }).find((entry) => entry.module === "entitlements");
@@ -316,7 +316,7 @@ describe("entitlements in PermDock mode", () => {
   );
 
   it("keeps the tenant-mode functions without PermDock", () => {
-    const file = renderBlocks(["entitlements"], { entitlements }).find(
+    const file = renderModules(["entitlements"], { entitlements }).find(
       (entry) => entry.module === "entitlements",
     );
     expect(file!.contents).toContain(
@@ -326,15 +326,15 @@ describe("entitlements in PermDock mode", () => {
   });
 
   it("needs a customer column unless the managed organizations module adds one", () => {
-    expect(() => renderBlocks(["entitlements"])).toThrow(
+    expect(() => renderModules(["entitlements"])).toThrow(
       "The entitlements module needs entitlements.customer",
     );
     expect(() =>
-      renderBlocks(["entitlements", "organizations"], {
-        blocks: { organizations: { mode: "adopt" } },
+      renderModules(["entitlements", "organizations"], {
+        modules: { organizations: { mode: "adopt" } },
       }),
     ).toThrow("The entitlements module needs entitlements.customer");
-    const files = renderBlocks(["entitlements", "organizations"]);
+    const files = renderModules(["entitlements", "organizations"]);
     const sql = (name: string) =>
       files.find((file) => file.module === name && file.kind === "schema")!
         .contents;
@@ -346,7 +346,7 @@ describe("entitlements in PermDock mode", () => {
     );
     expect(sql("entitlements")).toContain("returns text\nlanguage plpgsql");
     expect(
-      renderBlocks(["entitlements"], {
+      renderModules(["entitlements"], {
         entitlements: {
           table: "billing",
           column: "customer",
@@ -357,16 +357,19 @@ describe("entitlements in PermDock mode", () => {
       )!.contents,
     ).toContain("returns text\nlanguage sql");
     expect(
-      renderBlocks(["organizations"]).find(
+      renderModules(["organizations"]).find(
         (file) => file.module === "organizations",
       )!.contents,
     ).not.toContain("stripe_customer_id");
   });
 });
 
-describe("blockPermissionKeys", () => {
+describe("modulePermissionKeys", () => {
   it("lists every key the installed modules check, with its scope", () => {
-    const keys = blockPermissionKeys({}, ["organizations", "support-sessions"]);
+    const keys = modulePermissionKeys({}, [
+      "organizations",
+      "support-sessions",
+    ]);
     expect(keys).toContainEqual({
       module: "organizations",
       action: "update",
@@ -382,9 +385,9 @@ describe("blockPermissionKeys", () => {
     expect(keys.map((entry) => entry.module)).not.toContain("notifications");
   });
 
-  it("applies blocks.<module>.permissions and skips custom modules", () => {
+  it("applies sql.modules.<module>.permissions and skips custom modules", () => {
     expect(
-      blockPermissionKeys(
+      modulePermissionKeys(
         { notifications: { permissions: { send: "alerts.send" } } },
         ["notifications"],
       ).filter((entry) => entry.module === "notifications"),
@@ -403,15 +406,15 @@ describe("blockPermissionKeys", () => {
       },
     ]);
     expect(
-      blockPermissionKeys({ "webhooks-out": { mode: "custom" } }, [
+      modulePermissionKeys({ "webhooks-out": { mode: "custom" } }, [
         "webhooks-out",
       ]).filter((entry) => entry.module === "webhooks-out"),
     ).toEqual([]);
   });
 
   it("lists invitations.invitePlatform only with platform roles", () => {
-    const platform = (blocks: Parameters<typeof blockPermissionKeys>[0]) =>
-      blockPermissionKeys(blocks, ["invitations"]).some(
+    const platform = (modules: Parameters<typeof modulePermissionKeys>[0]) =>
+      modulePermissionKeys(modules, ["invitations"]).some(
         (entry) => entry.action === "invitePlatform",
       );
     expect(platform({ access: { model: "permdock" } })).toBe(false);

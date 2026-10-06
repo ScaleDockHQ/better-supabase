@@ -1,21 +1,21 @@
 /**
- * `blocks` in `better-supabase.config.ts`: how each SQL module maps onto
+ * `sql.modules` in `better-supabase.config.ts`: how each SQL module maps onto
  * the app's database. A module's contract (the functions other modules and
  * the TypeScript side call) stays the same in every mode; only the tables
  * behind it change.
  */
 
 /**
- * `managed`: the block owns its tables. `adopt`: the block writes its functions
+ * `managed`: the module owns its tables. `adopt`: the module writes its functions
  * and views over tables the app already has (`tables` and `columns`), never
  * `create table`. `custom`: the app implements the contract functions itself;
- * the block writes nothing and doctor checks the signatures (BS307).
+ * the module writes nothing and doctor checks the signatures (BS307).
  */
-export type BlockMode = "managed" | "adopt" | "custom";
+export type ModuleMode = "managed" | "adopt" | "custom";
 
 /** Options every module takes. */
-export interface BlockModuleConfig {
-  readonly mode?: BlockMode;
+export interface ModuleConfig {
+  readonly mode?: ModuleMode;
   /** Schema of the module's functions and managed tables. Defaults to `better_supabase`. */
   readonly schema?: string;
   /**
@@ -35,7 +35,7 @@ export interface BlockModuleConfig {
   /** Type of tenant ids: `uuid` (default), `text`, `bigint` or `integer`. */
   readonly idType?: string;
   /**
-   * Block action to permission key, checked through the access contract, e.g.
+   * Module action to permission key, checked through the access contract, e.g.
    * `{ invite: 'organization.members.invite' }`.
    */
   readonly permissions?: Readonly<Record<string, string>>;
@@ -78,11 +78,11 @@ export type ActiveTenantSource =
 export const DEFAULT_ACTIVE_TENANT: ActiveTenantSource = "resolver";
 
 /**
- * The access contract every block checks permissions through:
+ * The access contract every module checks permissions through:
  * `can(scope, id, permission)`, `tenant_ids_with(permission)`,
  * `is_platform(permission)` and `can_user(user, scope, id, permission)`.
  */
-export interface AccessBlockConfig extends BlockModuleConfig {
+export interface AccessModuleConfig extends ModuleConfig {
   /**
    * `roles`: a fixed role list from `roles` (the default). `catalog`: role,
    * permission and override tables (`tables.roles`, `permissions`,
@@ -140,16 +140,16 @@ export interface AccessBlockConfig extends BlockModuleConfig {
   readonly permdock?: { readonly schema?: string; readonly scope?: string };
 }
 
-/** `blocks` in the config, keyed by module name. */
-export interface BlocksConfig {
-  readonly access?: AccessBlockConfig;
-  /** `AccessBlockConfig` is listed so an `access` literal passes the excess-property check. */
-  readonly [module: string]: BlockModuleConfig | AccessBlockConfig | undefined;
+/** `sql.modules` in the config, keyed by module name. */
+export interface ModulesConfig {
+  readonly access?: AccessModuleConfig;
+  /** `AccessModuleConfig` is listed so an `access` literal passes the excess-property check. */
+  readonly [module: string]: ModuleConfig | AccessModuleConfig | undefined;
 }
 
 /** A module's config with defaults applied. */
-export interface ResolvedBlockModule {
-  readonly mode: BlockMode;
+export interface ResolvedModule {
+  readonly mode: ModuleMode;
   readonly schema: string;
   readonly tables: Readonly<Record<string, string | null>>;
   readonly columns: Readonly<
@@ -165,14 +165,12 @@ export interface ResolvedBlockModule {
   readonly events: boolean;
 }
 
-const BLOCK_SCHEMA = "better_supabase";
+const MODULE_SCHEMA = "better_supabase";
 
-export function resolveBlockModule(
-  config: BlockModuleConfig = {},
-): ResolvedBlockModule {
+export function resolveModule(config: ModuleConfig = {}): ResolvedModule {
   return {
     mode: config.mode ?? "managed",
-    schema: config.schema ?? BLOCK_SCHEMA,
+    schema: config.schema ?? MODULE_SCHEMA,
     tables: config.tables ?? {},
     columns: config.columns ?? {},
     ...(config.idType === undefined ? {} : { idType: config.idType }),

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { ModulesConfig } from "../../../src/config/modules.ts";
 
 import {
   customContracts,
   moduleBody,
-  renderBlocks,
-} from "../../../src/sql/blocks.ts";
+  renderModules,
+} from "../../../src/sql/registry.ts";
 
-const body = (blocks: BlocksConfig = {}) =>
-  moduleBody("notifications", { blocks })!;
+const body = (modules: ModulesConfig = {}) =>
+  moduleBody("notifications", { modules })!;
 
-const CENTRAKIT: BlocksConfig = {
+const CENTRAKIT: ModulesConfig = {
   notifications: {
     mode: "adopt",
     schema: "public",
@@ -83,10 +83,10 @@ describe("notifications module", () => {
   });
 
   it("checks permissions and emits through the outbox when they are installed", () => {
-    const plain = renderBlocks(["notifications"]).at(-1)!.contents;
+    const plain = renderModules(["notifications"]).at(-1)!.contents;
     expect(plain).not.toContain("member_can");
     expect(plain).not.toContain("emit_event");
-    const files = renderBlocks(["access", "outbox", "notifications"]);
+    const files = renderModules(["access", "outbox", "notifications"]);
     const sql = files.find((file) =>
       file.path.includes("notifications"),
     )!.contents;
@@ -162,9 +162,9 @@ describe("notifications module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: BlocksConfig = { notifications: { mode: "custom" } };
-    expect(moduleBody("notifications", { blocks: custom })).toBe(undefined);
-    const [contract] = customContracts(["notifications"], { blocks: custom });
+    const custom: ModulesConfig = { notifications: { mode: "custom" } };
+    expect(moduleBody("notifications", { modules: custom })).toBe(undefined);
+    const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
       "notification_enabled",
@@ -180,7 +180,7 @@ describe("notifications module", () => {
       "complete_notification_delivery",
     ]);
     const [minimal] = customContracts(["notifications"], {
-      blocks: {
+      modules: {
         notifications: {
           mode: "custom",
           tables: { deliveries: null, subscriptions: null, preferences: null },
@@ -192,8 +192,8 @@ describe("notifications module", () => {
   });
 
   it("skips the recipient read filter under the permdock model", () => {
-    const notify = (blocks: BlocksConfig) =>
-      renderBlocks(["access", "notifications"], { blocks }).find((file) =>
+    const notify = (modules: ModulesConfig) =>
+      renderModules(["access", "notifications"], { modules }).find((file) =>
         file.path.includes("notifications"),
       )!.contents;
     expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");

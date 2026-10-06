@@ -1,4 +1,4 @@
-import type { BlockContext } from "./context.ts";
+import type { ModuleContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
 
@@ -12,8 +12,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`;
 export const SERVICE_CALLER =
   "coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
-/** Creates the module's schema when it isn't `better_supabase`, then the block schema. */
-export function schemaPreamble(ctx: BlockContext): string {
+/** Creates the module's schema when it isn't `better_supabase`, then the module schema. */
+export function schemaPreamble(ctx: ModuleContext): string {
   if (ctx.schemaName === "better_supabase") return SCHEMA;
   return `${SCHEMA}
 create schema if not exists ${ctx.schema};
@@ -87,10 +87,10 @@ create trigger bs_updated_at before update on ${table}
 }
 
 /**
- * Upgrade-step renames for a block table in `schema`. Each runs only while the
+ * Upgrade-step renames for a module table in `schema`. Each runs only while the
  * old name exists and the new one doesn't, so a step can run again.
  */
-export interface BlockRenames {
+export interface ModuleRenames {
   readonly schema: string;
   /** The table's current name; `table` in `tables` renames it first. */
   readonly table: string;
@@ -104,7 +104,7 @@ export interface BlockRenames {
   ])[];
 }
 
-export function renameSql(renames: BlockRenames): string {
+export function renameSql(renames: ModuleRenames): string {
   const schema = sqlString(renames.schema);
   const q = (name: string): string =>
     `${sqlIdent(renames.schema)}.${sqlIdent(name)}`;
@@ -151,7 +151,7 @@ $$;`;
  * organizations table. False without the organizations module.
  */
 export function organizationMissing(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   organization: string,
 ): string {
   if (!ctx.installed("organizations")) return "false";
@@ -161,17 +161,17 @@ export function organizationMissing(
 
 /**
  * `tenant_disabled(id)` and `user_disabled(uuid)` from
- * `blocks.access.disabled`. Without a column they return false, so callers
+ * `sql.modules.access.disabled`. Without a column they return false, so callers
  * don't need to know whether it is configured.
  */
-export function disabledHelpers(ctx: BlockContext): string {
-  const disabled = ctx.blocks.access?.disabled ?? {};
+export function disabledHelpers(ctx: ModuleContext): string {
+  const disabled = ctx.modules.access?.disabled ?? {};
   const id = ctx.idType;
   const tenant = disabled.tenant
-    ? columnRef("blocks.access.disabled.tenant", disabled.tenant)
+    ? columnRef("sql.modules.access.disabled.tenant", disabled.tenant)
     : undefined;
   const user = disabled.user
-    ? columnRef("blocks.access.disabled.user", disabled.user)
+    ? columnRef("sql.modules.access.disabled.user", disabled.user)
     : undefined;
   const userKey = sqlIdent(disabled.userKey ?? "id");
   const organizations = managedOrganizations(ctx);
@@ -183,7 +183,7 @@ export function disabledHelpers(ctx: BlockContext): string {
   }
   return `
 -- Disabled tenants and users get no permissions and no membership claims
--- (blocks.access.disabled; with the managed organizations module, its
+-- (modules.access.disabled; with the managed organizations module, its
 -- disabled_at and deleted_at columns).
 create or replace function better_supabase.tenant_disabled(tenant ${id})
 returns boolean
@@ -215,15 +215,15 @@ grant execute on function better_supabase.user_disabled(uuid) to service_role, s
  * Whether `disabledHelpers` reads the managed organizations table, which a
  * later file creates: the caller turns `check_function_bodies` off around it.
  */
-export function disabledHelpersNeedLaterTables(ctx: BlockContext): boolean {
+export function disabledHelpersNeedLaterTables(ctx: ModuleContext): boolean {
   return (
-    !ctx.blocks.access?.disabled?.tenant &&
+    !ctx.modules.access?.disabled?.tenant &&
     managedOrganizations(ctx) !== undefined
   );
 }
 
 /** The managed organizations table and its disabling columns, when installed and managed. */
-function managedOrganizations(ctx: BlockContext):
+function managedOrganizations(ctx: ModuleContext):
   | {
       readonly table: string;
       readonly id: string;
@@ -246,13 +246,13 @@ function managedOrganizations(ctx: BlockContext):
 
 /**
  * Another row trigger on `target` whose function name matches `pattern` does
- * the block trigger's job twice. `track_*` warns about it, or drops it with
+ * the module trigger's job twice. `track_*` warns about it, or drops it with
  * `replace_trigger => true`.
  */
 export const EQUIVALENT_TRIGGERS = `
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
-  block_trigger text,
+  module_trigger text,
   pattern text,
   replace_trigger boolean
 )
@@ -269,14 +269,14 @@ begin
     join pg_catalog.pg_proc p on p.oid = t.tgfoid
     where t.tgrelid = replace_equivalent_triggers.target
       and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.block_trigger
+      and t.tgname <> replace_equivalent_triggers.module_trigger
       and p.proname ~* replace_equivalent_triggers.pattern
   loop
     if replace_trigger then
       execute format('drop trigger %I on %s', found.name, target);
     else
       raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, block_trigger;
+        target, found.name, found.fn, module_trigger;
     end if;
   end loop;
 end;

@@ -1,22 +1,22 @@
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import {
-  type BlockMode,
-  type BlocksConfig,
-  type ResolvedBlockModule,
-  resolveBlockModule,
-} from "../config/blocks.ts";
+  type ModuleMode,
+  type ModulesConfig,
+  type ResolvedModule,
+  resolveModule,
+} from "../config/modules.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 
 /** The scope id types SQL modules render. */
-export const BLOCK_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
-export type BlockIdType = (typeof BLOCK_ID_TYPES)[number];
+export const MODULE_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
+export type ModuleIdType = (typeof MODULE_ID_TYPES)[number];
 
-export const isBlockIdType = (value: string): value is BlockIdType =>
-  BLOCK_ID_TYPES.some((type) => type === value);
+export const isModuleIdType = (value: string): value is ModuleIdType =>
+  MODULE_ID_TYPES.some((type) => type === value);
 
-const ID_TYPE_ALIASES: Readonly<Record<string, BlockIdType>> = {
+const ID_TYPE_ALIASES: Readonly<Record<string, ModuleIdType>> = {
   int8: "bigint",
   int4: "integer",
   int: "integer",
@@ -25,17 +25,17 @@ const ID_TYPE_ALIASES: Readonly<Record<string, BlockIdType>> = {
 };
 
 /**
- * A Postgres type name as one of `BLOCK_ID_TYPES`: case and spacing are
+ * A Postgres type name as one of `MODULE_ID_TYPES`: case and spacing are
  * normalised and aliases such as `int8` resolved. `undefined` for any other
  * type, so callers refuse it instead of guessing.
  */
-export function blockIdType(value: string): BlockIdType | undefined {
+export function moduleIdType(value: string): ModuleIdType | undefined {
   const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
-  return isBlockIdType(name) ? name : ID_TYPE_ALIASES[name];
+  return isModuleIdType(name) ? name : ID_TYPE_ALIASES[name];
 }
 
 /** One logical table of a module: its default name and logical columns. */
-export interface BlockTableSpec {
+export interface ModuleTableSpec {
   /** Default name, in the module's schema. */
   readonly name: string;
   /** Logical column to default column name. */
@@ -45,20 +45,20 @@ export interface BlockTableSpec {
    * leaves out the feature that needs them.
    */
   readonly optional?: readonly string[];
-  /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
+  /** The app may lack the whole table (`sql.modules.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
 }
 
-export interface BlockNames {
-  readonly tables: Readonly<Record<string, BlockTableSpec>>;
-  /** The `before_*` and `after_*` hooks the module calls, so `blocks.<name>.hooks.functions` is checked. */
+export interface ModuleNames {
+  readonly tables: Readonly<Record<string, ModuleTableSpec>>;
+  /** The `before_*` and `after_*` hooks the module calls, so `sql.modules.<name>.hooks.functions` is checked. */
   readonly hooks?: readonly string[];
-  /** The `blocks.<name>.options` keys the module reads; any other key is rejected. */
+  /** The `sql.modules.<name>.options` keys the module reads; any other key is rejected. */
   readonly options?: readonly string[];
 }
 
 /** An event a module writes to the outbox, as SQL expressions. */
-export interface BlockEmit {
+export interface ModuleEmit {
   /** The event type, e.g. `organization.created`. */
   readonly type: string;
   /** A `jsonb` expression. */
@@ -72,7 +72,7 @@ export interface BlockEmit {
 }
 
 /** A function of a module's contract: what other modules and the TypeScript side call. */
-export interface BlockContractFunction {
+export interface ModuleContractFunction {
   readonly name: string;
   /** Argument types; `{id}` stands for the module's id type. */
   readonly args: readonly string[];
@@ -80,16 +80,16 @@ export interface BlockContractFunction {
 }
 
 /** What a module's `build` reads: resolved names for one layout. */
-export interface BlockContext {
+export interface ModuleContext {
   readonly module: string;
-  readonly mode: BlockMode;
-  readonly config: ResolvedBlockModule;
+  readonly mode: ModuleMode;
+  readonly config: ResolvedModule;
   /** The quoted schema of the module's functions and managed tables. */
   readonly schema: string;
   readonly schemaName: string;
-  readonly idType: BlockIdType;
+  readonly idType: ModuleIdType;
   readonly claims: ClaimsMeta;
-  readonly blocks: BlocksConfig;
+  readonly modules: ModulesConfig;
   /** `schema.name` of a module function, quoted. */
   fn(name: string): string;
   /** `schema.table` of a logical table, quoted. */
@@ -107,17 +107,17 @@ export interface BlockContext {
   hasTable(table: string): boolean;
   /** Whether the module owns `table` (managed mode). */
   readonly manages: boolean;
-  /** The permission key for a block action, as a SQL literal. */
+  /** The permission key for a module action, as a SQL literal. */
   permission(action: string, fallback: string): string;
-  /** The permission key for a block action. */
+  /** The permission key for a module action. */
   permissionKey(action: string, fallback: string): string;
   /** A trigger name with the module's prefix, quoted. */
   trigger(name: string): string;
   /** Whether `module` is installed alongside this one. */
   installed(module: string): boolean;
   /** The context of another module in the same layout. */
-  of(module: string): BlockContext;
-  /** A string module option (`blocks.<name>.options`). */
+  of(module: string): ModuleContext;
+  /** A string module option (`sql.modules.<name>.options`). */
   text(name: string, fallback: string): string;
   number(name: string, fallback: number): number;
   flag(name: string, fallback: boolean): boolean;
@@ -137,19 +137,19 @@ export interface BlockContext {
   hookTarget(name: string): string;
   /**
    * PL/pgSQL that writes the event to the outbox (`emit_event`) when the
-   * `outbox` module is installed and `blocks.<name>.events` isn't false;
+   * `outbox` module is installed and `sql.modules.<name>.events` isn't false;
    * otherwise an empty string.
    */
-  emit(event: BlockEmit): string;
+  emit(event: ModuleEmit): string;
 }
 
-export interface BlockContextSource {
-  readonly blocks?: BlocksConfig;
+export interface ModuleContextSource {
+  readonly modules?: ModulesConfig;
   readonly claims?: ClaimsMeta;
   /** The modules being installed together. */
   readonly installed?: readonly string[];
   /** The id type from PermDock's manifest, when the layout has one. */
-  readonly permdockIdType?: BlockIdType;
+  readonly permdockIdType?: ModuleIdType;
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -175,14 +175,14 @@ function checkIdent(where: string, value: string): string {
  * Builds the context for `module`. `namesOf` looks up a module's names, so a
  * module can name another module's tables through `of()`.
  */
-export function createBlockContext(
+export function createModuleContext(
   module: string,
-  namesOf: (name: string) => BlockNames | undefined,
-  source: BlockContextSource = {},
-): BlockContext {
-  const blocks = source.blocks ?? {};
-  const config = resolveBlockModule(blocks[module]);
-  const where = `blocks.${module}`;
+  namesOf: (name: string) => ModuleNames | undefined,
+  source: ModuleContextSource = {},
+): ModuleContext {
+  const modules = source.modules ?? {};
+  const config = resolveModule(modules[module]);
+  const where = `sql.modules.${module}`;
   const names = namesOf(module) ?? { tables: {} };
   checkIdent(`${where}.schema`, config.schema);
 
@@ -252,11 +252,11 @@ export function createBlockContext(
   };
 
   const rawId =
-    config.idType ?? blocks.access?.idType ?? source.permdockIdType ?? "uuid";
-  const idType = blockIdType(rawId);
+    config.idType ?? modules.access?.idType ?? source.permdockIdType ?? "uuid";
+  const idType = moduleIdType(rawId);
   if (!idType) {
     throw new TypeError(
-      `${where}.idType: "${rawId}" is not one of ${BLOCK_ID_TYPES.join(", ")}`,
+      `${where}.idType: "${rawId}" is not one of ${MODULE_ID_TYPES.join(", ")}`,
     );
   }
 
@@ -268,7 +268,7 @@ export function createBlockContext(
     const mapped = config.tables[logical];
     if (mapped === null) {
       throw new TypeError(
-        `Module "${module}" needs table "${logical}", which blocks.${module}.tables maps to null`,
+        `Module "${module}" needs table "${logical}", which sql.modules.${module}.tables maps to null`,
       );
     }
     const parts = splitTable(mapped ?? table.name, config.schema);
@@ -329,7 +329,7 @@ export function createBlockContext(
     schemaName: config.schema,
     idType,
     claims: source.claims ?? DEFAULT_CLAIMS,
-    blocks,
+    modules,
     manages: config.mode === "managed",
     fn: (name) => `${schema}.${sqlIdent(name)}`,
     tableName,
@@ -341,7 +341,7 @@ export function createBlockContext(
       const name = column(table, logical);
       if (name === null) {
         throw new TypeError(
-          `Module "${module}" needs ${table}.${logical}, which blocks.${module}.columns maps to null`,
+          `Module "${module}" needs ${table}.${logical}, which sql.modules.${module}.columns maps to null`,
         );
       }
       return sqlIdent(name);
@@ -359,7 +359,7 @@ export function createBlockContext(
       sqlString(config.permissions[action] ?? fallback),
     trigger: (name) => sqlIdent(`bs_${name}`),
     installed: (name) => installed.has(name),
-    of: (name) => createBlockContext(name, namesOf, source),
+    of: (name) => createModuleContext(name, namesOf, source),
     text: (name, fallback) => optionOf(name, "string", fallback),
     number: (name, fallback) => optionOf(name, "number", fallback),
     flag: (name, fallback) => optionOf(name, "boolean", fallback),
@@ -391,13 +391,13 @@ export function createBlockContext(
     hookTarget,
     emit(event) {
       if (!config.events || !installed.has("outbox")) return "";
-      const outboxConfig = resolveBlockModule(blocks["outbox"]);
+      const outboxConfig = resolveModule(modules["outbox"]);
       const outbox = sqlIdent(outboxConfig.schema);
       const template =
         outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
       if (typeof template !== "string") {
         throw new TypeError(
-          "blocks.outbox.options.blockSource must be a string",
+          "sql.modules.outbox.options.blockSource must be a string",
         );
       }
       return `perform ${outbox}.emit_event(${[
@@ -414,7 +414,7 @@ export function createBlockContext(
 
 /** The contract's argument list with `{id}` resolved, as Postgres prints it. */
 export function contractSignature(
-  fn: BlockContractFunction,
+  fn: ModuleContractFunction,
   idType: string,
 ): string {
   return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");

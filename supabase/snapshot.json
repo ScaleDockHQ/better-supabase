@@ -20,7 +20,7 @@
       {
         "id": 1000000,
         "schema": "better_supabase",
-        "name": "block_modules",
+        "name": "modules",
         "rls_enabled": true,
         "rls_forced": false,
         "replica_identity": "DEFAULT",
@@ -168,7 +168,7 @@
       {
         "table_id": 1000000,
         "schema": "better_supabase",
-        "table": "block_modules",
+        "table": "modules",
         "id": "1000000.4",
         "ordinal_position": 4,
         "name": "installed_at",
@@ -189,7 +189,7 @@
       {
         "table_id": 1000000,
         "schema": "better_supabase",
-        "table": "block_modules",
+        "table": "modules",
         "id": "1000000.3",
         "ordinal_position": 3,
         "name": "mode",
@@ -210,7 +210,7 @@
       {
         "table_id": 1000000,
         "schema": "better_supabase",
-        "table": "block_modules",
+        "table": "modules",
         "id": "1000000.1",
         "ordinal_position": 1,
         "name": "name",
@@ -231,7 +231,7 @@
       {
         "table_id": 1000000,
         "schema": "better_supabase",
-        "table": "block_modules",
+        "table": "modules",
         "id": "1000000.5",
         "ordinal_position": 5,
         "name": "updated_at",
@@ -252,7 +252,7 @@
       {
         "table_id": 1000000,
         "schema": "better_supabase",
-        "table": "block_modules",
+        "table": "modules",
         "id": "1000000.2",
         "ordinal_position": 2,
         "name": "version",
@@ -1661,7 +1661,7 @@
       {
         "table_id": 1000000,
         "schema": "better_supabase",
-        "table_name": "block_modules",
+        "table_name": "modules",
         "name": "name"
       },
       {
@@ -1945,12 +1945,12 @@
         "schema": "better_supabase",
         "name": "replace_equivalent_triggers",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  found record;\nbegin\n  for found in\n    select t.tgname as name, p.proname as fn\n    from pg_catalog.pg_trigger t\n    join pg_catalog.pg_proc p on p.oid = t.tgfoid\n    where t.tgrelid = replace_equivalent_triggers.target\n      and not t.tgisinternal\n      and t.tgname <> replace_equivalent_triggers.block_trigger\n      and p.proname ~* replace_equivalent_triggers.pattern\n  loop\n    if replace_trigger then\n      execute format('drop trigger %I on %s', found.name, target);\n    else\n      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',\n        target, found.name, found.fn, block_trigger;\n    end if;\n  end loop;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.replace_equivalent_triggers(target regclass, block_trigger text, pattern text, replace_trigger boolean)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  found record;\nbegin\n  for found in\n    select t.tgname as name, p.proname as fn\n    from pg_catalog.pg_trigger t\n    join pg_catalog.pg_proc p on p.oid = t.tgfoid\n    where t.tgrelid = replace_equivalent_triggers.target\n      and not t.tgisinternal\n      and t.tgname <> replace_equivalent_triggers.block_trigger\n      and p.proname ~* replace_equivalent_triggers.pattern\n  loop\n    if replace_trigger then\n      execute format('drop trigger %I on %s', found.name, target);\n    else\n      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',\n        target, found.name, found.fn, block_trigger;\n    end if;\n  end loop;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  found record;\nbegin\n  for found in\n    select t.tgname as name, p.proname as fn\n    from pg_catalog.pg_trigger t\n    join pg_catalog.pg_proc p on p.oid = t.tgfoid\n    where t.tgrelid = replace_equivalent_triggers.target\n      and not t.tgisinternal\n      and t.tgname <> replace_equivalent_triggers.module_trigger\n      and p.proname ~* replace_equivalent_triggers.pattern\n  loop\n    if replace_trigger then\n      execute format('drop trigger %I on %s', found.name, target);\n    else\n      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',\n        target, found.name, found.fn, module_trigger;\n    end if;\n  end loop;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.replace_equivalent_triggers(target regclass, module_trigger text, pattern text, replace_trigger boolean)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  found record;\nbegin\n  for found in\n    select t.tgname as name, p.proname as fn\n    from pg_catalog.pg_trigger t\n    join pg_catalog.pg_proc p on p.oid = t.tgfoid\n    where t.tgrelid = replace_equivalent_triggers.target\n      and not t.tgisinternal\n      and t.tgname <> replace_equivalent_triggers.module_trigger\n      and p.proname ~* replace_equivalent_triggers.pattern\n  loop\n    if replace_trigger then\n      execute format('drop trigger %I on %s', found.name, target);\n    else\n      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',\n        target, found.name, found.fn, module_trigger;\n    end if;\n  end loop;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
-            "name": "block_trigger",
+            "name": "module_trigger",
             "type_id": 25,
             "has_default": false
           },
@@ -1973,8 +1973,8 @@
             "has_default": false
           }
         ],
-        "argument_types": "target regclass, block_trigger text, pattern text, replace_trigger boolean",
-        "identity_argument_types": "target regclass, block_trigger text, pattern text, replace_trigger boolean",
+        "argument_types": "target regclass, module_trigger text, pattern text, replace_trigger boolean",
+        "identity_argument_types": "target regclass, module_trigger text, pattern text, replace_trigger boolean",
         "return_type_id": 2278,
         "return_type": "void",
         "return_type_relation_id": null,
@@ -2281,9 +2281,9 @@
     "types": [
       {
         "id": 2000000,
-        "name": "_block_modules",
+        "name": "_modules",
         "schema": "better_supabase",
-        "format": "better_supabase.block_modules[]",
+        "format": "better_supabase.modules[]",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -2311,9 +2311,9 @@
       },
       {
         "id": 2000003,
-        "name": "block_modules",
+        "name": "modules",
         "schema": "better_supabase",
-        "format": "better_supabase.block_modules",
+        "format": "better_supabase.modules",
         "enums": [],
         "attributes": [],
         "comment": null,
@@ -2656,14 +2656,14 @@
       {
         "id": 1000000,
         "schema": "better_supabase",
-        "name": "block_modules",
+        "name": "modules",
         "primaryKey": ["name"],
         "uniques": [],
         "foreignKeys": [],
         "checks": [],
         "indexes": [
           {
-            "name": "block_modules_pkey",
+            "name": "modules_pkey",
             "columns": ["name"],
             "unique": true,
             "primary": true,

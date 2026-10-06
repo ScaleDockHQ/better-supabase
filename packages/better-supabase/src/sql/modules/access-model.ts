@@ -1,13 +1,13 @@
-import type { AccessBlockConfig } from "../../config/blocks.ts";
-import type { BlockContext } from "../context.ts";
+import type { AccessModuleConfig } from "../../config/modules.ts";
+import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
-export type AccessModel = NonNullable<AccessBlockConfig["model"]>;
+export type AccessModel = NonNullable<AccessModuleConfig["model"]>;
 
 /**
- * The `roles` model's defaults. Block actions name these keys (see
- * `BLOCK_PERMISSIONS`); `*` grants everything and `prefix.*` a prefix.
+ * The `roles` model's defaults. Module actions name these keys (see
+ * `MODULE_PERMISSIONS`); `*` grants everything and `prefix.*` a prefix.
  */
 export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
   owner: ["*"],
@@ -25,12 +25,12 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * The permission key each block action checks by default, overridable per
- * module in `blocks.<name>.permissions`. Keys are `<area>.<verb>`, with `read`
+ * The permission key each module action checks by default, overridable per
+ * module in `sql.modules.<name>.permissions`. Keys are `<area>.<verb>`, with `read`
  * for viewing; platform-wide actions use the `platform` area or a key that
  * `is_platform()` checks.
  */
-export const BLOCK_PERMISSIONS = {
+export const MODULE_PERMISSIONS = {
   organizations: {
     update: "organization.update",
     delete: "organization.delete",
@@ -55,13 +55,13 @@ export const BLOCK_PERMISSIONS = {
 } as const;
 
 /**
- * Where each block action checks its key: `tenant` through `member_can`,
+ * Where each module action checks its key: `tenant` through `member_can`,
  * `can` or `tenant_ids_with` (PermDock's `permitted_<scope>_ids`), and
  * `platform` through `is_platform` or `platform_can` (`permdock_has`).
  */
-export const BLOCK_PERMISSION_SCOPES: {
-  readonly [M in keyof typeof BLOCK_PERMISSIONS]: {
-    readonly [A in keyof (typeof BLOCK_PERMISSIONS)[M]]: "tenant" | "platform";
+export const MODULE_PERMISSION_SCOPES: {
+  readonly [M in keyof typeof MODULE_PERMISSIONS]: {
+    readonly [A in keyof (typeof MODULE_PERMISSIONS)[M]]: "tenant" | "platform";
   };
 } = {
   organizations: {
@@ -87,29 +87,29 @@ export const BLOCK_PERMISSION_SCOPES: {
   "webhooks-out": { manage: "tenant", view: "tenant" },
 };
 
-export function accessModel(ctx: BlockContext): AccessModel {
-  return ctx.blocks.access?.model ?? "roles";
+export function accessModel(ctx: ModuleContext): AccessModel {
+  return ctx.modules.access?.model ?? "roles";
 }
 
 export function rolesOf(
-  ctx: BlockContext,
+  ctx: ModuleContext,
 ): Readonly<Record<string, readonly string[]>> {
-  return ctx.blocks.access?.roles ?? DEFAULT_ROLES;
+  return ctx.modules.access?.roles ?? DEFAULT_ROLES;
 }
 
-export const roleNames = (ctx: BlockContext): readonly string[] =>
+export const roleNames = (ctx: ModuleContext): readonly string[] =>
   Object.keys(rolesOf(ctx));
 
 /**
  * The scope name tenants use in `can(scope, id, permission)`
- * (`blocks.access.options.scope`, default `organization`). `tenant` is
+ * (`sql.modules.access.options.scope`, default `organization`). `tenant` is
  * accepted too.
  */
-export const tenantScope = (ctx: BlockContext): string =>
+export const tenantScope = (ctx: ModuleContext): string =>
   ctx.of("access").text("scope", "organization");
 
 /** Whether the catalog has platform roles, and so platform invitations. */
-export function hasPlatformRoles(ctx: BlockContext): boolean {
+export function hasPlatformRoles(ctx: ModuleContext): boolean {
   return (
     accessModel(ctx) === "catalog" &&
     ctx.of("access").hasTable("platformAssignments")
@@ -120,10 +120,10 @@ export function hasPlatformRoles(ctx: BlockContext): boolean {
  * Whether catalog role row `alias` is a tenant or a platform role, or
  * `undefined` when roles carry no scope. Managed catalogs have a `scope`
  * column; an adopted one maps `roles.scope` and names its values in
- * `blocks.access.options.tenantRoleScope` and `platformRoleScope`.
+ * `sql.modules.access.options.tenantRoleScope` and `platformRoleScope`.
  */
 export function roleScopeIs(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   alias: string,
   scope: "tenant" | "platform",
 ): string | undefined {

@@ -1,44 +1,44 @@
 export {
   customContracts,
-  isBlockIdType,
-  blockDeprecations,
-  blockFilePaths,
-  blockFileVersion,
-  blockIdType,
-  BLOCK_ID_TYPES,
-  blockPermissionKeys,
+  isModuleIdType,
+  moduleDeprecations,
+  moduleFilePaths,
+  moduleFileVersion,
+  moduleIdType,
+  MODULE_ID_TYPES,
+  modulePermissionKeys,
   moduleBody,
   moduleVersion,
-  renderBlocks,
+  renderModules,
   resolveModules,
-  sameBlockFile,
+  sameModuleFile,
   SQL_MODULES,
   upgradePlan,
-} from "./blocks.ts";
+} from "./registry.ts";
 export type {
-  InstalledBlockModule,
-  BlockDeprecation,
-  BlockAccessPermdock,
-  BlockFile,
-  BlockIdType,
-  BlockLayout,
-  BlockPermdock,
-  BlockPermissionKey,
-  BlockTestFile,
-  BlockUpgrade,
-  BlockUpgradePlan,
+  InstalledModule,
+  ModuleDeprecation,
+  ModuleAccessPermdock,
+  ModuleFile,
+  ModuleIdType,
+  ModuleLayout,
+  ModulePermdock,
+  ModulePermissionKey,
+  ModuleTestFile,
+  ModuleUpgrade,
+  ModuleUpgradePlan,
   SqlModule,
-} from "./blocks.ts";
+} from "./registry.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 export { contractSignature } from "./context.ts";
 export type {
-  BlockContext,
-  BlockContractFunction,
-  BlockNames,
-  BlockTableSpec,
+  ModuleContext,
+  ModuleContractFunction,
+  ModuleNames,
+  ModuleTableSpec,
 } from "./context.ts";
-export { blockLayout } from "./layout.ts";
+export { moduleLayout } from "./layout.ts";
 export { migrationOptionUses } from "./migration-options.ts";
 export type { MigrationOptionUse } from "./migration-options.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";

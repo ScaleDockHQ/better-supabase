@@ -19,7 +19,7 @@ export const snapshotFixture = readJsonFixture("snapshot.json") as Snapshot;
  * A snapshot with the SQL module tables in `better_supabase` (memberships,
  * invitations), for doctor rules the fixture database has no tables for.
  */
-// SAFETY: block-snapshot.json is written by `better-supabase introspect`.
-export const blockSnapshotFixture = JSON.parse(
-  readFileSync(new URL("block-snapshot.json", import.meta.url), "utf8"),
+// SAFETY: module-snapshot.json is written by `better-supabase introspect`.
+export const moduleSnapshotFixture = JSON.parse(
+  readFileSync(new URL("module-snapshot.json", import.meta.url), "utf8"),
 ) as Snapshot;

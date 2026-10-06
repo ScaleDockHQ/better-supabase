@@ -16,15 +16,15 @@ import {
   resolveConfig,
 } from "../../../src/config/index.ts";
 import {
-  blockPermissionKeys,
-  renderBlocks,
+  modulePermissionKeys,
+  renderModules,
   SQL_MODULES,
 } from "../../../src/sql/index.ts";
-import { blockLayout } from "../../../src/sql/index.ts";
+import { moduleLayout } from "../../../src/sql/index.ts";
 
 const fixtures = resolve(import.meta.dirname, "../fixtures");
 
-describe("blockLayout", () => {
+describe("moduleLayout", () => {
   it("turns expose into grants per role and json schemas into column checks", () => {
     const config = resolveConfig(
       {
@@ -43,8 +43,8 @@ describe("blockLayout", () => {
       },
       "/p",
     );
-    const block = blockLayout(config, "tests/sql");
-    expect(block.grants).toEqual([
+    const layout = moduleLayout(config, "tests/sql");
+    expect(layout.grants).toEqual([
       { table: "public.posts", role: "anon", privileges: ["select"] },
       {
         table: "public.posts",
@@ -54,15 +54,15 @@ describe("blockLayout", () => {
       { table: "public.notes", role: "anon", privileges: [] },
       { table: "public.notes", role: "authenticated", privileges: ["select"] },
     ]);
-    expect(block.jsonSchemas).toEqual([
+    expect(layout.jsonSchemas).toEqual([
       { table: "public.posts", column: "meta", schema: { type: "object" } },
     ]);
-    expect(block).toMatchObject({
+    expect(layout).toMatchObject({
       testsDir: "tests/sql",
       version: VERSION,
       tenantColumn: "org_id",
     });
-    expect(block).not.toHaveProperty("permdock");
+    expect(layout).not.toHaveProperty("permdock");
   });
 });
 
@@ -132,12 +132,12 @@ describe("runSql", () => {
     expect((await sql(["sync"], config)).output).not.toContain("sql data");
 
     expect((await sql(["data", "--dry-run"], config)).output).toMatch(
-      /^Would write supabase\/migrations\/\d{14}_better_supabase_block_data\.sql$/,
+      /^Would write supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
     const wrote = await sql(["data"], config);
     const path = wrote.output!.replace("Wrote ", "");
     expect(path).toMatch(
-      /^supabase\/migrations\/\d{14}_better_supabase_block_data\.sql$/,
+      /^supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
     const migration = await readFile(join(root, path), "utf8");
     expect(migration).toContain("values ('tenant', 2, 'managed')");
@@ -194,10 +194,10 @@ describe("runSql", () => {
       '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./declarative"\n',
     );
     const synced = await sql(["sync"], {
-      sql: { modules: ["tenant"], dir: "supabase/declarative/block" },
+      sql: { modules: ["tenant"], dir: "supabase/declarative/module" },
     });
     expect(synced.output).toContain(
-      "Wrote supabase/declarative/block/900_better_supabase_04_tenant.sql (tenant)",
+      "Wrote supabase/declarative/module/900_better_supabase_04_tenant.sql (tenant)",
     );
     expect(synced.output).toContain(
       "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
@@ -213,7 +213,7 @@ describe("runSql", () => {
       "",
     );
     expect((await sql(["data"], config)).output).toBe(
-      "Wrote supabase/migrations/30000101000000_better_supabase_block_data.sql",
+      "Wrote supabase/migrations/30000101000000_better_supabase_module_data.sql",
     );
   });
 
@@ -248,13 +248,13 @@ describe("runSql", () => {
       output: "SQL modules are at their current versions.",
     });
     await sql(["sync"], config);
-    const file = renderBlocks(
+    const file = renderModules(
       ["tenant"],
-      blockLayout(resolveConfig(config, root)),
-    ).find((block) => block.module === "tenant" && block.kind === "schema");
+      moduleLayout(resolveConfig(config, root)),
+    ).find((module) => module.module === "tenant" && module.kind === "schema");
     const path = join(root, file!.path);
     const legacy = (await readFile(path, "utf8")).replace(
-      /^-- @bs-block .*\n/m,
+      /^-- @bs-module .*\n/m,
       "",
     );
     await writeFile(path, legacy);
@@ -275,7 +275,7 @@ describe("runSql", () => {
       "Renames memberships.org_id to organization_id",
     );
     expect(done.output).toContain("Then create a migration:");
-    expect(await readFile(path, "utf8")).toContain("-- @bs-block tenant@2");
+    expect(await readFile(path, "utf8")).toContain("-- @bs-module tenant@2");
     expect((await sql(["upgrade"], config)).output).toBe(
       "SQL modules are at their current versions.",
     );
@@ -284,9 +284,9 @@ describe("runSql", () => {
   it("reports a stale file at the current version in upgrade --check", async () => {
     const config: BetterSupabaseConfig = { sql: { modules: ["mfa"] } };
     await sql(["sync"], config);
-    const [file] = renderBlocks(
+    const [file] = renderModules(
       ["mfa"],
-      blockLayout(resolveConfig(config, root)),
+      moduleLayout(resolveConfig(config, root)),
     );
     await writeFile(
       join(root, file!.path),
@@ -313,11 +313,11 @@ describe("runSql", () => {
 
   it("prints the contract of a custom-mode module", async () => {
     const printed = await sql(["print", "tenant"], {
-      blocks: { tenant: { mode: "custom", schema: "app" } },
+      sql: { modules: { tenant: { mode: "custom", schema: "app" } } },
     });
     expect(printed.code).toBe(0);
     expect(printed.output).toMatch(
-      /^-- blocks\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
+      /^-- sql\.modules\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
     );
   });
 
@@ -373,7 +373,7 @@ describe("runSql", () => {
         join(root, "permdock.manifest.json"),
         JSON.stringify(manifest),
       );
-      const keys = blockPermissionKeys(
+      const keys = modulePermissionKeys(
         { access: { model: "permdock" } },
         Object.keys(SQL_MODULES),
       ).map((entry) => ({ key: entry.key, rowConditions: false }));
@@ -385,7 +385,7 @@ describe("runSql", () => {
     const permdock = (
       extra: BetterSupabaseConfig = {},
     ): BetterSupabaseConfig => ({
-      blocks: { access: { model: "permdock" } },
+      sql: { modules: { access: { model: "permdock" } } },
       ...extra,
     });
 
@@ -426,7 +426,7 @@ describe("runSql", () => {
       );
     });
 
-    it("stops on a block permission key the catalog doesn't mark scope-only", async () => {
+    it("stops on a module permission key the catalog doesn't mark scope-only", async () => {
       await writeProject(undefined, [
         { key: "organization.update", rowConditions: true },
       ]);

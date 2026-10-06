@@ -599,7 +599,6 @@ describe("config JSON Schema", () => {
       expose: true,
       readSets: true,
       sql: true,
-      blocks: true,
       seed: true,
       openapi: true,
       doctor: true,
@@ -838,7 +837,7 @@ describe("sql", () => {
     expect(list.stdout).toMatch(/^ {2}audit/m);
   });
 
-  it("names block files that schema_paths misses", async () => {
+  it("names module files that schema_paths misses", async () => {
     await mkdir(join(dir, "supabase"), { recursive: true });
     await writeFile(
       join(dir, "supabase/config.toml"),
@@ -857,7 +856,7 @@ describe("sql", () => {
     const listed = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
     expect(listed.stdout).toContain(
-      "Then create a migration: supabase db diff -f better_supabase_block",
+      "Then create a migration: supabase db diff -f better_supabase_module",
     );
   });
 
@@ -870,7 +869,7 @@ describe("sql", () => {
     const added = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(added.stdout).not.toContain("no entry matches");
     expect(added.stdout).toContain(
-      "Then create a migration: supabase db schema declarative sync -f better_supabase_block",
+      "Then create a migration: supabase db schema declarative sync -f better_supabase_module",
     );
   });
 

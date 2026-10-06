@@ -1,5 +1,5 @@
-import type { BlockLayout, BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext, BlockIdType, BlockNames } from "../context.ts";
+import type { ModuleContext, ModuleIdType, ModuleNames } from "../context.ts";
+import type { ModuleLayout, ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -8,10 +8,10 @@ import {
   SCHEMA,
   SERVICE_CALLER,
 } from "../shared.ts";
-import { BLOCK_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { auditTests } from "./audit-tests.ts";
 
-const NAMES: BlockNames = {
+const NAMES: ModuleNames = {
   options: [
     "appendOnly",
     "eventCategory",
@@ -88,19 +88,19 @@ const NAMES: BlockNames = {
 
 export type AuditImpersonators = "show" | "hide";
 
-/** `blocks.audit.options.impersonators`: whether tenant readers see who impersonated. */
-function impersonators(ctx: BlockContext): AuditImpersonators {
+/** `sql.modules.audit.options.impersonators`: whether tenant readers see who impersonated. */
+function impersonators(ctx: ModuleContext): AuditImpersonators {
   const value = ctx.text("impersonators", "show");
   if (value !== "show" && value !== "hide") {
     throw new TypeError(
-      `blocks.audit.options.impersonators must be "show" or "hide", not "${value}"`,
+      `sql.modules.audit.options.impersonators must be "show" or "hide", not "${value}"`,
     );
   }
   return value;
 }
 
 /** A text expression as the id type, or null when it doesn't parse as one. */
-function castId(value: string, idType: BlockIdType): string {
+function castId(value: string, idType: ModuleIdType): string {
   switch (idType) {
     case "uuid":
       return `case when ${value} ~ '^[0-9a-f-]{36}$' then (${value})::uuid end`;
@@ -118,7 +118,7 @@ function castId(value: string, idType: BlockIdType): string {
 }
 
 /** The restricted table is in use: an option when managed, a mapping when adopted. */
-function restrictedOn(ctx: BlockContext): boolean {
+function restrictedOn(ctx: ModuleContext): boolean {
   return ctx.manages
     ? ctx.flag("restricted", false)
     : ctx.config.tables["restricted"] !== undefined &&
@@ -127,7 +127,7 @@ function restrictedOn(ctx: BlockContext): boolean {
 
 /** `[column, value]` pairs for the logical columns the log has. */
 function present(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   table: string,
   pairs: readonly (readonly [string, string])[],
 ): { columns: string; values: string } {
@@ -138,7 +138,7 @@ function present(
   };
 }
 
-function managedTables(ctx: BlockContext, restricted: boolean): string {
+function managedTables(ctx: ModuleContext, restricted: boolean): string {
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const line = (logical: string, definition: string) =>
@@ -225,7 +225,7 @@ $$;`;
 
 /** SQL that writes the restricted details of `entry_id`, when the table is in use. */
 function restrictedInsert(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   restricted: boolean,
   values: { old: string; new: string; metadata: string },
 ): string {
@@ -251,7 +251,7 @@ function restrictedInsert(
 }
 
 function triggerFunction(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   tenantColumn: string,
   restricted: boolean,
 ): string {
@@ -339,7 +339,7 @@ end;
 $$;`;
 }
 
-function auditEvent(ctx: BlockContext, restricted: boolean): string {
+function auditEvent(ctx: ModuleContext, restricted: boolean): string {
   const id = ctx.idType;
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
@@ -381,8 +381,8 @@ function auditEvent(ctx: BlockContext, restricted: boolean): string {
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = ${sqlString(
         ctx.manages
-          ? "Set blocks.audit.options.restricted to true."
-          : "Map blocks.audit.tables.restricted to the table for sensitive details.",
+          ? "Set sql.modules.audit.options.restricted to true."
+          : "Map sql.modules.audit.tables.restricted to the table for sensitive details.",
       )};
   end if;`;
   const idempotent = ctx.has("log", "idempotencyKey")
@@ -442,7 +442,7 @@ revoke execute on function better_supabase.audit_event(text, text, text, text, t
 grant execute on function better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid) to ${roles.map(sqlIdent).join(", ")};`;
 }
 
-function appendOnly(ctx: BlockContext): string {
+function appendOnly(ctx: ModuleContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_append_only");
   const truncate = ctx.trigger("audit_no_truncate");
@@ -485,7 +485,7 @@ create trigger ${truncate} before truncate on ${log}
   for each statement execute function better_supabase.audit_append_only();`;
 }
 
-function readPolicy(ctx: BlockContext): string {
+function readPolicy(ctx: ModuleContext): string {
   const log = ctx.table("log");
   if (!ctx.flag("readPolicy", false)) {
     return ctx.manages
@@ -495,8 +495,8 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
       : "";
   }
   const c = (logical: string) => ctx.col("log", logical);
-  const view = ctx.permission("view", BLOCK_PERMISSIONS.audit.view);
-  const viewAll = ctx.permission("viewAll", BLOCK_PERMISSIONS.audit.viewAll);
+  const view = ctx.permission("view", MODULE_PERMISSIONS.audit.view);
+  const viewAll = ctx.permission("viewAll", MODULE_PERMISSIONS.audit.viewAll);
   const hidden = new Set(
     impersonators(ctx) === "hide"
       ? ["impersonatedBy", "impersonationReason", "supportSession"]
@@ -505,7 +505,7 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
   const readable = Object.keys(NAMES.tables["log"]!.columns)
     .filter((logical) => ctx.has("log", logical) && !hidden.has(logical))
     .map(c);
-  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", BLOCK_PERMISSIONS.audit.view)} permission;
+  return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", MODULE_PERMISSIONS.audit.view)} permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
 -- is_platform when it runs, so this file installs before the access module's.
 create or replace function ${ctx.fn("audit_read_tenants")}()
@@ -547,7 +547,7 @@ grant select (${readable.join(", ")}) on ${log} to authenticated;`
 }`;
 }
 
-function retention(ctx: BlockContext): string {
+function retention(ctx: ModuleContext): string {
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const id = ctx.idType;
@@ -693,7 +693,7 @@ revoke execute on function better_supabase.audit(regclass, text[], boolean, text
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;`;
 
 /** The 0.4 table name and columns, read-only, until the next minor release. */
-function legacyView(ctx: BlockContext): string {
+function legacyView(ctx: ModuleContext): string {
   const log = ctx.table("log");
   const view = `${sqlIdent(ctx.tableName("log").schema)}.audit_log`;
   return `create or replace view ${view}
@@ -705,7 +705,7 @@ revoke all on ${view} from anon, authenticated;
 grant select on ${view} to service_role;`;
 }
 
-function auditSql(ctx: BlockContext, layout: BlockLayout): string {
+function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const restricted = restrictedOn(ctx);
   const tenantColumn = ctx.text(
     "tenantColumn",
@@ -727,14 +727,14 @@ function auditSql(ctx: BlockContext, layout: BlockLayout): string {
     .join("\n\n");
 }
 
-export const AUDIT: BlockModuleDefinition = {
+export const AUDIT: ModuleDefinition = {
   name: "audit",
   title: "Audit log",
   description:
     "Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.",
   requires: [],
   dependencies: (layout) =>
-    layout.blocks?.["audit"]?.options?.["readPolicy"] === true
+    layout.modules?.["audit"]?.options?.["readPolicy"] === true
       ? ["access"]
       : [],
   target: "schema",

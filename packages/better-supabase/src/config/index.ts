@@ -33,6 +33,7 @@ export type {
   SeedConfig,
   SoftDeleteConfig,
   SourceConfig,
+  ResolvedSqlConfig,
   SqlConfig,
   TableConfig,
   TenantConfig,
@@ -41,13 +42,13 @@ export type {
   VectorSearchConfig,
 } from "./config.ts";
 export type {
-  AccessBlockConfig,
+  AccessModuleConfig,
   ActiveTenantSource,
-  BlockMode,
-  BlockModuleConfig,
-  BlocksConfig,
-} from "./blocks.ts";
-export { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
+  ModuleMode,
+  ModuleConfig,
+  ModulesConfig,
+} from "./modules.ts";
+export { DEFAULT_ACTIVE_TENANT } from "./modules.ts";
 export type * from "./snapshot.ts";
 export { DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 export {

@@ -23,8 +23,12 @@ import { actor } from "../../src/plugins/actor/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
-import { moduleBody, renderBlocks, SQL_MODULES } from "../../src/sql/blocks.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
+import {
+  moduleBody,
+  renderModules,
+  SQL_MODULES,
+} from "../../src/sql/registry.ts";
 import { asUser } from "../../src/testing/as-user.ts";
 import { testQueueBackend } from "../../src/testing/conformance.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -68,7 +72,7 @@ async function installSchemaModules(pool: Pool): Promise<void> {
     const names = Object.values(SQL_MODULES)
       .filter((module) => module.target === "schema")
       .map((module) => module.name);
-    for (const file of renderBlocks(names))
+    for (const file of renderModules(names))
       if (file.kind !== "test") await client.query(file.contents);
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
@@ -137,7 +141,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     );
     await pool.query(
       `delete from better_supabase.webhook_inbox where source = $1`,
-      [`block-${RUN}`],
+      [`module-${RUN}`],
     );
     await pool.query(
       `delete from better_supabase.idempotency_keys where scope = $1`,
@@ -259,7 +263,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         hint: expect.stringContaining("expose"),
       });
 
-      const [file] = renderBlocks(["grants"], {
+      const [file] = renderModules(["grants"], {
         grants: [{ table: name, role: "anon", privileges: ["select"] }],
       });
       await pool.query(file!.contents);
@@ -720,7 +724,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       "select to_regclass('stripe.active_entitlements') as t",
     );
     const ownsStripe = existing[0].t === null;
-    const block = renderBlocks(["entitlements"], {
+    const module = renderModules(["entitlements"], {
       entitlements: { table: billing, column: "customer_id", key: "org_id" },
     }).find((file) => file.module === "entitlements");
     try {
@@ -743,7 +747,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           ('ent_b_${RUN}', '${customer}', 'sso'), ('ent_a_${RUN}', '${customer}', 'exports'),
           ('ent_c_${RUN}', 'cus_other_${RUN}', 'audit');
       `);
-      await pool.query(block!.contents);
+      await pool.query(module!.contents);
       await pool.query(`
         create function ${hook}(event jsonb) returns jsonb language plpgsql stable set search_path = '' as $$
         declare uid uuid := (event ->> 'user_id')::uuid;
@@ -877,8 +881,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       ],
     } as const;
-    const block = renderBlocks(["entitlements"], { entitlements, permdock });
-    expect(block.map((file) => [file.module, file.kind])).toEqual([
+    const module = renderModules(["entitlements"], { entitlements, permdock });
+    expect(module.map((file) => [file.module, file.kind])).toEqual([
       ["entitlements", "schema"],
       ["entitlements", "data"],
     ]);
@@ -928,7 +932,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into stripe.active_entitlements (id, customer, lookup_key) values
           ('ent_pd_a_${RUN}', '${customer}', 'exports');
       `);
-      await pool.query(block[0]!.contents);
+      await pool.query(module[0]!.contents);
 
       // As supabase_auth_admin calls it from the hook: no auth.uid().
       const features = async (sub: string) =>
@@ -963,7 +967,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     } finally {
       // Put back the tenant-mode functions the other suites expect.
       await pool.query(
-        renderBlocks(["entitlements"], { entitlements }).find(
+        renderModules(["entitlements"], { entitlements }).find(
           (file) => file.module === "entitlements",
         )!.contents,
       );
@@ -990,7 +994,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const me = "00000000-0000-4000-8000-0000000000a1";
     const other = "00000000-0000-4000-8000-0000000000a2";
     const sql = moduleBody("access", {
-      blocks: {
+      modules: {
         access: {
           model: "permdock",
           permdock: { schema: pd, scope: "organization" },
@@ -1189,7 +1193,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const jobs = createJobs(postgres.admin, {
       [queue]: v.object({ kind: v.string() }),
     });
-    const name = `bs-block-${RUN}`;
+    const name = `bs-module-${RUN}`;
     await pool.query(
       "create extension if not exists pg_cron with schema pg_catalog",
     );
@@ -1231,10 +1235,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("runs jobs and time-zone schedules on the table backend", async () => {
     const queue = `block_${RUN}_table`;
-    const name = `bs-block-table-${RUN}`;
+    const name = `bs-module-table-${RUN}`;
     await pool.query(
       moduleBody("jobs", {
-        blocks: { jobs: { options: { backend: "table", scheduler: "drain" } } },
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
       })!,
     );
     try {
@@ -1402,7 +1408,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("stores verified webhooks once and processes them with retries", async () => {
     const secret = `whsec_${btoa("a-webhook-secret-for-the-inbox-test")}`;
     const inbox = createInbox(postgres.admin, {
-      source: `block-${RUN}`,
+      source: `module-${RUN}`,
       secrets: secret,
     });
     const deliver = async (id: string, payload: unknown) => {
@@ -1481,7 +1487,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        values ($1, 'old-done', '{}', 'processed', ${old}, ${old}),
               ($1, 'old-dead', '{}', 'dead', null, ${old}),
               ($1, 'old-pending', '{}', 'pending', null, ${old})`,
-      [`block-${RUN}`],
+      [`module-${RUN}`],
     );
     expect(await purge("better_supabase.purge_webhooks('10 years')")).toBe(1);
     expect(
@@ -1492,7 +1498,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(
       await count(
         "select count(*)::int as n from better_supabase.webhook_inbox where source = $1 and message_id like 'old-%'",
-        [`block-${RUN}`],
+        [`module-${RUN}`],
       ),
     ).toBe(1);
 
@@ -1564,8 +1570,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       ${register}
     `);
-    const file = (tables: Parameters<typeof renderBlocks>[1]) =>
-      renderBlocks(["audit"], tables).find((entry) => entry.kind === "test")!;
+    const file = (tables: Parameters<typeof renderModules>[1]) =>
+      renderModules(["audit"], tables).find((entry) => entry.kind === "test")!;
     const tap = async (contents: string): Promise<string[]> => {
       const client = await pool.connect();
       try {
@@ -1679,7 +1685,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const hook = "public.audit_retention";
     await pool.query(
       moduleBody("audit", {
-        blocks: {
+        modules: {
           audit: {
             options: {
               appendOnly: true,
@@ -1916,7 +1922,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         }),
       }),
     );
-    const [file] = renderBlocks(["read-sets"], {
+    const [file] = renderModules(["read-sets"], {
       readSets: [await compileReadSet(chrome)],
     });
     await pool.query(file!.contents);
@@ -2042,7 +2048,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `(102, '${mine}', 'b', '[0.5,0.5,0]')`,
       `(103, '${mine}', 'c', '[0.9,0.1,0]')`,
     ];
-    const [block] = renderBlocks(["vector-search"], {
+    const [module] = renderModules(["vector-search"], {
       vectorSearch: [{ table: name, column: "embedding", distance: "cosine" }],
     });
     try {
@@ -2059,7 +2065,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           using (org_id = (auth.jwt() ->> 'tenant_id')::uuid);
         grant select on public.${name} to authenticated;
       `);
-      await pool.query(block!.contents);
+      await pool.query(module!.contents);
       await pool.query(`notify pgrst, 'reload schema'`);
       const alice = await asUser(
         betterSupabase,

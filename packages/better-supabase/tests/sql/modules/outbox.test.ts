@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { BlocksConfig } from "../../../src/config/blocks.ts";
+import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, renderBlocks } from "../../../src/sql/blocks.ts";
+import { moduleBody, renderModules } from "../../../src/sql/registry.ts";
 
-const body = (blocks: BlocksConfig) => moduleBody("outbox", { blocks })!;
+const body = (modules: ModulesConfig) => moduleBody("outbox", { modules })!;
 
 describe("outbox module", () => {
   it("owns its tables and keeps the functions for the service role", () => {
@@ -107,22 +107,22 @@ describe("outbox module", () => {
 
   it("renders nothing in custom mode", () => {
     expect(
-      moduleBody("outbox", { blocks: { outbox: { mode: "custom" } } }),
+      moduleBody("outbox", { modules: { outbox: { mode: "custom" } } }),
     ).toBe(undefined);
   });
 
   it("lets other modules emit once the outbox is installed", () => {
-    const without = renderBlocks(["organizations"]).at(-1)!.contents;
+    const without = renderModules(["organizations"]).at(-1)!.contents;
     expect(without).not.toContain("emit_event");
-    const files = renderBlocks(["organizations", "outbox"]);
+    const files = renderModules(["organizations", "outbox"]);
     const organizations = files.find((file) =>
       file.path.includes("organizations"),
     )!;
     expect(organizations.contents).toContain(
       `perform "better_supabase".emit_event('organization.created'`,
     );
-    const silenced = renderBlocks(["organizations", "outbox"], {
-      blocks: { organizations: { events: false } },
+    const silenced = renderModules(["organizations", "outbox"], {
+      modules: { organizations: { events: false } },
     }).find((file) => file.path.includes("organizations"))!;
     expect(silenced.contents).not.toContain("emit_event");
   });

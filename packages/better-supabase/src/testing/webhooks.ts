@@ -10,7 +10,7 @@ import { type ConformanceReport, conform, expect } from "./conformance.ts";
 
 export interface TestWebhookSignerOptions {
   /**
-   * The receiver's check, e.g. `verifyWebhook`. When given, the block checks
+   * The receiver's check, e.g. `verifyWebhook`. When given, the module checks
    * that the signed sample verifies with its secret.
    */
   readonly verify?: (
@@ -115,7 +115,7 @@ export function testWebhookSigner(
 export interface TestWebhookTransportOptions {
   /** A receiver the transport may POST the sample to, e.g. a local server. */
   readonly url: string;
-  /** The bodies the receiver got, read after the block sends. */
+  /** The bodies the receiver got, read after the module sends. */
   readonly received?: () => Promise<readonly string[]>;
 }
 

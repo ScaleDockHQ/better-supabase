@@ -1,10 +1,13 @@
 import type { SqlClient } from "better-supabase/postgres";
 
-import { renderBlocks } from "better-supabase/sql";
+import { resolveConfig } from "better-supabase/config";
+import { renderModules } from "better-supabase/sql";
 import { readFile } from "node:fs/promises";
 import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
 
 import config from "../better-supabase.config.ts";
+
+const { sql } = resolveConfig(config, process.cwd());
 
 export const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -187,10 +190,7 @@ export async function withCentraKit(
       "insert into centrakit.user_roles (user_id, role_id) values ($1, $2)",
       [USERS.support, ROLES.systemSupport],
     );
-    for (const file of renderBlocks(
-      config.sql?.modules ?? [],
-      config.blocks ? { blocks: config.blocks } : {},
-    ))
+    for (const file of renderModules(sql.moduleNames, { modules: sql.modules }))
       await client.query(file.contents);
     await client.query(
       await readFile(

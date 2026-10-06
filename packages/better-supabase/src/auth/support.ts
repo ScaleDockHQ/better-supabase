@@ -121,7 +121,7 @@ export function supportSessionFromRow(row: SupportRow): SupportSession {
 }
 
 export interface SqlSupportStoreOptions {
-  /** `blocks.support-sessions.schema`. Defaults to `better_supabase`. */
+  /** `sql.modules.support-sessions.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
 }
 

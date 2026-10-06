@@ -9,13 +9,13 @@ import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import {
-  type BlockFile,
-  blockFileVersion,
-  type BlockLayout,
-  blockLayout,
+  type ModuleFile,
+  moduleFileVersion,
+  type ModuleLayout,
+  moduleLayout,
   moduleVersion,
-  renderBlocks,
-  sameBlockFile,
+  renderModules,
+  sameModuleFile,
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
@@ -26,10 +26,14 @@ import {
   migrationCommand,
   tomlGet,
 } from "../supabase-toml.ts";
-import { BLOCK_RULES } from "./blocks.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
-import { accessBlock, entitlementsBlock, PERMDOCK_RULES } from "./permdock.ts";
+import { MODULE_RULES } from "./modules.ts";
+import {
+  accessModule,
+  entitlementsModule,
+  PERMDOCK_RULES,
+} from "./permdock.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES, unindexedForeignKeys } from "./schema-design.ts";
@@ -93,7 +97,7 @@ export interface DoctorContext {
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
   /** `config.readSets`, compiled, or why they could not be loaded. */
-  readonly readSets?: BlockLayout["readSets"] | { readonly skipped: string };
+  readonly readSets?: ModuleLayout["readSets"] | { readonly skipped: string };
   /**
    * Supabase advisors for the database being checked, or why they were
    * skipped (a saved snapshot has no database to lint).
@@ -140,28 +144,28 @@ const publicRoles = (policy: CatalogPolicy): boolean =>
 const isTrue = (expression: string | null): boolean =>
   expression !== null && /^\(*\s*true\s*\)*$/i.test(expression.trim());
 
-interface BlockFileState {
-  readonly file: BlockFile;
+interface ModuleFileState {
+  readonly file: ModuleFile;
   readonly current: string | undefined;
-  /** The file's `@bs-block` version (1 without one) is below the module's. */
+  /** The file's `@bs-module` version (1 without one) is below the module's. */
   readonly behind: boolean;
 }
 
 /** The `sql.modules` files as this release renders them, next to what is on disk. */
-async function blockFiles(context: DoctorContext): Promise<BlockFileState[]> {
-  if (context.config.sql.modules.length === 0) return [];
-  // BS411 reports a permdock access model the manifest can't back; the block
+async function moduleFiles(context: DoctorContext): Promise<ModuleFileState[]> {
+  if (context.config.sql.moduleNames.length === 0) return [];
+  // BS411 reports a permdock access model the manifest can't back; the module
   // can't render without it, so there is nothing to compare.
-  const access = accessBlock(context);
+  const access = accessModule(context);
   if (access.kind === "invalid") return [];
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
-  const files = renderBlocks(context.config.sql.modules, {
-    ...blockLayout(
+  const files = renderModules(context.config.sql.moduleNames, {
+    ...moduleLayout(
       context.config,
       context.config.sql.testsDir,
       skipped ? [] : readSets,
-      entitlementsBlock(context),
+      entitlementsModule(context),
       access.kind === "permdock" ? access.access : undefined,
     ),
     schemasDir: declarativeSchemasDir(context.configToml),
@@ -172,51 +176,49 @@ async function blockFiles(context: DoctorContext): Promise<BlockFileState[]> {
         resolve(context.config.root, file.path),
         "utf8",
       ).catch(() => undefined);
-      const version = blockFileVersion(file.contents)?.version ?? 1;
+      const version = moduleFileVersion(file.contents)?.version ?? 1;
       return {
         file,
         current,
         behind:
           current !== undefined &&
-          (blockFileVersion(current)?.version ?? 1) < version,
+          (moduleFileVersion(current)?.version ?? 1) < version,
       };
     }),
   );
 }
 
-async function blockVersionsBehind(
+async function moduleVersionsBehind(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const findings: FindingInput[] = [];
   const upgrade = "Run `better-supabase sql upgrade`";
-  for (const { file, current, behind } of await blockFiles(context)) {
+  for (const { file, current, behind } of await moduleFiles(context)) {
     if (!behind || current === undefined) continue;
     findings.push({
-      message: `${file.path} has ${file.module} version ${String(blockFileVersion(current)?.version ?? 1)}; this release ships version ${String(blockFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(context.configToml)}\`.`,
+      message: `${file.path} has ${file.module} version ${String(moduleFileVersion(current)?.version ?? 1)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(context.configToml)}\`.`,
       target: file.path,
       location: { file: file.path, line: 1 },
     });
   }
   const db = context.database;
-  if (!db || "skipped" in db || context.config.sql.modules.length === 0) {
+  if (!db || "skipped" in db || context.config.sql.moduleNames.length === 0) {
     return findings;
   }
   let rows: { name: string; version: number }[];
   try {
-    rows = await db.query(
-      "select name, version from better_supabase.block_modules",
-    );
+    rows = await db.query("select name, version from better_supabase.modules");
   } catch {
     return findings;
   }
   for (const row of rows) {
     const module = SQL_MODULES[row.name];
-    if (!module || !context.config.sql.modules.includes(row.name)) continue;
+    if (!module || !context.config.sql.moduleNames.includes(row.name)) continue;
     const version = moduleVersion(module);
     if (row.version >= version) continue;
     findings.push({
       message: `The database has ${row.name} version ${String(row.version)}; this release ships version ${String(version)}. ${upgrade} and apply the migrations it prints.`,
-      target: `better_supabase.block_modules.${row.name}`,
+      target: `better_supabase.modules.${row.name}`,
     });
   }
   return findings;
@@ -741,12 +743,12 @@ const OWN_RULES: readonly Rule[] = [
       "A module listed in `sql.modules` differs from the version in this release. Same check as `sql sync --check`.",
     check: async (context) => {
       const stale: FindingInput[] = [];
-      for (const { file, current, behind } of await blockFiles(context)) {
-        if (behind || sameBlockFile(current, file.contents)) continue;
+      for (const { file, current, behind } of await moduleFiles(context)) {
+        if (behind || sameModuleFile(current, file.contents)) continue;
         const edited =
           current === undefined
             ? ""
-            : ` If you edited it, move the change to \`blocks.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+            : ` If you edited it, move the change to \`sql.modules.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
         const next =
           file.kind === "data"
             ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
@@ -826,8 +828,8 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "SQL module behind its current version",
     description:
-      "A module file or `better_supabase.block_modules` records an older module version than this release ships. Same check as `sql upgrade --check`.",
-    check: blockVersionsBehind,
+      "A module file or `better_supabase.modules` records an older module version than this release ships. Same check as `sql upgrade --check`.",
+    check: moduleVersionsBehind,
   },
   {
     code: "BS401",
@@ -993,7 +995,7 @@ export const RULES: readonly Rule[] = [
   ...HOOK_RULES,
   ...PERMDOCK_RULES,
   ...LIVE_RULES,
-  ...BLOCK_RULES,
+  ...MODULE_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

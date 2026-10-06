@@ -5,7 +5,7 @@ import type {
   PermdockBucketPolicy,
   SchemaMeta,
 } from "../schema/types.ts";
-import type { BlocksConfig } from "./blocks.ts";
+import type { ModulesConfig } from "./modules.ts";
 import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
@@ -172,8 +172,21 @@ export interface SqlConfig {
   readonly prefix?: string;
   /** Directory pgTAP files (the `pgtap` module) are written to. */
   readonly testsDir?: string;
-  /** SQL modules to keep in sync (`better-supabase sql add`). */
-  readonly modules?: readonly string[];
+  /**
+   * The SQL modules to keep in sync (`better-supabase sql add`): a list of
+   * names, or an object keyed by module name whose values set each module's
+   * mode, schema, table and column names, permission keys and options.
+   */
+  readonly modules?: readonly string[] | ModulesConfig;
+}
+
+/** `sql` with defaults applied: settings per module, and their names in order. */
+export interface ResolvedSqlConfig {
+  readonly dir: string;
+  readonly prefix: string;
+  readonly testsDir: string;
+  readonly modules: ModulesConfig;
+  readonly moduleNames: readonly string[];
 }
 
 export interface SeedConfig {
@@ -337,7 +350,7 @@ export interface EntitlementsConfig {
    * `member_<scope>_ids_for(user)`) instead of `better_supabase.memberships`.
    * `scope` is the PermDock scope tenants are. It defaults to the manifest's
    * root scope (the `rls.scopes` entry without `within`); `false` keeps the
-   * block's memberships table.
+   * module's memberships table.
    */
   readonly permdock?: false | { readonly scope?: string };
 }
@@ -462,12 +475,6 @@ export interface BetterSupabaseConfig {
    */
   readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
   readonly sql?: SqlConfig;
-  /**
-   * How each SQL module maps onto the database: `managed` tables, or
-   * `adopt` and `custom` over the app's own, with table, column and
-   * permission names, keyed by module name.
-   */
-  readonly blocks?: BlocksConfig;
   readonly seed?: SeedConfig;
   readonly openapi?: OpenApiConfig;
   readonly doctor?: DoctorConfig;
@@ -505,6 +512,21 @@ function vectorSearchOf(
       ? { table, column: entry, distance: "cosine" }
       : { table, column: entry.column, distance: entry.distance ?? "cosine" },
   );
+}
+
+function sqlModulesOf(
+  config: SqlConfig["modules"] = [],
+): Pick<ResolvedSqlConfig, "modules" | "moduleNames"> {
+  if (isModuleList(config)) {
+    return { modules: {}, moduleNames: config };
+  }
+  return { modules: config, moduleNames: Object.keys(config) };
+}
+
+function isModuleList(
+  config: NonNullable<SqlConfig["modules"]>,
+): config is readonly string[] {
+  return Array.isArray(config);
 }
 
 /** The config with defaults applied. */
@@ -550,8 +572,7 @@ export interface ResolvedConfig {
   }[];
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<RealtimeConfig>;
-  readonly sql: Required<SqlConfig>;
-  readonly blocks: BlocksConfig;
+  readonly sql: ResolvedSqlConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
   readonly doctor: Required<Omit<DoctorConfig, "claimsLimit">> &
@@ -663,9 +684,8 @@ export function resolveConfig(
       dir: config.sql?.dir ?? "supabase/schemas",
       prefix: config.sql?.prefix ?? "900_better_supabase",
       testsDir: config.sql?.testsDir ?? "supabase/tests",
-      modules: config.sql?.modules ?? [],
+      ...sqlModulesOf(config.sql?.modules),
     },
-    blocks: config.blocks ?? {},
     seed: {
       entry: config.seed?.entry ?? "supabase/seed.ts",
       output: config.seed?.output ?? "supabase/seeds/000_better_supabase.sql",

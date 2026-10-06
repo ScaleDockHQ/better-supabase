@@ -51,7 +51,7 @@ export interface RetryPolicy {
 export interface WebhooksOptions {
   /** `sqlTransport(postgres.admin)` for the worker, or the user's connection to manage. */
   readonly transport: BlockTransport;
-  /** `blocks.webhooks-out.schema`. Defaults to `better_supabase`. */
+  /** `sql.modules.webhooks-out.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** Defaults to `fetchTransport({ allowUrl })`. */
   readonly http?: WebhookTransport;

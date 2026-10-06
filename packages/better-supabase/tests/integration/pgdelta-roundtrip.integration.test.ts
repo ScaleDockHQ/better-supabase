@@ -20,7 +20,7 @@ import {
   type SqlArgs,
 } from "../../src/cli/commands/sql.ts";
 import { resolveConfig } from "../../src/config/index.ts";
-import { SQL_MODULES } from "../../src/sql/blocks.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const SUPABASE = resolve(
   import.meta.dirname,
@@ -98,14 +98,14 @@ declarative_schema_path = "./schemas"
         "block",
       ]);
       expect((await sql(["data"])).output).toMatch(
-        /^Wrote supabase\/migrations\/\d{14}_better_supabase_block_data\.sql$/,
+        /^Wrote supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
       );
 
       const migrations = (
         await readdir(join(root, "supabase/migrations"))
       ).toSorted();
       expect(migrations).toHaveLength(2);
-      expect(migrations[1]).toMatch(/_better_supabase_block_data\.sql$/);
+      expect(migrations[1]).toMatch(/_better_supabase_module_data\.sql$/);
       const schema = await readFile(
         join(root, "supabase/migrations", migrations[0]!),
         "utf8",
@@ -119,7 +119,7 @@ declarative_schema_path = "./schemas"
       await client.connect();
       try {
         const { rows: modules } = await client.query<{ name: string }>(
-          "select name from better_supabase.block_modules order by name",
+          "select name from better_supabase.modules order by name",
         );
         expect(modules.map((row) => row.name)).toEqual(NAMES.toSorted());
         const { rows: slugs } = await client.query<{ n: number }>(

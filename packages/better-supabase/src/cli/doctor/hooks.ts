@@ -48,8 +48,8 @@ function claimsLimits(context: DoctorContext): {
     : { token: configured ?? HOOK_CLAIMS_LIMIT, budget: undefined };
 }
 
-/** The block function that fills PermDock's `memberships` claim. */
-const BLOCK_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
+/** The module function that fills PermDock's `memberships` claim. */
+const MODULE_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
 const PERMDOCK_CALL = /\bpermdock\w*\s*\(|permdock\s*\./i;
 /** Only PermDock's generated hook sets this claim, so it marks that hook's body. */
 const PERMDOCK_HOOK = /'\{\s*(?:claims\s*,\s*)?memberships_truncated\s*\}'/i;
@@ -678,13 +678,13 @@ export const HOOK_RULES: readonly Rule[] = [
         if (config.hook !== "custom_access_token" || !extras) continue;
         for (const fn of extras.functions) {
           if (fn.source === undefined || isPermdockHook(context, fn)) continue;
-          const block = BLOCK_MEMBERSHIPS.test(fn.source);
+          const module = MODULE_MEMBERSHIPS.test(fn.source);
           const wrapper = wrapsPermdockHook(context, fn.source);
           const written = writtenClaims(fn.source, [
             ...ownedClaims(context),
             ...(wrapper ? registered.keys() : []),
           ]);
-          if (!block && written.length === 0) continue;
+          if (!module && written.length === 0) continue;
           const permdock = project
             ? permdockSource(project)
             : PERMDOCK_CALL.test(fn.source)
@@ -693,7 +693,7 @@ export const HOOK_RULES: readonly Rule[] = [
           if (!permdock) continue;
           const location = hookLocation(context, config.hook);
           const what = [
-            ...(block ? ["calls better_supabase.membership_claims"] : []),
+            ...(module ? ["calls better_supabase.membership_claims"] : []),
             ...(written.length > 0 ? [`writes ${written.join(", ")}`] : []),
           ].join(" and ");
           const extra = written.filter((claim) => registered.has(claim));

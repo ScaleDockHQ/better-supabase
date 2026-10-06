@@ -1,10 +1,10 @@
-import type { BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext, BlockNames } from "../context.ts";
+import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 
-const NAMES: BlockNames = {
+const NAMES: ModuleNames = {
   options: ["defaultSource", "emitRoles", "blockSource", "retention", "settle"],
   tables: {
     events: {
@@ -48,7 +48,7 @@ interface Names {
   readonly has: (logical: string) => boolean;
 }
 
-function names(ctx: BlockContext): Names {
+function names(ctx: ModuleContext): Names {
   return {
     t: ctx.table("events"),
     c: ctx.table("consumers"),
@@ -58,7 +58,7 @@ function names(ctx: BlockContext): Names {
   };
 }
 
-// Cursors are block state no app has yet, so adopt mode still creates them.
+// Cursors are module state no app has yet, so adopt mode still creates them.
 function consumersTable(n: Names): string {
   return `
 create table if not exists ${n.c} (
@@ -87,7 +87,7 @@ alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default 
 create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
 }
 
-function tables(ctx: BlockContext, n: Names): string {
+function tables(ctx: ModuleContext, n: Names): string {
   if (!ctx.manages) return `${adoptXid(n)}${consumersTable(n)}`;
   const samePosition = n.e("position") === n.e("id");
   const columns = [
@@ -145,7 +145,7 @@ function eventJson(n: Names, row: string): string {
   )`;
 }
 
-function emit(ctx: BlockContext, n: Names): string {
+function emit(ctx: ModuleContext, n: Names): string {
   const insert: [string, string][] = [
     [n.e("type"), "event_type"],
     [n.e("payload"), "coalesce(payload, '{}')"],
@@ -187,7 +187,7 @@ function emit(ctx: BlockContext, n: Names): string {
   for (const role of roles) {
     if (!/^[a-z_][a-z0-9_]*$/.test(role)) {
       throw new TypeError(
-        `blocks.outbox.options.emitRoles: "${role}" is not a role name`,
+        `sql.modules.outbox.options.emitRoles: "${role}" is not a role name`,
       );
     }
   }
@@ -229,12 +229,12 @@ revoke execute on function ${signature} from public, anon, authenticated;
 grant execute on function ${signature} to ${[...new Set(["service_role", ...roles])].join(", ")};`;
 }
 
-function consumers(ctx: BlockContext, n: Names): string {
+function consumers(ctx: ModuleContext, n: Names): string {
   const byXid = n.has("xid");
   const settle = ctx.text("settle", "5 seconds");
   if (!byXid && /^\s*0+(\.0+)?\s*[a-z]*\s*$/i.test(settle)) {
     throw new TypeError(
-      "blocks.outbox.options.settle must be longer than zero: without the xid column it is how long a slow commit has to show up",
+      "sql.modules.outbox.options.settle must be longer than zero: without the xid column it is how long a slow commit has to show up",
     );
   }
   const pos = (row: string) => `${row}.${n.e("position")}`;
@@ -446,7 +446,7 @@ ${service("outbox_history", "text, text, bigint, integer")}
 ${service("purge_outbox", "interval, integer")}`;
 }
 
-function tracking(ctx: BlockContext): string {
+function tracking(ctx: ModuleContext): string {
   const trigger = ctx.trigger("outbox_events");
   return `
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
@@ -490,7 +490,7 @@ $$;
 revoke execute on function ${ctx.fn("track_events")}(regclass, text, text) from public, anon, authenticated;`;
 }
 
-function build(ctx: BlockContext): string {
+function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const n = names(ctx);
   return [
@@ -501,7 +501,7 @@ function build(ctx: BlockContext): string {
   ].join("\n");
 }
 
-export const OUTBOX: BlockModuleDefinition = {
+export const OUTBOX: ModuleDefinition = {
   name: "outbox",
   title: "Outbox",
   description:

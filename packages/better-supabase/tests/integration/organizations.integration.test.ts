@@ -3,14 +3,14 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { InvitationSent } from "../../src/blocks/organizations/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { BlockLayout } from "../../src/sql/blocks.ts";
+import type { ModuleLayout } from "../../src/sql/registry.ts";
 
 import {
   createOrganizations,
   sqlTransport,
 } from "../../src/blocks/organizations/index.ts";
 import { EventHub } from "../../src/core/events.ts";
-import { renderBlocks } from "../../src/sql/blocks.ts";
+import { renderModules } from "../../src/sql/registry.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -43,8 +43,8 @@ const USERS = {
 type Who = keyof typeof USERS;
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
-const LAYOUT: BlockLayout = {
-  blocks: {
+const LAYOUT: ModuleLayout = {
+  modules: {
     organizations: { options: { reservedSlugs: ["admin"] } },
     invitations: { options: { prefill: true } },
   },
@@ -114,7 +114,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
-      for (const file of renderBlocks(["organizations", "invitations"], LAYOUT))
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        LAYOUT,
+      ))
         await client.query(file.contents);
 
       await s.as("owner");
@@ -270,8 +273,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
-      const layout: BlockLayout = {
-        blocks: {
+      const layout: ModuleLayout = {
+        modules: {
           access: {
             activeTenant: "claim",
             roles: {
@@ -282,7 +285,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderBlocks(["organizations"], layout))
+      for (const file of renderModules(["organizations"], layout))
         await client.query(file.contents);
 
       await s.as("owner");
@@ -379,7 +382,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const schema = `bs_catalog_${USERS.owner.slice(0, 8)}`;
-    const block = { schema };
+    const module = { schema };
     try {
       await client.query("begin");
       for (const who of ["owner", "member"] as const) {
@@ -389,15 +392,18 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
-      const layout: BlockLayout = {
-        blocks: {
-          access: { ...block, model: "catalog" },
-          tenant: block,
-          organizations: block,
-          invitations: block,
+      const layout: ModuleLayout = {
+        modules: {
+          access: { ...module, model: "catalog" },
+          tenant: module,
+          organizations: module,
+          invitations: module,
         },
       };
-      for (const file of renderBlocks(["organizations", "invitations"], layout))
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        layout,
+      ))
         await client.query(file.contents);
       await client.query(`
         insert into ${schema}.roles (id, key) values
@@ -468,7 +474,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const schema = `bs_platform_${USERS.owner.slice(0, 8)}`;
-    const block = { schema };
+    const module = { schema };
     const role = (n: number) => `00000000-0000-4000-8000-00000000f00${n}`;
     const permission = (n: number) => `00000000-0000-4000-8000-00000000f10${n}`;
     try {
@@ -480,15 +486,18 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
-      const layout: BlockLayout = {
-        blocks: {
-          access: { ...block, model: "catalog" },
-          tenant: block,
-          organizations: block,
-          invitations: block,
+      const layout: ModuleLayout = {
+        modules: {
+          access: { ...module, model: "catalog" },
+          tenant: module,
+          organizations: module,
+          invitations: module,
         },
       };
-      for (const file of renderBlocks(["organizations", "invitations"], layout))
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        layout,
+      ))
         await client.query(file.contents);
       await client.query(`
         insert into ${schema}.roles (id, key, scope) values
@@ -611,7 +620,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
-      for (const file of renderBlocks(["organizations", "invitations"], LAYOUT))
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        LAYOUT,
+      ))
         await client.query(file.contents);
 
       const events = new EventHub();

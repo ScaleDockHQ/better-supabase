@@ -1,21 +1,21 @@
-import type { BlockMode, BlocksConfig } from "../config/blocks.ts";
+import type { ModuleMode, ModulesConfig } from "../config/modules.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import {
-  createBlockContext,
-  type BlockContext,
-  type BlockContractFunction,
-  type BlockIdType,
-  type BlockNames,
+  createModuleContext,
+  type ModuleContext,
+  type ModuleContractFunction,
+  type ModuleIdType,
+  type ModuleNames,
 } from "./context.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import {
   hasPlatformRoles,
-  BLOCK_PERMISSION_SCOPES,
-  BLOCK_PERMISSIONS,
+  MODULE_PERMISSION_SCOPES,
+  MODULE_PERMISSIONS,
 } from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
 import { AUDIT } from "./modules/audit.ts";
@@ -31,27 +31,27 @@ import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
 
 export {
-  isBlockIdType,
-  BLOCK_ID_TYPES,
-  type BlockIdType,
-  blockIdType,
+  isModuleIdType,
+  MODULE_ID_TYPES,
+  type ModuleIdType,
+  moduleIdType,
 } from "./context.ts";
 
 /** The step from one module version to the next, for `sql upgrade`. */
-export interface BlockUpgrade {
+export interface ModuleUpgrade {
   /** The installed version this step upgrades from. */
   readonly from: number;
   readonly description: string;
   /** SQL run before the module's current file, e.g. renames and backfills. */
-  readonly sql: (ctx: BlockContext) => string;
+  readonly sql: (ctx: ModuleContext) => string;
 }
 
 /**
- * A renamed block symbol. It keeps a compatibility wrapper for at least one
+ * A renamed module symbol. It keeps a compatibility wrapper for at least one
  * minor release, then is removed; doctor reports uses of both (BS309), and
  * the name stays reserved.
  */
-export interface BlockDeprecation {
+export interface ModuleDeprecation {
   readonly kind: "function" | "claim" | "table" | "column";
   /** The old name: `schema.function`, a claim name, `schema.table` or `table.column`. */
   readonly symbol: string;
@@ -66,7 +66,7 @@ export interface BlockDeprecation {
    * old name that calls the new one and a `comment on function ... is
    * 'deprecated: use X'`.
    */
-  readonly wrapper?: (ctx: BlockContext) => string;
+  readonly wrapper?: (ctx: ModuleContext) => string;
 }
 
 /**
@@ -81,41 +81,41 @@ export interface SqlModule {
   readonly requires: readonly string[];
   /** What it needs instead when the layout has `permdock`. */
   readonly permdockRequires?: readonly string[];
-  /** What it needs for this layout, e.g. per `blocks.access.model`; overrides both. */
-  readonly dependencies?: (layout: BlockLayout) => readonly string[];
+  /** What it needs for this layout, e.g. per `sql.modules.access.model`; overrides both. */
+  readonly dependencies?: (layout: ModuleLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
   /** The module with the default claim names. */
   readonly sql: string;
   /** The module for configured claim names (`config.claims`), when it reads claims. */
-  readonly render?: (claims: ClaimsMeta, layout: BlockLayout) => string;
+  readonly render?: (claims: ClaimsMeta, layout: ModuleLayout) => string;
   /** Bumped when installed databases need an upgrade step. Defaults to 1. */
   readonly version?: number;
-  /** The modes `blocks.<name>.mode` accepts. Defaults to `managed` only. */
-  readonly modes?: readonly BlockMode[];
-  /** The logical tables and columns `blocks.<name>.tables` and `columns` map. */
-  readonly names?: BlockNames;
+  /** The modes `sql.modules.<name>.mode` accepts. Defaults to `managed` only. */
+  readonly modes?: readonly ModuleMode[];
+  /** The logical tables and columns `sql.modules.<name>.tables` and `columns` map. */
+  readonly names?: ModuleNames;
   /** The functions other modules and the TypeScript side call. */
-  readonly contract?: (ctx: BlockContext) => readonly BlockContractFunction[];
+  readonly contract?: (ctx: ModuleContext) => readonly ModuleContractFunction[];
   /** Renders the module for a layout; takes precedence over `render`. */
-  readonly build?: (ctx: BlockContext, layout: BlockLayout) => string;
-  readonly upgrades?: readonly BlockUpgrade[];
-  readonly deprecated?: readonly BlockDeprecation[];
+  readonly build?: (ctx: ModuleContext, layout: ModuleLayout) => string;
+  readonly upgrades?: readonly ModuleUpgrade[];
+  readonly deprecated?: readonly ModuleDeprecation[];
   /**
    * Rows, role settings and calls that a schema diff doesn't capture. They
    * go to `better-supabase-data/` next to the schema folder and a migration
    * (`sql data`) instead of the schema file.
    */
-  readonly data?: (ctx: BlockContext, layout: BlockLayout) => string;
+  readonly data?: (ctx: ModuleContext, layout: ModuleLayout) => string;
   /** pgTAP files for this layout, written to the tests folder next to the `pgtap` module's. */
   readonly tests?: (
-    ctx: BlockContext,
-    layout: BlockLayout,
-  ) => readonly BlockTestFile[];
+    ctx: ModuleContext,
+    layout: ModuleLayout,
+  ) => readonly ModuleTestFile[];
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
-export interface BlockTestFile {
+export interface ModuleTestFile {
   /** The file name's suffix, after the module's slug. */
   readonly name: string;
   readonly sql: string;
@@ -124,20 +124,17 @@ export interface BlockTestFile {
 export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
 
 /** A module rendered by `build`; its `sql` is the build with the defaults. */
-export type BlockModuleDefinition = Omit<
-  SqlModule,
-  "sql" | "render" | "build"
-> & {
+export type ModuleDefinition = Omit<SqlModule, "sql" | "render" | "build"> & {
   readonly build: NonNullable<SqlModule["build"]>;
 };
 
-function built(definition: BlockModuleDefinition): SqlModule {
+function built(definition: ModuleDefinition): SqlModule {
   let cached: string | undefined;
   return {
     ...definition,
     get sql() {
       return (cached ??= definition.build(
-        blockContext(definition.name, {}),
+        moduleContext(definition.name, {}),
         {},
       ));
     },
@@ -146,7 +143,7 @@ function built(definition: BlockModuleDefinition): SqlModule {
 
 const requiresOf = (
   module: SqlModule,
-  layout: BlockLayout,
+  layout: ModuleLayout,
 ): readonly string[] =>
   module.dependencies?.(layout) ??
   (layout.permdock && module.permdockRequires
@@ -328,7 +325,7 @@ const SESSIONS: SqlModule = {
 -- An access token stays valid until it expires, even after its session is
 -- signed out or its user is deleted. This checks the session behind it.
 -- Tokens without a session_id claim (signed by the app) and support tokens
--- (with an act claim, whose session the support block ends) pass.
+-- (with an act claim, whose session the support module ends) pass.
 -- authenticated can't read auth.sessions, so the check runs as the owner.
 create or replace function better_supabase.session_active()
 returns boolean
@@ -376,11 +373,11 @@ interface Memberships {
   readonly table: string;
   readonly tenant: string;
   readonly user: string;
-  readonly idType: BlockIdType;
+  readonly idType: ModuleIdType;
 }
 
-function memberships(layout: BlockLayout): Memberships {
-  const ctx = blockContext("tenant", layout);
+function memberships(layout: ModuleLayout): Memberships {
+  const ctx = moduleContext("tenant", layout);
   return {
     table: ctx.table("memberships"),
     tenant: ctx.col("memberships", "tenant"),
@@ -448,7 +445,7 @@ $$;`;
 /** `has_entitlement` and `feature_claims` on PermDock's `member_<scope>_ids` helpers. */
 const permdockEntitlementChecks = (
   claims: ClaimsMeta,
-  permdock: BlockPermdock,
+  permdock: ModulePermdock,
 ): string => {
   const member = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids`)}`;
   const memberFor = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids_for`)}`;
@@ -510,7 +507,7 @@ $$;`;
 
 const entitlementsSql = (
   claims: ClaimsMeta,
-  layout: BlockLayout = {},
+  layout: ModuleLayout = {},
 ): string => {
   const m = memberships(layout);
   const id = layout.permdock?.idType ?? m.idType;
@@ -1426,7 +1423,7 @@ const ORDER = Object.keys(SQL_MODULES);
 /** The modules to install for `names`, dependencies first. Throws on an unknown name. */
 export function resolveModules(
   names: readonly string[],
-  layout: BlockLayout = {},
+  layout: ModuleLayout = {},
 ): SqlModule[] {
   const ordered: SqlModule[] = [];
   const visit = (name: string, from?: string): void => {
@@ -1445,7 +1442,7 @@ export function resolveModules(
   return ordered.sort((a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name));
 }
 
-export interface BlockFile {
+export interface ModuleFile {
   readonly module: string;
   /** `schema` and `test` files are diffed; `data` files go in a migration too. */
   readonly kind: "schema" | "data" | "test";
@@ -1453,7 +1450,7 @@ export interface BlockFile {
   readonly contents: string;
 }
 
-export interface BlockLayout {
+export interface ModuleLayout {
   /** Directory for schema modules. Defaults to `supabase/schemas`. */
   readonly dir?: string;
   /** The declarative schema folder the diff engine loads. Defaults to `supabase/schemas`. */
@@ -1488,15 +1485,15 @@ export interface BlockLayout {
   /** `config.claims`: claim names the modules read and write. */
   readonly claims?: ClaimsMeta;
   /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
-  readonly permdock?: BlockPermdock;
+  readonly permdock?: ModulePermdock;
   /** PermDock's permission helpers for the `access` module's `permdock` model, from its manifest. */
-  readonly accessPermdock?: BlockAccessPermdock;
-  /** `config.blocks`: modes, names and permission keys per module. */
-  readonly blocks?: BlocksConfig;
+  readonly accessPermdock?: ModuleAccessPermdock;
+  /** `config.sql.modules`: modes, names and permission keys per module. */
+  readonly modules?: ModulesConfig;
 }
 
 /** One PermDock membership source, from the manifest's `memberships`. */
-interface BlockMembershipSource {
+interface ModuleMembershipSource {
   /** `schema.table`. */
   readonly table: string;
   readonly userColumn: string;
@@ -1505,24 +1502,24 @@ interface BlockMembershipSource {
 }
 
 /** Where PermDock's `member_<scope>_ids` helpers live, and the tables behind them. */
-export interface BlockPermdock {
+export interface ModulePermdock {
   /** PermDock's `rls.schema`. */
   readonly schema: string;
   /** The PermDock scope tenants map to, e.g. `organization`. */
   readonly scope: string;
   /** The scope's id type, from the manifest's `rls.scopes[].type`. */
-  readonly idType: BlockIdType;
-  readonly memberships: readonly BlockMembershipSource[];
+  readonly idType: ModuleIdType;
+  readonly memberships: readonly ModuleMembershipSource[];
 }
 
 /** Where the `permdock` access model finds `permitted_<scope>_ids` and `permdock_has`. */
-export interface BlockAccessPermdock {
+export interface ModuleAccessPermdock {
   /** PermDock's `rls.schema`. */
   readonly schema: string;
   /** The PermDock scope tenants are: the manifest's root scope unless set. */
   readonly scope: string;
   /** The scope's id type, from the manifest's `rls.scopes[].type`. */
-  readonly idType: BlockIdType;
+  readonly idType: ModuleIdType;
 }
 
 /** An embedding column `db.$search` can query. */
@@ -1629,13 +1626,13 @@ function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
   });
   return `\n-- config.json schemas
 -- Each check is added not valid and validated separately. On a large table,
--- move the validate statements to a later migration: the add blocks writes
+-- move the validate statements to a later migration: the add modules writes
 -- only briefly, and validating takes a lock that lets writes continue.
 ${statements.join("\n\n")}\n`;
 }
 
 /** Users with a membership in a tenant of `customer`, from PermDock's membership sources. */
-function permdockEntitlementMembers(permdock: BlockPermdock): string {
+function permdockEntitlementMembers(permdock: ModulePermdock): string {
   const sources = permdock.memberships.flatMap((source) => {
     const scoped =
       "value" in source.scope
@@ -1661,7 +1658,7 @@ function permdockEntitlementMembers(permdock: BlockPermdock): string {
  * managed `organizations` module adds when both modules are installed.
  */
 function customerSource(
-  layout: BlockLayout,
+  layout: ModuleLayout,
   installed: readonly string[],
 ): Required<EntitlementsSource> & { readonly deferred: boolean } {
   const configured = layout.entitlements;
@@ -1675,7 +1672,7 @@ function customerSource(
   }
   if (
     installed.includes("organizations") &&
-    blockContext("organizations", layout, installed).manages
+    moduleContext("organizations", layout, installed).manages
   ) {
     return {
       table: "better_supabase.organizations",
@@ -1691,7 +1688,7 @@ function customerSource(
 
 function entitlementsSource(
   source: Required<EntitlementsSource> & { readonly deferred: boolean },
-  layout: BlockLayout,
+  layout: ModuleLayout,
 ): string {
   const permdock = layout.permdock;
   const m = memberships(layout);
@@ -1773,7 +1770,7 @@ grant execute on function better_supabase.entitlement_members(text) to service_r
 
 function moduleExtras(
   module: SqlModule,
-  layout: BlockLayout,
+  layout: ModuleLayout,
   installed: readonly string[],
 ): string {
   if (module.name === "entitlements")
@@ -1798,27 +1795,27 @@ function moduleExtras(
 }
 
 /** Whether an installed file matches, ignoring the version stamped in its header. */
-export function sameBlockFile(
+export function sameModuleFile(
   current: string | undefined,
   expected: string,
 ): boolean {
   if (current === undefined) return false;
   const strip = (text: string): string =>
     text.replace(
-      /^(-- better-supabase block: [^\n(]*?)(?: \([^)]*\))?\n/,
+      /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?\n/,
       "$1\n",
     );
   return strip(current) === strip(expected);
 }
 
 /** The context a module renders with for `layout`. */
-export function blockContext(
+export function moduleContext(
   name: string,
-  layout: BlockLayout = {},
+  layout: ModuleLayout = {},
   installed?: readonly string[],
-): BlockContext {
-  return createBlockContext(name, (module) => SQL_MODULES[module]?.names, {
-    ...(layout.blocks ? { blocks: layout.blocks } : {}),
+): ModuleContext {
+  return createModuleContext(name, (module) => SQL_MODULES[module]?.names, {
+    ...(layout.modules ? { modules: layout.modules } : {}),
     ...(layout.claims ? { claims: layout.claims } : {}),
     ...(installed ? { installed } : {}),
     ...permdockIdType(layout),
@@ -1826,53 +1823,59 @@ export function blockContext(
 }
 
 /** The tenant id type PermDock's manifest gives, preferring the access model's scope. */
-function permdockIdType(layout: BlockLayout): { permdockIdType?: BlockIdType } {
+function permdockIdType(layout: ModuleLayout): {
+  permdockIdType?: ModuleIdType;
+} {
   const idType = layout.accessPermdock?.idType ?? layout.permdock?.idType;
   return idType ? { permdockIdType: idType } : {};
 }
 
-/** Throws on a `blocks` key that names no module, or a mode a module doesn't support. */
-export function checkBlocks(
-  blocks: BlocksConfig = {},
-  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+/** Throws on a `sql.modules` key that names no module, or a mode a module doesn't support. */
+export function checkModules(
+  config: ModulesConfig = {},
+  registry: Readonly<Record<string, SqlModule>> = SQL_MODULES,
 ): void {
-  for (const [name, entry] of Object.entries(blocks)) {
-    const module = modules[name];
+  for (const [name, entry] of Object.entries(config)) {
+    const module = registry[name];
     if (!module) {
       throw new TypeError(
-        `blocks.${name}: there is no SQL module "${name}". Modules: ${Object.keys(modules).join(", ")}`,
+        `sql.modules.${name}: there is no SQL module "${name}". Modules: ${Object.keys(registry).join(", ")}`,
       );
     }
     const mode = entry?.mode ?? "managed";
     const modes = module.modes ?? ["managed"];
     if (!modes.includes(mode)) {
       throw new TypeError(
-        `blocks.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
+        `sql.modules.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
       );
     }
   }
-  for (const use of migrationOptionUses(blocks)) {
+  for (const use of migrationOptionUses(config)) {
     if (!use.adopted) {
       throw new TypeError(
-        `${use.message} Only adopt mode accepts it: set blocks.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
+        `${use.message} Only adopt mode accepts it: set sql.modules.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
       );
     }
   }
 }
 
-/** The `@bs-block` line: module, version and mode, read by `sql upgrade`. */
-const BLOCK_MARKER: RegExp =
-  /^-- @bs-block ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
+/** The `@bs-module` line: module, version and mode, read by `sql upgrade`. */
+const MODULE_MARKER: RegExp =
+  /^-- @bs-module ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
 
-/** The installed version of a block file, from its `@bs-block` line. */
-export function blockFileVersion(
+/** The installed version of a module file, from its `@bs-module` line. */
+export function moduleFileVersion(
   contents: string,
 ): { readonly module: string; readonly version: number } | undefined {
-  const match = BLOCK_MARKER.exec(contents);
+  const match = MODULE_MARKER.exec(contents);
   return match ? { module: match[1]!, version: Number(match[2]) } : undefined;
 }
 
-function moduleSql(module: SqlModule, ctx: BlockContext, layout: BlockLayout) {
+function moduleSql(
+  module: SqlModule,
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+) {
   if (module.build) return module.build(ctx, layout);
   if (
     module.render &&
@@ -1885,12 +1888,12 @@ function moduleSql(module: SqlModule, ctx: BlockContext, layout: BlockLayout) {
 /** A module's SQL for `layout`, without header; `undefined` in custom mode. */
 export function moduleBody(
   name: string,
-  layout: BlockLayout = {},
+  layout: ModuleLayout = {},
 ): string | undefined {
-  checkBlocks(layout.blocks);
+  checkModules(layout.modules);
   const modules = resolveModules([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
-  const ctx = blockContext(
+  const ctx = moduleContext(
     name,
     layout,
     modules.map((entry) => entry.name),
@@ -1898,7 +1901,7 @@ export function moduleBody(
   return ctx.mode === "custom" ? undefined : moduleSql(module, ctx, layout);
 }
 
-function blockPath(module: SqlModule, layout: BlockLayout): string {
+function modulePath(module: SqlModule, layout: ModuleLayout): string {
   const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
   const prefix = layout.prefix ?? "900_better_supabase";
   const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
@@ -1909,30 +1912,30 @@ function blockPath(module: SqlModule, layout: BlockLayout): string {
 }
 
 /**
- * The schema or test file `renderBlocks` writes for each of `names` and the
+ * The schema or test file `renderModules` writes for each of `names` and the
  * modules they pull in, without rendering: modules in custom mode have none.
  */
-export function blockFilePaths(
+export function moduleFilePaths(
   names: readonly string[],
-  layout: BlockLayout = {},
+  layout: ModuleLayout = {},
 ): ReadonlyMap<string, string> {
-  checkBlocks(layout.blocks);
+  checkModules(layout.modules);
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
   return new Map(
     modules
       .filter(
         (module) =>
-          blockContext(module.name, layout, installed).mode !== "custom",
+          moduleContext(module.name, layout, installed).mode !== "custom",
       )
-      .map((module) => [module.name, blockPath(module, layout)]),
+      .map((module) => [module.name, modulePath(module, layout)]),
   );
 }
 
-/** A permission key a SQL module checks, from `blockPermissionKeys`. */
-export interface BlockPermissionKey {
+/** A permission key a SQL module checks, from `modulePermissionKeys`. */
+export interface ModulePermissionKey {
   readonly module: string;
-  /** The action in `blocks.<module>.permissions` that overrides the key. */
+  /** The action in `sql.modules.<module>.permissions` that overrides the key. */
   readonly action: string;
   readonly key: string;
   /**
@@ -1944,32 +1947,32 @@ export interface BlockPermissionKey {
 
 const isPermissionModule = (
   name: string,
-): name is keyof typeof BLOCK_PERMISSIONS =>
-  Object.hasOwn(BLOCK_PERMISSIONS, name);
+): name is keyof typeof MODULE_PERMISSIONS =>
+  Object.hasOwn(MODULE_PERMISSIONS, name);
 
 /**
  * Every permission key the modules `names` install (with what they pull
- * in) check, after `blocks.<module>.permissions` overrides. Modules in custom
+ * in) check, after `sql.modules.<module>.permissions` overrides. Modules in custom
  * mode are skipped, and so is `invitations.invitePlatform` without platform
  * roles. PermDock's doctor runs the same catalog check from its side.
  */
-export function blockPermissionKeys(
-  blocks: BlocksConfig,
+export function modulePermissionKeys(
+  config: ModulesConfig,
   names: readonly string[],
-): BlockPermissionKey[] {
-  const layout: BlockLayout = { blocks };
-  checkBlocks(blocks);
+): ModulePermissionKey[] {
+  const layout: ModuleLayout = { modules: config };
+  checkModules(config);
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
-  return modules.flatMap((module): BlockPermissionKey[] => {
+  return modules.flatMap((module): ModulePermissionKey[] => {
     const name = module.name;
     if (!isPermissionModule(name)) return [];
-    const ctx = blockContext(name, layout, installed);
+    const ctx = moduleContext(name, layout, installed);
     if (ctx.mode === "custom") return [];
     const scopes: Readonly<Record<string, "tenant" | "platform">> =
-      BLOCK_PERMISSION_SCOPES[name];
-    return Object.entries(BLOCK_PERMISSIONS[name]).flatMap(
-      ([action, fallback]): BlockPermissionKey[] =>
+      MODULE_PERMISSION_SCOPES[name];
+    return Object.entries(MODULE_PERMISSIONS[name]).flatMap(
+      ([action, fallback]): ModulePermissionKey[] =>
         action === "invitePlatform" && !hasPlatformRoles(ctx)
           ? []
           : [
@@ -1984,24 +1987,24 @@ export function blockPermissionKeys(
   });
 }
 
-/** The table `blockModuleRow` writes to, created by every schema module's file. */
-const BLOCK_MODULES_TABLE = `
+/** The table `moduleRow` writes to, created by every schema module's file. */
+const MODULE_MODULES_TABLE = `
 create schema if not exists better_supabase;
-create table if not exists better_supabase.block_modules (
+create table if not exists better_supabase.modules (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.block_modules enable row level security;
-revoke all on better_supabase.block_modules from anon, authenticated;
-grant select on better_supabase.block_modules to service_role;
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;
 `;
 
-/** Records the module in `better_supabase.block_modules`, which `sql upgrade` and doctor read. */
-function blockModuleRow(module: SqlModule, mode: BlockMode): string {
-  return `insert into better_supabase.block_modules (name, version, mode)
+/** Records the module in `better_supabase.modules`, which `sql upgrade` and doctor read. */
+function moduleRow(module: SqlModule, mode: ModuleMode): string {
+  return `insert into better_supabase.modules (name, version, mode)
 values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();`;
@@ -2013,8 +2016,8 @@ on conflict (name) do update
  * pg-delta loads every file under the schema folder, nested folders
  * included, and rejects a managed table that has rows afterwards.
  */
-function blockDataPath(module: SqlModule, layout: BlockLayout): string {
-  const path = blockPath(module, layout);
+function moduleDataPath(module: SqlModule, layout: ModuleLayout): string {
+  const path = modulePath(module, layout);
   const file = path.slice(path.lastIndexOf("/"));
   const dir = path.slice(0, path.lastIndexOf("/"));
   const bare = (value: string) => value.replace(/^\.\//, "").replace(/\/$/, "");
@@ -2025,12 +2028,12 @@ function blockDataPath(module: SqlModule, layout: BlockLayout): string {
   return `${parent < 0 ? "" : base.slice(0, parent + 1)}better-supabase-data${file}`;
 }
 
-/** The `@bs-block-data` line of a data file. */
-const BLOCK_DATA_MARKER: RegExp = /^-- @bs-block-data ([a-z0-9-]+)$/m;
+/** The `@bs-module-data` line of a data file. */
+const MODULE_DATA_MARKER: RegExp = /^-- @bs-module-data ([a-z0-9-]+)$/m;
 
-/** Whether `contents` is a data file `renderBlocks` wrote. */
-export const isBlockDataFile = (contents: string): boolean =>
-  BLOCK_DATA_MARKER.test(contents);
+/** Whether `contents` is a data file `renderModules` wrote. */
+export const isModuleDataFile = (contents: string): boolean =>
+  MODULE_DATA_MARKER.test(contents);
 
 /**
  * The files `sql add` writes for these modules. Modules in `custom` mode
@@ -2039,24 +2042,24 @@ export const isBlockDataFile = (contents: string): boolean =>
  * second file in `better-supabase-data/` (`kind: 'data'`), which
  * `sql data` writes into a migration.
  */
-export function renderBlocks(
+export function renderModules(
   names: readonly string[],
-  layout: BlockLayout = {},
-): BlockFile[] {
-  checkBlocks(layout.blocks);
+  layout: ModuleLayout = {},
+): ModuleFile[] {
+  checkModules(layout.modules);
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
-  return modules.flatMap((module): BlockFile[] => {
-    const ctx = blockContext(module.name, layout, installed);
+  return modules.flatMap((module): ModuleFile[] => {
+    const ctx = moduleContext(module.name, layout, installed);
     if (ctx.mode === "custom") return [];
-    const title = `-- better-supabase block: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
+    const title = `-- better-supabase module: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
     const managed = [
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
-      "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
+      "-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.",
     ];
     const header = [
       title,
-      `-- @bs-block ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
+      `-- @bs-module ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
       `-- ${module.description}`,
       ...managed,
     ].join("\n");
@@ -2067,20 +2070,20 @@ export function renderBlocks(
         {
           module: module.name,
           kind: "test",
-          path: blockPath(module, layout),
+          path: modulePath(module, layout),
           contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}`,
         },
       ];
     }
     const data = [
       module.data?.(ctx, layout).trim() ?? "",
-      blockModuleRow(module, ctx.mode),
+      moduleRow(module, ctx.mode),
     ]
       .filter((part) => part !== "")
       .join("\n\n");
     const dataHeader = [
       title,
-      `-- @bs-block-data ${module.name}`,
+      `-- @bs-module-data ${module.name}`,
       "-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`",
       "-- after the schema migration to put them in a migration.",
       ...managed,
@@ -2089,23 +2092,23 @@ export function renderBlocks(
     const slug = module.name.replaceAll("-", "_");
     const testHeader = [
       title,
-      `-- @bs-block-test ${module.name}`,
+      `-- @bs-module-test ${module.name}`,
       ...managed,
     ].join("\n");
     return [
       {
         module: module.name,
         kind: "schema",
-        path: blockPath(module, layout),
-        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${BLOCK_MODULES_TABLE}`,
+        path: modulePath(module, layout),
+        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${MODULE_MODULES_TABLE}`,
       },
       {
         module: module.name,
         kind: "data",
-        path: blockDataPath(module, layout),
+        path: moduleDataPath(module, layout),
         contents: `${dataHeader}\n\n${data}\n`,
       },
-      ...(module.tests?.(ctx, layout) ?? []).map((test): BlockFile => ({
+      ...(module.tests?.(ctx, layout) ?? []).map((test): ModuleFile => ({
         module: module.name,
         kind: "test",
         path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
@@ -2118,7 +2121,7 @@ export function renderBlocks(
 /** The compatibility wrappers of a module's deprecated symbols that are not removed yet. */
 export function deprecationWrappers(
   module: SqlModule,
-  ctx: BlockContext,
+  ctx: ModuleContext,
 ): string {
   return (module.deprecated ?? [])
     .flatMap((entry) =>
@@ -2131,14 +2134,14 @@ export function deprecationWrappers(
     .join("");
 }
 
-/** An installed module, from its file's `@bs-block` line or `block_modules`. */
-export interface InstalledBlockModule {
+/** An installed module, from its file's `@bs-module` line or `modules`. */
+export interface InstalledModule {
   readonly module: string;
   readonly version: number;
 }
 
 /** What `sql upgrade` runs for one module behind the current version. */
-export interface BlockUpgradePlan {
+export interface ModuleUpgradePlan {
   readonly module: string;
   readonly from: number;
   readonly to: number;
@@ -2155,22 +2158,22 @@ export interface BlockUpgradePlan {
  * custom mode belong to the app and are skipped.
  */
 export function upgradePlan(
-  installed: readonly InstalledBlockModule[],
-  layout: BlockLayout = {},
+  installed: readonly InstalledModule[],
+  layout: ModuleLayout = {},
   modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
-): BlockUpgradePlan[] {
-  checkBlocks(layout.blocks, modules);
+): ModuleUpgradePlan[] {
+  checkModules(layout.modules, modules);
   const names = installed.map((entry) => entry.module);
-  return installed.flatMap((entry): BlockUpgradePlan[] => {
+  return installed.flatMap((entry): ModuleUpgradePlan[] => {
     const module = modules[entry.module];
     if (!module) return [];
     const to = moduleVersion(module);
     if (entry.version >= to) return [];
-    const ctx = createBlockContext(
+    const ctx = createModuleContext(
       entry.module,
       (name) => modules[name]?.names,
       {
-        ...(layout.blocks ? { blocks: layout.blocks } : {}),
+        ...(layout.modules ? { modules: layout.modules } : {}),
         ...(layout.claims ? { claims: layout.claims } : {}),
         installed: names,
         ...permdockIdType(layout),
@@ -2189,10 +2192,10 @@ export function upgradePlan(
   });
 }
 
-/** Every deprecated or removed block symbol, with its module. */
-export function blockDeprecations(
+/** Every deprecated or removed module symbol, with its module. */
+export function moduleDeprecations(
   modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
-): readonly (BlockDeprecation & { readonly module: string })[] {
+): readonly (ModuleDeprecation & { readonly module: string })[] {
   return Object.values(modules).flatMap((module) =>
     (module.deprecated ?? []).map((entry) => ({
       ...entry,
@@ -2204,17 +2207,17 @@ export function blockDeprecations(
 /** The contract functions of the modules in `custom` mode, for doctor. */
 export function customContracts(
   names: readonly string[],
-  layout: BlockLayout = {},
+  layout: ModuleLayout = {},
 ): {
   readonly module: string;
   readonly schema: string;
-  readonly idType: BlockIdType;
-  readonly functions: readonly BlockContractFunction[];
+  readonly idType: ModuleIdType;
+  readonly functions: readonly ModuleContractFunction[];
 }[] {
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module) => {
-    const ctx = blockContext(module.name, layout, installed);
+    const ctx = moduleContext(module.name, layout, installed);
     if (ctx.mode !== "custom" || !module.contract) return [];
     return [
       {

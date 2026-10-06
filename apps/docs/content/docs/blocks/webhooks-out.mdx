@@ -186,7 +186,7 @@ createWebhooks({
 | `secrets`                     | A `WebhookSecretStore`, e.g. a KMS                                                      |
 | `after_webhook_delivery` hook | A SQL function that runs after each delivery completes, with its id and status          |
 | `webhook.*` block events      | `delivered`, `failed` and `disabled` on `betterSupabase.events`                         |
-| `webhooks.*` permissions      | Rename them with `blocks.webhooks-out.permissions.manage` and `.view`                   |
+| `webhooks.*` permissions      | Rename them with `sql.modules.webhooks-out.permissions.manage` and `.view`              |
 
 `testWebhookSigner`, `testWebhookTransport` and `testWebhookSecretStore`
 from `better-supabase/testing` check your own implementations against the
@@ -203,42 +203,44 @@ maps the stored statuses and signs with an existing HMAC format:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  blocks: {
-    "webhooks-out": {
-      mode: "adopt",
-      schema: "public",
-      idType: "uuid",
-      tables: {
-        endpoints: "public.webhook_destinations",
-        secrets: "public.webhook_destination_secrets",
-      },
-      columns: {
-        endpoints: {
-          eventTypes: "event_kinds",
-          failingSince: null,
-          disabledAt: null,
-          disabledReason: null,
+  sql: {
+    modules: {
+      "webhooks-out": {
+        mode: "adopt",
+        schema: "public",
+        idType: "uuid",
+        tables: {
+          endpoints: "public.webhook_destinations",
+          secrets: "public.webhook_destination_secrets",
         },
-        secrets: {
-          endpoint: "destination_id",
-          vaultId: null,
-          expiresAt: null,
+        columns: {
+          endpoints: {
+            eventTypes: "event_kinds",
+            failingSince: null,
+            disabledAt: null,
+            disabledReason: null,
+          },
+          secrets: {
+            endpoint: "destination_id",
+            vaultId: null,
+            expiresAt: null,
+          },
+          deliveries: {
+            endpoint: "destination_id",
+            type: "event_kind",
+            run: "workflow_run_id",
+          },
         },
-        deliveries: {
-          endpoint: "destination_id",
-          type: "event_kind",
-          run: "workflow_run_id",
-        },
-      },
-      options: {
-        secretStorage: "column",
-        eventIdType: "uuid",
-        runIdType: "uuid",
-        statuses: {
-          delivering: "processing",
-          succeeded: "completed",
-          retrying: "failed",
-          dead: "dead_lettered",
+        options: {
+          secretStorage: "column",
+          eventIdType: "uuid",
+          runIdType: "uuid",
+          statuses: {
+            delivering: "processing",
+            succeeded: "completed",
+            retrying: "failed",
+            dead: "dead_lettered",
+          },
         },
       },
     },

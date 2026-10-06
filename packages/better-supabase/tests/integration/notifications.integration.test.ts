@@ -5,13 +5,13 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { NotificationMessage } from "../../src/blocks/notifications/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { BlockLayout } from "../../src/sql/blocks.ts";
+import type { ModuleLayout } from "../../src/sql/registry.ts";
 
 import {
   createNotifications,
   sqlTransport,
 } from "../../src/blocks/notifications/index.ts";
-import { renderBlocks } from "../../src/sql/blocks.ts";
+import { renderModules } from "../../src/sql/registry.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -44,8 +44,8 @@ const USERS = {
 type Who = keyof typeof USERS;
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
-const LAYOUT: BlockLayout = {
-  blocks: {
+const LAYOUT: ModuleLayout = {
+  modules: {
     notifications: {
       options: {
         topic: "organization:{tenantId}:notifications:{userId}",
@@ -130,7 +130,7 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
-      for (const file of renderBlocks(
+      for (const file of renderModules(
         ["organizations", "outbox", "notifications"],
         LAYOUT,
       ))
@@ -469,7 +469,7 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
-      for (const file of renderBlocks(
+      for (const file of renderModules(
         ["organizations", "notifications"],
         LAYOUT,
       ))

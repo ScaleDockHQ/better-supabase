@@ -1,4 +1,4 @@
--- better-supabase block: audit
+-- better-supabase module: audit
 -- Records inserts, updates and deletes with the actor and changed columns, for tables you register.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 

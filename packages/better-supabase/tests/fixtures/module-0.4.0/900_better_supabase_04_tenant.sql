@@ -1,4 +1,4 @@
--- better-supabase block: tenant
+-- better-supabase module: tenant
 -- Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. A template: edit the roles to fit your app.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 

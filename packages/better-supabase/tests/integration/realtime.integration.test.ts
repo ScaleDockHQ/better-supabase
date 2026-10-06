@@ -77,7 +77,7 @@ function waitFor<T>(
   });
 }
 
-describe.skipIf(!live)("Realtime block", async () => {
+describe.skipIf(!live)("Realtime module", async () => {
   const clientFor = (organizationId: string) =>
     createClient(url, publishableKey, {
       accessToken: () =>

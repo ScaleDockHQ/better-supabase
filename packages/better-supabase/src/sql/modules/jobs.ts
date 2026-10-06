@@ -1,28 +1,28 @@
-import type { BlockModuleDefinition } from "../blocks.ts";
-import type { BlockContext } from "../context.ts";
+import type { ModuleContext } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
 import { SCHEMA } from "../shared.ts";
 
 export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
 
-/** `blocks.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
-function jobsBackend(ctx: BlockContext): JobsBackend {
+/** `sql.modules.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
+function jobsBackend(ctx: ModuleContext): JobsBackend {
   const backend = ctx.text("backend", "pgmq");
   if (backend !== "pgmq" && backend !== "table") {
     throw new TypeError(
-      `blocks.jobs.options.backend must be "pgmq" or "table", not "${backend}"`,
+      `sql.modules.jobs.options.backend must be "pgmq" or "table", not "${backend}"`,
     );
   }
   return backend;
 }
 
-/** `blocks.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
-function jobsScheduler(ctx: BlockContext): JobsScheduler {
+/** `sql.modules.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
+function jobsScheduler(ctx: ModuleContext): JobsScheduler {
   const scheduler = ctx.text("scheduler", "pg_cron");
   if (scheduler !== "pg_cron" && scheduler !== "drain") {
     throw new TypeError(
-      `blocks.jobs.options.scheduler must be "pg_cron" or "drain", not "${scheduler}"`,
+      `sql.modules.jobs.options.scheduler must be "pg_cron" or "drain", not "${scheduler}"`,
     );
   }
   return scheduler;
@@ -501,7 +501,7 @@ const PG_CRON = (
   backend: JobsBackend,
 ) => `-- Recurring jobs with pg_cron, in cron.timezone (UTC unless the project changed it):
 -- select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
--- For another time zone, set blocks.jobs.options.scheduler to "drain".
+-- For another time zone, set sql.modules.jobs.options.scheduler to "drain".
 create or replace function better_supabase.schedule_job(
   job_name text,
   schedule text,
@@ -517,10 +517,10 @@ set search_path = ''
 as $$
 begin
   if pg_catalog.to_regnamespace('cron') is null then
-    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set blocks.jobs.options.scheduler to "drain"';
+    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set sql.modules.jobs.options.scheduler to "drain"';
   end if;
   if timezone <> 'UTC' then
-    raise exception 'pg_cron runs schedules in cron.timezone, not %; set blocks.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
+    raise exception 'pg_cron runs schedules in cron.timezone, not %; set sql.modules.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
   end if;${ensureQueue(backend)}
   return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));
 end;
@@ -695,7 +695,7 @@ begin
 end;
 $$;`;
 
-function jobsSql(ctx: BlockContext): string {
+function jobsSql(ctx: ModuleContext): string {
   const backend = jobsBackend(ctx);
   const scheduler = jobsScheduler(ctx);
   return [
@@ -707,11 +707,11 @@ function jobsSql(ctx: BlockContext): string {
   ].join("\n\n");
 }
 
-export const JOBS: BlockModuleDefinition = {
+export const JOBS: ModuleDefinition = {
   name: "jobs",
   title: "Job queue",
   description:
-    "Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
+    "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
   version: 3,

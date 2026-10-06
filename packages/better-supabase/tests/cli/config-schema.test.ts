@@ -41,19 +41,23 @@ describe("configIssues", () => {
     ]);
   });
 
-  it("takes the access keys only under blocks.access", () => {
+  it("takes the access keys only under sql.modules.access", () => {
     expect(
       configIssues({
-        blocks: {
-          access: { model: "catalog", activeTenant: "claim" },
-          organizations: { mode: "adopt", options: { ownerRole: "owner" } },
+        sql: {
+          modules: {
+            access: { model: "catalog", activeTenant: "claim" },
+            organizations: { mode: "adopt", options: { ownerRole: "owner" } },
+          },
         },
       }),
     ).toEqual([]);
     expect(
-      configIssues({ blocks: { organizations: { model: "catalog" } } }),
+      configIssues({
+        sql: { modules: { organizations: { model: "catalog" } } },
+      }),
     ).toEqual([
-      expect.stringMatching(/^blocks\.organizations\.model: Invalid key/),
+      expect.stringMatching(/^sql\.modules\.organizations\.model: Invalid key/),
     ]);
   });
 });

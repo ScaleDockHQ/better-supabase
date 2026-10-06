@@ -1,9 +1,9 @@
-import type { BlockModuleDefinition } from "../blocks.ts";
 import type {
-  BlockContext,
-  BlockContractFunction,
-  BlockNames,
+  ModuleContext,
+  ModuleContractFunction,
+  ModuleNames,
 } from "../context.ts";
+import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, updatedAt } from "../shared.ts";
@@ -13,7 +13,7 @@ import {
   notifyNames,
 } from "./notifications-sql.ts";
 
-const NAMES: BlockNames = {
+const NAMES: ModuleNames = {
   options: [
     "channelDefaults",
     "channels",
@@ -140,7 +140,7 @@ function own(n: NotifyNames, table: string, user: string): string {
   return `${n.col(table, user)} = (select auth.uid())`;
 }
 
-function tables(ctx: BlockContext, n: NotifyNames): string {
+function tables(ctx: ModuleContext, n: NotifyNames): string {
   if (!ctx.manages) return "";
   const id = ctx.idType;
   const c = n.col;
@@ -333,18 +333,18 @@ grant all on ${n.table(table)} to service_role;${policy(
 
 /** The topic as a SQL expression over `new`, and the receive pattern. */
 function topic(
-  ctx: BlockContext,
+  ctx: ModuleContext,
   n: NotifyNames,
 ): { expression: string; pattern: string } {
   const template = ctx.text("topic", "notifications:{userId}");
   if (!TOPIC.test(template) || !template.includes("{userId}")) {
     throw new TypeError(
-      `blocks.notifications.options.topic must contain {userId} and only letters, digits, ":", "_", "-", "." and placeholders, not "${template}"`,
+      `sql.modules.notifications.options.topic must contain {userId} and only letters, digits, ":", "_", "-", "." and placeholders, not "${template}"`,
     );
   }
   if (template.includes("{tenantId}") && !n.has("recipients", "tenant")) {
     throw new TypeError(
-      "blocks.notifications.options.topic uses {tenantId}, but the recipients table has no tenant column",
+      "sql.modules.notifications.options.topic uses {tenantId}, but the recipients table has no tenant column",
     );
   }
   const expression: string[] = [];
@@ -376,7 +376,7 @@ function topic(
   };
 }
 
-function realtime(ctx: BlockContext, n: NotifyNames): string {
+function realtime(ctx: ModuleContext, n: NotifyNames): string {
   const mode = ctx.text("realtime", "broadcast");
   const trigger = ctx.trigger("notification_broadcast");
   const t = n.table("recipients");
@@ -444,12 +444,12 @@ $$;`;
     }
     default:
       throw new TypeError(
-        `blocks.notifications.options.realtime must be "broadcast", "changes" or "none", not "${mode}"`,
+        `sql.modules.notifications.options.realtime must be "broadcast", "changes" or "none", not "${mode}"`,
       );
   }
 }
 
-function build(ctx: BlockContext): string {
+function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const n = notifyNames(ctx);
   return [
@@ -459,8 +459,8 @@ function build(ctx: BlockContext): string {
   ].join("\n");
 }
 
-function contract(ctx: BlockContext): readonly BlockContractFunction[] {
-  const fns: BlockContractFunction[] = [
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+  const fns: ModuleContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
     {
       name: "notification_enabled",
@@ -534,7 +534,7 @@ function contract(ctx: BlockContext): readonly BlockContractFunction[] {
   return fns;
 }
 
-export const NOTIFICATIONS: BlockModuleDefinition = {
+export const NOTIFICATIONS: ModuleDefinition = {
   name: "notifications",
   title: "Notifications",
   description:

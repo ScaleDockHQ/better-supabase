@@ -54,7 +54,7 @@ const avatars = defineBucket({
 
 const image = (text: string) => new Blob([text], { type: "image/webp" });
 
-describe.skipIf(!live)("Storage block", async () => {
+describe.skipIf(!live)("Storage module", async () => {
   const user = logos.connect(
     createClient(url, publishableKey, {
       accessToken: () =>

@@ -6,14 +6,14 @@ import type {
   WebhookTransport,
 } from "../../src/blocks/webhooks/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { BlockLayout } from "../../src/sql/blocks.ts";
+import type { ModuleLayout } from "../../src/sql/registry.ts";
 
 import {
   createWebhooks,
   sqlTransport,
   verifyWebhook,
 } from "../../src/blocks/webhooks/index.ts";
-import { renderBlocks } from "../../src/sql/blocks.ts";
+import { renderModules } from "../../src/sql/registry.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -43,8 +43,8 @@ const USERS = {
 } as const;
 type Who = keyof typeof USERS;
 
-const LAYOUT: BlockLayout = {
-  blocks: { "webhooks-out": { options: { disableAfter: "2 days" } } },
+const LAYOUT: ModuleLayout = {
+  modules: { "webhooks-out": { options: { disableAfter: "2 days" } } },
 };
 
 class Session {
@@ -129,7 +129,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`],
         );
       }
-      for (const file of renderBlocks(
+      for (const file of renderModules(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
       ))

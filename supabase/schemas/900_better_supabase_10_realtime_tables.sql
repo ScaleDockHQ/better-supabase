@@ -1,8 +1,8 @@
--- better-supabase block: realtime-tables (0.5.1)
--- @bs-block realtime-tables@1 managed
+-- better-supabase module: realtime-tables (0.5.1)
+-- @bs-module realtime-tables@1 managed
 -- Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -117,13 +117,13 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
 select better_supabase.track_realtime('public.notifications', tenant_column => 'organization_id');
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.block_modules (
+create table if not exists better_supabase.modules (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.block_modules enable row level security;
-revoke all on better_supabase.block_modules from anon, authenticated;
-grant select on better_supabase.block_modules to service_role;
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;

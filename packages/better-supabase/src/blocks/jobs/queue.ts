@@ -90,7 +90,7 @@ export interface ScheduleOptions {
   readonly context?: RequestContext;
   /**
    * The IANA time zone the cron fields are read in. Defaults to `UTC`.
-   * Other zones need `blocks.jobs.options.scheduler: "drain"`.
+   * Other zones need `sql.modules.jobs.options.scheduler: "drain"`.
    */
   readonly timeZone?: string;
 }
@@ -216,7 +216,7 @@ export interface Jobs<Q extends QueueSchemas> {
   /**
    * Enqueues `payload` on a cron schedule (`'0 3 * * *'`, `'@daily'`,
    * `'30 seconds'`), with pg_cron or the drain scheduler
-   * (`blocks.jobs.options.scheduler`). Re-scheduling a name replaces it. SQL
+   * (`sql.modules.jobs.options.scheduler`). Re-scheduling a name replaces it. SQL
    * connections only.
    */
   schedule<N extends Extract<keyof Q, string>>(
@@ -355,7 +355,7 @@ interface ScheduleRow {
 
 /**
  * The `jobs` SQL module over a service SQL connection. The same
- * functions back both `blocks.jobs.options.backend` values (pgmq and table)
+ * functions back both `sql.modules.jobs.options.backend` values (pgmq and table)
  * and both schedulers.
  */
 export function sqlQueueBackend(sql: SqlClient): QueueBackend {

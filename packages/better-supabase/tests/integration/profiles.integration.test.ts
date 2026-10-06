@@ -1,7 +1,7 @@
 import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../src/sql/blocks.ts";
+import { renderModules } from "../../src/sql/registry.ts";
 import {
   avatarBucket,
   organizationLogoBucket,
@@ -71,7 +71,7 @@ describe.skipIf(!live)("profiles", () => {
     try {
       await client.query("begin");
       const layout = {
-        blocks: {
+        modules: {
           tenant: { schema: SCHEMA },
           access: { schema: SCHEMA },
           profiles: {
@@ -81,7 +81,10 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
-      for (const file of renderBlocks(["tenant", "access", "profiles"], layout))
+      for (const file of renderModules(
+        ["tenant", "access", "profiles"],
+        layout,
+      ))
         await client.query(file.contents);
 
       const meta = {
@@ -235,7 +238,7 @@ describe.skipIf(!live)("profiles", () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderBlocks(["tenant", "access"], {}))
+      for (const file of renderModules(["tenant", "access"], {}))
         await client.query(file.contents);
       for (const who of ["ada", "bob"] as const) {
         await client.query(
