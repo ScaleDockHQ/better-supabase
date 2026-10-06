@@ -393,3 +393,61 @@ await inbox.process(async (message) => {
 Use `bs.admin()` only for events no user owns, such as a provider-wide
 status change. See
 [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
+### Per-tenant integrations
+
+Most inboxes serve integrations a tenant connected, so a message can belong to
+a tenant: `tenantOf(payload)` reads it from the payload, and `verify` can
+return it next to the id and payload. `list({ tenant })` shows a tenant's
+messages newest first (an integration's delivery log), and
+`purge({ tenant, olderThan: 0 })` removes them when the tenant goes.
+
+```ts
+const inbox = createInbox(postgres.admin, {
+  source: "chat-provider",
+  secrets: process.env.CHAT_WEBHOOK_SECRET!,
+  tenantOf: (payload) => connectionTenant(payload),
+});
+
+const deliveries = await inbox
+  .list({ tenant: organizationId, status: "dead" })
+  .orThrow();
+```
+
+A provider that pages its deliveries needs progress that survives a retry.
+`message.checkpoint(fields)` merges `fields` into the stored progress while
+the worker holds the message, and the next attempt reads it from
+`message.progress`:
+
+```ts
+await inbox.process(async (message) => {
+  let cursor = message.progress.cursor as string | undefined;
+  do {
+    const page = await provider.fetchPage(message.payload, cursor);
+    await apply(page.items);
+    cursor = page.next;
+    await message.checkpoint({ cursor });
+  } while (cursor);
+});
+```
+
+`inbox.store({ id, payload, type, tenant })` stores an event your code
+already verified, for providers whose SDK verifies and parses in one call:
+
+```ts
+export async function POST(request: Request) {
+  const event = await stripe.webhooks.constructEventAsync(
+    await request.text(),
+    request.headers.get("stripe-signature")!,
+    process.env.STRIPE_WEBHOOK_SECRET!,
+  );
+  const stored = await inbox.store({
+    id: event.id,
+    type: event.type,
+    payload: event,
+  });
+  return stored.ok
+    ? new Response(null, { status: 202 })
+    : new Response(null, { status: 500 });
+}
+```

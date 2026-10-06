@@ -1722,13 +1722,14 @@ describe("createInbox", () => {
     expect(await response.json()).toEqual({ id: 5, duplicate: false });
     expect(fake.calls).toEqual([
       {
-        text: "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5)",
+        text: "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
         values: [
           "stripe",
           "msg_1",
           "invoice.paid",
           '{"type":"invoice.paid","amount":10}',
           '{"x-request-id":"r1"}',
+          null,
         ],
       },
     ]);
@@ -1793,6 +1794,137 @@ describe("createInbox", () => {
       "push",
       '{"ref":"main"}',
     ]);
+  });
+
+  it("stores pre-verified events with a tenant, lists and purges per tenant", async () => {
+    const fake = fakeSql([
+      ["receive_webhook", [{ id: 9, duplicate: false }]],
+      [
+        "list_webhooks",
+        [
+          {
+            id: 9,
+            source: "chat",
+            message_id: "d1",
+            event_type: "message",
+            payload: {},
+            headers: {},
+            attempts: 2,
+            received_at: new Date("2026-01-01T00:00:00Z"),
+            tenant: "t1",
+            status: "dead",
+            last_error: "boom",
+            processed_at: null,
+          },
+          {
+            id: 10,
+            source: "chat",
+            message_id: "d2",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 1,
+            received_at: "2026-01-02T00:00:00Z",
+            processed_at: "2026-01-02T00:00:01Z",
+          },
+        ],
+      ],
+      ["purge_webhooks", [{ purged: 3 }]],
+    ]);
+    const inbox = createInbox(fake.sql, {
+      source: "chat",
+      secrets: secret,
+      tenantOf: (payload) =>
+        (payload as { account?: string } | null)?.account ?? null,
+    });
+    expect(
+      await inbox
+        .store({ id: "d1", payload: { account: "t1", kind: "message" } })
+        .orThrow(),
+    ).toEqual({ id: 9, duplicate: false });
+    expect(fake.calls[0]!.values).toEqual([
+      "chat",
+      "d1",
+      null,
+      '{"account":"t1","kind":"message"}',
+      "{}",
+      "t1",
+    ]);
+    await inbox
+      .store({ id: "d2", payload: {}, type: "message", tenant: "t2" })
+      .orThrow();
+    expect(fake.calls[1]!.values[2]).toBe("message");
+    expect(fake.calls[1]!.values[5]).toBe("t2");
+    const listed = await inbox
+      .list({ tenant: "t1", status: "dead", limit: 5 })
+      .orThrow();
+    expect(fake.calls[2]!.values).toEqual(["t1", "chat", "dead", 5]);
+    expect(listed[0]).toMatchObject({
+      id: 9,
+      status: "dead",
+      lastError: "boom",
+      tenant: "t1",
+      processedAt: null,
+    });
+    expect(listed[1]).toMatchObject({
+      status: "pending",
+      tenant: null,
+      lastError: null,
+    });
+    expect(listed[1]!.processedAt?.toString()).toBe("2026-01-02T00:00:01Z");
+    await inbox.list({ tenant: "t1" }).orThrow();
+    expect(fake.calls[3]!.values).toEqual(["t1", "chat", null, 100]);
+    expect(
+      await inbox
+        .purge({ tenant: "t1", olderThan: 0, includeDead: true })
+        .orThrow(),
+    ).toBe(3);
+    expect(fake.calls[4]!.values).toEqual(["0 seconds", true, 10_000, "t1"]);
+    await inbox.purge().orThrow();
+    expect(fake.calls[5]!.values).toEqual(["30 days", false, 10_000, null]);
+  });
+
+  it("takes the tenant from verify and saves checkpoints while processing", async () => {
+    const fake = fakeSql([
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      [
+        "claim_webhooks",
+        sequence([
+          {
+            id: 1,
+            source: "chat",
+            message_id: "d1",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 2,
+            received_at: "2026-01-01T00:00:00Z",
+            tenant: "t9",
+            checkpoint: { cursor: "a" },
+          },
+        ]),
+      ],
+      ["checkpoint_webhook", [{ saved: true }]],
+    ]);
+    const inbox = createInbox(fake.sql, {
+      source: "chat",
+      verify: () =>
+        Promise.resolve(ok({ id: "d1", payload: {}, tenant: "t9" })),
+    });
+    await inbox.receive(
+      new Request("https://api.test/hooks", { method: "POST", body: "{}" }),
+    );
+    expect(fake.calls[0]!.values[5]).toBe("t9");
+    const progress: unknown[] = [];
+    await inbox.process(async (message) => {
+      progress.push(message.progress, message.tenant);
+      expect(await message.checkpoint({ cursor: "b" })).toBe(true);
+    });
+    expect(progress).toEqual([{ cursor: "a" }, "t9"]);
+    const saved = fake.calls.find((call) =>
+      call.text.includes("checkpoint_webhook"),
+    )!;
+    expect(saved.values.slice(2)).toEqual(['{"cursor":"b"}']);
   });
 
   it("answers with a problem when storing fails", async () => {
@@ -1861,6 +1993,9 @@ describe("createInbox", () => {
       headers: { "x-request-id": "r1" },
       attempts: 1,
       receivedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
+      tenant: null,
+      progress: {},
+      checkpoint: expect.any(Function),
     });
     expect(
       fake.calls.map((call) => [/\.(\w+)\(/.exec(call.text)![1], call.values]),
