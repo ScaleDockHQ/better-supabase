@@ -186,9 +186,11 @@
       "TableSpecs",
       "UpdateArgs",
       "UpsertArgs",
+      "UpsertManyArgs",
       "ValidationIssue",
       "WithExtension",
-      "WriteArgs"
+      "WriteArgs",
+      "WriteManyArgs"
     ]
   },
   "./config": {
@@ -388,6 +390,7 @@
       "amrOf",
       "AUTH_CACHE_HEADERS",
       "authContext",
+      "authModeOf",
       "checkAal",
       "checkSession",
       "clearSupportCookie",
@@ -403,6 +406,7 @@
       "impersonatorOf",
       "isProblem",
       "isResult",
+      "jwtClaimsOf",
       "PRIMARY_COOKIE",
       "PROBLEM_CONTENT_TYPE",
       "PROBLEM_TYPE_BASE",
@@ -412,6 +416,7 @@
       "resolveAuth",
       "resolveToken",
       "respond",
+      "serverCore",
       "sessionCookieName",
       "settle",
       "sqlSupportStore",
@@ -425,8 +430,12 @@
       "toProblem",
       "toSession",
       "unexpectedResponse",
+      "userClaimsOf",
+      "withBetterDb",
       "withBetterPostgres",
       "withBetterSupabase",
+      "withGuard",
+      "withSession",
       "writeSession"
     ],
     "types": [
@@ -440,6 +449,9 @@
       "AuthSession",
       "AuthState",
       "BetterServer",
+      "BetterSupabaseConfig",
+      "BetterSupabaseContributions",
+      "BetterSupabaseEntry",
       "ContextOptions",
       "CookieOptions",
       "CookieRecord",
@@ -447,6 +459,7 @@
       "DeleteAccountOptions",
       "DeleteAccountResult",
       "ForContextOptions",
+      "GuardEntryConfig",
       "GuardOptions",
       "HandleOptions",
       "ImpersonationOptions",
@@ -467,9 +480,12 @@
       "ResourceRouteOptions",
       "RespondOptions",
       "ServerContext",
+      "ServerCore",
+      "ServerDbOptions",
       "ServerOptions",
       "SessionActor",
       "SessionDelegation",
+      "SessionEntryConfig",
       "SessionLookup",
       "Settled",
       "SqlSupportStoreOptions",
@@ -550,12 +566,15 @@
       "applyCookieWrites",
       "AUTH_CACHE_HEADERS",
       "authContext",
+      "clearSessionAtScopes",
+      "DEFAULT_SESSION_ENCODING",
       "parseCookies",
       "readSession",
       "refreshSession",
       "resolveAuth",
       "serializeCookie",
       "sessionCookieName",
+      "sessionEncoding",
       "toSession",
       "writeSession"
     ],
@@ -566,12 +585,15 @@
       "AuthState",
       "CookieOptions",
       "CookieRecord",
+      "CookieScope",
       "CookieWrite",
       "MembershipClaim",
       "RefreshOptions",
       "RefreshOutcome",
       "ResolveAuthOptions",
-      "StoredSession"
+      "SessionEncoding",
+      "StoredSession",
+      "WriteSessionOptions"
     ]
   },
   "./next": {
@@ -633,21 +655,67 @@
   },
   "./hono": {
     "values": [
-      "createHono"
+      "createHono",
+      "toHono"
     ],
     "types": [
       "BetterHono",
       "GuardOptions",
+      "HonoBridge",
       "HonoEnv",
       "HonoOptions",
       "MiddlewareOptions",
       "ResourceRouteOptions"
     ]
   },
+  "./tanstack-start": {
+    "values": [
+      "toTanStackStart"
+    ],
+    "types": [
+      "TanStackStartServerArgs"
+    ]
+  },
+  "./sveltekit": {
+    "values": [
+      "toSvelteKit"
+    ],
+    "types": [
+      "SvelteKitEvent",
+      "SvelteKitHandle"
+    ]
+  },
+  "./react-router": {
+    "values": [
+      "toReactRouter"
+    ],
+    "types": [
+      "ReactRouterContext",
+      "ReactRouterMiddleware"
+    ]
+  },
+  "./h3": {
+    "values": [
+      "toH3"
+    ],
+    "types": [
+      "H3Event",
+      "H3Middleware"
+    ]
+  },
+  "./elysia": {
+    "values": [
+      "toElysia"
+    ],
+    "types": [
+      "ElysiaBridge"
+    ]
+  },
   "./orpc": {
     "values": [
       "createOrpc",
-      "orpcCode"
+      "orpcCode",
+      "toOrpc"
     ],
     "types": [
       "BetterOrpc",
@@ -656,14 +724,17 @@
       "OrpcContext",
       "OrpcFetchHandler",
       "OrpcFetchOptions",
+      "OrpcHandlerLike",
       "OrpcMiddleware",
       "OrpcOptions",
-      "OrpcRequestContext"
+      "OrpcRequestContext",
+      "ToOrpcOptions"
     ]
   },
   "./expo": {
     "values": [
-      "createExpo"
+      "createExpo",
+      "toExpo"
     ],
     "types": [
       "BetterExpo",
@@ -678,8 +749,10 @@
   },
   "./edge": {
     "values": [
+      "corsConfig",
       "createEdge",
-      "SUPABASE_CORS_HEADERS"
+      "SUPABASE_CORS_HEADERS",
+      "toEdge"
     ],
     "types": [
       "BetterEdge",
