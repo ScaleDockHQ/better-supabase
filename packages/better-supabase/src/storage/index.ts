@@ -1,5 +1,16 @@
 export { defineBucket, parseSize, TTL } from "./bucket.ts";
 export { fromStorageError } from "./errors.ts";
+export { defineBuckets } from "./registry.ts";
+export type {
+  AnyBucket,
+  BucketIdOf,
+  BucketMap,
+  Buckets,
+  BucketWithId,
+  ConnectedRef,
+  ResolvedRef,
+  StoredRef,
+} from "./registry.ts";
 export {
   avatarBucket,
   IMAGE_TYPES,
