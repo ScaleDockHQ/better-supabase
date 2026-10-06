@@ -192,6 +192,41 @@ while, missed runs collapse into one. `runSchedules()` does the same work
 without the route, and `nextCronRun(cron, timeZone, after)` is exported for
 your own checks.
 
+Under the drain scheduler, a schedule also belongs to a tenant: `tenant` in
+the options, or the tenant of `context`. Each named schedule keeps its own
+cron, time zone and tenant, and its runs record the context, so a handler
+runs for that tenant. A product page reads schedule state with
+`listSchedules`, and tenant deletion removes them all with `unscheduleAll`:
+
+```ts
+await jobs.schedule(
+  `workflow:${definitionId}`,
+  "0 8 * * MON",
+  "run_workflow",
+  { definitionId },
+  { timeZone: "Europe/Amsterdam", context: { tenant: organizationId } },
+);
+
+const schedules = await jobs
+  .listSchedules({ prefix: "workflow:", tenant: organizationId })
+  .orThrow();
+// [{ name, cron, timeZone, queue, tenant, nextRun, lastRun, leasedUntil, createdAt }]
+
+await jobs.unscheduleAll({ tenant: organizationId }).orThrow();
+```
+
+Under pg_cron, `listSchedules` returns pg_cron's jobs with only the name and
+cron, and a schedule with a tenant returns an error.
+
+#### External schedulers
+
+The drain scheduler needs no database extension: any scheduler that calls the
+drain route on a fixed cadence runs every schedule, whatever their own
+cadences. Call it at least as often as your most frequent schedule, every
+minute for minute-level schedules. Vercel Cron, a GitHub Actions workflow, a
+Kubernetes CronJob or a Supabase Edge Function on a timer all work; each call
+leases the due schedules, so overlapping calls never enqueue a run twice.
+
 ### Drain route
 
 `drainRoute` turns the queues into an HTTP endpoint for a cron caller such as
@@ -223,9 +258,35 @@ export const GET = jobs.drainRoute({
 
 Vercel sends `Authorization: Bearer <CRON_SECRET>`; a request without it gets
 `401`. The response is JSON: `schedules` (runs enqueued), `queues` (the
-succeeded and failed counts per queue) and `budgetExhausted`. Keep `budgetMs`
-below the function's maximum duration. `drain` takes the same `budgetMs` when
-you call it yourself.
+succeeded and failed counts per queue), `budgetExhausted` and `errors` (the
+schedule and queue runs that failed as a whole). Keep `budgetMs` below the
+function's maximum duration. `drain` takes the same `budgetMs` when you call
+it yourself.
+
+`monitor` hooks around each authorized drain report to a cron monitor
+without wrapping the route. `onStart` returns a value, such as a check-in
+id, that `onFinish` receives with the result. A hook that throws goes to
+`onError` and never fails the drain.
+
+```ts
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers,
+  monitor: {
+    onStart: () =>
+      Sentry.captureCheckIn({
+        monitorSlug: "jobs-drain",
+        status: "in_progress",
+      }),
+    onFinish: (result, checkInId) =>
+      Sentry.captureCheckIn({
+        checkInId: String(checkInId),
+        monitorSlug: "jobs-drain",
+        status: result.errors > 0 ? "error" : "ok",
+      }),
+  },
+});
+```
 
 ### Queue backends
 

@@ -738,7 +738,7 @@ describe("createJobs over SQL", () => {
     expect(await jobs.unschedule("nightly").orThrow()).toBe(true);
     expect(fake.calls).toEqual([
       {
-        text: "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6)",
+        text: "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7)",
         values: [
           "nightly",
           "0 3 * * *",
@@ -746,6 +746,7 @@ describe("createJobs over SQL", () => {
           '{"day":"SUN"}',
           "UTC",
           expect.stringMatching(/T03:00:00Z$/),
+          null,
         ],
       },
       {
@@ -844,6 +845,83 @@ describe("schedules with the drain scheduler", () => {
     expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(0);
   });
 
+  it("records the schedule's tenant from the options or the context", async () => {
+    const fake = fakeSql([]);
+    const jobs = createJobs(fake.sql, queues);
+    await jobs
+      .schedule("a", "@daily", "reports", { day: "mon" }, { tenant: "t1" })
+      .orThrow();
+    await jobs
+      .schedule(
+        "b",
+        "@daily",
+        "reports",
+        { day: "mon" },
+        { context: { tenant: "t2" } },
+      )
+      .orThrow();
+    await jobs.schedule("c", "@daily", "reports", { day: "mon" }).orThrow();
+    expect(fake.calls.map((call) => call.values[6])).toEqual([
+      "t1",
+      "t2",
+      null,
+    ]);
+  });
+
+  it("lists and removes a tenant's schedules", async () => {
+    const fake = fakeSql([
+      [
+        "list_schedules",
+        [
+          {
+            job_name: "workflow:1",
+            schedule: "0 * * * *",
+            timezone: "Europe/Amsterdam",
+            queue: "reports",
+            tenant: "t1",
+            next_run: new Date("2026-01-01T10:00:00Z"),
+            last_run: null,
+            locked_until: null,
+            created_at: "2025-12-01T00:00:00Z",
+          },
+        ],
+      ],
+      ["unschedule_tenant", [{ removed: 2 }]],
+    ]);
+    const jobs = createJobs(fake.sql, queues);
+    const [first] = await jobs
+      .listSchedules({ prefix: "workflow:", tenant: "t1" })
+      .orThrow();
+    expect(first).toMatchObject({
+      name: "workflow:1",
+      timeZone: "Europe/Amsterdam",
+      tenant: "t1",
+      lastRun: null,
+    });
+    expect(first!.nextRun?.toString()).toBe("2026-01-01T10:00:00Z");
+    expect(fake.calls[0]!.values).toEqual(["workflow:", "t1"]);
+    expect(await jobs.listSchedules().orThrow()).toHaveLength(1);
+    expect(fake.calls[1]!.values).toEqual([null, null]);
+    expect(await jobs.unscheduleAll({ tenant: "t1" }).orThrow()).toBe(2);
+    expect(
+      await createJobs(fakeSql([]).sql, queues)
+        .unscheduleAll({ tenant: "t1" })
+        .orThrow(),
+    ).toBe(0);
+  });
+
+  it("can't list schedules over pgmq_public", async () => {
+    const { client } = fakeClient(() => []);
+    const jobs = createJobs(client, queues);
+    expect(await jobs.listSchedules()).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request" },
+    });
+    expect(await jobs.unscheduleAll({ tenant: "t1" })).toMatchObject({
+      ok: false,
+    });
+  });
+
   it("runs no schedules over pgmq_public", async () => {
     const { client } = fakeClient(() => []);
     expect(await createJobs(client, queues).runSchedules().orThrow()).toBe(0);
@@ -907,6 +985,7 @@ describe("drainRoute", () => {
       schedules: 0,
       queues: { reports: { succeeded: 1, failed: 0 } },
       budgetExhausted: false,
+      errors: 0,
     });
     expect(handled).toEqual([{ day: "MON" }]);
   });
@@ -931,6 +1010,42 @@ describe("drainRoute", () => {
       },
     });
     expect(errors).toHaveLength(3);
+    expect(body).toMatchObject({ errors: 3 });
+  });
+
+  it("calls the monitor around an authorized drain and survives its errors", async () => {
+    const fake = fakeSql([["claim_due_schedules", []]]);
+    const seen: unknown[] = [];
+    const errors: DbError[] = [];
+    const route = createJobs(fake.sql, queues).drainRoute({
+      secret: "s3cret",
+      handlers: {},
+      onError: (error) => errors.push(error),
+      monitor: {
+        onStart: (req) => {
+          seen.push(["start", new URL(req.url).pathname]);
+          return "check-in-1";
+        },
+        onFinish: (result, started) => {
+          seen.push(["finish", result.errors, started]);
+          throw new Error("monitor down");
+        },
+      },
+    });
+    expect((await route(request({ headers: {} }))).status).toBe(401);
+    expect(seen).toEqual([]);
+    expect((await route(request())).status).toBe(200);
+    expect(seen).toEqual([
+      ["start", "/api/jobs/drain"],
+      ["finish", 0, "check-in-1"],
+    ]);
+    expect(errors.map((error) => error.message)).toEqual(["monitor down"]);
+    const quiet = createJobs(fake.sql, queues).drainRoute({
+      secret: "s3cret",
+      handlers: {},
+      monitor: {},
+    });
+    expect((await quiet(request())).status).toBe(200);
   });
 
   it("stops claiming once the budget is spent", async () => {
@@ -942,7 +1057,12 @@ describe("drainRoute", () => {
       handlers: { reports: () => undefined },
     });
     const body = await (await route(request())).json();
-    expect(body).toEqual({ schedules: 0, queues: {}, budgetExhausted: true });
+    expect(body).toEqual({
+      schedules: 0,
+      queues: {},
+      budgetExhausted: true,
+      errors: 0,
+    });
     expect(fake.calls).toEqual([]);
   });
 });

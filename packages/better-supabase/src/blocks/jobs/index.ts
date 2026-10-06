@@ -12,6 +12,7 @@ export type {
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
 export type {
   ClaimOptions,
+  DrainMonitor,
   DrainOptions,
   DrainResult,
   DrainRouteOptions,
@@ -29,6 +30,8 @@ export type {
   QueueRpcClient,
   QueueSchemas,
   RunSchedulesOptions,
+  ScheduleFilter,
+  ScheduleInfo,
   ScheduleOptions,
   WorkOptions,
 } from "./queue.ts";

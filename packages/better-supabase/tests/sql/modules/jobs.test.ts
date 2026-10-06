@@ -59,13 +59,30 @@ describe("jobs module", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "jobs", version: 1 }]);
-    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 3 });
+    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 4 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
     );
     expect(plan!.steps[1]!.sql).toContain(
       "drop function if exists better_supabase.purge_job_archive(text, interval, integer);",
     );
+    expect(plan!.steps[2]!.sql).toContain(
+      "drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);",
+    );
+  });
+
+  it("keeps a tenant per drain schedule and refuses one under pg_cron", () => {
+    const drain = jobs({ scheduler: "drain" });
+    expect(drain).toContain(
+      "alter table better_supabase.job_schedules add column if not exists tenant text;",
+    );
+    expect(drain).toContain(
+      "create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)",
+    );
+    expect(drain).toContain("where s.tenant = unschedule_tenant.tenant");
+    const cron = jobs();
+    expect(cron).toContain("pg_cron schedules have no tenant");
+    expect(cron).toContain("from cron.job j where $1 is null");
   });
 
   it("dead-letters lost last attempts, jitters retries and replays dead letters", () => {

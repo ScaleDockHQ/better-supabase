@@ -37,7 +37,9 @@ drop function if exists better_supabase.extend_job_lease(bigint, text, interval)
 -- schedule_job before time zones.
 drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);`;
+drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+-- schedule_job before schedules had a tenant.
+drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);`;
 
 const PGMQ = `-- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -501,14 +503,16 @@ const PG_CRON = (
   backend: JobsBackend,
 ) => `-- Recurring jobs with pg_cron, in cron.timezone (UTC unless the project changed it):
 -- select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
--- For another time zone, set sql.modules.jobs.options.scheduler to "drain".
+-- For another time zone or a tenant per schedule, set
+-- sql.modules.jobs.options.scheduler to "drain".
 create or replace function better_supabase.schedule_job(
   job_name text,
   schedule text,
   queue text,
   payload jsonb default '{}',
   timezone text default 'UTC',
-  next_run timestamptz default null
+  next_run timestamptz default null,
+  tenant text default null
 )
 returns bigint
 language plpgsql
@@ -516,6 +520,9 @@ security definer
 set search_path = ''
 as $$
 begin
+  if tenant is not null then
+    raise exception 'pg_cron schedules have no tenant; set sql.modules.jobs.options.scheduler to "drain" to keep one per schedule';
+  end if;
   if pg_catalog.to_regnamespace('cron') is null then
     raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set sql.modules.jobs.options.scheduler to "drain"';
   end if;
@@ -557,6 +564,36 @@ security definer
 set search_path = ''
 as $$
   select false;
+$$;
+
+-- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
+-- tenant or next run, so those are null.
+create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if pg_catalog.to_regnamespace('cron') is null or list_schedules.for_tenant is not null then
+    return;
+  end if;
+  return query execute
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
+     from cron.job j where $1 is null or starts_with(j.jobname, $1) order by j.jobname'
+    using name_prefix;
+end;
+$$;
+
+-- pg_cron schedules have no tenant, so there is nothing to remove.
+create or replace function better_supabase.unschedule_tenant(tenant text)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  select 0;
 $$;`;
 
 const DRAIN = `-- Recurring jobs without pg_cron: the drain route (jobs.drainRoute) claims due
@@ -573,7 +610,11 @@ create table if not exists better_supabase.job_schedules (
   locked_until timestamptz,
   created_at timestamptz not null default now()
 );
+-- The tenant a schedule runs for, so a tenant's schedules can be listed and
+-- removed together (unschedule_tenant).
+alter table better_supabase.job_schedules add column if not exists tenant text;
 create index if not exists job_schedules_due_idx on better_supabase.job_schedules (next_run);
+create index if not exists job_schedules_tenant_idx on better_supabase.job_schedules (tenant) where tenant is not null;
 alter table better_supabase.job_schedules enable row level security;
 revoke all on better_supabase.job_schedules from anon, authenticated;
 
@@ -584,7 +625,8 @@ create or replace function better_supabase.schedule_job(
   queue text,
   payload jsonb default '{}',
   timezone text default 'UTC',
-  next_run timestamptz default null
+  next_run timestamptz default null,
+  tenant text default null
 )
 returns bigint
 language plpgsql
@@ -595,17 +637,47 @@ begin
   if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = timezone) then
     raise exception 'Unknown time zone %', timezone;
   end if;
-  insert into better_supabase.job_schedules (job_name, schedule, timezone, queue, payload, next_run)
-  values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', coalesce(next_run, now())))
+  insert into better_supabase.job_schedules (job_name, schedule, timezone, queue, payload, next_run, tenant)
+  values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', coalesce(next_run, now())), tenant)
   on conflict on constraint job_schedules_pkey do update
     set schedule = excluded.schedule,
         timezone = excluded.timezone,
         queue = excluded.queue,
         payload = excluded.payload,
         next_run = excluded.next_run,
+        tenant = excluded.tenant,
         locked_until = null;
   return null;
 end;
+$$;
+
+-- Schedules whose name starts with name_prefix and that run for for_tenant (either
+-- filter null: all), for a product page that shows the next run.
+create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.job_name, s.schedule, s.timezone, s.queue, s.tenant, s.next_run, s.last_run, s.locked_until, s.created_at
+  from better_supabase.job_schedules s
+  where (list_schedules.name_prefix is null or starts_with(s.job_name, list_schedules.name_prefix))
+    and (list_schedules.for_tenant is null or s.tenant = list_schedules.for_tenant)
+  order by s.job_name;
+$$;
+
+-- Removes every schedule of a tenant, for tenant deletion. Returns how many.
+create or replace function better_supabase.unschedule_tenant(tenant text)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with removed as (
+    delete from better_supabase.job_schedules s where s.tenant = unschedule_tenant.tenant returning 1
+  )
+  select count(*)::integer from removed;
 $$;
 
 create or replace function better_supabase.unschedule_job(job_name text)
@@ -682,8 +754,10 @@ begin
     'complete_job(text, bigint, integer)',
     'fail_job(text, bigint, integer, text, integer)',
     'extend_job_lease(text, bigint, integer, integer)',
-    'schedule_job(text, text, text, jsonb, text, timestamptz)',
+    'schedule_job(text, text, text, jsonb, text, timestamptz, text)',
     'unschedule_job(text)',
+    'list_schedules(text, text)',
+    'unschedule_tenant(text)',
     'claim_due_schedules(integer, integer)',
     'advance_schedule(text, timestamptz, timestamptz)',
     'purge_job_archive(text, interval, integer, interval)',
@@ -714,7 +788,7 @@ export const JOBS: ModuleDefinition = {
     "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
-  version: 3,
+  version: 4,
   names: { tables: {}, options: ["backend", "scheduler"] },
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
@@ -734,6 +808,13 @@ export const JOBS: ModuleDefinition = {
         "Dead letters get their own retention in purge_job_archive and replay_dead_job; claims archive a message whose last attempt lost its worker.",
       sql: () =>
         "drop function if exists better_supabase.purge_job_archive(text, interval, integer);",
+    },
+    {
+      from: 3,
+      description:
+        "Schedules record a tenant (job_schedules.tenant); list_schedules and unschedule_tenant list and remove them.",
+      sql: () =>
+        "drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);",
     },
   ],
   build: jobsSql,
