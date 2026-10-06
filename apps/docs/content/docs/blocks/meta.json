@@ -12,6 +12,7 @@
     "notifications",
     "webhooks-out",
     "webhooks-in",
+    "api-keys",
     "entitlements",
     "vector-search"
   ]

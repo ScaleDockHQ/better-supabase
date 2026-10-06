@@ -19,8 +19,14 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "webhooks.*",
     "notifications.*",
     "billing.*",
+    "api_keys.*",
   ],
-  member: ["organization.read", "members.read", "notifications.read"],
+  member: [
+    "organization.read",
+    "members.read",
+    "notifications.read",
+    "api_keys.own",
+  ],
   viewer: ["organization.read"],
 };
 
@@ -53,6 +59,7 @@ export const MODULE_PERMISSIONS = {
   notifications: { send: "notifications.send", read: "notifications.read" },
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
   "webhooks-in": { manage: "webhooks.manage", view: "webhooks.read" },
+  "api-keys": { manage: "api_keys.manage", own: "api_keys.own" },
 } as const;
 
 /**
@@ -87,6 +94,7 @@ export const MODULE_PERMISSION_SCOPES: {
   notifications: { send: "tenant", read: "tenant" },
   "webhooks-out": { manage: "tenant", view: "tenant" },
   "webhooks-in": { manage: "tenant", view: "tenant" },
+  "api-keys": { manage: "tenant", own: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

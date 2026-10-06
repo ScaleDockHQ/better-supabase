@@ -1206,6 +1206,27 @@
       "EntitlementKey"
     ]
   },
+  "./blocks/api-keys": {
+    "values": [
+      "apiKeyClaims",
+      "apiKeyResolver",
+      "createApiKeys",
+      "parseApiKey",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "ApiKey",
+      "ApiKeyCheck",
+      "ApiKeyResolverOptions",
+      "ApiKeys",
+      "ApiKeysOptions",
+      "BlockTransport",
+      "CreateApiKeyInput",
+      "CreatedApiKey",
+      "ParsedApiKey"
+    ]
+  },
   "./openapi": {
     "values": [
       "createOpenApi",

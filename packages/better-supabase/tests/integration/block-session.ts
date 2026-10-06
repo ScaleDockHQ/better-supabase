@@ -165,12 +165,26 @@ export class BlockSession {
     return "no error";
   }
 
-  /** A `SqlClient` over this session's connection, for the TypeScript side. */
+  /**
+   * A `SqlClient` over this session's connection, for the TypeScript side.
+   * Each statement runs in a savepoint, so an expected error leaves the
+   * transaction usable.
+   */
   get sql(): SqlClient {
+    const client = this.client;
     return {
-      queryRaw: async <T>(text: string, params?: unknown[]) =>
-        // SAFETY: the caller names the row shape of its own query.
-        (await this.client.query(text, params)).rows as T[],
+      async queryRaw<T>(text: string, params?: unknown[]): Promise<T[]> {
+        await client.query("savepoint block_call");
+        try {
+          const { rows } = await client.query(text, params);
+          await client.query("release savepoint block_call");
+          // SAFETY: the caller names the row shape of its own query.
+          return rows as T[];
+        } catch (error) {
+          await client.query("rollback to savepoint block_call");
+          throw error;
+        }
+      },
     };
   }
 }

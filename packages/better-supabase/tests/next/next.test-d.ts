@@ -30,7 +30,7 @@ describe("next.session", () => {
       expectTypeOf(session).not.toHaveProperty("token");
     }
     expectTypeOf<AuthSession["kind"]>().toEqualTypeOf<
-      "user" | "service" | "anon" | "invalid"
+      "user" | "service" | "apiKey" | "anon" | "invalid"
     >();
   });
 });

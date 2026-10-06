@@ -57,6 +57,22 @@ export type AuthState<C = unknown, P = unknown> =
       readonly profile?: P;
     }
   | { readonly kind: "service"; readonly keyName: string }
+  /**
+   * An app API key (`better-supabase/blocks/api-keys`). `userId` is set for a
+   * key that acts as its user, `organizationId` for one scoped to a tenant.
+   * Queries run over direct Postgres with `claims`; there is no JWT for
+   * PostgREST, so `ctx.supabase` is unavailable.
+   */
+  | {
+      readonly kind: "apiKey";
+      readonly keyId: string;
+      readonly name: string;
+      readonly organizationId?: string;
+      readonly userId?: string;
+      readonly scopes: readonly string[];
+      /** `sub` (the user, or the key for an organization key), `role: authenticated` and `api_key`. */
+      readonly claims: JWTClaims;
+    }
   | {
       readonly kind: "anon";
       /** `expired`: the cookie session needs a refresh that was not allowed here (run the proxy). */
@@ -711,6 +727,18 @@ export function authContext(auth: AuthState): RequestContext {
           role: "service_role",
         },
         claims: { role: "service_role" },
+      };
+    case "apiKey":
+      return {
+        actor: auth.userId
+          ? { id: auth.userId, kind: "user", role: "authenticated" }
+          : {
+              id: `api-key:${auth.keyId}`,
+              kind: "service",
+              role: "authenticated",
+            },
+        claims: auth.claims,
+        ...(auth.organizationId ? { tenant: auth.organizationId } : {}),
       };
     case "anon":
     case "invalid":

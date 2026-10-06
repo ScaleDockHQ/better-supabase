@@ -31,9 +31,9 @@ export interface GuardOptions {
    */
   readonly aal?: Aal;
   /**
-   * OAuth scopes a delegated token (an OAuth client or an `act` chain) needs.
-   * A missing one answers 403 with `error="insufficient_scope"`. The user's
-   * own session is not limited by scopes.
+   * OAuth scopes a delegated token (an OAuth client or an `act` chain) or an
+   * API key needs. A missing one answers 403 with `error="insufficient_scope"`.
+   * The user's own session is not limited by scopes.
    */
   readonly scopes?: readonly string[];
 }
@@ -63,6 +63,15 @@ function missingScopes(
   return required.filter((scope) => !granted.has(scope));
 }
 
+/** An API key's `*` scope grants every scope. */
+function missingKeyScopes(
+  granted: readonly string[],
+  required: readonly string[],
+): readonly string[] {
+  if (granted.includes("*")) return [];
+  return required.filter((scope) => !granted.includes(scope));
+}
+
 /** `undefined` when `auth` may pass; otherwise the 401/403 error to send. */
 export function guard(
   auth: AuthState,
@@ -74,8 +83,12 @@ export function guard(
   const anonymous = auth.kind === "user" && isAnonymousUser(auth.claims);
   if (anonymous ? allow.includes("anonymous") : allow.includes(auth.kind)) {
     const denied = checkAal(auth, aal);
-    if (denied || auth.kind !== "user") return denied;
-    const missing = missingScopes(auth, scopes);
+    if (denied) return denied;
+    if (auth.kind !== "user" && auth.kind !== "apiKey") return undefined;
+    const missing =
+      auth.kind === "apiKey"
+        ? missingKeyScopes(auth.scopes, scopes)
+        : missingScopes(auth, scopes);
     return missing.length > 0
       ? dbError("forbidden", `The token lacks the scope ${missing.join(" ")}`, {
           code: "INSUFFICIENT_SCOPE",
