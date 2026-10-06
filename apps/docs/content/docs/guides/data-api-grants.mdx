@@ -15,7 +15,10 @@ cutover are the ones that break.
 ## Declare what each role reaches
 
 List the tables and privileges in `expose`. An array means privileges for
-`authenticated`; an object sets them per role.
+`authenticated`; an object sets them per role. `service_role` gets every
+privilege unless the entry sets `serviceRole`. Functions are keyed by their
+signature, and `execute` lists the roles that may call them (`service_role`
+is added unless `serviceRole: false`).
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -23,6 +26,8 @@ export default defineConfig({
     customers: ["select", "insert", "update", "delete"],
     organizations: ["select"],
     "public.pricing_plans": { anon: ["select"], authenticated: ["select"] },
+    "public.audit_exports": { serviceRole: ["select", "insert"] },
+    "search_notes(text, integer)": { execute: ["authenticated"] },
   },
   sql: { modules: ["grants"] },
 });
@@ -35,9 +40,33 @@ better-supabase sql add grants
 supabase db schema declarative sync -f data_api_grants
 ```
 
-The `grants` module writes plain `grant ... on table ... to ...` statements.
-It only adds grants; revoke by hand what a role should lose. RLS still
-decides which rows a role sees.
+Each entry is the complete privilege set of that table or function. The
+`grants` module first revokes everything from `public`, `anon`,
+`authenticated` and `service_role`, then grants what the entry lists, so a
+privilege you remove from `expose` is revoked on the next sync, and
+`truncate`, `references` and `trigger` never reach the API roles. Tables and
+functions that `expose` doesn't list keep their grants. RLS still decides
+which rows a role sees.
+
+### Grants from your policies
+
+With `fromPolicies`, the module also derives grants for the tables that
+`expose` doesn't list from the permissive policies in your schema files and
+migrations: a role named in a policy's `to` clause gets the policy's command
+(`for all` gives all four), and `service_role` gets every privilege.
+Restrictive policies grant nothing. A policy without `to` (or `to public`)
+counts for `authenticated` only, so `anon` needs a policy that names it.
+Tables in `expose` keep their listed privileges.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  schemas: ["public"],
+  sql: { modules: { grants: { options: { fromPolicies: true } } } },
+});
+```
+
+Only tables in the generated `schemas` are derived. Run `sql sync` after
+changing a policy so the grants follow.
 
 A grant on a table in an exposed schema is a door to the internet: anyone with
 the publishable key can call the Data API as `anon`, and any signed-in user as

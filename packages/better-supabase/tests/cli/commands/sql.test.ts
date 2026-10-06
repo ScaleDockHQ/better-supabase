@@ -44,6 +44,7 @@ describe("moduleLayout", () => {
       "/p",
     );
     const layout = moduleLayout(config, "tests/sql");
+    const all = ["select", "insert", "update", "delete"];
     expect(layout.grants).toEqual([
       { table: "public.posts", role: "anon", privileges: ["select"] },
       {
@@ -51,9 +52,12 @@ describe("moduleLayout", () => {
         role: "authenticated",
         privileges: ["select", "insert"],
       },
+      { table: "public.posts", role: "service_role", privileges: all },
       { table: "public.notes", role: "anon", privileges: [] },
       { table: "public.notes", role: "authenticated", privileges: ["select"] },
+      { table: "public.notes", role: "service_role", privileges: all },
     ]);
+    expect(layout.functionGrants).toEqual([]);
     expect(layout.jsonSchemas).toEqual([
       { table: "public.posts", column: "meta", schema: { type: "object" } },
     ]);
@@ -185,6 +189,30 @@ describe("runSql", () => {
     );
     expect((await sql(["sync"], config)).output).toContain(`Removed ${test}`);
     expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
+  });
+
+  it("derives grants from the schema files' policies with fromPolicies", async () => {
+    const config: BetterSupabaseConfig = {
+      expose: { notes: ["select"] },
+      sql: { modules: { grants: { options: { fromPolicies: true } } } },
+    };
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "create policy notes_all on public.notes for all to authenticated using (true);\ncreate policy tags_read on public.tags for select to anon, authenticated using (true);\n",
+    );
+    await sql(["sync"], config);
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      'grant select on table "public"."notes" to authenticated;',
+    );
+    expect(file).toContain(
+      'grant select on table "public"."tags" to anon;\ngrant select on table "public"."tags" to authenticated;',
+    );
   });
 
   it("keeps data files out of pg-delta's schema folder when sql.dir is inside it", async () => {

@@ -21,6 +21,7 @@ import {
   moduleLayout,
   modulePermissionKeys,
   moduleBody,
+  policyGrants,
   renderModules,
   resolveModules,
   sameModuleFile,
@@ -181,11 +182,10 @@ async function layout(
   };
 }
 
-/**
- * The `better_supabase.audit(...)` calls in the declarative schemas, then
- * the migrations oldest first, so a later call or `unaudit` wins.
- */
-async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+/** The declarative schema files, then the migrations oldest first. */
+async function schemaTexts(
+  config: ResolvedConfig,
+): Promise<{ readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
   const paths = [
@@ -197,13 +197,19 @@ async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
           .map((name) => join(migrations, name))
       : []),
   ];
-  return auditRegistrations(
-    await Promise.all(
-      paths.map(async (path) => ({
-        text: await readFile(resolve(config.root, path), "utf8"),
-      })),
-    ),
+  return Promise.all(
+    paths.map(async (path) => ({
+      text: await readFile(resolve(config.root, path), "utf8"),
+    })),
   );
+}
+
+/**
+ * The `better_supabase.audit(...)` calls in the declarative schemas, then
+ * the migrations oldest first, so a later call or `unaudit` wins.
+ */
+async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+  return auditRegistrations(await schemaTexts(config));
 }
 
 /**
@@ -233,6 +239,12 @@ async function layoutFor(
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
+      : {}),
+    ...(resolved.has("grants") &&
+    config.sql.modules["grants"]?.options?.["fromPolicies"] === true
+      ? {
+          policyGrants: policyGrants(await schemaTexts(config), config.schemas),
+        }
       : {}),
   };
 }

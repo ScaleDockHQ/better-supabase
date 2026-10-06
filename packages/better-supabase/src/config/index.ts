@@ -15,6 +15,7 @@ export type {
   EntitlementPlansSource,
   EntitlementsConfig,
   ExposeConfig,
+  ExposeRole,
   GeneratedFile,
   Generator,
   GeneratorColumn,

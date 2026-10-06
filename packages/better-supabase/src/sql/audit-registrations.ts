@@ -7,7 +7,7 @@ export interface AuditedTable {
 }
 
 /** `text` with comments blanked out, string and identifier quotes kept. */
-function withoutComments(text: string): string {
+export function withoutComments(text: string): string {
   let out = "";
   let index = 0;
   while (index < text.length) {

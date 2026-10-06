@@ -39,7 +39,15 @@ export function moduleLayout(
         role: "authenticated" as const,
         privileges: roles.authenticated,
       },
+      {
+        table,
+        role: "service_role" as const,
+        privileges: roles.serviceRole,
+      },
     ]),
+    functionGrants: Object.entries(config.exposeFunctions).map(
+      ([fn, roles]) => ({ function: fn, roles }),
+    ),
     jsonSchemas: Object.entries(config.json).flatMap(([key, entry]) => {
       if (!entry.schema) return [];
       const dot = key.lastIndexOf(".");

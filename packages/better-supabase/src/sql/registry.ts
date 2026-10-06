@@ -1414,12 +1414,14 @@ select * from extensions.finish();`,
 
 const GRANTS: SqlModule = {
   name: "grants",
+  names: { tables: {}, options: ["fromPolicies"] },
   title: "Data API grants",
   description:
-    "Grants the tables in the `expose` config to anon and authenticated. Supabase no longer grants new tables to the Data API roles automatically.",
+    "Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. Supabase no longer grants new tables to the Data API roles automatically.",
   requires: [],
   target: "schema",
-  sql: `-- List tables in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+  sql: `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+-- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
 };
 
@@ -1812,6 +1814,14 @@ export interface ModuleLayout {
   readonly jsonSchemas?: readonly JsonSchemaCheck[];
   /** `config.expose`: the grants the `grants` module writes. */
   readonly grants?: readonly TableGrant[];
+  /** `config.expose` functions: the roles that may execute each one. */
+  readonly functionGrants?: readonly FunctionGrant[];
+  /**
+   * Grants the permissive policies in the schema files imply, for
+   * `sql.modules.grants.options.fromPolicies`. Tables in `grants` keep
+   * their listed privileges.
+   */
+  readonly policyGrants?: readonly TableGrant[];
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;
@@ -2132,25 +2142,89 @@ interface EntitlementsSource {
   readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
 }
 
-/** Privileges one Data API role gets on a table or view. */
+/** Privileges one role gets on a table or view. */
 interface TableGrant {
   /** `table` or `schema.table`. */
   readonly table: string;
-  readonly role: "anon" | "authenticated";
+  readonly role: "anon" | "authenticated" | "service_role";
   readonly privileges: readonly ("select" | "insert" | "update" | "delete")[];
 }
 
-function tableGrants(grants: readonly TableGrant[]): string {
-  const statements = grants
-    .filter((grant) => grant.privileges.length > 0)
-    .map((grant) => {
-      const [schema, table] = grant.table.includes(".")
-        ? grant.table.split(".", 2)
-        : ["public", grant.table];
-      return `grant ${grant.privileges.join(", ")} on table ${sqlIdent(schema!)}.${sqlIdent(table!)} to ${grant.role};`;
-    });
-  if (statements.length === 0) return "";
-  return `\n-- config.expose\n${statements.join("\n")}\n`;
+/** The roles that may execute a function. */
+interface FunctionGrant {
+  /** `name(argument types)` or `schema.name(argument types)`. */
+  readonly function: string;
+  readonly roles: readonly ("anon" | "authenticated" | "service_role")[];
+}
+
+const qualifiedTable = (name: string): string => {
+  const [schema, table] = name.includes(".")
+    ? name.split(".", 2)
+    : ["public", name];
+  return `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
+};
+
+function qualifiedFunction(signature: string): string {
+  const open = signature.indexOf("(");
+  const name = signature.slice(0, open).trim();
+  const args = signature.slice(open);
+  if (open <= 0 || !/^\([\w\s,.[\]"]*\)$/.test(args)) {
+    throw new TypeError(
+      `expose: "${signature}" is not a function signature such as search_notes(text, integer)`,
+    );
+  }
+  return `${qualifiedTable(name)}${args}`;
+}
+
+const keyOf = (name: string): string =>
+  name.includes(".") ? name : `public.${name}`;
+
+/**
+ * Each listed table's complete privilege set: everything is revoked from
+ * the API roles first, then the listed privileges are granted. Policy
+ * grants fill tables `expose` doesn't list, with every privilege for
+ * `service_role`.
+ */
+function tableGrants(layout: ModuleLayout): string {
+  const listed = layout.grants ?? [];
+  const named = new Set(listed.map((grant) => keyOf(grant.table)));
+  const derived = (layout.policyGrants ?? []).filter(
+    (grant) => !named.has(keyOf(grant.table)),
+  );
+  const derivedTables = [...new Set(derived.map((grant) => grant.table))];
+  const grants = [
+    ...listed,
+    ...derived,
+    ...derivedTables.map((table): TableGrant => ({
+      table,
+      role: "service_role",
+      privileges: ["select", "insert", "update", "delete"],
+    })),
+  ];
+  const tables = [...new Set(grants.map((grant) => keyOf(grant.table)))];
+  const statements = tables.flatMap((table) => [
+    `revoke all on table ${qualifiedTable(table)} from public, anon, authenticated, service_role;`,
+    ...grants
+      .filter(
+        (grant) => keyOf(grant.table) === table && grant.privileges.length > 0,
+      )
+      .map(
+        (grant) =>
+          `grant ${grant.privileges.join(", ")} on table ${qualifiedTable(table)} to ${grant.role};`,
+      ),
+  ]);
+  const functions = (layout.functionGrants ?? []).flatMap((grant) => {
+    const target = qualifiedFunction(grant.function);
+    return [
+      `revoke execute on function ${target} from public, anon, authenticated, service_role;`,
+      ...(grant.roles.length > 0
+        ? [`grant execute on function ${target} to ${grant.roles.join(", ")};`]
+        : []),
+    ];
+  });
+  const all = [...statements, ...functions];
+  if (all.length === 0) return "";
+  return `\n-- config.expose${derived.length > 0 ? " and the policies (sql.modules.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
@@ -2328,7 +2402,7 @@ function moduleExtras(
     );
   if (module.name === "jsonb-schemas")
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
-  if (module.name === "grants") return tableGrants(layout.grants ?? []);
+  if (module.name === "grants") return tableGrants(layout);
   if (module.name === "vector-search")
     return vectorSearchFunctions(layout.vectorSearch ?? []);
   if (module.name === "read-sets") {

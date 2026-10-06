@@ -437,21 +437,32 @@ export type VectorSearchConfig =
 /** A privilege the Data API roles can be granted on a table or view. */
 export type Privilege = "select" | "insert" | "update" | "delete";
 
+/** A role the `grants` module writes privileges for. */
+export type ExposeRole = "anon" | "authenticated" | "service_role";
+
 /**
  * Data API grants for one table: privileges for `authenticated`, or per
- * role.
+ * role. `serviceRole` defaults to every privilege. For a function, keyed by
+ * its signature (`search_notes(text, integer)`), `execute` lists the roles
+ * that may call it; `service_role` is added unless `serviceRole` is false.
  */
 export type ExposeConfig =
   | readonly Privilege[]
   | {
       readonly anon?: readonly Privilege[];
       readonly authenticated?: readonly Privilege[];
+      readonly serviceRole?: readonly Privilege[];
+    }
+  | {
+      readonly execute: readonly ("anon" | "authenticated")[];
+      readonly serviceRole?: boolean;
     };
 
 /** Resolved grants for one table. */
 export interface ResolvedExpose {
   readonly anon: readonly Privilege[];
   readonly authenticated: readonly Privilege[];
+  readonly serviceRole: readonly Privilege[];
 }
 
 export interface RelationsConfig {
@@ -508,11 +519,13 @@ export interface BetterSupabaseConfig {
    */
   readonly functions?: Readonly<Record<string, FunctionConfig>>;
   /**
-   * Data API grants, keyed by `table` or `schema.table`. Supabase no longer
-   * grants new tables to `anon` and `authenticated` automatically; the
-   * `grants` SQL module writes these, and doctor (BS106) checks them.
-   * Tables not listed need `select, insert, update, delete` for
-   * `authenticated` (`select` for views).
+   * Data API grants, keyed by `table` or `schema.table`, and function
+   * `execute` grants, keyed by `name(argument types)` or
+   * `schema.name(argument types)`. Supabase no longer grants new tables to
+   * `anon` and `authenticated` automatically; the `grants` SQL module writes
+   * these as the complete privilege set (it revokes what is not listed), and
+   * doctor (BS106) checks them. Tables not listed need `select, insert,
+   * update, delete` for `authenticated` (`select` for views).
    */
   readonly expose?: Readonly<Record<string, ExposeConfig>>;
   /**
@@ -622,7 +635,10 @@ export interface ResolvedConfig {
   readonly sensitive: readonly string[];
   readonly storagePaths: Readonly<Record<string, string>>;
   readonly functions: Readonly<Record<string, FunctionConfig>>;
+  /** The table entries of `expose`. */
   readonly expose: Readonly<Record<string, ResolvedExpose>>;
+  /** The function entries of `expose`: the roles that may execute each one. */
+  readonly exposeFunctions: Readonly<Record<string, readonly ExposeRole[]>>;
   readonly readSets: readonly string[];
   readonly generators: readonly Generator[];
   readonly plugins: {
@@ -675,11 +691,48 @@ function pick<T extends object>(
   return { ...defaults, ...value };
 }
 
-function resolveExpose(entry: ExposeConfig): ResolvedExpose {
-  if (Array.isArray(entry)) return { anon: [], authenticated: entry };
-  // SAFETY: the Array.isArray check above removed the privilege-list form.
-  const roles = entry as Exclude<ExposeConfig, readonly Privilege[]>;
-  return { anon: roles.anon ?? [], authenticated: roles.authenticated ?? [] };
+const ALL_PRIVILEGES: readonly Privilege[] = [
+  "select",
+  "insert",
+  "update",
+  "delete",
+];
+
+const isFunctionKey = (key: string): boolean => key.endsWith(")");
+
+function resolveExpose(key: string, entry: ExposeConfig): ResolvedExpose {
+  if (Array.isArray(entry))
+    return { anon: [], authenticated: entry, serviceRole: ALL_PRIVILEGES };
+  if ("execute" in entry) {
+    throw new TypeError(
+      `expose.${key}: \`execute\` is for functions; key it by its signature, such as ${key}(text)`,
+    );
+  }
+  // SAFETY: the checks above removed the privilege-list and function forms.
+  const roles = entry as Exclude<
+    ExposeConfig,
+    readonly Privilege[] | { readonly execute: unknown }
+  >;
+  return {
+    anon: roles.anon ?? [],
+    authenticated: roles.authenticated ?? [],
+    serviceRole: roles.serviceRole ?? ALL_PRIVILEGES,
+  };
+}
+
+function resolveExposeFunction(
+  key: string,
+  entry: ExposeConfig,
+): readonly ExposeRole[] {
+  if (Array.isArray(entry) || !("execute" in entry)) {
+    throw new TypeError(
+      `expose.${key}: a function takes { execute: ["authenticated"] }, not table privileges`,
+    );
+  }
+  return [
+    ...entry.execute,
+    ...(entry.serviceRole === false ? [] : (["service_role"] as const)),
+  ];
 }
 
 function generatorsOf(
@@ -724,10 +777,14 @@ export function resolveConfig(
     storagePaths: config.storagePaths ?? {},
     functions: config.functions ?? {},
     expose: Object.fromEntries(
-      Object.entries(config.expose ?? {}).map(([table, entry]) => [
-        table,
-        resolveExpose(entry),
-      ]),
+      Object.entries(config.expose ?? {})
+        .filter(([key]) => !isFunctionKey(key))
+        .map(([table, entry]) => [table, resolveExpose(table, entry)]),
+    ),
+    exposeFunctions: Object.fromEntries(
+      Object.entries(config.expose ?? {})
+        .filter(([key]) => isFunctionKey(key))
+        .map(([fn, entry]) => [fn, resolveExposeFunction(fn, entry)]),
     ),
     readSets: config.readSets ?? [],
     generators: generatorsOf(config.generators),

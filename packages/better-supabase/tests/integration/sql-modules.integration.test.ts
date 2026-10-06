@@ -279,7 +279,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
-  it("grants tables in expose to the Data API roles", async () => {
+  it("writes the complete grants of the tables and functions in expose", async () => {
     const name = `bs_grants_${RUN}`;
     const read = async (): Promise<Response> => {
       for (let attempt = 0; ; attempt++) {
@@ -309,14 +309,51 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         hint: expect.stringContaining("expose"),
       });
 
+      await pool.query(
+        `grant truncate, update on public.${name} to anon, authenticated;
+        create function public.${name}_count() returns integer language sql as $$ select 1 $$;`,
+      );
       const [file] = renderModules(["grants"], {
-        grants: [{ table: name, role: "anon", privileges: ["select"] }],
+        grants: [
+          { table: name, role: "anon", privileges: ["select"] },
+          {
+            table: name,
+            role: "service_role",
+            privileges: ["select", "insert", "update", "delete"],
+          },
+        ],
+        functionGrants: [
+          {
+            function: `${name}_count()`,
+            roles: ["authenticated", "service_role"],
+          },
+        ],
       });
       await pool.query(file!.contents);
       const allowed = await read();
       expect(allowed.status).toBe(200);
       expect(await allowed.json()).toEqual([]);
+      const { rows } = await pool.query<Record<string, boolean>>(
+        `select
+          has_table_privilege('anon', 'public.${name}', 'truncate') as anon_truncate,
+          has_table_privilege('anon', 'public.${name}', 'update') as anon_update,
+          has_table_privilege('authenticated', 'public.${name}', 'select') as authenticated_select,
+          has_table_privilege('service_role', 'public.${name}', 'delete') as service_delete,
+          has_table_privilege('service_role', 'public.${name}', 'truncate') as service_truncate,
+          has_function_privilege('anon', 'public.${name}_count()', 'execute') as anon_execute,
+          has_function_privilege('authenticated', 'public.${name}_count()', 'execute') as authenticated_execute`,
+      );
+      expect(rows[0]).toEqual({
+        anon_truncate: false,
+        anon_update: false,
+        authenticated_select: false,
+        service_delete: true,
+        service_truncate: false,
+        anon_execute: false,
+        authenticated_execute: true,
+      });
     } finally {
+      await pool.query(`drop function if exists public.${name}_count()`);
       await pool.query(`drop table if exists public.${name}`);
     }
   });

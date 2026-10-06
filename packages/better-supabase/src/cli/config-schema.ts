@@ -153,6 +153,11 @@ const ConfigSchema = v.strictObject({
         v.strictObject({
           anon: v.optional(privileges),
           authenticated: v.optional(privileges),
+          serviceRole: v.optional(privileges),
+        }),
+        v.strictObject({
+          execute: v.array(v.picklist(["anon", "authenticated"])),
+          serviceRole: v.optional(v.boolean()),
         }),
       ]),
     ),

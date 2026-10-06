@@ -185,12 +185,18 @@ describe("sameModuleFile", () => {
     );
   });
 
-  it("writes Data API grants from the expose config", () => {
+  it("writes the complete Data API grants from the expose config", () => {
     const config = resolveConfig(
       {
         expose: {
           customers: ["select", "insert", "update", "delete"],
-          "billing.invoices": { anon: ["select"], authenticated: ["select"] },
+          "billing.invoices": {
+            anon: ["select"],
+            authenticated: ["select"],
+            serviceRole: ["select", "insert"],
+          },
+          "search_notes(text, integer)": { execute: ["authenticated"] },
+          "billing.reprice(uuid)": { execute: [], serviceRole: false },
         },
       },
       "/project",
@@ -202,13 +208,84 @@ describe("sameModuleFile", () => {
     expect(file!.contents).toContain(
       [
         "-- config.expose",
+        'revoke all on table "public"."customers" from public, anon, authenticated, service_role;',
         'grant select, insert, update, delete on table "public"."customers" to authenticated;',
+        'grant select, insert, update, delete on table "public"."customers" to service_role;',
+        'revoke all on table "billing"."invoices" from public, anon, authenticated, service_role;',
         'grant select on table "billing"."invoices" to anon;',
         'grant select on table "billing"."invoices" to authenticated;',
+        'grant select, insert on table "billing"."invoices" to service_role;',
+        'revoke execute on function "public"."search_notes"(text, integer) from public, anon, authenticated, service_role;',
+        'grant execute on function "public"."search_notes"(text, integer) to authenticated, service_role;',
+        'revoke execute on function "billing"."reprice"(uuid) from public, anon, authenticated, service_role;',
       ].join("\n"),
     );
+    expect(file!.contents).not.toContain('"reprice"(uuid) to');
     expect(renderModules(["grants"])[0]!.contents).not.toContain(
       "config.expose",
+    );
+  });
+
+  it("derives table grants from policies for tables expose doesn't list", () => {
+    const config = resolveConfig(
+      {
+        expose: { customers: ["select"] },
+        sql: { modules: { grants: { options: { fromPolicies: true } } } },
+      },
+      "/project",
+    );
+    const [file] = renderModules(["grants"], {
+      ...moduleLayout(config),
+      policyGrants: [
+        {
+          table: "public.customers",
+          role: "authenticated",
+          privileges: ["select", "delete"],
+        },
+        {
+          table: "public.notes",
+          role: "authenticated",
+          privileges: ["select", "insert"],
+        },
+      ],
+    });
+    expect(file!.contents).toContain(
+      "-- config.expose and the policies (sql.modules.grants.options.fromPolicies)",
+    );
+    expect(file!.contents).toContain(
+      'grant select on table "public"."customers" to authenticated;',
+    );
+    expect(file!.contents).not.toContain(
+      'grant select, delete on table "public"."customers"',
+    );
+    expect(file!.contents).toContain(
+      [
+        'revoke all on table "public"."notes" from public, anon, authenticated, service_role;',
+        'grant select, insert on table "public"."notes" to authenticated;',
+        'grant select, insert, update, delete on table "public"."notes" to service_role;',
+      ].join("\n"),
+    );
+  });
+
+  it("rejects a function entry without a signature and table privileges on a function", () => {
+    expect(() =>
+      resolveConfig(
+        { expose: { "search_notes(text)": ["select"] } },
+        "/project",
+      ),
+    ).toThrow(/a function takes \{ execute/);
+    expect(() =>
+      resolveConfig(
+        { expose: { notes: { execute: ["authenticated"] } } },
+        "/project",
+      ),
+    ).toThrow(/key it by its signature/);
+    const config = resolveConfig(
+      { expose: { "bad name()x)": { execute: ["anon"] } } },
+      "/project",
+    );
+    expect(() => renderModules(["grants"], moduleLayout(config))).toThrow(
+      /is not a function signature/,
     );
   });
 
