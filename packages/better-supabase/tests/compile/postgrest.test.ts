@@ -74,6 +74,12 @@ const col = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value });
 
+const jsonCol = (
+  column: string,
+  op: "contains" | "containedBy",
+  value: unknown,
+): Condition => ({ kind: "column", column, op, value, json: true });
+
 const onNotes = (
   quantifier: "some" | "none" | "every",
   where: Condition | undefined,
@@ -152,6 +158,16 @@ describe("compilePostgrest filters", () => {
       filter("metadata", "cs", '{"plan":"pro"}'),
     ],
     [
+      "contains a json array",
+      jsonCol("parts", "contains", [{ type: "x" }]),
+      filter("parts", "cs", '[{"type":"x"}]'),
+    ],
+    [
+      "containedBy a json array",
+      jsonCol("parts", "containedBy", ["a", "b"]),
+      filter("parts", "cd", '["a","b"]'),
+    ],
+    [
       "containedBy",
       col("tags", "containedBy", ["a"]),
       filter("tags", "cd", '{"a"}'),
@@ -200,6 +216,17 @@ describe("compilePostgrest filters", () => {
       "an or of columns",
       { kind: "or", items: [col("name", "eq", "A"), col("name", "eq", "B,C")] },
       'name.eq."A",name.eq."B,C"',
+    ],
+    [
+      "an or with a json array",
+      {
+        kind: "or",
+        items: [
+          jsonCol("parts", "contains", [{ type: "x" }]),
+          col("name", "eq", "A"),
+        ],
+      },
+      'parts.cs."[{\\"type\\":\\"x\\"}]",name.eq."A"',
     ],
     [
       "an or with nested logic",

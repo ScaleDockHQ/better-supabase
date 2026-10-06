@@ -69,6 +69,12 @@ const col = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value });
 
+const jsonCol = (
+  column: string,
+  op: "contains" | "containedBy",
+  value: unknown,
+): Condition => ({ kind: "column", column, op, value, json: true });
+
 function rows(op: SelectOp): { text: string; params: readonly unknown[] } {
   const plan = compileSql(op);
   if (!plan.rows) throw new Error("Expected a rows query");
@@ -124,6 +130,12 @@ describe("compileSql column conditions", () => {
       col("metadata", "contains", { plan: "pro" }),
       `t0."metadata" @> $1::jsonb`,
       ['{"plan":"pro"}'],
+    ],
+    [
+      "contains a json array",
+      jsonCol("metadata", "contains", [{ type: "x" }]),
+      `t0."metadata" @> $1::jsonb`,
+      ['[{"type":"x"}]'],
     ],
     [
       "containedBy array",

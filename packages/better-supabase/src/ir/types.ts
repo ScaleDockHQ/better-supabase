@@ -34,6 +34,11 @@ export type Condition =
       readonly value: unknown;
       /** Full-text search configuration for `fts`. */
       readonly config?: string;
+      /**
+       * The column is `json`/`jsonb`: containment values are JSON documents,
+       * also when they are arrays, never Postgres array literals.
+       */
+      readonly json?: true;
     }
   | {
       readonly kind: "relation";
