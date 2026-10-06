@@ -470,6 +470,119 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("reads role names through a roles table with roleThrough", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_through_${USERS.owner.slice(0, 8)}`;
+    const ids = {
+      owner: "00000000-0000-4000-8000-00000000e001",
+      admin: "00000000-0000-4000-8000-00000000e002",
+      member: "00000000-0000-4000-8000-00000000e003",
+    };
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      await client.query(`
+        create schema ${schema};
+        create table ${schema}.team_roles (id uuid primary key, key text not null unique);
+        insert into ${schema}.team_roles values
+          ('${ids.owner}', 'owner'), ('${ids.admin}', 'admin'), ('${ids.member}', 'member');
+        create table ${schema}.team_members (
+          organization_id uuid not null,
+          user_id uuid not null references auth.users (id) on delete cascade,
+          role_id uuid not null references ${schema}.team_roles (id),
+          created_at timestamptz not null default now(),
+          primary key (organization_id, user_id)
+        );
+        grant usage on schema ${schema} to authenticated;
+        grant select on ${schema}.team_members, ${schema}.team_roles to authenticated;
+      `);
+      const layout: ModuleLayout = {
+        modules: {
+          access: { schema },
+          tenant: {
+            schema,
+            mode: "adopt",
+            tables: { memberships: `${schema}.team_members` },
+            columns: {
+              memberships: {
+                role: "role_id",
+                updatedAt: null,
+                lastUsedAt: null,
+              },
+            },
+            options: {
+              roleThrough: {
+                table: `${schema}.team_roles`,
+                id: "id",
+                column: "key",
+              },
+            },
+          },
+          organizations: { schema },
+          invitations: { schema },
+        },
+      };
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        layout,
+      ))
+        await client.query(file.contents);
+      const roleOf = (organization: string, who: Who) =>
+        s.value<string>(
+          `(select role_id::text from ${schema}.team_members where organization_id = $1 and user_id = $2)`,
+          [organization, USERS[who]],
+        );
+
+      await s.as("owner");
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Through", slug: `through-${USERS.owner.slice(0, 8)}` }],
+      );
+      expect(await roleOf(organization, "owner")).toBe(ids.owner);
+      expect(
+        await s.value(`better_supabase.has_organization_role($1, '{owner}')`, [
+          organization,
+        ]),
+      ).toBe(true);
+      expect(
+        await s.hint(`${schema}.invite_member($1, $2, 'superuser')`, [
+          organization,
+          email("member"),
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      const invite = await s.value<{ token: string; role: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, email("member")],
+      );
+      expect(invite.role).toBe(ids.member);
+      await s.as("member");
+      await s.value(`${schema}.accept_invitation($1)`, [invite.token]);
+      expect(await roleOf(organization, "member")).toBe(ids.member);
+      await s.as("owner");
+      await s.value(`${schema}.update_member_role($1, $2, 'admin')`, [
+        organization,
+        USERS.member,
+      ]);
+      expect(await roleOf(organization, "member")).toBe(ids.admin);
+      expect(
+        await s.hint(`${schema}.update_member_role($1, $2, 'superuser')`, [
+          organization,
+          USERS.member,
+        ]),
+      ).toBe("ORGANIZATION_ROLE_UNKNOWN");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
     const client = await pool.connect();
     const s = new Session(client);
