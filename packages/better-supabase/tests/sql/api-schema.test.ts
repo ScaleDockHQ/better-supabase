@@ -11,7 +11,7 @@ const schemaFile = (name: string, api: NonNullable<ModuleConfig["api"]>) =>
   )!.contents;
 
 describe("sql.modules.<module>.api", () => {
-  it("wraps every function a module grants to anon or authenticated", () => {
+  it("wraps every function a module grants to anon, authenticated or service_role", () => {
     for (const module of Object.values(SQL_MODULES)) {
       if (module.target !== "schema") continue;
       try {
@@ -22,7 +22,7 @@ describe("sql.modules.<module>.api", () => {
       const file = schemaFile(module.name, "api");
       const granted = [
         ...file.matchAll(
-          /^grant execute on function "?better_supabase"?\.[^\n(]+\([^\n]*\bto [^;]*\b(?:anon|authenticated)\b/gm,
+          /^grant execute on function "?better_supabase"?\.[^\n(]+\([^\n]*\bto [^;]*\b(?:anon|authenticated|service_role)\b/gm,
         ),
       ].length;
       const wrapped = [...file.matchAll(/create or replace function "api"\./g)]
@@ -67,6 +67,26 @@ grant execute on function better_supabase.list_things(uuid, integer, text[]) to 
       `select * from "better_supabase"."list_things"($1, $2, variadic $3)`,
     );
     expect(out).toContain("to anon;");
+  });
+
+  it("wraps service-role functions for servers that only reach PostgREST", () => {
+    const file = schemaFile("flags", "api");
+    expect(file).toContain(
+      `create or replace function "api"."flag_definitions"()`,
+    );
+    expect(file).toContain(
+      `grant execute on function "api"."flag_definitions"() to service_role;`,
+    );
+    const sql = `create or replace function better_supabase.claims(user_id uuid)
+returns jsonb
+language sql
+as $$ select '{}'::jsonb $$;
+grant execute on function better_supabase.claims(uuid) to service_role, supabase_auth_admin;`;
+    expect(
+      apiWrappers(sql, "better_supabase", { schema: "api" }, "x"),
+    ).toContain(
+      `grant execute on function "api"."claims"(uuid) to service_role;`,
+    );
   });
 
   it("refuses an API schema that is the module schema or an unknown function", () => {

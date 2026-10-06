@@ -1,3 +1,4 @@
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
@@ -219,10 +220,46 @@ export function outboxCloudEvent(
   };
 }
 
-export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
+/** The outbox functions' argument names, for calls through a `BlockTransport`. */
+const PARAMS: Readonly<Record<string, readonly string[]>> = {
+  emit_event: ["event_type", "payload", "subject", "tenant", "key", "source"],
+  outbox_register: ["consumer", "types", "from_start"],
+  outbox_unregister: ["consumer"],
+  outbox_claim: ["consumer", "owner", "max_events", "lease"],
+  outbox_ack: ["consumer", "owner", "upto"],
+  outbox_history: ["subject", "event_type", "after", "max_events"],
+  purge_outbox: ["older_than", "batch"],
+};
+
+const isTransport = (
+  source: SqlClient | BlockTransport,
+): source is BlockTransport => "call" in source;
+
+/**
+ * The outbox over a server connection (`SqlClient`), or over a
+ * `BlockTransport` such as `rpcTransport(serviceClient, { schema: "api" })`
+ * for apps that reach the database only through the Data API. Over a
+ * transport, `emit` writes in its own transaction.
+ */
+export function createOutbox(
+  source: SqlClient | BlockTransport,
+  options: OutboxOptions,
+): Outbox {
   applyTemporal(options);
-  const schema = sqlIdent(options.schema ?? "better_supabase");
+  const name = options.schema ?? "better_supabase";
+  const schema = sqlIdent(name);
+  const transport = isTransport(source) ? source : undefined;
   const call = async (fn: string, args: unknown[]): Promise<unknown> => {
+    if (isTransport(source)) {
+      const names = PARAMS[fn] ?? [];
+      const value = await source.call(
+        name,
+        fn,
+        Object.fromEntries(names.map((param, index) => [param, args[index]])),
+      );
+      return value ?? null;
+    }
+    const sql = source;
     const params = args.map((_, index) => `$${String(index + 1)}`).join(", ");
     const [row] = await sql.queryRaw<{ value: unknown }>(
       `select ${schema}.${sqlIdent(fn)}(${params}) as value`,
@@ -288,7 +325,7 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
         String(
           await call("emit_event", [
             type,
-            JSON.stringify(payload),
+            transport ? payload : JSON.stringify(payload),
             emitOptions.subject ?? null,
             emitOptions.tenant ?? null,
             emitOptions.key ?? null,

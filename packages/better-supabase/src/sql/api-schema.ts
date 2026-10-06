@@ -3,7 +3,7 @@ import { sqlIdent } from "../core/template.ts";
 /** `sql.modules.<module>.api`, resolved. */
 export interface ModuleApi {
   readonly schema: string;
-  /** Function names to wrap; every function granted to API roles when missing. */
+  /** Function names to wrap; every function granted to the API roles when missing. */
   readonly functions?: readonly string[];
 }
 
@@ -19,7 +19,8 @@ interface Signature {
   readonly returns: string;
 }
 
-const API_ROLES = new Set(["anon", "authenticated"]);
+/** The roles PostgREST runs a request as. */
+const API_ROLES = new Set(["anon", "authenticated", "service_role"]);
 const isMode = (word: string): word is Argument["mode"] =>
   word === "in" || word === "out" || word === "inout" || word === "variadic";
 const TYPE_STARTS = new Set([
@@ -128,8 +129,11 @@ function apiGrants(sql: string, schema: string): Grant[] {
     "gi",
   );
   return [...sql.matchAll(grant)].flatMap((match) => {
-    const roles = match[4]!.split(",").map((role) => role.trim());
-    if (!roles.some((role) => API_ROLES.has(role))) return [];
+    const roles = match[4]!
+      .split(",")
+      .map((role) => role.trim().replace(/^"(.*)"$/, "$1"))
+      .filter((role) => API_ROLES.has(role));
+    if (roles.length === 0) return [];
     return [
       {
         name: (match[1] ?? match[2])!,
@@ -170,9 +174,12 @@ grant execute on function ${target}(${types}) to ${grant.roles.join(", ")};`;
 
 /**
  * `security invoker` wrappers in `api.schema` for the module functions that
- * `anon` or `authenticated` may execute, with the same names, arguments and
- * grants. Expose the API schema to the Data API instead of the module
- * schema, which also holds helpers that only policies should call.
+ * `anon`, `authenticated` or `service_role` may execute, with the same names,
+ * arguments and grants (to those roles only). Expose the API schema to the
+ * Data API instead of the module schema, which also holds helpers that only
+ * policies should call. A server that reaches the database only through
+ * PostgREST then calls the service functions, such as `flag_definitions`,
+ * with a service-role client.
  */
 export function apiWrappers(
   sql: string,
@@ -192,7 +199,7 @@ export function apiWrappers(
   for (const name of api.functions ?? []) {
     if (!grants.some((grant) => grant.name === name)) {
       throw new TypeError(
-        `sql.modules.${module}.api.functions: ${name} is not a ${module} function that anon or authenticated may execute`,
+        `sql.modules.${module}.api.functions: ${name} is not a ${module} function that anon, authenticated or service_role may execute`,
       );
     }
   }

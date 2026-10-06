@@ -211,15 +211,28 @@ sql: {
 ```
 
 `sql add` then writes a `security invoker` function in `api` for each module
-function that `anon` or `authenticated` may execute, or only those listed in
-`functions`, with the same name, arguments and grants. The wrapper runs as the
-caller, so the module's own permission checks and RLS still apply. Add the
-schema to `[api] schemas` in `config.toml` and pass it to the transport:
+function that `anon`, `authenticated` or `service_role` may execute, or only
+those listed in `functions`, with the same name and arguments, granted to the
+same of those roles. The wrapper runs as the caller, so the module's own
+permission checks and RLS still apply, and a service function such as
+`flag_definitions` stays callable by `service_role` only. Add the schema to
+`[api] schemas` in `config.toml` and pass it to the transport:
 
 ```ts
 const client = settings.connect({
   transport: rpcTransport(supabase, { schema: "api" }),
 });
+```
+
+An app server that reaches the database only through PostgREST uses the same
+wrappers with a service-role client, for example for feature flags and
+announcements:
+
+```ts
+const transport = rpcTransport(serviceClient, { schema: "api" });
+const flags = createFlagsProvider({ transport });
+const announcements = createAnnouncements({ transport });
+const outbox = createOutbox(transport, { source: "https://app.example.com" });
 ```
 
 An unknown table, column or module, or a mode a module doesn't support, stops

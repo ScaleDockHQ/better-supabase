@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import {
   createFlagsProvider,
   type FlagContext,
@@ -33,6 +34,45 @@ describe.skipIf(!live)("flags", () => {
           ]),
         ).toBe(bucket);
       }
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("serves a service-role server through the API schema wrappers", async () => {
+    const s = await BlockSession.open(pool);
+    const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.install(["flags", "announcements"], {
+        modules: { flags: { api }, announcements: { api } },
+      });
+      await s.rows(
+        "insert into better_supabase.flags (key, rules) values ('beta', '[]')",
+      );
+      await s.service();
+      await s.client.query("set local role service_role");
+      const sql = sqlTransport(s.sql);
+      const calls: string[] = [];
+      const transport = {
+        call: (
+          _schema: string,
+          fn: string,
+          args: Readonly<Record<string, unknown>>,
+        ) => {
+          calls.push(fn);
+          return sql.call(api, fn, args);
+        },
+      };
+      const provider = createFlagsProvider({ transport });
+      const resolved = await provider.resolveBooleanEvaluation(
+        "beta",
+        true,
+        {},
+      );
+      expect(resolved.errorCode).toBeUndefined();
+      const announcements = createAnnouncements({ transport });
+      expect((await announcements.list()).ok).toBe(true);
+      expect(calls).toEqual(["flag_definitions", "list_announcements"]);
     } finally {
       await s.close();
     }

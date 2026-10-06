@@ -73,6 +73,52 @@ describe("createOutbox", () => {
     });
   });
 
+  it("calls the functions with named arguments over a transport", async () => {
+    const calls: { schema: string; fn: string; args: unknown }[] = [];
+    const replies: Record<string, unknown[]> = {
+      emit_event: ["e1"],
+      outbox_claim: [[row(1)]],
+      outbox_ack: [true],
+    };
+    const outbox = createOutbox(
+      {
+        call: async (schema, fn, args) => {
+          calls.push({ schema, fn, args });
+          return replies[fn]?.shift() ?? null;
+        },
+      },
+      { ...OPTIONS, schema: "events" },
+    );
+    expect((await outbox.emit("invoice.paid", { id: 1 })).data).toBe("e1");
+    expect(calls[0]).toEqual({
+      schema: "events",
+      fn: "emit_event",
+      args: {
+        event_type: "invoice.paid",
+        payload: { id: 1 },
+        subject: null,
+        tenant: null,
+        key: null,
+        source: null,
+      },
+    });
+    const seen: string[] = [];
+    expect(
+      await outbox.consume(
+        "search",
+        (events) => {
+          seen.push(...events.map((event) => event.type));
+        },
+        { owner: "w1" },
+      ),
+    ).toEqual({ delivered: 1 });
+    expect(seen).toEqual(["organization.created"]);
+    expect(calls.slice(1).map((call) => call.args)).toEqual([
+      { consumer: "search", owner: "w1", max_events: 100, lease: "1 minute" },
+      { consumer: "search", owner: "w1", upto: 1 },
+    ]);
+  });
+
   it("registers a consumer and maps database errors", async () => {
     const failure = Object.assign(new Error("Unknown"), {
       code: "P0002",
