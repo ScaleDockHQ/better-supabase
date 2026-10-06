@@ -21,5 +21,11 @@ export {
   parseApiKey,
   permdockVerifier,
 } from "./api-keys.ts";
+export {
+  type ApiKeyAuth,
+  type ApiKeyContributions,
+  withApiKey,
+  type WithApiKeyOptions,
+} from "./pipeline.ts";
 export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";

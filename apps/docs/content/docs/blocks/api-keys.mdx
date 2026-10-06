@@ -114,6 +114,38 @@ server), with these claims and the key's tenant as `better_supabase.tenant`:
 `authMode` (for `withSupabase` entries) is `user` for a personal key and
 `secret` for a tenant key.
 
+### On the `@supabase/server` pipeline
+
+A REST API built on `@supabase/server`'s `pipeline` takes keys with
+`withApiKey` in place of `withSupabase`. It verifies the key, answers a
+missing, invalid or rate-limited key with Problem Details (`problem` sets
+your error format), and contributes `ctx.auth` and the `withSupabase` keys
+(`jwtClaims`, `userClaims`, `authMode`) from the key's claims, so
+`withPostgresClient` runs each query as the key:
+
+```ts title="api/deals.ts"
+import { pipeline } from "@supabase/middleware";
+import { withPostgresClient } from "@supabase/server/middleware/postgres";
+import {
+  createApiKeys,
+  sqlTransport,
+  withApiKey,
+} from "better-supabase/blocks/api-keys";
+import { withBetterPostgres } from "better-supabase/server";
+
+export default {
+  fetch: pipeline(
+    [
+      withApiKey({ keys }),
+      withPostgresClient(),
+      withBetterPostgres(betterSupabase)(),
+    ],
+    async (_request, ctx) =>
+      Response.json(await ctx.sql.deals.findMany().orThrow()),
+  ),
+};
+```
+
 ## In RLS
 
 A personal key runs as its user, so existing policies apply. Add
