@@ -11,7 +11,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`;
  * connection (no JWT, a privileged session user), which may act for others.
  */
 export const SERVICE_CALLER =
-  "coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
+  "coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
 /** Creates the module's schema when it isn't `better_supabase`, then the module schema. */
 export function schemaPreamble(ctx: ModuleContext): string {

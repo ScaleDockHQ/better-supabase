@@ -104,6 +104,19 @@ describe("renderModules", () => {
     }
   });
 
+  it("wraps auth calls in policies so Postgres evaluates them once", () => {
+    const names = Object.values(SQL_MODULES)
+      .filter((module) => module.target === "schema")
+      .map((module) => module.name);
+    const unwrapped = renderModules(names).flatMap((file) =>
+      [...file.contents.matchAll(/create policy[\s\S]*?;/g)]
+        .map((match) => match[0])
+        .filter((policy) => /(?<!select )auth\.(uid|jwt|role)\(\)/.test(policy))
+        .map((policy) => `${file.module}: ${policy.slice(0, 80)}`),
+    );
+    expect(unwrapped).toEqual([]);
+  });
+
   it("creates the extensions a module owns in its data file", () => {
     const data = (layout = {}) =>
       renderModules(["jobs"], layout).find((file) => file.kind === "data")!
