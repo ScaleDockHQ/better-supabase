@@ -52,6 +52,7 @@ export const MODULE_PERMISSIONS = {
   },
   notifications: { send: "notifications.send", read: "notifications.read" },
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
+  "webhooks-in": { manage: "webhooks.manage", view: "webhooks.read" },
 } as const;
 
 /**
@@ -85,6 +86,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   notifications: { send: "tenant", read: "tenant" },
   "webhooks-out": { manage: "tenant", view: "tenant" },
+  "webhooks-in": { manage: "tenant", view: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

@@ -28,6 +28,7 @@ import { OUTBOX } from "./modules/outbox.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
+import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
 
@@ -1614,6 +1615,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(NOTIFICATIONS),
       built(WEBHOOKS_OUT),
       SESSIONS,
+      built(WEBHOOKS_IN),
     ].map((module) => [module.name, module]),
   );
 

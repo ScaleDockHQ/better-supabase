@@ -18,6 +18,17 @@ export type {
   VerifyOptions,
   WebhookInput,
 } from "./verify.ts";
+export {
+  createIncomingWebhooks,
+  INCOMING_ENDPOINT_HEADER,
+} from "./incoming.ts";
+export type {
+  CreatedIncomingWebhook,
+  CreateIncomingWebhookInput,
+  IncomingVerify,
+  IncomingWebhooks,
+  IncomingWebhooksOptions,
+} from "./incoming.ts";
 export { createWebhooks } from "./outgoing.ts";
 export type {
   DeliverWebhooksOptions,
