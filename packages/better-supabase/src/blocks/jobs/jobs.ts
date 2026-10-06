@@ -293,7 +293,12 @@ export interface InboxOptions
   extends BlockProblemOptions, BlockTemporalOptions {
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
-  /** Standard Webhooks secrets; the signature is verified before storing. */
+  /**
+   * Standard Webhooks secrets; the signature is verified before storing.
+   * Leave out `secrets` and `verify` for a source that only `store` fills
+   * (a chat or provider SDK that verifies its own requests); `receive` then
+   * throws.
+   */
   readonly secrets?: string | readonly string[];
   /**
    * Custom verification for senders that don't use Standard Webhooks. It
@@ -344,7 +349,11 @@ export interface InboxPurgeOptions {
 }
 
 export interface Inbox {
-  /** Verifies and stores a webhook; answers 202, or 200 for a duplicate delivery. */
+  /**
+   * Verifies and stores a webhook; answers 202, or 200 for a duplicate
+   * delivery. Throws a `TypeError` when the inbox has neither `secrets` nor
+   * `verify`.
+   */
   receive(request: Request): Promise<Response>;
   /**
    * Stores an event your code already verified (a provider SDK that
@@ -391,11 +400,6 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   applyTemporal(options);
   const worker = options.worker ?? workerId();
   const format = options.problem;
-  if (!options.secrets && !options.verify) {
-    throw new TypeError(
-      "createInbox needs `secrets` (Standard Webhooks) or `verify`",
-    );
-  }
 
   const verified = async (
     request: Request,
@@ -404,7 +408,12 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   > => {
     if (options.verify)
       return options.verify(request, await request.clone().text());
-    const result = await verifyWebhook(request, options.secrets!);
+    if (!options.secrets) {
+      throw new TypeError(
+        `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
+      );
+    }
+    const result = await verifyWebhook(request, options.secrets);
     return result.ok
       ? ok({ id: result.data.id, payload: result.data.payload })
       : result;

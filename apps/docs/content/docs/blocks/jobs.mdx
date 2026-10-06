@@ -453,3 +453,14 @@ export async function POST(request: Request) {
     : new Response(null, { status: 500 });
 }
 ```
+
+A source that only `store` fills, such as a chat SDK that verifies its own
+requests, needs neither `secrets` nor `verify`. Its `process`, `list` and
+`purge` work as usual, and `receive` throws a `TypeError`, so an unverified
+request is never stored:
+
+```ts
+const chat = createInbox(postgres.admin, { source: "chat" });
+
+await chat.store({ id: event.id, type: event.type, payload: event });
+```

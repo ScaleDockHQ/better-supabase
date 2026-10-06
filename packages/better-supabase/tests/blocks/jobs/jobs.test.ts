@@ -1686,10 +1686,20 @@ describe("createInbox", () => {
     });
   }
 
-  it("needs secrets or a verify function", () => {
-    expect(() => createInbox(fakeSql().sql, { source: "stripe" })).toThrow(
-      "createInbox needs `secrets` (Standard Webhooks) or `verify`",
+  it("stores events without secrets or verify, and refuses to receive", async () => {
+    const fake = fakeSql([["receive_webhook", [{ id: 3, duplicate: false }]]]);
+    const inbox = createInbox(fake.sql, { source: "chat" });
+    expect(
+      await inbox.store({ id: "e1", payload: { type: "message" } }).orThrow(),
+    ).toEqual({ id: 3, duplicate: false });
+    await expect(
+      inbox.receive(
+        new Request("https://api.test/hooks", { method: "POST", body: "{}" }),
+      ),
+    ).rejects.toThrow(
+      'The inbox for "chat" has no `secrets` or `verify`, so it only stores events through `store`',
     );
+    expect(fake.calls).toHaveLength(1);
   });
 
   it("answers 405 to anything but POST", async () => {
