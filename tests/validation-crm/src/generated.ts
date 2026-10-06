@@ -2429,7 +2429,7 @@ export type Models = {
     Row: {
       id: string;
       organizationId: string | null;
-      userId: string | null;
+      userId: string;
       scope: "thread" | "user" | "organization" | "customer" | "asset" | "task" | "quote" | "tool";
       visibility: "private" | "organization" | "system";
       subjectType: string;
@@ -2454,7 +2454,7 @@ export type Models = {
     Insert: {
       id?: string;
       organizationId?: string | null;
-      userId?: string | null;
+      userId: string;
       scope: "thread" | "user" | "organization" | "customer" | "asset" | "task" | "quote" | "tool";
       visibility: "private" | "organization" | "system";
       subjectType: string;
@@ -2479,7 +2479,7 @@ export type Models = {
     Update: {
       id?: string;
       organizationId?: string | null;
-      userId?: string | null;
+      userId?: string;
       scope?: "thread" | "user" | "organization" | "customer" | "asset" | "task" | "quote" | "tool";
       visibility?: "private" | "organization" | "system";
       subjectType?: string;
@@ -4592,7 +4592,7 @@ export type Models = {
       description: string | null;
       quoteId: string | null;
       invoiceId: string | null;
-      variantId: string | null;
+      variantId: string;
     };
     Insert: {
       id?: number;
@@ -4620,7 +4620,7 @@ export type Models = {
       description?: string | null;
       quoteId?: string | null;
       invoiceId?: string | null;
-      variantId?: string | null;
+      variantId: string;
     };
     Update: {
       id?: number;
@@ -4648,7 +4648,7 @@ export type Models = {
       description?: string | null;
       quoteId?: string | null;
       invoiceId?: string | null;
-      variantId?: string | null;
+      variantId?: string;
     };
     Relations: {
       assetCustomAttributes: { table: "assetCustomAttributes"; kind: "many"; nullable: true };
@@ -4663,7 +4663,7 @@ export type Models = {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
       quote: { table: "quotes"; kind: "one"; nullable: true };
-      variant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
       quoteAssets: { table: "quoteAssets"; kind: "many"; nullable: true };
       tasks: { table: "tasks"; kind: "many"; nullable: true };
       templateTaskSettings: { table: "templateTaskSettings"; kind: "many"; nullable: true };
@@ -8868,7 +8868,7 @@ export type Models = {
       consumedAt: string | null;
       createdAt: string;
       updatedAt: string;
-      variantId: string | null;
+      variantId: string;
       orderLineId: string | null;
     };
     Insert: {
@@ -8884,7 +8884,7 @@ export type Models = {
       consumedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
-      variantId?: string | null;
+      variantId: string;
       orderLineId?: string | null;
     };
     Update: {
@@ -8900,7 +8900,7 @@ export type Models = {
       consumedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
-      variantId?: string | null;
+      variantId?: string;
       orderLineId?: string | null;
     };
     Relations: {
@@ -8911,7 +8911,7 @@ export type Models = {
       quoteVersionLine: { table: "quoteVersionLines"; kind: "one"; nullable: true };
       stockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: true };
       taskMaterial: { table: "taskMaterials"; kind: "one"; nullable: true };
-      variant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -8986,7 +8986,7 @@ export type Models = {
       referenceNumber: string | null;
       quoteId: string | null;
       invoiceId: string | null;
-      variantId: string | null;
+      variantId: string;
       orderId: string | null;
       purchaseOrderId: string | null;
       shipmentId: string | null;
@@ -9011,7 +9011,7 @@ export type Models = {
       referenceNumber?: string | null;
       quoteId?: string | null;
       invoiceId?: string | null;
-      variantId?: string | null;
+      variantId: string;
       orderId?: string | null;
       purchaseOrderId?: string | null;
       shipmentId?: string | null;
@@ -9036,7 +9036,7 @@ export type Models = {
       referenceNumber?: string | null;
       quoteId?: string | null;
       invoiceId?: string | null;
-      variantId?: string | null;
+      variantId?: string;
       orderId?: string | null;
       purchaseOrderId?: string | null;
       shipmentId?: string | null;
@@ -9056,7 +9056,7 @@ export type Models = {
       stockRecordByStockRecord_: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
       supplier: { table: "suppliers"; kind: "one"; nullable: true };
       taskMaterial: { table: "taskMaterials"; kind: "one"; nullable: true };
-      variant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
@@ -9141,7 +9141,7 @@ export type Models = {
       unitCost: number | null;
       currency: string | null;
       lastCountedOn: string | null;
-      variantId: string | null;
+      variantId: string;
     };
     Insert: {
       id?: string;
@@ -9163,7 +9163,7 @@ export type Models = {
       unitCost?: number | null;
       currency?: string | null;
       lastCountedOn?: string | null;
-      variantId?: string | null;
+      variantId: string;
     };
     Update: {
       id?: string;
@@ -9185,7 +9185,7 @@ export type Models = {
       unitCost?: number | null;
       currency?: string | null;
       lastCountedOn?: string | null;
-      variantId?: string | null;
+      variantId?: string;
     };
     Relations: {
       inventoryAllocations: { table: "inventoryAllocations"; kind: "many"; nullable: true };
@@ -9197,7 +9197,7 @@ export type Models = {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
       productByProduct_: { table: "products"; kind: "one"; nullable: false };
-      variant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -12519,7 +12519,7 @@ export type Models = {
       leadTimeDays: number | null;
       isActive: boolean;
       externalId: string | null;
-      variantId: string | null;
+      variantId: string;
     };
     Insert: {
       id?: string;
@@ -12538,7 +12538,7 @@ export type Models = {
       leadTimeDays?: number | null;
       isActive?: boolean;
       externalId?: string | null;
-      variantId?: string | null;
+      variantId: string;
     };
     Update: {
       id?: string;
@@ -12557,14 +12557,14 @@ export type Models = {
       leadTimeDays?: number | null;
       isActive?: boolean;
       externalId?: string | null;
-      variantId?: string | null;
+      variantId?: string;
     };
     Relations: {
       currencyByCurrency: { table: "currencies"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       product: { table: "products"; kind: "one"; nullable: false };
       supplier: { table: "suppliers"; kind: "one"; nullable: false };
-      variant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
       purchaseOrderLines: { table: "purchaseOrderLines"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -14731,7 +14731,7 @@ export type Models = {
       updatedAt: string;
       quoteId: string | null;
       billable: boolean;
-      variantId: string | null;
+      variantId: string;
     };
     Insert: {
       id?: string;
@@ -14753,7 +14753,7 @@ export type Models = {
       updatedAt?: string;
       quoteId?: string | null;
       billable?: boolean;
-      variantId?: string | null;
+      variantId: string;
     };
     Update: {
       id?: string;
@@ -14775,7 +14775,7 @@ export type Models = {
       updatedAt?: string;
       quoteId?: string | null;
       billable?: boolean;
-      variantId?: string | null;
+      variantId?: string;
     };
     Relations: {
       inventoryAllocations: { table: "inventoryAllocations"; kind: "many"; nullable: true };
@@ -14785,7 +14785,7 @@ export type Models = {
       product: { table: "products"; kind: "one"; nullable: false };
       quote: { table: "quotes"; kind: "one"; nullable: true };
       task: { table: "tasks"; kind: "one"; nullable: false };
-      variant: { table: "productVariants"; kind: "one"; nullable: true };
+      variant: { table: "productVariants"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {

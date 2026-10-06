@@ -4524,7 +4524,7 @@ export default {
         "userId": {
           "db": "user_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         },
         "scope": {
@@ -10139,7 +10139,7 @@ export default {
         "variantId": {
           "db": "variant_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         }
       },
@@ -10323,7 +10323,7 @@ export default {
         "variant": {
           "table": "productVariants",
           "kind": "one",
-          "nullable": true,
+          "nullable": false,
           "foreignKey": "customer_assets_variant_id_product_id_fkey",
           "columns": [
             "variantId",
@@ -22714,7 +22714,7 @@ export default {
         "variantId": {
           "db": "variant_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         },
         "orderLineId": {
@@ -22845,7 +22845,7 @@ export default {
         "variant": {
           "table": "productVariants",
           "kind": "one",
-          "nullable": true,
+          "nullable": false,
           "foreignKey": "inventory_allocations_variant_id_product_id_fkey",
           "columns": [
             "variantId",
@@ -23191,7 +23191,7 @@ export default {
         "variantId": {
           "db": "variant_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         },
         "orderId": {
@@ -23435,7 +23435,7 @@ export default {
         "variant": {
           "table": "productVariants",
           "kind": "one",
-          "nullable": true,
+          "nullable": false,
           "foreignKey": "inventory_movements_variant_id_product_id_fkey",
           "columns": [
             "variantId",
@@ -23747,7 +23747,7 @@ export default {
         "variantId": {
           "db": "variant_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         }
       },
@@ -23894,7 +23894,7 @@ export default {
         "variant": {
           "table": "productVariants",
           "kind": "one",
-          "nullable": true,
+          "nullable": false,
           "foreignKey": "inventory_stock_records_variant_id_product_id_fkey",
           "columns": [
             "variantId",
@@ -35610,7 +35610,7 @@ export default {
         "variantId": {
           "db": "variant_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         }
       },
@@ -35682,7 +35682,7 @@ export default {
         "variant": {
           "table": "productVariants",
           "kind": "one",
-          "nullable": true,
+          "nullable": false,
           "foreignKey": "product_supplier_links_variant_id_product_id_fkey",
           "columns": [
             "variantId",
@@ -42259,7 +42259,7 @@ export default {
         "variantId": {
           "db": "variant_id",
           "type": "uuid",
-          "nullable": true,
+          "nullable": false,
           "hasDefault": false
         }
       },
@@ -42386,7 +42386,7 @@ export default {
         "variant": {
           "table": "productVariants",
           "kind": "one",
-          "nullable": true,
+          "nullable": false,
           "foreignKey": "task_materials_variant_id_product_id_fkey",
           "columns": [
             "variantId",

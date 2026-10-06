@@ -96,3 +96,75 @@ export function parseCheckUnion(
   }
   return undefined;
 }
+
+/** The text inside one pair of parentheses that wraps all of `text`, if any. */
+function unwrap(text: string): string {
+  let current = text.trim();
+  while (current.startsWith("(") && current.endsWith(")")) {
+    let depth = 0;
+    let wraps = true;
+    for (let index = 0; index < current.length; index++) {
+      const char = current[index];
+      if (char === "(") depth++;
+      else if (char === ")") depth--;
+      if (depth === 0 && index < current.length - 1) {
+        wraps = false;
+        break;
+      }
+    }
+    if (!wraps) break;
+    current = current.slice(1, -1).trim();
+  }
+  return current;
+}
+
+/** Splits `text` on a keyword outside parentheses and quotes. */
+function splitTopLevel(text: string, keyword: "AND" | "OR"): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | undefined;
+  let start = 0;
+  const separator = ` ${keyword} `;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (quote) {
+      if (char === quote) quote = undefined;
+      continue;
+    }
+    if (char === "'" || char === '"') quote = char;
+    else if (char === "(") depth++;
+    else if (char === ")") depth--;
+    else if (
+      depth === 0 &&
+      text.slice(index, index + separator.length).toUpperCase() === separator
+    ) {
+      parts.push(text.slice(start, index));
+      start = index + separator.length;
+      index += separator.length - 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts.map((part) => part.trim());
+}
+
+const IS_NOT_NULL = /^(?:"((?:[^"]|"")+)"|([\w$]+)) IS NOT NULL$/i;
+
+/**
+ * Columns a CHECK constraint makes not null: `CHECK ((slug IS NOT NULL))` and
+ * the `IS NOT NULL` terms of a top-level `AND`. A term under `OR`, `NOT` or
+ * any other expression narrows nothing, and neither does a `NOT VALID` one.
+ */
+export function parseCheckNotNull(definition: string): string[] {
+  const text = definition.trim();
+  // A NOT VALID constraint says nothing about the rows already there.
+  if (/\bNOT VALID$/i.test(text)) return [];
+  const body = /^CHECK\s*(.*)$/is.exec(text)?.[1];
+  if (!body) return [];
+  const expression = unwrap(body);
+  if (splitTopLevel(expression, "OR").length > 1) return [];
+  return splitTopLevel(expression, "AND").flatMap((term) => {
+    const match = IS_NOT_NULL.exec(unwrap(term));
+    if (!match) return [];
+    return [match[1]?.replaceAll('""', '"') ?? match[2] ?? ""];
+  });
+}
