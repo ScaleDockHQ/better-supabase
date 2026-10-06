@@ -393,7 +393,7 @@ export type Functions = {
     Args: {
       p_customer_ids?: string[] | null;
     };
-    Returns: { "customerId": string; "lastNoteAt": string; "noteCount": number }[];
+    Returns: { "customerId": string | null; "lastNoteAt": string | null; "noteCount": number | null }[];
   };
   customers_by_status: {
     Args: {

@@ -174,6 +174,27 @@ extra round trips:
   default are optional. Functions that return rows of a table or a
   `returns table (...)` record get a `result` entry, so `db.$rpc` returns them
   in your [casing](/docs/concepts/casing#function-results).
+- **Nullable function results.** Postgres can't promise that a function
+  returns a value: a `strict` function returns `null` for a `null`
+  argument, a SQL function returns `null` when its query finds no row, and
+  an aggregate in a `returns table` column is `null` over no rows. So a
+  scalar result, each element of a `setof` scalar, a single table row and
+  each `returns table` column are typed `| null`. Rows of `returns setof`
+  a table are not, and neither is `void` or `Json`, which already includes
+  `null`. When you know a result is never null, say so in the config:
+
+  ```ts title="better-supabase.config.ts"
+  export default defineConfig({
+    functions: {
+      open_ticket_count: { notNull: true },
+      customer_note_counts: { notNull: ["customer_id", "note_count"] },
+    },
+  });
+  ```
+
+  `notNull: true` covers the whole result, and a list names the
+  `returns table` columns (database names) that are never null. `gen` fails
+  on a function or column it can't find.
 
 ## Documentation in the validators
 

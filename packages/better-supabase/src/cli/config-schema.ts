@@ -119,6 +119,14 @@ const ConfigSchema = v.strictObject({
   ),
   sensitive: v.optional(strings),
   storagePaths: v.optional(stringRecord),
+  functions: v.optional(
+    v.record(
+      v.string(),
+      v.strictObject({
+        notNull: v.optional(v.union([v.literal(true), strings])),
+      }),
+    ),
+  ),
   expose: v.optional(
     v.record(
       v.string(),

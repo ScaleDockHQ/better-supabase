@@ -574,6 +574,24 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           return isArray ? arrayOf(enumType(values)) : enumType(values);
         return tsType(fn.schema, format);
       };
+      const notNull = config.functions[fn.name]?.notNull;
+      const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
+      if (Array.isArray(notNull)) {
+        for (const name of notNullColumns) {
+          if (!fn.returnsTable?.some((column) => column.name === name))
+            throw new TypeError(
+              `functions.${fn.name}.notNull: "${name}" is not a column the function returns`,
+            );
+        }
+      }
+      const orNull = (type: string, column?: string): string =>
+        notNull === true ||
+        (column !== undefined && notNullColumns.has(column)) ||
+        type === "undefined" ||
+        type === "Json" ||
+        type === "unknown"
+          ? type
+          : `${type} | null`;
       let returns: string;
       let result: FunctionResult | undefined;
       const rowTable = fn.returnsRelation
@@ -590,7 +608,10 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           };
         });
         returns = `{ ${columns
-          .map((column) => `${JSON.stringify(column.app)}: ${column.tsType}`)
+          .map(
+            (column) =>
+              `${JSON.stringify(column.app)}: ${orNull(column.tsType, column.db)}`,
+          )
           .join("; ")} }[]`;
         if (
           columns.some(
@@ -607,7 +628,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         }
       } else if (rowTable) {
         returns = `Models[${JSON.stringify(rowTable.key)}]['Row']`;
-        if (fn.returnsSet) returns = arrayOf(returns);
+        returns = fn.returnsSet ? arrayOf(returns) : orNull(returns);
         if (
           rowTable.columns.some(
             (column) => column.codec !== undefined || column.app !== column.db,
@@ -616,7 +637,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           result = { table: rowTable.key };
         }
       } else {
-        returns = typeOf(fn.returns);
+        returns = orNull(typeOf(fn.returns));
         if (fn.returnsSet) returns = arrayOf(returns);
       }
       return {
@@ -639,6 +660,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       };
     });
 
+  for (const name of Object.keys(config.functions)) {
+    if (!functions.some((fn) => fn.key === name))
+      throw new TypeError(
+        `functions.${name}: no function "${name}" in ${config.schemas.join(", ")}`,
+      );
+  }
   const tablesMeta: Record<string, TableMeta> = {};
   for (const table of tableModels) tablesMeta[table.key] = table.meta;
   const enumsMeta: Record<string, readonly string[]> = {};

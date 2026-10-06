@@ -99,6 +99,11 @@ export interface TableConfig {
   readonly insertOptional?: readonly string[];
 }
 
+export interface FunctionConfig {
+  /** `true`, or the `returns table` columns (database names) that are never null. */
+  readonly notNull?: true | readonly string[];
+}
+
 export interface TimestampsConfig {
   readonly createdAt?: string;
   readonly updatedAt?: string;
@@ -418,6 +423,14 @@ export interface BetterSupabaseConfig {
    */
   readonly storagePaths?: Readonly<Record<string, string>>;
   /**
+   * Function results `gen` may type as not null, keyed by function name.
+   * Results are `| null` by default, since Postgres can't promise a function
+   * returns a value. `notNull: true` covers the whole result (each element
+   * of a set, each column of `returns table`); a list names the
+   * `returns table` columns that are never null.
+   */
+  readonly functions?: Readonly<Record<string, FunctionConfig>>;
+  /**
    * Data API grants, keyed by `table` or `schema.table`. Supabase no longer
    * grants new tables to `anon` and `authenticated` automatically; the
    * `grants` SQL kit module writes these, and doctor (BS106) checks them.
@@ -510,6 +523,7 @@ export interface ResolvedConfig {
   readonly relations: Required<RelationsConfig>;
   readonly sensitive: readonly string[];
   readonly storagePaths: Readonly<Record<string, string>>;
+  readonly functions: Readonly<Record<string, FunctionConfig>>;
   readonly expose: Readonly<Record<string, ResolvedExpose>>;
   readonly readSets: readonly string[];
   readonly generators: readonly Generator[];
@@ -610,6 +624,7 @@ export function resolveConfig(
     },
     sensitive: config.sensitive ?? [],
     storagePaths: config.storagePaths ?? {},
+    functions: config.functions ?? {},
     expose: Object.fromEntries(
       Object.entries(config.expose ?? {}).map(([table, entry]) => [
         table,
