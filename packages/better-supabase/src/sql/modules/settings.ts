@@ -9,7 +9,6 @@ import {
   type JsonSchemaCheck,
   jsonSchemaChecks,
   schemaPreamble,
-  SERVICE_CALLER,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -125,7 +124,7 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.settings;
   const can = (tenant: string, action: "read" | "update"): string =>
-    `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false))`;
+    `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
   const KEY = `check (key ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$')`;
 
   return `${schemaPreamble(ctx)}
