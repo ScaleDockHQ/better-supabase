@@ -659,6 +659,36 @@ create migrations with `supabase db schema declarative sync` instead of
 enabled = true
 ```
 
+### BS317
+
+**Warning: bulk grant in a pg-delta schema file.** Under pg-delta, a
+`grant ... on all tables in schema`, `on all routines in schema` or `on all
+sequences in schema` statement in `supabase/schemas` that reaches `anon`,
+`authenticated` or `public` has no dependency position. pg-delta can run it after the per-object revokes that narrow a
+function or table, which re-opens them to `anon` and `authenticated`. Grant
+each object by name next to its definition:
+
+```sql
+revoke execute on function public.recalculate_totals(uuid) from public, anon;
+grant execute on function public.recalculate_totals(uuid) to authenticated;
+```
+
+For objects created later, use Supabase default privileges instead of a bulk
+grant: `alter default privileges in schema public grant select on tables to
+authenticated;`. The [`grants` module](/docs/guides/data-api-grants) writes
+per-table grants from `expose`.
+
+### BS318
+
+**Warning: catalog loop in a pg-delta schema file.** A `do` block in
+`supabase/schemas` that reads `information_schema` or `pg_catalog` (`pg_class`,
+`pg_tables`, ...) and executes statements runs, under pg-delta, before the
+tables it looks for exist. It creates nothing, and the diff never sees the
+triggers, grants or policies it was meant to add. Write the statements as
+static SQL, one per table, or call a per-table function once per table, such
+as `select better_supabase.audit('public.invoices');` or
+`select better_supabase.track_updated_at('public.invoices');`.
+
 ## Auth config
 
 ### BS401
