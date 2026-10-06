@@ -584,6 +584,43 @@ end;
 $$;`);
     grants.push(`resolve_notifications(text, text, text, ${id})`);
   }
+  if (ctx.installed("profiles") && n.has("events", "actor")) {
+    const profiles = ctx.of("profiles");
+    const p = (logical: string) => profiles.col("profiles", logical);
+    const fields = (
+      [
+        ["username", "username"],
+        ["fullName", "fullName"],
+        ["firstName", "firstName"],
+        ["lastName", "lastName"],
+        ["avatar", "avatar"],
+      ] as const
+    )
+      .filter(([logical]) => profiles.has("profiles", logical))
+      .map(([key, logical]) => `, '${key}', pr.${p(logical)}`)
+      .join("");
+    parts.push(`
+-- The public profile fields of the actors behind the caller's notifications,
+-- keyed by user id, for list({ include: ['actor'] }). Only actors of the
+-- caller's own notifications.
+create or replace function ${ctx.fn("notification_actors")}(ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(pr.${p("key")}::text, jsonb_build_object('id', pr.${p("key")}${fields})), '{}')
+  from ${profiles.table("profiles")} pr
+  where pr.${p("key")} = any(notification_actors.ids)
+    and exists (
+      select 1 from ${n.table("recipients")} rc
+      join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
+      where rc.${r("user")} = auth.uid() and ev.${e("actor")} = pr.${p("key")}
+    )
+$$;`);
+    grants.push("notification_actors(uuid[])");
+  }
   for (const signature of grants) {
     parts.push(`revoke execute on function ${ctx.schema}.${signature} from public, anon;
 grant execute on function ${ctx.schema}.${signature} to authenticated, service_role;`);

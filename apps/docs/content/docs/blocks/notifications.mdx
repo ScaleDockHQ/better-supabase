@@ -108,6 +108,35 @@ and then `id`, so items created at the same instant are not skipped. It filters 
 `types`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
 
+### Hydrating a page
+
+`render` runs once per item. When it needs data from elsewhere, such as actor
+names or subject titles, `hydrate` loads it for the whole page in one call,
+and `render` reads the result from `context.hydrated`:
+
+```ts
+const notifications = createNotifications({
+  transport,
+  types,
+  hydrate: async (items) => ({
+    tasks: await loadTaskTitles(
+      items.flatMap((item) => (item.subject ? [item.subject.id] : [])),
+    ),
+  }),
+  render: (item, { locale, hydrated }) => ({
+    title: t(locale, item.type, {
+      task: hydrated?.tasks.get(item.subject?.id ?? ""),
+    }),
+  }),
+});
+```
+
+With the [`profiles` module](/docs/blocks/profiles) installed alongside,
+`list({ include: ["actor"] })` adds each item's `actor` (`id`, `username`,
+`fullName`, `firstName`, `lastName` and `avatar`, those the profiles table
+has) in one call to `notification_actors(ids)`, which returns only actors of
+the caller's own notifications.
+
 ## Realtime
 
 By default each new or changed recipient row is broadcast on the user's

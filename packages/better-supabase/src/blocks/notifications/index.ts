@@ -10,6 +10,7 @@ export type {
   DeliverOptions,
   DeliverResult,
   ListOptions,
+  NotificationActor,
   NotificationCounts,
   NotificationTypes,
   Notifications,

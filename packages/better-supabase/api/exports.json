@@ -917,6 +917,7 @@
       "DeliverOptions",
       "DeliverResult",
       "ListOptions",
+      "NotificationActor",
       "NotificationChannel",
       "NotificationCounts",
       "NotificationItem",

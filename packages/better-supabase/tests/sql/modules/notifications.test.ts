@@ -212,3 +212,21 @@ describe("notifications module", () => {
     );
   });
 });
+
+describe("notification actors", () => {
+  it("reads actor profiles only next to the profiles module", () => {
+    const file = (names: readonly string[]) =>
+      renderModules(names).find(
+        (entry) => entry.module === "notifications" && entry.kind === "schema",
+      )!.contents;
+    const sql = file(["notifications", "profiles"]);
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."notification_actors"(ids uuid[])',
+    );
+    expect(sql).toContain("'username', pr.\"username\"");
+    expect(sql).toContain(
+      'where rc."user_id" = auth.uid() and ev."actor_id" = pr."id"',
+    );
+    expect(file(["notifications"])).not.toContain("notification_actors");
+  });
+});
