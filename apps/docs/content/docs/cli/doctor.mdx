@@ -123,8 +123,10 @@ not a classic token with access to your whole account.
 **Performance Advisor findings.** Same sources as BS100: unindexed foreign
 keys, `auth.uid()` re-evaluated per row in policies, multiple permissive
 policies, unused and duplicate indexes, tables without a primary key, table
-bloat and more. When [BS207](#bs207) runs, it replaces splinter's
-`multiple_permissive_policies` lint for the tables it reports.
+bloat and more. Doctor's own [BS207](#bs207) and [BS216](#bs216) repeat
+splinter's `multiple_permissive_policies` and `unindexed_foreign_keys`; when
+BS200 runs and the advisor loads, they skip the tables splinter reports, so
+each problem shows up once.
 
 ## Security
 
@@ -274,7 +276,10 @@ InitPlan, or have it return the allowed ids as a set and compare with
 evaluates every permissive policy that applies to a command and role, and ORs
 the results, so each extra policy adds its cost to every row. The message
 lists each command and role with its policies; a policy for `public` counts
-for every role. Merge each group into one policy with `or`.
+for every role. Merge each group into one policy with `or`. When
+[BS200](#bs200) runs, splinter's `multiple_permissive_policies` reports the
+tables it covers and this check skips them; on a saved snapshot, or when the
+advisor can't run, this check reports every table.
 
 ### BS208
 
@@ -429,8 +434,9 @@ this check covers your own helpers. Immutable functions are skipped.
 **Info: foreign key without an index.** Deleting or updating a referenced row
 scans the referencing table for each row, and joins on the key can't use an
 index. Add an index whose leading columns are the key's columns, in any order.
-This replaces splinter's `unindexed_foreign_keys` (BS200) for the same table
-and also runs on a saved snapshot.
+When [BS200](#bs200) runs, splinter's `unindexed_foreign_keys` reports the
+tables it covers and this check skips them; on a saved snapshot, or when the
+advisor can't run, this check reports every table.
 
 ### BS217
 
@@ -688,6 +694,21 @@ triggers, grants or policies it was meant to add. Write the statements as
 static SQL, one per table, or call a per-table function once per table, such
 as `select better_supabase.audit('public.invoices');` or
 `select better_supabase.track_updated_at('public.invoices');`.
+
+### BS319
+
+**Error: SQL alters a reserved role.** A schema file, SQL module or migration
+alters, drops or changes the memberships of a role that supautils reserves on
+Supabase: `supabase_admin`, `supabase_auth_admin`, `supabase_storage_admin`,
+`supabase_functions_admin`, `supabase_read_only_user`,
+`supabase_realtime_admin`, `supabase_replication_admin`, `supabase_etl_admin`,
+`dashboard_user` and `pgbouncer`. The statement works on a local superuser
+connection and fails on a hosted project. `authenticator`, `authenticated`,
+`anon` and `service_role` accept `alter role ... set` and `reset`, such as
+`alter role authenticator set pgrst.db_pre_request = '...'`, and nothing
+else. Granting privileges on objects to a reserved role
+(`grant usage on schema auth to supabase_auth_admin`) is not flagged. Create
+your own role for anything else.
 
 ## Auth config
 

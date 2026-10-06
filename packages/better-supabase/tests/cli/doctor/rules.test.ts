@@ -149,7 +149,7 @@ describe("advisor findings (BS100, BS200)", () => {
     expect(await run("BS200", context(base))).toEqual([]);
   });
 
-  it("keeps splinter's overlap lint when BS207 has nothing for that table", async () => {
+  it("reports every splinter overlap lint next to BS207", async () => {
     const overlap = (metadata: Lint["metadata"]) =>
       lint({
         name: "multiple_permissive_policies",
@@ -1004,6 +1004,94 @@ describe("tables without an audit trigger (BS315)", () => {
       ),
     ).toEqual([]);
     expect(await run("BS315", context(base))).toEqual([]);
+  });
+});
+
+describe("reserved roles (BS319)", () => {
+  const file = (text: string) => ({
+    path: "supabase/migrations/20261006000000_roles.sql",
+    text,
+  });
+
+  it("flags changes to reserved roles with their line", async () => {
+    const findings = await run(
+      "BS319",
+      context(base, {
+        sqlFiles: [
+          file(`-- alter role supabase_admin nologin;
+create table public.t (id int);
+alter role supabase_auth_admin set search_path = 'auth';
+grant supabase_storage_admin to postgres;
+revoke pgbouncer
+  from authenticator;
+alter role authenticator nologin;
+drop role if exists anon;
+do $$
+begin
+  if true then
+    alter role "dashboard_user" with password 'x';
+  end if;
+end $$;`),
+        ],
+      }),
+    );
+    expect(
+      findings.map((finding) => [finding.location?.line, finding.message]),
+    ).toEqual([
+      [
+        3,
+        expect.stringContaining("alters the reserved role supabase_auth_admin"),
+      ],
+      [
+        4,
+        expect.stringContaining(
+          "grants a membership of the reserved role supabase_storage_admin",
+        ),
+      ],
+      [
+        5,
+        expect.stringContaining(
+          "revokes a membership of the reserved role pgbouncer",
+        ),
+      ],
+      [
+        7,
+        expect.stringContaining(
+          "only `alter role authenticator set ...` is allowed",
+        ),
+      ],
+      [8, expect.stringContaining("drops the reserved role anon")],
+      [12, expect.stringContaining("alters the reserved role dashboard_user")],
+    ]);
+    expect(findings[0]).toMatchObject({
+      severity: "error",
+      target: "supabase/migrations/20261006000000_roles.sql:3",
+    });
+  });
+
+  it("allows settings on the API roles and privileges granted to reserved roles", async () => {
+    expect(
+      await run(
+        "BS319",
+        context(base, {
+          sqlFiles: [
+            file(`do $$
+begin
+  if to_regprocedure('better_supabase.check_request()') is not null then
+    alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';
+  end if;
+end $$;
+alter role authenticated in database postgres set statement_timeout = '8s';
+alter role anon reset statement_timeout;
+grant usage on schema auth to supabase_auth_admin;
+revoke execute on function better_supabase.f() from public, anon, authenticated;
+grant anon to authenticator;
+comment on table public.t is 'alter role supabase_admin nologin';`),
+          ],
+        }),
+      ),
+    ).toEqual([]);
+    expect(await run("BS319", context(base))).toEqual([]);
   });
 });
 

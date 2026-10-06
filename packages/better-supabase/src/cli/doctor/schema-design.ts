@@ -5,6 +5,7 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { splinterTables } from "./advisor-rules.ts";
 import { escape, withoutStrings } from "./rls.ts";
 import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
 
@@ -62,16 +63,19 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     severity: "info",
     title: "Foreign key without an index",
     description:
-      "Deletes and updates on the referenced table scan the referencing table for each row, and joins on the key can't use an index. Add an index that starts with the key's columns. This replaces splinter's `unindexed_foreign_keys` for the same table and also runs on a saved snapshot.",
-    check: (context) =>
-      exposed(context).flatMap((table): FindingInput[] => {
-        if (table.kind !== "table") return [];
+      "Deletes and updates on the referenced table scan the referencing table for each row, and joins on the key can't use an index. Add an index that starts with the key's columns. When the performance advisor (BS200) runs, splinter's `unindexed_foreign_keys` reports a table it covers and this rule skips it; on a saved snapshot this rule reports every table.",
+    check: async (context) => {
+      const splinter = await splinterTables(context, "unindexed_foreign_keys");
+      return exposed(context).flatMap((table): FindingInput[] => {
+        if (table.kind !== "table" || splinter?.has(qualified(table)))
+          return [];
         return unindexedForeignKeys(table).map((key) => ({
           message: `${qualified(table)}.${key.name} (${key.columns.join(", ")}) has no index that starts with its columns, so deletes on ${key.refSchema}.${key.refTable} scan ${qualified(table)}. Run \`create index on ${qualified(table)} (${key.columns.join(", ")});\`.`,
           target: `${qualified(table)}.${key.name}`,
           object: tableObject(table),
         }));
-      }),
+      });
+    },
   },
   {
     code: "BS217",

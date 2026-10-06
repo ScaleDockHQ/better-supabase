@@ -5,6 +5,7 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, SqlObject } from "./rules.ts";
 
+import { splinterTables } from "./advisor-rules.ts";
 import {
   catalogOf,
   exposed,
@@ -429,9 +430,14 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Several permissive policies for one command and role",
     description:
-      "Postgres evaluates every permissive policy that applies and ORs them, so each extra policy adds its cost to every row. Merge them into one policy per command and role. This replaces splinter's `multiple_permissive_policies` lint for the same table.",
-    check: (context) =>
-      rlsTables(context).flatMap((table): FindingInput[] => {
+      "Postgres evaluates every permissive policy that applies and ORs them, so each extra policy adds its cost to every row. Merge them into one policy per command and role. When the performance advisor (BS200) runs, splinter's `multiple_permissive_policies` reports a table it covers and this rule skips it; on a saved snapshot this rule reports every table.",
+    check: async (context) => {
+      const splinter = await splinterTables(
+        context,
+        "multiple_permissive_policies",
+      );
+      return rlsTables(context).flatMap((table): FindingInput[] => {
+        if (splinter?.has(qualified(table))) return [];
         const overlaps = permissiveOverlaps(table);
         if (overlaps.length === 0) return [];
         const first = table.policies.find(
@@ -450,7 +456,8 @@ export const RLS_RULES: readonly Rule[] = [
             object: policyObject(table, first),
           },
         ];
-      }),
+      });
+    },
   },
   {
     code: "BS213",

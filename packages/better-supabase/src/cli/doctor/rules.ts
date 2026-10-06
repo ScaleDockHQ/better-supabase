@@ -27,7 +27,7 @@ import {
   migrationCommand,
   tomlGet,
 } from "../supabase-toml.ts";
-import { advisorRule, coveredByOwnRules } from "./advisor-rules.ts";
+import { advisorRule } from "./advisor-rules.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -477,7 +477,6 @@ const OWN_RULES: readonly Rule[] = [
     "performance",
     "Supabase performance advisor",
     "Findings from the Performance Advisor (splinter): unindexed foreign keys, auth calls re-evaluated per row in policies, multiple permissive policies, unused and duplicate indexes and more.",
-    coveredByOwnRules,
   ),
   {
     code: "BS204",
