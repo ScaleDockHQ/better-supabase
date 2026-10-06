@@ -1017,6 +1017,22 @@ describe("BucketClient replace", () => {
     expect(calls[0]?.args[2]).toMatchObject({ upsert: true });
   });
 
+  it("checks the previous path before uploading", async () => {
+    const { client, calls } = fakeStorage();
+    const scoped = defineBucket({
+      id: "docs",
+      path: "{orgId}/{userId}/{file}",
+      tenant: {},
+    }).connect(client, { tenant: "o1" });
+    expect(
+      await scoped.replace(A, "new", { previous: "o2/u1/a.txt" }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(
+      await scoped.replace(A, "new", { previous: "not/a/valid/path" }),
+    ).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
+    expect(calls).toEqual([]);
+  });
+
   it("uploads without a previous object or options", async () => {
     const { client } = fakeStorage();
     expect(await docs.connect(client).replace(A, "x")).toEqual(
@@ -1195,6 +1211,19 @@ describe("BucketClient sweep", () => {
       "docs/o1/stray.txt",
       "docs/o1/u1/a.txt",
     ]);
+  });
+
+  it("only sweeps objects whose values match every within value", async () => {
+    const storage = files();
+    const result = await docs.connect(storage.client).sweep({
+      within: { orgId: "o1", file: "c.txt" },
+      olderThan: Temporal.Duration.from({ hours: 1 }),
+      now: () => NOW,
+      referenced: () => [],
+    });
+    expect(result).toEqual(
+      ok({ scanned: 4, orphans: ["o1/u2/c.txt"], removed: ["o1/u2/c.txt"] }),
+    );
   });
 
   it("keeps objects newer than the cutoff", async () => {
