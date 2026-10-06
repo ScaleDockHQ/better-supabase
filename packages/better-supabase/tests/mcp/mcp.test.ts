@@ -1,6 +1,6 @@
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -740,5 +740,195 @@ describe("createMcp cursor lists", () => {
     expect(result.tools[0]?.outputSchema).toMatchObject({
       required: ["items", "nextCursor", "hasMore"],
     });
+  });
+});
+
+/** A request as the Edge Functions gateway forwards it: internal URL, public origin in headers. */
+const edgeRequest = (path: string, init: RequestInit = {}) =>
+  new Request(`http://localhost:8081${path}`, {
+    ...init,
+    headers: {
+      "x-forwarded-host": "abcdefghijklmnopqrst.supabase.co",
+      "x-forwarded-proto": "https",
+      "x-forwarded-port": "443",
+      ...(init.headers as Record<string, string> | undefined),
+    },
+  });
+
+describe("createMcp on Supabase Edge Functions", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+  const mcp = createMcp(defineSupabase(schema), {
+    env: { ...env, url: "http://kong:8000" },
+    auth: { jwks: signer.jwks as never },
+    name: "crm",
+    version: "1.0.0",
+    allowedHosts: ["abcdefghijklmnopqrst.supabase.co"],
+  });
+  const PUBLIC = `${PROJECT_URL}/functions/v1/mcp`;
+
+  it("advertises the public function URL and the suffix metadata route", async () => {
+    vi.stubEnv("SUPABASE_FUNCTION_SLUG", "mcp");
+    const response = await mcp.fetch(
+      edgeRequest("/mcp", { method: "POST", body: "{}" }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toBe(
+      `Bearer resource_metadata="${PUBLIC}/oauth-protected-resource"`,
+    );
+    const metadata = await mcp.fetch(
+      edgeRequest("/mcp/oauth-protected-resource"),
+    );
+    expect(await metadata.json()).toEqual({
+      resource: PUBLIC,
+      authorization_servers: [`${PROJECT_URL}/auth/v1`],
+      bearer_methods_supported: ["header"],
+    });
+    const preflight = await mcp.fetch(
+      edgeRequest("/mcp/oauth-protected-resource", { method: "OPTIONS" }),
+    );
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  it("restores /functions/v1 from the path without a slug, and prefers SUPABASE_PUBLIC_URL", async () => {
+    vi.stubEnv("SB_EXECUTION_ID", "exec-1");
+    const metadata = await mcp.fetch(
+      edgeRequest("/mcp/oauth-protected-resource"),
+    );
+    expect(await metadata.json()).toMatchObject({ resource: PUBLIC });
+
+    vi.stubEnv("SUPABASE_PUBLIC_URL", "https://api.example.com/");
+    const custom = await mcp.fetch(
+      edgeRequest("/mcp/oauth-protected-resource"),
+    );
+    expect(await custom.json()).toMatchObject({
+      resource: "https://api.example.com/functions/v1/mcp",
+      authorization_servers: ["https://api.example.com/auth/v1"],
+    });
+  });
+
+  it("keeps a custom port and checks allowedHosts against X-Forwarded-Host", async () => {
+    vi.stubEnv("SUPABASE_FUNCTION_SLUG", "mcp");
+    const local = await mcp.fetch(
+      edgeRequest("/mcp/oauth-protected-resource", {
+        headers: {
+          "x-forwarded-host": "127.0.0.1",
+          "x-forwarded-proto": "http",
+          "x-forwarded-port": "54321",
+        },
+      }),
+    );
+    expect(await local.json()).toMatchObject({
+      resource: "http://127.0.0.1:54321/functions/v1/mcp",
+      authorization_servers: ["http://127.0.0.1:54321/auth/v1"],
+    });
+    const allowed = await mcp.fetch(
+      edgeRequest("/mcp", {
+        method: "POST",
+        body: "{}",
+        headers: { host: "localhost:8081" },
+      }),
+    );
+    expect(allowed.status).toBe(401);
+    const other = await mcp.fetch(
+      edgeRequest("/mcp", {
+        method: "POST",
+        body: "{}",
+        headers: { "x-forwarded-host": "evil.test" },
+      }),
+    );
+    expect(other.status).toBe(403);
+  });
+
+  it("ignores X-Forwarded-Host off Edge Functions", async () => {
+    const response = await mcp.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        body: "{}",
+        headers: {
+          host: "tools.test",
+          "x-forwarded-host": "abcdefghijklmnopqrst.supabase.co",
+        },
+      }),
+    );
+    expect(response.status).toBe(403);
+  });
+});
+
+describe("createMcp CORS", () => {
+  const betterSupabase = defineSupabase(schema);
+  const open = createMcp(betterSupabase, {
+    env,
+    auth: { jwks: signer.jwks as never },
+    name: "crm",
+    version: "1.0.0",
+  });
+  const listed = createMcp(betterSupabase, {
+    env,
+    auth: { jwks: signer.jwks as never },
+    name: "crm",
+    version: "1.0.0",
+    allowedOrigins: ["https://claude.test"],
+  });
+  const preflight = (origin: string) =>
+    new Request(ENDPOINT, {
+      method: "OPTIONS",
+      headers: {
+        origin,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "authorization, mcp-protocol-version",
+      },
+    });
+
+  it("answers preflight and exposes the challenge header to any origin", async () => {
+    const response = await open.fetch(preflight("https://app.test"));
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("access-control-allow-methods")).toBe(
+      "POST, OPTIONS",
+    );
+    expect(response.headers.get("access-control-allow-headers")).toContain(
+      "Mcp-Protocol-Version",
+    );
+    const challenge = await open.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        body: "{}",
+        headers: { origin: "https://app.test" },
+      }),
+    );
+    expect(challenge.status).toBe(401);
+    expect(challenge.headers.get("access-control-allow-origin")).toBe("*");
+    expect(challenge.headers.get("access-control-expose-headers")).toBe(
+      "WWW-Authenticate",
+    );
+  });
+
+  it("echoes only a listed origin", async () => {
+    const ok = await listed.fetch(preflight("https://claude.test"));
+    expect(ok.status).toBe(204);
+    expect(ok.headers.get("access-control-allow-origin")).toBe(
+      "https://claude.test",
+    );
+    expect(ok.headers.get("vary")).toBe("Origin");
+    const refused = await listed.fetch(preflight("https://evil.test"));
+    expect(refused.status).toBe(403);
+    expect(refused.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("can be turned off", async () => {
+    const closed = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      cors: false,
+    });
+    const response = await closed.fetch(preflight("https://app.test"));
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("POST");
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
 });
