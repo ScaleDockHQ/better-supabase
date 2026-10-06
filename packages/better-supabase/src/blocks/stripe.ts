@@ -109,10 +109,16 @@ export interface StripeTaxId {
   readonly verification?: { readonly status?: string | null } | null;
 }
 
-/** A Stripe client, or the secret key to create one from the `stripe` package. */
+/**
+ * A Stripe client, the secret key to create one from the `stripe` package,
+ * or a function that returns a client. The function runs on every Stripe
+ * call, so it can create the client lazily, pick a per-request or per-tenant
+ * client (Stripe Connect), or read a rotated key; cache inside it when needed.
+ */
 export type StripeSource =
   | StripeClient
-  | { readonly secretKey: string; readonly apiVersion?: string };
+  | { readonly secretKey: string; readonly apiVersion?: string }
+  | (() => StripeClient | Promise<StripeClient>);
 
 interface StripeModule {
   readonly default: {
@@ -153,6 +159,7 @@ export async function stripeClient(
   source: StripeSource,
   load: () => Promise<unknown> = loadStripeModule,
 ): Promise<StripeClient> {
+  if (typeof source === "function") return source();
   if (!("secretKey" in source)) return source;
   const loaded = await load();
   if (!isModule(loaded)) {
@@ -169,8 +176,9 @@ export async function stripeClient(
   });
 }
 
-/** Resolves the client once, on first use. */
+/** Resolves the client once, on first use; a function source runs on every use. */
 export function lazyStripe(source: StripeSource): () => Promise<StripeClient> {
+  if (typeof source === "function") return async () => source();
   let client: Promise<StripeClient> | undefined;
   return () => (client ??= stripeClient(source));
 }

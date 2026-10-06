@@ -58,3 +58,20 @@ describe("stripeClient", () => {
     expect(typeof first.checkout.sessions.create).toBe("function");
   });
 });
+
+describe("a client factory", () => {
+  it("runs on every use, sync or async, so each call can pick its client", async () => {
+    const other = { customers: {} } as unknown as StripeClient;
+    let calls = 0;
+    const factory = () => {
+      calls += 1;
+      return calls === 1 ? client : Promise.resolve(other);
+    };
+    expect(await stripeClient(factory)).toBe(client);
+    const lazy = lazyStripe(factory);
+    expect(calls).toBe(1);
+    expect(await lazy()).toBe(other);
+    expect(await lazy()).toBe(other);
+    expect(calls).toBe(3);
+  });
+});

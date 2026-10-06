@@ -45,8 +45,21 @@ export const billing = createBilling({
 ```
 
 `stripe` takes a secret key, which loads the optional `stripe` package with
-its fetch HTTP client so it runs on every runtime, or a Stripe client you
-created. Check the caller's permission (`billing.manage`) in your route before
+its fetch HTTP client so it runs on every runtime, a Stripe client you
+created, or a function that returns a client. The function runs on every
+Stripe call, so it can create the client lazily, read a rotated key, or pick
+a per-request client (a Stripe Connect account); cache inside it when the
+client is the same each time:
+
+```ts
+let client: Stripe | undefined;
+const billing = createBilling({
+  stripe: () => (client ??= new Stripe(env.STRIPE_SECRET_KEY)),
+  transport: sqlTransport(postgres.admin),
+});
+```
+
+The [usage](/docs/blocks/usage) block takes the same `stripe` option. Check the caller's permission (`billing.manage`) in your route before
 you call `checkout`, `portal` or `syncSeats`: they act as the service role.
 
 ## Checkout and the portal
