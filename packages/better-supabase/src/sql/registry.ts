@@ -816,9 +816,19 @@ const WEBHOOK_INBOX: SqlModule = {
   name: "webhook-inbox",
   title: "Webhook inbox",
   description:
-    "Stores verified webhooks once per message id, then processes them with leases and retries.",
+    "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
   requires: [],
   target: "schema",
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Messages record a tenant and a checkpoint; receive_webhook and purge_webhooks take a tenant, and checkpoint_webhook and list_webhooks are new.",
+      sql: () =>
+        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);\ndrop function if exists better_supabase.purge_webhooks(interval, boolean, integer);",
+    },
+  ],
   sql: `${SCHEMA}
 
 create table if not exists better_supabase.webhook_inbox (
@@ -840,12 +850,22 @@ create table if not exists better_supabase.webhook_inbox (
   processed_at timestamptz,
   unique (source, message_id)
 );
+-- The tenant a message belongs to (a per-tenant integration), and progress a
+-- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
+alter table better_supabase.webhook_inbox add column if not exists tenant text;
+alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
 create index if not exists webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
+create index if not exists webhook_inbox_tenant_idx
+  on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
 
 alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
+
+-- The signatures before messages had a tenant.
+drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
+drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
 
 -- duplicate = true when the message id was seen before (the sender retried).
 create or replace function better_supabase.receive_webhook(
@@ -853,7 +873,8 @@ create or replace function better_supabase.receive_webhook(
   message_id text,
   event_type text,
   payload jsonb,
-  headers jsonb default '{}'
+  headers jsonb default '{}',
+  tenant text default null
 )
 returns table (id bigint, duplicate boolean)
 language plpgsql
@@ -863,8 +884,8 @@ as $$
 declare
   inbox_id bigint;
 begin
-  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers)
-  values (source, message_id, event_type, payload, headers)
+  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant)
+  values (source, message_id, event_type, payload, headers, receive_webhook.tenant)
   on conflict on constraint webhook_inbox_source_message_id_key do nothing
   returning webhook_inbox.id into inbox_id;
   if inbox_id is not null then
@@ -939,14 +960,53 @@ as $$
   returning status
 $$;
 
+-- Saves progress for a message the worker still holds, merged into its
+-- checkpoint, so a retry resumes there. False when the lease was lost.
+create or replace function better_supabase.checkpoint_webhook(inbox_id bigint, worker text, fields jsonb)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with saved as (
+    update better_supabase.webhook_inbox
+    set checkpoint = checkpoint || coalesce(fields, '{}')
+    where id = inbox_id and locked_by = worker and status = 'processing'
+    returning 1
+  )
+  select exists (select 1 from saved)
+$$;
+
+-- A tenant's messages, newest first, optionally of one source or status.
+create or replace function better_supabase.list_webhooks(
+  for_tenant text,
+  for_source text default null,
+  for_status text default null,
+  max_rows integer default 100
+)
+returns setof better_supabase.webhook_inbox
+language sql
+stable
+set search_path = ''
+as $$
+  select w.* from better_supabase.webhook_inbox w
+  where w.tenant = for_tenant
+    and (for_source is null or w.source = for_source)
+    and (for_status is null or w.status = for_status)
+  order by w.received_at desc, w.id desc
+  limit least(greatest(max_rows, 1), 1000)
+$$;
+
 -- Deletes up to batch processed messages (and dead ones with include_dead)
--- older than older_than. A sender that retries a purged message id gets it
--- stored again, so keep older_than above the sender's retry window.
+-- older than older_than, of one tenant when for_tenant is set (all of that
+-- tenant's messages, whatever their status, with older_than '0'). A sender
+-- that retries a purged message id gets it stored again, so keep older_than
+-- above the sender's retry window.
 -- Nightly with pg_cron: select cron.schedule('purge-webhooks', '30 3 * * *', 'select better_supabase.purge_webhooks()');
 create or replace function better_supabase.purge_webhooks(
   older_than interval default '30 days',
   include_dead boolean default false,
-  batch integer default 10000
+  batch integer default 10000,
+  for_tenant text default null
 )
 returns integer
 language sql
@@ -956,8 +1016,9 @@ as $$
     delete from better_supabase.webhook_inbox
     where id in (
       select w.id from better_supabase.webhook_inbox w
-      where (w.status = 'processed' and w.processed_at < now() - older_than)
-        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than)
+      where ((w.status = 'processed' and w.processed_at < now() - older_than)
+        or (include_dead and w.status = 'dead' and w.received_at < now() - older_than))
+        and (for_tenant is null or w.tenant = for_tenant)
       order by w.id
       limit batch
     )
@@ -971,11 +1032,13 @@ declare
   fn text;
 begin
   foreach fn in array array[
-    'receive_webhook(text, text, text, jsonb, jsonb)',
+    'receive_webhook(text, text, text, jsonb, jsonb, text)',
     'claim_webhooks(text, text, integer, interval)',
     'complete_webhook(bigint, text)',
     'fail_webhook(bigint, text, text, interval)',
-    'purge_webhooks(interval, boolean, integer)'
+    'checkpoint_webhook(bigint, text, jsonb)',
+    'list_webhooks(text, text, text, integer)',
+    'purge_webhooks(interval, boolean, integer, text)'
   ] loop
     execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
     execute format('grant execute on function better_supabase.%s to service_role', fn);

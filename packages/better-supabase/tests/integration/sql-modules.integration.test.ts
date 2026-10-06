@@ -1618,6 +1618,58 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     });
   });
 
+  it("keeps inbox messages per tenant and resumes from a checkpoint", async () => {
+    const source = `tenant-${RUN}`;
+    const inbox = createInbox(postgres.admin, {
+      source,
+      verify: () => Promise.reject(new Error("store only")),
+      tenantOf: (payload) => (payload as { account?: string }).account ?? null,
+    });
+    expect(
+      await inbox
+        .store({ id: "page-1", payload: { account: "acct-a", pages: 3 } })
+        .orThrow(),
+    ).toMatchObject({ duplicate: false });
+    expect(
+      await inbox
+        .store({ id: "page-1", payload: { account: "acct-a", pages: 3 } })
+        .orThrow(),
+    ).toMatchObject({ duplicate: true });
+    await inbox
+      .store({ id: "other", payload: { pages: 1 }, tenant: "acct-b" })
+      .orThrow();
+
+    const cursors: unknown[] = [];
+    const first = await inbox.process<{ pages: number }>(async (message) => {
+      cursors.push(message.progress["page"] ?? 0);
+      if (message.tenant !== "acct-a") return;
+      await message.checkpoint({ page: 2 });
+      throw new Error("provider timed out on page 3");
+    });
+    expect(first).toEqual({ succeeded: 1, failed: 1 });
+    await pool.query(
+      "update better_supabase.webhook_inbox set available_at = now() where source = $1",
+      [source],
+    );
+    const second = await inbox.process(async (message) => {
+      cursors.push(message.progress["page"]);
+    });
+    expect(second).toEqual({ succeeded: 1, failed: 0 });
+    expect(cursors.toSorted((a, b) => Number(a) - Number(b))).toEqual([
+      0, 0, 2,
+    ]);
+
+    const listed = await inbox.list({ tenant: "acct-a" }).orThrow();
+    expect(listed.map((entry) => [entry.messageId, entry.status])).toEqual([
+      ["page-1", "processed"],
+    ]);
+    expect(
+      await inbox.purge({ tenant: "acct-a", olderThan: 0 }).orThrow(),
+    ).toBe(1);
+    expect(await inbox.list({ tenant: "acct-a" }).orThrow()).toEqual([]);
+    expect(await inbox.list({ tenant: "acct-b" }).orThrow()).toHaveLength(1);
+  });
+
   it("purges old audit entries, processed webhooks and job archives", async () => {
     const old = "now() - interval '11 years'";
     const count = async (text: string, params: unknown[] = []) =>
@@ -1705,7 +1757,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             unnest(array[
               'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
               'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid)',
-              'better_supabase.purge_webhooks(interval, boolean, integer)',
+              'better_supabase.purge_webhooks(interval, boolean, integer, text)',
               'better_supabase.purge_job_archive(text, interval, integer, interval)',
               'better_supabase.replay_dead_job(text, bigint)'
             ]) as f(fn)`,

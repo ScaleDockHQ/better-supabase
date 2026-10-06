@@ -250,6 +250,28 @@ export interface InboxMessage<T = unknown> {
   readonly headers: Readonly<Record<string, string>>;
   readonly attempts: number;
   readonly receivedAt: Temporal.Instant;
+  /** The tenant the message was stored for, or null. */
+  readonly tenant: string | null;
+  /** Progress an earlier attempt saved with `checkpoint`, `{}` at first. */
+  readonly progress: Readonly<Record<string, unknown>>;
+  /**
+   * Saves progress mid-processing (merged into `progress`), so a retry
+   * resumes there, such as a provider's page cursor. `false` when the lease
+   * was lost. Only while the handler runs.
+   */
+  checkpoint(fields: Readonly<Record<string, unknown>>): Promise<boolean>;
+}
+
+/** A verified event to store, from `verify` or from `store` for a provider SDK that verifies itself. */
+export interface InboxEvent {
+  /** The sender's message id; the inbox stores each one once. */
+  readonly id: string;
+  readonly payload: unknown;
+  /** Defaults to `typeOf(payload)`. */
+  readonly type?: string | null;
+  /** Defaults to `tenantOf(payload)`. */
+  readonly tenant?: string | null;
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface InboxOptions {
@@ -257,26 +279,72 @@ export interface InboxOptions {
   readonly source: string;
   /** Standard Webhooks secrets; the signature is verified before storing. */
   readonly secrets?: string | readonly string[];
-  /** Custom verification for senders that don't use Standard Webhooks. */
+  /**
+   * Custom verification for senders that don't use Standard Webhooks. It
+   * may also return the event's tenant.
+   */
   readonly verify?: (
     request: Request,
     body: string,
-  ) => Promise<Result<{ id: string; payload: unknown }>>;
+  ) => Promise<
+    Result<{ id: string; payload: unknown; tenant?: string | null }>
+  >;
   /** Event type from the payload. Defaults to `payload.type`. */
   readonly typeOf?: (payload: unknown) => string | null;
+  /** The tenant a payload belongs to, for per-tenant integrations. Defaults to none. */
+  readonly tenantOf?: (payload: unknown) => string | null | undefined;
   /** Headers kept with the message. Defaults to none. */
   readonly keepHeaders?: readonly string[];
   readonly worker?: string;
 }
 
+export interface InboxListOptions {
+  readonly tenant: string;
+  /** Only this status: `pending`, `processing`, `processed` or `dead`. */
+  readonly status?: "pending" | "processing" | "processed" | "dead";
+  /** Defaults to 100, at most 1000. */
+  readonly limit?: number;
+}
+
+/** A stored message as `list` returns it. */
+export interface InboxEntry {
+  readonly id: number;
+  readonly messageId: string;
+  readonly type: string | null;
+  readonly status: "pending" | "processing" | "processed" | "dead";
+  readonly attempts: number;
+  readonly lastError: string | null;
+  readonly tenant: string | null;
+  readonly receivedAt: Temporal.Instant;
+  readonly processedAt: Temporal.Instant | null;
+}
+
+export interface InboxPurgeOptions {
+  /** Defaults to `30 days`; `0` with `tenant` removes all of that tenant's processed messages. */
+  readonly olderThan?: number | string;
+  readonly includeDead?: boolean;
+  readonly tenant?: string;
+  readonly batch?: number;
+}
+
 export interface Inbox {
   /** Verifies and stores a webhook; answers 202, or 200 for a duplicate delivery. */
   receive(request: Request): Promise<Response>;
+  /**
+   * Stores an event your code already verified (a provider SDK that
+   * verifies and parses in one call). `duplicate` when the id was stored
+   * before.
+   */
+  store(event: InboxEvent): AsyncResult<{ id: number; duplicate: boolean }>;
   /** Processes stored messages until none are ready. */
   process<T = unknown>(
     handler: (message: InboxMessage<T>) => unknown,
     options?: { readonly batch?: number; readonly lease?: number | string },
   ): Promise<DrainResult>;
+  /** A tenant's messages of this source, newest first. */
+  list(options: InboxListOptions): AsyncResult<InboxEntry[]>;
+  /** Deletes old processed (and, with `includeDead`, dead) messages of this source's table; returns how many. */
+  purge(options?: InboxPurgeOptions): AsyncResult<number>;
 }
 
 interface InboxRow {
@@ -288,6 +356,11 @@ interface InboxRow {
   headers: Record<string, string>;
   attempts: number;
   received_at: Date | string;
+  tenant?: string | null;
+  checkpoint?: Record<string, unknown> | null;
+  status?: InboxEntry["status"];
+  last_error?: string | null;
+  processed_at?: Date | string | null;
 }
 
 function defaultType(payload: unknown): string | null {
@@ -308,7 +381,9 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
 
   const verified = async (
     request: Request,
-  ): Promise<Result<{ id: string; payload: unknown }>> => {
+  ): Promise<
+    Result<{ id: string; payload: unknown; tenant?: string | null }>
+  > => {
     if (options.verify)
       return options.verify(request, await request.clone().text());
     const result = await verifyWebhook(request, options.secrets!);
@@ -317,7 +392,70 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       : result;
   };
 
+  const save = (event: InboxEvent) =>
+    run(async () => {
+      const [row] = await sql.queryRaw<{
+        id: string | number;
+        duplicate: boolean;
+      }>(
+        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
+        [
+          options.source,
+          event.id,
+          event.type === undefined
+            ? (options.typeOf ?? defaultType)(event.payload)
+            : event.type,
+          JSON.stringify(event.payload),
+          JSON.stringify(event.headers ?? {}),
+          (event.tenant === undefined
+            ? options.tenantOf?.(event.payload)
+            : event.tenant) ?? null,
+        ],
+      );
+      return { id: Number(row!.id), duplicate: row!.duplicate };
+    });
+
   return {
+    store: save,
+    list: (listOptions) =>
+      run(async () => {
+        const rows = await sql.queryRaw<InboxRow>(
+          "select * from better_supabase.list_webhooks($1, $2, $3, $4)",
+          [
+            listOptions.tenant,
+            options.source,
+            listOptions.status ?? null,
+            listOptions.limit ?? 100,
+          ],
+        );
+        return rows.map((row) => ({
+          id: Number(row.id),
+          messageId: row.message_id,
+          type: row.event_type,
+          status: row.status ?? "pending",
+          attempts: row.attempts,
+          lastError: row.last_error ?? null,
+          tenant: row.tenant ?? null,
+          receivedAt: toInstant(row.received_at),
+          processedAt:
+            row.processed_at === null || row.processed_at === undefined
+              ? null
+              : toInstant(row.processed_at),
+        }));
+      }),
+    purge: (purgeOptions = {}) =>
+      run(async () => {
+        const [row] = await sql.queryRaw<{ purged: number }>(
+          "select better_supabase.purge_webhooks($1::interval, $2, $3, $4) as purged",
+          [
+            seconds(purgeOptions.olderThan ?? "30 days"),
+            purgeOptions.includeDead ?? false,
+            purgeOptions.batch ?? 10_000,
+            purgeOptions.tenant ?? null,
+          ],
+        );
+        return row?.purged ?? 0;
+      }),
     async receive(request) {
       const instance = new URL(request.url).pathname;
       if (request.method !== "POST") {
@@ -331,24 +469,18 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           return value === null ? [] : [[name.toLowerCase(), value]];
         }),
       );
-      const stored = await run(() =>
-        sql.queryRaw<{ id: string | number; duplicate: boolean }>(
-          "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5)",
-          [
-            options.source,
-            message.data.id,
-            (options.typeOf ?? defaultType)(message.data.payload),
-            JSON.stringify(message.data.payload),
-            JSON.stringify(headers),
-          ],
-        ),
-      );
+      const stored = await save({
+        id: message.data.id,
+        payload: message.data.payload,
+        headers,
+        ...(message.data.tenant === undefined
+          ? {}
+          : { tenant: message.data.tenant }),
+      });
       if (!stored.ok) return problemResponse(stored.error, { instance });
-      const row = stored.data[0]!;
-      return Response.json(
-        { id: Number(row.id), duplicate: row.duplicate },
-        { status: row.duplicate ? 200 : 202 },
-      );
+      return Response.json(stored.data, {
+        status: stored.data.duplicate ? 200 : 202,
+      });
     },
 
     async process(handler, processOptions = {}) {
@@ -366,17 +498,27 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
         );
         if (rows.length === 0) return { succeeded, failed };
         for (const row of rows) {
-          // SAFETY: the handler's payload type comes from its event type, and
-          // the inbox stores the payload as JSON.
-          const message = {
-            id: Number(row.id),
+          const id = Number(row.id);
+          const message: InboxMessage<never> = {
+            id,
             source: row.source,
             messageId: row.message_id,
             type: row.event_type,
+            // SAFETY: the handler's payload type comes from its event type,
+            // and the inbox stores the payload as JSON.
             payload: row.payload as never,
             headers: row.headers,
             attempts: row.attempts,
             receivedAt: toInstant(row.received_at),
+            tenant: row.tenant ?? null,
+            progress: row.checkpoint ?? {},
+            async checkpoint(fields) {
+              const [saved] = await sql.queryRaw<{ saved: boolean }>(
+                "select better_supabase.checkpoint_webhook($1, $2, $3) as saved",
+                [id, worker, JSON.stringify(fields)],
+              );
+              return saved?.saved ?? false;
+            },
           };
           try {
             const outcome: unknown = await handler(message);

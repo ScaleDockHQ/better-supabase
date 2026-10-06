@@ -5,8 +5,12 @@ export type {
   IdempotencyOptions,
   IdempotencyState,
   Inbox,
+  InboxEntry,
+  InboxEvent,
+  InboxListOptions,
   InboxMessage,
   InboxOptions,
+  InboxPurgeOptions,
   PurgeAuditLogOptions,
 } from "./jobs.ts";
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
