@@ -117,7 +117,7 @@ export interface PermissiveOverlap {
 }
 
 /** Commands and roles that more than one permissive policy of the table covers. */
-export function permissiveOverlaps(table: CatalogTable): PermissiveOverlap[] {
+function permissiveOverlaps(table: CatalogTable): PermissiveOverlap[] {
   const permissive = table.policies.filter((policy) => policy.permissive);
   const roles = new Set<string>();
   for (const policy of permissive) {
