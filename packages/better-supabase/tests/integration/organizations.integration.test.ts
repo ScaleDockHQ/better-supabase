@@ -583,6 +583,75 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("leaves the memberships table to an external guard", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_guard_${USERS.owner.slice(0, 8)}`;
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      await client.query(`
+        create schema ${schema};
+        create table ${schema}.team_members (
+          organization_id uuid not null,
+          user_id uuid not null references auth.users (id) on delete cascade,
+          role text not null,
+          created_at timestamptz not null default now(),
+          primary key (organization_id, user_id)
+        );
+      `);
+      const layout: ModuleLayout = {
+        modules: {
+          access: { schema },
+          tenant: {
+            schema,
+            mode: "adopt",
+            tables: { memberships: `${schema}.team_members` },
+            columns: {
+              memberships: { updatedAt: null, lastUsedAt: null },
+            },
+          },
+          organizations: {
+            schema,
+            options: { assignmentGuard: "external" },
+          },
+        },
+      };
+      for (const file of renderModules(["organizations"], layout))
+        await client.query(file.contents);
+      expect(
+        await s.value(
+          `(select count(*)::int from pg_trigger where tgrelid = '${schema}.team_members'::regclass and tgname = 'bs_organization_role_guard')`,
+        ),
+      ).toBe(0);
+      await s.as("owner");
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Guard", slug: `guard-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'member')`,
+        [organization, USERS.member],
+      );
+      await s.as("member");
+      expect(
+        await s.hint(`${schema}.update_member_role($1, $2, 'owner')`, [
+          organization,
+          USERS.owner,
+        ]),
+      ).toBe("ORGANIZATION_FORBIDDEN");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
     const client = await pool.connect();
     const s = new Session(client);

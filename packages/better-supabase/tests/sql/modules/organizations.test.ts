@@ -114,6 +114,33 @@ describe("organizations module", () => {
     ).toThrow(/is not a valid column/);
   });
 
+  it("leaves role checks to an external guard on request", () => {
+    const adopted: ModulesConfig = {
+      tenant: {
+        mode: "adopt",
+        tables: { memberships: "public.team_members" },
+      },
+    };
+    const external = body({
+      ...adopted,
+      organizations: { options: { assignmentGuard: "external" } },
+    });
+    expect(external).not.toContain(
+      'create or replace function "better_supabase"."guard_membership"',
+    );
+    expect(external).toContain(
+      'drop trigger if exists "bs_organization_role_guard" on "public"."team_members";',
+    );
+    expect(external).toContain("bs_organization_owner");
+    expect(external).toContain("better_supabase.can_assign(organization,");
+    expect(() =>
+      body({ organizations: { options: { assignmentGuard: "external" } } }),
+    ).toThrow(/needs an adopted table/);
+    expect(() =>
+      body({ organizations: { options: { assignmentGuard: "none" } } }),
+    ).toThrow(/must be "module" or "external"/);
+  });
+
   it("checks a create permission when one is configured", () => {
     expect(
       body({

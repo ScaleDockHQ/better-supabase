@@ -19,6 +19,7 @@ import {
 
 const NAMES: ModuleNames = {
   options: [
+    "assignmentGuard",
     "attributes",
     "deleteMode",
     "formerOwnerRole",
@@ -530,6 +531,27 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   for each row execute function ${ctx.fn("ensure_organization_owner")}();
 `
     : "";
+  const guard = ctx.text("assignmentGuard", "module");
+  if (guard !== "module" && guard !== "external") {
+    throw new TypeError(
+      `sql.modules.organizations.options.assignmentGuard must be "module" or "external", not "${guard}"`,
+    );
+  }
+  if (guard === "external") {
+    if (ctx.of("tenant").manages) {
+      throw new TypeError(
+        'sql.modules.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as PermDock\'s assignment rules, so it needs an adopted table (sql.modules.tenant.mode "adopt").',
+      );
+    }
+    return `${invariant}
+-- sql.modules.organizations.options.assignmentGuard is "external": another
+-- trigger on ${n.m} (such as PermDock's assignment rules) checks role
+-- changes, so the module's guard is removed. Its functions still check
+-- can_assign before they write.
+drop trigger if exists ${ctx.trigger("organization_role_guard")} on ${n.m};
+drop function if exists ${ctx.fn("guard_membership")}();
+`;
+  }
   const ceiling = `
 -- No one grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. The service role, direct
