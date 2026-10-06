@@ -58,6 +58,18 @@ describe("attachments module", () => {
     expect(() => sqlOf(["attachments"], options)).toThrow(message);
   });
 
+  it("checks the subject on storage reads when files have subjects", () => {
+    const visible = `"better_supabase"."attachment_object_visible"(bucket_id, name)`;
+    expect(
+      sqlOf(["attachments"], { subjects: { receipt: { table: "receipts" } } }),
+    ).toMatch(
+      new RegExp(
+        `for select to authenticated\\n  using \\([^\\n]*'select'\\) and ${visible.replaceAll(/[.()"]/g, "\\$&")}\\);`,
+      ),
+    );
+    expect(sqlOf(["attachments"])).not.toContain(`and ${visible}`);
+  });
+
   it("gives subjects their own bucket and MIME types, a path template and a scan gate", () => {
     const sql = sqlOf(["attachments"], {
       path: "{organization_id}/{subject_type}/{id}",

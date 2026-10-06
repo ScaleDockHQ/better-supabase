@@ -75,7 +75,12 @@ options: {
 ```
 
 The module creates every listed bucket that doesn't exist yet and adds its
-storage policies for each, next to any policies the bucket already has.
+storage policies for each, next to any policies the bucket already has. With
+subjects, reading an object also needs its subject: the storage read policy
+checks that the caller sees the attachment row through its own read policy
+(`attachment_object_visible`), so a member who can't see the subject, or who
+isn't in the tenant, can't download its files, uploader and
+`attachments.manage` included.
 `cascade: true` deletes a subject's attachment rows with the subject row;
 remove the objects with `attachments.remove` or a storage cleanup job.
 

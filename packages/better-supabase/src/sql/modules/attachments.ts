@@ -366,10 +366,33 @@ $$;
 revoke execute on function ${fn("attachment_object_allowed")}(text, text, text) from public, anon;
 grant execute on function ${fn("attachment_object_allowed")}(text, text, text) to authenticated, service_role;
 
+-- Whether the caller sees the object's record through the table's own read
+-- policy, which checks the subject. It runs as the caller (security invoker):
+-- attachment_object_allowed runs as its owner, so it can't apply the subject
+-- table's policies itself.
+create or replace function ${fn("attachment_object_visible")}(bucket text, path text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select exists (
+    select 1 from ${t} a
+    where a.${c("bucket")} = attachment_object_visible.bucket and a.${c("path")} = attachment_object_visible.path
+  )
+$$;
+revoke execute on function ${fn("attachment_object_visible")}(text, text) from public, anon;
+grant execute on function ${fn("attachment_object_visible")}(text, text) to authenticated, service_role;
+
 create policy ${policy("insert")} on storage.objects for insert to authenticated
   with check (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'insert'));
 create policy ${policy("select")} on storage.objects for select to authenticated
-  using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'select'));
+  using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'select')${
+    subjects.length === 0
+      ? ""
+      : ` and ${fn("attachment_object_visible")}(bucket_id, name)`
+  });
 create policy ${policy("delete")} on storage.objects for delete to authenticated
   using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'delete'));
 

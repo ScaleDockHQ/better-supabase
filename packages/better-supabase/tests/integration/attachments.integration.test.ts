@@ -332,6 +332,83 @@ describe.skipIf(!live)("attachments", () => {
     }
   });
 
+  it("refuses attachment objects of subjects the caller cannot see", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_cases (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           private boolean not null default false
+         );
+         alter table public.bs_test_cases enable row level security;
+         grant select on public.bs_test_cases to authenticated;
+         create policy "read" on public.bs_test_cases for select to authenticated
+           using (better_supabase.has_organization_role(organization_id) and not private);`,
+      );
+      await s.install(["organizations", "attachments"], {
+        modules: {
+          attachments: {
+            options: {
+              bucket: BUCKET,
+              requireScan: false,
+              subjects: { case: { table: "bs_test_cases" } },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const stranger = await s.user("stranger");
+      const organization = await s.organization(owner, { member });
+      const [entry] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_cases (organization_id) values ($1) returning id",
+        [organization],
+      );
+      const attachments = createAttachments({
+        transport: sqlTransport(s.sql),
+        storage: storage(),
+        requireScan: false,
+      });
+      await s.asRole(member);
+      const { attachment } = await attachments
+        .upload({
+          organizationId: organization,
+          name: "case.txt",
+          mimeType: "text/plain",
+          size: 3,
+          subjectType: "case",
+          subjectId: entry!.id,
+        })
+        .orThrow();
+      await s.rows(
+        "insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, auth.uid()::text, '{}')",
+        [BUCKET, attachment.path],
+      );
+      await attachments.confirm(attachment.id).orThrow();
+      const objects = async () =>
+        s.value<number>(
+          "(select count(*)::int from storage.objects where bucket_id = $1 and name = $2)",
+          [BUCKET, attachment.path],
+        );
+      await s.asRole(owner);
+      expect(await objects()).toBe(1);
+      await s.asRole(stranger);
+      expect(await objects()).toBe(0);
+      await s.service();
+      await s.rows(
+        "update public.bs_test_cases set private = true where id = $1",
+        [entry!.id],
+      );
+      await s.asRole(owner);
+      expect(await objects()).toBe(0);
+      await s.asRole(member);
+      expect(await objects()).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("routes subjects to their buckets and gates any bucket on a scan", async () => {
     const s = await BlockSession.open(pool);
     const DOCS = "bs-it-docs";
