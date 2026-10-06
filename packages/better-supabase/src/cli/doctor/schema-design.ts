@@ -18,9 +18,7 @@ const covers = (index: CatalogIndex, columns: readonly string[]): boolean =>
     .every((column) => columns.includes(column));
 
 /** Foreign keys of `table` that no index starts with. */
-export const unindexedForeignKeys = (
-  table: CatalogTable,
-): CatalogForeignKey[] =>
+const unindexedForeignKeys = (table: CatalogTable): CatalogForeignKey[] =>
   table.foreignKeys.filter(
     (key) => !table.indexes.some((index) => covers(index, key.columns)),
   );
