@@ -13,6 +13,8 @@ create extension if not exists vector with schema extensions;
 
 -- config.vectorSearch
 -- notes.embedding (cosine)
+drop function if exists "public"."search_notes"(extensions.vector, integer, jsonb, text);
+drop function if exists "public"."search_notes_scores"(extensions.vector, integer, jsonb, text);
 create or replace function "public"."search_notes"(query extensions.vector, k integer default 10)
 returns setof "public"."notes"
 language sql
@@ -26,9 +28,40 @@ as $$
   order by t."embedding" operator(extensions.<=>) query
   limit least(greatest(k, 1), 1000)
 $$;
-
 revoke execute on function "public"."search_notes"(extensions.vector, integer) from public, anon;
 grant execute on function "public"."search_notes"(extensions.vector, integer) to authenticated, service_role;
+
+-- The ids and scores of the same search, best first, for db.$search({ score: true }).
+create or replace function "public"."search_notes_scores"(query extensions.vector, k integer default 10)
+returns table (id jsonb, score double precision)
+language sql
+stable
+security invoker
+set search_path = ''
+set hnsw.iterative_scan = 'strict_order'
+as $$
+  select to_jsonb(r.id), r.score from (
+  with vector_hits as materialized (
+    select t."id" as id, t."embedding" operator(extensions.<=>) query as distance
+    from "public"."notes" t
+    where t."embedding" is not null
+    order by t."embedding" operator(extensions.<=>) query
+    limit least(greatest(k, 1), 1000)
+  ),
+  vector_ranked as (
+    select h.id, h.distance, row_number() over (order by h.distance) as rank from vector_hits h
+  ),
+  fused as (
+    select v.id, 1 - v.distance as score from vector_ranked v
+  )
+  select f.id, f.score::double precision as score from fused f
+  order by score desc
+  limit least(greatest(k, 1), 1000)
+  ) r
+  order by r.score desc
+$$;
+revoke execute on function "public"."search_notes_scores"(extensions.vector, integer) from public, anon;
+grant execute on function "public"."search_notes_scores"(extensions.vector, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

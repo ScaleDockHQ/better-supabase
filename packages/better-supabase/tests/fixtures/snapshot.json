@@ -2203,7 +2203,7 @@
         ],
         "argument_types": "p_status text, p_limit integer DEFAULT 50",
         "identity_argument_types": "p_status text, p_limit integer",
-        "return_type_id": 2000030,
+        "return_type_id": 2000031,
         "return_type": "SETOF customers",
         "return_type_relation_id": 1000005,
         "is_set_returning_function": true,
@@ -2265,9 +2265,56 @@
         ],
         "argument_types": "query vector, k integer DEFAULT 10",
         "identity_argument_types": "query vector, k integer",
-        "return_type_id": 2000033,
+        "return_type_id": 2000034,
         "return_type": "SETOF notes",
         "return_type_relation_id": 1000007,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\"",
+          "hnsw.iterative_scan": "strict_order"
+        }
+      },
+      {
+        "id": 3000012,
+        "schema": "public",
+        "name": "search_notes_scores",
+        "language": "sql",
+        "definition": "\n  select to_jsonb(r.id), r.score from (\n  with vector_hits as materialized (\n    select t.\"id\" as id, t.\"embedding\" operator(extensions.<=>) query as distance\n    from \"public\".\"notes\" t\n    where t.\"embedding\" is not null\n    order by t.\"embedding\" operator(extensions.<=>) query\n    limit least(greatest(k, 1), 1000)\n  ),\n  vector_ranked as (\n    select h.id, h.distance, row_number() over (order by h.distance) as rank from vector_hits h\n  ),\n  fused as (\n    select v.id, 1 - v.distance as score from vector_ranked v\n  )\n  select f.id, f.score::double precision as score from fused f\n  order by score desc\n  limit least(greatest(k, 1), 1000)\n  ) r\n  order by r.score desc\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.search_notes_scores(query vector, k integer DEFAULT 10)\n RETURNS TABLE(id jsonb, score double precision)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\n SET \"hnsw.iterative_scan\" TO 'strict_order'\nAS $function$\n  select to_jsonb(r.id), r.score from (\n  with vector_hits as materialized (\n    select t.\"id\" as id, t.\"embedding\" operator(extensions.<=>) query as distance\n    from \"public\".\"notes\" t\n    where t.\"embedding\" is not null\n    order by t.\"embedding\" operator(extensions.<=>) query\n    limit least(greatest(k, 1), 1000)\n  ),\n  vector_ranked as (\n    select h.id, h.distance, row_number() over (order by h.distance) as rank from vector_hits h\n  ),\n  fused as (\n    select v.id, 1 - v.distance as score from vector_ranked v\n  )\n  select f.id, f.score::double precision as score from fused f\n  order by score desc\n  limit least(greatest(k, 1), 1000)\n  ) r\n  order by r.score desc\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "id",
+            "type_id": 3802,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "k",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "query",
+            "type_id": 2000006,
+            "has_default": false
+          },
+          {
+            "mode": "table",
+            "name": "score",
+            "type_id": 701,
+            "has_default": null
+          }
+        ],
+        "argument_types": "query vector, k integer DEFAULT 10",
+        "identity_argument_types": "query vector, k integer",
+        "return_type_id": 2249,
+        "return_type": "TABLE(id jsonb, score double precision)",
+        "return_type_relation_id": null,
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "STABLE",
@@ -2367,6 +2414,16 @@
         "enums": [],
         "attributes": [],
         "comment": "boolean, format 't'/'f'",
+        "type_relation_id": null
+      },
+      {
+        "id": 701,
+        "name": "float8",
+        "schema": "pg_catalog",
+        "format": "double precision",
+        "enums": [],
+        "attributes": [],
+        "comment": "double-precision floating point number, 8-byte storage",
         "type_relation_id": null
       },
       {
@@ -2470,7 +2527,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000019,
+        "id": 2000020,
         "name": "_contacts",
         "schema": "public",
         "format": "contacts[]",
@@ -2480,7 +2537,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000020,
+        "id": 2000021,
         "name": "_customer_tags",
         "schema": "public",
         "format": "customer_tags[]",
@@ -2490,7 +2547,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000021,
+        "id": 2000022,
         "name": "_customers",
         "schema": "public",
         "format": "customers[]",
@@ -2500,7 +2557,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000022,
+        "id": 2000023,
         "name": "_locations",
         "schema": "public",
         "format": "locations[]",
@@ -2510,7 +2567,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000023,
+        "id": 2000024,
         "name": "_note_kind",
         "schema": "public",
         "format": "note_kind[]",
@@ -2520,7 +2577,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000024,
+        "id": 2000025,
         "name": "_notes",
         "schema": "public",
         "format": "notes[]",
@@ -2530,7 +2587,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000025,
+        "id": 2000026,
         "name": "_notifications",
         "schema": "public",
         "format": "notifications[]",
@@ -2540,7 +2597,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000026,
+        "id": 2000027,
         "name": "_organizations",
         "schema": "public",
         "format": "organizations[]",
@@ -2550,7 +2607,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000027,
+        "id": 2000028,
         "name": "_tags",
         "schema": "public",
         "format": "tags[]",
@@ -2560,7 +2617,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000028,
+        "id": 2000029,
         "name": "contacts",
         "schema": "public",
         "format": "contacts",
@@ -2570,7 +2627,7 @@
         "type_relation_id": 1000003
       },
       {
-        "id": 2000029,
+        "id": 2000030,
         "name": "customer_tags",
         "schema": "public",
         "format": "customer_tags",
@@ -2580,7 +2637,7 @@
         "type_relation_id": 1000004
       },
       {
-        "id": 2000030,
+        "id": 2000031,
         "name": "customers",
         "schema": "public",
         "format": "customers",
@@ -2590,7 +2647,7 @@
         "type_relation_id": 1000005
       },
       {
-        "id": 2000031,
+        "id": 2000032,
         "name": "locations",
         "schema": "public",
         "format": "locations",
@@ -2600,7 +2657,7 @@
         "type_relation_id": 1000006
       },
       {
-        "id": 2000032,
+        "id": 2000033,
         "name": "note_kind",
         "schema": "public",
         "format": "note_kind",
@@ -2610,7 +2667,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000033,
+        "id": 2000034,
         "name": "notes",
         "schema": "public",
         "format": "notes",
@@ -2620,7 +2677,7 @@
         "type_relation_id": 1000007
       },
       {
-        "id": 2000034,
+        "id": 2000035,
         "name": "notifications",
         "schema": "public",
         "format": "notifications",
@@ -2630,7 +2687,7 @@
         "type_relation_id": 1000008
       },
       {
-        "id": 2000035,
+        "id": 2000036,
         "name": "organizations",
         "schema": "public",
         "format": "organizations",
@@ -2640,7 +2697,7 @@
         "type_relation_id": 1000009
       },
       {
-        "id": 2000036,
+        "id": 2000037,
         "name": "tags",
         "schema": "public",
         "format": "tags",
@@ -3629,6 +3686,19 @@
       {
         "schema": "public",
         "name": "search_notes",
+        "signature": "query vector, k integer",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": false,
+        "settings": {
+          "search_path": "\"\"",
+          "hnsw.iterative_scan": "strict_order"
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "public",
+        "name": "search_notes_scores",
         "signature": "query vector, k integer",
         "language": "sql",
         "volatility": "stable",

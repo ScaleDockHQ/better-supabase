@@ -23,7 +23,8 @@ export default {
     "customer_note_counts": {"name":"customer_note_counts","schema":"public","args":[{"name":"p_customer_ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"customer_id","name":"customerId"},{"db":"last_note_at","name":"lastNoteAt"},{"db":"note_count","name":"noteCount"}]}},
     "customers_by_status": {"name":"customers_by_status","schema":"public","args":[{"name":"p_limit","type":"int4"},{"name":"p_status","type":"text"}],"returns":"customers","returnsSet":true,"volatility":"stable","result":{"table":"customers"}},
     "rs_workspace_summary": {"name":"rs_workspace_summary","schema":"public","args":[{"name":"p","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
-    "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable","result":{"table":"notes"}}
+    "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable","result":{"table":"notes"}},
+    "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"}
   },
   "buckets": {
     "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}

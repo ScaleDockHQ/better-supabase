@@ -459,7 +459,7 @@ describe("$search", () => {
         (await betterSupabase.connect(executor).$search("notes", { vector }))
           .error?.hint,
       ).toBe(
-        'Add "public.notes" to vectorSearch in better-supabase.config.ts and run `better-supabase sql sync`.',
+        'Add "public.notes" to vectorSearch in better-supabase.config.ts (with prefilter or hybrid for filter and text) and run `better-supabase sql sync`.',
       );
     },
   );
@@ -472,6 +472,111 @@ describe("$search", () => {
     expect(
       await betterSupabase.connect(executor).$search("notes", { vector }),
     ).toEqual(err({ ...timeout, table: "notes" }));
+  });
+
+  it("passes filter and text to the search function", async () => {
+    const executor = fake({ functionSources: true });
+    await betterSupabase.connect(executor).$search("notes", {
+      vector,
+      filter: { kind: ["call", null] },
+      text: "renewal",
+    });
+    expect(executor.ops[0]).toMatchObject({
+      source: {
+        args: {
+          query: "[0.1,0.2]",
+          k: 10,
+          filter: { kind: ["call", null] },
+          text_query: "renewal",
+        },
+      },
+    });
+  });
+
+  it("adds $score from the scores function, best first", async () => {
+    const executor = fake({
+      functionSources: true,
+      answer: (op) =>
+        op.kind === "select" && op.source?.name === "search_notes_scores"
+          ? ok({
+              rows: [
+                { id: "b", score: 0.9 },
+                { id: "a", score: "0.5" },
+                { id: "gone", score: 0.4 },
+                { id: "c", score: null },
+              ],
+              count: null,
+            })
+          : ok({ rows: [{ id: "a" }, { id: "b" }, { id: "x" }], count: null }),
+    });
+    const rows = await betterSupabase
+      .connect(executor)
+      .$search("notes", {
+        vector,
+        k: 3,
+        score: true,
+        select: ["id"],
+        where: { kind: "call" },
+      })
+      .orThrow();
+    expect(rows).toEqual([
+      { id: "b", $score: 0.9 },
+      { id: "a", $score: 0.5 },
+    ]);
+    expect(executor.ops[0]).toMatchObject({
+      source: {
+        schema: "public",
+        name: "search_notes_scores",
+        args: { query: "[0.1,0.2]", k: 3 },
+      },
+    });
+    expect(executor.ops[1]).toMatchObject({ limit: 3 });
+    expect(executor.ops[1]!).not.toHaveProperty("source");
+  });
+
+  it("needs a one-column primary key for scores", async () => {
+    expect(
+      (
+        await betterSupabase
+          .connect(fake({ functionSources: true }))
+          .$search("customerTags", { vector, score: true })
+      ).error?.message,
+    ).toMatch(/one-column primary key/);
+  });
+
+  it("answers an empty list, hints and passes errors through", async () => {
+    const empty = fake({ functionSources: true });
+    expect(
+      await betterSupabase
+        .connect(empty)
+        .$search("notes", { vector, score: true }),
+    ).toEqual(ok([]));
+    expect(empty.ops).toHaveLength(1);
+    const missing = fake({
+      functionSources: true,
+      answer: () => err(dbError("unexpected", "missing", { code: "PGRST202" })),
+    });
+    expect(
+      (
+        await betterSupabase
+          .connect(missing)
+          .$search("notes", { vector, score: true })
+      ).error?.hint,
+    ).toContain("vectorSearch");
+    const failing = fake({
+      functionSources: true,
+      answer: (op) =>
+        op.kind === "select" && op.source
+          ? ok({ rows: [{ id: "a", score: 1 }], count: null })
+          : err(timeout),
+    });
+    expect(
+      (
+        await betterSupabase
+          .connect(failing)
+          .$search("notes", { vector, score: true })
+      ).error,
+    ).toMatchObject({ kind: timeout.kind });
   });
 });
 

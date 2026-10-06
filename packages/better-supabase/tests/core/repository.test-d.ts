@@ -381,3 +381,17 @@ describe("_count, $table and $withoutPlugins", () => {
     void ruled.contacts.findMany({ limit: 1, sensitive: true });
   });
 });
+
+describe("$search", () => {
+  it("adds $score only when score is true", async () => {
+    const scored = await db
+      .$search("notes", { vector: [0.1], select: ["id"], score: true })
+      .orThrow();
+    expectTypeOf(scored[0]!.$score).toEqualTypeOf<number>();
+    const plain = await db
+      .$search("notes", { vector: [0.1], select: ["id"], filter: { a: 1 } })
+      .orThrow();
+    // @ts-expect-error no score without score: true
+    void plain[0]!.$score;
+  });
+});

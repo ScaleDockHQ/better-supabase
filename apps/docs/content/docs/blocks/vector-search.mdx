@@ -82,6 +82,66 @@ const result = await ctx.db.$search("chunks", {
   alike. A table without a search function fails with a hint to add it to
   `vectorSearch`.
 
+## Scores
+
+`score: true` adds `$score` to each row: the similarity (`1 - distance` for
+cosine, `1 / (1 + distance)` for `l2`, the inner product for
+`inner_product`), or the fused and boosted score below. Every entry also gets
+`search_<table>_scores`, which returns the ids and scores; `db.$search` reads
+it, then the rows through the table, so RLS and `where` apply to both. It
+needs a one-column primary key, `id` unless `key` names another.
+
+```ts
+const rows = await db
+  .$search("chunks", { vector, k: 8, score: true })
+  .orThrow();
+rows[0].$score; // number
+```
+
+## Hybrid ranking, boosts and prefilters
+
+An entry can take more options:
+
+```ts title="better-supabase.config.ts"
+vectorSearch: {
+  knowledge_chunks: {
+    column: "embedding",
+    type: "halfvec", // the column is halfvec(1536)
+    hybrid: { tsvector: "content_tsv", config: "english" },
+    boost: "t.retrieval_priority",
+    prefilter: ["collection_id", "organization_id"],
+  },
+},
+```
+
+| Option      | What it does                                                                                                                           |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`      | `halfvec` for half-precision columns; `vector` by default                                                                              |
+| `hybrid`    | ranks the `tsvector` column against `text` with `websearch_to_tsquery` and fuses both rankings by reciprocal rank (`k`, 60 by default) |
+| `boost`     | an expression over the row `t` the score is multiplied by, such as a priority column                                                   |
+| `prefilter` | columns `filter` narrows before ranking, so filters shape the scan instead of trimming the `k` rows                                    |
+| `key`       | the primary key column the scores function returns; `id` by default                                                                    |
+
+With any of `hybrid`, `boost` or `prefilter`, the functions take
+`filter jsonb` and `text_query text` as well, and rank four times `k`
+candidates from each side before they keep `k`:
+
+```ts
+const rows = await db
+  .$search("knowledgeChunks", {
+    vector: embedding,
+    text: question,
+    k: 8,
+    filter: { collection_id: ids, organization_id: [orgId, null] },
+    score: true,
+  })
+  .orThrow();
+```
+
+`filter` is keyed by database column name. A value matches the column; a list
+matches any of its values, and `null` in it matches rows where the column is
+null, such as shared rows without an organization.
+
 `strict_order` returns rows in exact distance order. For large tables where
 approximate order is enough, change the setting in the function to
 `relaxed_order`, and raise `hnsw.max_scan_tuples` if a tenant's rows are

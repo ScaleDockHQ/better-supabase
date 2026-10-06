@@ -1705,6 +1705,22 @@ interface VectorSearchTable {
   readonly table: string;
   readonly column: string;
   readonly distance: "cosine" | "l2" | "inner_product";
+  /** The column's type: pgvector's `vector` (default) or `halfvec`. */
+  readonly type?: "vector" | "halfvec";
+  /** The primary key column the scores function returns. Defaults to `id`. */
+  readonly key?: string;
+  /** Full-text ranking fused with the vector ranking (reciprocal rank fusion). */
+  readonly hybrid?: {
+    readonly tsvector: string;
+    /** The text search configuration of the query. Defaults to `simple`. */
+    readonly config?: string;
+    /** The RRF constant. Defaults to 60. */
+    readonly k?: number;
+  };
+  /** A SQL expression over the row `t` the score is multiplied by, such as `t.priority`. */
+  readonly boost?: string;
+  /** Columns `filter` narrows before ranking, such as `organization_id`. */
+  readonly prefilter?: readonly string[];
 }
 
 const DISTANCE_OPERATORS: Readonly<
@@ -1715,6 +1731,107 @@ const DISTANCE_OPERATORS: Readonly<
   inner_product: "<#>",
 };
 
+/** Similarity from a distance, higher is nearer. */
+const SIMILARITY: Readonly<Record<VectorSearchTable["distance"], string>> = {
+  cosine: "1 - v.distance",
+  l2: "1 / (1 + v.distance)",
+  inner_product: "-v.distance",
+};
+
+const REGCONFIG = /^[a-z_][a-z0-9_]*$/;
+
+/** `vectorSearch.<table>.boost`: one expression, no statement separators or comments. */
+function boostExpression(where: string, boost: string): string {
+  if (/;|--|\/\*|\$\$/.test(boost)) {
+    throw new TypeError(
+      `${where}.boost must be one SQL expression over the row t, such as "t.priority"`,
+    );
+  }
+  return boost;
+}
+
+/** The ranked ids and scores of one search, as a SQL query over `query`, `k`, `filter` and `text_query`. */
+function vectorRanking(
+  entry: VectorSearchTable,
+  target: string,
+  advanced: boolean,
+): string {
+  const where = `vectorSearch.${entry.table}`;
+  const key = `t.${sqlIdent(entry.key ?? "id")}`;
+  const column = `t.${sqlIdent(entry.column)}`;
+  const operator = `operator(extensions.${DISTANCE_OPERATORS[entry.distance]})`;
+  const prefilter = (entry.prefilter ?? [])
+    .map((name) => {
+      const quoted = sqlIdent(name);
+      const values = `case jsonb_typeof(filter -> ${sqlString(name)}) when 'array' then filter -> ${sqlString(name)} else jsonb_build_array(filter -> ${sqlString(name)}) end`;
+      return `
+      and (not filter ? ${sqlString(name)} or exists (
+        select 1 from jsonb_array_elements(${values}) f(v)
+        where (f.v = 'null'::jsonb and t.${quoted} is null) or t.${quoted}::text = f.v #>> '{}'
+      ))`;
+    })
+    .join("");
+  const widened =
+    advanced && (entry.hybrid !== undefined || entry.boost !== undefined);
+  const candidates = widened
+    ? "least(greatest(k, 1) * 4, 1000)"
+    : "least(greatest(k, 1), 1000)";
+  const hybrid = entry.hybrid;
+  let text = "";
+  let fused = `select v.id, ${SIMILARITY[entry.distance]} as score from vector_ranked v`;
+  if (advanced && hybrid) {
+    const config = hybrid.config ?? "simple";
+    if (!REGCONFIG.test(config)) {
+      throw new TypeError(
+        `${where}.hybrid.config must be a text search configuration name, such as "english"`,
+      );
+    }
+    const rrf = hybrid.k ?? 60;
+    if (!Number.isInteger(rrf) || rrf < 1) {
+      throw new TypeError(`${where}.hybrid.k must be a positive integer`);
+    }
+    const tsv = `t.${sqlIdent(hybrid.tsvector)}`;
+    text = `,
+  text_hits as materialized (
+    select ${key} as id, ts_rank_cd(${tsv}, q) as text_score
+    from ${target} t, websearch_to_tsquery(${sqlString(config)}::regconfig, text_query) q
+    where text_query is not null and ${tsv} @@ q${prefilter}
+    order by text_score desc
+    limit ${candidates}
+  ),
+  text_ranked as (
+    select x.id, row_number() over (order by x.text_score desc) as rank from text_hits x
+  )`;
+    fused = `select coalesce(v.id, x.id) as id,
+      coalesce(1.0 / (${String(rrf)} + v.rank), 0) + coalesce(1.0 / (${String(rrf)} + x.rank), 0) as score
+    from vector_ranked v full join text_ranked x on x.id = v.id`;
+  }
+  const boost =
+    advanced && entry.boost !== undefined
+      ? boostExpression(where, entry.boost)
+      : undefined;
+  const scored = boost
+    ? `select f.id, (f.score * coalesce((${boost})::double precision, 1))::double precision as score
+  from fused f join ${target} t on ${key} = f.id`
+    : "select f.id, f.score::double precision as score from fused f";
+  return `with vector_hits as materialized (
+    select ${key} as id, ${column} ${operator} query as distance
+    from ${target} t
+    where ${column} is not null${advanced ? prefilter : ""}
+    order by ${column} ${operator} query
+    limit ${candidates}
+  ),
+  vector_ranked as (
+    select h.id, h.distance, row_number() over (order by h.distance) as rank from vector_hits h
+  )${text},
+  fused as (
+    ${fused}
+  )
+  ${scored}
+  order by score desc
+  limit least(greatest(k, 1), 1000)`;
+}
+
 function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
   if (tables.length === 0) return "";
   const functions = tables.map((entry) => {
@@ -1723,11 +1840,45 @@ function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
       : ["public", entry.table];
     const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
     const fn = `${sqlIdent(schema!)}.${sqlIdent(`search_${table!}`)}`;
+    const scores = `${sqlIdent(schema!)}.${sqlIdent(`search_${table!}_scores`)}`;
     const column = `t.${sqlIdent(entry.column)}`;
     const operator = DISTANCE_OPERATORS[entry.distance];
-    const signature = `${fn}(extensions.vector, integer)`;
-    return `-- ${entry.table}.${entry.column} (${entry.distance})
-create or replace function ${fn}(query extensions.vector, k integer default 10)
+    const type = entry.type ?? "vector";
+    const advanced =
+      entry.hybrid !== undefined ||
+      entry.boost !== undefined ||
+      (entry.prefilter?.length ?? 0) > 0;
+    const params = advanced
+      ? `query extensions.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
+      : `query extensions.${type}, k integer default 10`;
+    const types = advanced
+      ? `extensions.${type}, integer, jsonb, text`
+      : `extensions.${type}, integer`;
+    const options = [
+      entry.distance,
+      type === "halfvec" ? "halfvec" : "",
+      entry.hybrid ? `hybrid with ${entry.hybrid.tsvector}` : "",
+      entry.boost ? `boost ${entry.boost}` : "",
+      entry.prefilter?.length ? `prefilter ${entry.prefilter.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const main = advanced
+      ? `create or replace function ${fn}(${params})
+returns setof ${target}
+language sql
+stable
+security invoker
+set search_path = ''
+set hnsw.iterative_scan = 'strict_order'
+as $$
+  select t.* from (
+  ${vectorRanking(entry, target, true)}
+  ) r
+  join ${target} t on t.${sqlIdent(entry.key ?? "id")} = r.id
+  order by r.score desc
+$$;`
+      : `create or replace function ${fn}(${params})
 returns setof ${target}
 language sql
 stable
@@ -1739,10 +1890,33 @@ as $$
   where ${column} is not null
   order by ${column} operator(extensions.${operator}) query
   limit least(greatest(k, 1), 1000)
-$$;
+$$;`;
+    const other = advanced
+      ? `extensions.${type}, integer`
+      : `extensions.${type}, integer, jsonb, text`;
+    return `-- ${entry.table}.${entry.column} (${options})
+drop function if exists ${fn}(${other});
+drop function if exists ${scores}(${other});
+${main}
+revoke execute on function ${fn}(${types}) from public, anon;
+grant execute on function ${fn}(${types}) to authenticated, service_role;
 
-revoke execute on function ${signature} from public, anon;
-grant execute on function ${signature} to authenticated, service_role;`;
+-- The ids and scores of the same search, best first, for db.$search({ score: true }).
+create or replace function ${scores}(${params})
+returns table (id jsonb, score double precision)
+language sql
+stable
+security invoker
+set search_path = ''
+set hnsw.iterative_scan = 'strict_order'
+as $$
+  select to_jsonb(r.id), r.score from (
+  ${vectorRanking(entry, target, advanced)}
+  ) r
+  order by r.score desc
+$$;
+revoke execute on function ${scores}(${types}) from public, anon;
+grant execute on function ${scores}(${types}) to authenticated, service_role;`;
   });
   return `\n-- config.vectorSearch\n${functions.join("\n\n")}\n`;
 }

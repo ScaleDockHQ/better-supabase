@@ -233,6 +233,79 @@ describe("sameModuleFile", () => {
   });
 });
 
+describe("vector search options", () => {
+  const render = (entry: Record<string, unknown>) =>
+    renderModules(
+      ["vector-search"],
+      moduleLayout(
+        resolveConfig(
+          { vectorSearch: { chunks: { column: "embedding", ...entry } } },
+          "/project",
+        ),
+      ),
+    )[0]!.contents;
+
+  it("writes a scores function next to every search function", () => {
+    const sql = render({});
+    expect(sql).toContain(
+      'create or replace function "public"."search_chunks_scores"(query extensions.vector, k integer default 10)',
+    );
+    expect(sql).toContain("returns table (id jsonb, score double precision)");
+    expect(sql).toContain(
+      'select t."id" as id, t."embedding" operator(extensions.<=>) query as distance',
+    );
+    expect(sql).toContain("1 - v.distance as score");
+    expect(sql).toContain(
+      'drop function if exists "public"."search_chunks"(extensions.vector, integer, jsonb, text);',
+    );
+  });
+
+  it("ranks halfvec columns with hybrid RRF, a boost and prefilters", () => {
+    const sql = render({
+      type: "halfvec",
+      key: "chunk_id",
+      distance: "l2",
+      hybrid: { tsvector: "content_tsv", config: "english", k: 50 },
+      boost: "t.priority",
+      prefilter: ["collection_id", "organization_id"],
+    });
+    expect(sql).toContain(
+      'create or replace function "public"."search_chunks"(query extensions.halfvec, k integer default 10, filter jsonb default \'{}\', text_query text default null)',
+    );
+    expect(sql).toContain(
+      "websearch_to_tsquery('english'::regconfig, text_query) q",
+    );
+    expect(sql).toContain(
+      "coalesce(1.0 / (50 + v.rank), 0) + coalesce(1.0 / (50 + x.rank), 0) as score",
+    );
+    expect(sql).toContain("coalesce((t.priority)::double precision, 1)");
+    expect(sql).toContain(`and (not filter ? 'organization_id' or exists (`);
+    expect(sql).toContain("least(greatest(k, 1) * 4, 1000)");
+    expect(sql).toContain('join "public"."chunks" t on t."chunk_id" = r.id');
+    expect(sql).toContain(
+      'drop function if exists "public"."search_chunks"(extensions.halfvec, integer);',
+    );
+  });
+
+  it("scores each distance and checks the options", () => {
+    expect(render({ distance: "inner_product" })).toContain(
+      "-v.distance as score",
+    );
+    expect(render({ prefilter: ["kind"] })).toContain(
+      "least(greatest(k, 1), 1000)",
+    );
+    expect(() =>
+      render({ hybrid: { tsvector: "tsv", config: "english; drop" } }),
+    ).toThrow(/text search configuration/);
+    expect(() => render({ hybrid: { tsvector: "tsv", k: 0 } })).toThrow(
+      /positive integer/,
+    );
+    expect(() => render({ boost: "1; drop table x" })).toThrow(
+      /one SQL expression/,
+    );
+  });
+});
+
 describe("entitlements in PermDock mode", () => {
   const permdock = {
     schema: "authz",

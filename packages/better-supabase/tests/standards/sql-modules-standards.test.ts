@@ -66,7 +66,7 @@ describe(`pgvector iterative index scans (${SPEC_PINS.pgvector}+)`, () => {
     const values = [
       ...file.contents.matchAll(/set hnsw\.iterative_scan = '([a-z_]+)'/g),
     ].map((match) => match[1]);
-    expect(values).toHaveLength(3);
+    expect(values).toHaveLength(6);
     for (const value of values)
       expect(["strict_order", "relaxed_order"]).toContain(value);
   });
@@ -85,7 +85,7 @@ describe(`pgvector iterative index scans (${SPEC_PINS.pgvector}+)`, () => {
   });
 
   it("is security invoker so RLS filters inside the index scan, and bounds k", () => {
-    expect(file.contents.match(/^security invoker$/gm)).toHaveLength(3);
+    expect(file.contents.match(/^security invoker$/gm)).toHaveLength(6);
     expect(file.contents).not.toContain("security definer");
     expect(file.contents).toContain("limit least(greatest(k, 1), 1000)");
   });
