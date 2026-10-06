@@ -176,6 +176,19 @@ interface MutationBase {
    * report it.
    */
   readonly intent?: MutationIntent;
+  /**
+   * How a mutation without `returning` counts the rows it wrote. Defaults to
+   * `exact`; SQL executors always return the statement's own row count.
+   */
+  readonly count?: CountMode;
+}
+
+interface BoundedMutation extends MutationBase {
+  /**
+   * The most rows the statement may change. More fails with `max_affected`
+   * and writes nothing. Over PostgREST it needs PostgREST 13 or later.
+   */
+  readonly maxAffected?: number;
 }
 
 export interface InsertOp extends MutationBase {
@@ -190,11 +203,14 @@ export interface InsertOp extends MutationBase {
         readonly action: "update" | "ignore";
       }
     | undefined;
-  /** Missing columns become `null` instead of their default in bulk inserts. */
+  /**
+   * In a multi-row insert, columns some rows leave out become `null`
+   * instead of their column default.
+   */
   readonly defaultToNull: boolean;
 }
 
-export interface UpdateOp extends MutationBase {
+export interface UpdateOp extends BoundedMutation {
   readonly kind: "update";
   readonly table: TableMeta;
   /** Keyed by database column names. */
@@ -203,7 +219,7 @@ export interface UpdateOp extends MutationBase {
   readonly returning: Selection | undefined;
 }
 
-export interface DeleteOp extends MutationBase {
+export interface DeleteOp extends BoundedMutation {
   readonly kind: "delete";
   readonly table: TableMeta;
   readonly where: Condition | undefined;

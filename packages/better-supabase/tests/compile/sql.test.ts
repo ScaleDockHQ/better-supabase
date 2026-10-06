@@ -929,6 +929,60 @@ describe("compileSql updates and deletes", () => {
   });
 });
 
+describe("compileSql maxAffected", () => {
+  const guard = (max: number) =>
+    `case when count(*) > ${max} then ('better_supabase:max_affected:' || count(*))::int else count(*)::int end`;
+
+  it("guards the count of an update", () => {
+    expect(
+      compileSql({
+        kind: "update",
+        table: customers,
+        set: { name: "B" },
+        where: col("status", "eq", "lead"),
+        returning: undefined,
+        maxAffected: 10,
+      }).count,
+    ).toEqual({
+      text: `with m as (update "public"."customers" as t0 set "name" = $1 where t0."status" = $2 returning 1) select ${guard(10)} as count from m`,
+      params: ["B", "lead"],
+    });
+  });
+
+  it("guards the rows a delete returns", () => {
+    expect(
+      compileSql({
+        kind: "delete",
+        table: customers,
+        where: col("status", "eq", "lead"),
+        returning: idOnly,
+        maxAffected: 0,
+      }),
+    ).toEqual({
+      rows: {
+        text: `with m as (delete from "public"."customers" as t0 where t0."status" = $1 returning json_build_object('id', t0."id") as row), c as (select ${guard(0)} as n from m) select m.row from m cross join c where c.n >= 0`,
+        params: ["lead"],
+      },
+      count: undefined,
+      never: false,
+    });
+  });
+
+  it.each([-1, 1.5, Number.NaN])("rejects maxAffected %s", (maxAffected) => {
+    expect(
+      invalid(() =>
+        compileSql({
+          kind: "delete",
+          table: customers,
+          where: col("status", "eq", "lead"),
+          returning: undefined,
+          maxAffected,
+        }),
+      ),
+    ).toBe(`"maxAffected" must be a non-negative integer, got ${maxAffected}`);
+  });
+});
+
 describe("compileSql relation sorts", () => {
   it("sorts by a to-one relation's column through a scalar subquery", () => {
     const organization = customers.relations["organization"]!;

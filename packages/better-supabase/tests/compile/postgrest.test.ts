@@ -10,7 +10,10 @@ import type {
 } from "../../src/ir/types.ts";
 import type { RelationMeta, TableMeta } from "../../src/schema/types.ts";
 
-import { compilePostgrest } from "../../src/compile/postgrest.ts";
+import {
+  compilePostgrest,
+  supportsMaxAffected,
+} from "../../src/compile/postgrest.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
@@ -755,6 +758,64 @@ describe("compilePostgrest mutations", () => {
         returning: undefined,
       }),
     ).toMatchObject({ select: undefined, never: true });
+  });
+
+  it("carries maxAffected on updates and deletes", () => {
+    expect(
+      plan({
+        kind: "update",
+        table: customers,
+        set: { name: "B" },
+        where: col("status", "eq", "lead"),
+        returning: undefined,
+        maxAffected: 10,
+      }).maxAffected,
+    ).toBe(10);
+    const remove: Operation = {
+      kind: "delete",
+      table: customers,
+      where: undefined,
+      returning: undefined,
+      maxAffected: 0,
+    };
+    expect(plan(remove).maxAffected).toBe(0);
+    expect(
+      compilePostgrest(remove, { postgrestVersion: "13.0.4" }).maxAffected,
+    ).toBe(0);
+    const { maxAffected: _, ...unbounded } = remove;
+    expect(plan(unbounded)).not.toHaveProperty("maxAffected");
+  });
+
+  it("rejects an invalid maxAffected and PostgREST before 13", () => {
+    const remove: Operation = {
+      kind: "delete",
+      table: customers,
+      where: undefined,
+      returning: undefined,
+      maxAffected: -1,
+    };
+    expect(invalid(() => plan(remove))).toBe(
+      '"maxAffected" must be a non-negative integer, got -1',
+    );
+    expect(
+      invalid(() =>
+        compilePostgrest(
+          { ...remove, maxAffected: 5 },
+          { postgrestVersion: "12.2.3" },
+        ),
+      ),
+    ).toMatch(/PostgREST 13/);
+  });
+
+  it.each([
+    [undefined, true],
+    ["13", true],
+    ["14.1", true],
+    ["12.2.3", false],
+    ["v11", false],
+    ["unknown", true],
+  ])("supportsMaxAffected(%j) is %s", (version, expected) => {
+    expect(supportsMaxAffected(version)).toBe(expected);
   });
 
   it.each(["update", "delete"] as const)(

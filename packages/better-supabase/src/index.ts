@@ -152,7 +152,9 @@ export type {
   RpcOptions,
   UpdateArgs,
   UpsertArgs,
+  UpsertManyArgs,
   WriteArgs,
+  WriteManyArgs,
 } from "./core/repository-types.ts";
 export { encodeCursor, decodeCursor } from "./core/cursor.ts";
 export {

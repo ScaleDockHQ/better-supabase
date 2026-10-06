@@ -3,8 +3,15 @@ import type { ErrorMapper } from "./errors.ts";
 import type { Result } from "./result.ts";
 
 export interface ExecuteContext {
+  /** Already includes the call's `timeout`, when it has one. */
   readonly signal?: AbortSignal;
   readonly errorMappers: readonly ErrorMapper[];
+  /**
+   * The call's `retry` setting. PostgREST passes it to postgrest-js, which
+   * retries idempotent requests on network errors, 503 and 520; executors
+   * without retries ignore it.
+   */
+  readonly retry?: boolean;
 }
 
 export interface ExecuteResult {

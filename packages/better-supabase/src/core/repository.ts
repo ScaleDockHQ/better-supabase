@@ -1,6 +1,6 @@
 import type { SchemaMeta, TableMeta } from "../schema/types.ts";
 import type { EventHub } from "./events.ts";
-import type { ExecuteResult, Executor } from "./executor.ts";
+import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 
 import { type IrBuilder, invalidRequest } from "../ir/build.ts";
 import { decodeRows, needsDecoding } from "../ir/codec.ts";
@@ -38,6 +38,14 @@ import {
   type RequestContext,
 } from "./plugin.ts";
 import { AsyncResult, err, ok, type Result, toDbError } from "./result.ts";
+import {
+  deadline,
+  invalidTuning,
+  NO_TUNING,
+  type RequestTuning,
+  tuningOf,
+} from "./timeout.ts";
+import { countOf, maxAffectedOf } from "./write-args.ts";
 
 export interface Runtime {
   readonly meta: SchemaMeta;
@@ -52,6 +60,8 @@ export interface Runtime {
   readonly maxRows: number;
   /** Tables already warned about truncated reads, shared across connections. */
   readonly truncatedTables: Set<string>;
+  /** The connection's `timeout` and `retry`; a call's own settings replace them. */
+  readonly tuning?: RequestTuning;
 }
 
 type Args = Readonly<Record<string, unknown>>;
@@ -81,6 +91,10 @@ const KNOWN_KEYS = new Set([
   "_avg",
   "_min",
   "_max",
+  "timeout",
+  "retry",
+  "maxAffected",
+  "defaultToNull",
 ]);
 
 const NO_OPTIONS: CallOptions = Object.freeze({});
@@ -222,9 +236,16 @@ export class OperationRunner {
     op: Operation,
     options: CallOptions,
     signal: AbortSignal | undefined,
+    tuning: RequestTuning | { readonly invalid: string } = NO_TUNING,
   ): Promise<Result<ExecuteResult>> {
     const { runtime } = this;
     const hooks = this.#hooks;
+    if ("invalid" in tuning)
+      return this.fail(op.table, dbError("invalid_request", tuning.invalid));
+    const { timeout, retry } = { ...runtime.tuning, ...tuning };
+    const invalid = invalidTuning({ timeout, retry });
+    if (invalid)
+      return this.fail(op.table, dbError("invalid_request", invalid));
     let current = op;
     if (hooks.transformQuery.length > 0 || hooks.beforeMutation.length > 0) {
       const hook = this.hookArgs(op.table, options, signal);
@@ -255,10 +276,23 @@ export class OperationRunner {
 
     const timed = runtime.events.has("query");
     const started = timed ? performance.now() : 0;
-    const context = signal
-      ? { signal, errorMappers: runtime.errorMappers }
-      : { errorMappers: runtime.errorMappers };
-    const executed = await runtime.executor.execute(current, context);
+    const limit = deadline(signal, timeout);
+    const context: ExecuteContext = {
+      errorMappers: runtime.errorMappers,
+      ...(limit.signal ? { signal: limit.signal } : {}),
+      ...(retry === undefined ? {} : { retry }),
+    };
+    let executed: Result<ExecuteResult>;
+    try {
+      executed = await runtime.executor.execute(current, context);
+    } finally {
+      limit.clear();
+    }
+    if (!executed.ok && limit.timedOut()) {
+      executed = err(
+        dbError("timeout", `The request timed out after ${timeout} ms`),
+      );
+    }
     const selection =
       current.kind === "select" ? current.selection : current.returning;
     let result: Result<ExecuteResult> = executed;
@@ -425,7 +459,7 @@ export function createRepository(
     op: Operation,
     args: Args | undefined,
   ): Promise<Result<ExecuteResult>> =>
-    runner.run(op, optionsOf(args), signalOf(args));
+    runner.run(op, optionsOf(args), signalOf(args), tuningOf(args));
 
   let primaryOrder: readonly OrderTerm[] | undefined;
   /** `primaryKey` holds app names; order terms take database names. */
@@ -650,12 +684,17 @@ export function createRepository(
     updateMany(args: Args) {
       return AsyncResult.from(async () => {
         const rows = args["returning"] === true;
+        const bound = maxAffectedOf(args);
+        if ("invalid" in bound)
+          return runner.fail(table, dbError("invalid_request", bound.invalid));
         const op: UpdateOp = {
           kind: "update",
           table,
           set: builder.row(table, args["data"], "update"),
           where: builder.where(table, args["where"]),
           returning: rows ? returning(args) : undefined,
+          ...bound,
+          ...countOf(args),
         };
         const result = await run(op, args);
         if (!result.ok) return result;
@@ -719,17 +758,23 @@ export function createRepository(
           );
         }
         const rows = args["returning"] === true;
+        const bound = maxAffectedOf(args);
+        if ("invalid" in bound)
+          return runner.fail(table, dbError("invalid_request", bound.invalid));
         const op: DeleteOp = {
           kind: "delete",
           table,
           where,
           returning: rows ? returning(args) : undefined,
+          ...bound,
+          ...countOf(args),
         };
         // Plugins that rewrite the delete (softDelete) read this to keep RETURNING.
         const result = await runner.run(
           op,
           rows ? { ...optionsOf(args), returning: true } : optionsOf(args),
           signalOf(args),
+          tuningOf(args),
         );
         if (!result.ok) return result;
         return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
@@ -754,7 +799,8 @@ export function createRepository(
             action: args?.["ignoreDuplicates"] === true ? "ignore" : "update",
           }
         : undefined,
-      defaultToNull: false,
+      defaultToNull: args?.["defaultToNull"] === true,
+      ...countOf(args),
     };
   }
 

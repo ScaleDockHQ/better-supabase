@@ -14,7 +14,7 @@ function listOf(param: string | null): string[] {
 }
 
 describe("oversized in lists", () => {
-  const betterSupabase = defineSupabase(schema, { maxUrlLength: 4000 });
+  const betterSupabase = defineSupabase(schema, { urlLengthLimit: 4000 });
 
   it("splits an unpaginated read and merges the rows", async () => {
     const { client, requests } = capturingClient((request) => ({
@@ -133,7 +133,7 @@ describe("oversized in lists", () => {
 
   it("refuses a read whose other filters leave no room for the list", async () => {
     const { client } = capturingClient();
-    const result = await defineSupabase(schema, { maxUrlLength: 200 })
+    const result = await defineSupabase(schema, { urlLengthLimit: 200 })
       .connect(client)
       .customers.findMany({
         where: { id: { in: ids.slice(0, 20) }, name: { in: ids.slice(0, 5) } },

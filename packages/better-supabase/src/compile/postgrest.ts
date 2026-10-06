@@ -27,6 +27,24 @@ export interface PostgrestPlan {
   readonly range: { readonly from: number; readonly to: number } | undefined;
   /** The condition can never match; skip the request. */
   readonly never: boolean;
+  /** `Prefer: max-affected` on an update or delete (PostgREST 13 and later). */
+  readonly maxAffected?: number;
+}
+
+export interface PostgrestCompileOptions {
+  /**
+   * The PostgREST version the request goes to, from `postgrestVersion` in
+   * the config. `maxAffected` needs 13 or later; older versions fail with
+   * `invalid_request` before any request. Defaults to `"13"`.
+   */
+  readonly postgrestVersion?: string;
+}
+
+/** `false` only for a version string whose major is known to be below 13. */
+export function supportsMaxAffected(version: string | undefined): boolean {
+  if (version === undefined) return true;
+  const major = /^v?(\d+)/i.exec(version)?.[1];
+  return major === undefined || Number(major) >= 13;
 }
 
 export type PlanFilter =
@@ -549,7 +567,24 @@ function applyWhere(
 }
 
 /** Compiles an operation into a PostgREST plan. */
-export function compilePostgrest(op: Operation): PostgrestPlan {
+export function compilePostgrest(
+  op: Operation,
+  options: PostgrestCompileOptions = {},
+): PostgrestPlan {
+  const maxAffected =
+    op.kind === "update" || op.kind === "delete" ? op.maxAffected : undefined;
+  if (maxAffected !== undefined) {
+    if (!Number.isInteger(maxAffected) || maxAffected < 0)
+      invalidRequest(
+        `"maxAffected" must be a non-negative integer, got ${maxAffected}`,
+        op.table.key,
+      );
+    if (!supportsMaxAffected(options.postgrestVersion))
+      invalidRequest(
+        `"maxAffected" needs PostgREST 13 or later; postgrestVersion is "${options.postgrestVersion}"`,
+        op.table.key,
+      );
+  }
   const compiler = new PostgrestCompiler();
   const embeds = compiler.withPath([], undefined);
 
@@ -600,5 +635,6 @@ export function compilePostgrest(op: Operation): PostgrestPlan {
     limits: compiler.limits,
     range,
     never: !matches,
+    ...(maxAffected === undefined ? {} : { maxAffected }),
   };
 }

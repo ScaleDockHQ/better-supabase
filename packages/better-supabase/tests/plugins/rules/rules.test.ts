@@ -317,6 +317,58 @@ describe("rules()", () => {
     ]);
   });
 
+  it("requires maxAffected on updateMany and deleteMany under strict()", async () => {
+    const { plugin, violations } = withReport();
+    const { client, requests } = capturingClient(() => ({ status: 204 }));
+    const db = defineSupabase(schema).use(plugin).connect(client, context);
+
+    const unbounded = await db.tags.deleteMany({ where: { color: "red" } });
+    expect(unbounded.error).toMatchObject({
+      kind: "invalid_request",
+      message:
+        "requireMaxAffected: deleteMany without maxAffected can change every row its where matches",
+    });
+    await db.tags.updateMany({
+      where: { color: "red" },
+      data: { color: "blue" },
+      maxAffected: 5000,
+    });
+    expect(violations.map((v) => v.message)).toEqual([
+      "deleteMany without maxAffected can change every row its where matches",
+      "maxAffected 5000 is above the maximum of 1000",
+    ]);
+    expect(requests).toHaveLength(0);
+
+    await db.tags.deleteMany({ where: { color: "red" }, maxAffected: 10 });
+    await db.tags.update("t1", { color: "blue" });
+    await db.tags.delete("t1");
+    await db.tags.deleteMany({ where: { id: "t1" } });
+    expect(violations).toHaveLength(2);
+    expect(requests).toHaveLength(4);
+  });
+
+  it("caps maxAffected with the rule's option and stays off in recommended()", async () => {
+    const strictCap = withReport({ requireMaxAffected: ["error", 10] });
+    const { client } = capturingClient(() => ({ status: 204 }));
+    const capped = defineSupabase(schema)
+      .use(strictCap.plugin)
+      .connect(client, context);
+    expect(
+      (
+        await capped.tags.deleteMany({
+          where: { color: "red" },
+          maxAffected: 11,
+        })
+      ).error?.kind,
+    ).toBe("invalid_request");
+    const loose = withReport(recommended());
+    const db = defineSupabase(schema)
+      .use(loose.plugin)
+      .connect(client, context);
+    await db.tags.deleteMany({ where: { color: "red" } });
+    expect(loose.violations).toEqual([]);
+  });
+
   it("keeps the repository guard for deleteMany without where", async () => {
     const { plugin, violations } = withReport(safe());
     const { client } = capturingClient();

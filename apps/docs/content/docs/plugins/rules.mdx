@@ -25,7 +25,7 @@ violation fails the call with `invalid_request`, and nothing is sent.
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `safe()`        | Data exposure and correctness as errors: `noAdminInBrowser`, `noDeleteManyWithoutWhere`, `noSensitiveSelect`, `requireTenantContext` |
 | `recommended()` | `safe()` plus the performance rules and `storagePathColumns` as warnings (the default)                                               |
-| `strict()`      | Everything as an error                                                                                                               |
+| `strict()`      | Everything as an error, plus `requireMaxAffected`                                                                                    |
 
 Spread a preset to change single rules:
 
@@ -51,12 +51,14 @@ rules({
 | `noAdminInBrowser`         | A service-role connection where `window` and `document` exist                                                                                                                                                     |                                                |
 | `noSensitiveSelect`        | Reading a column listed in [`sensitive`](/docs/cli/config) without `sensitive: true` on the call                                                                                                                  |                                                |
 | `noDeleteManyWithoutWhere` | A delete without `where`                                                                                                                                                                                          |                                                |
+| `requireMaxAffected`       | `updateMany` or `deleteMany` without [`maxAffected`](/docs/repository/writing#limiting-bulk-writes), or with one above the maximum. Writes whose `where` pins the whole primary key are exempt                    | maximum, default `1000`                        |
 | `storagePathColumns`       | A write to a `*_url` text column that is listed in [`storagePaths`](/docs/platform/storage#path-columns), or whose value is a Storage URL or matches a bucket's path template. Store the path in `*_path` instead |                                                |
 
 `noUnboundedFindMany` skips `aggregate()`, and `maxLimit` doesn't count the
 extra row `paginate()` reads to know whether there is a next page.
 `requireTenantContext` reads the same claim paths as the `tenant()` plugin,
-so a tenant in `app_metadata` counts.
+so a tenant in `app_metadata` counts. `requireMaxAffected` is only in
+`strict()`; add it to another preset with `requireMaxAffected: ["error", 500]`.
 
 `noSensitiveSelect` looks at the columns actually selected by reads,
 includes too. A `select` that leaves the column out passes; to read it on

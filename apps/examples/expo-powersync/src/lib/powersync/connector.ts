@@ -35,6 +35,7 @@ function outcomeOf(kind: DbErrorKind): Outcome {
     case "invalid_value":
     case "raised":
     case "invalid_request":
+    case "max_affected":
     case "validation":
     case "multiple_rows":
     case "unsupported":

@@ -112,6 +112,10 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
         set: { [column]: now().toString() },
         where: op.where,
         returning: options["returning"] === true ? op.returning : undefined,
+        ...(op.maxAffected === undefined
+          ? {}
+          : { maxAffected: op.maxAffected }),
+        ...(op.count === undefined ? {} : { count: op.count }),
       };
     },
     repository({ table, base }) {

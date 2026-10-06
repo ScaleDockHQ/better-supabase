@@ -272,10 +272,29 @@ export type CountArg<M extends AnyModels, T extends keyof M> = {
 
 type TargetOf<R> = R extends { readonly table: infer X } ? X : never;
 
-export interface ReadArgs<M extends AnyModels, T extends keyof M> {
+/** Per-call request settings every repository method takes. */
+export interface RequestArgs {
+  readonly signal?: AbortSignal;
+  /**
+   * Fails the call with a `timeout` error after this many milliseconds,
+   * composed with `signal` (`AbortSignal.any`). Replaces the connection's
+   * `timeout`. SQL executors only check it before the statement starts.
+   */
+  readonly timeout?: number;
+  /**
+   * postgrest-js retries of idempotent requests (reads) on network errors,
+   * 503 and 520; `false` turns them off for this call. Writes are never
+   * retried. SQL executors ignore it.
+   */
+  readonly retry?: boolean;
+}
+
+export interface ReadArgs<
+  M extends AnyModels,
+  T extends keyof M,
+> extends RequestArgs {
   readonly select?: SelectArg<M, T>;
   readonly include?: IncludeArg<M, T>;
-  readonly signal?: AbortSignal;
 }
 
 export interface FindManyArgs<
@@ -300,13 +319,18 @@ export interface FindOnlyArgs<
   readonly where: WhereInput<M, T>;
 }
 
-export interface CountArgs<M extends AnyModels, T extends keyof M> {
+export interface CountArgs<
+  M extends AnyModels,
+  T extends keyof M,
+> extends RequestArgs {
   readonly where?: WhereInput<M, T>;
   readonly mode?: "exact" | "planned" | "estimated";
-  readonly signal?: AbortSignal;
 }
 
-export interface AggregateArgs<M extends AnyModels, T extends keyof M> {
+export interface AggregateArgs<
+  M extends AnyModels,
+  T extends keyof M,
+> extends RequestArgs {
   readonly where?: WhereInput<M, T>;
   /** One result per distinct combination; without it, one result. */
   readonly groupBy?: SelectArg<M, T>;
@@ -320,7 +344,6 @@ export interface AggregateArgs<M extends AnyModels, T extends keyof M> {
   readonly orderBy?: ColumnOrderByArg<M, T>;
   readonly limit?: number;
   readonly offset?: number;
-  readonly signal?: AbortSignal;
 }
 
 // ---------------------------------------------------------------------------

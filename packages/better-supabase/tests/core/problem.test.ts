@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapDbError } from "../../src/core/errors.ts";
+import { dbError, mapDbError, withMaxAffected } from "../../src/core/errors.ts";
 import {
   fromProblem,
   problemResponse,
@@ -42,5 +42,30 @@ describe("rate_limited", () => {
       kind: "rate_limited",
       retryAfter: 12,
     });
+  });
+});
+
+describe("max_affected", () => {
+  const error = dbError("max_affected", "too many rows", { maxAffected: 5 });
+
+  it("answers 400 and round-trips the limit through Problem Details", async () => {
+    const response = problemResponse(error);
+    expect(response.status).toBe(400);
+    expect(toProblem(error)).toMatchObject({
+      type: "https://bettersupabase.com/problems/max-affected",
+      title: "Too many rows affected",
+      kind: "max_affected",
+      maxAffected: 5,
+    });
+    expect(fromProblem(await response.json())).toEqual(error);
+  });
+
+  it("adds the operation's limit only when the error lacks one", () => {
+    const bare = dbError("max_affected", "too many rows");
+    expect(withMaxAffected(bare, 3)).toEqual({ ...bare, maxAffected: 3 });
+    expect(withMaxAffected(error, 3)).toBe(error);
+    expect(withMaxAffected(bare, undefined)).toBe(bare);
+    const other = dbError("timeout", "slow");
+    expect(withMaxAffected(other, 3)).toBe(other);
   });
 });

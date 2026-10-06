@@ -97,6 +97,36 @@ describe("better-supabase/lint", () => {
     expect(run("max-limit", node, [{ max: 10_000 }])).toEqual([]);
   });
 
+  it("requires maxAffected on updateMany and deleteMany, with a cap", () => {
+    expect(
+      run(
+        "require-max-affected",
+        call("deleteMany", object({ where: object({}) })),
+      ),
+    ).toEqual([{ messageId: "missing", data: { method: "deleteMany" } }]);
+    expect(
+      run(
+        "require-max-affected",
+        call("updateMany", object({ where: object({}), data: object({}) })),
+      ),
+    ).toEqual([{ messageId: "missing", data: { method: "updateMany" } }]);
+    const bounded = call(
+      "updateMany",
+      object({ where: object({}), maxAffected: literal(5000) }),
+    );
+    expect(run("require-max-affected", bounded)).toEqual([
+      { messageId: "tooLarge", data: { value: "5000", max: "1000" } },
+    ]);
+    expect(run("require-max-affected", bounded, [{ max: 10_000 }])).toEqual([]);
+    expect(
+      run(
+        "require-max-affected",
+        call("deleteMany", { type: "Identifier", name: "args" }),
+      ),
+    ).toEqual([]);
+    expect(run("require-max-affected", call("delete"))).toEqual([]);
+  });
+
   it("flags offset without orderBy", () => {
     expect(
       run(

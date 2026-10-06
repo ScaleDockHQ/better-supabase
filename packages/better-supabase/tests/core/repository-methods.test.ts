@@ -17,6 +17,7 @@ import { encodeCursor } from "../../src/core/cursor.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
+import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 type Answer = (op: Operation, index: number) => Result<ExecuteResult>;
@@ -1059,5 +1060,183 @@ describe("plugins and options", () => {
     await db.customers.findMany({ signal: "nope" as never });
     expect(contexts[0]?.signal).toBe(controller.signal);
     expect(contexts[1]).not.toHaveProperty("signal");
+  });
+});
+
+describe("write bounds and request options", () => {
+  it("puts maxAffected and count on updateMany and deleteMany", async () => {
+    const { db, op } = connect(() => rowsOf([], 2));
+    await db.customers.updateMany({
+      where: { status: "lead" },
+      data: { status: "active" },
+      maxAffected: 5,
+      count: "estimated",
+    });
+    expect(op(0)).toMatchObject({
+      kind: "update",
+      maxAffected: 5,
+      count: "estimated",
+    });
+    await db.customers.deleteMany({
+      where: { status: "lead" },
+      maxAffected: 0,
+    });
+    expect(op(1)).toMatchObject({ kind: "delete", maxAffected: 0 });
+    expect(op(1)).not.toHaveProperty("count");
+  });
+
+  it.each([-1, 1.5, "2"])(
+    "rejects maxAffected %j before the executor",
+    async (maxAffected) => {
+      const { db, ops } = connect();
+      const updated = await db.customers.updateMany({
+        where: { status: "lead" },
+        data: { status: "active" },
+        maxAffected: maxAffected as number,
+      });
+      const deleted = await db.customers.deleteMany({
+        where: { status: "lead" },
+        maxAffected: maxAffected as number,
+      });
+      for (const result of [updated, deleted]) {
+        expect(result.error).toMatchObject({
+          kind: "invalid_request",
+          message: `"maxAffected" must be a non-negative integer, got ${String(maxAffected)}`,
+          table: "customers",
+        });
+      }
+      expect(ops).toHaveLength(0);
+    },
+  );
+
+  it("sets defaultToNull and count on createMany and upsertMany", async () => {
+    const { db, op } = connect(() => rowsOf([], 2));
+    const rows = [
+      { organizationId: "o", name: "a" },
+      { organizationId: "o", name: "b" },
+    ];
+    await db.tags.createMany(rows);
+    await db.tags.createMany(rows, {
+      defaultToNull: true,
+      returning: false,
+      count: "planned",
+    });
+    await db.tags.upsertMany(rows, { defaultToNull: true });
+    expect(op(0)).toMatchObject({ kind: "insert", defaultToNull: false });
+    expect(op(1)).toMatchObject({ defaultToNull: true, count: "planned" });
+    expect(op(2)).toMatchObject({ defaultToNull: true });
+  });
+
+  it("keeps maxAffected when softDelete turns a deleteMany into an update", async () => {
+    const { db, op } = connect(() => rowsOf([], 1), [softDelete()]);
+    await db.customers.deleteMany({
+      where: { status: "lead" },
+      maxAffected: 3,
+    });
+    expect(op()).toMatchObject({
+      kind: "update",
+      intent: "softDelete",
+      maxAffected: 3,
+    });
+  });
+
+  it("passes retry to the executor, the call's over the connection's", async () => {
+    const fake = scripted();
+    const betterSupabase = defineSupabase(schema);
+    await betterSupabase.connect(fake.executor).tags.findMany({ retry: false });
+    await betterSupabase
+      .connect(fake.executor, {}, { retry: false })
+      .tags.count();
+    await betterSupabase
+      .connect(fake.executor, {}, { retry: false })
+      .tags.exists({ retry: true });
+    await betterSupabase.connect(fake.executor).tags.findMany();
+    expect(fake.contexts.map((context) => context.retry)).toEqual([
+      false,
+      false,
+      true,
+      undefined,
+    ]);
+  });
+
+  it("times out a slow executor with the connection's or the call's timeout", async () => {
+    const slow: Executor = {
+      name: "slow",
+      execute: (_op, context) =>
+        new Promise((resolve) => {
+          context.signal?.addEventListener("abort", () => {
+            resolve(err(dbError("aborted", "aborted")));
+          });
+        }),
+    };
+    const betterSupabase = defineSupabase(schema);
+    const byConnection = await betterSupabase
+      .connect(slow, {}, { timeout: 5 })
+      .tags.findMany();
+    expect(byConnection.error).toMatchObject({
+      kind: "timeout",
+      status: 504,
+      message: "The request timed out after 5 ms",
+      table: "tags",
+    });
+    const byCall = await betterSupabase
+      .connect(slow, {}, { timeout: 60_000 })
+      .tags.updateMany({
+        where: { name: "a" },
+        data: { name: "b" },
+        timeout: 5,
+      });
+    expect(byCall.error).toMatchObject({
+      kind: "timeout",
+      message: "The request timed out after 5 ms",
+    });
+  });
+
+  it("rejects a bad retry before the executor", async () => {
+    const { db, ops } = connect();
+    const result = await db.tags.findMany({ retry: "no" as never });
+    expect(result.error).toMatchObject({
+      kind: "invalid_request",
+      message: '"retry" must be a boolean, got no',
+    });
+    expect(ops).toHaveLength(0);
+  });
+
+  it("applies timeout and retry to $rpc", async () => {
+    const contexts: ExecuteContext[] = [];
+    const executor: Executor = {
+      name: "rpc",
+      execute: () => Promise.resolve(rowsOf([])),
+      rpc: (_name, _args, context) => {
+        contexts.push(context);
+        return new Promise((resolve) => {
+          if (!context.signal) {
+            resolve(ok(1));
+            return;
+          }
+          context.signal.addEventListener("abort", () => {
+            resolve(err(dbError("aborted", "aborted")));
+          });
+        });
+      },
+    };
+    const betterSupabase = defineSupabase(schema);
+    const db = betterSupabase.connect(executor, {}, { retry: false });
+    expect(await db.$rpc("rs_workspace_summary", { p: null })).toEqual(ok(1));
+    expect(contexts[0]?.retry).toBe(false);
+    const timedOut = await db.$rpc(
+      "rs_workspace_summary",
+      { p: null },
+      { timeout: 5, retry: true },
+    );
+    expect(timedOut.error).toMatchObject({ kind: "timeout" });
+    expect(contexts[1]?.retry).toBe(true);
+    const invalid = await db.$rpc(
+      "rs_workspace_summary",
+      { p: null },
+      { timeout: -1 },
+    );
+    expect(invalid.error).toMatchObject({ kind: "invalid_request" });
+    expect(contexts).toHaveLength(2);
   });
 });

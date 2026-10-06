@@ -29,6 +29,11 @@ export interface DbErrorKinds {
   validation: { issues: readonly ValidationIssue[] };
   multiple_rows: Record<never, never>;
   stale: Record<never, never>;
+  /**
+   * An `updateMany` or `deleteMany` matched more rows than its `maxAffected`
+   * allows; nothing was written. `maxAffected`: the limit, when known.
+   */
+  max_affected: { maxAffected?: number };
   /** `retryAfter`: seconds until the window resets (the `Retry-After` header). */
   rate_limited: { retryAfter?: number };
   /** The executor or its dialect can't run this operation (an include on SQLite, say). */
@@ -87,6 +92,7 @@ const STATUS: { readonly [K in DbErrorKind]: number } = {
   validation: 422,
   multiple_rows: 409,
   stale: 412,
+  max_affected: 400,
   rate_limited: 429,
   unsupported: 501,
   unexpected: 500,
@@ -225,6 +231,13 @@ const RETRY_AFTER = /retry after (\d+)/i;
 const PERMISSION_DENIED =
   /^permission denied for (table|view|sequence|function|schema) (\S+)/;
 
+/**
+ * The SQL compiler fails a write past `maxAffected` by casting this text,
+ * followed by `:<rows>`, to an integer: plain SQL has no `raise`.
+ */
+export const MAX_AFFECTED_MARKER = "better_supabase:max_affected";
+const MAX_AFFECTED_COUNT = /better_supabase:max_affected:(\d+)/;
+
 function constraintOf(raw: RawDbError): string | undefined {
   return raw.constraint ?? CONSTRAINT_IN_MESSAGE.exec(raw.message ?? "")?.[1];
 }
@@ -244,6 +257,18 @@ function optional(raw: RawDbError): {
   if (raw.details) out.details = raw.details;
   if (raw.hint) out.hint = raw.hint;
   return out;
+}
+
+/** Adds the operation's limit to a `max_affected` error that doesn't name it. */
+export function withMaxAffected(
+  error: DbError,
+  maxAffected: number | undefined,
+): DbError {
+  return error.kind === "max_affected" &&
+    maxAffected !== undefined &&
+    error.maxAffected === undefined
+    ? { ...error, maxAffected }
+    : error;
 }
 
 /**
@@ -344,6 +369,18 @@ function mapBuiltin(raw: RawDbError): DbError {
     case "PGRST302":
     case "PGRST303":
       return dbError("unauthorized", message, base);
+    case "PGRST124":
+      return dbError("max_affected", message, base);
+    case "22P02":
+      if (message.includes(MAX_AFFECTED_MARKER)) {
+        const affected = MAX_AFFECTED_COUNT.exec(message)?.[1];
+        return dbError(
+          "max_affected",
+          `The write affects ${affected ?? "more"} rows, more than maxAffected allows`,
+          { code: "22P02" },
+        );
+      }
+      break;
     case "PGRST123":
       return dbError("invalid_request", message, {
         ...base,
