@@ -37,7 +37,7 @@ catalog:
   "@supabase/config": 0.11.1
   "@supabase/middleware": 1.0.0
   "@supabase/postgrest-typegen": 0.4.0
-  "@supabase/server": 1.9.0
+  "@supabase/server": 1.9.1
   "@supabase/ssr": 0.12.7
   "@supabase/supabase-js": 2.117.2
   "@t3-oss/env-core": 0.13.11
@@ -138,7 +138,7 @@ catalogs:
     "@supabase/middleware": "^1.0.0"
     # The floor of the @supabase/supabase-js peer, which pins postgrest-js exactly.
     "@supabase/postgrest-js": "^2.116.0"
-    "@supabase/server": "^1.9.0"
+    "@supabase/server": "^1.9.1"
     "@supabase/ssr": "^0.12.7"
   # Ranges the published packages declare as peers, so consumers pick the
   # version. They are deliberately not exact pins.

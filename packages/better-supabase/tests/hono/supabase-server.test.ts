@@ -50,12 +50,14 @@ describe("better-supabase/hono after @supabase/server's withSupabase", () => {
 
   const combined = alone
     .app()
+    // oxlint-disable-next-line typescript/no-deprecated -- apps keep the upstream Hono adapter until its 2026-12-01 removal, so the trust boundary stays tested.
     .use("*", withSupabase({ auth: "user", env: supabaseEnv }))
     .use("*", alone.middleware())
     .get("/who", who(alone));
   const own = alone.app().use("*", alone.middleware()).get("/who", who(alone));
   const trusting = distrusting
     .app()
+    // oxlint-disable-next-line typescript/no-deprecated -- apps keep the upstream Hono adapter until its 2026-12-01 removal, so the trust boundary stays tested.
     .use("*", withSupabase({ auth: "user", env: supabaseEnv }))
     .use("*", distrusting.middleware())
     .get("/who", who(distrusting));
