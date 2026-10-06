@@ -170,6 +170,7 @@ function build(ctx: ModuleContext): string {
   const permissions = MODULE_PERMISSIONS.billing;
   const can = (scope: string, action: "read" | "manage"): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${scope}, ${ctx.permission(action, permissions[action])}), false))`;
+  const viewAll = `coalesce(better_supabase.is_platform(${ctx.permission("viewAll", permissions.viewAll)}), false)`;
   const seatRoles = ctx.list("seatRoles", []);
   const references = ctx.manages ? tenantReference(ctx) : undefined;
   const tenantKey =
@@ -352,6 +353,81 @@ as $$
   select ${fn("billing_stripe_rows")}(billing_customer_details.tenant, 'customers', 1) -> 0
 $$;
 
+-- The tenant's newest subscription as the Sync Engine stores it, with its
+-- items, or null. For billing.read in the tenant, or platform staff.
+create or replace function ${fn("billing_subscription")}(tenant ${id})
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_subscription.tenant);
+  found jsonb;
+begin
+  if not (${can("tenant", "read")} or ${viewAll}) then
+    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  if customer is null or to_regclass('stripe.subscriptions') is null then
+    return null;
+  end if;
+  execute $q$
+    select to_jsonb(s.*) || jsonb_build_object('items', coalesce((
+      select jsonb_agg(to_jsonb(i.*) order by i.created nulls last)
+      from stripe.subscription_items i where i.subscription = s.id
+    ), '[]'::jsonb))
+    from stripe.subscriptions s
+    where s.customer = $1
+    order by (s.status in ('active', 'trialing', 'past_due')) desc, s.created desc nulls last
+    limit 1
+  $q$ into found using customer;
+  return found;
+end;
+$$;
+
+-- Every tenant's newest subscription, for platform staff: [{ tenant,
+-- customer, subscription }], newest first, of one status when given, and
+-- created before before_created (Stripe's epoch seconds) for the next page.
+create or replace function ${fn("billing_all_subscriptions")}(for_status text default null, max_rows integer default 100, before_created bigint default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  found jsonb;
+begin
+  if not (${SERVICE_CALLER} or ${viewAll}) then
+    raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  if to_regclass('stripe.subscriptions') is null then
+    return '[]'::jsonb;
+  end if;
+  execute $q$
+    select coalesce(jsonb_agg(jsonb_build_object('tenant', p.tenant, 'customer', p.customer, 'subscription', p.subscription) order by p.created desc nulls last), '[]'::jsonb)
+    from (
+      select * from (
+        select distinct on (b.${c("tenant")}) b.${c("tenant")}::text as tenant, b.${c("customer")} as customer, s.created,
+          to_jsonb(s.*) || jsonb_build_object('items', coalesce((
+            select jsonb_agg(to_jsonb(i.*) order by i.created nulls last)
+            from stripe.subscription_items i where i.subscription = s.id
+          ), '[]'::jsonb)) as subscription
+        from ${t} b
+        join stripe.subscriptions s on s.customer = b.${c("customer")}
+        where ($1::text is null or s.status = $1)
+          and ($3::bigint is null or s.created < $3)
+        order by b.${c("tenant")}, s.created desc nulls last
+      ) r
+      order by r.created desc nulls last
+      limit greatest(1, least(coalesce($2, 100), 500))
+    ) p
+  $q$ into found using for_status, max_rows, before_created;
+  return coalesce(found, '[]'::jsonb);
+end;
+$$;
+
 -- For the billing page: { customer, seats, subscription }.
 create or replace function ${fn("billing_status")}(tenant ${id})
 returns jsonb
@@ -386,6 +462,10 @@ revoke execute on function ${fn("link_billing_customer")}(${id}, text) from publ
 revoke execute on function ${fn("billing_seat_count")}(${id}) from public, anon, authenticated;
 revoke execute on function ${fn("billing_subscription_item")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("billing_status")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_subscription")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) from public, anon;
+grant execute on function ${fn("billing_subscription")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("billing_customer")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("billing_customer_tenant")}(text) to service_role;
 grant execute on function ${fn("link_billing_customer")}(${id}, text) to service_role;
@@ -406,6 +486,12 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "billing_status", args: ["{id}"], returns: "jsonb" },
+    { name: "billing_subscription", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "billing_all_subscriptions",
+      args: ["text", "integer", "bigint"],
+      returns: "jsonb",
+    },
     {
       name: "billing_plan_price",
       args: ["text", "text", "text"],

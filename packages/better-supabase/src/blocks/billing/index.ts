@@ -8,11 +8,13 @@ export {
   createBilling,
   type CustomerDetails,
   type PlanChange,
+  type PlatformListOptions,
   type SeatSync,
   type StripeEvent,
   type StripeEventOutcome,
   type StripeRow,
   type SubscriptionItem,
+  type TenantStripeRow,
 } from "./billing.ts";
 export type { BillingEventData } from "../../core/block-events.ts";
 export type { StripeClient, StripeSource } from "../stripe.ts";

@@ -591,6 +591,43 @@ describe("createBilling", () => {
     expect(t.stripeCalls).toHaveLength(before);
   });
 
+  it("reads the full subscription and every tenant's for platform staff", async () => {
+    const t = setup((fn) => {
+      if (fn === "billing_subscription") return { id: "sub_1", items: [] };
+      if (fn === "billing_all_subscriptions")
+        return [
+          { tenant: "org", customer: "cus_1", subscription: { id: "sub_1" } },
+          { tenant: "broken", customer: "cus_2", subscription: null },
+        ];
+      return null;
+    });
+    const billing = createBilling(t);
+    expect(await billing.subscription("org").orThrow()).toEqual({
+      id: "sub_1",
+      items: [],
+    });
+    expect(
+      await billing
+        .allSubscriptions({ status: "active", limit: 10, before: 99 })
+        .orThrow(),
+    ).toEqual([
+      { organizationId: "org", customerId: "cus_1", row: { id: "sub_1" } },
+    ]);
+    expect(t.calls.at(-1)).toEqual([
+      "billing_all_subscriptions",
+      { for_status: "active", max_rows: 10, before_created: 99 },
+    ]);
+    await billing.allSubscriptions().orThrow();
+    expect(t.calls.at(-1)![1]).toEqual({
+      for_status: undefined,
+      max_rows: 100,
+      before_created: undefined,
+    });
+    const none = createBilling(setup(() => null));
+    expect(await none.subscription("org").orThrow()).toBeUndefined();
+    expect(await none.allSubscriptions().orThrow()).toEqual([]);
+  });
+
   it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
     const t = setup(
       (fn) => {

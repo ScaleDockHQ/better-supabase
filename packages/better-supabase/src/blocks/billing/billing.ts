@@ -157,6 +157,22 @@ export interface PlanChange {
  */
 export type StripeRow = Readonly<Record<string, unknown>>;
 
+/** A Sync Engine row with the tenant and customer it belongs to, from a platform read. */
+export interface TenantStripeRow {
+  readonly organizationId: string;
+  readonly customerId: string;
+  readonly row: StripeRow;
+}
+
+export interface PlatformListOptions {
+  /** Only rows with this Stripe status, such as `active` or `open`. */
+  readonly status?: string;
+  /** Defaults to 100, at most 500. */
+  readonly limit?: number;
+  /** Only rows Stripe created before this (epoch seconds), for the next page. */
+  readonly before?: number;
+}
+
 export interface BillingCustomerUpdate {
   readonly email?: string;
   readonly name?: string;
@@ -184,6 +200,19 @@ export interface Billing {
     options: { readonly returnUrl: string },
   ): AsyncResult<{ readonly url: string }>;
   status(organizationId: string): AsyncResult<BillingStatus>;
+  /**
+   * The tenant's newest subscription as the Sync Engine stores it (every
+   * column, with `items`), preferring an active one; `undefined` without
+   * one. For `billing.read` in the tenant, or platform staff.
+   */
+  subscription(organizationId: string): AsyncResult<StripeRow | undefined>;
+  /**
+   * Every tenant's newest subscription, newest first, for platform staff
+   * (`billing.read` in the platform scope) or a service transport.
+   */
+  allSubscriptions(
+    options?: PlatformListOptions,
+  ): AsyncResult<readonly TenantStripeRow[]>;
   /**
    * Cancels the tenant's active subscription in Stripe now; `undefined`
    * when it has none. The `customer.subscription.deleted` webhook then
@@ -595,6 +624,28 @@ export function createBilling(options: BillingOptions): Billing {
   const rows = (value: unknown): readonly StripeRow[] =>
     Array.isArray(value) ? value.filter(isRecord) : [];
 
+  const tenantRows =
+    (key: string) =>
+    (value: unknown): readonly TenantStripeRow[] =>
+      rows(value).flatMap((entry) => {
+        const row = entry[key];
+        return isRecord(row)
+          ? [
+              {
+                organizationId: textOf(entry["tenant"]),
+                customerId: textOf(entry["customer"]),
+                row,
+              },
+            ]
+          : [];
+      });
+
+  const platformArgs = (list: PlatformListOptions = {}) => ({
+    for_status: list.status,
+    max_rows: list.limit ?? 100,
+    before_created: list.before,
+  });
+
   const invoices = (
     organizationId: string,
     list: { readonly limit?: number } = {},
@@ -781,6 +832,16 @@ export function createBilling(options: BillingOptions): Billing {
         };
       }),
     syncSeats,
+    subscription: (organizationId) =>
+      call("billing_subscription", { tenant: organizationId }, (value) =>
+        isRecord(value) ? value : undefined,
+      ),
+    allSubscriptions: (list) =>
+      call(
+        "billing_all_subscriptions",
+        platformArgs(list),
+        tenantRows("subscription"),
+      ),
     cancelSubscription: (organizationId) =>
       item(organizationId).andThen(async (found) => {
         if (found === undefined) return ok(undefined);

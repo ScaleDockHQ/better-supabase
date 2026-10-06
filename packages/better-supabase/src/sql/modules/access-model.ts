@@ -80,7 +80,11 @@ export const MODULE_PERMISSIONS = {
     platform: "settings.manage",
   },
   usage: { read: "usage.read" },
-  billing: { read: "billing.read", manage: "billing.manage" },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    viewAll: "billing.read",
+  },
   comments: {
     read: "comments.read",
     create: "comments.create",
@@ -137,7 +141,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "api-keys": { manage: "tenant", own: "tenant" },
   settings: { read: "tenant", update: "tenant", platform: "platform" },
   usage: { read: "tenant" },
-  billing: { read: "tenant", manage: "tenant" },
+  billing: { read: "tenant", manage: "tenant", viewAll: "platform" },
   comments: {
     read: "tenant",
     create: "tenant",

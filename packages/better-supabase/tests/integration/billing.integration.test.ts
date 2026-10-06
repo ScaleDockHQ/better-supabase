@@ -146,6 +146,41 @@ describe.skipIf(!live)("billing", () => {
         "billing.subscription_updated",
       ]);
 
+      expect(await billing.subscription(organization).orThrow()).toMatchObject({
+        id: "sub_1",
+        status: "active",
+        items: [{ id: "si_1", price: "price_seat" }],
+      });
+      const all = await billing
+        .allSubscriptions({ status: "active" })
+        .orThrow();
+      expect(
+        all.find((entry) => entry.organizationId === organization),
+      ).toMatchObject({ customerId: "cus_test1", row: { id: "sub_1" } });
+      expect(
+        await billing.allSubscriptions({ status: "canceled" }).orThrow(),
+      ).not.toContainEqual(
+        expect.objectContaining({ organizationId: organization }),
+      );
+      const staff = await s.user("staff");
+      await s.asRole(staff, { platform_permissions: ["billing.read"] });
+      expect((await billing.subscription(organization).orThrow())?.["id"]).toBe(
+        "sub_1",
+      );
+      expect(
+        (await billing.allSubscriptions().orThrow()).some(
+          (entry) => entry.organizationId === organization,
+        ),
+      ).toBe(true);
+      await s.asRole(staff);
+      expect(await billing.subscription(organization)).toMatchObject({
+        error: { hint: "BILLING_FORBIDDEN" },
+      });
+      expect(await billing.allSubscriptions()).toMatchObject({
+        error: { hint: "BILLING_FORBIDDEN" },
+      });
+      await s.service();
+
       // Members without billing.read cannot read the status.
       await s.asRole(member);
       expect(await billing.status(organization)).toMatchObject({
