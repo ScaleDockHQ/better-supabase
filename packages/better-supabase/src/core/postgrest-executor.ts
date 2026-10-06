@@ -8,6 +8,7 @@ import {
   mapDbError,
   type RawDbError,
 } from "./errors.ts";
+import { chunkRead, queryLength } from "./in-chunks.ts";
 import { err, ok, type Result, toDbError } from "./result.ts";
 
 interface PostgrestResponseLike {
@@ -247,38 +248,89 @@ function pastLastRow(op: Operation, error: RawDbError): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-/** Executes IR operations through a supabase-js client. */
 const aborted = (): DbError => dbError("aborted", "The request was aborted");
 
-export function postgrestExecutor(client: PostgrestClientLike): Executor {
+export interface PostgrestExecutorOptions {
+  /**
+   * The longest query string a read may send, in characters. A longer read
+   * is split along its longest `in` list into reads that fit, or fails with
+   * `invalid_request` when it can't be split. Defaults to 6000, below the
+   * 8 KB request line the Supabase API gateway and common proxies accept.
+   */
+  readonly maxUrlLength?: number;
+}
+
+/** Executes IR operations through a supabase-js client. */
+export function postgrestExecutor(
+  client: PostgrestClientLike,
+  options: PostgrestExecutorOptions = {},
+): Executor {
+  const maxUrlLength = options.maxUrlLength ?? 6000;
+  const execute = async (
+    op: Operation,
+    context: ExecuteContext,
+  ): Promise<Result<ExecuteResult>> => {
+    let plan: PostgrestPlan;
+    try {
+      plan = compilePostgrest(op);
+    } catch (cause) {
+      return err(toDbError(cause));
+    }
+    if (plan.never) return ok({ rows: [], count: 0 });
+    if (context.signal?.aborted) return err(aborted());
+    if (op.kind === "select" && queryLength(plan) > maxUrlLength) {
+      const chunked = chunkRead(op, plan, maxUrlLength);
+      if (!("ops" in chunked)) return err(chunked);
+      const results = await Promise.all(
+        chunked.ops.map((chunk) => send(chunk, context)),
+      );
+      const rows: Record<string, unknown>[] = [];
+      for (const result of results) {
+        if (!result.ok) return result;
+        rows.push(...result.data.rows);
+      }
+      return ok({
+        rows: chunked.sort ? chunked.sort(rows) : rows,
+        count: null,
+      });
+    }
+    return run(op, plan, context);
+  };
+  const send = (
+    op: Operation,
+    context: ExecuteContext,
+  ): Promise<Result<ExecuteResult>> => {
+    let plan: PostgrestPlan;
+    try {
+      plan = compilePostgrest(op);
+    } catch (cause) {
+      return Promise.resolve(err(toDbError(cause)));
+    }
+    return plan.never
+      ? Promise.resolve(ok({ rows: [], count: 0 }))
+      : run(op, plan, context);
+  };
+  const run = async (
+    op: Operation,
+    plan: PostgrestPlan,
+    context: ExecuteContext,
+  ): Promise<Result<ExecuteResult>> => {
+    let query = build(client, op, plan);
+    if (context.signal) query = query.abortSignal(context.signal);
+
+    const response = await query;
+    if (response.error) {
+      if (context.signal?.aborted) return err(aborted());
+      const total = pastLastRow(op, response.error);
+      if (total !== undefined) return ok({ rows: [], count: total });
+      return err(mapDbError(response.error, context.errorMappers));
+    }
+    return ok({ rows: rowsOf(response.data), count: response.count ?? null });
+  };
   return {
     name: "postgrest",
     functionSources: true,
-    async execute(
-      op: Operation,
-      context: ExecuteContext,
-    ): Promise<Result<ExecuteResult>> {
-      let plan: PostgrestPlan;
-      try {
-        plan = compilePostgrest(op);
-      } catch (cause) {
-        return err(toDbError(cause));
-      }
-      if (plan.never) return ok({ rows: [], count: 0 });
-      if (context.signal?.aborted) return err(aborted());
-
-      let query = build(client, op, plan);
-      if (context.signal) query = query.abortSignal(context.signal);
-
-      const response = await query;
-      if (response.error) {
-        if (context.signal?.aborted) return err(aborted());
-        const total = pastLastRow(op, response.error);
-        if (total !== undefined) return ok({ rows: [], count: total });
-        return err(mapDbError(response.error, context.errorMappers));
-      }
-      return ok({ rows: rowsOf(response.data), count: response.count ?? null });
-    },
+    execute,
     async rpc(name, args, context): Promise<Result<unknown>> {
       const scoped = scope(client, context.schema);
       if (!scoped.rpc) {

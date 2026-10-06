@@ -109,7 +109,10 @@ export {
   explainPostgrest,
   postgrestExecutor,
 } from "./core/postgrest-executor.ts";
-export type { PostgrestClientLike } from "./core/postgrest-executor.ts";
+export type {
+  PostgrestClientLike,
+  PostgrestExecutorOptions,
+} from "./core/postgrest-executor.ts";
 export { EventHub } from "./core/events.ts";
 export type {
   AuthEvent,

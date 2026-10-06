@@ -643,6 +643,9 @@ export function createServer<
       get db() {
         if (db) return db;
         const url = replicaUrl();
+        const { maxUrlLength } = betterSupabase.options;
+        const executorOptions =
+          maxUrlLength === undefined ? {} : { maxUrlLength };
         const rest: PostgrestClientLike =
           supabase ?? restAt(env().url, auth, headers);
         const connected = betterSupabase.connect(rest, context, {
@@ -650,8 +653,11 @@ export function createServer<
           ...(url && replica
             ? {
                 executor: routedExecutor(
-                  postgrestExecutor(rest),
-                  postgrestExecutor(restAt(url, auth, headers)),
+                  postgrestExecutor(rest, executorOptions),
+                  postgrestExecutor(
+                    restAt(url, auth, headers),
+                    executorOptions,
+                  ),
                   replica,
                 ),
               }

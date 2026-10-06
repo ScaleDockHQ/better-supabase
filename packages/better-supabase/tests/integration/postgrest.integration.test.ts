@@ -377,6 +377,24 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(deleted.map((row) => row.id).sort()).toEqual([...ids].sort());
   });
 
+  it("reads a list of 600 ids in requests that fit the URL", async () => {
+    const ids = [
+      ROAD_RUNNER,
+      ANVIL,
+      ...Array.from({ length: 598 }, () => crypto.randomUUID()),
+    ];
+    const rows = await admin.customers
+      .findMany({
+        select: ["id", "createdAt"],
+        where: { id: { in: ids } },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      })
+      .orThrow();
+    expect(rows.map((row) => row.id).sort()).toEqual(
+      [ROAD_RUNNER, ANVIL].sort(),
+    );
+  });
+
   it("returns $rpc rows in the configured casing", async () => {
     const leads = await admin
       .$rpc("customers_by_status", { p_status: "lead" })

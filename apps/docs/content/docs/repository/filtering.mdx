@@ -61,6 +61,24 @@ where: { status: { in: ['lead', 'active'] } }
 where: { status: 'deleted' }
 ```
 
+## Long `in` lists
+
+`in` lists send uuids, numbers, dates and other plain values without quotes,
+as supabase-js does. A read whose query string is still longer than
+`maxUrlLength` (6000 characters by default, below the 8 KB request line the
+Supabase API gateway accepts) is split along its longest top-level `in` list
+into reads that fit; they run in parallel, and the rows come back merged:
+
+```ts
+await db.employees.findMany({ where: { id: { in: managerIds } } });
+```
+
+Splitting needs a read without `limit`, `offset`, `count` or a page, since
+the parts can't share those, and an `orderBy` on selected number, uuid, date
+or time columns, which are sorted again after the merge. Other reads that are
+too long return `invalid_request`: page through a shorter list, or pass the
+list to a function. Set the limit with `defineSupabase(schema, { maxUrlLength })`.
+
 ## Combining
 
 ```ts

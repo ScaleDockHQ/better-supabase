@@ -34,6 +34,7 @@ import {
 } from "./plugin.ts";
 import {
   type PostgrestClientLike,
+  type PostgrestExecutorOptions,
   postgrestExecutor,
 } from "./postgrest-executor.ts";
 import {
@@ -97,6 +98,11 @@ export interface SupabaseOptions {
    * and logs a warning once per table. Defaults to 1000, the hosted default.
    */
   readonly maxRows?: number;
+  /**
+   * The longest query string one PostgREST read sends. Longer reads are
+   * split along their longest `in` list. Defaults to 6000 characters.
+   */
+  readonly maxUrlLength?: number;
 }
 
 export interface ConnectOptions {
@@ -415,9 +421,16 @@ export class BetterSupabase<
     const client = isExecutor(source) ? undefined : source;
     const base =
       options.executor ??
-      (isExecutor(source) ? source : postgrestExecutor(source));
+      (isExecutor(source)
+        ? source
+        : postgrestExecutor(source, this.#executorOptions()));
     const recorder = new StatsRecorder(options.stats);
     return this.#db(client, base, context, this.plugins, recorder);
+  }
+
+  #executorOptions(): PostgrestExecutorOptions {
+    const { maxUrlLength } = this.options;
+    return maxUrlLength === undefined ? {} : { maxUrlLength };
   }
 
   /** The caller's context with every plugin's `context` hook applied. */
