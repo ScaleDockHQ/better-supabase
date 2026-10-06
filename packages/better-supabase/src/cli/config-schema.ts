@@ -100,6 +100,7 @@ const ConfigSchema = v.strictObject({
         exclude: v.optional(v.boolean()),
         serviceRole: v.optional(v.boolean()),
         relations: v.optional(stringRecord),
+        insertOptional: v.optional(strings),
       }),
     ),
   ),

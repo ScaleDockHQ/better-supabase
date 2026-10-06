@@ -334,6 +334,93 @@ describe("CHECK not null", () => {
       false,
     );
   });
+
+  const customersWith = async (
+    change: (table: Record<string, unknown>) => Record<string, unknown>,
+    config: BetterSupabaseConfig = {},
+  ) => {
+    const fixture = await loadFixtureSnapshot();
+    const snapshot = {
+      ...fixture,
+      extras: {
+        ...fixture.extras,
+        tables: fixture.extras.tables.map((table) =>
+          table.schema === "public" && table.name === "customers"
+            ? change({
+                ...table,
+                checks: [
+                  ...table.checks,
+                  {
+                    name: "customers_kvk_present",
+                    definition: "CHECK ((kvk IS NOT NULL))",
+                  },
+                ],
+              })
+            : table,
+        ),
+      },
+    };
+    // SAFETY: change only adds catalog fields the snapshot type has.
+    const model = buildModel(
+      snapshot as typeof fixture,
+      resolveConfig(config, fixtures),
+    );
+    return (name: string) => ({
+      column: model.tables
+        .find((table) => table.key === "customers")
+        ?.columns.find((entry) => entry.db === name),
+      meta: model.meta.tables["customers"]?.columns[name],
+    });
+  };
+
+  it("keeps the column optional on insert when a before insert trigger can fill it", async () => {
+    const trigger = (timing: string, events: string[], level = "row") => ({
+      name: "fill",
+      timing,
+      events,
+      level,
+      function: "public.fill",
+    });
+    const filled = await customersWith((table) => ({
+      ...table,
+      triggers: [trigger("before", ["insert", "update"])],
+    }));
+    expect(filled("kvk").column).toMatchObject({
+      nullable: false,
+      optional: true,
+    });
+    expect(filled("kvk").meta).toMatchObject({
+      nullable: false,
+      hasDefault: true,
+    });
+    for (const triggers of [
+      [trigger("after", ["insert"])],
+      [trigger("before", ["update"])],
+      [trigger("before", ["insert"], "statement")],
+    ]) {
+      const unfilled = await customersWith((table) => ({ ...table, triggers }));
+      expect(unfilled("kvk").column).toMatchObject({ optional: false });
+    }
+  });
+
+  it("makes insertOptional columns optional on insert", async () => {
+    const listed = await customersWith((table) => table, {
+      tables: { customers: { insertOptional: ["kvk", "name"] } },
+    });
+    expect(listed("kvk").column).toMatchObject({
+      nullable: false,
+      optional: true,
+    });
+    expect(listed("name").column).toMatchObject({ optional: true });
+    expect(listed("name").meta?.hasDefault).toBe(true);
+    await expect(
+      customersWith((table) => table, {
+        tables: { customers: { insertOptional: ["nope"] } },
+      }),
+    ).rejects.toThrow(
+      'tables.customers.insertOptional: "nope" is not a column of public.customers',
+    );
+  });
 });
 
 describe("metadata module", () => {

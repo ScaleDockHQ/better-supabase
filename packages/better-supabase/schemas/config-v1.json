@@ -52,6 +52,11 @@
           "relations": {
             "type": "object",
             "additionalProperties": { "type": "string" }
+          },
+          "insertOptional": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Database names of not-null columns an insert may leave out because the database fills them, for example from a before insert trigger."
           }
         }
       }
