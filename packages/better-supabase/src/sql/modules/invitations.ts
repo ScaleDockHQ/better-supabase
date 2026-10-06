@@ -1,5 +1,5 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -18,6 +18,7 @@ import {
   roleScopeIs,
   tenantScope,
 } from "./access-model.ts";
+import { permdockForUser } from "./access.ts";
 import { assignableRole, roleValue, TRUSTED_SETTING } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
@@ -239,6 +240,8 @@ function roleIn(
 interface PlatformAssignment {
   /** The stored role for a role name or id; null when it is unknown. */
   value(expr: string): string;
+  /** The assignment table's role value for an invitation's stored role. */
+  assign(stored: string): string;
   /** Whether `member` may assign the stored role `stored`; `undefined` for no ceiling. */
   canAssign(member: string, stored: string): string | undefined;
   readonly table: string;
@@ -261,6 +264,9 @@ function platformAssignment(ctx: ModuleContext): PlatformAssignment {
         through
           ? `(select r.${through.id} from ${through.table} r where r.${through.id}::text = (${expr})::text or r.${through.column}::text = (${expr})::text order by (r.${through.id}::text = (${expr})::text) desc limit 1)`
           : expr,
+      assign(stored) {
+        return this.value(stored);
+      },
       canAssign: (member, stored) =>
         permdock.canAssign === undefined
           ? undefined
@@ -274,6 +280,7 @@ function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   const access = ctx.of("access");
   return {
     value: (expr) => roleIn(ctx, expr, "platform"),
+    assign: (stored) => roleValue(ctx, stored),
     canAssign: (member, stored) =>
       `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
     table: access.table("platformAssignments"),
@@ -769,7 +776,7 @@ $$;
 `;
 }
 
-function accept(ctx: ModuleContext): string {
+function accept(ctx: ModuleContext, layout: ModuleLayout): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
@@ -816,8 +823,10 @@ function accept(ctx: ModuleContext): string {
   // The inviter's authority is checked again: a role or permission they
   // lost after inviting must not reach the invitee.
   const inviter = t.has("invitedBy") ? `invite.${c("invitedBy")}` : undefined;
+  const forUser =
+    model === "permdock" ? permdockForUser(ctx, layout) : undefined;
   const assignAs =
-    model === "roles" || model === "catalog"
+    model === "roles" || model === "catalog" || forUser?.canAssign
       ? `
     if ${inviter} is not null
       and not better_supabase.can_assign_as(${inviter}, invite.${c("tenant")}, ${assignableRole(ctx, `invite.${c("role")}`)}) then
@@ -825,7 +834,7 @@ function accept(ctx: ModuleContext): string {
     end if;`
       : "";
   const recheck =
-    inviter && model === "permdock"
+    inviter && model === "permdock" && !(forUser?.permitted && forUser.has)
       ? `
     -- The permdock model answers for the caller only, so the inviter's
     -- authority was checked when they invited, not here.`
@@ -845,7 +854,7 @@ function accept(ctx: ModuleContext): string {
       `pinvite.${pc("role")}`,
     );
     const platformInviter =
-      p.has("invitedBy") && assignment.recheck
+      p.has("invitedBy") && (assignment.recheck || forUser?.has)
         ? `
   if pinvite.${pc("invitedBy")} is not null and not (
     coalesce(better_supabase.platform_can(pinvite.${pc("invitedBy")}, ${invitePlatform(ctx)}), false)${inviterCeiling ? `\n    and ${inviterCeiling}` : ""}
@@ -861,7 +870,7 @@ function accept(ctx: ModuleContext): string {
   if pinvite.${pc("id")} is not null then
   ${invitee(p, "pinvite")}${platformInviter}
   insert into ${assignment.table} (${assignment.user}, ${assignment.role})
-  values (me, ${assignment.recheck ? roleValue(ctx, `pinvite.${pc("role")}`) : assignment.value(`pinvite.${pc("role")}`)})
+  values (me, ${assignment.assign(`pinvite.${pc("role")}`)})
   on conflict do nothing;
   update ${p.table}
   set ${pc("acceptedAt")} = now()${p.has("acceptedBy") ? `, ${pc("acceptedBy")} = me` : ""}
@@ -924,7 +933,7 @@ $$;
 `;
 }
 
-function invitationsSql(ctx: ModuleContext): string {
+function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const id = ctx.idType;
   const grant = (
     fn: string,
@@ -935,7 +944,7 @@ function invitationsSql(ctx: ModuleContext): string {
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}

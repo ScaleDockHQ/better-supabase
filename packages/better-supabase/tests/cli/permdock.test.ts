@@ -435,6 +435,39 @@ describe("accessPermdockMode", () => {
     });
   });
 
+  it("lists PermDock's helpers for a named user the manifest advertises", () => {
+    const helper = (name: string) => ({
+      name,
+      args: "p_user uuid, p_grant text",
+      returns: "boolean",
+      execute: [],
+    });
+    const withFor = {
+      ...authz,
+      manifest: parseManifest({
+        ...manifest,
+        rls: {
+          ...manifest.rls,
+          schema: "authz",
+          scopes: [{ name: "tenant", type: "text" }],
+          helpers: [
+            ...manifest.rls.helpers,
+            helper("permdock_has_for"),
+            helper("permitted_tenant_ids_for"),
+          ],
+        },
+      }),
+    };
+    expect(accessPermdockMode(config(), withFor)).toMatchObject({
+      access: {
+        forUser: { has: true, permitted: true, canAssign: false },
+      },
+    });
+    expect(accessPermdockMode(config(), authz)).not.toHaveProperty(
+      "access.forUser",
+    );
+  });
+
   it("doesn't depend on the entitlements setting", () => {
     expect(
       accessPermdockMode(

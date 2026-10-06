@@ -3,10 +3,12 @@ import type {
   ModuleContractFunction,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, updatedAt } from "../shared.ts";
+import { accessModel } from "./access-model.ts";
+import { permdockForUser } from "./access.ts";
 import {
   functions,
   type NotifyNames,
@@ -449,9 +451,12 @@ $$;`;
   }
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
-  const n = notifyNames(ctx);
+  const n = notifyNames(
+    ctx,
+    accessModel(ctx) !== "permdock" || permdockForUser(ctx, layout).permitted,
+  );
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
     functions(ctx, n),

@@ -11,10 +11,16 @@ export interface NotifyNames {
   /** SQL literals of the permission keys. */
   readonly sendPermission: string;
   readonly readPermission: string;
+  /** Whether `member_can` answers for users other than the caller. */
+  readonly answersForOthers: boolean;
 }
 
-export function notifyNames(ctx: ModuleContext): NotifyNames {
+export function notifyNames(
+  ctx: ModuleContext,
+  answersForOthers: boolean = accessModel(ctx) !== "permdock",
+): NotifyNames {
   return {
+    answersForOthers,
     table: (table) => ctx.table(table),
     col: (table, logical) => ctx.col(table, logical),
     has: (table, logical) => ctx.hasTable(table) && ctx.has(table, logical),
@@ -224,19 +230,18 @@ function notify(ctx: ModuleContext, n: NotifyNames): string {
     );
   end if;`
     : "";
-  const readFilter =
-    accessModel(ctx) === "permdock"
-      ? `
-  -- The permdock model answers for the caller only, so recipients are not
-  -- filtered by their read permission: the sender and notification_audience
-  -- decide who gets it.`
-      : `
+  const readFilter = n.answersForOthers
+    ? `
   if v_tenant is not null then
     v_recipients := array(
       select x from unnest(v_recipients) x
       where coalesce(better_supabase.member_can(x, v_tenant, ${n.readPermission}), false)
     );
-  end if;`;
+  end if;`
+    : `
+  -- The permdock model answers for the caller only, so recipients are not
+  -- filtered by their read permission: the sender and notification_audience
+  -- decide who gets it.`;
   const members = access ? readFilter : "";
   const authorize = access
     ? `

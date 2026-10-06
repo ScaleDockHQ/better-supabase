@@ -761,6 +761,105 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("checks the inviter again at accept through PermDock's _for helpers", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_pdfor_${USERS.owner.slice(0, 8)}`;
+    const organization = crypto.randomUUID();
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "admin", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      await client.query(`
+        create schema ${schema};
+        create table ${schema}.team_members (
+          organization_id uuid not null,
+          user_id uuid not null,
+          role text not null,
+          created_at timestamptz not null default now(),
+          primary key (organization_id, user_id)
+        );
+        create table ${schema}.grants (user_id uuid, permission text);
+        insert into ${schema}.team_members (organization_id, user_id, role) values
+          ('${organization}', '${USERS.owner}', 'owner'),
+          ('${organization}', '${USERS.admin}', 'admin');
+        insert into ${schema}.grants values
+          ('${USERS.owner}', 'members.invite'), ('${USERS.admin}', 'members.invite');
+        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+          language sql stable as $$
+            select m.organization_id from ${schema}.team_members m
+            join ${schema}.grants g on g.user_id = m.user_id and g.permission = permitted_organization_ids.permission
+            where m.user_id = auth.uid() $$;
+        create function ${schema}.permitted_organization_ids_for(p_user uuid, p_grant text) returns setof uuid
+          language sql stable as $$
+            select m.organization_id from ${schema}.team_members m
+            join ${schema}.grants g on g.user_id = m.user_id and g.permission = p_grant
+            where m.user_id = p_user $$;
+        create function ${schema}.permdock_has(permission text) returns boolean
+          language sql stable as $$ select false $$;
+        create function ${schema}.permdock_has_for(p_user uuid, p_grant text) returns boolean
+          language sql stable as $$ select false $$;
+        create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+          language sql stable as $$ select p_role <> 'owner' $$;
+        create function ${schema}.permdock_can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
+          language sql stable as $$ select p_role <> 'owner' and p_user <> '${USERS.admin}' $$;
+      `);
+      const layout: ModuleLayout = {
+        modules: {
+          access: {
+            model: "permdock",
+            permdock: { schema, scope: "organization", forUser: true },
+            functions: {
+              canAssign: `${schema}.permdock_can_assign({role}, {tenant}::text)`,
+            },
+          },
+          tenant: {
+            schema,
+            mode: "adopt",
+            tables: { memberships: `${schema}.team_members` },
+            columns: { memberships: { updatedAt: null, lastUsedAt: null } },
+          },
+          invitations: { schema },
+        },
+      };
+      for (const file of renderModules(["invitations"], layout))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      expect(
+        await s.value(
+          "better_supabase.can_user($1, 'organization', $2, 'members.invite')",
+          [USERS.admin, organization],
+        ),
+      ).toBe(true);
+      const kept = await s.value<{ token: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, email("member")],
+      );
+      await s.as("admin");
+      const lost = await s.value<{ token: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, `late-${email("member")}`],
+      );
+      expect(lost.token).not.toBe(kept.token);
+      await client.query(`delete from ${schema}.grants where user_id = $1`, [
+        USERS.owner,
+      ]);
+      await s.as("member");
+      expect(
+        await s.hint(`${schema}.accept_invitation($1)`, [kept.token]),
+      ).toBe("INVITATION_INVITER_REVOKED");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
     const client = await pool.connect();
     const s = new Session(client);

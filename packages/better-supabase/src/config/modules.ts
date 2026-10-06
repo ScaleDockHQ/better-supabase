@@ -136,8 +136,18 @@ export interface AccessModuleConfig extends ModuleConfig {
     readonly userKey?: string;
   };
   readonly activeTenant?: ActiveTenantSource;
-  /** `permdock` model: PermDock's `rls.schema` and the scope tenants are. */
-  readonly permdock?: { readonly schema?: string; readonly scope?: string };
+  /**
+   * `permdock` model: PermDock's `rls.schema` and the scope tenants are.
+   * `forUser: true` says PermDock's helpers for a named user
+   * (`permdock_has_for`, `permitted_<scope>_ids_for`,
+   * `permdock_can_assign_for`, from `database` mode) exist when the manifest
+   * doesn't list them.
+   */
+  readonly permdock?: {
+    readonly schema?: string;
+    readonly scope?: string;
+    readonly forUser?: boolean;
+  };
 }
 
 /** `sql.modules` in the config, keyed by module name. */

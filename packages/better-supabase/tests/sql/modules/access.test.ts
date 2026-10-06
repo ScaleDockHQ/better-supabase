@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccessModuleConfig } from "../../../src/config/modules.ts";
+import type {
+  AccessModuleConfig,
+  ModulesConfig,
+} from "../../../src/config/modules.ts";
 
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
 import {
@@ -117,6 +120,74 @@ describe("access module", () => {
     expect(sql).toContain('"authz".permdock_has(permission)');
     expect(sql).toContain("can(scope text, scope_id text, permission text)");
     expect(sql).not.toContain("permitted_organization_ids");
+  });
+
+  it("answers for another user through PermDock's _for helpers", () => {
+    const callerOnly = access({
+      model: "permdock",
+      permdock: { schema: "authz", scope: "organization" },
+    });
+    expect(callerOnly).toContain("hint = 'ACCESS_CALLER_ONLY'");
+    expect(callerOnly).not.toContain("_for(");
+    const sql = access({
+      model: "permdock",
+      permdock: { schema: "authz", scope: "organization", forUser: true },
+    });
+    expect(sql).toContain(
+      '"authz"."permitted_organization_ids_for"(member, permission)',
+    );
+    expect(sql).toContain('"authz".permdock_has_for(member, permission)');
+    expect(sql).toContain(
+      '"authz".permdock_can_assign_for(member, role, tenant::text)',
+    );
+    expect(sql).not.toContain("hint = 'ACCESS_CALLER_ONLY'");
+    const partial = moduleBody("access", {
+      modules: { access: { model: "permdock" } },
+      accessPermdock: {
+        schema: "authz",
+        scope: "tenant",
+        idType: "text",
+        forUser: { has: false, permitted: true, canAssign: false },
+      },
+    })!;
+    expect(partial).toContain('"authz"."permitted_tenant_ids_for"');
+    expect(partial).not.toContain("permdock_can_assign_for");
+    expect(partial).toContain("hint = 'ACCESS_CALLER_ONLY'");
+    const invitations = moduleBody("invitations", {
+      modules: {
+        access: {
+          model: "permdock",
+          permdock: { schema: "authz", scope: "organization", forUser: true },
+        },
+      },
+    })!;
+    expect(invitations).toContain(
+      "better_supabase.can_user(invite.\"invited_by\", 'organization'",
+    );
+    expect(invitations).toContain(
+      'better_supabase.can_assign_as(invite."invited_by"',
+    );
+    const permdock = {
+      access: {
+        model: "permdock" as const,
+        permdock: { schema: "authz", scope: "organization" },
+      },
+    };
+    const notifications = (modules: ModulesConfig) =>
+      renderModules(["notifications", "access"], { modules }).find(
+        (file) => file.module === "notifications" && file.kind === "schema",
+      )!.contents;
+    expect(notifications(permdock)).toContain(
+      "recipients are not\n  -- filtered by their read permission",
+    );
+    expect(
+      notifications({
+        access: {
+          ...permdock.access,
+          permdock: { ...permdock.access.permdock, forUser: true },
+        },
+      }),
+    ).toContain("coalesce(better_supabase.member_can(x, v_tenant,");
   });
 
   it("never guesses the permdock model's helpers", () => {

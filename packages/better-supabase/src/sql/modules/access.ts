@@ -435,6 +435,30 @@ function permdockCanAssign(ctx: ModuleContext): string {
  * `sql.modules.access.permdock`. Never a default, so a project whose helpers live
  * elsewhere never gets functions that call helpers that don't exist.
  */
+/**
+ * PermDock's helpers for a named user: those the manifest lists, or all of
+ * them with `sql.modules.access.permdock.forUser`.
+ */
+export function permdockForUser(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): {
+  readonly has: boolean;
+  readonly permitted: boolean;
+  readonly canAssign: boolean;
+} {
+  if (ctx.modules.access?.permdock?.forUser) {
+    return { has: true, permitted: true, canAssign: true };
+  }
+  return (
+    layout.accessPermdock?.forUser ?? {
+      has: false,
+      permitted: false,
+      canAssign: false,
+    }
+  );
+}
+
 function permdockTarget(
   ctx: ModuleContext,
   layout: ModuleLayout,
@@ -462,10 +486,40 @@ function permdockFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   const target = permdockTarget(ctx, layout);
   const schema = sqlIdent(target.schema);
   const permitted = `${schema}.${sqlIdent(`permitted_${target.scope}_ids`)}`;
+  const forUser = permdockForUser(ctx, layout);
+  const permittedFor = `${schema}.${sqlIdent(`permitted_${target.scope}_ids_for`)}`;
+  const callerOnly = `raise exception 'The permdock access model answers for the caller only (modules.access.model)'
+      using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';`;
+  const otherMember = forUser.permitted
+    ? `return not better_supabase.user_disabled(member)
+      and not better_supabase.tenant_disabled(tenant)
+      and tenant::text in (select t.id::text from ${permittedFor}(member, permission) as t(id));`
+    : callerOnly;
+  const platformOther = forUser.has
+    ? `when member is not null then ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has_for(member, permission)`
+    : "";
+  const assignFor = forUser.canAssign
+    ? `
+
+-- Whether member may assign role in tenant, for trusted SQL that acts later
+-- for a stored user, such as accepting an invitation the inviter sent.
+create or replace function better_supabase.can_assign_as(member uuid, tenant ${id}, role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and coalesce(${schema}.permdock_can_assign_for(member, role, tenant::text), false)
+$$;
+revoke execute on function better_supabase.can_assign_as(uuid, ${id}, text) from public, anon, authenticated;`
+    : "";
   return `
 -- The permdock model: PermDock's ${permitted}() and ${schema}.permdock_has(),
 -- from \`permdock rls generate\`. They read auth.uid(), so member_can() and
--- can_user() answer for the caller only and raise 0A000 for anyone else.
+-- can_user() answer for ${forUser.permitted || forUser.has ? "another user through PermDock's _for helpers" : "the caller only and raise 0A000 for anyone else"}.
 create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
 returns boolean
 language plpgsql
@@ -475,8 +529,7 @@ set search_path = ''
 as $$
 begin
   if member is distinct from auth.uid() then
-    raise exception 'The permdock access model answers for the caller only (modules.access.model)'
-      using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
+    ${otherMember}
   end if;
   return not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
@@ -500,8 +553,12 @@ stable
 security definer
 set search_path = ''
 as $$
-  select member = auth.uid() and ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has(permission)
-$$;
+  select case
+    when member = auth.uid() then ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has(permission)
+    ${platformOther}
+    else false
+  end
+$$;${assignFor}
 
 create or replace function better_supabase.tenant_ids_with(permission text)
 returns setof ${id}
@@ -630,6 +687,9 @@ $$;`;
 function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const id = ctx.idType;
   const model = accessModel(ctx);
+  const forUser =
+    model === "permdock" ? permdockForUser(ctx, layout) : undefined;
+  const answersForOthers = forUser ? forUser.permitted && forUser.has : false;
   const scope = sqlString(tenantScope(ctx));
   let body: string;
   switch (model) {
@@ -686,7 +746,7 @@ as $$
 $$;
 
 -- The same question for another user, for checks such as an inviter's
--- authority at accept time. ${model === "permdock" ? "The permdock model can't answer for others." : "Null when the model can't answer for others."}
+-- authority at accept time. ${model === "permdock" ? (answersForOthers ? "The permdock model answers through PermDock's _for helpers." : "The permdock model can't answer for others.") : "Null when the model can't answer for others."}
 create or replace function better_supabase.can_user(member uuid, scope text, scope_id ${id}, permission text)
 returns boolean
 language ${model === "permdock" ? "plpgsql" : "sql"}
@@ -694,7 +754,7 @@ stable
 security definer
 set search_path = ''
 as $$${
-    model === "permdock"
+    model === "permdock" && !answersForOthers
       ? `
 begin
   if member is distinct from auth.uid() then
@@ -702,7 +762,11 @@ begin
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
   end if;
   return case`
-      : `
+      : model === "permdock"
+        ? `
+begin
+  return case`
+        : `
   select case`
   }
     when can_user.scope = 'platform' then better_supabase.platform_can(can_user.member, can_user.permission)
