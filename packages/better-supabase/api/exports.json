@@ -625,7 +625,8 @@
       "SupportSessions",
       "SupportStarted",
       "SupportStartRequest",
-      "SupportView"
+      "SupportView",
+      "TagOptions"
     ]
   },
   "./next/image": {

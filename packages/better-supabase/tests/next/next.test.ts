@@ -714,6 +714,7 @@ describe("createNext", () => {
       .orThrow();
     expect(mocks.revalidateTag.mock.calls).toEqual([
       [tagFor("customers"), "max"],
+      ["bs:customers@*", "max"],
       [tagFor("customers", "c1"), "max"],
     ]);
 
@@ -761,8 +762,43 @@ describe("createNext", () => {
       .orThrow();
     expect(mocks.updateTag.mock.calls).toEqual([
       [tagFor("customers")],
+      ["bs:customers@*"],
       [tagFor("customers", "c1")],
     ]);
+  });
+
+  it("scopes table tags to the tenant of the read and of the mutation", async () => {
+    const executor: Executor = {
+      name: "fake",
+      execute: () => Promise.resolve(ok({ rows: [{ id: "c1" }], count: 1 })),
+    };
+    await betterSupabase
+      .connect(executor, { tenant: "t1" })
+      .customers.update("c1", { name: "Acme" })
+      .orThrow();
+    expect(mocks.updateTag.mock.calls).toEqual([
+      ["bs:customers"],
+      ["bs:customers@t1"],
+      ["bs:customers:c1"],
+    ]);
+    expect(mocks.updateTag.mock.calls.flat()).not.toContain("bs:customers@t2");
+
+    bs.cacheTag("customers", undefined, { tenant: "t1" });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      "bs:customers@t1",
+      "bs:customers@*",
+    );
+    bs.cacheTags(betterSupabase.spec.customers.findById("c1"), {
+      tenant: "t1",
+    });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      "bs:customers@t1",
+      "bs:customers@*",
+      "bs:customers:c1",
+    );
+    expect(tagFor("customers", undefined, { tenant: "t1" })).toBe(
+      "bs:customers@t1",
+    );
   });
 });
 

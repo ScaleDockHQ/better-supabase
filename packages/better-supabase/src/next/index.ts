@@ -21,6 +21,7 @@ export type {
   RequireAalOptions,
   SessionStaleOptions,
   SupportStarted,
+  TagOptions,
 } from "./create.ts";
 export { REQUEST_ID_HEADER, type DbBudget } from "./collector.ts";
 export type { DbStats } from "../core/stats.ts";

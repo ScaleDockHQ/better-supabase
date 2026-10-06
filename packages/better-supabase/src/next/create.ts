@@ -210,8 +210,15 @@ export interface BetterNext<
       ctx: ServerContext<M, F, E, C, P>,
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
-  /** Tags the current `"use cache"` scope with a table (and row) tag. */
-  cacheTag(table: Extract<keyof M, string>, id?: string | number): void;
+  /**
+   * Tags the current `"use cache"` scope with a table (and row) tag. With a
+   * `tenant`, mutations in other tenants leave the entry cached.
+   */
+  cacheTag(
+    table: Extract<keyof M, string>,
+    id?: string | number,
+    options?: TagOptions,
+  ): void;
   /**
    * Tags the current `"use cache"` scope with every table the specs (or a
    * read set) read, plus the row of each `findById`, so any mutation that
@@ -222,6 +229,7 @@ export interface BetterNext<
       | QuerySpec<Extract<keyof M, string>>
       | readonly QuerySpec<Extract<keyof M, string>>[]
       | ReadSet,
+    options?: TagOptions,
   ): void;
   /**
    * GET handler serving a request's database totals (`?id=<request id>`) for
@@ -305,9 +313,35 @@ export function sessionTag(userId: string): string {
   return `bs:session:${userId}`;
 }
 
-/** `bs:<table>` or `bs:<table>:<id>`. Mutations invalidate both. */
-export function tagFor(table: string, id?: string | number): string {
-  return id === undefined ? `bs:${table}` : `bs:${table}:${String(id)}`;
+export interface TagOptions {
+  /** The tenant the read is scoped to; `"*"` is every tenant's reads. */
+  readonly tenant?: string;
+}
+
+/**
+ * `bs:<table>`, `bs:<table>:<id>`, or `bs:<table>@<tenant>` for a read
+ * scoped to one tenant. Mutations invalidate the table tag, the tag of their
+ * tenant (`bs:<table>@*` without one) and the tags of the changed rows.
+ */
+export function tagFor(
+  table: string,
+  id?: string | number,
+  options: TagOptions = {},
+): string {
+  if (id !== undefined) return `bs:${table}:${String(id)}`;
+  return options.tenant === undefined
+    ? `bs:${table}`
+    : `bs:${table}@${options.tenant}`;
+}
+
+/** The table tags of a read: the tenant's and every tenant's, or the table's. */
+function tableTags(table: string, options: TagOptions): string[] {
+  return options.tenant === undefined
+    ? [tagFor(table)]
+    : [
+        tagFor(table, undefined, options),
+        tagFor(table, undefined, { tenant: "*" }),
+      ];
 }
 
 function invalidate(tag: string): void {
@@ -323,15 +357,20 @@ function invalidate(tag: string): void {
 }
 
 /**
- * Invalidates `bs:<table>` for every table in the target and
- * `bs:<table>:<id>` for the changed rows. `createNext` attaches it unless
- * `cacheTags: false`.
+ * Invalidates `bs:<table>` for every table in the target, the tenant's
+ * `bs:<table>@<tenant>` (every tenant's `bs:<table>@*` when the mutation has
+ * no tenant) and `bs:<table>:<id>` for the changed rows. Reads another tenant
+ * tagged stay cached. `createNext` attaches it unless `cacheTags: false`.
  */
 export function nextCache(): CacheAdapter {
   return {
     name: "next",
     invalidate: (target) => {
-      for (const table of target.tables) invalidate(tagFor(table));
+      const tenant = { tenant: target.tenant ?? "*" };
+      for (const table of target.tables) {
+        invalidate(tagFor(table));
+        invalidate(tagFor(table, undefined, tenant));
+      }
       for (const id of target.ids) invalidate(tagFor(target.table, id));
     },
   };
@@ -797,11 +836,14 @@ export function createNext<
         : { ok: false, data: null, error: stopped.error };
     },
 
-    cacheTag(table, id) {
-      cacheTag(tagFor(table), ...(id === undefined ? [] : [tagFor(table, id)]));
+    cacheTag(table, id, tagOptions = {}) {
+      cacheTag(
+        ...tableTags(table, tagOptions),
+        ...(id === undefined ? [] : [tagFor(table, id)]),
+      );
     },
 
-    cacheTags(target) {
+    cacheTags(target, tagOptions = {}) {
       const specs = isReadSet(target)
         ? Object.values(target.specs)
         : isList(target)
@@ -810,7 +852,7 @@ export function createNext<
       const tags = new Set<string>();
       for (const spec of specs) {
         for (const table of betterSupabase.tablesOf(spec))
-          tags.add(tagFor(table));
+          for (const tag of tableTags(table, tagOptions)) tags.add(tag);
         const [id] = spec.args;
         if (
           spec.method === "findById" &&
