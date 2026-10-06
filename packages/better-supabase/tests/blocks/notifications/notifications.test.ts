@@ -212,6 +212,100 @@ describe("createNotifications reads and writes", () => {
     });
   });
 
+  it("hydrates a page once and adds actor profiles in one call", async () => {
+    const { transport, calls } = fakeTransport({
+      list_notifications: () => [
+        row(),
+        row({ id: "r2", actor_id: "u0" }),
+        row({ id: "r3", actor_id: null }),
+        row({ id: "r4", actor_id: "gone" }),
+      ],
+      notification_actors: () => ({
+        u0: { id: "u0", username: "ada", avatar: null },
+        bad: "not a profile",
+      }),
+    });
+    const hydrate = vi.fn(
+      (
+        items: readonly { actorId: string | null }[],
+        _context: { readonly locale?: string },
+      ) => ({
+        names: new Map(items.map((item) => [item.actorId, "Ada"])),
+      }),
+    );
+    const notifications = createNotifications({
+      transport,
+      types,
+      hydrate,
+      render: (item, { hydrated }) => ({
+        title: `${hydrated?.names.get(item.actorId) ?? "?"} assigned you`,
+      }),
+    });
+    const listed = await notifications
+      .list({ include: ["actor"], locale: "en" })
+      .orThrow();
+    expect(hydrate).toHaveBeenCalledTimes(1);
+    expect(hydrate.mock.calls[0]![1]).toEqual({ locale: "en" });
+    expect(listed[0]).toMatchObject({
+      text: { title: "Ada assigned you" },
+      actor: { id: "u0", username: "ada", avatar: null },
+    });
+    expect(listed[2]!.actor).toBeNull();
+    expect(listed[3]!.actor).toBeNull();
+    expect(calls.map((call) => call.fn)).toEqual([
+      "list_notifications",
+      "notification_actors",
+    ]);
+    expect(calls[1]!.args).toEqual({ ids: ["u0", "gone"] });
+  });
+
+  it("skips the actor call without actors and maps its errors", async () => {
+    const quiet = fakeTransport({
+      list_notifications: () => [row({ actor_id: null })],
+    });
+    const plain = await createNotifications({
+      transport: quiet.transport,
+      types,
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(plain[0]!.actor).toBeNull();
+    expect(quiet.calls).toHaveLength(1);
+    const failing = fakeTransport({
+      list_notifications: () => [row()],
+      notification_actors: () => {
+        throw Object.assign(new Error("missing"), { code: "42883" });
+      },
+    });
+    expect(
+      await createNotifications({ transport: failing.transport, types }).list({
+        include: ["actor"],
+      }),
+    ).toMatchObject({ ok: false });
+    const odd = fakeTransport({
+      list_notifications: () => [row()],
+      notification_actors: () => null,
+    });
+    expect(
+      (
+        await createNotifications({ transport: odd.transport, types })
+          .list({ include: ["actor"] })
+          .orThrow()
+      )[0]!.actor,
+    ).toBeNull();
+    const thrown = fakeTransport({
+      list_notifications: () => [row()],
+      notification_actors: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(
+      await createNotifications({ transport: thrown.transport, types }).list({
+        include: ["actor"],
+      }),
+    ).toMatchObject({ ok: false, error: { message: "boom" } });
+  });
+
   it("counts, marks read, dismisses, resolves, subscribes and sets preferences", async () => {
     const { transport, calls } = fakeTransport({
       notification_counts: () => ({ unread: 3, actionable: 1 }),

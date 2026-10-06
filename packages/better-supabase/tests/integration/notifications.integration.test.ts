@@ -470,10 +470,11 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
       for (const file of renderModules(
-        ["organizations", "notifications"],
+        ["organizations", "profiles", "notifications"],
         LAYOUT,
       ))
         await client.query(file.contents);
+      await client.query("select better_supabase.backfill_profiles()");
       await s.as("owner");
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
@@ -509,6 +510,13 @@ describe.skipIf(!live)("notifications", () => {
         subject: { type: "task", id: "t9", label: "Paint" },
         text: { title: "Assigned: Paint" },
         readAt: null,
+      });
+      const [withActor] = await notifications
+        .list({ tenant: organization, include: ["actor"] })
+        .orThrow();
+      expect(withActor!.actor).toMatchObject({
+        id: USERS.owner,
+        username: expect.any(String),
       });
       expect(
         await notifications.counts({ tenant: organization }).orThrow(),

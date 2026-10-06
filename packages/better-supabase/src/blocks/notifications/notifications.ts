@@ -67,6 +67,21 @@ export interface ListOptions<K extends string = string> {
   readonly limit?: number;
   /** Passed to `render`. */
   readonly locale?: string;
+  /**
+   * `actor` adds each item's actor profile (`id` and the public profile
+   * columns), read in one call from the `profiles` module's table.
+   */
+  readonly include?: readonly "actor"[];
+}
+
+/** The actor of a notification, from the `profiles` module's table. */
+export interface NotificationActor {
+  readonly id: string;
+  readonly username?: string | null;
+  readonly fullName?: string | null;
+  readonly firstName?: string | null;
+  readonly lastName?: string | null;
+  readonly avatar?: string | null;
 }
 
 export interface NotificationCounts {
@@ -105,19 +120,33 @@ export interface Rendered<
 > extends NotificationItem<K, D> {
   /** What `render` returned. Absent without a `render` option. */
   readonly text?: RenderedText;
+  /** With `include: ['actor']`: the actor's profile, or null. */
+  readonly actor?: NotificationActor | null;
 }
 
-export interface NotificationsOptions<K extends NotificationTypes> {
+export interface NotificationsOptions<
+  K extends NotificationTypes,
+  H = undefined,
+> {
   /** `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the service. */
   readonly transport: BlockTransport;
   /** Each type's `data` schema: `send` validates against it. */
   readonly types: K;
   /** `sql.modules.notifications.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
+  /**
+   * Loads what `render` needs for a whole page at once (actor names,
+   * subject titles), so a list of 50 items costs one query instead of 50.
+   * Its result reaches `render` as `context.hydrated`.
+   */
+  readonly hydrate?: (
+    items: readonly NotificationItem[],
+    context: { readonly locale?: string },
+  ) => H | Promise<H>;
   /** Turns a notification into text at read time, in the reader's locale. */
   readonly render?: (
     item: NotificationItem,
-    context: { readonly locale?: string },
+    context: { readonly locale?: string; readonly hydrated?: H },
   ) => RenderedText;
   /** Types that wait for an action; `counts().actionable` counts them. */
   readonly actionable?: readonly TypeName<K>[];
@@ -241,9 +270,10 @@ function cursorOf(before: ListOptions["before"]): {
 const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
-export function createNotifications<const K extends NotificationTypes>(
-  options: NotificationsOptions<K>,
-): Notifications<K> {
+export function createNotifications<
+  const K extends NotificationTypes,
+  H = undefined,
+>(options: NotificationsOptions<K, H>): Notifications<K> {
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_SCHEMA;
   const mappers = options.errorMappers ?? [];
@@ -287,12 +317,34 @@ export function createNotifications<const K extends NotificationTypes>(
     });
   }
 
-  const render = (item: NotificationItem, locale?: string): Rendered => {
+  const render = (
+    item: NotificationItem,
+    locale?: string,
+    hydrated?: H,
+  ): Rendered => {
     if (!options.render) return item;
     return {
       ...item,
-      text: options.render(item, locale === undefined ? {} : { locale }),
+      text: options.render(item, {
+        ...(locale === undefined ? {} : { locale }),
+        ...(hydrated === undefined ? {} : { hydrated }),
+      }),
     };
+  };
+
+  const actorsOf = async (
+    items: readonly NotificationItem[],
+  ): Promise<ReadonlyMap<string, NotificationActor>> => {
+    const ids = [
+      ...new Set(items.flatMap((item) => (item.actorId ? [item.actorId] : []))),
+    ];
+    if (ids.length === 0) return new Map();
+    const value = await call("notification_actors", { ids });
+    return new Map(
+      Object.entries(isRecord(value) ? value : {}).flatMap(([id, profile]) =>
+        isRecord(profile) ? [[id, { ...profile, id }]] : [],
+      ),
+    );
   };
 
   async function deliverOne(
@@ -427,9 +479,36 @@ export function createNotifications<const K extends NotificationTypes>(
           max_items: listOptions.limit ?? 50,
         },
         (value) =>
-          (Array.isArray(value) ? value : [])
-            .filter(isRecord)
-            .map((row) => render(toItem(row), listOptions.locale)),
+          (Array.isArray(value) ? value : []).filter(isRecord).map(toItem),
+      ).andThen((items) =>
+        AsyncResult.from(async () => {
+          try {
+            const locale = listOptions.locale;
+            const context = locale === undefined ? {} : { locale };
+            const [hydrated, actors] = await Promise.all([
+              options.hydrate ? options.hydrate(items, context) : undefined,
+              listOptions.include?.includes("actor")
+                ? actorsOf(items)
+                : undefined,
+            ]);
+            return ok(
+              items.map((item) => {
+                const rendered = render(item, locale, hydrated);
+                return actors
+                  ? {
+                      ...rendered,
+                      actor: item.actorId
+                        ? (actors.get(item.actorId) ?? null)
+                        : null,
+                    }
+                  : rendered;
+              }),
+            );
+          } catch (cause) {
+            const raw = rawError(cause);
+            return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
+          }
+        }),
       );
     },
     counts(countOptions = {}) {
