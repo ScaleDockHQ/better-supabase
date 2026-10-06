@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { defineSchema, type Schema } from "../../src/index.ts";
-import type { EnrichDatabase, MutableWhere, StoragePath } from "../../src/index.ts";
+import type { EnrichDatabase, MutableWhere, OrderByArg, StoragePath } from "../../src/index.ts";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
 
@@ -427,6 +427,8 @@ export type InsertOf<T extends TableName> = Models[T]['Insert'];
 export type UpdateOf<T extends TableName> = Models[T]['Update'];
 /** A `where` for `T` you can assign to one key at a time. */
 export type WhereOf<T extends TableName> = MutableWhere<Models, T>;
+/** An `orderBy` for `T`: one sort or a list, by column or to-one relation. */
+export type OrderByOf<T extends TableName> = OrderByArg<Models, T>;
 
 /** Bucket configs for `defineBucket` from `better-supabase/storage`. */
 export const buckets = {

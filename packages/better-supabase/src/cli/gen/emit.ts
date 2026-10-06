@@ -216,7 +216,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     table.columns.some((column) => column.storage !== undefined),
   );
   lines.push(
-    `import type { EnrichDatabase, MutableWhere${storagePaths ? ", StoragePath" : ""} } from ${q(runtime)};`,
+    `import type { EnrichDatabase, MutableWhere, OrderByArg${storagePaths ? ", StoragePath" : ""} } from ${q(runtime)};`,
     `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? "./database.types.ts")};`,
   );
   const byFile = new Map<string, string[]>();
@@ -278,6 +278,8 @@ export function emitModule(model: Model, options: EmitOptions): string {
     "export type UpdateOf<T extends TableName> = Models[T]['Update'];",
     "/** A `where` for `T` you can assign to one key at a time. */",
     "export type WhereOf<T extends TableName> = MutableWhere<Models, T>;",
+    "/** An `orderBy` for `T`: one sort or a list, by column or to-one relation. */",
+    "export type OrderByOf<T extends TableName> = OrderByArg<Models, T>;",
     "",
   );
   if (model.meta.buckets) {
