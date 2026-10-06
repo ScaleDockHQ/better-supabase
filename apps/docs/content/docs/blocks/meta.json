@@ -22,6 +22,9 @@
     "attachments",
     "data-lifecycle",
     "sso",
+    "onboarding",
+    "waitlist",
+    "announcements",
     "entitlements",
     "vector-search"
   ]

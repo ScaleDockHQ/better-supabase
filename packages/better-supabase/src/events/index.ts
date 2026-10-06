@@ -353,5 +353,6 @@ export type {
   OrganizationDomainEventData,
   OrganizationEventData,
   SupportEventData,
+  WaitlistEventData,
   WebhookEventData,
 } from "../core/block-events.ts";

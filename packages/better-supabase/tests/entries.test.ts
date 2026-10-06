@@ -11,6 +11,9 @@ const entryOf = (subpath: string): string =>
 const PURE_BARRELS = [
   "blocks/audit",
   "blocks/entitlements",
+  "blocks/announcements",
+  "blocks/waitlist",
+  "blocks/onboarding",
   "blocks/sso",
   "blocks/data-lifecycle",
   "blocks/attachments",

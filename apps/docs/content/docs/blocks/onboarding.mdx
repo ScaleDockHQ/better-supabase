@@ -1,0 +1,137 @@
+---
+title: Onboarding
+description: Onboarding checklists per user or per organization, with steps completed by hand or by an outbox event, and a useOnboarding hook.
+---
+
+The `onboarding` block tracks getting-started checklists. You declare each
+checklist once in the app with `defineChecklist`; the database stores which
+steps each user, or each organization, has done. A step completes when the
+app calls `complete`, or on its own when the outbox records one of the event
+types it lists.
+
+```bash
+better-supabase sql add onboarding   # adds tenant and access as well
+```
+
+| Table                 | Holds                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| `onboarding_progress` | One row per completed step: `checklist`, `step`, the `user_id` or `organization_id`, and `completed_by` |
+
+| Permission            | Lets a member                                       | Default roles              |
+| --------------------- | --------------------------------------------------- | -------------------------- |
+| `onboarding.read`     | see an organization checklist's progress            | `owner`, `admin`, `member` |
+| `onboarding.complete` | complete or reset an organization checklist's steps | `owner`, `admin`           |
+
+User checklists need no permission: each user reads and completes their own.
+
+## Checklists
+
+```ts title="src/onboarding.ts"
+import { defineChecklist } from "better-supabase/blocks/onboarding";
+
+export const gettingStarted = defineChecklist({
+  id: "getting-started",
+  scope: "organization",
+  steps: [
+    {
+      id: "invite",
+      title: "Invite a teammate",
+      href: "/settings/members",
+      events: ["organization.member_added"],
+    },
+    {
+      id: "billing",
+      title: "Add a payment method",
+      href: "/settings/billing",
+      events: ["billing.subscription_updated"],
+    },
+    { id: "project", title: "Create your first project" },
+  ],
+});
+```
+
+Pass the checklists to the module, so its functions know the steps and the
+outbox trigger knows the event types:
+
+```ts title="better-supabase.config.ts"
+import { gettingStarted } from "./src/onboarding.ts";
+
+export default defineConfig({
+  sql: {
+    modules: {
+      onboarding: { options: { checklists: [gettingStarted] } },
+    },
+  },
+});
+```
+
+Steps with `events` need the [outbox](/docs/blocks/outbox). An organization
+step completes for the event's tenant; a user step completes for its actor.
+Run `better-supabase sql add onboarding` again after you change a
+checklist's steps.
+
+## Progress
+
+```ts title="app/(app)/page.tsx"
+import { rpcTransport } from "better-supabase/blocks/onboarding";
+import { gettingStarted } from "@/onboarding";
+
+const checklist = gettingStarted.connect({ transport: rpcTransport(supabase) });
+
+const progress = await checklist.progress(organizationId).orThrow();
+// { steps: [{ id, title, completed, completedAt, ... }], completed: 1, total: 3, done: false, next: { id: "billing", ... } }
+
+await checklist.complete("project", organizationId);
+await checklist.reset("project", organizationId);
+```
+
+A user checklist takes no organization: `checklist.progress()`.
+`complete` returns `false` when the step was already done.
+
+## In React
+
+`useOnboarding` loads a checklist through the browser client and loads it
+again after `complete` or `reset`:
+
+```tsx title="components/getting-started.tsx"
+"use client";
+
+import { useOnboarding } from "better-supabase/blocks/onboarding/react";
+import { gettingStarted } from "@/onboarding";
+
+export function GettingStarted({ organizationId }: { organizationId: string }) {
+  const { progress, complete } = useOnboarding(gettingStarted, {
+    organizationId,
+  });
+  if (!progress || progress.done) return null;
+  return (
+    <ol>
+      {progress.steps.map((step) => (
+        <li key={step.id}>
+          <a href={step.href}>{step.title}</a>
+          {step.completed ? (
+            " (done)"
+          ) : (
+            <button onClick={() => complete(step.id)}>Mark done</button>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+```
+
+In Server Components, call `progress()` instead; the `react-server` build of
+the hook throws.
+
+## Functions
+
+| Function                                            | Granted to                      | Does                                           |
+| --------------------------------------------------- | ------------------------------- | ---------------------------------------------- |
+| `onboarding_progress(checklist, tenant)`            | `authenticated`, `service_role` | The completed steps of a checklist             |
+| `complete_onboarding_step(checklist, step, tenant)` | `authenticated`, `service_role` | Marks a step done; `false` when it already was |
+| `reset_onboarding_step(checklist, step, tenant)`    | `authenticated`, `service_role` | Marks a step not done                          |
+
+Unknown steps raise `ONBOARDING_STEP_UNKNOWN`, a tenant on a user checklist
+(or none on an organization one) `ONBOARDING_SCOPE`, and a missing
+permission `ONBOARDING_FORBIDDEN`.

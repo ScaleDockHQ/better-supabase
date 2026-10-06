@@ -126,6 +126,12 @@ export interface OrganizationDomainEventData {
   readonly userId?: string | null;
 }
 
+/** `waitlist.approved`, from the waitlist module. */
+export interface WaitlistEventData {
+  readonly entryId: string;
+  readonly email: string;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -141,6 +147,7 @@ export interface BlockEventMap {
   "organization.ownership_transferred": OrganizationEventData;
   "organization.switched": OrganizationEventData;
   "organization.domain_verified": OrganizationDomainEventData;
+  "waitlist.approved": WaitlistEventData;
   "invitation.created": InvitationEventData;
   "invitation.resent": InvitationEventData;
   "invitation.accepted": InvitationEventData;

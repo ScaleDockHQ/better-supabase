@@ -1130,6 +1130,7 @@
       "OrganizationEventData",
       "RowEventData",
       "SupportEventData",
+      "WaitlistEventData",
       "WebhookEventData"
     ]
   },
@@ -1438,6 +1439,81 @@
       "SsoOptions",
       "SsoProvider",
       "TxtResolver"
+    ]
+  },
+  "./blocks/onboarding": {
+    "values": [
+      "defineChecklist",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Checklist",
+      "ChecklistClient",
+      "ChecklistConnectOptions",
+      "ChecklistProgress",
+      "ChecklistScope",
+      "ChecklistSpec",
+      "ChecklistStep",
+      "ChecklistSubject",
+      "StepProgress"
+    ]
+  },
+  "./blocks/onboarding/react": {
+    "values": [
+      "useOnboarding"
+    ],
+    "types": [
+      "OnboardingState",
+      "UseOnboardingOptions"
+    ]
+  },
+  "./blocks/waitlist": {
+    "values": [
+      "createWaitlist",
+      "generateInviteCode",
+      "rpcTransport",
+      "sqlTransport",
+      "waitlistHook"
+    ],
+    "types": [
+      "BlockTransport",
+      "CreateInviteCodeInput",
+      "InviteCode",
+      "Redemption",
+      "Waitlist",
+      "WaitlistEntry",
+      "WaitlistHookOptions",
+      "WaitlistOptions",
+      "WaitlistPlace",
+      "WaitlistStatus"
+    ]
+  },
+  "./blocks/announcements": {
+    "values": [
+      "createAnnouncements",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "Announcement",
+      "AnnouncementAudience",
+      "AnnouncementInput",
+      "Announcements",
+      "AnnouncementSeverity",
+      "AnnouncementsOptions",
+      "BlockTransport",
+      "ManagedAnnouncement"
+    ]
+  },
+  "./blocks/announcements/react": {
+    "values": [
+      "useAnnouncements"
+    ],
+    "types": [
+      "AnnouncementsState",
+      "UseAnnouncementsOptions"
     ]
   },
   "./openapi": {
