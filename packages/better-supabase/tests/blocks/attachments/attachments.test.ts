@@ -84,6 +84,8 @@ function fakeStorage(replies: Partial<Record<string, Reply | Error>> = {}) {
         ),
       download: (path: string) => reply("download", new Blob(["hello"]), path),
       remove: (paths: string[]) => reply("remove", [], paths),
+      upload: (path: string, _body: unknown, options?: unknown) =>
+        reply("upload", { path }, path, options),
     }),
     // SAFETY: each reply has the shape the structural type names.
   } as AttachmentStorage;
@@ -146,6 +148,70 @@ describe("createAttachments", () => {
       },
     });
     expect(upload.attachment.createdAt.toString()).toBe("2026-10-06T12:00:00Z");
+  });
+
+  it("puts a file from the server and reads its bytes behind the scan gate", async () => {
+    const { transport, calls } = fakeTransport({
+      create_attachment: row({ status: "pending", uploaded_at: null }),
+      confirm_attachment: row({ status: "pending" }),
+      get_attachment: row({ status: "pending" }),
+    });
+    const storage = fakeStorage();
+    const attachments = createAttachments({
+      transport,
+      storage: storage.storage,
+    });
+    expect(
+      await attachments
+        .put(
+          {
+            organizationId: "org-1",
+            name: "plan.pdf",
+            mimeType: "application/pdf",
+            size: 5,
+          },
+          new Uint8Array([1, 2, 3, 4, 5]),
+        )
+        .orThrow(),
+    ).toMatchObject({ id: "a1", status: "pending" });
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "create_attachment",
+      "confirm_attachment",
+    ]);
+    expect(storage.calls.at(-1)).toEqual([
+      "upload",
+      "org-1/attachments/a1",
+      { contentType: "application/pdf", upsert: false },
+    ]);
+    expect(await attachments.read("a1")).toMatchObject({
+      error: { hint: "ATTACHMENT_NOT_SCANNED" },
+    });
+    const clean = createAttachments({
+      transport: fakeTransport({ get_attachment: row() }).transport,
+      storage: storage.storage,
+    });
+    const read = await clean.read("a1").orThrow();
+    expect(await read.file.text()).toBe("hello");
+    const noUpload = createAttachments({
+      transport,
+      storage: {
+        from: (name) => {
+          const full = storage.storage.from(name);
+          return {
+            createSignedUploadUrl: (path) => full.createSignedUploadUrl(path),
+            createSignedUrl: (path, ttl) => full.createSignedUrl(path, ttl),
+            download: (path) => full.download(path),
+            remove: (paths) => full.remove(paths),
+          };
+        },
+      },
+    });
+    expect(
+      await noUpload.put(
+        { organizationId: "org-1", name: "x", mimeType: "text/plain", size: 1 },
+        new Blob(["x"]),
+      ),
+    ).toMatchObject({ error: { hint: "ATTACHMENT_STORAGE_CLIENT" } });
   });
 
   it("maps storage errors and empty replies", async () => {

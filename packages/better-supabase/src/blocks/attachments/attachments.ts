@@ -39,6 +39,12 @@ export interface AttachmentBucket {
   ): PromiseLike<StorageReply<{ readonly signedUrl: string }>>;
   download(path: string): PromiseLike<StorageReply<Blob>>;
   remove(paths: string[]): PromiseLike<StorageReply<unknown>>;
+  /** Used by `put`, which uploads from the server. */
+  upload?(
+    path: string,
+    body: Blob | ArrayBuffer | Uint8Array,
+    options?: { readonly contentType?: string; readonly upsert?: boolean },
+  ): PromiseLike<StorageReply<unknown>>;
 }
 
 /** `supabase.storage`, typed structurally. */
@@ -129,6 +135,23 @@ export interface Attachments {
   ): AsyncResult<AttachmentDownload>;
   /** Deletes the file, then the record (the uploader, or `attachments.manage`). */
   remove(id: string): AsyncResult<boolean>;
+  /**
+   * Creates the record, uploads `file` from the server and confirms it, for
+   * files the server makes or fetches (an export, a generated PDF, an
+   * import). Returns the confirmed attachment, which still waits for the
+   * scan when the module requires one.
+   */
+  put(
+    attachment: NewAttachment,
+    file: Blob | ArrayBuffer | Uint8Array,
+  ): AsyncResult<Attachment>;
+  /**
+   * The file's bytes, for server-side processing, behind the same scan gate
+   * as `download`: `ATTACHMENT_NOT_SCANNED` until the scan passes.
+   */
+  read(
+    id: string,
+  ): AsyncResult<{ readonly attachment: Attachment; readonly file: Blob }>;
 }
 
 const STATUSES: readonly AttachmentStatus[] = [
@@ -209,29 +232,47 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
   const ttl = options.downloadTtl ?? 300;
   const bucket = (attachment: Attachment): AttachmentBucket =>
     options.storage.from(attachment.bucket);
-  return {
-    upload: (attachment) =>
-      call(
-        "create_attachment",
-        {
-          tenant: attachment.organizationId,
-          name: attachment.name,
-          mime_type: attachment.mimeType,
-          size: attachment.size,
-          subject_type: attachment.subjectType,
-          subject_id: attachment.subjectId,
-          metadata: attachment.metadata,
-        },
-        attachmentOf,
-      ).andThen((created) =>
-        stored(bucket(created).createSignedUploadUrl(created.path)).map(
-          (url) => ({
-            attachment: created,
-            signedUrl: url.signedUrl,
-            token: url.token,
-          }),
-        ),
+  /** Why a file can't be read yet, or `undefined` once it can. */
+  const gate = (attachment: Attachment): DbError | undefined => {
+    const readable =
+      attachment.status === "clean" ||
+      (!requireScan &&
+        attachment.status !== "infected" &&
+        attachment.uploadedAt !== undefined);
+    return readable
+      ? undefined
+      : dbError(
+          "invalid_request",
+          attachment.status === "infected"
+            ? "The file failed the malware scan"
+            : "The file is not scanned yet",
+          { hint: "ATTACHMENT_NOT_SCANNED" },
+        );
+  };
+  const upload = (attachment: NewAttachment): AsyncResult<AttachmentUpload> =>
+    call(
+      "create_attachment",
+      {
+        tenant: attachment.organizationId,
+        name: attachment.name,
+        mime_type: attachment.mimeType,
+        size: attachment.size,
+        subject_type: attachment.subjectType,
+        subject_id: attachment.subjectId,
+        metadata: attachment.metadata,
+      },
+      attachmentOf,
+    ).andThen((created) =>
+      stored(bucket(created).createSignedUploadUrl(created.path)).map(
+        (url) => ({
+          attachment: created,
+          signedUrl: url.signedUrl,
+          token: url.token,
+        }),
       ),
+    );
+  return {
+    upload,
     confirm: (id) => call("confirm_attachment", { id }, attachmentOf),
     get: (id) => lookup(call, id),
     list: (organizationId, subject) =>
@@ -246,24 +287,8 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
       ),
     download: (id, download = {}) =>
       lookup(call, id).andThen((attachment) => {
-        const readable =
-          attachment.status === "clean" ||
-          (!requireScan &&
-            attachment.status !== "infected" &&
-            attachment.uploadedAt !== undefined);
-        if (!readable) {
-          return Promise.resolve(
-            err(
-              dbError(
-                "invalid_request",
-                attachment.status === "infected"
-                  ? "The file failed the malware scan"
-                  : "The file is not scanned yet",
-                { hint: "ATTACHMENT_NOT_SCANNED" },
-              ),
-            ),
-          );
-        }
+        const blocked = gate(attachment);
+        if (blocked) return Promise.resolve(err(blocked));
         return stored(
           bucket(attachment).createSignedUrl(
             attachment.path,
@@ -271,6 +296,33 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
             download.as === undefined ? undefined : { download: download.as },
           ),
         ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
+      }),
+    put: (attachment, file) =>
+      upload(attachment).andThen(async ({ attachment: created }) => {
+        const target = bucket(created);
+        if (!target.upload) {
+          return err(
+            dbError("invalid_request", "The storage client has no upload", {
+              hint: "ATTACHMENT_STORAGE_CLIENT",
+            }),
+          );
+        }
+        const sent = await stored(
+          target.upload(created.path, file, {
+            contentType: created.mimeType,
+            upsert: false,
+          }),
+        );
+        if (!sent.ok) return sent;
+        return call("confirm_attachment", { id: created.id }, attachmentOf);
+      }),
+    read: (id) =>
+      lookup(call, id).andThen((attachment) => {
+        const blocked = gate(attachment);
+        if (blocked) return Promise.resolve(err(blocked));
+        return stored(bucket(attachment).download(attachment.path)).map(
+          (file) => ({ attachment, file }),
+        );
       }),
     remove: (id) =>
       lookup(call, id)

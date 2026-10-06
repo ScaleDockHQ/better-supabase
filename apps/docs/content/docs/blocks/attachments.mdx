@@ -139,8 +139,35 @@ passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
 `list(organizationId, { type, id })` lists a record's files oldest first,
 and `remove(id)` deletes the object and then the row.
 
+Files the server makes or fetches (an export, a generated PDF, an import
+from a URL) go through `put(attachment, file)`, which creates the record,
+uploads the bytes with the storage client and confirms it in one call.
+`read(id)` returns the bytes as a `Blob` for server-side processing, behind
+the same scan gate as `download` (`ATTACHMENT_NOT_SCANNED` until the scan
+passes):
+
+```ts
+const report = await attachments
+  .put(
+    {
+      organizationId,
+      subjectType: "project",
+      subjectId,
+      name: "report.pdf",
+      mimeType: "application/pdf",
+      size: pdf.byteLength,
+    },
+    pdf,
+  )
+  .orThrow();
+
+const { file } = await attachments.read(attachmentId).orThrow();
+const text = await extractText(await file.arrayBuffer());
+```
+
 Pass the caller's Supabase client so the table and bucket policies apply;
-`createAttachments` never needs the service role.
+`createAttachments` never needs the service role. A service-role client works
+too, for jobs that act for no user.
 
 ## Scanning
 
