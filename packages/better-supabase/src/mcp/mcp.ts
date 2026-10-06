@@ -3,7 +3,10 @@ import type {
   StandardSchemaV1,
 } from "@standard-schema/spec";
 
-import { unauthorizedResponse } from "@supabase/server/oauth-protected-resource";
+import {
+  resourceMetadataResponse,
+  unauthorizedResponse,
+} from "@supabase/server/oauth-protected-resource";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
@@ -978,11 +981,22 @@ export function createMcp<
     }
   };
 
-  const metadata = (request: Request): Response =>
-    Response.json(
+  const metadata = (request: Request): Response => {
+    const resource = urls.resource(request);
+    const authorizationServers = [...urls.authorizationServers(request)];
+    if (scopes.length === 0 && options.resourceDocumentation === undefined) {
+      return resourceMetadataResponse(request, {
+        resource,
+        authorizationServers,
+      });
+    }
+    // The upstream document has no `scopes_supported` or
+    // `resource_documentation`, and merging into its body would make this
+    // synchronous method async.
+    return Response.json(
       {
-        resource: urls.resource(request),
-        authorization_servers: [...urls.authorizationServers(request)],
+        resource,
+        authorization_servers: authorizationServers,
         bearer_methods_supported: ["header"],
         ...(scopes.length > 0 ? { scopes_supported: scopes } : {}),
         ...(options.resourceDocumentation === undefined
@@ -991,6 +1005,7 @@ export function createMcp<
       },
       { headers: { "access-control-allow-origin": "*" } },
     );
+  };
 
   const mcp: BetterMcp<M, F, E, C, P> = extendServer<BetterMcp<M, F, E, C, P>>(
     server,

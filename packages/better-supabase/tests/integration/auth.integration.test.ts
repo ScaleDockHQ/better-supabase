@@ -20,9 +20,9 @@ import { parseEnv } from "../../src/env/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import {
+  withBetterDb,
   withBetterPostgres,
-  withBetterSupabase,
-} from "../../src/server/middleware.ts";
+} from "../../src/server/entries/upstream.ts";
 import { createServer } from "../../src/server/server.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -316,7 +316,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const handler = pipeline(
       [
         withSupabase({ auth: "user", env: serverEnv }),
-        withBetterSupabase(betterSupabase)(),
+        withBetterDb(betterSupabase)(),
         withPostgresClient({ connectionString: dbUrl }),
         withBetterPostgres(betterSupabase)(),
       ],

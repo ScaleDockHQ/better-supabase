@@ -1,0 +1,44 @@
+---
+title: H3, Nitro and Nuxt
+description: Run withBetterSupabase as H3 2 middleware, with the caller's repositories on event.context.
+---
+
+`toH3(entries)` from `better-supabase/h3` returns H3 2 middleware. Every key
+[`withBetterSupabase`](/docs/auth/middleware) contributes lands on
+`event.context`:
+
+```ts title="server.ts"
+import { H3 } from "h3";
+import { toH3 } from "better-supabase/h3";
+import { createServer, withBetterSupabase } from "better-supabase/server";
+import { betterSupabase } from "./lib/supabase";
+
+const bs = createServer(betterSupabase);
+
+const app = new H3()
+  .use(toH3([withBetterSupabase(bs, { allow: ["user"] })]))
+  .get("/notes", (event) => event.context.db.notes.findMany().orThrow());
+
+export default { fetch: app.fetch };
+```
+
+The handler's value comes back to the bridge as a `Response` (a plain value as
+JSON, `undefined` as 204), so the entries can add refreshed cookies and
+`bs-primary-until` to it. A guard refusal answers 401 or 403 Problem Details
+before the handler runs.
+
+In Nitro and Nuxt, register the same middleware in `server/middleware`:
+
+```ts title="server/middleware/supabase.ts"
+import { defineMiddleware } from "h3";
+import { toH3 } from "better-supabase/h3";
+import { withBetterSupabase } from "better-supabase/server";
+import { bs } from "../utils/supabase";
+
+export default defineMiddleware(
+  toH3([withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] })]),
+);
+```
+
+The bridge makes the request body readable twice, so an entry and the handler
+both see it.

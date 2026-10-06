@@ -54,6 +54,36 @@ On runtimes that stop the invocation after the response, pass `waitUntil` to
 [event sink sends](/docs/standards/events#sends-after-the-response) a
 procedure started.
 
+## Entry arrays with `toOrpc`
+
+`toOrpc(entries, handler, { prefix })` runs an `@supabase/middleware` entry
+array around an oRPC fetch handler. The procedures' initial context is
+`{ request }` plus every contributed key, and the response passes back
+through the entries, so refreshed cookies reach the client without
+`bs.middleware()`:
+
+```ts
+import { RPCHandler } from "@orpc/server/fetch";
+import { toOrpc } from "better-supabase/orpc";
+import { createServer, withBetterSupabase } from "better-supabase/server";
+
+const bs = createServer(betterSupabase);
+// The router's procedures read context.db.
+const base = os.$context<{
+  request: Request;
+  db: ReturnType<typeof bs.admin>;
+}>();
+
+export default {
+  fetch: toOrpc([withBetterSupabase(bs)], new RPCHandler(router), {
+    prefix: "/rpc",
+  }),
+};
+```
+
+A refused caller gets the guard's 401 Problem Details before oRPC runs. Use
+`bs.unwrap` from `createOrpc` to turn a `Result` into an `ORPCError`.
+
 ## Contract-first routers
 
 With a contract from `@orpc/contract`, apply the same middleware to the

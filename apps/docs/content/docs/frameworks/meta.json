@@ -7,6 +7,11 @@
     "orpc",
     "expo",
     "edge",
+    "tanstack-start",
+    "sveltekit",
+    "react-router",
+    "h3",
+    "elysia",
     "mcp",
     "other"
   ]

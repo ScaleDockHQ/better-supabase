@@ -79,6 +79,20 @@ export const GET = bs.handler((_request, { db }) =>
 );
 ```
 
+`toExpo(entries, handler)` runs an `@supabase/middleware` entry array around
+an API route instead. The handler gets the request, the contributions and the
+route parameters, and returns a `Response`:
+
+```ts title="src/app/api/notes+api.ts"
+import { toExpo } from "better-supabase/expo";
+import { withBetterSupabase } from "better-supabase/server";
+import { bs } from "../../lib/supabase/server";
+
+export const GET = toExpo([withBetterSupabase(bs)], async (_request, ctx) =>
+  Response.json(await ctx.db.notes.findMany().orThrow()),
+);
+```
+
 ## Middleware
 
 `bs.middleware()` in `+middleware.ts` refreshes an expired cookie session once

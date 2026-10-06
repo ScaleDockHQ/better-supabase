@@ -57,14 +57,17 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 
 ## Adapters
 
-| Where          | Setup                                                                 | Handler                                                                                  |
-| -------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`              | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
-| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`       | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
-| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`             | `bs.unwrap(context.db.customers.findMany(...))`                                          |
-| Expo Router    | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()` | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`       |
-| Edge Functions | `createEdge(betterSupabase, { cors: true })`                          | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
-| MCP            | `createMcp(betterSupabase, { name, version, resources })`             | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
+| Where          | Setup                                                                                                           | Handler                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`                                                        | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
+| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`                                                 | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
+| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`                                                       | `bs.unwrap(context.db.customers.findMany(...))`                                          |
+| Expo Router    | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()`                                           | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`       |
+| Edge Functions | `createEdge(betterSupabase, { cors: true })`                                                                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
+| MCP            | `createMcp(betterSupabase, { name, version, resources })`                                                       | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
+| Any other      | `withBetterSupabase(server)` in a bridge: `toSvelteKit`, `toTanStackStart`, `toReactRouter`, `toH3`, `toElysia` | the framework's context (`locals.db`, `context.db`, `event.context.db`)                  |
+
+Never use `@supabase/server/adapters/*` (deprecated, removed 2026-12-01).
 
 Don't build error JSON by hand; errors become Problem Details.
 

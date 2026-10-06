@@ -1,0 +1,33 @@
+---
+title: Elysia
+description: Run withBetterSupabase around an Elysia app, with the caller's repositories derived into every route.
+---
+
+Elysia has no middleware slot that sees the response it produces, so
+`toElysia(entries)` from `better-supabase/elysia` wraps the app's fetch.
+`bridge.wrap` runs the entries around `app.handle`, and `bridge.context` hands
+the contributions to routes:
+
+```ts title="src/index.ts"
+import { Elysia } from "elysia";
+import { toElysia } from "better-supabase/elysia";
+import { createServer, withBetterSupabase } from "better-supabase/server";
+import { betterSupabase } from "./lib/supabase";
+
+const bs = createServer(betterSupabase);
+const bridge = toElysia([withBetterSupabase(bs, { allow: ["user"] })]);
+
+const app = new Elysia()
+  .derive(({ request }) => bridge.context(request))
+  .get("/notes", ({ db }) => db.notes.findMany().orThrow());
+
+export default { fetch: bridge.wrap((request) => app.handle(request)) };
+```
+
+A guard refusal answers 401 or 403 Problem Details before Elysia routes the
+request, and the route's response passes back through the entries, so
+refreshed cookies and `bs-primary-until` reach it.
+
+`bridge.context(request)` throws for a request that didn't come through
+`bridge.wrap`, so a route served another way fails closed instead of running
+without a caller. Serve the app with the wrapped fetch, not `app.listen`.

@@ -3,18 +3,18 @@ import type { PostgresApi } from "@supabase/server/middleware/postgres";
 import { seedContext } from "@supabase/middleware";
 import { describe, expect, it } from "vitest";
 
-import type { RequestContext } from "../../src/core/plugin.ts";
+import type { RequestContext } from "../../../src/core/plugin.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { defineSupabase } from "../../../src/core/define.ts";
 import {
   contextFromSupabase,
   type SupabaseAuthContext,
+  withBetterDb,
   withBetterPostgres,
-  withBetterSupabase,
-} from "../../src/server/middleware.ts";
-import { capturingClient } from "../fixtures/client.ts";
-import { fakeSql } from "../fixtures/fake-sql.ts";
-import { schema } from "../fixtures/generated-camel.ts";
+} from "../../../src/server/entries/upstream.ts";
+import { capturingClient } from "../../fixtures/client.ts";
+import { fakeSql } from "../../fixtures/fake-sql.ts";
+import { schema } from "../../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
 const ANON = {
@@ -98,13 +98,13 @@ describe("contextFromSupabase", () => {
   });
 });
 
-describe("withBetterSupabase", () => {
+describe("withBetterDb", () => {
   it("contributes ctx.db bound to ctx.supabase and the caller", async () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ id: "c1" }],
     }));
     let seen: { context: RequestContext; client: unknown } | undefined;
-    const handler = withBetterSupabase(betterSupabase)(async (_req, ctx) => {
+    const handler = withBetterDb(betterSupabase)(async (_req, ctx) => {
       seen = { context: ctx.db.$context, client: ctx.db.$client };
       const rows = await ctx.db.customers
         .findMany({ select: ["id"] })

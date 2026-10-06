@@ -1,3 +1,5 @@
+import { withCors, type WithCorsConfig } from "@supabase/middleware/cors";
+
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
@@ -6,18 +8,26 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
+import { type EdgeHandler, toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
-import { handle } from "../server/adapter.ts";
+import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
+import { withBetterSupabase } from "../server/composite.ts";
 import {
   defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
 } from "../server/resource.ts";
-import { defaultExpose, type MiddlewareOptions } from "../server/respond.ts";
+import {
+  defaultExpose,
+  type MiddlewareOptions,
+  respond,
+} from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+export { toEdge } from "../bridges/edge.ts";
+export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
 
 export interface CorsOptions {
@@ -41,18 +51,6 @@ export interface EdgeOptions extends ServerOptions {
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
-
-/** The platform context Workers pass as the third `fetch` argument. */
-export interface EdgeExecutionContext {
-  waitUntil(promise: Promise<unknown>): void;
-}
-
-/** `Deno.serve` passes `(request, info)`, Workers `fetch` passes `(request, env, ctx)`. */
-export type EdgeHandler = (
-  request: Request,
-  env?: unknown,
-  executionContext?: EdgeExecutionContext,
-) => Promise<Response>;
 
 export type ResourceMap<M extends AnyModels> = {
   readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
@@ -89,46 +87,19 @@ export const SUPABASE_CORS_HEADERS: readonly string[] = [
   "content-type",
 ];
 
-/** The CORS headers for a request's origin; the fixed ones are joined once. */
-function corsFor(
-  cors: CorsOptions,
-): (request: Request) => Record<string, string> | undefined {
-  const allowed = cors.origin ?? "*";
-  const origins = new Set(typeof allowed === "string" ? [allowed] : allowed);
-  const fixed: Record<string, string> = {
-    "access-control-allow-headers": (
-      cors.headers ?? SUPABASE_CORS_HEADERS
-    ).join(", "),
-    "access-control-allow-methods": (
-      cors.methods ?? ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
-    ).join(", "),
-    ...(cors.maxAge === undefined
-      ? {}
-      : { "access-control-max-age": String(cors.maxAge) }),
+/** `CorsOptions` as `withCors` from `@supabase/middleware/cors` takes them. */
+export function corsConfig(cors: CorsOptions): WithCorsConfig {
+  return {
+    origin:
+      cors.origin === undefined || typeof cors.origin === "string"
+        ? (cors.origin ?? "*")
+        : [...cors.origin],
+    allowedHeaders: [...(cors.headers ?? SUPABASE_CORS_HEADERS)],
+    methods: [
+      ...(cors.methods ?? ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]),
+    ],
+    ...(cors.maxAge === undefined ? {} : { maxAge: cors.maxAge }),
   };
-  const any = { "access-control-allow-origin": "*", ...fixed };
-  return (request) => {
-    if (allowed === "*") return any;
-    const origin = request.headers.get("origin");
-    if (!origin || !origins.has(origin)) return;
-    return { "access-control-allow-origin": origin, ...fixed, vary: "origin" };
-  };
-}
-
-function withHeaders(
-  response: Response,
-  headers: Record<string, string>,
-): Response {
-  let target = response;
-  try {
-    for (const [name, value] of Object.entries(headers))
-      target.headers.set(name, value);
-  } catch {
-    target = new Response(response.body, response);
-    for (const [name, value] of Object.entries(headers))
-      target.headers.set(name, value);
-  }
-  return target;
 }
 
 /** Fetch-handler integration for Supabase Edge Functions, Deno, Bun and Workers. */
@@ -151,7 +122,7 @@ export function createEdge<
       : options.cors === false
         ? undefined
         : options.cors;
-  const corsHeaders = cors ? corsFor(cors) : undefined;
+  const withCorsConfig = cors ? corsConfig(cors) : undefined;
 
   const serve = (
     run: (request: Request, ctx: ServerContext<M, F, E, C, P>) => unknown,
@@ -159,26 +130,36 @@ export function createEdge<
     /** Answers before auth resolves, e.g. a 404 for an unknown route. */
     early?: (request: Request) => Response | undefined,
   ): EdgeHandler => {
-    return async (request, _env, executionContext) => {
-      const extra = corsHeaders?.(request);
-      if (cors && request.method === "OPTIONS") {
-        return new Response(null, { status: 204, headers: extra ?? {} });
-      }
-      const answered = early?.(request);
-      if (answered) return extra ? withHeaders(answered, extra) : answered;
-      const waitUntil =
-        options.waitUntil ?? executionContext?.waitUntil.bind(executionContext);
-      const response = await handle(
-        server,
-        request,
-        (ctx) => run(request, ctx),
-        {
-          ...handlerOptions,
-          expose,
-          ...(waitUntil ? { waitUntil } : {}),
-        },
+    const authorized = toEdge(
+      [withBetterSupabase(server, { ...handlerOptions, expose })],
+      async (request, ctx) => {
+        const instance = new URL(request.url).pathname;
+        try {
+          return await respond(() => run(request, ctx.bs), {
+            instance,
+            expose,
+          });
+        } catch (cause) {
+          return unexpectedResponse(cause, { instance, expose });
+        }
+      },
+    );
+    const routed: EdgeHandler = (request, env, executionContext) =>
+      Promise.resolve(
+        early?.(request) ?? authorized(request, env, executionContext),
       );
-      return extra ? withHeaders(response, extra) : response;
+    const answer: EdgeHandler = withCorsConfig
+      ? toEdge([withCors(withCorsConfig)], (request, _ctx, executionContext) =>
+          routed(request, undefined, executionContext),
+        )
+      : routed;
+    return async (request, env, executionContext) => {
+      const response = await answer(request, env, executionContext);
+      flushEvents(
+        server,
+        options.waitUntil ?? executionContext?.waitUntil.bind(executionContext),
+      );
+      return response;
     };
   };
 

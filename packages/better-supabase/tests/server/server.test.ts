@@ -99,6 +99,58 @@ describe("createServer headers", () => {
   });
 });
 
+describe("createServer db options", () => {
+  it.each([{}, { db: { timeout: 1000, retry: false } }])(
+    "keeps the definition's postgrestVersion gate with %o",
+    async (options) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(() =>
+        Promise.resolve(Response.json([])),
+      );
+      const server = createServer(
+        defineSupabase(schema, { postgrestVersion: "12.2" }),
+        { env, auth: { jwks: signer.jwks as never }, fetch, ...options },
+      );
+      const ctx = await server.context(new Request("https://api.test/"));
+      const result = await ctx.db.customers.deleteMany({
+        where: { status: "lead" },
+        maxAffected: 1,
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_request" },
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("fails a request that outlives db.timeout with a timeout error", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(init.signal?.reason);
+          });
+        }),
+    );
+    const server = createServer(defineSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks as never },
+      fetch,
+      db: { timeout: 20 },
+    });
+    const token = await signer.sign({
+      sub: "11111111-1111-4111-8111-111111111111",
+    });
+    const ctx = await server.context(
+      new Request("https://api.test/", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+    const result = await ctx.db.customers.findMany({ select: ["id"] });
+    expect(result).toMatchObject({ ok: false, error: { kind: "timeout" } });
+  });
+});
+
 describe("createServer claims", () => {
   it("validates claims with the schema from betterSupabase.claims()", async () => {
     const betterSupabase = defineSupabase(schema).claims(

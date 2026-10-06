@@ -13,3 +13,4 @@ add one, and link it from the code or config it explains.
 | [0005](0005-temporal.md)                 | Time values in the public API are `Temporal`; the polyfill is an optional peer     |
 | [0006](0006-pgdelta-and-native-stack.md) | The fixture schema diffs with pg-delta; the native local stack stays opt-in        |
 | [0007](0007-cli-in-library.md)           | The CLI ships inside `better-supabase` with its dependencies inlined               |
+| [0008](0008-middleware-entries.md)       | The server and the adapters run on `@supabase/middleware` entries and bridges      |

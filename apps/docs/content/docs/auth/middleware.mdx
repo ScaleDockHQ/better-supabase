@@ -1,28 +1,29 @@
 ---
 title: Middleware and proxy
-description: ctx.db and ctx.sql as @supabase/middleware entries, and composing the Next.js proxy with i18n, rewrites and Server-Timing.
+description: withBetterSupabase as an @supabase/middleware entry, framework bridges, and composing the Next.js proxy with i18n, rewrites and Server-Timing.
 ---
 
-## @supabase/server pipelines
+## Middleware entries
 
-better-supabase builds on `@supabase/server` and `@supabase/middleware`
-directly. `withBetterSupabase(betterSupabase)` and `withBetterPostgres(betterSupabase)` are
-`defineMiddleware` entries, so they compose by position with everything else
-in a pipeline, and the type checker verifies the order.
+`withBetterSupabase(bs)` from `better-supabase/server` is one
+`@supabase/middleware` entry that resolves the caller (a bearer token first,
+the session cookie second), enforces a guard and contributes the caller's
+context. It composes by position with other entries, and the type checker
+rejects a wrong order or two entries that write the same key.
 
-```ts
-import { withSupabase } from "@supabase/server";
-import { withPostgresClient } from "@supabase/server/middleware/postgres";
+```ts title="src/index.ts"
 import { pipeline } from "@supabase/middleware";
-import { withBetterPostgres, withBetterSupabase } from "better-supabase/server";
+import { withPostgresClient } from "@supabase/server/middleware/postgres";
+import { createServer, withBetterSupabase } from "better-supabase/server";
+import { betterSupabase } from "./lib/supabase";
+
+const bs = createServer(betterSupabase);
 
 export default {
   fetch: pipeline(
     [
-      withSupabase({ auth: "user" }),
-      withBetterSupabase(betterSupabase)(), // ctx.db, needs ctx.supabase
-      withPostgresClient(),
-      withBetterPostgres(betterSupabase)(), // ctx.sql, needs ctx.postgres
+      withBetterSupabase(bs, { allow: ["user"] }),
+      withPostgresClient(), // ctx.postgres, raw queries as the caller
     ],
     async (req, ctx) => {
       const customers = await ctx.db.customers
@@ -34,13 +35,92 @@ export default {
 };
 ```
 
+`withBetterSupabase(betterSupabase, options)` also takes the definition and
+builds the server from the same options `createServer` takes.
+
+| Key          | What it holds                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `bs`         | the request's `ServerContext`: `auth`, `db`, `actingAs`, `apply` and the rest of `server.context(request)` |
+| `db`         | the caller's repositories                                                                                  |
+| `sql`        | repositories over direct Postgres when `createServer` has `postgres`, else `undefined`                     |
+| `jwtClaims`  | the verified claims, as `withSupabase` names them                                                          |
+| `userClaims` | `{ id, email, role, ... }` for a user, `null` otherwise                                                    |
+| `authMode`   | `user`, `secret` or `none`, as `withSupabase` names them                                                   |
+| `tenant`     | the result of `ServerOptions.tenant`                                                                       |
+| `support`    | the active support session, if any                                                                         |
+| `replica`    | the read replica router, when `readUrl` is set                                                             |
+
+The keys `withSupabase` contributes (`jwtClaims`, `userClaims`, `authMode`)
+are the same, so entries written for `withSupabase`, such as
+`withPostgresClient`, run after `withBetterSupabase` unchanged. Don't put both
+in one pipeline: the type checker reports the collision.
+
+`withPostgresClient` reads `jwtClaims`, so it runs after `withBetterSupabase`
+and adds `ctx.postgres` for raw queries; it doesn't back `ctx.sql`. For
+repositories over direct Postgres, pass `postgres: createPostgres()` to
+`createServer`.
+
+On the way out, the entry adds refreshed session cookies, the `no-store`
+headers and `bs-primary-until` after a write, and hands pending event sends
+to `waitUntil`.
+
+| Option                   | What it does                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `allow`, `aal`, `scopes` | the guard: a refused caller gets 401 or 403 Problem Details and the handler never runs                                     |
+| `refresh`                | refresh an expired cookie session; set it only where the response can carry cookies once per request                       |
+| `cookies`                | `false` reads bearer tokens only                                                                                           |
+| `encode`                 | `user-and-tokens` or `tokens-only`, the shape refreshed sessions are written in; use the browser client's `cookies.encode` |
+| `cookieScopes`           | `{ domain, path }` scopes earlier deploys wrote the session at; each response expires the session cookie there             |
+| `waitUntil`              | keeps the invocation alive for event sends, for example `ctx.waitUntil` on Workers                                         |
+| `expose`                 | include error details in the guard's Problem Details                                                                       |
+
+### Framework bridges
+
+A bridge runs an entry array in a framework's middleware slot, so the
+framework's response passes back through the entries and refreshed cookies
+reach it.
+
+| Framework               | Bridge                                        | Docs                                              |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------- |
+| Hono                    | `toHono(entries)` from `better-supabase/hono` | [Hono](/docs/frameworks/hono)                     |
+| Edge Functions, Workers | `toEdge(entries, handler)` from `/edge`       | [Edge](/docs/frameworks/edge)                     |
+| oRPC                    | `toOrpc(entries, handler)` from `/orpc`       | [oRPC](/docs/frameworks/orpc)                     |
+| Expo Router API routes  | `toExpo(entries, handler)` from `/expo`       | [Expo](/docs/frameworks/expo)                     |
+| TanStack Start          | `toTanStackStart(entries)`                    | [TanStack Start](/docs/frameworks/tanstack-start) |
+| SvelteKit               | `toSvelteKit(entries)`                        | [SvelteKit](/docs/frameworks/sveltekit)           |
+| React Router            | `toReactRouter(entries, key)`                 | [React Router](/docs/frameworks/react-router)     |
+| H3, Nitro, Nuxt         | `toH3(entries)`                               | [H3](/docs/frameworks/h3)                         |
+| Elysia                  | `toElysia(entries)`                           | [Elysia](/docs/frameworks/elysia)                 |
+
+### Next to withSupabase
+
+An app that already runs `withSupabase` adds repositories with the leaf
+entries instead. `withBetterDb(betterSupabase)` adds `ctx.db` from
+`ctx.supabase`, and `withBetterPostgres(betterSupabase)` adds `ctx.sql` from
+`ctx.postgres`:
+
+```ts
+import { withSupabase } from "@supabase/server";
+import { withPostgresClient } from "@supabase/server/middleware/postgres";
+import { withBetterDb, withBetterPostgres } from "better-supabase/server";
+
+const entries = [
+  withSupabase({ auth: "user" }),
+  withBetterDb(betterSupabase)(),
+  withPostgresClient(),
+  withBetterPostgres(betterSupabase)(),
+] as const;
+```
+
 The repository context comes from the `withSupabase` context: `authMode:
 'user'` becomes a `user` actor with the JWT claims, `secret` becomes
 `service`, anything else `anon`. `contextFromSupabase(ctx)` exposes that
-mapping for your own middleware.
+mapping for your own middleware. `ctx.sql` runs on `withPostgresClient`'s
+connection, which sets the caller's claims and role per query, so RLS applies
+exactly as over PostgREST.
 
-`ctx.sql` runs on `withPostgresClient`'s connection, which sets the caller's
-claims and role per query, so RLS applies exactly as over PostgREST.
+`withSupabaseClient` reads only the `Authorization` header, so it doesn't see
+a cookie session. Use `withBetterSupabase` where browsers call with cookies.
 
 ## Next.js proxy composition
 

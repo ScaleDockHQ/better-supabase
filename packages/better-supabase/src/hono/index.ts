@@ -12,22 +12,25 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
+import { honoMiddleware } from "../bridges/hono.ts";
 import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
+import { withBetterSupabase } from "../server/composite.ts";
 import {
   defineResource,
   type ResourceRouteOptions,
 } from "../server/resource.ts";
 import {
   defaultExpose,
-  guard,
   type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+export { toHono } from "../bridges/hono.ts";
+export type { HonoBridge } from "../bridges/hono.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
 
 /** Hono `Env` with the request's better-supabase context in `c.var`. */
@@ -160,31 +163,19 @@ export function createHono<
     },
 
     middleware(middlewareOptions = {}) {
+      const run = honoMiddleware(
+        [withBetterSupabase(server, { ...middlewareOptions, expose })],
+        (c, ctx) => {
+          // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bs`.
+          const bs = (ctx as { readonly bs: ServerContext<M, F, E, C, P> }).bs;
+          c.set("bs", bs);
+          c.set("db", bs.db);
+          c.set("auth", bs.auth);
+        },
+      );
       return async (c, next) => {
-        const ctx = await server.context(c.req.raw, {
-          refresh: middlewareOptions.refresh ?? false,
-        });
-        const denied = guard(
-          ctx.auth,
-          middlewareOptions.allow,
-          middlewareOptions.aal,
-          middlewareOptions.scopes,
-        );
-        if (denied) {
-          return ctx.resolution.apply(
-            problemResponse(denied, {
-              instance: new URL(c.req.url).pathname,
-              expose,
-            }),
-          );
-        }
-        c.set("bs", ctx);
-        c.set("db", ctx.db);
-        c.set("auth", ctx.auth);
-        await next();
-        c.res = ctx.apply(c.res);
+        await run(c, next);
         flushEvents(server, waitUntilOf(c));
-        return;
       };
     },
 

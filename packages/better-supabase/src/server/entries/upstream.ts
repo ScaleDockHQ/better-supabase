@@ -4,15 +4,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { defineMiddleware, type Middleware } from "@supabase/middleware";
 
-import type { BetterSupabase } from "../core/define.ts";
-import type { RequestContext } from "../core/plugin.ts";
-import type { Db } from "../core/repository-types.ts";
-import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { BetterSupabase } from "../../core/define.ts";
+import type { RequestContext } from "../../core/plugin.ts";
+import type { Db } from "../../core/repository-types.ts";
+import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
-import { userContext } from "../auth/impersonation.ts";
-import { postgresExecutor } from "../postgres/executor.ts";
+import { userContext } from "../../auth/impersonation.ts";
+import { postgresExecutor } from "../../postgres/executor.ts";
 
-/** The `withSupabase` context keys `withBetterSupabase` reads. */
+/** The `withSupabase` context keys `withBetterDb` and `withBetterPostgres` read. */
 export interface SupabaseAuthContext {
   readonly jwtClaims: JWTClaims | null;
   readonly userClaims: UserClaims | null;
@@ -47,19 +47,16 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
 }
 
 /**
- * `@supabase/middleware` entry contributing `ctx.db`: repositories bound to
- * `ctx.supabase` (the caller-scoped client from `withSupabase`).
+ * Entry contributing `ctx.db`: repositories bound to `ctx.supabase`, the
+ * caller-scoped client from `withSupabase`. Use it when `withSupabase`
+ * authenticates the request (bearer tokens only); `withBetterSupabase`
+ * covers cookie sessions too.
  *
  * ```ts
- * pipeline([withSupabase({ auth: 'user' }), withBetterSupabase(betterSupabase)()], (req, ctx) => ...)
+ * pipeline([withSupabase({ auth: 'user' }), withBetterDb(betterSupabase)()], (req, ctx) => ...)
  * ```
  */
-export function withBetterSupabase<
-  M extends AnyModels,
-  D,
-  F extends AnyFunctions,
-  E,
->(
+export function withBetterDb<M extends AnyModels, D, F extends AnyFunctions, E>(
   betterSupabase: BetterSupabase<M, D, F, E>,
 ): Middleware<
   "db",

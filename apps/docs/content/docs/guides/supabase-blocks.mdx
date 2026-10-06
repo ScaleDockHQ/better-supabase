@@ -74,12 +74,12 @@ The function imports better-supabase through its `deno.json`:
 The block's `index.ts` is a `pipeline` from `@supabase/middleware`:
 `withOAuthProtectedResource()` serves the RFC 9728 metadata, and
 `withSupabase({ auth: 'user' })` verifies the token and builds a user-scoped
-client. Add `withBetterSupabase(betterSupabase)()` from
+client. Add `withBetterDb(betterSupabase)()` from
 `better-supabase/server` after `withSupabase`, and pass the `ctx.db` it adds
 to the tools:
 
 ```ts title="supabase/functions/mcp/index.ts"
-import { withBetterSupabase } from "better-supabase/server";
+import { withBetterDb } from "better-supabase/server";
 
 import { betterSupabase } from "../_shared/supabase.ts";
 
@@ -90,7 +90,7 @@ Deno.serve(
     [
       withOAuthProtectedResource(),
       withSupabase({ auth: "user", cors: { headers: CORS_HEADERS } }),
-      withBetterSupabase(betterSupabase)(),
+      withBetterDb(betterSupabase)(),
     ],
     (request, ctx) =>
       createMcpHandler(() =>
@@ -160,8 +160,10 @@ into an MCP error result the model can read; the block's
 the client [`better-supabase gen`](/docs/cli/gen) writes.
 
 Two functions share the name `withBetterSupabase`. The one in
-`better-supabase/server` is the pipeline entry above. The one in
-`better-supabase/mcp/sdk` wraps `McpServer.registerTool` for
+`better-supabase/server` is a pipeline entry that resolves the caller itself
+(see [Middleware](/docs/auth/middleware)); next to the block's `withSupabase`
+use `withBetterDb` as above. The one in `better-supabase/mcp/sdk` wraps
+`McpServer.registerTool` for
 [`createMcpAuth`](/docs/frameworks/mcp#official-mcp-sdk). They don't mix, so
 import the one that matches your setup.
 

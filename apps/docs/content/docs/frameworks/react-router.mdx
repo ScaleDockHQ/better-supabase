@@ -1,0 +1,53 @@
+---
+title: React Router
+description: Run withBetterSupabase as React Router server middleware, with the caller's repositories in loaders and actions.
+---
+
+`toReactRouter(entries, key)` from `better-supabase/react-router` returns a
+server middleware. It sets every key
+[`withBetterSupabase`](/docs/auth/middleware) contributes under a
+`createContext()` key, and the response `next()` returns passes back through
+the entries, so refreshed session cookies reach the browser. Turn on
+`future.v8_middleware` in `react-router.config.ts` first.
+
+```ts title="app/lib/supabase/middleware.server.ts"
+import { createContext } from "react-router";
+import {
+  type BetterSupabaseContributions,
+  createServer,
+  withBetterSupabase,
+} from "better-supabase/server";
+import { toReactRouter } from "better-supabase/react-router";
+import { betterSupabase, type Functions, type Models } from "./index";
+
+const bs = createServer(betterSupabase);
+
+export const supabase =
+  createContext<BetterSupabaseContributions<Models, Functions, unknown>>();
+
+export const supabaseMiddleware = toReactRouter(
+  [withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] })],
+  supabase,
+);
+```
+
+```ts title="app/root.tsx"
+import { supabaseMiddleware } from "./lib/supabase/middleware.server";
+
+export const middleware = [supabaseMiddleware];
+```
+
+Loaders and actions read the contributions from `context`:
+
+```ts title="app/routes/notes.tsx"
+import { supabase } from "../lib/supabase/middleware.server";
+
+export async function loader({ context }: Route.LoaderArgs) {
+  return context.get(supabase).db.notes.findMany().orThrow();
+}
+```
+
+A guard refusal returns the 401 or 403 Problem Details instead of calling
+`next()`. Put `allow: ["user"]` on a middleware in the routes that need a
+signed-in user. The bridge makes the request body readable twice, so an entry
+and an action both see it.

@@ -13,14 +13,17 @@ import type {
 } from "../server/server.ts";
 
 import { serializeCookie } from "../auth/session.ts";
+import { type ExpoParams, toExpo } from "../bridges/expo.ts";
 import { DbException } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
-import { handle } from "../server/adapter.ts";
+import { unexpectedResponse } from "../server/adapter.ts";
+import { withBetterSupabase } from "../server/composite.ts";
 import {
   defaultExpose,
   guard,
   type GuardOptions,
   type MiddlewareOptions,
+  respond,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
@@ -29,8 +32,8 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 /** A request as Expo Router passes it: `ImmutableRequest` in loaders and middleware, `Request` in API routes. */
 export type ExpoRequest = Request | ImmutableRequest;
 
-/** Route parameters from the file name (`[id]`, `[...slug]`). */
-export type ExpoParams = Record<string, string | string[]>;
+export { toExpo } from "../bridges/expo.ts";
+export type { ExpoParams } from "../bridges/expo.ts";
 
 export interface ExpoOptions extends ServerOptions {
   /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */
@@ -192,11 +195,20 @@ export function createExpo<
     },
 
     handler(fn, handlerOptions = {}) {
-      return (incoming, params = {}) =>
-        handle(server, incoming, (ctx) => fn(incoming, ctx, params), {
-          ...handlerOptions,
-          expose,
-        });
+      return toExpo(
+        [withBetterSupabase(server, { ...handlerOptions, expose })],
+        async (incoming, ctx, params) => {
+          const instance = new URL(incoming.url).pathname;
+          try {
+            return await respond(() => fn(incoming, ctx.bs, params), {
+              instance,
+              expose,
+            });
+          } catch (cause) {
+            return unexpectedResponse(cause, { instance, expose });
+          }
+        },
+      );
     },
 
     middleware(middlewareOptions = {}) {

@@ -27,6 +27,8 @@ import {
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+export { toOrpc } from "../bridges/orpc.ts";
+export type { OrpcHandlerLike, ToOrpcOptions } from "../bridges/orpc.ts";
 
 /** Initial context: pass `{ context: { request } }` to the oRPC handler. */
 export interface OrpcRequestContext {

@@ -257,6 +257,7 @@ standard or sets how the repo works.
 - 0005: the public API uses Temporal for time values.
 - 0006: the fixture schema diffs with pg-delta; the native local stack stays opt-in.
 - 0007: the CLI ships inside `better-supabase` with its dependencies inlined.
+- 0008: the server and the framework adapters run on `@supabase/middleware` entries and bridges.
 
 ## Pre-release pins
 

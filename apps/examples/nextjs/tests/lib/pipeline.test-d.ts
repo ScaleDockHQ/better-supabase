@@ -2,7 +2,7 @@ import type { AuthSession } from "better-supabase/react";
 
 import { defineMiddleware, pipeline } from "@supabase/middleware";
 import { withSupabase } from "@supabase/server";
-import { withBetterSupabase } from "better-supabase/server";
+import { withBetterDb } from "better-supabase/server";
 
 import type { Claims } from "@/lib/claims";
 
@@ -42,7 +42,7 @@ declare function subjectFromSupabaseSession(
 export const handler = pipeline(
   [
     withSupabase({ auth: "user" }),
-    withBetterSupabase(betterSupabase)(),
+    withBetterDb(betterSupabase)(),
     withPermDock(),
   ],
   async (_req, ctx) => {
