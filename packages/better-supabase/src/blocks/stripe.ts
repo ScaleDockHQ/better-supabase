@@ -9,6 +9,11 @@ export interface StripeClient {
       readonly name?: string;
       readonly metadata?: Readonly<Record<string, string>>;
     }): Promise<{ readonly id: string }>;
+    /** Used by `billing.updateCustomer`. */
+    update?(
+      id: string,
+      params: Readonly<Record<string, unknown>>,
+    ): Promise<{ readonly id: string }>;
   };
   readonly checkout: {
     readonly sessions: {
@@ -38,6 +43,21 @@ export interface StripeClient {
   };
   readonly subscriptions: {
     cancel(id: string): Promise<{ readonly id: string }>;
+    /** Used by `billing.changePlan` and `billing.cancelAtPeriodEnd`. */
+    update?(
+      id: string,
+      params: Readonly<Record<string, unknown>>,
+      options?: { readonly idempotencyKey?: string },
+    ): Promise<{ readonly id: string }>;
+  };
+  /** Used by `billing.voidInvoice` and `billing.markInvoiceUncollectible`. */
+  readonly invoices?: {
+    voidInvoice(
+      id: string,
+    ): Promise<{ readonly id: string; readonly status?: string | null }>;
+    markUncollectible(
+      id: string,
+    ): Promise<{ readonly id: string; readonly status?: string | null }>;
   };
   readonly billing: {
     readonly meterEvents: {

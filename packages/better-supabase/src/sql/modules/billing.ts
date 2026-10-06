@@ -5,12 +5,12 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["seatRoles"],
+  options: ["seatRoles", "plans"],
   tables: {
     customers: {
       name: "billing_customers",
@@ -22,6 +22,98 @@ const NAMES: ModuleNames = {
     },
   },
 };
+
+/** `options.plans`: the app's plan catalog, so checkout takes a plan key. */
+interface PlanCatalog {
+  readonly table: string;
+  /** The plan key column, default `key`. */
+  readonly key: string;
+  /** The Stripe price id column, default `stripe_price_id`. */
+  readonly price: string;
+  /** A billing interval column (`month`, `year`), when plans have several prices. */
+  readonly interval?: string;
+  /** A boolean column; only rows where it is true are offered. */
+  readonly active?: string;
+}
+
+const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
+
+function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
+  const where = "sql.modules.billing.options.plans";
+  const option = ctx.option("plans");
+  if (option === undefined) return undefined;
+  if (typeof option !== "object" || option === null || Array.isArray(option)) {
+    throw new TypeError(
+      `${where} must be { table, key?, price?, interval?, active? }`,
+    );
+  }
+  const entries = new Map<string, unknown>(Object.entries(option));
+  const text = (name: string, fallback?: string): string | undefined => {
+    const value = entries.get(name) ?? fallback;
+    if (value === undefined) return undefined;
+    if (
+      typeof value !== "string" ||
+      !value.split(".").every((part) => IDENT.test(part))
+    ) {
+      throw new TypeError(`${where}.${name} must be a lowercase identifier`);
+    }
+    return value;
+  };
+  const table = text("table");
+  if (table === undefined || table.split(".").length > 2) {
+    throw new TypeError(`${where}.table must be "table" or "schema.table"`);
+  }
+  const interval = text("interval");
+  const active = text("active");
+  return {
+    table,
+    key: text("key", "key") ?? "key",
+    price: text("price", "stripe_price_id") ?? "stripe_price_id",
+    ...(interval === undefined ? {} : { interval }),
+    ...(active === undefined ? {} : { active }),
+  };
+}
+
+const qualified = (table: string): string => {
+  const [schema, name] = table.includes(".")
+    ? table.split(".", 2)
+    : ["public", table];
+  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
+};
+
+function planPrice(ctx: ModuleContext, plans: PlanCatalog | undefined): string {
+  const fn = ctx.fn("billing_plan_price");
+  const body = plans
+    ? `select p.${sqlIdent(plans.price)}::text from ${qualified(plans.table)} p
+  where p.${sqlIdent(plans.key)}::text = billing_plan_price.plan${
+    plans.interval
+      ? `
+    and (billing_plan_price.billing_interval is null or p.${sqlIdent(plans.interval)}::text = billing_plan_price.billing_interval)`
+      : ""
+  }${
+    plans.active
+      ? `
+    and p.${sqlIdent(plans.active)}`
+      : ""
+  }
+  order by ${plans.interval ? `(p.${sqlIdent(plans.interval)}::text = 'month') desc, ` : ""}1
+  limit 1`
+    : "select null::text";
+  return `-- The Stripe price of a plan key from options.plans (the app's plan
+-- catalog), for checkout({ plan }); null without the option or the plan.
+create or replace function ${fn}(plan text, billing_interval text default null)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  ${body}
+$$;
+revoke execute on function ${fn}(text, text) from public, anon;
+grant execute on function ${fn}(text, text) to authenticated, service_role;
+`;
+}
 
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
@@ -140,6 +232,72 @@ begin
 end;
 $$;
 
+${planPrice(ctx, plansOf(ctx))}
+-- Rows of a Stripe Sync Engine table for the tenant's customer, newest
+-- first, or [] when the table doesn't exist. Reads need billing.read.
+create or replace function ${fn("billing_stripe_rows")}(tenant ${id}, source text, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_stripe_rows.tenant);
+  found jsonb;
+begin
+  if not ${can("tenant", "read")} then
+    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  if billing_stripe_rows.source not in ('invoices', 'payment_methods', 'subscriptions', 'customers') then
+    raise exception 'Unknown Stripe table %', billing_stripe_rows.source using errcode = '22023', hint = 'BILLING_SOURCE';
+  end if;
+  if customer is null or to_regclass('stripe.' || billing_stripe_rows.source) is null then
+    return '[]'::jsonb;
+  end if;
+  execute format(
+    'select coalesce(jsonb_agg(to_jsonb(r.*)), ''[]''::jsonb) from (
+       select * from stripe.%I x where %s = $1 order by x.created desc nulls last limit $2
+     ) r',
+    billing_stripe_rows.source,
+    case when billing_stripe_rows.source = 'customers' then 'x.id' else 'x.customer' end
+  ) into found using customer, greatest(1, least(coalesce(billing_stripe_rows.max_rows, 50), 500));
+  return found;
+end;
+$$;
+
+create or replace function ${fn("billing_invoices")}(tenant ${id}, max_rows integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${fn("billing_stripe_rows")}(billing_invoices.tenant, 'invoices', billing_invoices.max_rows)
+$$;
+
+create or replace function ${fn("billing_payment_methods")}(tenant ${id})
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${fn("billing_stripe_rows")}(billing_payment_methods.tenant, 'payment_methods', 50)
+$$;
+
+-- The customer's contact details as Stripe holds them (email, name,
+-- address, phone): Stripe is the record for the billing contact.
+create or replace function ${fn("billing_customer_details")}(tenant ${id})
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${fn("billing_stripe_rows")}(billing_customer_details.tenant, 'customers', 1) -> 0
+$$;
+
 -- For the billing page: { customer, seats, subscription }.
 create or replace function ${fn("billing_status")}(tenant ${id})
 returns jsonb
@@ -160,6 +318,14 @@ begin
 end;
 $$;
 
+revoke execute on function ${fn("billing_stripe_rows")}(${id}, text, integer) from public, anon;
+revoke execute on function ${fn("billing_invoices")}(${id}, integer) from public, anon;
+revoke execute on function ${fn("billing_payment_methods")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_customer_details")}(${id}) from public, anon;
+grant execute on function ${fn("billing_stripe_rows")}(${id}, text, integer) to authenticated, service_role;
+grant execute on function ${fn("billing_invoices")}(${id}, integer) to authenticated, service_role;
+grant execute on function ${fn("billing_payment_methods")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("billing_customer_details")}(${id}) to authenticated, service_role;
 revoke execute on function ${fn("billing_customer")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_customer_tenant")}(text) from public, anon, authenticated;
 revoke execute on function ${fn("link_billing_customer")}(${id}, text) from public, anon, authenticated;
@@ -186,6 +352,10 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "billing_status", args: ["{id}"], returns: "jsonb" },
+    { name: "billing_plan_price", args: ["text", "text"], returns: "text" },
+    { name: "billing_invoices", args: ["{id}", "integer"], returns: "jsonb" },
+    { name: "billing_payment_methods", args: ["{id}"], returns: "jsonb" },
+    { name: "billing_customer_details", args: ["{id}"], returns: "jsonb" },
   ];
 }
 

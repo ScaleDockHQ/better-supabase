@@ -75,6 +75,94 @@ in Stripe right away and returns its id, or `undefined` when there is none.
 The [data lifecycle](/docs/blocks/data-lifecycle) purge calls it before it
 deletes an organization.
 
+### Plans from your catalog
+
+Most apps keep a plan catalog (plan keys, their prices per interval,
+features). Point `options.plans` at it and checkout takes a plan key instead
+of a price id:
+
+```ts title="better-supabase.config.ts"
+billing: {
+  options: {
+    plans: {
+      table: "public.plan_prices", // or "plan_prices" in public
+      key: "plan_key", // default key
+      price: "stripe_price_id", // default stripe_price_id
+      interval: "interval", // optional: month, year
+      active: "is_active", // optional
+    },
+  },
+},
+```
+
+```ts
+await billing.checkout(organizationId, {
+  plan: "pro",
+  interval: "year",
+  successUrl,
+});
+```
+
+`billing_plan_price(plan, billing_interval)` returns the price (the monthly
+one when no interval is given), and an unknown plan fails with
+`BILLING_PLAN_UNKNOWN`.
+
+## Managing a subscription
+
+These calls are for an admin console or the customer's own billing page. The
+Stripe calls run with the block's Stripe client, so guard the route or action
+with your own permission check (such as `billing.manage`).
+
+```ts
+await billing.changePlan(organizationId, { plan: "business" }); // or { price }
+await billing.cancelAtPeriodEnd(organizationId, true); // false resumes it
+const invoices = await billing
+  .invoices(organizationId, { limit: 20 })
+  .orThrow();
+const methods = await billing.paymentMethods(organizationId).orThrow();
+await billing.voidInvoice(organizationId, invoiceId);
+await billing.markInvoiceUncollectible(organizationId, invoiceId);
+```
+
+`changePlan` moves the subscription item to the new price with prorations
+(`prorationBehavior`) and clears a scheduled cancellation unless
+`resume: false`. `invoices` and `paymentMethods` read the Stripe Sync
+Engine's `stripe.invoices` and `stripe.payment_methods` rows as stored
+(`billing_invoices`, `billing_payment_methods`), newest first, for callers
+with `billing.read`; they return `[]` until the Sync Engine has the tables.
+`voidInvoice` and `markInvoiceUncollectible` act only on the tenant's own
+invoices (`BILLING_INVOICE_NOT_FOUND` otherwise).
+
+### The billing contact
+
+Stripe is the record for the billing contact: email, name, address, phone and
+tax ids live on the Stripe customer, the Sync Engine mirrors them into
+`stripe.customers`, and invoices use them. `customerDetails(organizationId)`
+reads that row (`billing_customer_details`), and
+`updateCustomer(organizationId, { email, name, address, params })` writes the
+customer, creating it first when the tenant has none. There is no second copy
+in the module's tables to keep in sync.
+
+### Audit retention by plan
+
+The [audit](/docs/blocks/audit) module calls an `audit_retention(tenant)`
+function when you write one, so retention can follow the plan the Sync
+Engine reports:
+
+```sql
+create function public.audit_retention(tenant uuid)
+returns interval language sql stable security definer set search_path = '' as $$
+  select case p.price_id
+    when 'price_enterprise' then interval '365 days'
+    when 'price_business' then interval '90 days'
+    else interval '7 days'
+  end
+  from (
+    select (better_supabase.billing_subscription_item(tenant) ->> 'price') as price_id
+  ) p
+$$;
+```
+
 ## Seats
 
 `billing_seat_count(tenant)` counts the tenant's memberships, or only those
@@ -159,11 +247,15 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 
 ## Functions
 
-| Function                                   | Granted to                      | Returns                                                   |
-| ------------------------------------------ | ------------------------------- | --------------------------------------------------------- |
-| `billing_customer(tenant)`                 | `authenticated`, `service_role` | the customer id, for callers with `billing.read`          |
-| `billing_status(tenant)`                   | `authenticated`, `service_role` | `{ customer, seats, subscription }`                       |
-| `link_billing_customer(tenant, customer)`  | `service_role`                  | the linked customer                                       |
-| `billing_customer_tenant(customer)`        | `service_role`                  | the tenant id                                             |
-| `billing_seat_count(tenant)`               | `service_role`                  | the seat count                                            |
-| `billing_subscription_item(tenant, price)` | `service_role`                  | `{ subscription, item, price, quantity, status }` or null |
+| Function                                     | Granted to                      | Returns                                                   |
+| -------------------------------------------- | ------------------------------- | --------------------------------------------------------- |
+| `billing_customer(tenant)`                   | `authenticated`, `service_role` | the customer id, for callers with `billing.read`          |
+| `billing_status(tenant)`                     | `authenticated`, `service_role` | `{ customer, seats, subscription }`                       |
+| `link_billing_customer(tenant, customer)`    | `service_role`                  | the linked customer                                       |
+| `billing_customer_tenant(customer)`          | `service_role`                  | the tenant id                                             |
+| `billing_seat_count(tenant)`                 | `service_role`                  | the seat count                                            |
+| `billing_subscription_item(tenant, price)`   | `service_role`                  | `{ subscription, item, price, quantity, status }` or null |
+| `billing_plan_price(plan, billing_interval)` | `authenticated`, `service_role` | the plan's Stripe price from `options.plans`, or null     |
+| `billing_invoices(tenant, max_rows)`         | `authenticated`, `service_role` | the customer's `stripe.invoices` rows, for `billing.read` |
+| `billing_payment_methods(tenant)`            | `authenticated`, `service_role` | the customer's `stripe.payment_methods` rows              |
+| `billing_customer_details(tenant)`           | `authenticated`, `service_role` | the customer's `stripe.customers` row                     |

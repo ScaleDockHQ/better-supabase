@@ -156,4 +156,74 @@ describe.skipIf(!live)("billing", () => {
       await s.close();
     }
   });
+
+  it("prices plans from the catalog and reads Stripe rows for readers only", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_plan_prices (
+           plan_key text not null, billing_interval text not null,
+           price_id text not null, live boolean not null default true
+         );
+         insert into public.bs_test_plan_prices values
+           ('pro', 'month', 'price_pro_m', true),
+           ('pro', 'year', 'price_pro_y', true),
+           ('old', 'month', 'price_old', false);`,
+      );
+      await s.install(["organizations", "billing"], {
+        modules: {
+          billing: {
+            options: {
+              plans: {
+                table: "bs_test_plan_prices",
+                key: "plan_key",
+                price: "price_id",
+                interval: "billing_interval",
+                active: "live",
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      await s.service();
+      if (
+        !(await s.value<boolean>("to_regclass('stripe.invoices') is not null"))
+      ) {
+        await s.rows(`create schema if not exists stripe;
+          create table stripe.invoices (id text primary key, customer text, status text, total bigint, created bigint);
+          create table stripe.payment_methods (id text primary key, customer text, type text, created bigint);
+          create table if not exists stripe.customers (id text primary key, email text, name text, created bigint)`);
+      }
+      await s.rows(
+        `select better_supabase.link_billing_customer($1, 'cus_bs_plans')`,
+        [organization],
+      );
+      await s.rows(`insert into stripe.invoices (id, customer, status, total, created) values
+          ('in_bs_1', 'cus_bs_plans', 'paid', 1000, 1), ('in_bs_2', 'cus_bs_plans', 'open', 500, 2),
+          ('in_bs_x', 'cus_someone_else', 'open', 1, 3)`);
+      const price = (plan: string, interval: string | null = null) =>
+        s.value<string | null>("better_supabase.billing_plan_price($1, $2)", [
+          plan,
+          interval,
+        ]);
+      expect(await price("pro")).toBe("price_pro_m");
+      expect(await price("pro", "year")).toBe("price_pro_y");
+      expect(await price("old")).toBeNull();
+
+      const billing = createBilling({
+        stripe: { secretKey: "sk_test_unused" },
+        transport: sqlTransport(s.sql),
+      });
+      await s.asRole(owner);
+      const invoices = await billing.invoices(organization).orThrow();
+      expect(invoices.map((row) => row["id"])).toEqual(["in_bs_2", "in_bs_1"]);
+      await s.asRole(member);
+      expect((await billing.invoices(organization)).ok).toBe(false);
+    } finally {
+      await s.close();
+    }
+  });
 });

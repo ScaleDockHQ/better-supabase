@@ -417,4 +417,159 @@ describe("createBilling", () => {
       },
     ]);
   });
+
+  it("checks out by plan key and changes plans", async () => {
+    const item = {
+      subscription: "sub_1",
+      item: "si_1",
+      price: "price_basic",
+      quantity: 1,
+      status: "active",
+    };
+    const t = setup(
+      (fn, args) => {
+        if (fn === "billing_customer") return "cus_1";
+        if (fn === "billing_plan_price")
+          return args["plan"] === "pro"
+            ? `price_pro_${String(args["billing_interval"] ?? "month")}`
+            : null;
+        if (fn === "billing_subscription_item") return item;
+        return null;
+      },
+      {
+        subscriptions: {
+          cancel: async () => ({ id: "sub_1" }),
+          update: async (id: string, params: unknown, options: unknown) => {
+            stripeCalls.push(["subscriptions.update", { id, params, options }]);
+            return { id };
+          },
+        },
+      },
+    );
+    const stripeCalls = t.stripeCalls;
+    const billing = createBilling(t);
+    await billing
+      .checkout("org", {
+        plan: "pro",
+        interval: "year",
+        successUrl: "https://a",
+      })
+      .orThrow();
+    expect(t.stripeCalls.at(-1)).toMatchObject([
+      "checkout.create",
+      { params: { line_items: [{ price: "price_pro_year", quantity: 1 }] } },
+    ]);
+    expect(
+      await billing.checkout("org", { plan: "gold", successUrl: "https://a" }),
+    ).toMatchObject({ ok: false, error: { hint: "BILLING_PLAN_UNKNOWN" } });
+    expect(
+      await billing.checkout("org", { successUrl: "https://a" }),
+    ).toMatchObject({ ok: false, error: { hint: "BILLING_PRICE_REQUIRED" } });
+
+    expect(
+      await billing
+        .changePlan("org", { plan: "pro", idempotencyKey: "k" })
+        .orThrow(),
+    ).toMatchObject({ itemId: "si_1", price: "price_pro_month" });
+    expect(t.stripeCalls.at(-1)).toEqual([
+      "subscriptions.update",
+      {
+        id: "sub_1",
+        params: {
+          items: [{ id: "si_1", price: "price_pro_month" }],
+          proration_behavior: "create_prorations",
+          cancel_at_period_end: false,
+        },
+        options: { idempotencyKey: "k" },
+      },
+    ]);
+    expect(await billing.cancelAtPeriodEnd("org", true).orThrow()).toBe(
+      "sub_1",
+    );
+    expect(t.stripeCalls.at(-1)).toMatchObject([
+      "subscriptions.update",
+      { params: { cancel_at_period_end: true } },
+    ]);
+  });
+
+  it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
+    const t = setup(
+      (fn) => {
+        if (fn === "billing_invoices")
+          return [{ id: "in_1", status: "open" }, "junk"];
+        if (fn === "billing_payment_methods")
+          return [{ id: "pm_1", type: "card" }];
+        if (fn === "billing_customer_details")
+          return { id: "cus_1", email: "a@b.c" };
+        if (fn === "billing_customer") return "cus_1";
+        return null;
+      },
+      {
+        invoices: {
+          voidInvoice: async (id: string) => ({ id, status: "void" }),
+          markUncollectible: async (id: string) => ({
+            id,
+            status: "uncollectible",
+          }),
+        },
+        customers: {
+          create: async () => ({ id: "cus_1" }),
+          update: async (id: string) => ({ id }),
+        },
+      },
+    );
+    const billing = createBilling(t);
+    expect(await billing.invoices("org").orThrow()).toEqual([
+      { id: "in_1", status: "open" },
+    ]);
+    expect(await billing.paymentMethods("org").orThrow()).toEqual([
+      { id: "pm_1", type: "card" },
+    ]);
+    expect(await billing.customerDetails("org").orThrow()).toMatchObject({
+      email: "a@b.c",
+    });
+    expect(await billing.voidInvoice("org", "in_1").orThrow()).toBe("in_1");
+    expect(
+      await billing.markInvoiceUncollectible("org", "in_1").orThrow(),
+    ).toBe("in_1");
+    expect(await billing.voidInvoice("org", "in_other")).toMatchObject({
+      ok: false,
+      error: { hint: "BILLING_INVOICE_NOT_FOUND" },
+    });
+    expect(
+      await billing.updateCustomer("org", { email: "x@y.z" }).orThrow(),
+    ).toBe("cus_1");
+  });
+
+  it("explains a Stripe client without the admin methods", async () => {
+    const t = setup(
+      (fn) =>
+        fn === "billing_subscription_item"
+          ? { subscription: "s", item: "i", quantity: 1, status: "active" }
+          : fn === "billing_invoices"
+            ? [{ id: "in_1" }]
+            : fn === "billing_customer"
+              ? "cus_1"
+              : null,
+      { subscriptions: { cancel: async () => ({ id: "s" }) } },
+    );
+    const billing = createBilling(t);
+    for (const result of [
+      await billing.changePlan("org", { price: "p" }),
+      await billing.cancelAtPeriodEnd("org", false),
+      await billing.voidInvoice("org", "in_1"),
+      await billing.markInvoiceUncollectible("org", "in_1"),
+      await billing.updateCustomer("org", { name: "x" }),
+    ]) {
+      expect(result).toMatchObject({
+        ok: false,
+        error: { hint: "BILLING_STRIPE_CLIENT" },
+      });
+    }
+    const none = createBilling(setup(() => null));
+    expect(await none.changePlan("org", { price: "p" })).toMatchObject({
+      ok: false,
+      error: { hint: "BILLING_NO_SUBSCRIPTION" },
+    });
+  });
 });

@@ -1,13 +1,16 @@
 export {
   type Billing,
+  type BillingCustomerUpdate,
   type BillingOptions,
   type BillingStatus,
   type CheckoutOptions,
   createBilling,
   type CustomerDetails,
+  type PlanChange,
   type SeatSync,
   type StripeEvent,
   type StripeEventOutcome,
+  type StripeRow,
   type SubscriptionItem,
 } from "./billing.ts";
 export type { BillingEventData } from "../../core/block-events.ts";
