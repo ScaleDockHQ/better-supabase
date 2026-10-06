@@ -382,5 +382,5 @@ export const betterSupabase = externalLanguage(
 Once the entry is in the registry's `languages`, `user` options become flags
 of `supabase gen types`, so `supabase gen types --lang better-supabase --emit zod`
 prints what `better-supabase gen --metadata - --emit zod` prints for the same
-database. The entry is not in the registry yet; the
-[roadmap](/docs/roadmap) tracks the upstream pull request.
+database. The upstream registry doesn't ship this entry, so without it, pipe
+the document to `better-supabase gen --metadata -` yourself.
