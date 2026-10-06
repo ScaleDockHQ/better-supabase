@@ -10231,7 +10231,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "customerByCustomer_": {
+        "customerByCustomerOrganization": {
           "table": "customers",
           "kind": "one",
           "nullable": false,
@@ -10431,7 +10431,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "customerByCustomer_": {
+        "customerByCustomerOrganization": {
           "table": "customers",
           "kind": "one",
           "nullable": false,
@@ -10770,7 +10770,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "customerByCustomer_": {
+        "customerByCustomerOrganization": {
           "table": "customers",
           "kind": "one",
           "nullable": false,
@@ -11094,7 +11094,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "customerAssetsByCustomer_": {
+        "customerAssetsByCustomerOrganization": {
           "table": "customerAssets",
           "kind": "many",
           "nullable": true,
@@ -11124,7 +11124,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "customerAssigneesByCustomer_": {
+        "customerAssigneesByCustomerOrganization": {
           "table": "customerAssignees",
           "kind": "many",
           "nullable": true,
@@ -11168,7 +11168,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "customerLocationsByCustomer_": {
+        "customerLocationsByCustomerOrganization": {
           "table": "customerLocations",
           "kind": "many",
           "nullable": true,
@@ -15694,7 +15694,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode_": {
+        "nodeByNodeOrganization": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -16054,7 +16054,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "destinationDriveByDestinationDrive_": {
+        "destinationDriveByDestinationDriveOrganization": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -16196,7 +16196,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "driveByDrive_": {
+        "driveByDriveOrganization": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -16240,7 +16240,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "teamByTeam_": {
+        "teamByTeamOrganization": {
           "table": "teams",
           "kind": "one",
           "nullable": true,
@@ -16396,7 +16396,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileCopyOperationsByDestinationDrive_": {
+        "fileCopyOperationsByDestinationDriveOrganization": {
           "table": "fileCopyOperations",
           "kind": "many",
           "nullable": true,
@@ -16426,7 +16426,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileDriveGrantsByDrive_": {
+        "fileDriveGrantsByDriveOrganization": {
           "table": "fileDriveGrants",
           "kind": "many",
           "nullable": true,
@@ -16485,7 +16485,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodesByDrive_": {
+        "fileNodesByDriveOrganization": {
           "table": "fileNodes",
           "kind": "many",
           "nullable": true,
@@ -16515,7 +16515,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByDrive_": {
+        "fileUploadReservationsByDriveOrganization": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -16545,7 +16545,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileVersionsByDrive_": {
+        "fileVersionsByDriveOrganization": {
           "table": "fileVersions",
           "kind": "many",
           "nullable": true,
@@ -16643,7 +16643,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode_": {
+        "nodeByNodeOrganization": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -16687,7 +16687,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "teamByTeam_": {
+        "teamByTeamOrganization": {
           "table": "teams",
           "kind": "one",
           "nullable": true,
@@ -16785,7 +16785,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode_": {
+        "nodeByNodeOrganization": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -16993,7 +16993,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileCommentsByNode_": {
+        "fileCommentsByNodeOrganization": {
           "table": "fileComments",
           "kind": "many",
           "nullable": true,
@@ -17067,7 +17067,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodeGrantsByNode_": {
+        "fileNodeGrantsByNodeOrganization": {
           "table": "fileNodeGrants",
           "kind": "many",
           "nullable": true,
@@ -17097,7 +17097,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodeUserStateByNode_": {
+        "fileNodeUserStateByNodeOrganization": {
           "table": "fileNodeUserState",
           "kind": "many",
           "nullable": true,
@@ -17156,7 +17156,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "driveByDrive_": {
+        "driveByDriveOrganization": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -17186,7 +17186,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "parentByParent": {
+        "parentByParentDrive": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -17202,7 +17202,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNodesByParent": {
+        "fileNodesByParentDrive": {
           "table": "fileNodes",
           "kind": "many",
           "nullable": true,
@@ -17218,7 +17218,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "parentByParent_": {
+        "parentByParent": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -17232,7 +17232,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "fileNodesByParent_": {
+        "fileNodesByParent": {
           "table": "fileNodes",
           "kind": "many",
           "nullable": true,
@@ -17260,7 +17260,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileShareLinksByNode_": {
+        "fileShareLinksByNodeOrganization": {
           "table": "fileShareLinks",
           "kind": "many",
           "nullable": true,
@@ -17276,7 +17276,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByNode": {
+        "fileUploadReservationsByNodeDrive": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -17292,7 +17292,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByNode_": {
+        "fileUploadReservationsByNode": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -17306,7 +17306,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByParent": {
+        "fileUploadReservationsByParentDrive": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -17322,7 +17322,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileUploadReservationsByParent_": {
+        "fileUploadReservationsByParent": {
           "table": "fileUploadReservations",
           "kind": "many",
           "nullable": true,
@@ -17336,7 +17336,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileVersionsByNode": {
+        "fileVersionsByNodeDrive": {
           "table": "fileVersions",
           "kind": "many",
           "nullable": true,
@@ -17352,7 +17352,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileVersionsByNode_": {
+        "fileVersionsByNode": {
           "table": "fileVersions",
           "kind": "many",
           "nullable": true,
@@ -17527,7 +17527,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode_": {
+        "nodeByNodeOrganization": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -17805,7 +17805,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "driveByDrive_": {
+        "driveByDriveOrganization": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -17835,7 +17835,7 @@ export default {
           "direction": "forward",
           "onDelete": "set null"
         },
-        "nodeByNode": {
+        "nodeByNodeDrive": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -17851,7 +17851,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode_": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -17879,7 +17879,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "parentByParent": {
+        "parentByParentDrive": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -17895,7 +17895,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "parentByParent_": {
+        "parentByParent": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": true,
@@ -18084,7 +18084,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "driveByDrive_": {
+        "driveByDriveOrganization": {
           "table": "fileDrives",
           "kind": "one",
           "nullable": false,
@@ -18100,7 +18100,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode": {
+        "nodeByNodeDrive": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -18116,7 +18116,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "nodeByNode_": {
+        "nodeByNode": {
           "table": "fileNodes",
           "kind": "one",
           "nullable": false,
@@ -22299,7 +22299,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "integrationUserAuthorizationsByInstallation": {
+        "integrationUserAuthorizationsByInstallationOrganization": {
           "table": "integrationUserAuthorizations",
           "kind": "many",
           "nullable": true,
@@ -22315,7 +22315,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "integrationUserAuthorizationsByInstallation_": {
+        "integrationUserAuthorizationsByInstallation": {
           "table": "integrationUserAuthorizations",
           "kind": "many",
           "nullable": true,
@@ -22565,7 +22565,7 @@ export default {
         ]
       },
       "relations": {
-        "installationByInstallation": {
+        "installationByInstallationOrganization": {
           "table": "integrationInstallations",
           "kind": "one",
           "nullable": false,
@@ -22581,7 +22581,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "installationByInstallation_": {
+        "installationByInstallation": {
           "table": "integrationInstallations",
           "kind": "one",
           "nullable": false,
@@ -22941,7 +22941,7 @@ export default {
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "inventoryMovementsByLocation_": {
+        "inventoryMovementsByLocationOrganization": {
           "table": "inventoryMovements",
           "kind": "many",
           "nullable": true,
@@ -22987,7 +22987,7 @@ export default {
           "direction": "reverse",
           "onDelete": "set null"
         },
-        "inventoryStockRecordsByLocation_": {
+        "inventoryStockRecordsByLocationOrganization": {
           "table": "inventoryStockRecords",
           "kind": "many",
           "nullable": true,
@@ -23248,7 +23248,7 @@ export default {
           "direction": "forward",
           "onDelete": "set null"
         },
-        "locationByLocation_": {
+        "locationByLocationOrganization": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -23307,7 +23307,7 @@ export default {
           ],
           "direction": "forward"
         },
-        "productByProduct_": {
+        "productByProductOrganization": {
           "table": "products",
           "kind": "one",
           "nullable": false,
@@ -23384,7 +23384,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "stockRecordByStockRecord_": {
+        "stockRecordByStockRecordOrganization": {
           "table": "inventoryStockRecords",
           "kind": "one",
           "nullable": false,
@@ -23790,7 +23790,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "inventoryMovementsByStockRecord_": {
+        "inventoryMovementsByStockRecordOrganization": {
           "table": "inventoryMovements",
           "kind": "many",
           "nullable": true,
@@ -23833,7 +23833,7 @@ export default {
           "direction": "forward",
           "onDelete": "set null"
         },
-        "locationByLocation_": {
+        "locationByLocationOrganization": {
           "table": "inventoryLocations",
           "kind": "one",
           "nullable": true,
@@ -23876,7 +23876,7 @@ export default {
           ],
           "direction": "forward"
         },
-        "productByProduct_": {
+        "productByProductOrganization": {
           "table": "products",
           "kind": "one",
           "nullable": false,
@@ -34711,7 +34711,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "productCategoryAssignmentsByCategory_": {
+        "productCategoryAssignmentsByCategoryOrganization": {
           "table": "productCategoryAssignments",
           "kind": "many",
           "nullable": true,
@@ -34805,7 +34805,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "categoryByCategory_": {
+        "categoryByCategoryOrganization": {
           "table": "productCategories",
           "kind": "one",
           "nullable": false,
@@ -34849,7 +34849,7 @@ export default {
           "direction": "forward",
           "onDelete": "cascade"
         },
-        "productByProduct_": {
+        "productByProductOrganization": {
           "table": "products",
           "kind": "one",
           "nullable": false,
@@ -36527,7 +36527,7 @@ export default {
           ],
           "direction": "reverse"
         },
-        "inventoryMovementsByProduct_": {
+        "inventoryMovementsByProductOrganization": {
           "table": "inventoryMovements",
           "kind": "many",
           "nullable": true,
@@ -36571,7 +36571,7 @@ export default {
           ],
           "direction": "reverse"
         },
-        "inventoryStockRecordsByProduct_": {
+        "inventoryStockRecordsByProductOrganization": {
           "table": "inventoryStockRecords",
           "kind": "many",
           "nullable": true,
@@ -36629,7 +36629,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "productCategoryAssignmentsByProduct_": {
+        "productCategoryAssignmentsByProductOrganization": {
           "table": "productCategoryAssignments",
           "kind": "many",
           "nullable": true,
@@ -43328,7 +43328,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileDriveGrantsByTeam_": {
+        "fileDriveGrantsByTeamOrganization": {
           "table": "fileDriveGrants",
           "kind": "many",
           "nullable": true,
@@ -43358,7 +43358,7 @@ export default {
           "direction": "reverse",
           "onDelete": "cascade"
         },
-        "fileNodeGrantsByTeam_": {
+        "fileNodeGrantsByTeamOrganization": {
           "table": "fileNodeGrants",
           "kind": "many",
           "nullable": true,

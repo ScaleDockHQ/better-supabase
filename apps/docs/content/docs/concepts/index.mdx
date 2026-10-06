@@ -62,7 +62,13 @@ from the same run, so they cannot drift.
   column without `_id`: `primary_contact_id` becomes `primaryContact`.
 - A reverse relation is named after the source table: `notes`. One-to-one
   reverse relations use the singular.
-- Collisions get a `_by_<column>` suffix. Rename any relation in the config:
+- Collisions get a `_by_<column>` suffix. A tenant column shared by both
+  sides of a composite key is left out of it, so
+  `(customer_id, organization_id)` gives `customerByCustomer`. When two keys
+  still get the same name, such as `(customer_id)` and
+  `(customer_id, organization_id)` to the same table, the suffix lists every
+  key column (`customerByCustomerOrganization`), then the constraint name.
+- Rename any relation in the config:
   `tables: { customers: { relations: { primaryContact: 'contact' } } }`.
 
 ## Validators

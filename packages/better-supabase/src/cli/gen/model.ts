@@ -740,32 +740,57 @@ function namingColumns(
 /**
  * Makes relation names unique per table and distinct from column names:
  * two FKs to the same table become `customersByPrimaryContact`-style names.
+ * When those still collide, the names use every column of the key
+ * (`locationsByCustomerOrganization`), then the constraint name, and only
+ * then a trailing `_`.
  */
 function dedupeRelations(
   list: readonly RelationModel[],
   columns: ReadonlySet<string>,
   casing: Casing,
 ): RelationModel[] {
-  const counts = new Map<string, number>();
-  for (const relation of list)
-    counts.set(relation.name, (counts.get(relation.name) ?? 0) + 1);
+  const snake = (name: string): string =>
+    casing === "camel" ? toSnake(name) : name;
+  const suffixed = (relation: RelationModel, suffix: string): string =>
+    applyCasing(`${snake(relation.name)}_by_${snake(suffix)}`, casing);
+  const keyColumns = (relation: RelationModel, all: boolean): string => {
+    const { columns: from, references: to, direction } = relation.meta;
+    const own = direction === "forward" ? from : to;
+    const other = direction === "forward" ? to : from;
+    return (all ? own : namingColumns(own, other))
+      .map((column) => column.replace(/_?[iI]d$/, ""))
+      .join("_");
+  };
+  const repeated = (names: readonly string[]): Set<string> => {
+    const seen = new Set<string>();
+    const twice = new Set<string>();
+    for (const name of names) (seen.has(name) ? twice : seen).add(name);
+    return twice;
+  };
+
+  const plain = repeated(list.map((relation) => relation.name));
+  const steps = [
+    (relation: RelationModel) => suffixed(relation, keyColumns(relation, true)),
+    (relation: RelationModel) => suffixed(relation, relation.meta.foreignKey),
+  ];
+  const names = steps.reduce(
+    (current, step) => {
+      const clash = repeated(current);
+      return list.map((relation, index) => {
+        const name = current[index] ?? relation.name;
+        return clash.has(name) || columns.has(name) ? step(relation) : name;
+      });
+    },
+    list.map((relation) =>
+      plain.has(relation.name) || columns.has(relation.name)
+        ? suffixed(relation, keyColumns(relation, false))
+        : relation.name,
+    ),
+  );
+
   const used = new Set<string>();
-  return list.map((relation) => {
-    let name = relation.name;
-    if ((counts.get(name) ?? 0) > 1 || columns.has(name)) {
-      const { columns: from, references: to } = relation.meta;
-      const via =
-        relation.meta.direction === "forward"
-          ? namingColumns(from, to)
-          : namingColumns(to, from);
-      const suffix = via
-        .map((column) => column.replace(/_?[iI]d$/, ""))
-        .join("_");
-      name = applyCasing(
-        `${casing === "camel" ? toSnake(name) : name}_by_${casing === "camel" ? toSnake(suffix) : suffix}`,
-        casing,
-      );
-    }
+  return list.map((relation, index) => {
+    let name = names[index] ?? relation.name;
     while (used.has(name) || columns.has(name)) name = `${name}_`;
     used.add(name);
     return { ...relation, name };
