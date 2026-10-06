@@ -1,0 +1,98 @@
+---
+title: Incoming webhooks
+description: Trigger URLs a tenant hands to other systems, with hashed tokens, optional signatures, limits and an inbox.
+---
+
+Automation products let a tenant create a URL that another system calls:
+a form, a CRM, a monitoring tool. The `webhooks-in` SQL module keeps those
+endpoints per tenant, and `createIncomingWebhooks` from
+`better-supabase/blocks/webhooks` serves them. Each delivery is checked, then
+stored in the [webhook inbox](/docs/blocks/jobs#webhook-inbox) with the
+endpoint's tenant, so it is acknowledged fast and processed with retries.
+
+```bash
+better-supabase sql add webhooks-in   # adds access, tenant and webhook-inbox
+```
+
+## Endpoints
+
+A member with `webhooks.manage` (`sql.modules.webhooks-in.permissions.manage`)
+creates an endpoint for their tenant. The token, which goes in the URL, and
+the signing secret are returned once; only the token's hash is stored, and
+members can't read the secret column.
+
+```ts
+import { createIncomingWebhooks } from "better-supabase/blocks/webhooks";
+
+const hooks = createIncomingWebhooks(ctx.postgres);
+const endpoint = await hooks
+  .create({
+    tenant: organizationId,
+    name: "Website form",
+    verify: "standard-webhooks",
+  })
+  .orThrow();
+// https://api.example.com/hooks/${endpoint.token}, signed with endpoint.secret
+
+await hooks.rotate(endpoint.id, { rotateSecret: true });
+await hooks.setEnabled(endpoint.id, false);
+await hooks.remove(endpoint.id);
+```
+
+| `verify`            | A delivery must carry                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `none` (default)    | only the token in the URL                                                                                       |
+| `standard-webhooks` | a [Standard Webhooks](/docs/standards) signature with the endpoint's `whsec_` secret                            |
+| `hmac-sha256`       | the hex HMAC-SHA256 of the body, optionally prefixed `sha256=`, in `signatureHeader` (`x-signature` by default) |
+
+Members with `webhooks.read` read their tenant's endpoints, including
+`receive_count`, `last_received_at` and `last_status`.
+
+## Receiving
+
+Route the public URL to `receive` on a service connection:
+
+```ts title="app/hooks/[token]/route.ts"
+const hooks = createIncomingWebhooks(postgres.admin, {
+  rateLimit: { max: 60, period: 60 },
+});
+
+export const POST = (
+  request: Request,
+  { params }: { params: { token: string } },
+) => hooks.receive(request, params.token);
+```
+
+`receive` answers `404` for an unknown or disabled token, `413` for a body over
+the endpoint's `max_body_bytes` (1 MiB by default,
+`sql.modules.webhooks-in.options.maxBodyBytes`), `429` with `Retry-After` past
+`rateLimit` (counted per endpoint with the
+[`rate-limit` module](/docs/blocks/sql#limits-in-route-handlers)), and `401` for a
+bad signature. Otherwise it stores the delivery and answers `202`, or `200`
+when the same `webhook-id` arrived before. Every answer after the lookup is
+counted on the endpoint.
+
+## Processing
+
+Deliveries are inbox messages of source `webhook-in` (or `source`), with the
+endpoint's tenant and its id in the `x-bs-endpoint-id` header:
+
+```ts
+import { createInbox } from "better-supabase/blocks/jobs";
+import { INCOMING_ENDPOINT_HEADER } from "better-supabase/blocks/webhooks";
+
+const inbox = createInbox(postgres.admin, {
+  source: "webhook-in",
+  verify: () =>
+    Promise.reject(
+      new Error("deliveries arrive through createIncomingWebhooks"),
+    ),
+});
+
+await inbox.process(async (message) => {
+  const endpointId = message.headers[INCOMING_ENDPOINT_HEADER];
+  await startWorkflowFor(message.tenant, endpointId, message.payload);
+});
+```
+
+A JSON body is stored as it is; any other body as `{ "body": "<text>" }`.

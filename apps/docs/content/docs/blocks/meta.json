@@ -10,6 +10,7 @@
     "outbox",
     "notifications",
     "webhooks-out",
+    "webhooks-in",
     "entitlements",
     "vector-search"
   ]

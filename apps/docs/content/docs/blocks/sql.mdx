@@ -77,6 +77,7 @@ lists the steps to move to pg-delta.
 | `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                             |
 | `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/blocks/notifications)           |
 | `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks-out) |
+| `webhooks-in`      | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox. See [Incoming webhooks](/docs/blocks/webhooks-in)                              |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
