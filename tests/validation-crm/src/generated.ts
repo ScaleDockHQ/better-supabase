@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { defineSchema, type Schema } from "better-supabase";
-import type { EnrichDatabase, MutableWhere, OrderByArg } from "better-supabase";
+import type { EnrichDatabase, MutableWhere, OrderByArg, OrderByInput } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
 
@@ -20005,5 +20005,7 @@ export type UpdateOf<T extends TableName> = Models[T]['Update'];
 export type WhereOf<T extends TableName> = MutableWhere<Models, T>;
 /** An `orderBy` for `T`: one sort or a list, by column or to-one relation. */
 export type OrderByOf<T extends TableName> = OrderByArg<Models, T>;
+/** One sort term of `T`'s `orderBy`, by column or to-one relation. */
+export type OrderTermOf<T extends TableName> = OrderByInput<Models, T>;
 
 export const schema: Schema<Models, Database, Functions> = defineSchema(meta);

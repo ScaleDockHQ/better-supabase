@@ -107,7 +107,18 @@ const orderBy: OrderByOf<"customers"> =
 await db.customers.findMany({ where, orderBy });
 ```
 
-`OrderByArg<Models, T>` from `better-supabase` is the generic form.
+`OrderTermOf<"table">` is one term of that sort, for a tiebreak or a
+list you assemble from parts:
+
+```ts
+import type { OrderByOf, OrderTermOf } from "@/lib/supabase/generated";
+
+const tiebreak: OrderTermOf<"customers"> = { id: "asc" };
+const orderBy: OrderByOf<"customers"> = [{ name: "asc" }, tiebreak];
+```
+
+`OrderByArg<Models, T>` and `OrderByInput<Models, T>` from `better-supabase`
+are the generic forms.
 
 ## Combining
 

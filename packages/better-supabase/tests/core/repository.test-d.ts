@@ -18,6 +18,7 @@ import {
   type TagsColor,
   type NoteKind,
   type OrderByOf,
+  type OrderTermOf,
   type WhereOf,
 } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
@@ -132,6 +133,23 @@ describe("OrderByOf", () => {
     void db.customers.findMany({ orderBy: sort(true) });
     // @ts-expect-error not a column of customers
     const wrong: OrderByOf<"customers"> = { nope: "asc" };
+    void wrong;
+  });
+
+  it("names one sort term with OrderTermOf", () => {
+    const tiebreak: OrderTermOf<"customers"> = { id: "asc" };
+    const byName: OrderTermOf<"customers"> = { name: "asc" };
+    const orderBy: OrderByOf<"customers"> = [byName, tiebreak];
+    void db.customers.findMany({ orderBy });
+    void db.customers.findMany({ orderBy: tiebreak });
+    expectTypeOf<OrderTermOf<"customers">>().toEqualTypeOf<
+      Exclude<OrderByOf<"customers">, readonly unknown[]>
+    >();
+    // @ts-expect-error a list is not one term
+    const list: OrderTermOf<"customers"> = [{ name: "asc" }];
+    // @ts-expect-error not a column of customers
+    const wrong: OrderTermOf<"customers"> = { nope: "asc" };
+    void list;
     void wrong;
   });
 });
