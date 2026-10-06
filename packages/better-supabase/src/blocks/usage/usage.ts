@@ -28,6 +28,45 @@ export interface RecordUsageOptions {
   readonly quantity?: number;
   /** A retried call with the same key counts once. */
   readonly idempotencyKey?: string;
+  /**
+   * What used it, such as `feature:summary` or `api:/v1/search`, kept in the
+   * history with `sql.modules.usage.options.history`.
+   */
+  readonly source?: string;
+  /** More detail for the history entry, such as a document id. */
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  /**
+   * Who used it, for a service transport recording on a user's behalf.
+   * Ignored for other callers, whose own user id is recorded.
+   */
+  readonly actor?: string;
+}
+
+/** One entry of the usage history. */
+export interface UsageHistoryEntry {
+  readonly id: number;
+  readonly meter: string;
+  readonly quantity: number;
+  /** The user who used it, or `undefined` for service usage without one. */
+  readonly actor: string | undefined;
+  readonly source: string | undefined;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly recordedAt: Temporal.Instant;
+}
+
+/** Usage of a meter in its current window per actor and source. */
+export interface UsageBreakdownEntry {
+  readonly actor: string | undefined;
+  readonly source: string | undefined;
+  readonly quantity: number;
+}
+
+export interface UsageHistoryOptions {
+  readonly meter?: string;
+  /** Defaults to 100, at most 1000. */
+  readonly limit?: number;
+  /** Only entries with a lower id, for the next page. */
+  readonly before?: number;
 }
 
 export interface UsageRecorded {
@@ -88,6 +127,22 @@ export interface Usage {
   ): AsyncResult<number | undefined>;
   /** The meter catalog (`options.meters`), empty without one. */
   meters(): AsyncResult<Readonly<Record<string, UsageMeterInfo>>>;
+  /**
+   * The tenant's usage entries, newest first, with who and what used each
+   * (`usage.read`). Empty without `sql.modules.usage.options.history`.
+   */
+  history(
+    organizationId: string,
+    options?: UsageHistoryOptions,
+  ): AsyncResult<readonly UsageHistoryEntry[]>;
+  /**
+   * The meter's usage in its current quota window per actor and source,
+   * largest first (`usage.read`). Empty without the history option.
+   */
+  breakdown(
+    organizationId: string,
+    meter: string,
+  ): AsyncResult<readonly UsageBreakdownEntry[]>;
 }
 
 const numberOf = (value: unknown): number =>
@@ -156,6 +211,9 @@ export function createUsage(options: UsageOptions): Usage {
     meter,
     quantity: record.quantity ?? 1,
     idempotency_key: record.idempotencyKey,
+    source: record.source,
+    metadata: record.metadata,
+    actor: record.actor,
   });
   const current = (
     organizationId: string,
@@ -170,6 +228,34 @@ export function createUsage(options: UsageOptions): Usage {
     current,
     remaining: (organizationId, meter) =>
       current(organizationId, meter).map((status) => status.remaining),
+    history: (organizationId, list = {}) =>
+      call(
+        "usage_history",
+        {
+          tenant: organizationId,
+          meter: list.meter,
+          max_rows: list.limit ?? 100,
+          before_id: list.before,
+        },
+        (value) =>
+          (Array.isArray(value) ? value.filter(isRecord) : []).map((row) => ({
+            id: numberOf(row["id"]),
+            meter: textOf(row["meter"]),
+            quantity: numberOf(row["quantity"]),
+            actor: optionalText(row["actor"]),
+            source: optionalText(row["source"]),
+            metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
+            recordedAt: toInstant(textOf(row["recorded_at"])),
+          })),
+      ),
+    breakdown: (organizationId, meter) =>
+      call("usage_breakdown", { tenant: organizationId, meter }, (value) =>
+        (Array.isArray(value) ? value.filter(isRecord) : []).map((row) => ({
+          actor: optionalText(row["actor"]),
+          source: optionalText(row["source"]),
+          quantity: numberOf(row["quantity"]),
+        })),
+      ),
     meters: () =>
       call("usage_meters", {}, (value) => {
         const row = isRecord(value) ? value : {};

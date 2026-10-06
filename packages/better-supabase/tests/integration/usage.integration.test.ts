@@ -128,6 +128,58 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("keeps who and what used a meter with options.history", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "usage"], {
+        modules: { usage: { options: { history: true } } },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.asRole(member);
+      await usage
+        .record(organization, "tokens", {
+          quantity: 2,
+          source: "feature:summary",
+          metadata: { doc: "d1" },
+          actor: owner.id,
+        })
+        .orThrow();
+      await s.service();
+      await usage
+        .consume(organization, "tokens", { quantity: 3, actor: owner.id })
+        .orThrow();
+      await s.asRole(owner);
+      const history = await usage.history(organization).orThrow();
+      expect(
+        history.map((entry) => [entry.quantity, entry.actor, entry.source]),
+      ).toEqual([
+        [3, owner.id, undefined],
+        [2, member.id, "feature:summary"],
+      ]);
+      expect(history[1]!.metadata).toEqual({ doc: "d1" });
+      expect(
+        await usage.history(organization, { before: history[0]!.id }).orThrow(),
+      ).toHaveLength(1);
+      expect(
+        (await usage.breakdown(organization, "tokens").orThrow()).map(
+          (entry) => [entry.actor, entry.quantity],
+        ),
+      ).toEqual([
+        [owner.id, 3],
+        [member.id, 2],
+      ]);
+      await s.asRole(member);
+      expect(await usage.history(organization)).toMatchObject({
+        error: { hint: "USAGE_FORBIDDEN" },
+      });
+    } finally {
+      await s.close();
+    }
+  });
+
   it("counts fractional quantities against fractional quotas", async () => {
     const s = await BlockSession.open(pool);
     try {

@@ -10,7 +10,7 @@ import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["meters"],
+  options: ["meters", "history"],
   hooks: ["usage_billing_period"],
   tables: {
     counters: {
@@ -31,6 +31,19 @@ const NAMES: ModuleNames = {
         meter: "meter",
         key: "idempotency_key",
         quantity: "quantity",
+        recordedAt: "recorded_at",
+      },
+    },
+    history: {
+      name: "usage_history",
+      columns: {
+        id: "id",
+        tenant: "organization_id",
+        meter: "meter",
+        quantity: "quantity",
+        actor: "actor_id",
+        source: "source",
+        metadata: "metadata",
         recordedAt: "recorded_at",
       },
     },
@@ -110,6 +123,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const cc = (logical: string): string => ctx.col("counters", logical);
   const ec = (logical: string): string => ctx.col("events", logical);
   const qc = (logical: string): string => ctx.col("quotas", logical);
+  const history = ctx.table("history");
+  const hc = (logical: string): string => ctx.col("history", logical);
+  const keepHistory = ctx.flag("history", false);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.usage;
   const canRead = (tenant: string): string =>
@@ -177,6 +193,32 @@ create table if not exists ${events} (
   primary key (${ec("tenant")}, ${ec("meter")}, ${ec("key")})
 );
 alter table ${events} alter column ${ec("quantity")} type numeric;
+${
+  keepHistory
+    ? `
+-- options.history: one row per recorded quantity, with who (actor_id) and
+-- what (source, metadata) used it, for a usage page.
+create table if not exists ${history} (
+  ${hc("id")} bigint generated always as identity primary key,
+  ${hc("tenant")} ${id} not null,
+  ${hc("meter")} text not null,
+  ${hc("quantity")} numeric not null,
+  ${hc("actor")} uuid,
+  ${hc("source")} text check (length(${hc("source")}) <= 200),
+  ${hc("metadata")} jsonb not null default '{}',
+  ${hc("recordedAt")} timestamptz not null default now()
+);
+create index if not exists usage_history_tenant_idx on ${history} (${hc("tenant")}, ${hc("recordedAt")} desc, ${hc("id")} desc);
+alter table ${history} enable row level security;
+revoke all on ${history} from anon, authenticated;
+grant select on ${history} to authenticated;
+grant all on ${history} to service_role;
+drop policy if exists "usage_history_read" on ${history};
+create policy "usage_history_read" on ${history} for select to authenticated
+  using (${canRead(hc("tenant"))});
+`
+    : ""
+}
 create index if not exists usage_events_recorded_at_idx on ${events} (${ec("recordedAt")});
 alter table ${events} enable row level security;
 revoke all on ${events} from anon, authenticated;
@@ -212,6 +254,9 @@ drop function if exists ${fn("usage_used")}(${id}, text, text);
 drop function if exists ${fn("record_usage")}(${id}, text, bigint, text);
 drop function if exists ${fn("consume_quota")}(${id}, text, bigint, text);
 drop function if exists ${fn("mark_usage_reported")}(${id}, text, date, bigint);
+-- The signatures before usage carried a source, metadata and actor.
+drop function if exists ${fn("record_usage")}(${id}, text, numeric, text);
+drop function if exists ${fn("consume_quota")}(${id}, text, numeric, text);
 
 -- The quota that applies to tenant and meter, or no row.
 create or replace function ${fn("usage_quota")}(tenant ${id}, meter text)
@@ -342,12 +387,17 @@ end;
 $$;
 
 -- Adds quantity once per idempotency key. Returns { recorded, used }:
--- recorded is false for a key seen before.
+-- recorded is false for a key seen before. With options.history, also keeps
+-- who (the caller, or actor for the service role) and what (source,
+-- metadata) used it.
 create or replace function ${fn("record_usage")}(
   tenant ${id},
   meter text,
   quantity numeric default 1,
-  idempotency_key text default null
+  idempotency_key text default null,
+  source text default null,
+  metadata jsonb default null,
+  actor uuid default null
 )
 returns jsonb
 language plpgsql
@@ -375,7 +425,15 @@ begin
   insert into ${counters} as c (${cc("tenant")}, ${cc("meter")}, ${cc("day")}, ${cc("value")})
   values (tenant, meter, today, quantity)
   on conflict (${cc("tenant")}, ${cc("meter")}, ${cc("day")}) do update
-    set ${cc("value")} = c.${cc("value")} + excluded.${cc("value")}, ${cc("updatedAt")} = now();
+    set ${cc("value")} = c.${cc("value")} + excluded.${cc("value")}, ${cc("updatedAt")} = now();${
+      keepHistory
+        ? `
+  insert into ${history} (${hc("tenant")}, ${hc("meter")}, ${hc("quantity")}, ${hc("actor")}, ${hc("source")}, ${hc("metadata")})
+  values (tenant, meter, quantity,
+    case when ${SERVICE_CALLER} then coalesce(record_usage.actor, auth.uid()) else auth.uid() end,
+    record_usage.source, coalesce(record_usage.metadata, '{}'));`
+        : ""
+    }
   return jsonb_build_object('recorded', true, 'used', ${fn("usage_used")}(tenant, meter, 'day'));
 end;
 $$;
@@ -387,7 +445,10 @@ create or replace function ${fn("consume_quota")}(
   tenant ${id},
   meter text,
   quantity numeric default 1,
-  idempotency_key text default null
+  idempotency_key text default null,
+  source text default null,
+  metadata jsonb default null,
+  actor uuid default null
 )
 returns jsonb
 language plpgsql
@@ -432,7 +493,7 @@ begin
         )::text;
     end if;
   end if;
-  return ${fn("record_usage")}(tenant, meter, quantity, idempotency_key);
+  return ${fn("record_usage")}(tenant, meter, quantity, idempotency_key, source, metadata, actor);
 end;
 $$;
 
@@ -476,6 +537,111 @@ as $$
   select exists (select 1 from updated)
 $$;
 
+-- A tenant's usage history, newest first, of one meter when given, before
+-- before_id for the next page. [] without options.history. Needs usage.read.
+create or replace function ${fn("usage_history")}(tenant ${id}, meter text default null, max_rows integer default 100, before_id bigint default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ${canRead("tenant")} then
+    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+  end if;
+  ${
+    keepHistory
+      ? `return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', h.${hc("id")}, 'meter', h.${hc("meter")}, 'quantity', h.${hc("quantity")},
+      'actor', h.${hc("actor")}, 'source', h.${hc("source")}, 'metadata', h.${hc("metadata")},
+      'recorded_at', h.${hc("recordedAt")}
+    ) order by h.${hc("id")} desc), '[]'::jsonb)
+    from (
+      select * from ${history} h
+      where h.${hc("tenant")} = usage_history.tenant
+        and (usage_history.meter is null or h.${hc("meter")} = usage_history.meter)
+        and (before_id is null or h.${hc("id")} < before_id)
+      order by h.${hc("id")} desc
+      limit least(greatest(coalesce(max_rows, 100), 1), 1000)
+    ) h
+  );`
+      : "return '[]'::jsonb;"
+  }
+end;
+$$;
+
+-- Who and what used a meter in the current window of its quota period:
+-- [{ actor, source, quantity }], largest first. [] without options.history.
+create or replace function ${fn("usage_breakdown")}(tenant ${id}, meter text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  quota record;
+  win record;
+begin
+  if not ${canRead("tenant")} then
+    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+  end if;
+  select * into quota from ${fn("usage_quota")}(tenant, meter);
+  select * into win from ${fn("usage_window")}(tenant, coalesce(quota.period, 'month'));
+  ${
+    keepHistory
+      ? `return (
+    select coalesce(jsonb_agg(jsonb_build_object('actor', b.actor, 'source', b.source, 'quantity', b.quantity) order by b.quantity desc), '[]'::jsonb)
+    from (
+      select h.${hc("actor")} as actor, h.${hc("source")} as source, sum(h.${hc("quantity")}) as quantity
+      from ${history} h
+      where h.${hc("tenant")} = usage_breakdown.tenant and h.${hc("meter")} = usage_breakdown.meter
+        and h.${hc("recordedAt")} >= win.starts_at and h.${hc("recordedAt")} < win.ends_at
+      group by 1, 2
+    ) b
+  );`
+      : "return '[]'::jsonb;"
+  }
+end;
+$$;
+
+-- Deletes up to batch history rows older than older_than; returns how many.
+create or replace function ${fn("purge_usage_history")}(older_than interval default '400 days', batch integer default 10000)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+${
+  keepHistory
+    ? `declare
+  purged integer;
+begin
+  with gone as (
+    delete from ${history} where ${hc("id")} in (
+      select h.${hc("id")} from ${history} h
+      where h.${hc("recordedAt")} < now() - older_than
+      order by h.${hc("id")} limit batch
+    )
+    returning 1
+  )
+  select count(*)::integer into purged from gone;
+  return purged;
+end;`
+    : `begin
+  return 0;
+end;`
+}
+$$;
+
+revoke execute on function ${fn("usage_history")}(${id}, text, integer, bigint) from public, anon;
+revoke execute on function ${fn("usage_breakdown")}(${id}, text) from public, anon;
+revoke execute on function ${fn("purge_usage_history")}(interval, integer) from public, anon, authenticated;
+grant execute on function ${fn("usage_history")}(${id}, text, integer, bigint) to authenticated, service_role;
+grant execute on function ${fn("usage_breakdown")}(${id}, text) to authenticated, service_role;
+grant execute on function ${fn("purge_usage_history")}(interval, integer) to service_role;
 revoke execute on function ${fn("usage_window")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_meters")}() from public;
 grant execute on function ${fn("usage_window")}(${id}, text) to service_role;
@@ -484,16 +650,16 @@ revoke execute on function ${fn("usage_quota")}(${id}, text) from public, anon, 
 revoke execute on function ${fn("usage_used")}(${id}, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_status")}(${id}, text) from public, anon;
 revoke execute on function ${fn("within_quota")}(${id}, text, bigint) from public, anon;
-revoke execute on function ${fn("record_usage")}(${id}, text, numeric, text) from public, anon;
-revoke execute on function ${fn("consume_quota")}(${id}, text, numeric, text) from public, anon;
+revoke execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
+revoke execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
 revoke execute on function ${fn("unreported_usage")}(integer) from public, anon, authenticated;
 revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) from public, anon, authenticated;
 grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
 grant execute on function ${fn("usage_used")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_status")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("within_quota")}(${id}, text, bigint) to authenticated, service_role;
-grant execute on function ${fn("record_usage")}(${id}, text, numeric, text) to authenticated, service_role;
-grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text) to authenticated, service_role;
+grant execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
+grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function ${fn("unreported_usage")}(integer) to service_role;
 grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) to service_role;`;
 }
@@ -510,15 +676,21 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "record_usage",
-      args: ["{id}", "text", "numeric", "text"],
+      args: ["{id}", "text", "numeric", "text", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },
     {
       name: "consume_quota",
-      args: ["{id}", "text", "numeric", "text"],
+      args: ["{id}", "text", "numeric", "text", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },
     { name: "unreported_usage", args: ["integer"], returns: "jsonb" },
+    {
+      name: "usage_history",
+      args: ["{id}", "text", "integer", "bigint"],
+      returns: "jsonb",
+    },
+    { name: "usage_breakdown", args: ["{id}", "text"], returns: "jsonb" },
     {
       name: "mark_usage_reported",
       args: ["{id}", "text", "date", "numeric"],
@@ -540,7 +712,7 @@ export const USAGE: ModuleDefinition = {
     {
       from: 1,
       description:
-        "Quantities, counters and limits are numeric, so meters count fractions; record_usage, consume_quota and mark_usage_reported take numeric.",
+        "Quantities, counters and limits are numeric, so meters count fractions; record_usage and consume_quota take numeric quantities and a source, metadata and actor, and mark_usage_reported takes numeric.",
       sql: (ctx) =>
         [
           `drop function if exists ${ctx.fn("record_usage")}(${ctx.idType}, text, bigint, text);`,

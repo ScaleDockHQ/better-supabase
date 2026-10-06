@@ -24,6 +24,85 @@ function fakeTransport(
   return { transport, calls };
 }
 
+describe("usage history", () => {
+  it("passes who and what used it, and reads the history and breakdown", async () => {
+    const { transport, calls } = fakeTransport((fn) => {
+      if (fn === "usage_history")
+        return [
+          {
+            id: "7",
+            meter: "tokens",
+            quantity: "1.5",
+            actor: "u1",
+            source: "feature:summary",
+            metadata: { doc: "d1" },
+            recorded_at: "2026-01-01T00:00:00Z",
+          },
+          {
+            id: 6,
+            meter: "tokens",
+            quantity: 2,
+            actor: null,
+            source: null,
+            metadata: null,
+            recorded_at: "2026-01-01T00:00:00Z",
+          },
+        ];
+      if (fn === "usage_breakdown")
+        return [{ actor: "u1", source: null, quantity: "3.5" }];
+      return { recorded: true, used: 1 };
+    });
+    const usage = createUsage({ transport });
+    await usage
+      .record("org", "tokens", {
+        quantity: 1.5,
+        source: "feature:summary",
+        metadata: { doc: "d1" },
+        actor: "u1",
+      })
+      .orThrow();
+    expect(calls[0]![2]).toEqual({
+      tenant: "org",
+      meter: "tokens",
+      quantity: 1.5,
+      idempotency_key: undefined,
+      source: "feature:summary",
+      metadata: { doc: "d1" },
+      actor: "u1",
+    });
+    const [first, second] = await usage
+      .history("org", { meter: "tokens", limit: 2, before: 9 })
+      .orThrow();
+    expect(calls[1]![2]).toEqual({
+      tenant: "org",
+      meter: "tokens",
+      max_rows: 2,
+      before_id: 9,
+    });
+    expect(first).toMatchObject({
+      id: 7,
+      quantity: 1.5,
+      actor: "u1",
+      source: "feature:summary",
+      metadata: { doc: "d1" },
+    });
+    expect(first!.recordedAt.toString()).toBe("2026-01-01T00:00:00Z");
+    expect(second).toMatchObject({
+      actor: undefined,
+      source: undefined,
+      metadata: {},
+    });
+    await usage.history("org").orThrow();
+    expect(calls[2]![2]).toMatchObject({ max_rows: 100 });
+    expect(await usage.breakdown("org", "tokens").orThrow()).toEqual([
+      { actor: "u1", source: undefined, quantity: 3.5 },
+    ]);
+    const empty = createUsage(fakeTransport(() => null));
+    expect(await empty.history("org").orThrow()).toEqual([]);
+    expect(await empty.breakdown("org", "x").orThrow()).toEqual([]);
+  });
+});
+
 describe("createUsage", () => {
   it("records and consumes with defaults and idempotency keys", async () => {
     const { transport, calls } = fakeTransport(() => ({
