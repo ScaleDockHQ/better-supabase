@@ -46,7 +46,9 @@ export function avatarRenderer(storage: StorageClient, projectUrl: string) {
     if (url.origin !== origin || !url.pathname.startsWith(prefix)) return value;
     const path = decodeURIComponent(url.pathname.slice(prefix.length));
     if (!avatars.match(path)) return value;
-    const rendered = new URL(bucket.publicUrl(path, { transform }));
+    const built = bucket.publicUrl(path, { transform });
+    if (!built.ok) return value;
+    const rendered = new URL(built.data);
     for (const [name, param] of url.searchParams) {
       if (!rendered.searchParams.has(name))
         rendered.searchParams.set(name, param);

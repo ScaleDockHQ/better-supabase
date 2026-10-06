@@ -171,7 +171,7 @@ describe.skipIf(!live)("Storage kit", async () => {
   it("builds public render URLs the next/image loader keeps in sync", async () => {
     const target = { orgId: ACME, file: `${CUSTOMER}.webp` };
     await publicAdmin.upload(target, image("face"), { upsert: true }).orThrow();
-    const object = publicAdmin.publicUrl(target);
+    const object = publicAdmin.publicUrl(target).data!;
     expect(await (await fetch(object)).text()).toBe("face");
     const rendered = await publicAdmin
       .renderUrl(target, { width: 128, quality: 60 })

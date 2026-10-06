@@ -126,4 +126,14 @@ const label = "$rpc in a string";
     expect(result.review.map((entry) => entry.line)).toEqual([1, 2]);
     expect(result.review[0]?.message).toContain("raw: true");
   });
+
+  it("lists bucket publicUrl calls and leaves the webhook helper alone", () => {
+    const source = `const url = storage.publicUrl(path);
+const allow = publicUrl({ allowHosts: [] });
+`;
+    const result = applyCodemod(v06, source);
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([1]);
+    expect(result.review[0]?.message).toContain("Result");
+  });
 });
