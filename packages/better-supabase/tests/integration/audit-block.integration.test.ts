@@ -80,6 +80,115 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
+  it("maps an adopted log's values and labels tenants from the app's table", async () => {
+    const s = await BlockSession.open(pool);
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const log = `public.bs_activity_${suffix}`;
+    const workspaces = `public.bs_workspaces_${suffix}`;
+    try {
+      await s.client.query(`
+        create table ${workspaces} (workspace_id uuid primary key, title text);
+        create table ${log} (
+          id bigint generated always as identity primary key,
+          workspace_id uuid,
+          occurred_at timestamptz not null default now(),
+          event_type text, category text, outcome text, source text,
+          target_type text, record_id text, actor_id uuid, actor_type text,
+          scope text, workspace_name text, metadata jsonb
+        );`);
+      await s.install(["audit"], {
+        modules: {
+          audit: {
+            mode: "adopt",
+            tables: { log },
+            columns: {
+              log: {
+                tenant: "workspace_id",
+                actorKind: "actor_type",
+                tenantLabel: "workspace_name",
+                scope: "scope",
+                table: null,
+                op: null,
+                old: null,
+                new: null,
+                changed: null,
+                actorRole: null,
+                impersonatedBy: null,
+                impersonationReason: null,
+                supportSession: null,
+                idempotencyKey: null,
+              },
+            },
+            options: {
+              values: {
+                scope: { tenant: "workspace", platform: "global" },
+                actorKind: { service: "api" },
+                outcome: { success: "ok", failure: "error" },
+              },
+              tenantLabel: `${workspaces}.title`,
+              tenantLabelKey: "workspace_id",
+            },
+          },
+        },
+      });
+      const workspace = crypto.randomUUID();
+      await s.client.query(
+        `insert into ${workspaces} values ($1, 'North office')`,
+        [workspace],
+      );
+      await s.service();
+      await s.client.query(
+        "select better_supabase.audit_event('deal.lost', outcome => 'failure', tenant => $1)",
+        [workspace],
+      );
+      await s.client.query("select better_supabase.audit_event('system.ping')");
+      const { rows } = await s.client.query<Record<string, string | null>>(
+        `select event_type, outcome, scope, actor_type, workspace_name from ${log} order by id`,
+      );
+      expect(rows).toEqual([
+        {
+          event_type: "deal.lost",
+          outcome: "error",
+          scope: "workspace",
+          actor_type: "api",
+          workspace_name: "North office",
+        },
+        {
+          event_type: "system.ping",
+          outcome: "ok",
+          scope: "global",
+          actor_type: "api",
+          workspace_name: null,
+        },
+      ]);
+      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      const page = await audit.list({ limit: 10 }).orThrow();
+      expect(
+        page.entries.map(({ eventType, outcome, scope, actorKind }) => ({
+          eventType,
+          outcome,
+          scope,
+          actorKind,
+        })),
+      ).toEqual([
+        {
+          eventType: "system.ping",
+          outcome: "success",
+          scope: "platform",
+          actorKind: "service",
+        },
+        {
+          eventType: "deal.lost",
+          outcome: "failure",
+          scope: "tenant",
+          actorKind: "service",
+        },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("lists, reveals and exports through list_audit_events as the caller", async () => {
     const s = await BlockSession.open(pool);
     try {

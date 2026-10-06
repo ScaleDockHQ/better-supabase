@@ -626,8 +626,8 @@ function. Doctor needs a database connection for this check.
 **Warning: migration-only block option.** A module in `sql.modules` sets an option
 that only exists to match a schema you are adopting: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` or an `eventIdType` or `runIdType`
-other than `text` for webhooks-out, or a `blockSource` or `defaultSource` for
-the outbox. The config only accepts them with
+other than `text` for webhooks-out, a `blockSource` or `defaultSource` for
+the outbox, or `values` for the audit log. The config only accepts them with
 `mode: "adopt"`. Move the data to the managed default (hash the tokens, move
 the secrets into Vault), then remove the option.
 

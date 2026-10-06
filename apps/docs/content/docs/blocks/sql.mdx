@@ -265,17 +265,19 @@ select better_supabase.audit_event(
 
 The module options (`sql.modules.audit.options`):
 
-| Option          | Default             | What it does                                                                                                                                                                                              |
-| --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                                                                                       |
-| `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
-| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
-| `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
-| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
-| `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                                                                                     |
-| `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                                                                                         |
-| `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                                                                                           |
-| `exempt`        | `[]`                | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
+| Option          | Default                  | What it does                                                                                                                                                                                              |
+| --------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`  | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                       |
+| `appendOnly`    | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
+| `readPolicy`    | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
+| `impersonators` | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
+| `restricted`    | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
+| `eventRoles`    | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                     |
+| `eventCategory` | `system`                 | the category of an `audit_event` call without one                                                                                                                                                         |
+| `eventSource`   | `app`                    | the source of an `audit_event` call without one                                                                                                                                                           |
+| `exempt`        | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
+| `tenantLabel`   | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
+| `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome` and `source`, see below                                                                                                     |
 
 `sql add` and `sql sync` read the `audit(...)` calls in your schema files and
 migrations, and write a pgTAP file per audited table to `sql.testsDir`
@@ -294,6 +296,46 @@ An app with its own audit table adopts it: map `sql.modules.audit.tables.log` an
 snapshots or `supportSession`, for example). The module then writes into your table and never
 creates it.
 
+When the adopted log uses its own words for the same values, map them with
+`options.values`: the module's value to yours, per column. Writes store your
+values, and `list_audit_events` (and so `createAuditLog`) reads them back as
+the module's, so exports and OCSF mapping keep working. Doctor reports the
+option as migration-only ([BS314](/docs/cli/doctor#bs314)).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      audit: {
+        mode: "adopt",
+        tables: { log: "public.activity_log" },
+        columns: {
+          log: {
+            tenant: "workspace_id",
+            actorKind: "actor_type",
+            tenantLabel: "workspace_name",
+          },
+        },
+        options: {
+          values: {
+            scope: { tenant: "workspace", platform: "global" },
+            actorKind: { user: "member", service: "api" },
+            outcome: { success: "ok", failure: "error" },
+            source: { database: "db" },
+          },
+          tenantLabel: "public.workspaces.title",
+          tenantLabelKey: "workspace_id",
+        },
+      },
+    },
+  },
+});
+```
+
+`source` covers row changes (`database`) and `audit_event` calls alike.
+Values without a mapping are stored as they are. Two module values can't map
+to the same stored value, because reads couldn't tell them apart.
+
 ### Context columns
 
 Every entry also records what an audit page shows, as it was at the time:
@@ -302,7 +344,7 @@ Every entry also records what an audit page shows, as it was at the time:
 | ---------------- | --------------------------------------------------------------------------------------------------- |
 | `actor_kind`     | `user`, `service`, `support`, `impersonation`, `oauth-client` or `system`, from the claims          |
 | `actor_label`    | the actor's `full_name` metadata or email                                                           |
-| `tenant_label`   | the organization's name, with the `organizations` module                                            |
+| `tenant_label`   | the organization's name, with the `organizations` module or `options.tenantLabel`                   |
 | `target_label`   | the value of the table's `label_column` (`audit(..., label_column => 'title')`), or `audit_event`'s |
 | `summary`        | `audit_event(summary => ...)`                                                                       |
 | `request_id`     | the request's `x-request-id` header                                                                 |

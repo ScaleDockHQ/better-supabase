@@ -3,6 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
+import { auditRead, isAuditValueColumn } from "./audit-values.ts";
 
 /** Logical log column to the key `list_audit_events` returns it under. */
 const ENTRY_KEYS: readonly (readonly [string, string])[] = [
@@ -54,7 +55,10 @@ export function listEntries(ctx: ModuleContext, restricted: boolean): string {
       hasColumn(ctx, "log", logical) &&
       !hidden.has(logical) &&
       !(restricted && (logical === "old" || logical === "new")),
-  ).map(([logical, key]) => `'${key}', l.${c(logical)}`);
+  ).map(([logical, key]) => {
+    const value = `l.${c(logical)}`;
+    return `'${key}', ${isAuditValueColumn(logical) ? auditRead(ctx, logical, value) : value}`;
+  });
   // jsonb_build_object takes at most 100 arguments; split in chunks of 20 keys.
   const chunks: string[] = [];
   for (let index = 0; index < pairs.length; index += 20)

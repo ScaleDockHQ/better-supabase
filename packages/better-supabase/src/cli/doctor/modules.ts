@@ -645,7 +645,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Migration-only module option",
     description:
-      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets in a column, non-text webhook ids, or a custom outbox source. Remove it once the data matches the managed default.",
+      "A module in adopt mode sets an option that only exists to match an existing schema: plain invitation tokens, webhook secrets in a column, non-text webhook ids, a custom outbox source, or audit values mapped to an adopted log's. Remove it once the data matches the managed default.",
     check: migrationOptions,
   },
   {

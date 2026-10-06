@@ -37,6 +37,21 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
     effect: "types run ids for an existing column; managed tables use text",
   },
   {
+    module: "audit",
+    option: "values",
+    departs: (value) =>
+      typeof value === "object" &&
+      value !== null &&
+      Object.values(value).some(
+        (entries: unknown) =>
+          typeof entries === "object" &&
+          entries !== null &&
+          Object.keys(entries).length > 0,
+      ),
+    effect:
+      "writes the adopted log's scope, actor kind, outcome or source values instead of the module's",
+  },
+  {
     module: "outbox",
     option: "blockSource",
     departs: (value) => value !== "better-supabase/{module}",

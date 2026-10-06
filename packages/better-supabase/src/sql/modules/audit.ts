@@ -12,6 +12,7 @@ import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditTests } from "./audit-tests.ts";
+import { auditWrite, tenantLabel } from "./audit-values.ts";
 
 const NAMES: ModuleNames = {
   options: [
@@ -24,6 +25,9 @@ const NAMES: ModuleNames = {
     "readPolicy",
     "restricted",
     "tenantColumn",
+    "tenantLabel",
+    "tenantLabelKey",
+    "values",
   ],
   tables: {
     log: {
@@ -148,14 +152,6 @@ const ACTOR_KIND = `case
 
 const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')`;
 
-/** The tenant's name as it was, from the organizations module's table when installed. */
-function tenantLabel(ctx: ModuleContext, tenant: string): string {
-  if (!ctx.installed("organizations")) return "null";
-  const organizations = ctx.of("organizations");
-  if (!organizations.has("organizations", "name")) return "null";
-  return `(select o.${organizations.col("organizations", "name")}::text from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${tenant})`;
-}
-
 /** The pairs every entry writes for the version 3 columns. */
 function contextPairs(
   ctx: ModuleContext,
@@ -163,14 +159,21 @@ function contextPairs(
   values: { targetLabel: string; summary: string; correlationId: string },
 ): (readonly [string, string])[] {
   return [
-    ["actorKind", ACTOR_KIND],
+    ["actorKind", auditWrite(ctx, "actorKind", ACTOR_KIND)],
     ["actorLabel", ACTOR_LABEL],
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
     ["summary", values.summary],
     ["requestId", requestHeader("x-request-id")],
     ["correlationId", values.correlationId],
-    ["scope", `case when ${tenant} is null then 'platform' else 'tenant' end`],
+    [
+      "scope",
+      auditWrite(
+        ctx,
+        "scope",
+        `case when ${tenant} is null then 'platform' else 'tenant' end`,
+      ),
+    ],
   ];
 }
 
@@ -361,8 +364,8 @@ function triggerFunction(
       "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
     ],
     ["category", "coalesce(entry.category, 'data')"],
-    ["outcome", "'success'"],
-    ["source", "'database'"],
+    ["outcome", auditWrite(ctx, "outcome", "'success'")],
+    ["source", auditWrite(ctx, "source", "'database'")],
     ["targetType", "coalesce(entry.target_type, tg_table_name)"],
     ...contextPairs(ctx, "row_tenant", {
       targetLabel: "row_data ->> entry.label_column",
@@ -457,10 +460,14 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
       "category",
       `coalesce(category, ${sqlString(ctx.text("eventCategory", "system"))})`,
     ],
-    ["outcome", "coalesce(outcome, 'success')"],
+    ["outcome", auditWrite(ctx, "outcome", "coalesce(outcome, 'success')")],
     [
       "source",
-      `coalesce(source, ${sqlString(ctx.text("eventSource", "app"))})`,
+      auditWrite(
+        ctx,
+        "source",
+        `coalesce(source, ${sqlString(ctx.text("eventSource", "app"))})`,
+      ),
     ],
     ["targetType", "target_type"],
     ["metadata", "coalesce(metadata, '{}')"],
