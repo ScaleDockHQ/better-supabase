@@ -9,9 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Queryable } from "../../../src/cli/introspect/source.ts";
 
 import {
+  apiSchemas,
   type Lint,
   managementAdvisors,
   splinterAdvisors,
+  splinterScript,
 } from "../../../src/cli/doctor/advisors.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
@@ -234,5 +236,37 @@ describe("managementAdvisors", () => {
     await expect(empty.lints("performance")).rejects.toThrow(
       'Management API performance advisors returned no "lints".',
     );
+  });
+});
+
+describe("splinter exposed schemas", () => {
+  it("reads [api] schemas from config.toml", () => {
+    expect(apiSchemas({ api: { schemas: ["public", "api", 3, " "] } })).toEqual(
+      ["public", "api"],
+    );
+    expect(apiSchemas({ api: { schemas: "public" } })).toEqual([]);
+    expect(apiSchemas(undefined)).toEqual([]);
+  });
+
+  it("sets pgrst.db_schemas before splinter runs", () => {
+    expect(splinterScript(SQL, ["public", "o'k"])).toBe(
+      `begin read only;\nset local pgrst.db_schemas = 'public,o''k';\n${SQL}\n;\nrollback;`,
+    );
+    expect(splinterScript(SQL)).toBe(`begin read only;\n${SQL}\n;\nrollback;`);
+  });
+
+  it("passes the schemas to the database", async () => {
+    const cacheDir = join(
+      await mkdtemp(join(tmpdir(), "better-supabase-splinter-")),
+      "cache",
+    );
+    const db = recording({ rows: [] });
+    await splinterAdvisors(db, "local", {
+      cacheDir,
+      fetch: fakeFetch(() => ({ text: SQL })).fetch,
+      schemas: ["public", "api"],
+    }).lints("security");
+    expect(db.texts[0]).toContain("set local pgrst.db_schemas = 'public,api';");
+    await rm(join(cacheDir, ".."), { recursive: true, force: true });
   });
 });
