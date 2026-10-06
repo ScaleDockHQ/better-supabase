@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { defineSchema, type Schema } from "better-supabase";
-import type { EnrichDatabase, StoragePath } from "better-supabase";
+import type { EnrichDatabase, MutableWhere, StoragePath } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
 import meta from "./generated.meta.js";
 
@@ -413,6 +413,8 @@ export type ForeignKeyConstraint = Models[TableName]['ForeignKeys'];
 export type RowOf<T extends TableName> = Models[T]['Row'];
 export type InsertOf<T extends TableName> = Models[T]['Insert'];
 export type UpdateOf<T extends TableName> = Models[T]['Update'];
+/** A `where` for `T` you can assign to one key at a time. */
+export type WhereOf<T extends TableName> = MutableWhere<Models, T>;
 
 /** Bucket configs for `defineBucket` from `better-supabase/storage`. */
 export const buckets = {

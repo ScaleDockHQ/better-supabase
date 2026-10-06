@@ -17,6 +17,7 @@ import {
   type CustomersStatus,
   type TagsColor,
   type NoteKind,
+  type WhereOf,
 } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
 
@@ -97,6 +98,20 @@ describe("payload inference", () => {
         updatedAt: string;
       }>
     >();
+  });
+});
+
+describe("MutableWhere and WhereOf", () => {
+  it("builds a filter one key at a time", () => {
+    const filter = (status?: CustomersStatus, search?: string) => {
+      const where: WhereOf<"customers"> = {};
+      if (status) where.status = { in: [status] };
+      if (search) where.OR = [{ kvk: null }, { name: { ilike: search } }];
+      // @ts-expect-error status only takes its CHECK values
+      if (!status) where.status = "gone";
+      return db.customers.findMany({ where });
+    };
+    void filter;
   });
 });
 

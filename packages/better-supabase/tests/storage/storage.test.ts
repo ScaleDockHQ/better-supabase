@@ -706,6 +706,45 @@ describe("BucketClient remove and list", () => {
     });
   });
 
+  it("copies and moves objects within the bucket", async () => {
+    const { client, files, calls } = fakeStorage({
+      files: { "docs/o1/u1/a.txt": "a" },
+    });
+    const bucket = docs.connect(client);
+    expect(await bucket.copy(A, { ...A, file: "b.txt" })).toEqual(
+      ok({ path: "o1/u1/b.txt" }),
+    );
+    expect(await bucket.move({ ...A, file: "b.txt" }, "o1/u2/c.txt")).toEqual(
+      ok({ path: "o1/u2/c.txt" }),
+    );
+    expect([...files.keys()].sort()).toEqual([
+      "docs/o1/u1/a.txt",
+      "docs/o1/u2/c.txt",
+    ]);
+    expect(calls.map((call) => [call.method, ...call.args])).toEqual([
+      ["copy", "o1/u1/a.txt", "o1/u1/b.txt"],
+      ["move", "o1/u1/b.txt", "o1/u2/c.txt"],
+    ]);
+    expect(await bucket.copy(A, "o1/u2/c.txt")).toMatchObject({
+      ok: false,
+      error: { kind: "conflict", table: "docs" },
+    });
+    expect(await bucket.move("o1/u9/none.txt", A)).toMatchObject({
+      ok: false,
+      error: { kind: "not_found" },
+    });
+  });
+
+  it("checks both paths against the template before copying", async () => {
+    const { client, calls } = fakeStorage({
+      files: { "docs/o1/u1/a.txt": "a" },
+    });
+    const bucket = docs.connect(client);
+    const result = await bucket.copy(A, "not/a/valid/path/at/all.txt");
+    expect(result.ok).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
   it("lists objects in nested folders with their metadata", async () => {
     const { client, calls } = fakeStorage({
       files: {

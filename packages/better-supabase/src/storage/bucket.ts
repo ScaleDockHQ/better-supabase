@@ -238,6 +238,16 @@ export interface BucketClient<P extends string, Id extends string = string> {
   remove(
     targets: readonly ObjectTarget<P, Id>[],
   ): AsyncResult<readonly string[]>;
+  /** Copies an object to another path in the bucket; an existing object there is a `conflict`. */
+  copy(
+    from: ObjectTarget<P, Id>,
+    to: ObjectTarget<P, Id>,
+  ): AsyncResult<{ path: StoragePath<Id> }>;
+  /** Moves an object to another path in the bucket, as one Storage request. */
+  move(
+    from: ObjectTarget<P, Id>,
+    to: ObjectTarget<P, Id>,
+  ): AsyncResult<{ path: StoragePath<Id> }>;
   list(
     within?: Partial<TemplateValues<P>>,
     options?: { signal?: AbortSignal },
@@ -888,6 +898,15 @@ function connectBucket<P extends string, Id extends string>(
       return run(() => api().remove(paths)).map(() => paths);
     });
 
+  const transfer =
+    (method: "copy" | "move"): BucketClient<P, Id>["copy"] =>
+    (from, to) =>
+      AsyncResult.from(async () => {
+        const [source, path] = [resolve(from), resolve(to)];
+        const result = run<unknown>(() => api()[method](source, path));
+        return result.map(() => ({ path }));
+      });
+
   const walk = async (
     folder: string,
     signal: AbortSignal | undefined,
@@ -992,6 +1011,8 @@ function connectBucket<P extends string, Id extends string>(
           : ok(true);
       }),
     remove,
+    copy: transfer("copy"),
+    move: transfer("move"),
     list,
     signedUrl,
     signedUrls: (targets, options) =>
