@@ -44,6 +44,34 @@ describe("usage module", () => {
     ).toContain("create or replace function better_supabase.tenant_plans");
   });
 
+  it("reads the meter catalog from a table", () => {
+    const sql = usage({
+      meters: {
+        table: "app.meters",
+        key: "slug",
+        label: "title",
+        active: "on",
+      },
+    });
+    expect(sql).toContain(
+      `jsonb_object_agg(m."slug"::text, jsonb_strip_nulls(jsonb_build_object('label', m."title"::text)))`,
+    );
+    expect(sql).toContain(`from "app"."meters" m where m."on"`);
+    expect(sql).toContain("stable\nsecurity definer");
+    expect(sql).toContain(
+      `if not ("better_supabase"."usage_meters"() ? meter)`,
+    );
+    expect(() => usage({ meters: { table: "a.b.c" } })).toThrow(
+      /"table" or "schema.table"/,
+    );
+    expect(() => usage({ meters: { table: "m", color: "c" } })).toThrow(
+      /not color/,
+    );
+    expect(() => usage({ meters: { table: "m", key: "Bad" } })).toThrow(
+      /lowercase identifier/,
+    );
+  });
+
   it("refuses meters outside options.meters and returns the catalog", () => {
     const sql = usage({ meters: { "api.requests": { unit: "requests" } } });
     expect(sql).toContain(`'{"api.requests":{"unit":"requests"}}'::jsonb`);

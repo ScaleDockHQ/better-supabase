@@ -235,6 +235,58 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("reads the meter catalog from the app's table", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_meters (
+           slug text primary key, unit_name text, live boolean not null default true
+         );
+         insert into public.bs_test_meters values
+           ('tokens', 'tokens', true), ('legacy', 'calls', false);`,
+      );
+      await s.install(["organizations", "usage"], {
+        modules: {
+          usage: {
+            options: {
+              meters: {
+                table: "bs_test_meters",
+                key: "slug",
+                unit: "unit_name",
+                active: "live",
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.asRole(owner);
+      expect(await usage.meters().orThrow()).toEqual({
+        tokens: { unit: "tokens" },
+      });
+      expect(
+        (await usage.record(organization, "tokens").orThrow()).recorded,
+      ).toBe(true);
+      await s.rows("savepoint meters");
+      expect(await usage.record(organization, "legacy")).toMatchObject({
+        error: { hint: "USAGE_METER_UNKNOWN" },
+      });
+      await s.rows("rollback to savepoint meters");
+      await s.service();
+      await s.rows(
+        "insert into public.bs_test_meters values ('storage', 'GB', true)",
+      );
+      await s.asRole(owner);
+      expect(
+        (await usage.record(organization, "storage").orThrow()).recorded,
+      ).toBe(true);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("counts fractional quantities against fractional quotas", async () => {
     const s = await BlockSession.open(pool);
     try {

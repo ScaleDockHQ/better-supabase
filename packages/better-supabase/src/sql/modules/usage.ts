@@ -77,13 +77,85 @@ export interface UsageMeter {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** `options.meters`: the meter catalog; with it, unknown meters are refused. */
+/** `options.meters` as a table: the app's own meter catalog. */
+interface MeterTable {
+  readonly table: string;
+  readonly key: string;
+  readonly unit?: string;
+  readonly category?: string;
+  readonly label?: string;
+  /** A boolean column; only rows where it is true are meters. */
+  readonly active?: string;
+}
+
+const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
+
+function meterTableOf(
+  where: string,
+  option: Record<string, unknown>,
+): MeterTable {
+  const text = (name: string): string | undefined => {
+    const value = option[name];
+    if (value === undefined) return undefined;
+    if (
+      typeof value !== "string" ||
+      !value.split(".").every((part) => IDENT.test(part))
+    ) {
+      throw new TypeError(`${where}.${name} must be a lowercase identifier`);
+    }
+    return value;
+  };
+  for (const name of Object.keys(option)) {
+    if (
+      !["table", "key", "unit", "category", "label", "active"].includes(name)
+    ) {
+      throw new TypeError(
+        `${where}: a table catalog takes table, key, unit, category, label and active, not ${name}`,
+      );
+    }
+  }
+  const table = text("table")!;
+  if (table.split(".").length > 2) {
+    throw new TypeError(`${where}.table must be "table" or "schema.table"`);
+  }
+  const optional = (name: "unit" | "category" | "label" | "active") => {
+    const value = text(name);
+    return value === undefined ? {} : { [name]: value };
+  };
+  return {
+    table,
+    key: text("key") ?? "key",
+    ...optional("unit"),
+    ...optional("category"),
+    ...optional("label"),
+    ...optional("active"),
+  };
+}
+
+const isMeterTable = (
+  value: Readonly<Record<string, UsageMeter>> | MeterTable,
+): value is MeterTable => "table" in value && typeof value.table === "string";
+
+const qualifiedTable = (table: string): string => {
+  const [schema, name] = table.includes(".")
+    ? table.split(".", 2)
+    : ["public", table];
+  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
+};
+
+/**
+ * `options.meters`: the meter catalog, inline or `{ table }` for one the app
+ * keeps in a table; with either, unknown meters are refused.
+ */
 function metersOf(
   ctx: ModuleContext,
-): Readonly<Record<string, UsageMeter>> | undefined {
+): Readonly<Record<string, UsageMeter>> | MeterTable | undefined {
   const where = "sql.modules.usage.options.meters";
   const option = ctx.option("meters");
   if (option === undefined) return undefined;
+  if (isObject(option) && typeof option["table"] === "string") {
+    return meterTableOf(where, option);
+  }
   const out: Record<string, UsageMeter> = {};
   if (!isObject(option)) {
     throw new TypeError(
@@ -136,10 +208,25 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   // plan key when entitlements read a plan catalog, or to every tenant with
   // plan '*'.
   const meters = metersOf(ctx);
-  const catalog = sqlString(JSON.stringify(meters ?? {}));
+  const table =
+    meters !== undefined && isMeterTable(meters) ? meters : undefined;
+  const catalog =
+    table === undefined
+      ? `${sqlString(JSON.stringify(meters ?? {}))}::jsonb`
+      : `(select coalesce(jsonb_object_agg(m.${sqlIdent(table.key)}::text, jsonb_strip_nulls(jsonb_build_object(${(
+          ["unit", "category", "label"] as const
+        )
+          .flatMap((name) => {
+            const column = table[name];
+            return column === undefined
+              ? []
+              : [`'${name}', m.${sqlIdent(column)}::text`];
+          })
+          .join(", ")}))), '{}'::jsonb)
+    from ${qualifiedTable(table.table)} m${table.active ? ` where m.${sqlIdent(table.active)}` : ""})`;
   const meterCheck = meters
     ? `
-  if not (${catalog}::jsonb ? meter) then
+  if not (${fn("usage_meters")}() ? meter) then
     raise exception 'Unknown meter %', meter using errcode = '22023', hint = 'USAGE_METER_UNKNOWN';
   end if;`
     : "";
@@ -328,10 +415,10 @@ $$;
 create or replace function ${fn("usage_meters")}()
 returns jsonb
 language sql
-immutable
+${table === undefined ? "immutable" : "stable\nsecurity definer"}
 set search_path = ''
 as $$
-  select ${catalog}::jsonb
+  select ${catalog}
 $$;
 
 -- { meter, used, limit, remaining, period, resets_at }; limit and remaining

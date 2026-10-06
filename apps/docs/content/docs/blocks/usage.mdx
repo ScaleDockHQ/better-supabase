@@ -87,6 +87,28 @@ usage: {
 },
 ```
 
+A catalog that changes without a deploy (meters an admin adds, products
+from a plan table) can live in a table instead. Point `options.meters` at it
+with `table` and the column names; `unit`, `category`, `label` and `active`
+are optional, and only rows where `active` is true are meters:
+
+```ts title="better-supabase.config.ts"
+usage: {
+  options: {
+    meters: {
+      table: "public.meters",
+      key: "slug", // default key
+      unit: "unit",
+      label: "title",
+      active: "is_active",
+    },
+  },
+},
+```
+
+`usage_meters()` then reads the table on every call, so a new row is a
+meter right away.
+
 ### Weighted quantities
 
 `record` and `consume` take a `quantity`, so a meter can count something
