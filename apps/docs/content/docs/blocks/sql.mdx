@@ -467,7 +467,9 @@ select better_supabase.set_rate_limit('/customers', null);
   (`/rpc/send_invite`). Every matching rule counts, so `*` and a path rule
   both apply.
 - Only `POST`, `PATCH`, `PUT` and `DELETE` count. GET and HEAD run read-only
-  and may be served by a [read replica](/docs/guides/read-replicas).
+  and may be served by a [read replica](/docs/guides/read-replicas). A `POST`
+  to `/rpc` for a `stable` or `immutable` function also runs in a read-only
+  transaction, so `check_request()` skips it instead of failing the call.
 - Callers without the claim (anonymous) are counted by the right-most
   `x-forwarded-for` hop, the one the API gateway appends; clients can forge
   the hops before it. The service role is never limited.
@@ -482,7 +484,15 @@ captures role settings, so the setting ships in the migration `sql data`
 writes. Doctor warns (BS313) when a live database has no pre-request hook, or
 one that doesn't call `check_request()`. If you already have a pre-request
 function, keep it and call the check from it. Put it in a schema the Data API doesn't expose, so clients
-can't call it through `/rpc`:
+can't call it through `/rpc`. Set `options.preRequest: false` to leave the
+setting to your own function: the data file then removes a setting that
+still points at `check_request()` instead of adding one.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { modules: { "rate-limit": { options: { preRequest: false } } } },
+});
+```
 
 ```sql
 create schema if not exists private;

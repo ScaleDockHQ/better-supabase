@@ -2878,8 +2878,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const probe = `bs_rate_probe_${RUN}`;
     const scope = `/rpc/${probe}`;
     const token = await signLocalJwt({ sub: crypto.randomUUID() });
-    const call = (method: "GET" | "POST") =>
-      fetch(`${url}/rest/v1/rpc/${probe}`, {
+    const call = (method: "GET" | "POST", fn = probe) =>
+      fetch(`${url}/rest/v1/rpc/${fn}`, {
         method,
         headers: {
           apikey: publishableKey,
@@ -2892,6 +2892,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`
         create function public.${probe}() returns integer language sql as 'select 1';
         grant execute on function public.${probe}() to authenticated;
+        create function public.${probe}_read() returns integer language sql stable as 'select 1';
+        grant execute on function public.${probe}_read() to authenticated;
         notify pgrst, 'reload schema';
       `);
       await expect
@@ -2909,6 +2911,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `select better_supabase.set_rate_limit($1, 2, interval '1 minute')`,
         [scope],
       );
+      await pool.query(
+        `select better_supabase.set_rate_limit('*', 1, interval '1 minute')`,
+      );
+      await expect
+        .poll(async () => (await call("GET", `${probe}_read`)).status, {
+          timeout: 10_000,
+        })
+        .toBe(200);
+      for (let i = 0; i < 3; i++)
+        expect((await call("POST", `${probe}_read`)).status).toBe(200);
+      await pool.query(`select better_supabase.set_rate_limit('*', null)`);
 
       expect((await call("POST")).status).toBe(200);
       expect((await call("POST")).status).toBe(200);
@@ -2947,7 +2960,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`select better_supabase.set_rate_limit($1, null)`, [
         scope,
       ]);
+      await pool.query(`select better_supabase.set_rate_limit('*', null)`);
       await pool.query(`drop function if exists public.${probe}()`);
+      await pool.query(`drop function if exists public.${probe}_read()`);
     }
   });
 });

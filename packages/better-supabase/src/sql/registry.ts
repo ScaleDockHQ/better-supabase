@@ -681,6 +681,25 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
+const RATE_LIMIT_NO_HOOK = `-- sql.modules.rate-limit.options.preRequest is false: the app calls
+-- better_supabase.check_request() from its own pre-request function, or not
+-- at all. Removes the setting when it still points at check_request.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_catalog.pg_db_role_setting s
+    join pg_catalog.pg_roles r on r.oid = s.setrole
+    cross join lateral unnest(s.setconfig) setting
+    where r.rolname = 'authenticator' and s.setdatabase = 0
+      and setting = 'pgrst.db_pre_request=better_supabase.check_request'
+  ) then
+    alter role authenticator reset pgrst.db_pre_request;
+  end if;
+end
+$$;
+notify pgrst, 'reload config';`;
+
 const SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
 /** `minLength` and `maxLength` of `sql.modules["reserved-slugs"].options`. */
@@ -1467,7 +1486,9 @@ const READ_SETS: SqlModule = {
 
 const RATE_LIMIT: SqlModule = {
   name: "rate-limit",
-  data: () => RATE_LIMIT_HOOK,
+  names: { tables: {}, options: ["preRequest"] },
+  data: (ctx) =>
+    ctx.flag("preRequest", true) ? RATE_LIMIT_HOOK : RATE_LIMIT_NO_HOOK,
   title: "Write rate limits",
   description:
     "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
@@ -1529,7 +1550,9 @@ revoke execute on function better_supabase.set_rate_limit(text, integer, interva
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
--- by a replica), so only writes count. The service role is never limited.
+-- by a replica), so only writes count. A POST to /rpc for a stable or
+-- immutable function also runs read-only and isn't counted either. The
+-- service role is never limited.
 -- With your own db_pre_request, call it from there: perform better_supabase.check_request();
 create or replace function better_supabase.check_request()
 returns void
@@ -1549,6 +1572,9 @@ declare
   retry integer;
 begin
   if method is null or method not in ('POST', 'PATCH', 'PUT', 'DELETE') then
+    return;
+  end if;
+  if current_setting('transaction_read_only', true) = 'on' then
     return;
   end if;
   if claims ->> 'role' = 'service_role' then

@@ -250,6 +250,26 @@ describe("sameModuleFile", () => {
     ).toThrow(/minLength and maxLength must be whole numbers/);
   });
 
+  it("points the pre-request hook at check_request unless preRequest is false", () => {
+    const data = (layout = {}) =>
+      renderModules(["rate-limit"], layout).find(
+        (file) => file.kind === "data",
+      )!.contents;
+    expect(data()).toContain(
+      "alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';",
+    );
+    const off = data({
+      modules: { "rate-limit": { options: { preRequest: false } } },
+    });
+    expect(off).not.toContain("authenticator set pgrst.db_pre_request");
+    expect(off).toContain(
+      "alter role authenticator reset pgrst.db_pre_request;",
+    );
+    expect(renderModules(["rate-limit"])[0]!.contents).toContain(
+      "if current_setting('transaction_read_only', true) = 'on' then",
+    );
+  });
+
   it("derives table grants from policies for tables expose doesn't list", () => {
     const config = resolveConfig(
       {
