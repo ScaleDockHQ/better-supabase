@@ -491,6 +491,37 @@ describe("generated and module files (BS303, BS304)", () => {
     );
   });
 
+  it("renders api-keys scopes from PermDock's catalog, and skips without one", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: {
+        modules: { "api-keys": { options: { scopes: "catalog" } } },
+      },
+    };
+    const withCatalog: DoctorContext = {
+      ...rooted(config),
+      permdock: {
+        manifestPath: "permdock.manifest.json",
+        catalogPath: "permissions.catalog.json",
+        catalog: {
+          permissions: [{ key: "deals.read", rowConditions: false }],
+        },
+        problems: [],
+      },
+    };
+    const missing = await run("BS304", withCatalog);
+    expect(missing.map((finding) => finding.target)).toContain(
+      "supabase/schemas/900_better_supabase_28_api_keys.sql",
+    );
+    expect(await run("BS304", rooted(config))).toEqual([]);
+    const catalogOnly = await run("BS304", {
+      ...rooted(config),
+      permissionCatalog: ["deals.read"],
+    });
+    expect(catalogOnly.map((finding) => finding.target)).toContain(
+      "supabase/schemas/900_better_supabase_28_api_keys.sql",
+    );
+  });
+
   it("checks the SQL modules in sql.modules", async () => {
     expect(await run("BS304", rooted())).toEqual([]);
     const ctx = rooted({ sql: { modules: ["updated-at", "audit"] } });

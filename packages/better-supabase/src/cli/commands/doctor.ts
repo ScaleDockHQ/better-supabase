@@ -42,7 +42,7 @@ import { CliError } from "../errors.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
-import { readPermdock } from "../permdock.ts";
+import { readPermdock, readPermissionCatalogKeys } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
@@ -440,6 +440,7 @@ export async function runDoctor(
     snapshot,
     envFiles,
     permdock,
+    permissionCatalog,
     [configToml, sql],
     gitignore,
     sources,
@@ -450,6 +451,7 @@ export async function runDoctor(
       (files) => files.filter((file): file is TextFile => file !== undefined),
     ),
     readPermdock(config.root, config.permdock),
+    readPermissionCatalogKeys(config.root, config.permdock.catalog),
     readSupabaseToml(config.root).then(
       async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
     ),
@@ -466,6 +468,7 @@ export async function runDoctor(
     config,
     snapshot,
     ...(permdock ? { permdock } : {}),
+    ...(permissionCatalog ? { permissionCatalog } : {}),
     sqlFiles: sql,
     configToml,
     envFiles,

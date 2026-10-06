@@ -20,6 +20,7 @@ import {
   policyObject,
   qualified,
   tableObject,
+  permissionCatalogKeys,
 } from "./shared.ts";
 
 /** The non-empty string at a dotted path, as the tenant() plugin reads it. */
@@ -45,7 +46,14 @@ interface ContractCheck {
 function contractChecks(context: DoctorContext): ContractCheck[] {
   return customContracts(
     context.config.sql.moduleNames,
-    moduleLayout(context.config),
+    moduleLayout(
+      context.config,
+      context.config.sql.testsDir,
+      [],
+      undefined,
+      undefined,
+      permissionCatalogKeys(context),
+    ),
   ).flatMap((contract) =>
     contract.functions.map((fn) => ({
       module: contract.module,

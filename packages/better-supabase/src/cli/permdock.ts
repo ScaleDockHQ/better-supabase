@@ -441,6 +441,24 @@ export async function readPermdock(
   };
 }
 
+/**
+ * The keys of PermDock's permission catalog at `path`, whether or not the
+ * project has a PermDock config or manifest; `undefined` without a readable
+ * catalog.
+ */
+export async function readPermissionCatalogKeys(
+  root: string,
+  path: string,
+): Promise<readonly string[] | undefined> {
+  const file = await readJson(root, path);
+  if (!("json" in file)) return undefined;
+  try {
+    return parseCatalog(file.json).permissions.map((entry) => entry.key);
+  } catch {
+    return undefined;
+  }
+}
+
 /** How findings name the PermDock project: its config file or its manifest. */
 export const permdockSource = (project: PermdockProject): string =>
   project.config ?? project.manifestPath;

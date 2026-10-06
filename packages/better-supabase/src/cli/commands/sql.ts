@@ -38,6 +38,7 @@ import {
   moduleKeyProblems,
   permdockSource,
   readPermdock,
+  readPermissionCatalogKeys,
 } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
@@ -159,11 +160,10 @@ async function accessPermdockFor(
 }
 
 /** The keys of PermDock's permission catalog, for `api-keys` scopes. */
-async function permissionCatalogFor(
+function permissionCatalogFor(
   config: ResolvedConfig,
 ): Promise<readonly string[] | undefined> {
-  const project = await readPermdock(config.root, config.permdock);
-  return project?.catalog?.permissions.map((entry) => entry.key);
+  return readPermissionCatalogKeys(config.root, config.permdock.catalog);
 }
 
 async function layout(

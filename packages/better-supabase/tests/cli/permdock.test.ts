@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  readPermissionCatalogKeys,
   accessPermdockMode,
   entitlementsMode,
   moduleKeyProblems,
@@ -735,6 +736,24 @@ describe("readPermdock", () => {
 
   it("is undefined without a PermDock config or manifest", async () => {
     expect(await readPermdock(root, PATHS)).toBeUndefined();
+  });
+
+  it("reads the catalog's keys without a config or manifest", async () => {
+    expect(
+      await readPermissionCatalogKeys(root, PATHS.catalog),
+    ).toBeUndefined();
+    await writeFile(
+      join(root, PATHS.catalog),
+      JSON.stringify({ version: 1, permissions: [{ key: "deals.read" }] }),
+    );
+    expect(await readPermdock(root, PATHS)).toBeUndefined();
+    expect(await readPermissionCatalogKeys(root, PATHS.catalog)).toEqual([
+      "deals.read",
+    ]);
+    await writeFile(join(root, PATHS.catalog), JSON.stringify({ version: 2 }));
+    expect(
+      await readPermissionCatalogKeys(root, PATHS.catalog),
+    ).toBeUndefined();
   });
 
   it("reads the manifest and catalog next to the config", async () => {
