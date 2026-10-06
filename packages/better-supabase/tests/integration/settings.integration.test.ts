@@ -178,6 +178,12 @@ describe.skipIf(!live)("settings", () => {
         banner: "Maintenance at 6",
       });
 
+      expect(
+        await s.hint(
+          "select better_supabase.set_platform_setting('unlisted', '{\"value\": 1}')",
+        ),
+      ).not.toBe("no error");
+
       await as(user);
       expect(await client.platform.get().orThrow()).toEqual({
         feePercent: 2.5,

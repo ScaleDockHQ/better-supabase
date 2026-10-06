@@ -226,7 +226,12 @@ function build(ctx: ModuleContext): string {
       : `case ${pc("key")} ${platform.keys
           .map((entry) => `when ${sqlString(entry.key)} then ${pick(entry)}`)
           .join(" ")} else ${fallback} end`;
-  const writeCheck = `coalesce(better_supabase.is_platform(${byKey(
+  // With schemas.platform, only the keys it lists can be written.
+  const listedKeys =
+    platform.keys.length === 0
+      ? ""
+      : `${pc("key")} in (${platform.keys.map((entry) => sqlString(entry.key)).join(", ")}) and `;
+  const writeCheck = `${listedKeys}coalesce(better_supabase.is_platform(${byKey(
     (entry) => sqlString(entry.permission),
     sqlString(platform.fallback.permission),
   )}), false)`;

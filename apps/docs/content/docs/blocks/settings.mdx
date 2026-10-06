@@ -107,9 +107,12 @@ export const platformSettings = defineSettings({
 
 Pass the definition as `sql.modules.settings.options.schemas`, so the
 module writes the permission and read rule of each key into the policies.
-Keys you don't list use `options.platform.permission` (default
-`settings.manage`, renamed with `permissions.platform`) and
-`options.platform.read`.
+When `schemas` lists platform keys, only those keys can be written: a key
+the config doesn't list is refused, so a typo or a stale key never lands in
+`platform_settings`. Rows that exist without a listed key are read with
+`options.platform.permission` (default `settings.manage`, renamed with
+`permissions.platform`) and `options.platform.read`. Without listed keys,
+any key can be written with that permission.
 
 ```ts
 const admin = platformSettings.connect({
