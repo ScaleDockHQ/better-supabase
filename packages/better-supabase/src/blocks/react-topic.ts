@@ -4,6 +4,8 @@ import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
 import type { SubscriptionStatus } from "../realtime/index.ts";
 
+import { refreshRealtimeAuth } from "../realtime/auth.ts";
+
 export interface TopicWatch {
   readonly onMessage: (event: string, payload: unknown) => void;
   readonly onRejoin: () => void;
@@ -24,8 +26,8 @@ export function watchTopic(
   });
   void (async () => {
     watch.onStatus("joining");
-    await supabase.realtime.setAuth();
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the cleanup can run while setAuth is awaited.
+    await refreshRealtimeAuth(supabase);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the cleanup can run while the auth refresh is awaited.
     if (closed) return;
     channel.subscribe((state) => {
       switch (state) {

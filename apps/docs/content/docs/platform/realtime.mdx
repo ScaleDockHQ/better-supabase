@@ -152,7 +152,11 @@ await sub.ready; // rejects when the join is refused
 
 `using` removes the channel at the end of the scope. `await using` waits for
 the removal, and you can also call `sub.unsubscribe()`. For private topics,
-`subscribe` calls `realtime.setAuth()` first. Payloads that fail their schema
+`subscribe` calls `realtime.setAuth()` first, so Realtime gets the
+session's current token. A token you set yourself with
+`supabase.realtime.setAuth(token)`, such as one minted for an agent or a
+service, is kept: `subscribe`, `send`, `useLiveCount` and `useTopic` only
+refresh a token that came from the session. Payloads that fail their schema
 skip the handler and go to `onInvalid`.
 
 ## Send
