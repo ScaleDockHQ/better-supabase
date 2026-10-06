@@ -199,6 +199,25 @@ reads that row (`billing_customer_details`), and
 customer, creating it first when the tenant has none. There is no second copy
 in the module's tables to keep in sync.
 
+Tax ids (VAT, GST and the other Stripe tax id types) live on the Stripe
+customer too. `taxIds(organizationId)` lists them, `addTaxId(organizationId,
+{ type, value })` adds one (creating the customer when the tenant has none),
+and `removeTaxId(organizationId, taxId)` removes one. Stripe validates the
+value and reports `verification.status` for the types it checks:
+
+```ts
+await billing.addTaxId(organizationId, {
+  type: "eu_vat",
+  value: "DE123456789",
+});
+const taxIds = await billing.taxIds(organizationId).orThrow();
+// [{ id, type, value, country, verification }]
+```
+
+They need `customers.listTaxIds`, `createTaxId` and `deleteTaxId` on the
+Stripe client, which the `stripe` package has. Guard them with your own
+`billing.manage` check, as the other Stripe calls.
+
 ### Audit retention by plan
 
 The [audit](/docs/blocks/audit) module calls an `audit_retention(tenant)`

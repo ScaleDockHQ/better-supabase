@@ -17,7 +17,7 @@ export {
   type TenantStripeRow,
 } from "./billing.ts";
 export type { BillingEventData } from "../../core/block-events.ts";
-export type { StripeClient, StripeSource } from "../stripe.ts";
+export type { StripeClient, StripeSource, StripeTaxId } from "../stripe.ts";
 export {
   signStripeWebhook,
   stripeInboxVerify,

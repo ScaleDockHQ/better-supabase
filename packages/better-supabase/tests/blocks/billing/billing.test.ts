@@ -628,6 +628,67 @@ describe("createBilling", () => {
     expect(await none.allSubscriptions().orThrow()).toEqual([]);
   });
 
+  it("reads, adds and removes the customer's tax ids", async () => {
+    let linked: string | undefined;
+    const taxCalls: unknown[] = [];
+    const taxId = { id: "txi_1", type: "eu_vat", value: "DE123456789" };
+    const t = setup(
+      (fn, args) => {
+        if (fn === "billing_customer") return linked ?? null;
+        if (fn === "link_billing_customer") {
+          linked = String(args["customer"]);
+          return linked;
+        }
+        return null;
+      },
+      {
+        customers: {
+          create: async () => ({ id: "cus_new" }),
+          listTaxIds: async (id: string, params: unknown) => {
+            taxCalls.push(["list", id, params]);
+            return { data: [taxId] };
+          },
+          createTaxId: async (id: string, params: unknown) => {
+            taxCalls.push(["create", id, params]);
+            return taxId;
+          },
+          deleteTaxId: async (id: string, tax: string) => {
+            taxCalls.push(["delete", id, tax]);
+            return { id: tax, deleted: true };
+          },
+        },
+      },
+    );
+    const billing = createBilling(t);
+    expect(await billing.taxIds("org").orThrow()).toEqual([]);
+    expect(await billing.removeTaxId("org", "txi_1")).toMatchObject({
+      error: { hint: "BILLING_NO_CUSTOMER" },
+    });
+    expect(
+      await billing
+        .addTaxId("org", { type: "eu_vat", value: "DE123456789" })
+        .orThrow(),
+    ).toEqual(taxId);
+    expect(await billing.taxIds("org").orThrow()).toEqual([taxId]);
+    expect(await billing.removeTaxId("org", "txi_1").orThrow()).toBe("txi_1");
+    expect(taxCalls).toEqual([
+      ["create", "cus_new", { type: "eu_vat", value: "DE123456789" }],
+      ["list", "cus_new", { limit: 100 }],
+      ["delete", "cus_new", "txi_1"],
+    ]);
+    linked = "cus_1";
+    const bare = createBilling(setup(() => "cus_1"));
+    for (const result of [
+      await bare.taxIds("org"),
+      await bare.addTaxId("org", { type: "eu_vat", value: "x" }),
+      await bare.removeTaxId("org", "txi_1"),
+    ]) {
+      expect(result).toMatchObject({
+        error: { hint: "BILLING_STRIPE_CLIENT" },
+      });
+    }
+  });
+
   it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
     const t = setup(
       (fn) => {

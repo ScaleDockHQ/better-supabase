@@ -27,7 +27,12 @@ import {
   type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
-import { lazyStripe, type StripeClient, type StripeSource } from "../stripe.ts";
+import {
+  lazyStripe,
+  type StripeClient,
+  type StripeSource,
+  type StripeTaxId,
+} from "../stripe.ts";
 
 export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
@@ -259,6 +264,21 @@ export interface Billing {
   ): AsyncResult<string>;
   /** The billing contact as Stripe holds it, from the Sync Engine's customers table. */
   customerDetails(organizationId: string): AsyncResult<StripeRow | undefined>;
+  /**
+   * The tenant customer's tax ids from Stripe, `[]` before the tenant has a
+   * customer. Needs `customers.listTaxIds` on the client.
+   */
+  taxIds(organizationId: string): AsyncResult<readonly StripeTaxId[]>;
+  /**
+   * Adds a tax id (`{ type: 'eu_vat', value: 'DE123456789' }`) to the
+   * tenant's customer, creating the customer first when there is none.
+   */
+  addTaxId(
+    organizationId: string,
+    taxId: { readonly type: string; readonly value: string },
+  ): AsyncResult<StripeTaxId>;
+  /** Removes a tax id from the tenant's customer; `not_found` before the tenant has a customer. */
+  removeTaxId(organizationId: string, taxId: string): AsyncResult<string>;
   /** Updates the billing contact on the Stripe customer, the record for it. */
   updateCustomer(
     organizationId: string,
@@ -743,6 +763,47 @@ export function createBilling(options: BillingOptions): Billing {
       call("billing_customer_details", { tenant: organizationId }, (value) =>
         isRecord(value) ? value : undefined,
       ),
+    taxIds: (organizationId) =>
+      customer(organizationId).andThen(async (customerId) => {
+        if (customerId === undefined) return ok([]);
+        const listed = await withStripe(async (client) =>
+          client.customers.listTaxIds?.(customerId, { limit: 100 }),
+        );
+        if (!listed.ok) return listed;
+        return listed.data === undefined
+          ? missing("customers.listTaxIds")
+          : ok(listed.data.data);
+      }),
+    addTaxId: (organizationId, taxId) =>
+      ensureCustomer(organizationId).andThen(async (customerId) => {
+        const created = await withStripe(async (client) =>
+          client.customers.createTaxId?.(customerId, {
+            type: taxId.type,
+            value: taxId.value,
+          }),
+        );
+        if (!created.ok) return created;
+        return created.data === undefined
+          ? missing("customers.createTaxId")
+          : ok(created.data);
+      }),
+    removeTaxId: (organizationId, taxId) =>
+      customer(organizationId).andThen(async (customerId) => {
+        if (customerId === undefined) {
+          return err(
+            dbError("not_found", "This tenant has no Stripe customer yet", {
+              hint: "BILLING_NO_CUSTOMER",
+            }),
+          );
+        }
+        const deleted = await withStripe(async (client) =>
+          client.customers.deleteTaxId?.(customerId, taxId),
+        );
+        if (!deleted.ok) return deleted;
+        return deleted.data === undefined
+          ? missing("customers.deleteTaxId")
+          : ok(deleted.data.id);
+      }),
     updateCustomer: (organizationId, update) =>
       ensureCustomer(organizationId).andThen(async (customerId) => {
         const updated = await withStripe(async (client) =>

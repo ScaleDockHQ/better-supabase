@@ -14,6 +14,21 @@ export interface StripeClient {
       id: string,
       params: Readonly<Record<string, unknown>>,
     ): Promise<{ readonly id: string }>;
+    /** Used by `billing.taxIds`. */
+    listTaxIds?(
+      id: string,
+      params?: { readonly limit?: number },
+    ): Promise<{ readonly data: readonly StripeTaxId[] }>;
+    /** Used by `billing.addTaxId`. */
+    createTaxId?(
+      id: string,
+      params: { readonly type: string; readonly value: string },
+    ): Promise<StripeTaxId>;
+    /** Used by `billing.removeTaxId`. */
+    deleteTaxId?(
+      id: string,
+      taxId: string,
+    ): Promise<{ readonly id: string; readonly deleted?: boolean }>;
   };
   readonly checkout: {
     readonly sessions: {
@@ -83,6 +98,15 @@ export interface StripeClient {
       readonly data: { readonly object: unknown };
     }>;
   };
+}
+
+/** A customer tax id as Stripe returns it (`eu_vat`, `DE123456789`). */
+export interface StripeTaxId {
+  readonly id: string;
+  readonly type: string;
+  readonly value: string;
+  readonly country?: string | null;
+  readonly verification?: { readonly status?: string | null } | null;
 }
 
 /** A Stripe client, or the secret key to create one from the `stripe` package. */
