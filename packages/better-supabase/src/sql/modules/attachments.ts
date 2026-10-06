@@ -51,13 +51,13 @@ function build(ctx: ModuleContext): string {
   const mimeCheck =
     mimeTypes.length === 0
       ? ""
-      : `,\n  check (${mimeTypes
+      : `\nalter table ${t} add constraint bs_attachments_mime_type check (${mimeTypes
           .map((type) =>
             type.endsWith("/*")
               ? `${c("mimeType")} like ${sqlString(`${type.slice(0, -1)}%`)}`
               : `${c("mimeType")} = ${sqlString(type)}`,
           )
-          .join(" or ")})`;
+          .join(" or ")});`;
   const readable = requireScan
     ? `a.${c("status")} = 'clean'`
     : `a.${c("status")} in ('pending', 'clean', 'failed')`;
@@ -90,15 +90,21 @@ create table if not exists ${t} (
   ${c("path")} text generated always as (${c("tenant")}::text || '/attachments/' || ${c("id")}::text) stored,
   ${c("name")} text not null check (length(${c("name")}) between 1 and 255),
   ${c("mimeType")} text not null check (${c("mimeType")} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  ${c("size")} bigint not null check (${c("size")} between 0 and ${String(maxSize)}),
+  ${c("size")} bigint not null,
   ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'clean', 'infected', 'failed')),
   ${c("detail")} text,
   ${c("uploadedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
   ${c("createdAt")} timestamptz not null default clock_timestamp(),
   ${c("uploadedAt")} timestamptz,
   ${c("scannedAt")} timestamptz,
-  check ((${c("subjectType")} is null) = (${c("subjectId")} is null))${mimeCheck}
+  check ((${c("subjectType")} is null) = (${c("subjectId")} is null))
 );
+-- The bucket, size limit and MIME types come from the module options, so a
+-- re-run applies changed options to an existing table.
+alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
+alter table ${t} drop constraint if exists bs_attachments_size;
+alter table ${t} add constraint bs_attachments_size check (${c("size")} between 0 and ${String(maxSize)});
+alter table ${t} drop constraint if exists bs_attachments_mime_type;${mimeCheck}
 create unique index if not exists attachments_object_idx on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists attachments_subject_idx on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
 create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy")});
