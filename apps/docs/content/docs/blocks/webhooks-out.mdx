@@ -207,7 +207,6 @@ export default defineConfig({
     modules: {
       "webhooks-out": {
         mode: "adopt",
-        schema: "public",
         idType: "uuid",
         tables: {
           endpoints: "public.webhook_destinations",
@@ -265,6 +264,10 @@ text in a table no client can read. `statuses` maps each status to the value
 your table stores; the ones you leave out keep their names. The options
 marked migration-only match an existing schema: the config accepts them in
 `mode: "adopt"` only, and doctor warns about them (BS314) until you remove them.
+The module's functions stay in its own schema (`better_supabase` unless
+`schema` names another one that the Data API doesn't expose, see
+[BS312](/docs/cli/doctor#bs312)); `tables` points at the adopted tables
+wherever they are.
 
 | Option          | Default  | Meaning                                                           |
 | --------------- | -------- | ----------------------------------------------------------------- |
