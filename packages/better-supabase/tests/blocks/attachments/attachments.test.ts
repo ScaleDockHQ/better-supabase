@@ -97,7 +97,11 @@ describe("createAttachments", () => {
 
   it("creates the record, then a signed upload URL for its path", async () => {
     const { transport, calls } = fakeTransport({
-      create_attachment: row({ status: "pending", uploaded_at: null }),
+      create_attachment: row({
+        status: "pending",
+        uploaded_at: null,
+        metadata: { caption: "Floor plan" },
+      }),
     });
     const storage = fakeStorage();
     const attachments = createAttachments({
@@ -110,6 +114,7 @@ describe("createAttachments", () => {
         name: "plan.pdf",
         mimeType: "application/pdf",
         size: 2048,
+        metadata: { caption: "Floor plan" },
       })
       .orThrow();
     expect(calls[0]).toEqual([
@@ -121,8 +126,10 @@ describe("createAttachments", () => {
         size: 2048,
         subject_type: undefined,
         subject_id: undefined,
+        metadata: { caption: "Floor plan" },
       },
     ]);
+    expect(upload.attachment.metadata).toEqual({ caption: "Floor plan" });
     expect(storage.calls[0]).toEqual([
       "createSignedUploadUrl",
       "attachments",

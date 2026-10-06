@@ -236,8 +236,10 @@ describe.skipIf(!live)("attachments", () => {
           name: "a.txt",
           mimeType: "text/plain",
           size: 3,
+          metadata: { source: "camera", pages: 2 },
         })
         .orThrow();
+      expect(attachment.metadata).toEqual({ source: "camera", pages: 2 });
       await s.rows(
         "insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, auth.uid()::text, '{}')",
         [BUCKET, attachment.path],

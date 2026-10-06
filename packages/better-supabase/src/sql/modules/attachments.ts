@@ -44,7 +44,9 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
         uploadedAt: "uploaded_at",
         scannedAt: "scanned_at",
+        metadata: "metadata",
       },
+      optional: ["metadata"],
     },
     scans: {
       name: "scanned_objects",
@@ -176,6 +178,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
   const t = ctx.table("attachments");
+  const metadata = ctx.has("attachments", "metadata");
   const c = (logical: string): string => ctx.col("attachments", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.attachments;
@@ -272,7 +275,13 @@ create table if not exists ${t} (
   ${c("uploadedAt")} timestamptz,
   ${c("scannedAt")} timestamptz,
   check ((${c("subjectType")} is null) = (${c("subjectId")} is null))
-);
+);${
+    metadata
+      ? `
+-- App data about the file (a caption, the source, a page count), set on create.
+alter table ${t} add column if not exists ${c("metadata")} jsonb not null default '{}' check (jsonb_typeof(${c("metadata")}) = 'object');`
+      : ""
+  }
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
 -- options.path: the column comment records the template the expression was
@@ -305,7 +314,7 @@ create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy"
 alter table ${t} enable row level security;
 revoke all on ${t} from anon, authenticated;
 grant select, delete on ${t} to authenticated;
-grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size")].join(", ")}) on ${t} to authenticated;
+grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : [])].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
@@ -398,21 +407,23 @@ create policy ${policy("delete")} on storage.objects for delete to authenticated
   using (bucket_id in (${bucketList}) and ${fn("attachment_object_allowed")}(bucket_id, name, 'delete'));
 
 -- The caller's new record, for a signed upload URL to its object_path.
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
 create or replace function ${fn("create_attachment")}(
   tenant ${id},
   name text,
   mime_type text,
   size bigint,
   subject_type text default null,
-  subject_id text default null
+  subject_id text default null,
+  metadata jsonb default null
 )
 returns jsonb
 language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${t} as x (${[c("tenant"), c("bucket"), c("name"), c("mimeType"), c("size"), c("subjectType"), c("subjectId")].join(", ")})
-  values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id)
+  insert into ${t} as x (${[c("tenant"), c("bucket"), c("name"), c("mimeType"), c("size"), c("subjectType"), c("subjectId"), ...(metadata ? [c("metadata")] : [])].join(", ")})
+  values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""})
   returning to_jsonb(x.*)
 $$;
 
@@ -632,13 +643,13 @@ revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from
 grant execute on function ${fn("object_clean")}(text, text) to authenticated, service_role;
 grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
-revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text) from public, anon;
+revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb) from public, anon;
 revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("set_attachment_status")}(uuid, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
-grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text) to authenticated, service_role;
+grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb) to authenticated, service_role;
 grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
@@ -707,7 +718,7 @@ function contract(): readonly ModuleContractFunction[] {
     },
     {
       name: "create_attachment",
-      args: ["{id}", "text", "text", "bigint", "text", "text"],
+      args: ["{id}", "text", "text", "bigint", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     { name: "confirm_attachment", args: ["uuid"], returns: "jsonb" },
@@ -734,7 +745,16 @@ export const ATTACHMENTS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Attachments keep metadata; create_attachment takes it as a seventh argument.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("create_attachment")}(${ctx.idType}, text, text, bigint, text, text);`,
+    },
+  ],
   names: NAMES,
   contract,
   build,

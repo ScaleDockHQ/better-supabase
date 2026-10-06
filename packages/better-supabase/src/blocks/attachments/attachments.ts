@@ -76,6 +76,8 @@ export interface Attachment {
   readonly status: AttachmentStatus;
   /** What the scanner reported, such as the signature it matched. */
   readonly scanDetail: string | undefined;
+  /** What `upload` stored with the file; `{}` without any. */
+  readonly metadata: Readonly<Record<string, unknown>>;
   readonly uploadedBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   /** Set by `confirm()` once the object exists. */
@@ -91,6 +93,8 @@ export interface NewAttachment {
   readonly size: number;
   readonly subjectType?: string;
   readonly subjectId?: string;
+  /** App data about the file, such as a caption or its source, kept with the record. */
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 export interface AttachmentUpload {
@@ -156,6 +160,7 @@ function attachmentOf(value: unknown): Attachment {
     size: Number(row["size"]),
     status: statusOf(row["status"]),
     scanDetail: optionalText(row["scan_detail"]),
+    metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
     uploadedBy: optionalText(row["uploaded_by"]),
     createdAt: toInstant(textOf(row["created_at"])),
     uploadedAt: optionalInstant(row["uploaded_at"]),
@@ -215,6 +220,7 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
           size: attachment.size,
           subject_type: attachment.subjectType,
           subject_id: attachment.subjectId,
+          metadata: attachment.metadata,
         },
         attachmentOf,
       ).andThen((created) =>

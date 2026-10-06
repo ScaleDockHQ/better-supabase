@@ -129,6 +129,10 @@ exists, takes its size and type from Storage and writes
 `attachment.uploaded` to the outbox. `confirm` returns
 `not_found` with the hint `ATTACHMENT_NOT_UPLOADED` until the object exists.
 
+`upload` takes `metadata`, a JSON object kept with the record in the
+`metadata` column (a caption, where the file came from, a page count), and
+every attachment returns it as `metadata` (`{}` without any).
+
 `download(id)` returns a signed URL (300 seconds by default, `downloadTtl`
 changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
 passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
