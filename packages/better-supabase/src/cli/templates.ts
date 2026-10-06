@@ -456,6 +456,7 @@ Deno.serve(bs.fetch);
     ],
     next: [
       "List tables under `resources` to expose them as tools, e.g. `customers: true`.",
+      "Add `[functions.mcp] verify_jwt = false` and `[auth.oauth_server] enabled = true` to `supabase/config.toml`, so MCP clients get the sign-in challenge.",
     ],
   },
 };

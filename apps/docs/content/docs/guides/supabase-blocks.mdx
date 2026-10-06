@@ -1,60 +1,138 @@
 ---
-title: Supabase MCP and headless app blocks
-description: Use typed repositories inside the MCP server and headless app blocks from the Supabase library, or swap their tools for createMcp.
+title: Supabase library MCP blocks
+description: Add typed repositories to the MCP server and headless app blocks from the Supabase library, or replace their tools with createMcp.
 ---
 
 The [Supabase library](https://supabase.com/library) ships two blocks that put
 an MCP server for your users into your project: the
-[MCP server](https://supabase.com/library/docs/headless/mcp.md) block
-(`@supabase/mcp-server`) and
-the [headless app](https://supabase.com/library/docs/tanstack/headless-app.md)
+[MCP server](https://supabase.com/library/docs/headless/mcp) block
+(`@supabase/mcp`) and the
+[headless app](https://supabase.com/library/docs/tanstack/headless-app)
 template (`@supabase/headless-app-tanstack`), which adds sign-in and OAuth
 consent pages around the same server. Both install an Edge Function in
-`supabase/functions/mcp` that runs every tool as the signed-in user.
-better-supabase fits in two ways: keep the block and call typed repositories
-from its tools, or replace its tools with [`createMcp`](/docs/frameworks/mcp).
+`supabase/functions/mcp` that runs every tool as the signed-in user. They are
+shadcn registry items from Supabase, not [better-supabase blocks](/docs/blocks).
+
+better-supabase fits in three ways, from the smallest change to the largest:
+
+1. Keep the block and add typed repositories to its pipeline.
+2. Replace the block's tools with [`createMcp`](/docs/frameworks/mcp), which
+   generates tools from your tables.
+3. Keep an official SDK server and add
+   [`better-supabase/mcp/sdk`](/docs/frameworks/mcp#official-mcp-sdk).
 
 ## Requirements
 
-Both blocks need the same project settings:
+Both blocks need the same project settings. Use Supabase CLI 2.117 or later:
+it supplies asymmetric signing keys locally and passes the function slug to
+the Edge Function, so the URLs in the OAuth metadata are the public ones.
 
 - Asymmetric signing keys (ES256 or RS256). Locally, run
   [`better-supabase keys`](/docs/cli/local#keys) and point
   `[auth] signing_keys_path` at the file; on the hosted project, rotate to an
   asymmetric key under JWT Keys.
-- The Supabase Auth OAuth server, so MCP clients can sign users in:
+- The gateway's JWT check turned off for the function. The function verifies
+  tokens itself, and the gateway's own 401 has no `WWW-Authenticate`
+  challenge, so MCP clients could not discover how to sign in.
+- The Supabase Auth OAuth server, so external MCP clients can sign users in.
+  It sends users to the consent page of the
+  [OAuth Consent block](https://supabase.com/library/docs/nextjs/oauth-consent)
+  (or the headless app's own), served from the Auth Site URL.
 
 ```toml title="supabase/config.toml"
+[functions.mcp]
+verify_jwt = false
+
 [auth.oauth_server]
 enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = true
 ```
 
-Get an existing project's config, schema and Edge Functions into the repo
-first with `supabase pull` (Supabase CLI 2.119 or later), then add a block:
+`allow_dynamic_registration` lets any compatible client register itself; set
+it to `false` if you register clients yourself. Get an existing project's
+config, schema and Edge Functions into the repo first with `supabase pull`
+(Supabase CLI 2.119 or later), then add a block:
 
 ```bash
-npx shadcn@latest add @supabase/mcp-server
+npx shadcn@latest add @supabase/mcp
 ```
 
-## Typed repositories in the block's tools
+The function imports better-supabase through its `deno.json`:
 
-The block builds a user-scoped client per request with `withSupabase` from
-`@supabase/server` and hands it to each tool as `context.supabase`. Bind your
-definition to that client, and the tool gets typed repositories that still go
-through RLS:
+```json title="supabase/functions/mcp/deno.json"
+{
+  "imports": {
+    "better-supabase": "npm:better-supabase@^0.5",
+    "better-supabase/": "npm:/better-supabase@^0.5/"
+  }
+}
+```
+
+## Typed repositories in the block's pipeline
+
+The block's `index.ts` is a `pipeline` from `@supabase/middleware`:
+`withOAuthProtectedResource()` serves the RFC 9728 metadata, and
+`withSupabase({ auth: 'user' })` verifies the token and builds a user-scoped
+client. Add `withBetterSupabase(betterSupabase)()` from
+`better-supabase/server` after `withSupabase`, and pass the `ctx.db` it adds
+to the tools:
+
+```ts title="supabase/functions/mcp/index.ts"
+import { withBetterSupabase } from "better-supabase/server";
+
+import { betterSupabase } from "../_shared/supabase.ts";
+
+// ...the block's imports, createServer and CORS_HEADERS stay as they are.
+
+Deno.serve(
+  pipeline(
+    [
+      withOAuthProtectedResource(),
+      withSupabase({ auth: "user", cors: { headers: CORS_HEADERS } }),
+      withBetterSupabase(betterSupabase)(),
+    ],
+    (request, ctx) =>
+      createMcpHandler(() =>
+        createServer({
+          supabase: ctx.supabase,
+          db: ctx.db,
+          userClaims: ctx.userClaims!,
+          jwtClaims: ctx.jwtClaims!,
+        }),
+      ).fetch(request),
+  ),
+);
+```
+
+`ctx.db` holds repositories bound to `ctx.supabase`, so every query still
+goes through RLS, and their context comes from the verified claims (see
+[`@supabase/server` pipelines](/docs/auth/middleware)). Add it to the block's
+`ToolContext`:
+
+```ts title="supabase/functions/mcp/tools/types.ts"
+import type { betterSupabase } from "../../_shared/supabase.ts";
+
+export type ToolContext = {
+  supabase: SupabaseClient;
+  db: ReturnType<typeof betterSupabase.connect<SupabaseClient>>;
+  userClaims: NonNullable<SupabaseContext["userClaims"]>;
+  jwtClaims: NonNullable<SupabaseContext["jwtClaims"]>;
+};
+```
+
+Then a tool reads typed rows:
 
 ```ts title="supabase/functions/mcp/tools/customers.ts"
 import type { McpServer } from "npm:@modelcontextprotocol/server@2.0.0";
 
-import { betterSupabase } from "../../_shared/supabase.ts";
 import { errorResult, jsonResult } from "./result.ts";
 import type { ToolContext } from "./types.ts";
 
-export function registerCustomersTool(
+export function registerCustomersTools(
   server: McpServer,
-  { supabase, jwtClaims }: ToolContext,
+  { db }: ToolContext,
 ): void {
-  const db = betterSupabase.connect(supabase, { claims: jwtClaims });
   server.registerTool(
     "list_customers",
     {
@@ -75,22 +153,28 @@ export function registerCustomersTool(
 ```
 
 Register it in `tools/index.ts` next to `registerWhoamiTool`. Repository
-methods return a `Result` instead of throwing, so the tool turns a
-`DbError` into an MCP error result the model can read. `_shared/supabase.ts`
-exports `betterSupabase = defineSupabase(schema)` from the client
-[`better-supabase gen`](/docs/cli/gen) writes.
+methods return a `Result` instead of throwing, so the tool turns a `DbError`
+into an MCP error result the model can read; the block's
+`runtimeErrorResult` stays the helper for code that throws.
+`_shared/supabase.ts` exports `betterSupabase = defineSupabase(schema)` from
+the client [`better-supabase gen`](/docs/cli/gen) writes.
 
-The block runs on `@supabase/server` and `@supabase/middleware`, which also
-work in any other server code; [`withBetterSupabase`](/docs/auth/middleware)
-adds `ctx.db` to their pipelines.
+Two functions share the name `withBetterSupabase`. The one in
+`better-supabase/server` is the pipeline entry above. The one in
+`better-supabase/mcp/sdk` wraps `McpServer.registerTool` for
+[`createMcpAuth`](/docs/frameworks/mcp#official-mcp-sdk). They don't mix, so
+import the one that matches your setup.
 
 ## Replacing the tools with createMcp
 
-`createMcp` serves the MCP endpoint, the RFC 9728
-`/.well-known/oauth-protected-resource` metadata and the `WWW-Authenticate`
-challenge itself, through the same `@supabase/server` code the block uses. It
-also generates tools from your tables. To switch, keep the block's
-`deno.json` and `.env.example`, and replace `index.ts`:
+`createMcp` replaces both `withOAuthProtectedResource` and `withSupabase` in
+`index.ts`. It serves the MCP endpoint, the RFC 9728 metadata and the
+`WWW-Authenticate` challenge itself, answers CORS preflights, and generates
+tools from your tables. On Edge Functions it derives the public URL from the
+function slug and the gateway's forwarded headers, as the block does, and
+serves the metadata at `/functions/v1/mcp/oauth-protected-resource`. Keep the
+block's `.env.example`, add the imports above to `deno.json`, and replace
+`index.ts`:
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { createMcp } from "better-supabase/mcp";
@@ -100,6 +184,7 @@ import { betterSupabase } from "../_shared/supabase.ts";
 const bs = createMcp(betterSupabase, {
   name: Deno.env.get("MCP_SERVER_NAME") ?? "app",
   version: "1.0.0",
+  instructions: Deno.env.get("MCP_SERVER_DESCRIPTION"),
   resources: { customers: { select: ["id", "name", "status"] } },
 });
 
@@ -109,6 +194,11 @@ Deno.serve(bs.fetch);
 The headless app's consent page, connected-agents page and `tasks` table keep
 working; only the tool code changes. See
 [MCP servers](/docs/frameworks/mcp) for custom tools, `authorize` and scopes.
+
+To keep the block's `McpServer` and its tools instead, use `createMcpAuth`
+and `withBetterSupabase` from `better-supabase/mcp/sdk`. They need
+`@modelcontextprotocol/server` 2.3 or later, and the block pins 2.0.0, so
+bump the import in every tool file first.
 
 ## Schema and deploy
 
@@ -120,6 +210,7 @@ supabase db schema declarative sync -f create_tasks
 supabase link --project-ref <project-ref>
 supabase db push
 supabase config push
+supabase secrets set --env-file supabase/functions/.env
 supabase functions deploy mcp
 ```
 
