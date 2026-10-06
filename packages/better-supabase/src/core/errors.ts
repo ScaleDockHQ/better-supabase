@@ -329,6 +329,8 @@ function mapBuiltin(raw: RawDbError): DbError {
     }
     case "P0001":
       return dbError("raised", message, base);
+    case "P0002":
+      return dbError("not_found", message, base);
     case "57014":
       return dbError("timeout", message, base);
     case "40001":

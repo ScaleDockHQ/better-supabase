@@ -264,6 +264,16 @@ describe("mapDbError", () => {
       },
     ],
     [
+      "a no_data_found exception",
+      { code: "P0002", message: "Invoice not found" },
+      {
+        kind: "not_found",
+        status: 404,
+        code: "P0002",
+        message: "Invoice not found",
+      },
+    ],
+    [
       "a statement timeout",
       {
         code: "57014",
