@@ -28,9 +28,9 @@ catalog:
   "@modelcontextprotocol/server": 2.3.0
   "@op-engineering/op-sqlite": 18.2.5
   "@opentelemetry/api": 1.9.1
-  "@orpc/contract": 2.0.0-beta.41
-  "@orpc/openapi": 2.0.0-beta.41
-  "@orpc/server": 2.0.0-beta.41
+  "@orpc/contract": 2.0.0-beta.42
+  "@orpc/openapi": 2.0.0-beta.42
+  "@orpc/server": 2.0.0-beta.42
   "@powersync/common": 2.3.1
   "@powersync/react-native": 2.3.1
   "@react-native/metro-config": 0.86.3
@@ -81,10 +81,10 @@ catalog:
   fumadocs-typescript: 5.4.1
   # Base UI build of fumadocs-ui, kept on the fumadocs-core version.
   fumadocs-ui: npm:@fumadocs/base-ui@16.15.18
-  hono: 4.13.12
+  hono: 4.13.13
   knip: 6.39.0
   lefthook: 2.1.16
-  lucide-react: 1.51.0
+  lucide-react: 1.52.0
   next: 16.3.8
   next-themes: 0.4.6
   oxfmt: 0.71.0
@@ -103,8 +103,8 @@ catalog:
   # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
   # React Native 0.86 only.
   react-native: 0.86.3
-  react-native-safe-area-context: 5.7.0
-  react-native-screens: 4.26.2
+  react-native-safe-area-context: 5.10.1
+  react-native-screens: 4.28.0
   react-native-web: 0.21.3
   rolldown: 1.2.12
   server-only: 0.0.1
