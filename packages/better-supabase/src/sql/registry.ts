@@ -38,9 +38,9 @@ import { SETTINGS } from "./modules/settings.ts";
 import { SSO } from "./modules/sso.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
-import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { USAGE } from "./modules/usage.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
+import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
 import {
   EQUIVALENT_TRIGGERS,

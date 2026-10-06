@@ -7,11 +7,10 @@ export const SCIM_ERROR = "urn:ietf:params:scim:api:messages:2.0:Error";
 export const SCIM_PATCH = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 export const SCIM_SEARCH =
   "urn:ietf:params:scim:api:messages:2.0:SearchRequest";
-export const SCIM_SERVICE_PROVIDER_CONFIG =
+const SCIM_SERVICE_PROVIDER_CONFIG =
   "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig";
-export const SCIM_RESOURCE_TYPE =
-  "urn:ietf:params:scim:schemas:core:2.0:ResourceType";
-export const SCIM_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:Schema";
+const SCIM_RESOURCE_TYPE = "urn:ietf:params:scim:schemas:core:2.0:ResourceType";
+const SCIM_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:Schema";
 
 export interface ScimAttribute {
   readonly name: string;
