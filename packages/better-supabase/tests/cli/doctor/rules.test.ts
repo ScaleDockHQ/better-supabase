@@ -585,6 +585,10 @@ describe("module upgrades (BS309, BS310)", () => {
               text: "select better_supabase.current_org_id();",
             },
             {
+              path: "../../supabase/migrations/2_old.sql",
+              text: "select better_supabase.current_org_id();",
+            },
+            {
               path: "supabase/schemas/900_better_supabase_04_tenant.sql",
               text: "-- @bs-module tenant@2 managed\nselect better_supabase.current_org_id();",
             },
