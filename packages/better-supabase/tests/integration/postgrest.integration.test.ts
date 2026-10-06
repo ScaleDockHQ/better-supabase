@@ -422,6 +422,46 @@ describe.skipIf(!live)("PostgREST integration", () => {
     await admin.notes.delete(note.id).orThrow();
   });
 
+  it("filters by the text at a json path", async () => {
+    const note = await admin.notes
+      .create(
+        {
+          organizationId: ACME,
+          customerId: ROAD_RUNNER,
+          body: "Json path",
+          attachments: { owner: { id: "u1", rank: 2 }, replacedBy: null },
+        },
+        { select: ["id"] },
+      )
+      .orThrow();
+    const find = (where: object) =>
+      admin.notes
+        .findMany({ where: { id: note.id, ...where }, select: ["id"] })
+        .orThrow();
+
+    expect(
+      await find({ attachments: { path: ["owner", "id"], eq: "u1" } }),
+    ).toHaveLength(1);
+    expect(
+      await find({ attachments: { path: ["owner", "rank"], in: [1, 2] } }),
+    ).toHaveLength(1);
+    expect(
+      await find({ attachments: { path: ["replacedBy"], isNull: true } }),
+    ).toHaveLength(1);
+    expect(
+      await find({ attachments: { path: ["owner"], isNull: false } }),
+    ).toHaveLength(1);
+    expect(
+      await find({
+        OR: [
+          { attachments: { path: ["owner", "id"], eq: "u2" } },
+          { attachments: { path: ["missing"], isNull: false } },
+        ],
+      }),
+    ).toHaveLength(0);
+    await admin.notes.delete(note.id).orThrow();
+  });
+
   it("runs the plugin stack as a tenant user under RLS", async () => {
     const token = await signLocalJwt({
       sub: "00000000-0000-4000-8000-0000000000ff",

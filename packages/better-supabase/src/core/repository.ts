@@ -167,7 +167,7 @@ function keysFromWhere(
   };
   flatten(where);
   for (const item of items) {
-    if (item.kind !== "column") continue;
+    if (item.kind !== "column" || item.path) continue;
     const app = byDb.get(item.column)?.[0];
     if (app === undefined || !table.primaryKey.includes(app)) continue;
     if (item.op === "eq") pinned.set(app, [item.value]);

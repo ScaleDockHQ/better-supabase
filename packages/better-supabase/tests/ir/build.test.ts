@@ -119,6 +119,13 @@ const jsonCol = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value, json: true });
 
+const pathCol = (
+  column: string,
+  op: Extract<Condition, { kind: "column" }>["op"],
+  value: unknown,
+  path: readonly string[],
+): Condition => ({ kind: "column", column, op, value, path });
+
 const notesRelation = (
   quantifier: "some" | "none" | "every",
   where: Condition | undefined,
@@ -343,6 +350,97 @@ describe("IrBuilder.where field operators", () => {
     ],
   ])("marks json %s as a json document", (_name, operand, expected) => {
     expect(ir.where(customers, { metadata: operand })).toEqual(expected);
+  });
+
+  it.each<[string, unknown, Condition]>([
+    [
+      "eq",
+      { path: ["owner", "id"], eq: "u1" },
+      pathCol("metadata", "eq", "u1", ["owner", "id"]),
+    ],
+    [
+      "eq with a number",
+      { path: ["count"], eq: 3 },
+      pathCol("metadata", "eq", "3", ["count"]),
+    ],
+    [
+      "eq null",
+      { path: ["owner"], eq: null },
+      pathCol("metadata", "is", null, ["owner"]),
+    ],
+    [
+      "neq",
+      { path: ["owner"], neq: "x" },
+      pathCol("metadata", "neq", "x", ["owner"]),
+    ],
+    [
+      "neq null",
+      { path: ["owner"], neq: null },
+      { kind: "not", item: pathCol("metadata", "is", null, ["owner"]) },
+    ],
+    [
+      "in",
+      { path: ["tier"], in: ["pro", 2, true] },
+      pathCol("metadata", "in", ["pro", "2", "true"], ["tier"]),
+    ],
+    [
+      "notIn",
+      { path: ["tier"], notIn: ["free"] },
+      { kind: "not", item: pathCol("metadata", "in", ["free"], ["tier"]) },
+    ],
+    [
+      "isNull",
+      { path: ["owner"], isNull: true },
+      pathCol("metadata", "is", null, ["owner"]),
+    ],
+    [
+      "is not null",
+      { path: ["owner"], isNull: false },
+      { kind: "not", item: pathCol("metadata", "is", null, ["owner"]) },
+    ],
+    [
+      "comparisons",
+      { path: ["at"], gte: "2026", like: "20%", ilike: "x" },
+      {
+        kind: "and",
+        items: [
+          pathCol("metadata", "gte", "2026", ["at"]),
+          pathCol("metadata", "like", "20%", ["at"]),
+          pathCol("metadata", "ilike", "x", ["at"]),
+        ],
+      },
+    ],
+  ])("filters a json path with %s", (_name, operand, expected) => {
+    expect(ir.where(customers, { metadata: operand })).toEqual(expected);
+  });
+
+  it.each<[string, unknown, string]>([
+    [
+      "a text column",
+      { name: { path: ["a"], eq: "x" } },
+      "needs a json column",
+    ],
+    ["an empty path", { metadata: { path: [], eq: "x" } }, "non-empty list"],
+    [
+      "a quoted key",
+      { metadata: { path: ['a"b'], eq: "x" } },
+      "non-empty list",
+    ],
+    ["no operator", { metadata: { path: ["a"] } }, "needs an operator"],
+    [
+      "an unknown operator",
+      { metadata: { path: ["a"], contains: "x" } },
+      'Unknown operator "contains"',
+    ],
+    [
+      "in without an array",
+      { metadata: { path: ["a"], in: "x" } },
+      '"in" on "metadata" needs an array',
+    ],
+  ])("rejects a json path on %s", (_name, where, message) => {
+    expect(rejection(() => ir.where(customers, where)).message).toContain(
+      message,
+    );
   });
 
   it("rejects hasSome on a json column", () => {

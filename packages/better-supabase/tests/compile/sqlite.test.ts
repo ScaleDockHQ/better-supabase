@@ -182,6 +182,21 @@ describe("compileSqlite", () => {
     ).toMatchObject({ kind: "unsupported", table: "customers" });
     expect(
       unsupportedOf(() =>
+        compileSqlite(
+          select({
+            where: {
+              kind: "column",
+              column: "metadata",
+              op: "eq",
+              value: "x",
+              path: ["a"],
+            },
+          }),
+        ),
+      ),
+    ).toMatchObject({ kind: "unsupported", details: "a json path filter" });
+    expect(
+      unsupportedOf(() =>
         compileSqlite(select({ where: col("name", "fts", "acme") })),
       ),
     ).toMatchObject({ kind: "unsupported", details: "full-text search" });

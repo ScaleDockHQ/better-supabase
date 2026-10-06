@@ -39,6 +39,12 @@ export type Condition =
        * also when they are arrays, never Postgres array literals.
        */
       readonly json?: true;
+      /**
+       * Keys into a json column: the condition compares the text at this path
+       * (`column->a->>b`, `column #>> '{a,b}'`), and `is null` holds when the
+       * key is missing or JSON `null`.
+       */
+      readonly path?: readonly string[];
     }
   | {
       readonly kind: "relation";

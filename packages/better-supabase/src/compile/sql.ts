@@ -76,7 +76,11 @@ function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
     const terms = index === 0 ? [item] : item.kind === "and" ? item.items : [];
     if (terms.length !== index + 1) return null;
     const step = terms[index]!;
-    if (step.kind !== "column" || (step.op !== "gt" && step.op !== "lt"))
+    if (
+      step.kind !== "column" ||
+      step.path ||
+      (step.op !== "gt" && step.op !== "lt")
+    )
       return null;
     for (const [at, term] of terms.slice(0, index).entries()) {
       const prev = steps[at]!;
@@ -170,7 +174,9 @@ class SqlCompiler {
     table: TableMeta,
     alias: string,
   ): string {
-    const column = this.column(alias, condition.column);
+    const column = condition.path
+      ? `(${this.column(alias, condition.column)} #>> ${this.param(condition.path, "text[]")})`
+      : this.column(alias, condition.column);
     const { value } = condition;
     switch (condition.op) {
       case "eq":

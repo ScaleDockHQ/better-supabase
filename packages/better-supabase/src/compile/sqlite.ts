@@ -265,6 +265,7 @@ class SqliteCompiler {
     alias: string,
   ): string {
     const name = condition.column;
+    if (condition.path) unsupported("a json path filter", table);
     const column = this.comparable(table, alias, name);
     const raw = this.column(alias, name);
     const { value } = condition;
